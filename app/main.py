@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import engine, Base
-from app.routers import client
+from app.routers import client, fixation
 
 # Create FastAPI app
 app = FastAPI(
@@ -26,6 +26,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(client.router)
+app.include_router(fixation.router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

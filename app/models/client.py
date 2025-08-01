@@ -1,11 +1,16 @@
 """
 Client entity model for SQLAlchemy ORM
 """
-from datetime import date
-from sqlalchemy import Column, BigInteger, String, Date, Boolean, Text, Index
+from datetime import date, datetime, timezone
+from sqlalchemy import Column, BigInteger, Integer, String, Date, DateTime, Boolean, Text, Index
 from sqlalchemy.sql import func
 
 from app.database import Base
+
+
+def utcnow():
+    """Return current UTC datetime for ORM defaults"""
+    return datetime.now(timezone.utc)
 
 
 class Client(Base):
@@ -13,7 +18,7 @@ class Client(Base):
     __tablename__ = "client"
     
     # Primary key
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     
     # ID number fields
     id_number_raw = Column(String(20), nullable=False)
@@ -49,8 +54,8 @@ class Client(Base):
     # Record management
     is_active = Column(Boolean, default=True, nullable=False)
     notes = Column(Text)
-    created_at = Column(Date, default=func.now(), nullable=False)
-    updated_at = Column(Date, default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
     
     # Indexes
     __table_args__ = (
