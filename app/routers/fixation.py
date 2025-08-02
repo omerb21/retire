@@ -6,49 +6,50 @@ import sys
 import pathlib
 from pathlib import Path
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import logging
+import time
+from typing import Dict, Any, Optional
 
+from app.schemas.fixation import FixationSingleResponse, FixationPackageResponse
 from app.database import get_db
 from app.models.client import Client
 
-# Add the rights fixation system to Python path
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]  # מצביע ל-RETIRE
-rights_dir = PROJECT_ROOT / "מערכת קיבוע זכויות"
-rights_app_dir = rights_dir / "app"
+# Set up logger
+logger = logging.getLogger(__name__)
 
-# Import rights fixation modules with specific path handling
-try:
-    if rights_app_dir.exists():
-        sys.path.insert(0, str(rights_app_dir))
-        import utils as fixation_utils
-        import pdf_filler as fixation_pdf
-        
-        get_client_package_dir = fixation_utils.get_client_package_dir
-        fill_161d_form = fixation_pdf.fill_161d_form
-        generate_grants_appendix = fixation_pdf.generate_grants_appendix
-        generate_commutations_appendix = fixation_pdf.generate_commutations_appendix
-        
-        RIGHTS_FIXATION_AVAILABLE = True
+
+def log_document_generation(endpoint: str, client_id: int, ok: bool, fallback: bool, duration_ms: int, extra: Optional[Dict[str, Any]] = None):
+    """
+    Log document generation with structured metrics for monitoring
+    
+    Args:
+        endpoint: Endpoint name (161d, grants, commutations, package)
+        client_id: Client ID
+        ok: Whether generation was successful
+        fallback: Whether JSON fallback was used
+        duration_ms: Duration in milliseconds
+        extra: Additional fields to log
+    """
+    log_data = {
+        "event": "fixation.generate",
+        "endpoint": endpoint,
+        "ok": ok,
+        "fallback": fallback,
+        "duration_ms": duration_ms,
+        "client_id": client_id
+    }
+    
+    if extra:
+        log_data.update(extra)
+    
+    if ok:
+        logger.info(f"Document generation: {log_data}")
     else:
-        raise ImportError("Rights fixation app directory not found")
-except ImportError as e:
-    print(f"Warning: Rights fixation modules not available: {e}")
-    RIGHTS_FIXATION_AVAILABLE = False
-    
-    # Create dummy functions for testing
-    def get_client_package_dir(client_id, first_name, last_name):
-        return Path(f"/tmp/test_package_{client_id}")
-    
-    def fill_161d_form(client_id, out_dir):
-        return str(out_dir / "161d.pdf")
-    
-    def generate_grants_appendix(client_id, out_dir):
-        return str(out_dir / "grants_appendix.pdf")
-    
-    def generate_commutations_appendix(client_id, out_dir):
-        return str(out_dir / "commutations_appendix.pdf")
+        logger.error(f"Document generation failed: {log_data}")
 
+# Set up router
 router = APIRouter(prefix="/api/v1/fixation", tags=["fixation"])
 
 
@@ -80,16 +81,14 @@ def validate_client_and_permissions(client_id: int, db: Session) -> Client:
             detail={"error": "לקוח לא פעיל במערכת"}
         )
     
-    # Check if 161d template exists
-    template_path = rights_dir / "app" / "static" / "templates" / "161d.pdf"
-    if not template_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "תבנית טופס 161ד לא נמצאה במערכת"}
-        )
+    # Check if 161d template exists (using new standardized path)
+    from app.integrations.fixation_forms import TEMPLATE_161D
+    if not TEMPLATE_161D.exists():
+        logger.debug(f"Template not found at: {TEMPLATE_161D}")
+        # Template not existing is OK - we'll use JSON fallback
     
     # Check packages directory exists and is writable
-    packages_dir = rights_dir / "packages"
+    packages_dir = Path("packages")
     try:
         packages_dir.mkdir(exist_ok=True)
         # Test write permission by creating a temporary file
@@ -105,8 +104,8 @@ def validate_client_and_permissions(client_id: int, db: Session) -> Client:
     return client
 
 
-@router.post("/{client_id}/161d")
-def generate_161d_form(client_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.post("/{client_id}/161d", response_model=FixationSingleResponse)
+def generate_161d_form(client_id: int, db: Session = Depends(get_db)) -> FixationSingleResponse:
     """
     Generate 161d form for a client
     
@@ -117,33 +116,63 @@ def generate_161d_form(client_id: int, db: Session = Depends(get_db)) -> Dict[st
     Returns:
         Dictionary with file path and metadata
     """
-    client = validate_client_and_permissions(client_id, db)
+    from app.integrations.fixation_forms import fill_161d_form, TEMPLATE_161D, get_client_output_dir
+    
+    start_time = time.time()
+    fallback_used = False
+    success = False
     
     try:
-        # Get client package directory
-        out_dir = get_client_package_dir(client_id, client.first_name, client.last_name)
+        client = validate_client_and_permissions(client_id, db)
         
-        # Generate 161d form
-        file_path = fill_161d_form(client_id, out_dir)
+        output_dir = get_client_output_dir(client_id, client.full_name)
+        out_path = fill_161d_form(db, client_id, TEMPLATE_161D, output_dir)
         
-        return {
+        # Check if JSON fallback was used
+        fallback_used = str(out_path).endswith('.json')
+        success = True
+        
+        response = {
             "success": True,
             "message": "טופס 161ד נוצר בהצלחה",
-            "file_path": str(file_path),
+            "file_path": str(out_path),
             "client_id": client_id,
-            "client_name": f"{client.first_name} {client.last_name}",
-            "generated_at": str(Path(file_path).stat().st_mtime)
+            "client_name": client.full_name if client else None,
         }
         
+        # Log metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="161d", 
+            client_id=client_id, 
+            ok=True, 
+            fallback=fallback_used, 
+            duration_ms=duration_ms,
+            extra={"file_path": str(out_path)}
+        )
+        
+        return response
+        
     except Exception as e:
+        # Log error metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="161d", 
+            client_id=client_id, 
+            ok=False, 
+            fallback=fallback_used, 
+            duration_ms=duration_ms,
+            extra={"error": str(e)}
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה ביצירת טופס 161ד: {str(e)}"}
         )
 
 
-@router.post("/{client_id}/grants-appendix")
-def generate_grants_appendix_endpoint(client_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.post("/{client_id}/grants-appendix", response_model=FixationSingleResponse)
+def generate_grants_appendix_endpoint(client_id: int, db: Session = Depends(get_db)) -> FixationSingleResponse:
     """
     Generate grants appendix for a client
     
@@ -154,33 +183,61 @@ def generate_grants_appendix_endpoint(client_id: int, db: Session = Depends(get_
     Returns:
         Dictionary with file path and metadata
     """
-    client = validate_client_and_permissions(client_id, db)
+    from app.integrations.fixation_forms import fill_grants_appendix, TEMPLATE_GRANTS, get_client_output_dir
+    
+    start_time = time.time()
+    fallback_used = False
     
     try:
-        # Get client package directory
-        out_dir = get_client_package_dir(client_id, client.first_name, client.last_name)
+        client = validate_client_and_permissions(client_id, db)
         
-        # Generate grants appendix
-        file_path = generate_grants_appendix(client_id, out_dir)
+        output_dir = get_client_output_dir(client_id, client.full_name)
+        out_path = fill_grants_appendix(db, client_id, TEMPLATE_GRANTS, output_dir)
         
-        return {
+        # Check if JSON fallback was used
+        fallback_used = str(out_path).endswith('.json')
+        
+        response = {
             "success": True,
             "message": "נספח מענקים נוצר בהצלחה",
-            "file_path": str(file_path),
+            "file_path": str(out_path),
             "client_id": client_id,
-            "client_name": f"{client.first_name} {client.last_name}",
-            "generated_at": str(Path(file_path).stat().st_mtime)
+            "client_name": client.full_name if client else None,
         }
         
+        # Log metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="grants", 
+            client_id=client_id, 
+            ok=True, 
+            fallback=fallback_used, 
+            duration_ms=duration_ms,
+            extra={"file_path": str(out_path)}
+        )
+        
+        return response
+        
     except Exception as e:
+        # Log error metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="grants", 
+            client_id=client_id, 
+            ok=False, 
+            fallback=fallback_used, 
+            duration_ms=duration_ms,
+            extra={"error": str(e)}
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה ביצירת נספח מענקים: {str(e)}"}
         )
 
 
-@router.post("/{client_id}/commutations-appendix")
-def generate_commutations_appendix_endpoint(client_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.post("/{client_id}/commutations-appendix", response_model=FixationSingleResponse)
+def generate_commutations_appendix_endpoint(client_id: int, db: Session = Depends(get_db)) -> FixationSingleResponse:
     """
     Generate commutations appendix for a client
     
@@ -191,33 +248,61 @@ def generate_commutations_appendix_endpoint(client_id: int, db: Session = Depend
     Returns:
         Dictionary with file path and metadata
     """
-    client = validate_client_and_permissions(client_id, db)
+    from app.integrations.fixation_forms import fill_commutations_appendix, TEMPLATE_COMMUT, get_client_output_dir
+    
+    start_time = time.time()
+    fallback_used = False
     
     try:
-        # Get client package directory
-        out_dir = get_client_package_dir(client_id, client.first_name, client.last_name)
+        client = validate_client_and_permissions(client_id, db)
         
-        # Generate commutations appendix
-        file_path = generate_commutations_appendix(client_id, out_dir)
+        output_dir = get_client_output_dir(client_id, client.full_name)
+        out_path = fill_commutations_appendix(db, client_id, TEMPLATE_COMMUT, output_dir)
         
-        return {
+        # Check if JSON fallback was used
+        fallback_used = str(out_path).endswith('.json')
+        
+        response = {
             "success": True,
             "message": "נספח היוונים נוצר בהצלחה",
-            "file_path": str(file_path),
+            "file_path": str(out_path),
             "client_id": client_id,
-            "client_name": f"{client.first_name} {client.last_name}",
-            "generated_at": str(Path(file_path).stat().st_mtime)
+            "client_name": client.full_name if client else None,
         }
         
+        # Log metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="commutations", 
+            client_id=client_id, 
+            ok=True, 
+            fallback=fallback_used, 
+            duration_ms=duration_ms,
+            extra={"file_path": str(out_path)}
+        )
+        
+        return response
+        
     except Exception as e:
+        # Log error metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="commutations", 
+            client_id=client_id, 
+            ok=False, 
+            fallback=fallback_used, 
+            duration_ms=duration_ms,
+            extra={"error": str(e)}
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה ביצירת נספח היוונים: {str(e)}"}
         )
 
 
-@router.post("/{client_id}/package")
-def generate_complete_package(client_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.post("/{client_id}/package", response_model=FixationPackageResponse)
+def generate_complete_package(client_id: int, db: Session = Depends(get_db)) -> FixationPackageResponse:
     """
     Generate complete rights fixation package for a client
     Runs all three document generations in sequence
@@ -229,40 +314,83 @@ def generate_complete_package(client_id: int, db: Session = Depends(get_db)) -> 
     Returns:
         Dictionary with all file paths and metadata
     """
-    client = validate_client_and_permissions(client_id, db)
+    from app.integrations.fixation_forms import (
+        fill_161d_form, fill_grants_appendix, fill_commutations_appendix,
+        TEMPLATE_161D, TEMPLATE_GRANTS, TEMPLATE_COMMUT, get_client_output_dir
+    )
+    
+    start_time = time.time()
+    fallback_count = 0
+    generated_files = 0
     
     try:
-        # Get client package directory
-        out_dir = get_client_package_dir(client_id, client.first_name, client.last_name)
+        client = validate_client_and_permissions(client_id, db)
+        output_dir = get_client_output_dir(client_id, client.full_name)
         
-        # Generate all documents in sequence
-        form_161d_path = fill_161d_form(client_id, out_dir)
-        grants_appendix_path = generate_grants_appendix(client_id, out_dir)
-        commutations_appendix_path = generate_commutations_appendix(client_id, out_dir)
+        files = []
         
-        return {
+        # Generate 161d form
+        form_161d_path = fill_161d_form(db, client_id, TEMPLATE_161D, output_dir)
+        files.append(str(form_161d_path))
+        generated_files += 1
+        if str(form_161d_path).endswith('.json'):
+            fallback_count += 1
+        
+        # Generate grants appendix
+        grants_path = fill_grants_appendix(db, client_id, TEMPLATE_GRANTS, output_dir)
+        files.append(str(grants_path))
+        generated_files += 1
+        if str(grants_path).endswith('.json'):
+            fallback_count += 1
+        
+        # Generate commutations appendix
+        commutations_path = fill_commutations_appendix(db, client_id, TEMPLATE_COMMUT, output_dir)
+        files.append(str(commutations_path))
+        generated_files += 1
+        if str(commutations_path).endswith('.json'):
+            fallback_count += 1
+        
+        response = {
             "success": True,
-            "message": "חבילת קיבוע זכויות הושלמה בהצלחה",
+            "message": "חבילת קיבוע נוצרה בהצלחה",
+            "files": files,
             "client_id": client_id,
-            "client_name": f"{client.first_name} {client.last_name}",
-            "package_directory": str(out_dir),
-            "files": {
-                "form_161d": {
-                    "path": str(form_161d_path),
-                    "generated_at": str(Path(form_161d_path).stat().st_mtime)
-                },
-                "grants_appendix": {
-                    "path": str(grants_appendix_path),
-                    "generated_at": str(Path(grants_appendix_path).stat().st_mtime)
-                },
-                "commutations_appendix": {
-                    "path": str(commutations_appendix_path),
-                    "generated_at": str(Path(commutations_appendix_path).stat().st_mtime)
-                }
-            }
+            "client_name": client.full_name if client else None,
         }
         
+        # Log metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="package", 
+            client_id=client_id, 
+            ok=True, 
+            fallback=(fallback_count > 0), 
+            duration_ms=duration_ms,
+            extra={
+                "fallback_count": fallback_count,
+                "generated_files": generated_files,
+                "file_count": len(files)
+            }
+        )
+        
+        return response
+        
     except Exception as e:
+        # Log error metrics
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_document_generation(
+            endpoint="package", 
+            client_id=client_id, 
+            ok=False, 
+            fallback=(fallback_count > 0), 
+            duration_ms=duration_ms,
+            extra={
+                "fallback_count": fallback_count,
+                "generated_files": generated_files,
+                "error": str(e)
+            }
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה ביצירת חבילת קיבוע זכויות: {str(e)}"}

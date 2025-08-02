@@ -211,14 +211,50 @@ class TestFixationAPI(unittest.TestCase):
             self.assertIn("message", data)
             self.assertIn("client_id", data)
             self.assertIn("client_name", data)
-            self.assertIn("package_directory", data)
             self.assertIn("files", data)
             
-            # Files should contain all three documents
+            # Files should be a list of file paths
             files = data["files"]
-            self.assertIn("form_161d", files)
-            self.assertIn("grants_appendix", files)
-            self.assertIn("commutations_appendix", files)
+            self.assertIsInstance(files, list)
+            self.assertEqual(len(files), 3)  # Should have 3 files: 161d, grants, commutations
+        else:
+            self.assertIn("detail", data)
+
+    def test_grants_appendix_endpoint_response_structure(self):
+        """Test that grants appendix endpoint returns proper structure"""
+        response = self.client.post(f"/api/v1/fixation/{self.test_client_id}/grants-appendix")
+        
+        self.assertEqual(response.headers.get("content-type"), "application/json")
+        data = response.json()
+        
+        if response.status_code == 200:
+            # Success response structure
+            self.assertIn("success", data)
+            self.assertIn("message", data)
+            self.assertIn("file_path", data)
+            self.assertIn("client_id", data)
+            self.assertIn("client_name", data)
+            self.assertTrue(data["success"])
+            self.assertEqual(data["client_id"], self.test_client_id)
+        else:
+            self.assertIn("detail", data)
+
+    def test_commutations_appendix_endpoint_response_structure(self):
+        """Test that commutations appendix endpoint returns proper structure"""
+        response = self.client.post(f"/api/v1/fixation/{self.test_client_id}/commutations-appendix")
+        
+        self.assertEqual(response.headers.get("content-type"), "application/json")
+        data = response.json()
+        
+        if response.status_code == 200:
+            # Success response structure
+            self.assertIn("success", data)
+            self.assertIn("message", data)
+            self.assertIn("file_path", data)
+            self.assertIn("client_id", data)
+            self.assertIn("client_name", data)
+            self.assertTrue(data["success"])
+            self.assertEqual(data["client_id"], self.test_client_id)
         else:
             self.assertIn("detail", data)
 

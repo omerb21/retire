@@ -4,10 +4,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+import uuid
 
 from app.main import app
 from app.database import get_db, Base
-from app.models.client import Client
+from app.models import Client, Employer, Employment, TerminationEvent
 
 
 # Create in-memory SQLite database for testing
@@ -22,6 +23,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 # Override the get_db dependency to use the test database
 def override_get_db():
+    # Use the current TestingSessionLocal (may be updated in setUp)
     db = TestingSessionLocal()
     try:
         yield db
@@ -30,7 +32,23 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
+def setup_module(_module):
+    """Set up test database before running tests"""
+    # Import all models to ensure they're registered with Base
+    from app.models import Client, Employer, Employment, TerminationEvent
+    
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+    
+    # Override dependency
+    app.dependency_overrides[get_db] = override_get_db
+
+
+def teardown_module(_module):
+    """Clean up test database after running tests"""
+    Base.metadata.drop_all(bind=engine)
+    # Clear dependency overrides
+    app.dependency_overrides.clear()
 
 
 class TestClientAPI(unittest.TestCase):
@@ -38,18 +56,43 @@ class TestClientAPI(unittest.TestCase):
 
     def setUp(self):
         """Set up test database and client before each test"""
-        # Drop and recreate tables to ensure clean state
-        Base.metadata.drop_all(bind=engine)
+        # Override dependency to use test database
+        app.dependency_overrides[get_db] = override_get_db
+        
+        # Ensure all tables exist
         Base.metadata.create_all(bind=engine)
         
-        # Clear any existing sessions
-        engine.dispose()
+        # Clean all data from tables but keep structure
+        db = TestingSessionLocal()
+        try:
+            # Delete in correct order to avoid foreign key constraints
+            db.query(TerminationEvent).delete()
+            db.query(Employment).delete()
+            db.query(Employer).delete()
+            db.query(Client).delete()
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"Warning: Failed to clean database: {e}")
+        finally:
+            db.close()
         
         self.client = TestClient(app)
         
+        # Use a valid Israeli ID number that passes validation
+        # Generate unique ID and email to avoid conflicts between tests
+        import random
+        import time
+        # Generate unique ID based on timestamp to ensure no conflicts
+        timestamp = int(time.time() * 1000) % 100000  # Last 5 digits of timestamp
+        # Use different valid ID numbers for different test runs
+        valid_ids = ["111111118", "222222226", "333333334", "444444442"]
+        self.unique_id = valid_ids[timestamp % len(valid_ids)]
+        unique_email = f"test{random.randint(1000, 9999)}@example.com"
+        
         # Sample valid client data
         self.valid_client_data = {
-            "id_number_raw": "123456782",
+            "id_number_raw": self.unique_id,
             "full_name": "ישראל ישראלי",
             "first_name": "ישראל",
             "last_name": "ישראלי",
@@ -59,7 +102,7 @@ class TestClientAPI(unittest.TestCase):
             "self_employed": False,
             "current_employer_exists": True,
             "planned_termination_date": (date.today() + timedelta(days=365)).isoformat(),  # 1 year from now
-            "email": "user@example.com",
+            "email": unique_email,
             "phone": "050-1234567",
             "address_street": "רחוב הרצל 1",
             "address_city": "תל אביב",
@@ -73,6 +116,8 @@ class TestClientAPI(unittest.TestCase):
         """Clean up after each test"""
         # Drop all tables in the test database
         Base.metadata.drop_all(bind=engine)
+        # Dispose of all connections
+        engine.dispose()
 
     def test_create_client(self):
         """Test POST /api/v1/clients endpoint"""
@@ -81,7 +126,7 @@ class TestClientAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         data = response.json()
         self.assertIn("id", data)
-        self.assertEqual(data["id_number"], "123456782")
+        self.assertEqual(data["id_number"], self.unique_id)
         self.assertEqual(data["full_name"], "ישראל ישראלי")
         
         # Test creating a client with invalid ID number
@@ -115,7 +160,7 @@ class TestClientAPI(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["id"], client_id)
-        self.assertEqual(data["id_number"], "123456782")
+        self.assertEqual(data["id_number"], self.unique_id)
         self.assertEqual(data["full_name"], "ישראל ישראלי")
         
         # Test getting a non-existent client
@@ -178,20 +223,21 @@ class TestClientAPI(unittest.TestCase):
 
     def test_list_clients(self):
         """Test GET /api/v1/clients endpoint with filtering, pagination, and sorting"""
-        # Create multiple clients
+        # Create multiple clients with unique IDs
         client1 = self.valid_client_data.copy()
+        client1["id_number_raw"] = "111111118"  # First valid ID
         client1["full_name"] = "אברהם לוי"
         client1["gender"] = "male"
         client1["is_active"] = True
         
         client2 = self.valid_client_data.copy()
-        client2["id_number_raw"] = "305567663"  # Different valid ID
+        client2["id_number_raw"] = "222222226"  # Second valid ID
         client2["full_name"] = "שרה כהן"
         client2["gender"] = "female"
         client2["is_active"] = True
         
         client3 = self.valid_client_data.copy()
-        client3["id_number_raw"] = "557845682"  # Different valid ID
+        client3["id_number_raw"] = "333333334"  # Third valid ID
         client3["full_name"] = "יעקב ישראלי"
         client3["gender"] = "male"
         client3["is_active"] = False

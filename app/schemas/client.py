@@ -1,7 +1,7 @@
 """
 Client entity schemas for API request/response validation
 """
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
 from app.services.client_service import validate_id_number, normalize_id_number
@@ -76,8 +76,8 @@ class ClientResponse(ClientBase):
     """Schema for client response"""
     id: int
     id_number: str
-    created_at: date
-    updated_at: date
+    created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True
