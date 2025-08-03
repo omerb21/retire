@@ -81,26 +81,6 @@ def validate_client_and_permissions(client_id: int, db: Session) -> Client:
             detail={"error": "לקוח לא פעיל במערכת"}
         )
     
-    # Check if 161d template exists (using new standardized path)
-    from app.integrations.fixation_forms import TEMPLATE_161D
-    if not TEMPLATE_161D.exists():
-        logger.debug(f"Template not found at: {TEMPLATE_161D}")
-        # Template not existing is OK - we'll use JSON fallback
-    
-    # Check packages directory exists and is writable
-    packages_dir = Path("packages")
-    try:
-        packages_dir.mkdir(exist_ok=True)
-        # Test write permission by creating a temporary file
-        test_file = packages_dir / "test_write_permission.tmp"
-        test_file.touch()
-        test_file.unlink()
-    except (OSError, PermissionError):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "אין הרשאות כתיבה לתיקיית החבילות"}
-        )
-    
     return client
 
 
@@ -122,15 +102,48 @@ def generate_161d_form(client_id: int, db: Session = Depends(get_db)) -> Fixatio
     fallback_used = False
     success = False
     
+    # Check if client exists and is active - this will raise appropriate HTTP exceptions
+    # with correct status codes (404 for not found, 400 for inactive)
+    client = validate_client_and_permissions(client_id, db)
+    
     try:
-        client = validate_client_and_permissions(client_id, db)
+        # Check templates and directories after validation
+        templates_root = Path("templates") / "fixation"
+        output_root = Path("packages")
+        output_root.mkdir(parents=True, exist_ok=True)
         
+        # Check if 161d template exists
+        if not TEMPLATE_161D.exists():
+            logger.debug(f"Template not found at: {TEMPLATE_161D}")
+            # Template not existing is OK - we'll use JSON fallback
+        
+        # Create output directory
         output_dir = get_client_output_dir(client_id, client.full_name)
-        out_path = fill_161d_form(db, client_id, TEMPLATE_161D, output_dir)
         
-        # Check if JSON fallback was used
-        fallback_used = str(out_path).endswith('.json')
-        success = True
+        # Wrap adapter call in try/except
+        try:
+            out_path = fill_161d_form(db, client_id, TEMPLATE_161D, output_dir)
+            # Check if JSON fallback was used
+            fallback_used = str(out_path).endswith('.json')
+            success = True
+        except Exception as e:
+            logger.exception("fixation_adapter_error")
+            # If JSON fallback is allowed, use it
+            from app.config import allow_json_fallback
+            if allow_json_fallback():
+                # Create JSON fallback
+                import json
+                fallback_path = output_dir / "161d_fallback.json"
+                with open(fallback_path, "w") as f:
+                    json.dump({"client_id": client_id, "error": str(e)}, f)
+                out_path = fallback_path
+                fallback_used = True
+                success = True
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={"error": "שירות יצירת המסמכים אינו זמין כרגע"}
+                )
         
         response = {
             "success": True,
@@ -395,3 +408,50 @@ def generate_complete_package(client_id: int, db: Session = Depends(get_db)) -> 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה ביצירת חבילת קיבוע זכויות: {str(e)}"}
         )
+
+
+def generate_fixation_package_for_client(db: Session, client_id: int) -> dict:
+    """
+    Generate complete fixation package for internal use (e.g., background tasks)
+    
+    Args:
+        db: Database session
+        client_id: Client ID
+        
+    Returns:
+        Dictionary with package metadata
+    """
+    from app.integrations.fixation_forms import (
+        fill_161d_form, fill_grants_appendix, fill_commutations_appendix,
+        TEMPLATE_161D, TEMPLATE_GRANTS, TEMPLATE_COMMUT, get_client_output_dir
+    )
+    
+    try:
+        # Validate client exists and is active
+        client = validate_client_and_permissions(client_id, db)
+        output_dir = get_client_output_dir(client_id, client.full_name)
+        
+        files = []
+        
+        # Generate all documents
+        files.append(str(fill_161d_form(db, client_id, TEMPLATE_161D, output_dir)))
+        files.append(str(fill_grants_appendix(db, client_id, TEMPLATE_GRANTS, output_dir)))
+        files.append(str(fill_commutations_appendix(db, client_id, TEMPLATE_COMMUT, output_dir)))
+        
+        return {
+            "success": True,
+            "message": "חבילת קיבוע נוצרה בהצלחה",
+            "files": files,
+            "client_id": client_id,
+            "client_name": client.full_name if client else None,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating fixation package for client {client_id}: {e}")
+        return {
+            "success": False,
+            "message": f"שגיאה ביצירת חבילת קיבוע זכויות: {str(e)}",
+            "files": [],
+            "client_id": client_id,
+            "client_name": None,
+        }

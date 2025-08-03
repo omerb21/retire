@@ -1,0 +1,10 @@
+{
+  "full_name": "ישראל ישראלי",
+  "id_number": "123456782",
+  "birth_date": "1980-01-01",
+  "address_city": "תל אביב",
+  "address_street": "רחוב הברוש 5",
+  "address_postal_code": "6100000",
+  "email": "test_tests.test_employment_api.testemploymentapi.test_confirm_termination_200_triggers_fixation_background@example.com",
+  "phone": "0501234567"
+}

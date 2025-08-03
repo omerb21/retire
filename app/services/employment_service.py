@@ -8,6 +8,26 @@ from sqlalchemy import select, update
 
 from app.models import Client, Employer, Employment, TerminationEvent, TerminationReason
 
+
+def coerce_termination_reason(value: str) -> TerminationReason:
+    """
+    מקבל מחרוזת (retired/terminated/other וכו') ומחזיר TerminationReason תקין.
+    תומך גם בשמות Enum וגם בערכי value.
+    זורק ValueError אם לא חוקי.
+    """
+    if isinstance(value, TerminationReason):
+        return value
+    key = (value or "").strip().lower()
+    # נסה לפי value
+    for member in TerminationReason:
+        if member.value == key:
+            return member
+    # נסה לפי שם enum
+    try:
+        return TerminationReason[key]
+    except Exception:
+        raise ValueError(f"invalid_termination_reason: {value}")
+
 class EmploymentService:
     @staticmethod
     def set_current_employer(db: Session, client_id: int,
@@ -65,14 +85,18 @@ class EmploymentService:
         if not emp:
             raise ValueError("אין מעסיק נוכחי ללקוח")
 
+        # Convert reason to enum using helper function
+        reason_enum = coerce_termination_reason(reason)   # ← חשוב
+        
         ev = TerminationEvent(
             client_id=client_id,
             employment_id=emp.id,
             planned_termination_date=planned_date,
-            reason=reason
+            reason=reason_enum                  # ← לוודא שזה נשמר
         )
         db.add(ev)
-        db.flush()
+        db.commit()
+        db.refresh(ev)
         return ev
 
     @staticmethod
@@ -94,14 +118,37 @@ class EmploymentService:
 
         emp.is_current = False
         emp.end_date = actual_date
+        
+        # Get existing termination event to preserve reason and planned_termination_date if not provided
+        existing_event = db.execute(
+            select(TerminationEvent).where(
+                TerminationEvent.client_id == client_id,
+                TerminationEvent.employment_id == emp.id
+            )
+        ).scalar_one_or_none()
+        
+        # Use existing reason if not provided
+        if reason is None and existing_event and existing_event.reason:
+            reason = existing_event.reason
+            
+        # Get planned_termination_date from existing event
+        planned_termination_date = None
+        if existing_event and existing_event.planned_termination_date:
+            planned_termination_date = existing_event.planned_termination_date
+        
+        # Ensure reason is always an Enum
+        if reason is not None and not isinstance(reason, TerminationReason):
+            reason = coerce_termination_reason(reason)
 
         ev = TerminationEvent(
             client_id=client_id,
             employment_id=emp.id,
+            planned_termination_date=planned_termination_date,  # Preserve planned date from existing event
             actual_termination_date=actual_date,
-            reason=reason,
+            reason=reason,  # Now guaranteed to be Enum or None
             severance_basis_nominal=severance_basis_nominal
         )
         db.add(ev)
-        db.flush()
+        db.commit()  # Commit to ensure changes are persisted
+        db.refresh(ev)  # Refresh to get latest data
         return ev

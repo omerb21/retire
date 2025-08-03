@@ -9,6 +9,10 @@ from sqlalchemy.orm import sessionmaker
 # Get database URL from environment variable or use default SQLite for development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./retire.db")
 
+def get_db_url():
+    """Get the database URL for external connections"""
+    return DATABASE_URL
+
 # Create SQLAlchemy engine
 engine = create_engine(
     DATABASE_URL,
