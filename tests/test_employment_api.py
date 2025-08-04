@@ -46,13 +46,17 @@ class TestEmploymentAPI(unittest.TestCase):
         # Create test client
         self.client = TestClient(app)
         
-        # Create test client in database
-        raw_id = "123456782"
+        # Create test client in database with unique ID
+        from tests.utils import gen_valid_id
+        import random
+        
+        # Generate unique valid Israeli ID for this test
+        raw_id = gen_valid_id()
         self.test_client_data = {
             "id_number_raw": raw_id,
             "full_name": "ישראל ישראלי",
             "birth_date": "1980-01-01",
-            "email": f"test_{self.id()}@example.com",  # Unique email per test
+            "email": f"test_{self.id()}_{random.randint(1000, 9999)}@example.com",  # Unique email per test
             "phone": "0501234567",
             "address_city": "תל אביב",
             "address_street": "רחוב הברוש 5",

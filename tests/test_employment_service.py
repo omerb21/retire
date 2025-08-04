@@ -27,9 +27,10 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 def make_client(id_number_raw=None, full_name="ישראל ישראלי", is_active=True):
     """Factory function to create a test client with all required fields"""
     import random
+    from tests.utils import gen_valid_id
     if id_number_raw is None:
-        # Generate unique ID number for each test
-        id_number_raw = f"{random.randint(100000000, 999999999)}"
+        # Generate unique valid Israeli ID for each test
+        id_number_raw = gen_valid_id()
     
     return Client(
         id_number_raw=id_number_raw,

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import engine, Base
-from app.routers import client, fixation, files, employment
+from app.routers import client, fixation, files, employment, calc
 
 # Create FastAPI app
 app = FastAPI(
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(client.router)
 app.include_router(fixation.router)
 app.include_router(files.router)
+app.include_router(calc.router, prefix="/api/v1", tags=["calc"])
 app.include_router(employment.router)
 
 # Mount static files

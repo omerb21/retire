@@ -82,12 +82,11 @@ class TestClientAPI(unittest.TestCase):
         # Use a valid Israeli ID number that passes validation
         # Generate unique ID and email to avoid conflicts between tests
         import random
-        import time
-        # Generate unique ID based on timestamp to ensure no conflicts
-        timestamp = int(time.time() * 1000) % 100000  # Last 5 digits of timestamp
-        # Use different valid ID numbers for different test runs
-        valid_ids = ["111111118", "222222226", "333333334", "444444442"]
-        self.unique_id = valid_ids[timestamp % len(valid_ids)]
+        from tests.utils import gen_valid_id
+        
+        # Generate unique valid Israeli ID for this test
+        import random
+        self.unique_id = gen_valid_id()
         unique_email = f"test{random.randint(1000, 9999)}@example.com"
         
         # Sample valid client data
@@ -224,20 +223,26 @@ class TestClientAPI(unittest.TestCase):
     def test_list_clients(self):
         """Test GET /api/v1/clients endpoint with filtering, pagination, and sorting"""
         # Create multiple clients with unique IDs
+        import random
+        from tests.utils import gen_valid_id
+        
         client1 = self.valid_client_data.copy()
-        client1["id_number_raw"] = "111111118"  # First valid ID
+        client1["id_number_raw"] = gen_valid_id()  # Generate unique valid ID
+        client1["email"] = f"test{random.randint(1000, 9999)}@example.com"  # Unique email
         client1["full_name"] = "אברהם לוי"
         client1["gender"] = "male"
         client1["is_active"] = True
         
         client2 = self.valid_client_data.copy()
-        client2["id_number_raw"] = "222222226"  # Second valid ID
+        client2["id_number_raw"] = gen_valid_id()  # Generate unique valid ID
+        client2["email"] = f"test{random.randint(1000, 9999)}@example.com"  # Unique email
         client2["full_name"] = "שרה כהן"
         client2["gender"] = "female"
         client2["is_active"] = True
         
         client3 = self.valid_client_data.copy()
-        client3["id_number_raw"] = "333333334"  # Third valid ID
+        client3["id_number_raw"] = gen_valid_id()  # Generate unique valid ID
+        client3["email"] = f"test{random.randint(1000, 9999)}@example.com"  # Unique email
         client3["full_name"] = "יעקב ישראלי"
         client3["gender"] = "male"
         client3["is_active"] = False

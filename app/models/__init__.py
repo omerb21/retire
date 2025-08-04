@@ -9,5 +9,6 @@ from .termination_event import TerminationEvent, TerminationReason
 from .grant import Grant
 from .pension import Pension
 from .commutation import Commutation
+from .scenario import Scenario
 
-__all__ = ["Base", "Client", "Employer", "Employment", "TerminationEvent", "TerminationReason", "Grant", "Pension", "Commutation"]
+__all__ = ["Base", "Client", "Employer", "Employment", "TerminationEvent", "TerminationReason", "Grant", "Pension", "Commutation", "Scenario"]

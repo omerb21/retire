@@ -18,10 +18,16 @@ import app.models.client
 def make_client(**overrides):
     """Factory function to create test clients with all required fields"""
     from datetime import date, datetime, timezone
+    from tests.utils import gen_valid_id
+    import random
+    
+    # Generate unique valid Israeli ID for this client
+    unique_id = gen_valid_id()
+    unique_email = f"test_{random.randint(1000, 9999)}@example.com"
     
     base = dict(
-        id_number_raw="123456782",
-        id_number="123456782",  # אל תסמוך על טריגר שיחשב את זה
+        id_number_raw=unique_id,
+        id_number=unique_id,  # אל תסמוך על טריגר שיחשב את זה
         full_name="ישראל ישראלי",
         first_name="ישראל",
         last_name="ישראלי",
@@ -31,7 +37,7 @@ def make_client(**overrides):
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
         phone="050-1234567",
-        email="test@example.com",
+        email=unique_email,
     )
     base.update(overrides)
     return Client(**base)
@@ -151,9 +157,8 @@ class TestFixationAPI(unittest.TestCase):
         # Create inactive client
         db = TestingSessionLocal()
         try:
+            # Use make_client to generate unique ID and email
             inactive_client = make_client(
-                id_number_raw="987654321",
-                id_number="987654321",
                 full_name="לקוח לא פעיל",
                 first_name="לקוח",
                 last_name="לא פעיל",
