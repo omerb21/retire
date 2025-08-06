@@ -45,3 +45,11 @@ ENV/
 # Local development
 .DS_Store
 Thumbs.db
+
+# --- allow frontend app (override broader ignore patterns) ---
+!frontend/
+!frontend/**
+!frontend/src/
+!frontend/src/**
+!frontend/src/lib/
+!frontend/src/lib/**

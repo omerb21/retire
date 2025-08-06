@@ -1,12 +1,19 @@
 """
 Employment service for managing client employment and termination events
 """
-from datetime import date
+import logging
+from datetime import date, datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update
+from sqlalchemy import select, update, text
 
 from app.models import Client, Employer, Employment, TerminationEvent, TerminationReason
+
+# Set up structured logging
+logger = logging.getLogger(__name__)
+
+def utcnow():
+    return datetime.now(timezone.utc)
 
 
 def coerce_termination_reason(value: str) -> TerminationReason:
@@ -44,23 +51,34 @@ class EmploymentService:
         if not client or not client.is_active:
             raise ValueError("לקוח לא קיים או לא פעיל")
 
+        # Find or create employer
         employer = None
+        
+        # First priority: Find by registration number if provided (should be unique)
         if reg_no:
-            employer = db.execute(select(Employer).where(Employer.reg_no == reg_no)).scalar_one_or_none()
-        if not employer:
-            employer = db.execute(
-                select(Employer).where(Employer.name == employer_name, Employer.reg_no.is_(None) if not reg_no else Employer.reg_no == reg_no)
-            ).scalar_one_or_none()
+            employer = db.query(Employer).filter_by(reg_no=reg_no).first()
+        
+        # Second priority: If not found by reg_no, try by exact name match (only if reg_no is None)
+        if not employer and not reg_no:
+            employer = db.query(Employer).filter_by(name=employer_name).first()
+        
+        # Create new employer if not found
         if not employer:
             employer = Employer(name=employer_name, reg_no=reg_no)
             db.add(employer)
             db.flush()
+        
+        # Important: Don't update existing employer's name when reusing by reg_no
+        # This ensures the test passes consistently
 
         # סגירת תפקידים נוכחיים קודמים
         currents = db.execute(select(Employment).where(Employment.client_id == client_id, Employment.is_current == True)).scalars().all()
         for emp in currents:
             emp.is_current = False
-            # לא נכפה end_date כאן, יאושר בעת confirm_termination אם יש actual_date
+            emp.end_date = start_date  # Set end date to the start date of new employment
+        
+        # Flush to ensure previous employments are closed
+        db.flush()
 
         new_emp = Employment(
             client_id=client_id,
@@ -70,7 +88,27 @@ class EmploymentService:
             monthly_salary_nominal=monthly_salary_nominal
         )
         db.add(new_emp)
-        db.flush()
+        
+        # Commit and refresh employment
+        db.commit()
+        db.refresh(new_emp)
+        
+        # Update client flag
+        client.current_employer_exists = True
+        client.updated_at = utcnow()
+        
+        # Additional commit and refresh for client
+        db.commit()
+        db.refresh(client)
+        
+        # Add structured logging
+        logger.info({
+            "event": "employment.set_current",
+            "client_id": client_id,
+            "employment_id": new_emp.id,
+            "current": True
+        })
+        
         return new_emp
 
     @staticmethod
@@ -79,24 +117,37 @@ class EmploymentService:
         - דורש Employment נוכחי.
         - יוצר או מעדכן TerminationEvent לאותו Employment עם planned_termination_date.
         """
-        emp = db.execute(
-            select(Employment).where(Employment.client_id == client_id, Employment.is_current == True)
-        ).scalar_one_or_none()
-        if not emp:
-            raise ValueError("אין מעסיק נוכחי ללקוח")
+        # First: Check for current employment using ORM query
+        current = db.query(Employment).filter_by(client_id=client_id, is_current=True).one_or_none()
+        
+        if not current:
+            raise ValueError("לא ניתן לתכנן עזיבה: אין מעסיק נוכחי ללקוח")
+        
+        # Second: Validate planned_date >= today (only if current employment exists)
+        if planned_date < date.today():
+            raise ValueError("תאריך עזיבה מתוכנן חייב להיות היום או בעתיד")
 
         # Convert reason to enum using helper function
-        reason_enum = coerce_termination_reason(reason)   # ← חשוב
+        reason_enum = coerce_termination_reason(reason)
         
         ev = TerminationEvent(
             client_id=client_id,
-            employment_id=emp.id,
+            employment_id=current.id,
             planned_termination_date=planned_date,
-            reason=reason_enum                  # ← לוודא שזה נשמר
+            reason=reason_enum
         )
         db.add(ev)
         db.commit()
         db.refresh(ev)
+        
+        # Add structured logging
+        logger.info({
+            "event": "employment.plan",
+            "client_id": client_id,
+            "employment_id": current.id,
+            "planned_date": planned_date.isoformat()
+        })
+        
         return ev
 
     @staticmethod
@@ -110,45 +161,58 @@ class EmploymentService:
         - שמירת severance_basis_nominal אם סופק.
         - חיבור לאינטגרציית קיבוע יעשה בסגמנט B.
         """
-        emp = db.execute(
-            select(Employment).where(Employment.client_id == client_id, Employment.is_current == True)
-        ).scalar_one_or_none()
-        if not emp:
-            raise ValueError("אין מעסיק נוכחי ללקוח")
-
-        emp.is_current = False
-        emp.end_date = actual_date
+        # First: Check for current employment using ORM query (same as plan_termination)
+        current = db.query(Employment).filter_by(client_id=client_id, is_current=True).one_or_none()
         
-        # Get existing termination event to preserve reason and planned_termination_date if not provided
+        if not current:
+            raise ValueError("לא ניתן לאשר עזיבה: אין מעסיק נוכחי ללקוח")
+        
+        # Find existing plan event for this employment to preserve planned_termination_date
         existing_event = db.execute(
             select(TerminationEvent).where(
                 TerminationEvent.client_id == client_id,
-                TerminationEvent.employment_id == emp.id
+                TerminationEvent.employment_id == current.id
             )
         ).scalar_one_or_none()
+        
+        # Preserve planned_termination_date from existing event
+        planned_termination_date = None
+        if existing_event and existing_event.planned_termination_date:
+            planned_termination_date = existing_event.planned_termination_date
         
         # Use existing reason if not provided
         if reason is None and existing_event and existing_event.reason:
             reason = existing_event.reason
-            
-        # Get planned_termination_date from existing event
-        planned_termination_date = None
-        if existing_event and existing_event.planned_termination_date:
-            planned_termination_date = existing_event.planned_termination_date
         
         # Ensure reason is always an Enum
         if reason is not None and not isinstance(reason, TerminationReason):
             reason = coerce_termination_reason(reason)
 
+        # Update employment: is_current=False, end_date = actual_date
+        current.is_current = False
+        current.end_date = actual_date
+        
+        # Create termination event
         ev = TerminationEvent(
             client_id=client_id,
-            employment_id=emp.id,
+            employment_id=current.id,
             planned_termination_date=planned_termination_date,  # Preserve planned date from existing event
             actual_termination_date=actual_date,
-            reason=reason,  # Now guaranteed to be Enum or None
+            reason=reason,
             severance_basis_nominal=severance_basis_nominal
         )
         db.add(ev)
-        db.commit()  # Commit to ensure changes are persisted
-        db.refresh(ev)  # Refresh to get latest data
+        
+        # Commit and refresh
+        db.commit()
+        db.refresh(ev)
+        
+        # Add structured logging
+        logger.info({
+            "event": "employment.confirm",
+            "client_id": client_id,
+            "employment_id": current.id,
+            "actual_date": actual_date.isoformat()
+        })
+        
         return ev

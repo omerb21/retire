@@ -2,6 +2,7 @@
 Router for employment and termination endpoints
 """
 import logging
+import time
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,7 +16,7 @@ from app.schemas.employment import (
 from app.services.employment_service import EmploymentService, coerce_termination_reason
 
 # Set up logger
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.employment")
 
 # Set up router
 router = APIRouter(prefix="/api/v1/clients", tags=["employment"])
@@ -71,6 +72,7 @@ def set_current_employer(
     # Validate client exists and is active
     client = validate_client_exists_and_active(client_id, db)
     
+    start = time.perf_counter()
     try:
         # Call employment service
         employment = EmploymentService.set_current_employer(
@@ -81,17 +83,44 @@ def set_current_employer(
             start_date=employment_data.start_date
         )
         
-        logger.info(f"Set current employer for client {client_id}: {employment_data.employer_name}")
+        logger.info({
+            "event": "employment.set_current",
+            "client_id": client_id,
+            "ok": True,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "employment_id": employment.id
+        })
         return employment
         
     except ValueError as e:
         # Handle business logic errors from service
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"error": f"לא ניתן לעדכן מעסיק נוכחי: {str(e)}"}
-        )
+        logger.info({
+            "event": "employment.set_current",
+            "client_id": client_id,
+            "ok": False,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "error": str(e)
+        })
+        
+        # Map specific errors to appropriate status codes
+        if "אין מעסיק נוכחי" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": str(e)}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": str(e)}
+            )
     except Exception as e:
-        logger.error(f"Error setting current employer for client {client_id}: {e}")
+        logger.info({
+            "event": "employment.set_current",
+            "client_id": client_id,
+            "ok": False,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "error": str(e)
+        })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה ביצירת תעסוקה נוכחית: {str(e)}"}
@@ -118,24 +147,12 @@ def plan_termination(
     # Validate client exists and is active
     client = validate_client_exists_and_active(client_id, db)
     
-    # Validate planned termination date is not in the past
-    if termination_data.planned_termination_date < date.today():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"error": "תאריך עזיבה מתוכנן חייב להיות היום או בעתיד"}
-        )
-    
-    # Parse termination reason first using helper
+    start = time.perf_counter()
     try:
+        # Parse termination reason first using helper
         reason_enum = coerce_termination_reason(termination_data.termination_reason)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"error": "סיבת עזיבה אינה תקינה"}
-        )
-    
-    try:
-        # Call employment service
+        
+        # Call employment service (service handles date validation)
         termination_event = EmploymentService.plan_termination(
             db=db,
             client_id=client_id,
@@ -143,17 +160,49 @@ def plan_termination(
             reason=reason_enum
         )
         
-        logger.info(f"Planned termination for client {client_id} on {termination_data.planned_termination_date}")
+        logger.info({
+            "event": "employment.plan",
+            "client_id": client_id,
+            "ok": True,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "employment_id": termination_event.employment_id
+        })
         return termination_event
         
     except ValueError as e:
-        # Handle business logic errors from service (e.g., no current employment)
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"error": f"לא ניתן לתכנן עזיבה: {str(e)}"}
-        )
+        # Handle business logic errors from service
+        logger.info({
+            "event": "employment.plan",
+            "client_id": client_id,
+            "ok": False,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "error": str(e)
+        })
+        
+        # Map specific errors to appropriate status codes
+        if "לא ניתן לתכנן עזיבה" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": str(e)}
+            )
+        elif "invalid_termination_reason" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "סיבת עזיבה אינה תקינה"}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": str(e)}
+            )
     except Exception as e:
-        logger.error(f"Error planning termination for client {client_id}: {e}")
+        logger.info({
+            "event": "employment.plan",
+            "client_id": client_id,
+            "ok": False,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "error": str(e)
+        })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה בתכנון עזיבה: {str(e)}"}
@@ -202,7 +251,10 @@ def generate_fixation_package_for_client_background(db: Session, client_id: int)
     
     # Run in background thread without awaiting
     try:
-        to_thread.run_sync(_generate_fixation_package_in_bg, db_url, client_id)
+        import threading
+        thread = threading.Thread(target=_generate_fixation_package_in_bg, args=(db_url, client_id))
+        thread.daemon = True
+        thread.start()
     except Exception:
         logger.exception("fixation_bg_trigger_error")  # לא מפיל את ה-API
 
@@ -227,6 +279,7 @@ def confirm_termination(
     # Validate client exists and is active
     client = validate_client_exists_and_active(client_id, db)
     
+    start = time.perf_counter()
     try:
         # Call employment service
         termination_event = EmploymentService.confirm_termination(
@@ -235,7 +288,13 @@ def confirm_termination(
             actual_date=termination_data.actual_termination_date
         )
         
-        logger.info(f"Confirmed termination for client {client_id} on {termination_data.actual_termination_date}")
+        logger.info({
+            "event": "employment.confirm",
+            "client_id": client_id,
+            "ok": True,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "employment_id": termination_event.employment_id
+        })
         
         # Trigger background fixation package generation (non-blocking)
         try:
@@ -248,12 +307,33 @@ def confirm_termination(
         
     except ValueError as e:
         # Handle business logic errors from service
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"error": f"לא ניתן לאשר עזיבה: {str(e)}"}
-        )
+        logger.info({
+            "event": "employment.confirm",
+            "client_id": client_id,
+            "ok": False,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "error": str(e)
+        })
+        
+        # Map specific errors to appropriate status codes
+        if "אין מעסיק נוכחי" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": str(e)}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": str(e)}
+            )
     except Exception as e:
-        logger.error(f"Error confirming termination for client {client_id}: {e}")
+        logger.info({
+            "event": "employment.confirm",
+            "client_id": client_id,
+            "ok": False,
+            "duration_ms": int((time.perf_counter() - start) * 1000),
+            "error": str(e)
+        })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"שגיאה באישור עזיבה: {str(e)}"}
