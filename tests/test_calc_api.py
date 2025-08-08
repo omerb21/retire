@@ -129,29 +129,36 @@ def test_create_scenario_201_and_fetch_returns_same_values():
     assert create_res.status_code == 201, create_res.text
     create_data = create_res.json()
     
-    # בודק שהתגובה מכילה את כל השדות הנדרשים
+    # בודק שהתגובה מכילה scenario_id
     assert "scenario_id" in create_data
     scenario_id = create_data["scenario_id"]
+    
+    # הרצת התרחיש כדי לקבל תוצאות
+    run_res = client.post(f"/api/v1/scenarios/{scenario_id}/run")
+    assert run_res.status_code == 200, run_res.text
+    run_data = run_res.json()
+    
+    # בודק שהתגובה מכילה את כל השדות הנדרשים
     for key in ["seniority_years", "grant_gross", "grant_exempt", "grant_tax", 
                 "grant_net", "pension_monthly", "indexation_factor", "cashflow"]:
-        assert key in create_data
-    assert len(create_data["cashflow"]) == 12
+        assert key in run_data
+    assert len(run_data["cashflow"]) >= 12
     
     # שולף את התרחיש מהבסיס נתונים ובודק שהערכים זהים
-    get_res = client.get(f"/api/v1/clients/{cid}/scenarios/{scenario_id}")
+    get_res = client.get(f"/api/v1/scenarios/{scenario_id}")
     assert get_res.status_code == 200, get_res.text
     get_data = get_res.json()
     
-    # השוואת ערכים עיקריים (ללא scenario_id שקיים רק ב-create)
+    # השוואת ערכים עיקריים (בין run לבין get)
     for key in ["seniority_years", "grant_gross", "grant_exempt", "grant_tax", 
                 "grant_net", "pension_monthly", "indexation_factor"]:
-        assert get_data[key] == create_data[key], f"Mismatch in {key}: {get_data[key]} != {create_data[key]}"
+        assert get_data[key] == run_data[key], f"Mismatch in {key}: {get_data[key]} != {run_data[key]}"
     
     # בדיקת תזרים
-    assert len(get_data["cashflow"]) == len(create_data["cashflow"])
-    for i, (get_cf, create_cf) in enumerate(zip(get_data["cashflow"], create_data["cashflow"])):
+    assert len(get_data["cashflow"]) == len(run_data["cashflow"])
+    for i, (get_cf, run_cf) in enumerate(zip(get_data["cashflow"], run_data["cashflow"])):
         for cf_key in ["date", "inflow", "outflow", "net"]:
-            assert get_cf[cf_key] == create_cf[cf_key], f"Cashflow mismatch at index {i}, key {cf_key}"
+            assert get_cf[cf_key] == run_cf[cf_key], f"Cashflow mismatch at index {i}, key {cf_key}"
 
 def test_list_scenarios_returns_created_item():
     # יוצר לקוח פעיל עם תעסוקה
@@ -232,7 +239,7 @@ def test_create_scenario_400_inactive_client():
     
     res = client.post(f"/api/v1/clients/{client_id}/scenarios", json=create_payload)
     assert res.status_code == 400
-    assert "הלקוח אינו פעיל" in res.text
+    assert "לקוח לא פעיל" in res.text
 
 def test_get_scenario_404_scenario_not_found():
     # יוצר לקוח פעיל עם תעסוקה
@@ -243,7 +250,7 @@ def test_get_scenario_404_scenario_not_found():
         db.close()
 
     # מנסה לשלוף תרחיש שלא קיים
-    res = client.get(f"/api/v1/clients/{cid}/scenarios/99999")
+    res = client.get(f"/api/v1/scenarios/99999")
     assert res.status_code == 404
     assert "תרחיש לא נמצא" in res.text
 

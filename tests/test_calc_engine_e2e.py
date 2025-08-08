@@ -7,6 +7,7 @@ from app.models import Client, Employment, Employer
 from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.calculation.engine import CalculationEngine
 from app.schemas.scenario import ScenarioIn
+from tests.utils import gen_reg_no
 
 def make_db():
     engine = create_engine("sqlite:///:memory:",
@@ -29,7 +30,7 @@ def test_engine_e2e_minimal():
     
     employer = Employer(
         name="מעסיק בדיקה",
-        reg_no="123456789"
+        reg_no=gen_reg_no()
     )
     db.add(employer); db.commit(); db.refresh(employer)
     

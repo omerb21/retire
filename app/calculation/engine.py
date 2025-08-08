@@ -1,5 +1,6 @@
 from datetime import date
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from app.models import Client, Employment
 from app.providers.tax_params import TaxParamsProvider
 from app.schemas.scenario import ScenarioIn, ScenarioOut
@@ -19,18 +20,14 @@ class CalculationEngine:
         if not client:
             raise ValueError("לקוח לא נמצא")
         if not client.is_active:
-            raise ValueError("הלקוח אינו פעיל")
+            raise ValueError("לקוח לא פעיל")
 
-        # נאתר employment נוכחי לצורך ותק (או נבחר ראשון אם אין flag)
-        employment = (self.db.query(Employment)
-                      .filter(Employment.client_id==client_id, Employment.is_current==True)
-                      .first())
-        if not employment:
-            # fallback: אין נוכחי – ניקח היסטורי ראשון (פשטני)
-            employment = (self.db.query(Employment)
-                          .filter(Employment.client_id==client_id)
-                          .order_by(Employment.start_date.asc())
-                          .first())
+        # בצע שאילתת current employment (כמו ב-EmploymentService)
+        employment = self.db.query(Employment).filter(
+            Employment.client_id == client_id,
+            Employment.is_current == True
+        ).first()
+        
         if not employment:
             raise ValueError("אין נתוני תעסוקה לחישוב")
 

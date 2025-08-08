@@ -1,0 +1,15 @@
+# Main project dependencies
+Flask==2.2.3
+SQLAlchemy==2.0.9
+Flask-SQLAlchemy==3.0.3
+requests>=2.31
+python-dotenv==1.0.0
+alembic==1.10.3
+pytest==7.3.1
+pytest-cov==4.1.0
+black==23.3.0
+isort==5.12.0
+pre-commit==3.3.1
+
+# Development dependencies
+ipython==8.12.0
