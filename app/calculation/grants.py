@@ -1,9 +1,9 @@
-from app.schemas.tax import TaxParameters
+﻿from app.schemas.tax import TaxParameters
 
 def calc_grant_components(gross: float, params: TaxParameters) -> tuple[float,float,float]:
-    """מחזיר (exempt, taxable, tax) לפי תקרת פטור ומדרגות פשוטות."""
+    """׳׳—׳–׳™׳¨ (exempt, taxable, tax) ׳׳₪׳™ ׳×׳§׳¨׳× ׳₪׳˜׳•׳¨ ׳•׳׳“׳¨׳’׳•׳× ׳₪׳©׳•׳˜׳•׳×."""
     if gross < 0:
-        raise ValueError("סכום מענק שלילי אינו חוקי")
+        raise ValueError("׳¡׳›׳•׳ ׳׳¢׳ ׳§ ׳©׳׳™׳׳™ ׳׳™׳ ׳• ׳—׳•׳§׳™")
     exempt = min(gross, params.grant_exemption_cap)
     taxable = max(0.0, gross - exempt)
     tax = 0.0
@@ -15,3 +15,4 @@ def calc_grant_components(gross: float, params: TaxParameters) -> tuple[float,fl
         remaining -= chunk
     tax = round(tax, 2)
     return round(exempt,2), round(taxable,2), tax
+

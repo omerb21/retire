@@ -1,4 +1,4 @@
-"""
+﻿"""
 Client entity schemas for API request/response validation
 """
 from datetime import date, datetime
@@ -37,7 +37,7 @@ class ClientCreate(ClientBase):
         """Validate ID number"""
         normalized = normalize_id_number(v)
         if not validate_id_number(normalized):
-            raise ValueError("תעודת זהות אינה תקינה")
+            raise ValueError("׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”")
         return v
 
 
@@ -68,7 +68,7 @@ class ClientUpdate(BaseModel):
         if v:
             normalized = normalize_id_number(v)
             if not validate_id_number(normalized):
-                raise ValueError("תעודת זהות אינה תקינה")
+                raise ValueError("׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”")
         return v
 
 
@@ -89,3 +89,4 @@ class ClientList(BaseModel):
     total: int
     page: int
     page_size: int
+

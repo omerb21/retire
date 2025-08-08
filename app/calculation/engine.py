@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.models import Client, Employment
@@ -16,39 +16,39 @@ class CalculationEngine:
         self.tax_provider = tax_provider
 
     def run(self, client_id: int, scenario: ScenarioIn) -> ScenarioOut:
-        client = self.db.query(Client).get(client_id)
+        client = self.db.get(Client, client_id)
         if not client:
-            raise ValueError("לקוח לא נמצא")
+            raise ValueError("׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳")
         if not client.is_active:
-            raise ValueError("לקוח לא פעיל")
+            raise ValueError("׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳")
 
-        # בצע שאילתת current employment (כמו ב-EmploymentService)
+        # ׳‘׳¦׳¢ ׳©׳׳™׳׳×׳× current employment (׳›׳׳• ׳‘-EmploymentService)
         employment = self.db.query(Employment).filter(
             Employment.client_id == client_id,
             Employment.is_current == True
         ).first()
         
         if not employment:
-            raise ValueError("אין נתוני תעסוקה לחישוב")
+            raise ValueError("׳׳™׳ ׳ ׳×׳•׳ ׳™ ׳×׳¢׳¡׳•׳§׳” ׳׳—׳™׳©׳•׳‘")
 
         params = self.tax_provider.get_params()
-        # 1) ותק
+        # 1) ׳•׳×׳§
         end_for_seniority = scenario.planned_termination_date or date.today()
         seniority = calc_seniority_years(employment.start_date, end_for_seniority)
 
-        # 2) הצמדה (דוגמה: מצמידים מענק בסיס של 100,000 מתאריך תחילת עבודה לאנ. החישוב)
+        # 2) ׳”׳¦׳׳“׳” (׳“׳•׳’׳׳”: ׳׳¦׳׳™׳“׳™׳ ׳׳¢׳ ׳§ ׳‘׳¡׳™׳¡ ׳©׳ 100,000 ׳׳×׳׳¨׳™׳ ׳×׳—׳™׳׳× ׳¢׳‘׳•׳“׳” ׳׳׳ . ׳”׳—׳™׳©׳•׳‘)
         base_amount = 100_000.0
         f = index_factor(params, employment.start_date, end_for_seniority)
         indexed_amount = index_amount(base_amount, f)
 
-        # 3) מענק/מס
+        # 3) ׳׳¢׳ ׳§/׳׳¡
         exempt, taxable, tax = calc_grant_components(indexed_amount, params)
         grant_net = round(indexed_amount - tax, 2)
 
-        # 4) קצבה (פשטני: ממירים את הנטו להון → פנסיה חודשית)
+        # 4) ׳§׳¦׳‘׳” (׳₪׳©׳˜׳ ׳™: ׳׳׳™׳¨׳™׳ ׳׳× ׳”׳ ׳˜׳• ׳׳”׳•׳ ג†’ ׳₪׳ ׳¡׳™׳” ׳—׳•׳“׳©׳™׳×)
         pension_monthly = calc_monthly_pension_from_capital(grant_net, params)
 
-        # 5) תזרים פשטני: 12 חודשים קדימה
+        # 5) ׳×׳–׳¨׳™׳ ׳₪׳©׳˜׳ ׳™: 12 ׳—׳•׳“׳©׳™׳ ׳§׳“׳™׳׳”
         income = scenario.other_incomes_monthly or pension_monthly
         expense = scenario.monthly_expenses or 0.0
         cashflow = make_simple_cashflow(end_for_seniority, 12, income, expense)
@@ -63,3 +63,5 @@ class CalculationEngine:
             indexation_factor=f,
             cashflow=cashflow,
         )
+
+

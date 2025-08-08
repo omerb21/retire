@@ -1,4 +1,4 @@
-"""
+﻿"""
 Router for employment and termination endpoints
 """
 import logging
@@ -40,13 +40,13 @@ def validate_client_exists_and_active(client_id: int, db: Session) -> Client:
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "לקוח לא נמצא במערכת"}
+            detail={"error": "׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳ ׳‘׳׳¢׳¨׳›׳×"}
         )
     
     if not client.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "לקוח לא פעיל במערכת"}
+            detail={"error": "׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳ ׳‘׳׳¢׳¨׳›׳×"}
         )
     
     return client
@@ -103,7 +103,7 @@ def set_current_employer(
         })
         
         # Map specific errors to appropriate status codes
-        if "אין מעסיק נוכחי" in str(e):
+        if "׳׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"error": str(e)}
@@ -123,7 +123,7 @@ def set_current_employer(
         })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה ביצירת תעסוקה נוכחית: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳×׳¢׳¡׳•׳§׳” ׳ ׳•׳›׳—׳™׳×: {str(e)}"}
         )
 
 
@@ -180,7 +180,7 @@ def plan_termination(
         })
         
         # Map specific errors to appropriate status codes
-        if "לא ניתן לתכנן עזיבה" in str(e):
+        if "׳׳ ׳ ׳™׳×׳ ׳׳×׳›׳ ׳ ׳¢׳–׳™׳‘׳”" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"error": str(e)}
@@ -188,7 +188,7 @@ def plan_termination(
         elif "invalid_termination_reason" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": "סיבת עזיבה אינה תקינה"}
+                detail={"error": "׳¡׳™׳‘׳× ׳¢׳–׳™׳‘׳” ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”"}
             )
         else:
             raise HTTPException(
@@ -205,7 +205,7 @@ def plan_termination(
         })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה בתכנון עזיבה: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳×׳›׳ ׳•׳ ׳¢׳–׳™׳‘׳”: {str(e)}"}
         )
 
 
@@ -256,7 +256,7 @@ def generate_fixation_package_for_client_background(db: Session, client_id: int)
         thread.daemon = True
         thread.start()
     except Exception:
-        logger.exception("fixation_bg_trigger_error")  # לא מפיל את ה-API
+        logger.exception("fixation_bg_trigger_error")  # ׳׳ ׳׳₪׳™׳ ׳׳× ׳”-API
 
 
 @router.post("/{client_id}/employment/termination/confirm", response_model=TerminationEventOut)
@@ -316,7 +316,7 @@ def confirm_termination(
         })
         
         # Map specific errors to appropriate status codes
-        if "אין מעסיק נוכחי" in str(e):
+        if "׳׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"error": str(e)}
@@ -336,5 +336,6 @@ def confirm_termination(
         })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה באישור עזיבה: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳׳™׳©׳•׳¨ ׳¢׳–׳™׳‘׳”: {str(e)}"}
         )
+

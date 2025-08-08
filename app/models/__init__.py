@@ -1,4 +1,4 @@
-"""
+﻿"""
 Models package initialization
 """
 from app.database import Base
@@ -12,3 +12,4 @@ from .commutation import Commutation
 from .scenario import Scenario
 
 __all__ = ["Base", "Client", "Employer", "Employment", "TerminationEvent", "TerminationReason", "Grant", "Pension", "Commutation", "Scenario"]
+

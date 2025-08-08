@@ -1,9 +1,9 @@
-from datetime import date, datetime
+﻿from datetime import date, datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 class ScenarioIn(BaseModel):
-    # פרמטרים עיקריים לתרחיש חישוב
+    # ׳₪׳¨׳׳˜׳¨׳™׳ ׳¢׳™׳§׳¨׳™׳™׳ ׳׳×׳¨׳—׳™׳© ׳—׳™׳©׳•׳‘
     planned_termination_date: Optional[date] = None
     retirement_age: Optional[int] = Field(None, ge=50, le=90)
     monthly_expenses: Optional[float] = Field(None, ge=0)
@@ -16,7 +16,7 @@ class CashflowPoint(BaseModel):
     net: float
 
 class ScenarioOut(BaseModel):
-    # תקציר תוצאות
+    # ׳×׳§׳¦׳™׳¨ ׳×׳•׳¦׳׳•׳×
     seniority_years: float
     grant_gross: float
     grant_exempt: float
@@ -27,7 +27,7 @@ class ScenarioOut(BaseModel):
     cashflow: List[CashflowPoint]
 
 class ScenarioCreateIn(BaseModel):
-    # יצירת תרחיש חדש עם שם
+    # ׳™׳¦׳™׳¨׳× ׳×׳¨׳—׳™׳© ׳—׳“׳© ׳¢׳ ׳©׳
     scenario_name: str = Field(..., min_length=1, max_length=255)
     planned_termination_date: Optional[date] = None
     monthly_expenses: Optional[float] = Field(None, ge=0)
@@ -39,11 +39,11 @@ class ScenarioCreateIn(BaseModel):
     other_parameters: Dict[str, Any] = Field(default_factory=dict)
 
 class ScenarioCreateResponse(BaseModel):
-    # תגובה פשוטה ליצירת תרחיש
+    # ׳×׳’׳•׳‘׳” ׳₪׳©׳•׳˜׳” ׳׳™׳¦׳™׳¨׳× ׳×׳¨׳—׳™׳©
     scenario_id: int
 
 class ScenarioCreateOut(BaseModel):
-    # תגובה ליצירת תרחיש + תוצאות חישוב
+    # ׳×׳’׳•׳‘׳” ׳׳™׳¦׳™׳¨׳× ׳×׳¨׳—׳™׳© + ׳×׳•׳¦׳׳•׳× ׳—׳™׳©׳•׳‘
     scenario_id: int
     seniority_years: float
     grant_gross: float
@@ -55,7 +55,7 @@ class ScenarioCreateOut(BaseModel):
     cashflow: List[CashflowPoint]
 
 class ScenarioListItem(BaseModel):
-    # פריט ברשימת תרחישים
+    # ׳₪׳¨׳™׳˜ ׳‘׳¨׳©׳™׳׳× ׳×׳¨׳—׳™׳©׳™׳
     id: int
     scenario_name: str
     apply_tax_planning: bool
@@ -64,5 +64,6 @@ class ScenarioListItem(BaseModel):
     created_at: datetime
 
 class ScenarioListOut(BaseModel):
-    # רשימת תרחישים
+    # ׳¨׳©׳™׳׳× ׳×׳¨׳—׳™׳©׳™׳
     scenarios: List[ScenarioListItem]
+

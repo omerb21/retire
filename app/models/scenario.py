@@ -1,4 +1,4 @@
-"""
+﻿"""
 Scenario entity model for SQLAlchemy ORM
 """
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, func
@@ -30,3 +30,4 @@ class Scenario(Base):
     
     # Relationship
     client = relationship("Client", lazy="joined")
+

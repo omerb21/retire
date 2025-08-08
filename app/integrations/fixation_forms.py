@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 from sqlalchemy.orm import Session
 from app.models.client import Client
 import logging
@@ -37,7 +37,7 @@ def slug(text: str) -> str:
 
 def build_161d_fields(client: Client) -> dict:
     """
-    ממפה אובייקט Client לשדות ה-FILLABLE בטופס 161ד.
+    ׳׳׳₪׳” ׳׳•׳‘׳™׳™׳§׳˜ Client ׳׳©׳“׳•׳× ׳”-FILLABLE ׳‘׳˜׳•׳₪׳¡ 161׳“.
     """
     return {
         "full_name": client.full_name or "",
@@ -48,27 +48,27 @@ def build_161d_fields(client: Client) -> dict:
         "address_postal_code": client.address_postal_code or "",
         "email": client.email or "",
         "phone": client.phone or "",
-        # הוסף/עדכן לפי שמות ה-FILLABLE בטופס 161ד
+        # ׳”׳•׳¡׳£/׳¢׳“׳›׳ ׳׳₪׳™ ׳©׳׳•׳× ׳”-FILLABLE ׳‘׳˜׳•׳₪׳¡ 161׳“
     }
 
 def build_grants_fields(client: Client) -> dict:
     """
-    ממפה אובייקט Client לשדות נספח מענקים.
+    ׳׳׳₪׳” ׳׳•׳‘׳™׳™׳§׳˜ Client ׳׳©׳“׳•׳× ׳ ׳¡׳₪׳— ׳׳¢׳ ׳§׳™׳.
     """
     return {
         "full_name": client.full_name or "",
         "id_number": client.id_number or "",
-        # שדות ייעודיים לנספח מענקים...
+        # ׳©׳“׳•׳× ׳™׳™׳¢׳•׳“׳™׳™׳ ׳׳ ׳¡׳₪׳— ׳׳¢׳ ׳§׳™׳...
     }
 
 def build_commutations_fields(client: Client) -> dict:
     """
-    ממפה אובייקט Client לשדות נספח היוונים.
+    ׳׳׳₪׳” ׳׳•׳‘׳™׳™׳§׳˜ Client ׳׳©׳“׳•׳× ׳ ׳¡׳₪׳— ׳”׳™׳•׳•׳ ׳™׳.
     """
     return {
         "full_name": client.full_name or "",
         "id_number": client.id_number or "",
-        # שדות ייעודיים לנספח היוונים...
+        # ׳©׳“׳•׳× ׳™׳™׳¢׳•׳“׳™׳™׳ ׳׳ ׳¡׳₪׳— ׳”׳™׳•׳•׳ ׳™׳...
     }
 
 def get_client_output_dir(client_id: int, client_name: str = None) -> Path:
@@ -163,26 +163,27 @@ def _fill_form(template: Path, output_dir: Path, file_name: str, fields: dict) -
         from fastapi import HTTPException
         raise HTTPException(
             status_code=503,
-            detail={"error": "ספריות PDF אינן זמינות ו-fallback ל-JSON מנוטרל"}
+            detail={"error": "׳¡׳₪׳¨׳™׳•׳× PDF ׳׳™׳ ׳ ׳–׳׳™׳ ׳•׳× ׳•-fallback ׳-JSON ׳׳ ׳•׳˜׳¨׳"}
         )
 
 def fill_161d_form(db: Session, client_id: int, template_path: Path, output_dir: Path) -> Path:
     """
-    ממלא טופס 161ד.
+    ׳׳׳׳ ׳˜׳•׳₪׳¡ 161׳“.
     """
     client = db.query(Client).filter(Client.id == client_id, Client.is_active == True).one()
     return _fill_form(template_path, output_dir, f"161d_{client.id}", build_161d_fields(client))
 
 def fill_grants_appendix(db: Session, client_id: int, template_path: Path, output_dir: Path) -> Path:
     """
-    ממלא נספח מענקים.
+    ׳׳׳׳ ׳ ׳¡׳₪׳— ׳׳¢׳ ׳§׳™׳.
     """
     client = db.query(Client).filter(Client.id == client_id, Client.is_active == True).one()
     return _fill_form(template_path, output_dir, f"grants_appendix_{client.id}", build_grants_fields(client))
 
 def fill_commutations_appendix(db: Session, client_id: int, template_path: Path, output_dir: Path) -> Path:
     """
-    ממלא נספח היוונים.
+    ׳׳׳׳ ׳ ׳¡׳₪׳— ׳”׳™׳•׳•׳ ׳™׳.
     """
     client = db.query(Client).filter(Client.id == client_id, Client.is_active == True).one()
     return _fill_form(template_path, output_dir, f"commutations_appendix_{client.id}", build_commutations_fields(client))
+

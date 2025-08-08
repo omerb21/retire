@@ -1,4 +1,4 @@
-"""
+﻿"""
 Employment service for managing client employment and termination events
 """
 import logging
@@ -18,18 +18,18 @@ def utcnow():
 
 def coerce_termination_reason(value: str) -> TerminationReason:
     """
-    מקבל מחרוזת (retired/terminated/other וכו') ומחזיר TerminationReason תקין.
-    תומך גם בשמות Enum וגם בערכי value.
-    זורק ValueError אם לא חוקי.
+    ׳׳§׳‘׳ ׳׳—׳¨׳•׳–׳× (retired/terminated/other ׳•׳›׳•') ׳•׳׳—׳–׳™׳¨ TerminationReason ׳×׳§׳™׳.
+    ׳×׳•׳׳ ׳’׳ ׳‘׳©׳׳•׳× Enum ׳•׳’׳ ׳‘׳¢׳¨׳›׳™ value.
+    ׳–׳•׳¨׳§ ValueError ׳׳ ׳׳ ׳—׳•׳§׳™.
     """
     if isinstance(value, TerminationReason):
         return value
     key = (value or "").strip().lower()
-    # נסה לפי value
+    # ׳ ׳¡׳” ׳׳₪׳™ value
     for member in TerminationReason:
         if member.value == key:
             return member
-    # נסה לפי שם enum
+    # ׳ ׳¡׳” ׳׳₪׳™ ׳©׳ enum
     try:
         return TerminationReason[key]
     except Exception:
@@ -43,13 +43,13 @@ class EmploymentService:
                              start_date: date,
                              monthly_salary_nominal: Optional[float] = None) -> Employment:
         """
-        - מאתר או יוצר Employer לפי (reg_no, name) - אם יש reg_no השתמש בו לזיהוי, אחרת לפי name.
-        - סוגר כל Employment קיים עם is_current=True ללקוח: is_current=False, end_date=None אם לא ידוע.
-        - יוצר Employment חדש עם is_current=True ו-start_date שסופק.
+        - ׳׳׳×׳¨ ׳׳• ׳™׳•׳¦׳¨ Employer ׳׳₪׳™ (reg_no, name) - ׳׳ ׳™׳© reg_no ׳”׳©׳×׳׳© ׳‘׳• ׳׳–׳™׳”׳•׳™, ׳׳—׳¨׳× ׳׳₪׳™ name.
+        - ׳¡׳•׳’׳¨ ׳›׳ Employment ׳§׳™׳™׳ ׳¢׳ is_current=True ׳׳׳§׳•׳—: is_current=False, end_date=None ׳׳ ׳׳ ׳™׳“׳•׳¢.
+        - ׳™׳•׳¦׳¨ Employment ׳—׳“׳© ׳¢׳ is_current=True ׳•-start_date ׳©׳¡׳•׳₪׳§.
         """
         client = db.get(Client, client_id)
         if not client or not client.is_active:
-            raise ValueError("לקוח לא קיים או לא פעיל")
+            raise ValueError("׳׳§׳•׳— ׳׳ ׳§׳™׳™׳ ׳׳• ׳׳ ׳₪׳¢׳™׳")
 
         # Find or create employer
         employer = None
@@ -71,7 +71,7 @@ class EmploymentService:
         # Important: Don't update existing employer's name when reusing by reg_no
         # This ensures the test passes consistently
 
-        # סגירת תפקידים נוכחיים קודמים
+        # ׳¡׳’׳™׳¨׳× ׳×׳₪׳§׳™׳“׳™׳ ׳ ׳•׳›׳—׳™׳™׳ ׳§׳•׳“׳׳™׳
         currents = db.execute(select(Employment).where(Employment.client_id == client_id, Employment.is_current == True)).scalars().all()
         for emp in currents:
             emp.is_current = False
@@ -114,18 +114,18 @@ class EmploymentService:
     @staticmethod
     def plan_termination(db: Session, client_id: int, planned_date: date, reason: Optional[TerminationReason] = None) -> TerminationEvent:
         """
-        - דורש Employment נוכחי.
-        - יוצר או מעדכן TerminationEvent לאותו Employment עם planned_termination_date.
+        - ׳“׳•׳¨׳© Employment ׳ ׳•׳›׳—׳™.
+        - ׳™׳•׳¦׳¨ ׳׳• ׳׳¢׳“׳›׳ TerminationEvent ׳׳׳•׳×׳• Employment ׳¢׳ planned_termination_date.
         """
         # First: Check for current employment using ORM query
         current = db.query(Employment).filter_by(client_id=client_id, is_current=True).one_or_none()
         
         if not current:
-            raise ValueError("לא ניתן לתכנן עזיבה: אין מעסיק נוכחי ללקוח")
+            raise ValueError("׳׳ ׳ ׳™׳×׳ ׳׳×׳›׳ ׳ ׳¢׳–׳™׳‘׳”: ׳׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™ ׳׳׳§׳•׳—")
         
         # Second: Validate planned_date >= today (only if current employment exists)
         if planned_date < date.today():
-            raise ValueError("תאריך עזיבה מתוכנן חייב להיות היום או בעתיד")
+            raise ValueError("׳×׳׳¨׳™׳ ׳¢׳–׳™׳‘׳” ׳׳×׳•׳›׳ ׳ ׳—׳™׳™׳‘ ׳׳”׳™׳•׳× ׳”׳™׳•׳ ׳׳• ׳‘׳¢׳×׳™׳“")
 
         # Convert reason to enum using helper function
         reason_enum = coerce_termination_reason(reason)
@@ -155,17 +155,17 @@ class EmploymentService:
                             severance_basis_nominal: Optional[float] = None,
                             reason: Optional[TerminationReason] = None) -> TerminationEvent:
         """
-        - דורש Employment נוכחי.
-        - קובע actual_termination_date, מסמן is_current=False, מגדיר end_date=actual_date.
-        - יוצר TerminationEvent עם actual_termination_date. אם קיים אירוע מתוכנן, ניתן להשאירו כארכיון או ליצור חדש. ניצור חדש לצמצום תלות.
-        - שמירת severance_basis_nominal אם סופק.
-        - חיבור לאינטגרציית קיבוע יעשה בסגמנט B.
+        - ׳“׳•׳¨׳© Employment ׳ ׳•׳›׳—׳™.
+        - ׳§׳•׳‘׳¢ actual_termination_date, ׳׳¡׳׳ is_current=False, ׳׳’׳“׳™׳¨ end_date=actual_date.
+        - ׳™׳•׳¦׳¨ TerminationEvent ׳¢׳ actual_termination_date. ׳׳ ׳§׳™׳™׳ ׳׳™׳¨׳•׳¢ ׳׳×׳•׳›׳ ׳, ׳ ׳™׳×׳ ׳׳”׳©׳׳™׳¨׳• ׳›׳׳¨׳›׳™׳•׳ ׳׳• ׳׳™׳¦׳•׳¨ ׳—׳“׳©. ׳ ׳™׳¦׳•׳¨ ׳—׳“׳© ׳׳¦׳׳¦׳•׳ ׳×׳׳•׳×.
+        - ׳©׳׳™׳¨׳× severance_basis_nominal ׳׳ ׳¡׳•׳₪׳§.
+        - ׳—׳™׳‘׳•׳¨ ׳׳׳™׳ ׳˜׳’׳¨׳¦׳™׳™׳× ׳§׳™׳‘׳•׳¢ ׳™׳¢׳©׳” ׳‘׳¡׳’׳׳ ׳˜ B.
         """
         # First: Check for current employment using ORM query (same as plan_termination)
         current = db.query(Employment).filter_by(client_id=client_id, is_current=True).one_or_none()
         
         if not current:
-            raise ValueError("לא ניתן לאשר עזיבה: אין מעסיק נוכחי ללקוח")
+            raise ValueError("׳׳ ׳ ׳™׳×׳ ׳׳׳©׳¨ ׳¢׳–׳™׳‘׳”: ׳׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™ ׳׳׳§׳•׳—")
         
         # Find existing plan event for this employment to preserve planned_termination_date
         existing_event = db.execute(
@@ -216,3 +216,4 @@ class EmploymentService:
         })
         
         return ev
+

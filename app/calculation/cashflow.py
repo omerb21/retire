@@ -1,9 +1,9 @@
-from datetime import date
+﻿from datetime import date
 from typing import List
 from app.schemas.scenario import CashflowPoint
 
 def make_simple_cashflow(start: date, months: int, income: float, expense: float) -> List[CashflowPoint]:
-    # בניית סדרת תזרים חודשית פשטנית
+    # ׳‘׳ ׳™׳™׳× ׳¡׳“׳¨׳× ׳×׳–׳¨׳™׳ ׳—׳•׳“׳©׳™׳× ׳₪׳©׳˜׳ ׳™׳×
     pts: List[CashflowPoint] = []
     y, m = start.year, start.month
     for _ in range(months):
@@ -13,3 +13,4 @@ def make_simple_cashflow(start: date, months: int, income: float, expense: float
         m += 1
         if m > 12: m = 1; y += 1
     return pts
+

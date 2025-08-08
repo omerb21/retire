@@ -1,4 +1,4 @@
-# app/schemas/employment.py
+﻿# app/schemas/employment.py
 from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
@@ -11,7 +11,7 @@ class EmploymentBase(BaseModel):
     start_date: date
 
 class EmploymentCreate(EmploymentBase):
-    # current employment only (נוכחי)
+    # current employment only (׳ ׳•׳›׳—׳™)
     pass
 
 class EmploymentOut(BaseModel):
@@ -53,3 +53,4 @@ class TerminationEventOut(BaseModel):
         if v is None:
             return None
         return getattr(v, "value", v)
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Scenario service for managing calculation scenarios
 """
 import json
@@ -30,9 +30,9 @@ class ScenarioService:
             # Verify client exists and is active
             client = db.get(Client, client_id)
             if not client:
-                raise ValueError("לקוח לא נמצא")
+                raise ValueError("׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳")
             if not client.is_active:
-                raise ValueError("לקוח לא פעיל")
+                raise ValueError("׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳")
             
             # Prepare parameters JSON
             parameters = {
@@ -87,12 +87,12 @@ class ScenarioService:
             # Load scenario
             scenario = db.get(Scenario, scenario_id)
             if not scenario:
-                raise ValueError("תרחיש לא נמצא")
+                raise ValueError("׳×׳¨׳—׳™׳© ׳׳ ׳ ׳׳¦׳")
             
             # Load client and verify active
             client = db.get(Client, scenario.client_id)
             if not client or not client.is_active:
-                raise ValueError("לקוח לא נמצא או לא פעיל")
+                raise ValueError("׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳ ׳׳• ׳׳ ׳₪׳¢׳™׳")
             
             # Load current employment (is_current = True)
             employment = db.query(Employment).filter(
@@ -106,7 +106,7 @@ class ScenarioService:
                 ).order_by(Employment.start_date.desc()).first()
                 
             if not employment:
-                raise ValueError("אין נתוני תעסוקה לחישוב")
+                raise ValueError("׳׳™׳ ׳ ׳×׳•׳ ׳™ ׳×׳¢׳¡׳•׳§׳” ׳׳—׳™׳©׳•׳‘")
             
             # Parse scenario parameters
             parameters = json.loads(scenario.parameters) if scenario.parameters else {}
@@ -132,7 +132,7 @@ class ScenarioService:
             try:
                 result = calc_engine.run(client_id=scenario.client_id, scenario=scenario_in)
             except Exception as calc_error:
-                if "סדרת מדד חסרה" in str(calc_error) or "אין נתוני תעסוקה לחישוב" in str(calc_error):
+                if "׳¡׳“׳¨׳× ׳׳“׳“ ׳—׳¡׳¨׳”" in str(calc_error) or "׳׳™׳ ׳ ׳×׳•׳ ׳™ ׳×׳¢׳¡׳•׳§׳” ׳׳—׳™׳©׳•׳‘" in str(calc_error):
                     raise ValueError(str(calc_error))
                 raise
             
@@ -284,3 +284,4 @@ class ScenarioService:
             ))
         
         return cashflow
+

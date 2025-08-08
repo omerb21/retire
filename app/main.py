@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI application entrypoint
 """
 from fastapi import FastAPI
@@ -45,3 +45,4 @@ def read_root():
 def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
+

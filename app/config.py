@@ -1,4 +1,4 @@
-"""
+﻿"""
 Configuration module for application settings
 """
 import os
@@ -13,3 +13,4 @@ def allow_json_fallback() -> bool:
         bool: True if JSON fallback is allowed, False otherwise
     """
     return os.getenv("FIXATION_ALLOW_JSON_FALLBACK", "true").lower() in ("true", "1", "yes")
+

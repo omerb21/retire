@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+﻿from pydantic import BaseModel, Field
 from typing import List, Optional
 
 class FixationSingleResponse(BaseModel):
@@ -14,3 +14,4 @@ class FixationPackageResponse(BaseModel):
     files: List[str]
     client_id: int
     client_name: Optional[str] = None
+

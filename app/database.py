@@ -1,9 +1,9 @@
-"""
+﻿"""
 Database configuration module for SQLAlchemy and connection management
 """
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # Get database URL from environment variable or use default SQLite for development
@@ -38,3 +38,5 @@ def get_db():
         yield db
     finally:
         db.close()
+
+

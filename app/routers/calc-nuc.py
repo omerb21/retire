@@ -1,4 +1,4 @@
-# app/routers/calc.py
+﻿# app/routers/calc.py
 import time
 import logging
 import json
@@ -19,7 +19,7 @@ def _run_calculation_handler(client_id: int, scenario: ScenarioIn, db: Session) 
     start = time.perf_counter()
     
     try:
-        # אימות בסיסי (בעברית)
+        # ׳׳™׳׳•׳× ׳‘׳¡׳™׳¡׳™ (׳‘׳¢׳‘׳¨׳™׳×)
         client = db.query(Client).get(client_id)
         if not client:
             logger.info({
@@ -29,7 +29,7 @@ def _run_calculation_handler(client_id: int, scenario: ScenarioIn, db: Session) 
                 "duration_ms": int((time.perf_counter() - start) * 1000),
                 "error": "client_not_found"
             })
-            raise HTTPException(status_code=404, detail="לקוח לא נמצא")
+            raise HTTPException(status_code=404, detail="׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳")
         if not client.is_active:
             logger.info({
                 "event": "calc.run",
@@ -38,9 +38,9 @@ def _run_calculation_handler(client_id: int, scenario: ScenarioIn, db: Session) 
                 "duration_ms": int((time.perf_counter() - start) * 1000),
                 "error": "client_inactive"
             })
-            raise HTTPException(status_code=400, detail="הלקוח אינו פעיל")
+            raise HTTPException(status_code=400, detail="׳”׳׳§׳•׳— ׳׳™׳ ׳• ׳₪׳¢׳™׳")
 
-        # הרצת החישוב
+        # ׳”׳¨׳¦׳× ׳”׳—׳™׳©׳•׳‘
         engine = CalculationEngine(db=db, tax_provider=InMemoryTaxParamsProvider())
         result = engine.run(client_id=client_id, scenario=scenario)
         
@@ -73,7 +73,7 @@ def _run_calculation_handler(client_id: int, scenario: ScenarioIn, db: Session) 
             "duration_ms": int((time.perf_counter() - start) * 1000),
             "error": str(e)
         })
-        raise HTTPException(status_code=500, detail="אירעה שגיאה בעת החישוב")
+        raise HTTPException(status_code=500, detail="׳׳™׳¨׳¢׳” ׳©׳’׳™׳׳” ׳‘׳¢׳× ׳”׳—׳™׳©׳•׳‘")
 
 @router.post("/calc/{client_id}", response_model=ScenarioOut, status_code=status.HTTP_200_OK)
 def run_calculation(client_id: int, scenario: ScenarioIn, db: Session = Depends(get_db)):
@@ -91,15 +91,15 @@ def create_scenario(client_id: int, scenario_data: ScenarioCreateIn, db: Session
     try:
         return ScenarioService.create_scenario(db, client_id, scenario_data)
     except ValueError as e:
-        if "לקוח לא נמצא" in str(e):
+        if "׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳" in str(e):
             raise HTTPException(status_code=404, detail=str(e))
-        elif "לקוח לא פעיל" in str(e):
+        elif "׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳" in str(e):
             raise HTTPException(status_code=400, detail=str(e))
         else:
             raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.exception(f"Unexpected error in create_scenario: {e}")
-        raise HTTPException(status_code=500, detail="אירעה שגיאה בעת יצירת התרחיש")
+        raise HTTPException(status_code=500, detail="׳׳™׳¨׳¢׳” ׳©׳’׳™׳׳” ׳‘׳¢׳× ׳™׳¦׳™׳¨׳× ׳”׳×׳¨׳—׳™׳©")
 
 @router.get("/clients/{client_id}/scenarios", response_model=ScenarioListOut, status_code=status.HTTP_200_OK)
 def list_scenarios(client_id: int, db: Session = Depends(get_db)):
@@ -108,7 +108,7 @@ def list_scenarios(client_id: int, db: Session = Depends(get_db)):
         # Check if client exists
         client = db.get(Client, client_id)
         if not client:
-            raise HTTPException(status_code=404, detail="לקוח לא נמצא")
+            raise HTTPException(status_code=404, detail="׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳")
         
         scenarios = ScenarioService.list_scenarios(db, client_id)
         return ScenarioListOut(scenarios=scenarios)
@@ -116,7 +116,7 @@ def list_scenarios(client_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.exception(f"Unexpected error in list_scenarios: {e}")
-        raise HTTPException(status_code=500, detail="אירעה שגיאה בעת שליפת רשימת התרחישים")
+        raise HTTPException(status_code=500, detail="׳׳™׳¨׳¢׳” ׳©׳’׳™׳׳” ׳‘׳¢׳× ׳©׳׳™׳₪׳× ׳¨׳©׳™׳׳× ׳”׳×׳¨׳—׳™׳©׳™׳")
 
 @router.post("/scenarios/{scenario_id}/run", response_model=ScenarioOut, status_code=status.HTTP_200_OK)
 def run_scenario(scenario_id: int, db: Session = Depends(get_db)):
@@ -125,19 +125,19 @@ def run_scenario(scenario_id: int, db: Session = Depends(get_db)):
         result = ScenarioService.run_scenario(db, scenario_id)
         return result
     except ValueError as e:
-        if "אין נתוני תעסוקה לחישוב" in str(e):
+        if "׳׳™׳ ׳ ׳×׳•׳ ׳™ ׳×׳¢׳¡׳•׳§׳” ׳׳—׳™׳©׳•׳‘" in str(e):
             raise HTTPException(status_code=422, detail=str(e))
-        elif "סדרת מדד חסרה לתאריכים המבוקשים" in str(e):
+        elif "׳¡׳“׳¨׳× ׳׳“׳“ ׳—׳¡׳¨׳” ׳׳×׳׳¨׳™׳›׳™׳ ׳”׳׳‘׳•׳§׳©׳™׳" in str(e):
             raise HTTPException(status_code=422, detail=str(e))
-        elif "תרחיש לא נמצא" in str(e):
+        elif "׳×׳¨׳—׳™׳© ׳׳ ׳ ׳׳¦׳" in str(e):
             raise HTTPException(status_code=404, detail=str(e))
-        elif "לקוח לא נמצא" in str(e) or "לקוח לא פעיל" in str(e):
+        elif "׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳" in str(e) or "׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳" in str(e):
             raise HTTPException(status_code=404, detail=str(e))
         else:
             raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.exception(f"Unexpected error in run_scenario: {e}")
-        raise HTTPException(status_code=500, detail="אירעה שגיאה בעת הרצת התרחיש")
+        raise HTTPException(status_code=500, detail="׳׳™׳¨׳¢׳” ׳©׳’׳™׳׳” ׳‘׳¢׳× ׳”׳¨׳¦׳× ׳”׳×׳¨׳—׳™׳©")
 
 @router.get("/scenarios/{scenario_id}", response_model=ScenarioOut, status_code=status.HTTP_200_OK)
 def get_scenario(scenario_id: int, db: Session = Depends(get_db)):
@@ -145,10 +145,11 @@ def get_scenario(scenario_id: int, db: Session = Depends(get_db)):
     try:
         result = ScenarioService.get_scenario(db, scenario_id)
         if not result:
-            raise HTTPException(status_code=404, detail="תרחיש לא נמצא")
+            raise HTTPException(status_code=404, detail="׳×׳¨׳—׳™׳© ׳׳ ׳ ׳׳¦׳")
         return result
     except HTTPException:
         raise
     except Exception as e:
         logger.exception(f"Unexpected error in get_scenario: {e}")
-        raise HTTPException(status_code=500, detail="אירעה שגיאה בעת שליפת התרחיש")
+        raise HTTPException(status_code=500, detail="׳׳™׳¨׳¢׳” ׳©׳’׳™׳׳” ׳‘׳¢׳× ׳©׳׳™׳₪׳× ׳”׳×׳¨׳—׳™׳©")
+

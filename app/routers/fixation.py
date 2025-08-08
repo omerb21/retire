@@ -1,5 +1,5 @@
-"""
-Router for rights fixation (קיבוע זכויות) endpoints
+﻿"""
+Router for rights fixation (׳§׳™׳‘׳•׳¢ ׳–׳›׳•׳™׳•׳×) endpoints
 """
 import os
 import sys
@@ -72,13 +72,13 @@ def validate_client_and_permissions(client_id: int, db: Session) -> Client:
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "לקוח לא נמצא במערכת"}
+            detail={"error": "׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳ ׳‘׳׳¢׳¨׳›׳×"}
         )
     
     if not client.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "לקוח לא פעיל במערכת"}
+            detail={"error": "׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳ ׳‘׳׳¢׳¨׳›׳×"}
         )
     
     return client
@@ -142,12 +142,12 @@ def generate_161d_form(client_id: int, db: Session = Depends(get_db)) -> Fixatio
             else:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail={"error": "שירות יצירת המסמכים אינו זמין כרגע"}
+                    detail={"error": "׳©׳™׳¨׳•׳× ׳™׳¦׳™׳¨׳× ׳”׳׳¡׳׳›׳™׳ ׳׳™׳ ׳• ׳–׳׳™׳ ׳›׳¨׳’׳¢"}
                 )
         
         response = {
             "success": True,
-            "message": "טופס 161ד נוצר בהצלחה",
+            "message": "׳˜׳•׳₪׳¡ 161׳“ ׳ ׳•׳¦׳¨ ׳‘׳”׳¦׳׳—׳”",
             "file_path": str(out_path),
             "client_id": client_id,
             "client_name": client.full_name if client else None,
@@ -180,7 +180,7 @@ def generate_161d_form(client_id: int, db: Session = Depends(get_db)) -> Fixatio
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה ביצירת טופס 161ד: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳˜׳•׳₪׳¡ 161׳“: {str(e)}"}
         )
 
 
@@ -212,7 +212,7 @@ def generate_grants_appendix_endpoint(client_id: int, db: Session = Depends(get_
         
         response = {
             "success": True,
-            "message": "נספח מענקים נוצר בהצלחה",
+            "message": "׳ ׳¡׳₪׳— ׳׳¢׳ ׳§׳™׳ ׳ ׳•׳¦׳¨ ׳‘׳”׳¦׳׳—׳”",
             "file_path": str(out_path),
             "client_id": client_id,
             "client_name": client.full_name if client else None,
@@ -245,7 +245,7 @@ def generate_grants_appendix_endpoint(client_id: int, db: Session = Depends(get_
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה ביצירת נספח מענקים: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳ ׳¡׳₪׳— ׳׳¢׳ ׳§׳™׳: {str(e)}"}
         )
 
 
@@ -277,7 +277,7 @@ def generate_commutations_appendix_endpoint(client_id: int, db: Session = Depend
         
         response = {
             "success": True,
-            "message": "נספח היוונים נוצר בהצלחה",
+            "message": "׳ ׳¡׳₪׳— ׳”׳™׳•׳•׳ ׳™׳ ׳ ׳•׳¦׳¨ ׳‘׳”׳¦׳׳—׳”",
             "file_path": str(out_path),
             "client_id": client_id,
             "client_name": client.full_name if client else None,
@@ -310,7 +310,7 @@ def generate_commutations_appendix_endpoint(client_id: int, db: Session = Depend
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה ביצירת נספח היוונים: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳ ׳¡׳₪׳— ׳”׳™׳•׳•׳ ׳™׳: {str(e)}"}
         )
 
 
@@ -365,7 +365,7 @@ def generate_complete_package(client_id: int, db: Session = Depends(get_db)) -> 
         
         response = {
             "success": True,
-            "message": "חבילת קיבוע נוצרה בהצלחה",
+            "message": "׳—׳‘׳™׳׳× ׳§׳™׳‘׳•׳¢ ׳ ׳•׳¦׳¨׳” ׳‘׳”׳¦׳׳—׳”",
             "files": files,
             "client_id": client_id,
             "client_name": client.full_name if client else None,
@@ -406,7 +406,7 @@ def generate_complete_package(client_id: int, db: Session = Depends(get_db)) -> 
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"שגיאה ביצירת חבילת קיבוע זכויות: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳—׳‘׳™׳׳× ׳§׳™׳‘׳•׳¢ ׳–׳›׳•׳™׳•׳×: {str(e)}"}
         )
 
 
@@ -440,7 +440,7 @@ def generate_fixation_package_for_client(db: Session, client_id: int) -> dict:
         
         return {
             "success": True,
-            "message": "חבילת קיבוע נוצרה בהצלחה",
+            "message": "׳—׳‘׳™׳׳× ׳§׳™׳‘׳•׳¢ ׳ ׳•׳¦׳¨׳” ׳‘׳”׳¦׳׳—׳”",
             "files": files,
             "client_id": client_id,
             "client_name": client.full_name if client else None,
@@ -450,8 +450,9 @@ def generate_fixation_package_for_client(db: Session, client_id: int) -> dict:
         logger.error(f"Error generating fixation package for client {client_id}: {e}")
         return {
             "success": False,
-            "message": f"שגיאה ביצירת חבילת קיבוע זכויות: {str(e)}",
+            "message": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳—׳‘׳™׳׳× ׳§׳™׳‘׳•׳¢ ׳–׳›׳•׳™׳•׳×: {str(e)}",
             "files": [],
             "client_id": client_id,
             "client_name": None,
         }
+

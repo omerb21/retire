@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 from abc import ABC, abstractmethod
 from app.schemas.tax import TaxParameters, TaxBracket
 
@@ -8,7 +8,7 @@ class TaxParamsProvider(ABC):
 
 class InMemoryTaxParamsProvider(TaxParamsProvider):
     def __init__(self):
-        # ערכים דטרמיניסטיים לטסטים
+        # ׳¢׳¨׳›׳™׳ ׳“׳˜׳¨׳׳™׳ ׳™׳¡׳˜׳™׳™׳ ׳׳˜׳¡׳˜׳™׳
         self._params = TaxParameters(
             cpi_series={
                 # 2020 (historical data for test employment start dates)
@@ -74,3 +74,4 @@ class InMemoryTaxParamsProvider(TaxParamsProvider):
         )
     def get_params(self) -> TaxParameters:
         return self._params
+

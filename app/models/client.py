@@ -1,4 +1,4 @@
-"""
+﻿"""
 Client entity model for SQLAlchemy ORM
 """
 from datetime import date, datetime, timezone
@@ -65,3 +65,4 @@ class Client(Base):
     
     def __repr__(self):
         return f"<Client(id={self.id}, id_number={self.id_number}, full_name='{self.full_name}')>"
+
