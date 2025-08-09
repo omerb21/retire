@@ -1,15 +1,17 @@
-﻿# app/routers/calc.py
+# app/routers/calc.py
 import time
 import logging
 import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from app.database import get_db
 from app.schemas.scenario import ScenarioIn, ScenarioOut, ScenarioCreateIn, ScenarioListOut, ScenarioListItem
 from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.calculation.engine import CalculationEngine
 from app.models import Client, Scenario
 from app.services.scenario_service import ScenarioService
+from app.services.calc_engine import calculate_client
 
 logger = logging.getLogger("app.calc")
 router = APIRouter()
@@ -80,10 +82,7 @@ def run_calculation(client_id: int, scenario: ScenarioIn, db: Session = Depends(
     """Run calculation for client scenario"""
     return _run_calculation_handler(client_id, scenario, db)
 
-@router.post("/clients/{client_id}/calculate", response_model=ScenarioOut, status_code=status.HTTP_200_OK)
-def calculate_client_scenario(client_id: int, scenario: ScenarioIn, db: Session = Depends(get_db)):
-    """Alias endpoint: Run calculation for client scenario"""
-    return _run_calculation_handler(client_id, scenario, db)
+
 
 @router.post("/clients/{client_id}/scenarios", status_code=status.HTTP_201_CREATED)
 def create_scenario(client_id: int, scenario_data: ScenarioCreateIn, db: Session = Depends(get_db)):
@@ -152,6 +151,16 @@ def get_scenario(scenario_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.exception(f"Unexpected error in get_scenario: {e}")
-        raise HTTPException(status_code=500, detail="׳׳™׳¨׳¢׳” ׳©׳’׳™׳׳” ׳‘׳¢׳× ׳©׳׳™׳₪׳× ׳”׳×׳¨׳—׳™׳©")
+        raise HTTPException(status_code=500, detail="שגיאה פנימית בעת שליפת התרחיש")
 
+class CalcRequest(BaseModel):
+    scenario_ids: list[int] | None = None
 
+@router.post("/calc/{client_id}/calculate")
+def calculate(client_id: int, req: CalcRequest):
+    return {
+        "client_id": client_id,
+        "scenarios": req.scenario_ids or [],
+        "result": "ok",
+        "engine_version": "stage8-skeleton-1",
+    }
