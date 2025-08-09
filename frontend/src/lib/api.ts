@@ -224,27 +224,55 @@ export const scenarioApi = {
 // Rights fixation API functions (for document generation)
 export const fixationApi = {
   // Generate 161d form
-  generate161d: async (clientId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(`/api/v1/fixation/${clientId}/161d`);
-    return response.data;
+  generate161d(clientId: number): Promise<any> {
+    return api.post(`/api/v1/fixation/generate-161d/${clientId}`).then(response => response.data);
   },
 
   // Generate grants appendix
-  generateGrantsAppendix: async (clientId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(`/api/v1/fixation/${clientId}/grants-appendix`);
-    return response.data;
+  generateGrantsAppendix(clientId: number): Promise<any> {
+    return api.post(`/api/v1/fixation/generate-grants-appendix/${clientId}`).then(response => response.data);
   },
 
   // Generate commutations appendix
-  generateCommutationsAppendix: async (clientId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(`/api/v1/fixation/${clientId}/commutations-appendix`);
-    return response.data;
+  generateCommutationsAppendix(clientId: number): Promise<any> {
+    return api.post(`/api/v1/fixation/generate-commutations-appendix/${clientId}`).then(response => response.data);
   },
 
   // Generate complete package
-  generatePackage: async (clientId: number): Promise<any> => {
-    const response: AxiosResponse<any> = await api.post(`/api/v1/fixation/${clientId}/package`);
-    return response.data;
+  generatePackage(clientId: number): Promise<any> {
+    return api.post(`/api/v1/fixation/generate-package/${clientId}`).then(response => response.data);
+  },
+};
+
+// Reports API functions
+export const reportsApi = {
+  // Export PDF report
+  exportReportPdf(clientId: number, scenarioIds?: number[]): Promise<void> {
+    return api.post('/api/v1/reports/pdf', {
+      client_id: clientId,
+      scenario_ids: scenarioIds
+    }, {
+      responseType: 'blob'
+    }).then(response => {
+      // Create blob URL and trigger download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `report_${clientId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+  },
+
+  // Preview report data (for debugging)
+  previewReportData(clientId: number, scenarioIds?: number[]): Promise<any> {
+    return api.post('/api/v1/reports/preview', {
+      client_id: clientId,
+      scenario_ids: scenarioIds
+    }).then(response => response.data);
   },
 };
 

@@ -11,5 +11,10 @@ black==23.3.0
 isort==5.12.0
 pre-commit==3.3.1
 
+# PDF and reporting dependencies
+reportlab==4.0.4
+matplotlib==3.7.1
+numpy<2
+
 # Development dependencies
 ipython==8.12.0

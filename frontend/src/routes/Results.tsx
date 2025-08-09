@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { reportsApi } from '../lib/api';
 import {
   Box,
   Typography,
@@ -37,6 +38,7 @@ import {
 } from 'recharts';
 import { performSanityChecks, formatCurrency } from '../lib/validation';
 import { useCaseDetection } from '../lib/case-detection';
+import { reportsApi } from '../lib/api';
 
 interface CalculationResult {
   client_id: number;
@@ -69,6 +71,7 @@ const Results: React.FC = () => {
   const [calculationResult, setCalculationResult] = useState<CalculationResult | null>(null);
   const [scenario, setScenario] = useState<any>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     // Get calculation result from navigation state
@@ -93,6 +96,44 @@ const Results: React.FC = () => {
 
   const handleNewCalculation = () => {
     navigate('/scenarios');
+  };
+
+  // Type definitions for scenarios
+  type ScenarioLite = { id: number; name?: string };
+  
+  // Get scenario IDs for export (up to 3 scenarios)
+  const getScenarioIdsForExport = (): number[] => {
+    try {
+      // If we have scenario data, use it; otherwise use calculation result client_id as fallback
+      const scenarios: ScenarioLite[] = scenario ? [{ id: scenario.id || 1 }] : [];
+      const visible = scenarios?.map(s => s.id) ?? [];
+      return visible.slice(0, 3);
+    } catch {
+      return [];
+    }
+  };
+
+  const handleExportPdf = async () => {
+    const scenarioIds = getScenarioIdsForExport();
+    const clientId: number | undefined = calculationResult?.client_id;
+    
+    if (!clientId || !scenarioIds.length) {
+      // Don't block - server returns proper error messages (404/422)
+      // But UX: show simple alert to user
+      alert('אין תרחישים זמינים לייצוא.');
+      return;
+    }
+    
+    try {
+      setDownloading(true);
+      await reportsApi.exportReportPdf(clientId, scenarioIds);
+      // Download already handled inside api.ts
+    } catch (err) {
+      console.error('PDF export failed', err);
+      alert('ייצוא PDF נכשל. נסו מחדש.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (!calculationResult) {
@@ -404,8 +445,8 @@ const Results: React.FC = () => {
         )}
       </Paper>
 
-      {/* Navigation */}
-      <Box className="form-actions" sx={{ mt: 3 }}>
+      {/* Action Buttons */}
+      <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
         <Button
           variant="outlined"
           onClick={handlePrevious}
@@ -417,6 +458,15 @@ const Results: React.FC = () => {
           onClick={handleNewCalculation}
         >
           חישוב חדש
+        </Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={handleExportPdf}
+          disabled={downloading}
+          title="ייצוא PDF"
+        >
+          {downloading ? 'מכין PDF…' : 'ייצוא PDF'}
         </Button>
       </Box>
 

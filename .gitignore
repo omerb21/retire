@@ -89,3 +89,4 @@ temp/
 !frontend/src/**
 !frontend/src/lib/
 !frontend/src/lib/**
+report_smoke.pdf

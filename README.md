@@ -8,6 +8,37 @@ This repository contains the following main components:
 - **Frontend**: React-based user interface
 - **Rights Fixation System**: Separate submodule for rights fixation functionality
 
+## PDF Smoke Test
+
+To verify the PDF generation functionality, run the smoke test script:
+
+```powershell
+# Set Python path and run the smoke test
+$env:PYTHONPATH="$PWD"
+python tools/report_smoke.py
+
+# Verify the PDF was generated
+if (Test-Path .\report_smoke.pdf) {
+    Write-Host "PDF generated successfully:"
+    Get-Item .\report_smoke.pdf | Select-Object Name,Length,LastWriteTime
+} else {
+    Write-Host "PDF generation failed"
+}
+```
+
+### Expected Output
+- A `report_smoke.pdf` file should be generated in the project root
+- File size should be >30KB (typically ~49KB)
+- The PDF should contain client information, scenario details, and charts
+
+### Troubleshooting
+1. If you get a 422 error, ensure:
+   - The database is properly initialized with `python create_db.py`
+   - The client has active employment data
+   - CPI data is available for the calculation period
+
+2. If you see font warnings, they can be safely ignored as long as the PDF generates correctly.
+
 ## Backend Setup and Running
 
 ### Prerequisites

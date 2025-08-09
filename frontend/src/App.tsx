@@ -1,58 +1,81 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import { I18nextProvider } from 'react-i18next';
-import i18n from './lib/i18n';
-import Layout from './components/Layout';
-import ClientNew from './routes/ClientNew';
-import EmployerCurrent from './routes/EmployerCurrent';
-import EmployersPast from './routes/EmployersPast';
-import Pensions from './routes/Pensions';
-import IncomeAssets from './routes/IncomeAssets';
-import TaxAdmin from './routes/TaxAdmin';
-import Scenarios from './routes/Scenarios';
-import Results from './routes/Results';
+﻿import React, { useState } from "react";
 
-// Create RTL theme for Hebrew
-const theme = createTheme({
-  direction: 'rtl',
-  typography: {
-    fontFamily: '"Segoe UI", "Roboto", "Arial", sans-serif',
-  },
-  palette: {
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-  },
-});
+const API_BASE: string =
+  (import.meta as any).env?.VITE_API_BASE || "http://127.0.0.1:8000";
 
-function App() {
+export default function App() {
+  const [clientId, setClientId] = useState<string>("1");
+  const [scenarioIds, setScenarioIds] = useState<string>("2");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string>("");
+
+  const exportPdf = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      const ids = scenarioIds
+        .split(",")
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(Number);
+
+      const r = await fetch(`${API_BASE}/api/v1/reports/pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: Number(clientId), scenario_ids: ids }),
+      });
+
+      if (!r.ok) {
+        const err = await r.text();
+        throw new Error(`HTTP ${r.status}: ${err.slice(0, 200)}`);
+      }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `report_${clientId}_${Date.now()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg("✅ PDF הורד בהצלחה");
+    } catch (e: any) {
+      setMsg("❌ כשל ביצוא: " + (e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <I18nextProvider i18n={i18n}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Router>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<ClientNew />} />
-              <Route path="/client" element={<ClientNew />} />
-              <Route path="/employer-current" element={<EmployerCurrent />} />
-              <Route path="/employers-past" element={<EmployersPast />} />
-              <Route path="/pensions" element={<Pensions />} />
-              <Route path="/income-assets" element={<IncomeAssets />} />
-              <Route path="/tax-admin" element={<TaxAdmin />} />
-              <Route path="/scenarios" element={<Scenarios />} />
-              <Route path="/results" element={<Results />} />
-            </Routes>
-          </Layout>
-        </Router>
-      </ThemeProvider>
-    </I18nextProvider>
+    <div style={{ fontFamily: "system-ui, Arial", margin: 24, direction: "rtl" }}>
+      <h2>Retirement Planning – בדיקת פרונט</h2>
+      <p>API: <code>{API_BASE}</code></p>
+
+      <div style={{ display: "grid", gap: 12, maxWidth: 420 }}>
+        <label>
+          מזהה לקוח:
+          <input
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            style={{ width: "100%", padding: 8 }}
+            />
+        </label>
+        <label>
+          מזהי תרחישים (מופרדים בפסיק):
+          <input
+            value={scenarioIds}
+            onChange={(e) => setScenarioIds(e.target.value)}
+            style={{ width: "100%", padding: 8 }}
+            />
+        </label>
+        <button onClick={exportPdf} disabled={busy} style={{ padding: "10px 14px" }}>
+          {busy ? "מייצא..." : "ייצוא PDF"}
+        </button>
+        {msg && <div>{msg}</div>}
+        <hr />
+        <small>
+          טיפ: אם הרצת את <code>tools/report_smoke.py</code> הוא יוצר בד"כ Client=1 ו-Scenario=2.
+        </small>
+      </div>
+    </div>
   );
 }
-
-export default App;
