@@ -1,57 +1,33 @@
+import os
 import pytest
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.database import get_db, Base
+from app.main import app as fastapi_app
 
-from app.database import Base, get_db
-from app.main import app
+@pytest.fixture(scope="session", autouse=True)
+def _test_db(tmp_path_factory):
+    db_path = tmp_path_factory.mktemp("db") / "test_suite.db"
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
 
-# Create in-memory SQLite engine with StaticPool for test isolation
-engine = create_engine(
-    "sqlite://", 
-    connect_args={"check_same_thread": False}, 
-    poolclass=StaticPool
-)
-
-SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
-
-# Create all tables once
-Base.metadata.create_all(engine)
-
-# Event listener to restart savepoint after each flush
-@event.listens_for(Session, "after_transaction_end")
-def restart_savepoint(session, trans):
-    if trans.nested and not trans._parent.nested:
-        session.begin_nested()
-
-@pytest.fixture(scope="function")
-def db_session():
-    """Create a database session with transaction rollback for test isolation"""
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = SessionLocal(bind=connection)
-    
-    # Start a savepoint
-    session.begin_nested()
-    
-    yield session
-    
-    # Rollback transaction and close connection
-    session.close()
-    transaction.rollback()
-    connection.close()
-
-@pytest.fixture(scope="function")
-def client(db_session):
-    """Create a test client with database dependency override"""
     def override_get_db():
-        yield db_session
-    
-    app.dependency_overrides[get_db] = override_get_db
-    
-    with TestClient(app) as test_client:
-        yield test_client
-    
-    # Clean up dependency override
-    app.dependency_overrides.clear()
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+
+    yield {"engine": engine, "Session": TestingSessionLocal}
+
+    # teardown
+    fastapi_app.dependency_overrides.clear()
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+    try:
+        os.remove(db_path)
+    except PermissionError:
+        pass

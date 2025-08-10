@@ -4,49 +4,26 @@ Smoke test for fixation API endpoints
 import pytest
 from fastapi.testclient import TestClient
 from datetime import date
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.database import get_db, Base
 from app.main import app as fastapi_app
 from app.models import Client, FixationResult
 
-test_engine = create_engine("sqlite:///test_suite.db", connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-Base.metadata.create_all(bind=test_engine)
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-fastapi_app.dependency_overrides[get_db] = override_get_db
-
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_test_db():
-    """Set up test database"""
-    # Create a test client
-    db = TestingSessionLocal()
-    test_client = Client(
-        id_number_raw="123456782",
-        id_number="123456782",
-        full_name="Test Client",
-        birth_date=date(1980, 1, 1),
-        is_active=True
-    )
-    db.add(test_client)
-    db.commit()
-    db.close()
+def setup_test_client(_test_db):
+    """Set up test client in database"""
+    Session = _test_db["Session"]
+    with Session() as db:
+        test_client = Client(
+            id_number_raw="123456782",
+            id_number="123456782",
+            full_name="Test Client",
+            birth_date=date(1980, 1, 1),
+            is_active=True
+        )
+        db.add(test_client)
+        db.commit()
     
     yield
-    
-    # Clean up
-    test_engine.dispose()
-    import os
-    if os.path.exists("test_suite.db"):
-        os.remove("test_suite.db")
 
 
 def test_compute_fixation_returns_200():
@@ -102,25 +79,24 @@ def test_compute_fixation_with_payload():
     assert "engine_version" in data
 
 
-def test_compute_fixation_creates_database_record():
+def test_compute_fixation_creates_database_record(_test_db):
     """Test that compute fixation creates a record in the database"""
+    Session = _test_db["Session"]
     client = TestClient(fastapi_app)
     
-    # Get initial count
-    db = TestingSessionLocal()
-    initial_count = db.query(FixationResult).count()
-    db.close()
+    # Get initial count using same Session as API
+    with Session() as db:
+        before = db.query(FixationResult).count()
     
     # Make API call
-    response = client.post("/api/v1/fixation/1/compute")
+    response = client.post("/api/v1/fixation/1/compute", json={})
     assert response.status_code == 200
     
-    # Check that a new record was created
-    db = TestingSessionLocal()
-    final_count = db.query(FixationResult).count()
-    db.close()
+    # Check that a new record was created using same Session as API
+    with Session() as db:
+        after = db.query(FixationResult).count()
     
-    assert final_count == initial_count + 1
+    assert after == before + 1
 
 
 def test_compute_fixation_nonexistent_client_returns_404():
@@ -130,3 +106,7 @@ def test_compute_fixation_nonexistent_client_returns_404():
     response = client.post("/api/v1/fixation/999/compute")
     
     assert response.status_code == 404
+    data = response.json()
+    assert "detail" in data
+    assert "error" in data["detail"]
+    assert data["detail"]["error"] == "לקוח לא נמצא"
