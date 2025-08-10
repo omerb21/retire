@@ -164,3 +164,7 @@ def calculate(client_id: int, req: CalcRequest):
         "result": "ok",
         "engine_version": "stage8-skeleton-1",
     }
+
+@router.post("/calc/{client_id}")
+def calc_compat(client_id: int, payload: dict | None = None, db: Session = Depends(get_db)):
+    return calculate(client_id=client_id, req=CalcRequest(scenario_ids=payload.get("scenario_ids") if payload else None))

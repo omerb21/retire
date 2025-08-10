@@ -1,31 +1,37 @@
-﻿# tests/test_calc_api.py
+# tests/test_calc_api.py
 import pytest
 import uuid
+import os
 from datetime import date
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-from app.main import app
 from app.database import get_db, Base
+from app.main import app as fastapi_app
 from app.models import Client, Employer, Employment
 
 # Global test database setup
-test_engine = create_engine("sqlite:///:memory:",
-                           connect_args={"check_same_thread": False},
-                           poolclass=StaticPool)
+test_engine = create_engine("sqlite:///test_suite.db", connect_args={"check_same_thread": False})
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 Base.metadata.create_all(bind=test_engine)
-TestSessionLocal = sessionmaker(bind=test_engine)
 
-def _override_get_db():
-    db = TestSessionLocal()
+def override_get_db():
+    db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = _override_get_db
-client = TestClient(app)
+fastapi_app.dependency_overrides[get_db] = override_get_db
+client = TestClient(fastapi_app)
+
+@pytest.fixture(scope="module", autouse=True)
+def teardown_module():
+    yield
+    # Clean up
+    test_engine.dispose()
+    if os.path.exists("test_suite.db"):
+        os.remove("test_suite.db")
 
 def _create_active_client_and_employment(db):
     # ׳™׳¦׳™׳¨׳× ׳׳–׳”׳™׳ ׳™׳™׳—׳•׳“׳™׳™׳ ׳׳›׳ ׳‘׳“׳™׳§׳”
@@ -57,7 +63,7 @@ def _create_active_client_and_employment(db):
 
 def test_calc_endpoint_200():
     # ׳ ׳™׳’׳© ׳ײ¾DB ׳׳”ײ¾override
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         cid = _create_active_client_and_employment(db)
     finally:
@@ -83,7 +89,7 @@ def test_calc_endpoint_client_not_found():
     detail = res.json().get("detail",""); assert isinstance(detail, str) and len(detail) > 0
 def test_calc_endpoint_inactive_client():
     # ׳™׳•׳¦׳¨ ׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         from tests.utils import gen_valid_id
         unique_suffix = str(uuid.uuid4())[:8]
@@ -109,7 +115,7 @@ def test_calc_endpoint_inactive_client():
     detail = res.json().get("detail",""); assert isinstance(detail, str) and len(detail) > 0
 def test_create_scenario_201_and_fetch_returns_same_values():
     # ׳™׳•׳¦׳¨ ׳׳§׳•׳— ׳₪׳¢׳™׳ ׳¢׳ ׳×׳¢׳¡׳•׳§׳”
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         cid = _create_active_client_and_employment(db)
     finally:
@@ -163,7 +169,7 @@ def test_create_scenario_201_and_fetch_returns_same_values():
 
 def test_list_scenarios_returns_created_item():
     # ׳™׳•׳¦׳¨ ׳׳§׳•׳— ׳₪׳¢׳™׳ ׳¢׳ ׳×׳¢׳¡׳•׳§׳”
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         cid = _create_active_client_and_employment(db)
     finally:
@@ -220,7 +226,7 @@ def test_create_scenario_404_client_not_found():
     detail = res.json().get("detail",""); assert isinstance(detail, str) and len(detail) > 0
 def test_create_scenario_400_inactive_client():
     # ׳™׳•׳¦׳¨ ׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         unique_suffix = str(uuid.uuid4())[:8]
         id_number = f"33333333{hash(unique_suffix) % 10}"
@@ -253,7 +259,7 @@ def test_create_scenario_400_inactive_client():
     detail = res.json().get("detail",""); assert isinstance(detail, str) and len(detail) > 0
 def test_get_scenario_404_scenario_not_found():
     # ׳™׳•׳¦׳¨ ׳׳§׳•׳— ׳₪׳¢׳™׳ ׳¢׳ ׳×׳¢׳¡׳•׳§׳”
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         cid = _create_active_client_and_employment(db)
     finally:
@@ -270,7 +276,7 @@ def test_list_scenarios_404_client_not_found():
     detail = res.json().get("detail",""); assert isinstance(detail, str) and len(detail) > 0
 def test_create_scenario_422_invalid_scenario_name():
     # ׳™׳•׳¦׳¨ ׳׳§׳•׳— ׳₪׳¢׳™׳ ׳¢׳ ׳×׳¢׳¡׳•׳§׳”
-    db = TestSessionLocal()
+    db = TestingSessionLocal()
     try:
         cid = _create_active_client_and_employment(db)
     finally:
@@ -278,7 +284,7 @@ def test_create_scenario_422_invalid_scenario_name():
 
     # ׳׳ ׳¡׳” ׳׳™׳¦׳•׳¨ ׳×׳¨׳—׳™׳© ׳¢׳ ׳©׳ ׳¨׳™׳§
     create_payload = {
-        "scenario_name": "",  # ׳©׳ ׳¨׳™׳§,
+        "scenario_name": "",  # שם ריק,
         "monthly_expenses": 5000.0,
         "planned_termination_date": "2025-06-30",
         "apply_tax_planning": False,
@@ -289,8 +295,11 @@ def test_create_scenario_422_invalid_scenario_name():
     res = client.post(f"/api/v1/clients/{cid}/scenarios", json=create_payload)
     assert res.status_code == 422
 
-
-
-
-
-
+def test_calc_calculate_smoke():
+    c = TestClient(fastapi_app)
+    r = c.post("/api/v1/calc/1/calculate", json={"scenario_ids": [2, 3]})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["client_id"] == 1
+    assert j["scenarios"] == [2, 3]
+    assert "engine_version" in j

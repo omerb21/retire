@@ -25,12 +25,11 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(client.router)
-app.include_router(fixation.router, prefix="/api/v1", tags=["fixation"])
-app.include_router(files.router)
-app.include_router(calc.router, prefix="/api/v1", tags=["calc"])
-app.include_router(employment.router)
-app.include_router(report.router, prefix="/api/v1/reports", tags=["reports"])
+app.include_router(client.router,     prefix="/api/v1", tags=["clients"])
+app.include_router(employment.router, prefix="/api/v1", tags=["employment"])
+app.include_router(calc.router,       prefix="/api/v1", tags=["calc"])
+app.include_router(report.router,     prefix="/api/v1", tags=["reports"])
+app.include_router(fixation.router,   prefix="/api/v1", tags=["fixation"])
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

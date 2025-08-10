@@ -3,44 +3,37 @@ Smoke test for fixation API endpoints
 """
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app
-from app.database import get_db, engine
-from app.models import Base, Client, FixationResult
-from sqlalchemy.orm import sessionmaker
+from datetime import date
 from sqlalchemy import create_engine
-import tempfile
-import os
+from sqlalchemy.orm import sessionmaker
+from app.database import get_db, Base
+from app.main import app as fastapi_app
+from app.models import Client, FixationResult
 
-
-# Create test database
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_fixation.db"
-test_engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+test_engine = create_engine("sqlite:///test_suite.db", connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
+Base.metadata.create_all(bind=test_engine)
 
 def override_get_db():
+    db = TestingSessionLocal()
     try:
-        db = TestingSessionLocal()
         yield db
     finally:
         db.close()
 
-
-app.dependency_overrides[get_db] = override_get_db
+fastapi_app.dependency_overrides[get_db] = override_get_db
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_test_db():
     """Set up test database"""
-    Base.metadata.create_all(bind=test_engine)
-    
     # Create a test client
     db = TestingSessionLocal()
     test_client = Client(
         id_number_raw="123456782",
         id_number="123456782",
         full_name="Test Client",
-        birth_date="1980-01-01",
+        birth_date=date(1980, 1, 1),
         is_active=True
     )
     db.add(test_client)
@@ -50,14 +43,15 @@ def setup_test_db():
     yield
     
     # Clean up
-    Base.metadata.drop_all(bind=test_engine)
-    if os.path.exists("test_fixation.db"):
-        os.remove("test_fixation.db")
+    test_engine.dispose()
+    import os
+    if os.path.exists("test_suite.db"):
+        os.remove("test_suite.db")
 
 
 def test_compute_fixation_returns_200():
     """Test that POST /api/v1/fixation/{client_id}/compute returns 200"""
-    client = TestClient(app)
+    client = TestClient(fastapi_app)
     
     response = client.post("/api/v1/fixation/1/compute")
     
@@ -89,7 +83,7 @@ def test_compute_fixation_returns_200():
 
 def test_compute_fixation_with_payload():
     """Test compute fixation with optional payload"""
-    client = TestClient(app)
+    client = TestClient(fastapi_app)
     
     payload = {
         "scenario_id": 2,
@@ -110,7 +104,7 @@ def test_compute_fixation_with_payload():
 
 def test_compute_fixation_creates_database_record():
     """Test that compute fixation creates a record in the database"""
-    client = TestClient(app)
+    client = TestClient(fastapi_app)
     
     # Get initial count
     db = TestingSessionLocal()
@@ -131,7 +125,7 @@ def test_compute_fixation_creates_database_record():
 
 def test_compute_fixation_nonexistent_client_returns_404():
     """Test that compute fixation with nonexistent client returns 404"""
-    client = TestClient(app)
+    client = TestClient(fastapi_app)
     
     response = client.post("/api/v1/fixation/999/compute")
     
