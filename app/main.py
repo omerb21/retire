@@ -1,4 +1,4 @@
-﻿"""
+"""
 FastAPI application entrypoint
 """
 from fastapi import FastAPI
@@ -26,7 +26,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(client.router)
-app.include_router(fixation.router)
+app.include_router(fixation.router, prefix="/api/v1", tags=["fixation"])
 app.include_router(files.router)
 app.include_router(calc.router, prefix="/api/v1", tags=["calc"])
 app.include_router(employment.router)

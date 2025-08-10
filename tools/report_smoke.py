@@ -133,8 +133,23 @@ if rr.status_code == 422 and "CPI" in rr.text:
     rr = c.post(f"/api/v1/scenarios/{sid}/run")
     debug(rr, "run-scenario-after-cpi")
 
-# 4) ייצוא PDF
+# 4) קיבוע זכויות
+if cid:
+    r = c.post(f"/api/v1/fixation/{cid}/compute")
+    debug(r, "fixation")
+    if r.status_code == 200:
+        try:
+            fixation_data = r.json()
+            persisted_id = fixation_data.get("persisted_id")
+            print(f"[fixation] 200 … persisted_id={persisted_id}")
+        except Exception:
+            print(f"[fixation] 200 but failed to parse response")
+    else:
+        print(f"[fixation] {r.status_code} failed")
+
+# 5) יצוא PDF
 r = c.post("/api/v1/reports/pdf", json={"client_id": cid, "scenario_ids": [sid]})
+debug(r, "pdf-export")
 print("STATUS:", r.status_code, "| CT:", r.headers.get("content-type"), "| size:", len(r.content))
 print("HEAD:", r.content[:4])
 

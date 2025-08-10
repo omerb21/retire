@@ -181,5 +181,51 @@ The Rights Fixation System is maintained as a separate submodule. Use the setup 
 3. Run the scenario
    - Expected: HTTP 200 with scenario results including cashflow projection
 
+## Fixation API
+
+The Fixation API provides rights fixation calculations for clients.
+
+### Compute Rights Fixation
+
+Calculate exempt capital remaining and used commutation for a client:
+
+```bash
+# Basic computation
+curl -X POST "http://localhost:8000/api/v1/fixation/1/compute" \
+     -H "Content-Type: application/json"
+
+# With optional parameters
+curl -X POST "http://localhost:8000/api/v1/fixation/1/compute" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "scenario_id": 2,
+       "params": {
+         "custom_param": "value"
+       }
+     }'
+```
+
+**Response:**
+```json
+{
+  "client_id": 1,
+  "persisted_id": 123,
+  "outputs": {
+    "exempt_capital_remaining": 0.0,
+    "used_commutation": 0.0,
+    "annex_161d_ready": false
+  },
+  "engine_version": "fixation-sprint2-1"
+}
+```
+
+**Key Fields:**
+- `client_id`: Client identifier
+- `persisted_id`: Database record ID for this calculation
+- `outputs.exempt_capital_remaining`: Remaining exempt capital amount
+- `outputs.used_commutation`: Amount of commutation used
+- `outputs.annex_161d_ready`: Whether 161d form data is ready
+- `engine_version`: Calculation engine version
+
 ## Version
 Current version: v0.5-stage5-green

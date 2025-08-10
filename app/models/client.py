@@ -1,8 +1,9 @@
-﻿"""
+"""
 Client entity model for SQLAlchemy ORM
 """
 from datetime import date, datetime, timezone
 from sqlalchemy import Column, BigInteger, Integer, String, Date, DateTime, Boolean, Text, Index
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -62,6 +63,9 @@ class Client(Base):
         Index('ix_client_full_name_id_number', 'full_name', 'id_number'),
         Index('ix_client_is_active', 'is_active'),
     )
+    
+    # Relationships
+    fixation_results = relationship("FixationResult", back_populates="client")
     
     def __repr__(self):
         return f"<Client(id={self.id}, id_number={self.id_number}, full_name='{self.full_name}')>"

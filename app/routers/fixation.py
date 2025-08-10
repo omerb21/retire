@@ -1,4 +1,4 @@
-﻿"""
+"""
 Router for rights fixation (׳§׳™׳‘׳•׳¢ ׳–׳›׳•׳™׳•׳×) endpoints
 """
 import os
@@ -15,9 +15,14 @@ from typing import Dict, Any, Optional
 from app.schemas.fixation import FixationSingleResponse, FixationPackageResponse
 from app.database import get_db
 from app.models.client import Client
+from app.models.fixation_result import FixationResult
+from app.services.fixation_service import compute_rights_fixation
 
 # Set up logger
 logger = logging.getLogger(__name__)
+
+# Set up router
+router = APIRouter(tags=["fixation"])
 
 
 def log_document_generation(endpoint: str, client_id: int, ok: bool, fallback: bool, duration_ms: int, extra: Optional[Dict[str, Any]] = None):
@@ -455,4 +460,50 @@ def generate_fixation_package_for_client(db: Session, client_id: int) -> dict:
             "client_id": client_id,
             "client_name": None,
         }
+
+
+@router.post("/fixation/{client_id}/compute")
+async def compute_fixation(
+    client_id: int,
+    payload: Optional[Dict[str, Any]] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Compute rights fixation for a client
+    
+    Args:
+        client_id: Client ID
+        payload: Optional payload with scenario_id and params
+        db: Database session
+        
+    Returns:
+        Dictionary with client_id, persisted_id, outputs, engine_version
+    """
+    # Validate client exists
+    client = validate_client_and_permissions(client_id, db)
+    
+    # Call the fixation service
+    result = compute_rights_fixation(client_id, payload)
+    
+    # Save result to database
+    fixation_result = FixationResult(
+        client_id=client_id,
+        exempt_capital_remaining=result["outputs"]["exempt_capital_remaining"],
+        used_commutation=result["outputs"]["used_commutation"],
+        raw_payload=result["inputs"],
+        raw_result=result,
+        notes=f"Computed via API at {result['inputs']['timestamp']}"
+    )
+    
+    db.add(fixation_result)
+    db.commit()
+    db.refresh(fixation_result)
+    
+    # Return required response format
+    return {
+        "client_id": client_id,
+        "persisted_id": fixation_result.id,
+        "outputs": result["outputs"],
+        "engine_version": result["engine_version"]
+    }
 
