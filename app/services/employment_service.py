@@ -1,4 +1,4 @@
-﻿"""
+"""
 Employment service for managing client employment and termination events
 """
 import logging
@@ -7,7 +7,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, text
 
-from app.models import Client, Employer, Employment, TerminationEvent, TerminationReason
+from app.models import Client, Employer, Employment, TerminationEvent, TerminationReason, CurrentEmployer
+from datetime import date as date_type
 
 # Set up structured logging
 logger = logging.getLogger(__name__)
@@ -41,7 +42,8 @@ class EmploymentService:
                              employer_name: str,
                              reg_no: Optional[str],
                              start_date: date,
-                             monthly_salary_nominal: Optional[float] = None) -> Employment:
+                             monthly_salary_nominal: Optional[float] = None,
+                             end_date: Optional[date] = None) -> Employment:
         """
         - ׳׳׳×׳¨ ׳׳• ׳™׳•׳¦׳¨ Employer ׳׳₪׳™ (reg_no, name) - ׳׳ ׳™׳© reg_no ׳”׳©׳×׳׳© ׳‘׳• ׳׳–׳™׳”׳•׳™, ׳׳—׳¨׳× ׳׳₪׳™ name.
         - ׳¡׳•׳’׳¨ ׳›׳ Employment ׳§׳™׳™׳ ׳¢׳ is_current=True ׳׳׳§׳•׳—: is_current=False, end_date=None ׳׳ ׳׳ ׳™׳“׳•׳¢.
@@ -84,6 +86,7 @@ class EmploymentService:
             client_id=client_id,
             employer_id=employer.id,
             start_date=start_date,
+            end_date=end_date,  # Include end_date if provided
             is_current=True,
             monthly_salary_nominal=monthly_salary_nominal
         )
@@ -101,11 +104,60 @@ class EmploymentService:
         db.commit()
         db.refresh(client)
         
+        # Synchronize with CurrentEmployer model
+        # Check if a CurrentEmployer record exists for this client
+        current_employer = db.query(CurrentEmployer).filter(
+            CurrentEmployer.client_id == client_id
+        ).order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc()).first()
+        
+        # Create or update CurrentEmployer record
+        if not current_employer:
+            # Create new CurrentEmployer record with all required fields
+            current_employer = CurrentEmployer(
+                client_id=client_id,
+                employer_name=employer.name,
+                employer_id_number=employer.reg_no,
+                start_date=start_date,
+                end_date=new_emp.end_date,  # Sync end_date
+                last_salary=monthly_salary_nominal,
+                average_salary=monthly_salary_nominal,  # Use monthly_salary as average if not provided
+                non_continuous_periods=None,  # Default to None if not provided
+                continuity_years=0.0,  # Default to 0.0 if not provided
+                last_update=date_type.today()
+            )
+            db.add(current_employer)
+        else:
+            # Update all relevant fields explicitly
+            current_employer.employer_name = employer.name
+            current_employer.employer_id_number = employer.reg_no
+            current_employer.start_date = start_date
+            
+            # Always sync end_date (even if None, to ensure consistency)
+            current_employer.end_date = new_emp.end_date
+                
+            # Always sync salary information (even if None, to ensure consistency)
+            current_employer.last_salary = monthly_salary_nominal
+            
+            # If we have a salary value, use it for average_salary too
+            if monthly_salary_nominal is not None:
+                current_employer.average_salary = monthly_salary_nominal
+            
+            # Ensure continuity_years is set (default to 0.0 if not already set)
+            if current_employer.continuity_years is None:
+                current_employer.continuity_years = 0.0
+                
+            # Always update last_update and updated_at
+            current_employer.last_update = date_type.today()
+        
+        db.commit()
+        db.refresh(current_employer)
+        
         # Add structured logging
         logger.info({
             "event": "employment.set_current",
             "client_id": client_id,
             "employment_id": new_emp.id,
+            "current_employer_id": current_employer.id,
             "current": True
         })
         

@@ -1,14 +1,13 @@
-﻿"""
+"""
 Integration tests for employment API endpoints
 """
 import unittest
 from datetime import date, timedelta
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, StaticPool, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 
-from app.main import app
-from app.database import get_db, Base
+from app.main import app as fastapi_app
+from app.database import get_db
 from app.models.client import Client
 from app.models.employer import Employer
 from app.models.employment import Employment
@@ -20,62 +19,42 @@ from app.services.client_service import normalise_and_validate_id_number
 class TestEmploymentAPI(unittest.TestCase):
     
     def setUp(self):
-        """Set up test database and client"""
-        # Create in-memory SQLite database with StaticPool
-        self.engine = create_engine(
-            "sqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        """Set up test client using unified test database"""
+        self.client = TestClient(fastapi_app)
         
-        # Import all models before creating tables
-        from app.models import Client, Employer, Employment, TerminationEvent
+        # Clean up any existing data
+        db = next(get_db())
+        try:
+            db.execute(text("DELETE FROM termination_event"))
+            db.execute(text("DELETE FROM employment"))
+            db.execute(text("DELETE FROM employer"))
+            db.execute(text("DELETE FROM client"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
         
-        # Create all tables
-        Base.metadata.create_all(bind=self.engine)
-        
-        # Create session
-        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        self.db = TestingSessionLocal()
-        
-        # Override dependency
-        def override_get_db():
-            try:
-                yield self.db
-            finally:
-                pass  # Don't close here, we'll handle it in tearDown
-        
-        app.dependency_overrides[get_db] = override_get_db
-        
-        # Create test client
-        self.client = TestClient(app)
-        
-        # Create test client in database with unique ID
         from tests.utils import gen_valid_id
         import random
-        
-        # Generate unique valid Israeli ID for this test
         raw_id = gen_valid_id()
         self.test_client_data = {
             "id_number_raw": raw_id,
-            "full_name": "׳™׳©׳¨׳׳ ׳™׳©׳¨׳׳׳™",
+            "full_name": "ישראל ישראלי",
             "birth_date": "1980-01-01",
-            "email": f"test_{self.id()}_{random.randint(1000, 9999)}@example.com",  # Unique email per test
+            "email": f"test_{self.id()}_{random.randint(1000, 9999)}@example.com",
             "phone": "0501234567",
-            "address_city": "׳×׳ ׳׳‘׳™׳‘",
-            "address_street": "׳¨׳—׳•׳‘ ׳”׳‘׳¨׳•׳© 5",
-            "address_postal_code": "6100000"
+            "address_city": "תל אביב",
+            "address_street": "רחוב הברוש 5",
+            "address_postal_code": "6100000",
         }
-        
         response = self.client.post("/api/v1/clients", json=self.test_client_data)
         self.assertEqual(response.status_code, 201)
         self.test_client_id = response.json()["id"]
     
     def tearDown(self):
-        """Clean up test database"""
-        self.db.close()
-        Base.metadata.drop_all(bind=self.engine)
-        app.dependency_overrides.clear()
+        """Clean up test data"""
+        # Clean up is handled by the unified test database
     
     def test_set_current_employer_201(self):
         """Test creating current employment returns 201 with valid EmploymentOut structure"""
@@ -393,4 +372,9 @@ class TestEmploymentAPI(unittest.TestCase):
         self.assertTrue(isinstance(data["detail"]["error"], str) and len(data["detail"]["error"]) > 0)
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
 

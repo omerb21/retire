@@ -1,9 +1,9 @@
-﻿"""
+"""
 Client entity schemas for API request/response validation
 """
 from datetime import date, datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from app.services.client_service import validate_id_number, normalize_id_number
 
 
@@ -32,12 +32,13 @@ class ClientBase(BaseModel):
 class ClientCreate(ClientBase):
     """Schema for creating a new client"""
     
-    @validator('id_number_raw')
+    @field_validator('id_number_raw')
+    @classmethod
     def validate_id(cls, v):
         """Validate ID number"""
         normalized = normalize_id_number(v)
         if not validate_id_number(normalized):
-            raise ValueError("׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”")
+            raise ValueError("תעודת זהות אינה תקינה")
         return v
 
 
@@ -62,13 +63,14 @@ class ClientUpdate(BaseModel):
     is_active: Optional[bool] = Field(None, description="Is client active")
     notes: Optional[str] = Field(None, description="Notes")
     
-    @validator('id_number_raw')
-    def validate_id(cls, v):
+    @field_validator('id_number_raw')
+    @classmethod
+    def validate_id_update(cls, v):
         """Validate ID number if provided"""
         if v:
             normalized = normalize_id_number(v)
             if not validate_id_number(normalized):
-                raise ValueError("׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”")
+                raise ValueError("תעודת זהות אינה תקינה")
         return v
 
 
@@ -79,8 +81,7 @@ class ClientResponse(ClientBase):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ClientList(BaseModel):

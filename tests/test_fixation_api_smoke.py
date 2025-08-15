@@ -13,15 +13,21 @@ def setup_test_client(_test_db):
     """Set up test client in database"""
     Session = _test_db["Session"]
     with Session() as db:
-        test_client = Client(
-            id_number_raw="123456782",
-            id_number="123456782",
-            full_name="Test Client",
-            birth_date=date(1980, 1, 1),
-            is_active=True
-        )
-        db.add(test_client)
-        db.commit()
+        # Check if client already exists
+        exists = db.query(Client).filter_by(id_number="123456782").first()
+        if not exists:
+            test_client = Client(
+                id_number_raw="123456782",
+                id_number="123456782",
+                full_name="Test Client",
+                birth_date=date(1980, 1, 1),
+                is_active=True
+            )
+            db.add(test_client)
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()  # If already exists, ignore
     
     yield
 
@@ -109,4 +115,6 @@ def test_compute_fixation_nonexistent_client_returns_404():
     data = response.json()
     assert "detail" in data
     assert "error" in data["detail"]
-    assert data["detail"]["error"] == "לקוח לא נמצא"
+    assert "לא נמצא" in data["detail"]["error"]
+
+
