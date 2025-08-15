@@ -133,11 +133,10 @@ class TestCurrentEmployerAPI:
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "לקוח לא נמצא"
     
-    def test_get_current_employer_no_employer_404(self, _test_db):
+    def test_get_current_employer_no_employer_404(self, _test_db, client):
         """Test retrieving current employer when none exists returns 404"""
         import uuid
         Session = _test_db["Session"]
-        client = TestClient(fastapi_app)
         
         # Generate a unique ID for this test run
         unique_id = f"test{uuid.uuid4().hex[:8]}"
@@ -232,11 +231,10 @@ class TestCurrentEmployerAPI:
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "לקוח לא נמצא"
     
-    def test_add_grant_no_current_employer_404(self, _test_db):
+    def test_add_grant_no_current_employer_404(self, _test_db, client):
         """Test adding grant when no current employer exists returns 404"""
         import uuid
         Session = _test_db["Session"]
-        client = TestClient(fastapi_app)
         
         # Generate a unique ID for this test run
         unique_id = f"test{uuid.uuid4().hex[:8]}"
