@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import date
 from app.database import get_db
 from app.models.pension_fund import PensionFund
 from app.schemas.pension_fund import PensionFundCreate, PensionFundUpdate, PensionFundOut
-from app.services.pension_fund_service import compute_and_persist
+from app.services.pension_fund_service import compute_and_persist, compute_and_persist_fund, compute_all_pension_funds
 
 router = APIRouter(prefix="/api/v1", tags=["pension-funds"])
 
@@ -31,7 +32,7 @@ def update_pension_fund(fund_id: int, payload: PensionFundUpdate, db: Session = 
     fund = db.get(PensionFund, fund_id)
     if not fund:
         raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
-    for k, v in payload.dict(exclude_unset=True).items():
+    for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(fund, k, v)
     db.add(fund)
     db.commit()
@@ -48,8 +49,45 @@ def delete_pension_fund(fund_id: int, db: Session = Depends(get_db)):
     return
 
 @router.post("/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
-def compute_pension_fund(fund_id: int, db: Session = Depends(get_db)):
-    fund = db.get(PensionFund, fund_id)
-    if not fund:
-        raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
-    return compute_and_persist(db, fund)
+def compute_pension_fund(
+    fund_id: int, 
+    reference_date: Optional[date] = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        fund = compute_and_persist_fund(db, fund_id)
+        return fund
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail={"error": str(e)})
+
+@router.post("/clients/{client_id}/pension-funds/compute-all", response_model=List[PensionFundOut])
+def compute_all_client_pension_funds(
+    client_id: int,
+    reference_date: Optional[date] = None,
+    db: Session = Depends(get_db)
+):
+    """Compute all pension funds for a client"""
+    # Check if client exists
+    from app.models.client import Client
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+    
+    # Get all pension funds for the client
+    funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+    if not funds:
+        return []
+    
+    # Compute and update all funds
+    updated_funds = []
+    for fund in funds:
+        updated_fund = compute_and_persist(db, fund, reference_date)
+        updated_funds.append(updated_fund)
+    
+    return updated_funds
+
+@router.get("/clients/{client_id}/pension-funds", response_model=List[PensionFundOut])
+def get_client_pension_funds(client_id: int, db: Session = Depends(get_db)):
+    """Get all pension funds for a client"""
+    funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+    return funds

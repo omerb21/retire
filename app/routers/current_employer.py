@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import date
 from app.database import get_db
-from app.models import Client, CurrentEmployer
+from app.models.client import Client
+from app.models.current_employer import CurrentEmployer
 from app.services.current_employer_service import CurrentEmployerService
 from app.schemas.current_employer import (
     CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut,
@@ -31,7 +32,7 @@ def create_or_update_current_employer(
     Returns 201 for new creation, 200 for update
     """
     # Check if client exists
-    client = db.get(Client, client_id)
+    client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(
             status_code=404, 
@@ -90,30 +91,21 @@ def get_current_employer(
     Get current employer for a client
     Returns 404 if client not found or no current employer exists
     """
-    # Check if client exists
+    # 1) בדיקת קיום לקוח
     client = db.get(Client, client_id)
-    if not client:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "לקוח לא נמצא"}
-        )
-    
-    # Get current employer using direct query - get latest
+    if client is None:
+        raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+
+    # 2) שליפת המעסיק הנוכחי (האחרון)
     ce = db.scalar(
         select(CurrentEmployer)
         .where(CurrentEmployer.client_id == client_id)
         .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
     )
-    
-    if not ce:
-        # Could try to derive from Employment "current" here
-        # For now, just return 404
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "אין מעסיק נוכחי רשום ללקוח"}
-        )
-    
-    return ce
+    if ce is None:
+        raise HTTPException(status_code=404, detail={"error": "אין מעסיק נוכחי רשום ללקוח"})
+
+    return CurrentEmployerOut.model_validate(ce)  # Pydantic v2
 
 @router.post(
     "/clients/{client_id}/current-employer/grants",
@@ -130,7 +122,7 @@ def add_grant_to_current_employer(
     Includes grant_exempt, grant_taxable, tax_due in response
     """
     # Check if client exists
-    client = db.get(Client, client_id)
+    client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(
             status_code=404,

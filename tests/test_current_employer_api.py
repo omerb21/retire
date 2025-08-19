@@ -27,6 +27,44 @@ def setup_test_client(_test_db):
 
 
 class TestCurrentEmployerAPI:
+    @pytest.fixture
+    def client_without_employer(self, _test_db):
+        """
+        Create a client without a current employer specifically for the 'no employer' test.
+        Returns the client ID.
+        """
+        Session = _test_db["Session"]
+        db = Session()
+        try:
+            # Create a specific test client for this test
+            test_client = Client(
+                id_number_raw="no_current_employer_test_123",
+                id_number="no_current_employer_test_123",
+                full_name="Test Client Without Current Employer",
+                birth_date=date(1990, 1, 1),
+                is_active=True
+            )
+            db.add(test_client)
+            db.commit()
+            db.refresh(test_client)
+            
+            # Double-check client was saved
+            client_id = test_client.id
+            print(f"\n[FIXTURE] Created test client with ID: {client_id}")
+            print(f"[FIXTURE] Name: {test_client.full_name}, ID Number: {test_client.id_number}")
+            
+            # Ensure no current employer exists for this client
+            ce = db.scalar(select(CurrentEmployer).where(CurrentEmployer.client_id == client_id))
+            if ce:
+                db.delete(ce)
+                db.commit()
+                print(f"[FIXTURE] Deleted existing current employer for client {client_id}")
+            else:
+                print(f"[FIXTURE] No current employer found for client {client_id} - good!")
+                
+            return client_id
+        finally:
+            db.close()
     """Test cases for CurrentEmployer API endpoints"""
     
     def test_create_current_employer_201(self, _test_db):
@@ -133,37 +171,61 @@ class TestCurrentEmployerAPI:
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "לקוח לא נמצא"
     
-    def test_get_current_employer_no_employer_404(self, _test_db, client):
+    def test_get_current_employer_no_employer_404(self, client, db_session):
         """Test retrieving current employer when none exists returns 404"""
-        import uuid
-        Session = _test_db["Session"]
+        print("\n[TEST] Starting test_get_current_employer_no_employer_404")
+        print(f"[TEST] DB session ID: {id(db_session)}")
         
-        # Generate a unique ID for this test run
-        unique_id = f"test{uuid.uuid4().hex[:8]}"
-        
-        # Create a new client without current employer
-        with Session() as db:
-            # First check if a client with this ID already exists
-            existing = db.query(Client).filter(Client.id_number == unique_id).first()
-            if existing:
-                client_id = existing.id
+        try:
+            # Generate a unique ID to avoid collisions
+            import uuid, time
+            unique_id = f"{str(uuid.uuid4())[:8]}_{int(time.time())}"
+            
+            print(f"[TEST] Creating test client with unique ID: {unique_id}")
+            test_client = Client(
+                id_number_raw=f"test_no_employer_{unique_id}",
+                id_number=f"test_no_employer_{unique_id}",
+                full_name=f"Test Client {unique_id}",
+                birth_date=date(1990, 5, 15),
+                is_active=True
+            )
+            
+            print(f"[TEST] Adding client to database")
+            db_session.add(test_client)
+            print(f"[TEST] Committing client to database")
+            db_session.commit()
+            print(f"[TEST] Refreshing client object")
+            db_session.refresh(test_client)
+            client_id = test_client.id
+            print(f"[TEST] Created client with ID: {client_id}")
+            
+            # Force SQLAlchemy to execute a new query to verify client exists
+            print(f"[TEST] Verifying client exists in database")
+            db_session.expire_all()  # Clear session cache
+            check_client = db_session.query(Client).filter(Client.id == client_id).first()
+            if check_client:
+                print(f"[TEST] Client verified: ID={check_client.id}, Name='{check_client.full_name}'")
             else:
-                test_client = Client(
-                    id_number_raw=unique_id,
-                    id_number=unique_id,
-                    full_name="Client Without Employer",
-                    birth_date=date(1985, 5, 15),
-                    is_active=True
-                )
-                db.add(test_client)
-                db.commit()
-                db.refresh(test_client)
-                client_id = test_client.id
-        
-        response = client.get(f"/api/v1/clients/{client_id}/current-employer")
-        
-        assert response.status_code == 404
-        assert response.json()["detail"]["error"] == "אין מעסיק נוכחי רשום ללקוח"
+                print(f"[TEST] WARNING: Could not verify client in database!")
+            
+            # Make request to API
+            endpoint = f"/api/v1/clients/{client_id}/current-employer"
+            print(f"[TEST] Calling GET {endpoint}")
+            response = client.get(endpoint)
+            print(f"[TEST] Response status: {response.status_code}")
+            print(f"[TEST] Response body: {response.text}")
+            
+            # Assert response is correct
+            assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+            error_msg = response.json()["detail"]["error"]
+            expected_error = "אין מעסיק נוכחי רשום ללקוח"
+            
+            print(f"[TEST] Actual error: '{error_msg}'")
+            print(f"[TEST] Expected error: '{expected_error}'")
+            assert error_msg == expected_error, f"Wrong error message: got '{error_msg}'"   
+        finally:
+            print(f"[TEST] Test completed")
+            # Session will be closed by pytest fixture
     
     def test_add_grant_to_current_employer_201(self, _test_db):
         """Test adding grant to current employer returns 201 with calculation"""
