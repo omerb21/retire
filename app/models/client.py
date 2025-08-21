@@ -67,6 +67,8 @@ class Client(Base):
     # Relationships
     fixation_results = relationship("FixationResult", back_populates="client")
     pension_funds = relationship("PensionFund", back_populates="client", cascade="all, delete-orphan")
+    additional_incomes = relationship("AdditionalIncome", back_populates="client", cascade="all, delete-orphan")
+    capital_assets = relationship("CapitalAsset", back_populates="client", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Client(id={self.id}, id_number={self.id_number}, full_name='{self.full_name}')>"

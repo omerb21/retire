@@ -9,8 +9,8 @@ from app.services.client_service import validate_id_number, normalize_id_number
 
 class ClientBase(BaseModel):
     """Base schema for client data"""
-    id_number_raw: str = Field(..., description="Raw ID number as entered by user")
-    full_name: str = Field(..., description="Full name")
+    id_number_raw: Optional[str] = Field(None, description="Raw ID number as entered by user")
+    full_name: Optional[str] = Field(None, description="Full name")
     first_name: Optional[str] = Field(None, description="First name")
     last_name: Optional[str] = Field(None, description="Last name")
     birth_date: date = Field(..., description="Birth date")
@@ -31,14 +31,37 @@ class ClientBase(BaseModel):
 
 class ClientCreate(ClientBase):
     """Schema for creating a new client"""
+    id_number: Optional[str] = Field(None, description="ID number (for backward compatibility)")
     
     @field_validator('id_number_raw')
     @classmethod
-    def validate_id(cls, v):
-        """Validate ID number"""
-        normalized = normalize_id_number(v)
-        if not validate_id_number(normalized):
-            raise ValueError("תעודת זהות אינה תקינה")
+    def validate_id_raw(cls, v, values):
+        """Validate ID number raw if provided"""
+        if v is not None:
+            normalized = normalize_id_number(v)
+            if not validate_id_number(normalized):
+                raise ValueError("תעודת זהות אינה תקינה")
+            return v
+        return v
+        
+    @field_validator('id_number')
+    @classmethod
+    def validate_id(cls, v, values):
+        """Validate ID number and set id_number_raw if needed"""
+        if v is not None:
+            normalized = normalize_id_number(v)
+            if not validate_id_number(normalized):
+                raise ValueError("תעודת זהות אינה תקינה")
+            # If id_number is provided but id_number_raw is not, use id_number for id_number_raw
+            values.data["id_number_raw"] = v
+        return v
+        
+    @field_validator('full_name')
+    @classmethod
+    def set_full_name(cls, v, values):
+        """Set full_name from first_name and last_name if not provided"""
+        if v is None and values.data.get('first_name') and values.data.get('last_name'):
+            return f"{values.data['first_name']} {values.data['last_name']}"
         return v
 
 
