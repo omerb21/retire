@@ -1,9 +1,67 @@
-const API_BASE: string =
-  (import.meta as any).env?.VITE_API_BASE || "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1";
+
+function extractMessage(body: any): string | undefined {
+  if (!body) return;
+  if (typeof body === "string") return body;
+  if (typeof body.detail === "string") return body.detail;
+  if (Array.isArray(body?.detail)) {
+    // FastAPI 422 validation shape
+    return body.detail.map((d: any) => d.msg || d?.loc?.join(".")).join("; ");
+  }
+}
+
+async function parseJsonSafe(res: Response) {
+  try {
+    return await res.clone().json(); // משתמשים ב-clone כדי לא "לשרוף" את ה־body המקורי
+  } catch {
+    return null;
+  }
+}
+
+async function parseTextSafe(res: Response) {
+  try {
+    return await res.clone().text();
+  } catch {
+    return "";
+  }
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    // ↓ שינוי קריטי שמפסיק הרבה "Failed to fetch"
+    credentials: "omit",
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    ...init,
+  });
+
+  const ct = res.headers.get("content-type") ?? "";
+  const isJson = ct.includes("application/json");
+
+  if (!res.ok) {
+    const msg = isJson
+      ? await res.clone().json().then((b) =>
+          typeof b?.detail === "string"
+            ? b.detail
+            : Array.isArray(b?.detail)
+            ? b.detail.map((d: any) => d.msg || d?.loc?.join(".")).join("; ")
+            : JSON.stringify(b)
+        ).catch(() => "")
+      : await res.clone().text().catch(() => "");
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+
+  return (isJson ? await res.json() : await res.text()) as T;
+}
+
+// Helper function to check if error is network-related
+function isNetworkError(e: unknown) {
+  return e instanceof TypeError && e.message === 'Failed to fetch';
+}
 
 export type ClientItem = {
   id?: number;
-  id_number_raw: string;
+  id_number: string;
+  id_number_raw?: string;
   full_name: string | null;
   first_name?: string | null;
   last_name?: string | null;
@@ -12,28 +70,100 @@ export type ClientItem = {
   phone?: string | null;
 };
 
-type Paged<T> = { items: T[]; total?: number };
+export type Paged<T> = { items: T[]; total: number; page: number; page_size: number };
 
-export async function listClients(): Promise<Paged<ClientItem>> {
-  const r = await fetch(`${API_BASE}/api/v1/clients?limit=100&offset=0`);
-  if (!r.ok) throw new Error(`listClients ${r.status}`);
-  return r.json();
-}
-
-export async function createClient(payload: {
-  id_number_raw: string;
-  full_name?: string | null;
+export type ClientCreate = {
+  first_name: string;
+  last_name: string;
+  id_number: string;   // מחרוזת!
+  birth_date: string;  // "YYYY-MM-DD"
   email?: string | null;
   phone?: string | null;
-}): Promise<ClientItem> {
-  const r = await fetch(`${API_BASE}/api/v1/clients`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`createClient ${r.status}: ${t}`);
+};
+
+export async function listClients(params?: { limit?: number; offset?: number }) {
+  const q = new URLSearchParams();
+  if (params?.limit != null) q.set("limit", String(params.limit));
+  if (params?.offset != null) q.set("offset", String(params.offset));
+  const qs = q.toString();
+  return apiFetch<Paged<ClientItem>>(`/clients/${qs ? `?${qs}` : ""}`);
+}
+
+// Helper for valid Israeli ID - EXACT match to backend implementation
+function normalizeAndValidateIsraeliId(id: string | null | undefined): {valid: boolean; normalized: string} {
+  // Check if input is null or undefined
+  if (id === null || id === undefined) {
+    return {valid: false, normalized: ""};
   }
-  return r.json();
+  
+  // Convert to string if needed
+  const idStr = String(id);
+  
+  // Remove non-digits and trim
+  const normalized = idStr.replace(/\D/g, '').trim();
+  
+  // Check if empty
+  if (!normalized) {
+    return {valid: false, normalized};
+  }
+  
+  // Zero-pad to 9 digits
+  const paddedId = normalized.padStart(9, '0');
+  
+  // No hardcoded test IDs - rely on proper validation algorithm
+  
+  // Verify length - MUST be 9 digits
+  if (paddedId.length !== 9) {
+    return {valid: false, normalized: paddedId};
+  }
+  
+  // Calculate checksum using Israeli algorithm - EXACT match to backend
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    let digit = parseInt(paddedId[i], 10);
+    // Even positions (0, 2, 4, 6, 8) get weight 1
+    if (i % 2 === 0) {
+      sum += digit;
+    } 
+    // Odd positions (1, 3, 5, 7) get weight 2
+    else {
+      digit *= 2;
+      // If result > 9, sum the digits (equivalent to subtracting 9)
+      sum += digit > 9 ? digit - 9 : digit;
+    }
+  }
+  
+  return {valid: sum % 10 === 0, normalized: paddedId};
+}
+
+export async function createClient(payload: ClientCreate) {
+  try {
+    // Validate ID before sending to backend
+    const idValidation = normalizeAndValidateIsraeliId(payload.id_number);
+    
+    if (!idValidation.valid) {
+      throw new Error("תעודת זהות אינה תקינה");
+    }
+    
+    // Send the original payload with id_number_raw for backend compatibility
+    const p = {
+      ...payload,
+      id_number_raw: payload.id_number // Send original ID as id_number_raw
+    };
+    
+    // Log the payload being sent to verify it contains user input
+    console.log('Sending client payload:', p);
+    
+    return apiFetch<ClientItem>("/clients", {
+      method: "POST",
+      body: JSON.stringify(p),
+    });
+  } catch (error) {
+    console.error("Error in createClient:", error);
+    throw error;
+  }
+}
+
+export async function getClient(id: number) {
+  return apiFetch<ClientItem>(`/clients/${id}`);
 }

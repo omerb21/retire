@@ -1,4 +1,4 @@
-﻿"""
+"""
 Client router module for API endpoints
 """
 from typing import Optional, List
@@ -21,6 +21,7 @@ router = APIRouter(
 
 
 @router.post("", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     """
     Create a new client
@@ -149,6 +150,7 @@ def delete_client(client_id: int = Path(..., description="Client ID"), db: Sessi
 
 
 @router.get("", response_model=ClientList)
+@router.get("/", response_model=ClientList)
 def list_clients(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     gender: Optional[str] = Query(None, description="Filter by gender"),

@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clientApi, ClientCreate, handleApiError } from '../../lib/api';
+import { createClient, ClientItem } from '../../lib/api';
 
 interface ClientFormProps {
   onSuccess?: (clientId: number) => void;
 }
 
+interface ClientFormData {
+  id_number: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  email?: string | null;
+  phone?: string | null;
+  retirement_date?: string | null;
+}
+
 const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<ClientCreate>({
-    full_name: '',
-    id_number_raw: '',
+  const [formData, setFormData] = useState<ClientFormData>({
+    first_name: '',
+    last_name: '',
+    id_number: '',
     birth_date: '',
   });
   const [loading, setLoading] = useState(false);
@@ -30,14 +41,24 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
     setError(null);
 
     try {
-      const newClient = await clientApi.create(formData);
-      if (onSuccess) {
+      // Use the createClient function from our updated API utilities
+      const newClient = await createClient({
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        id_number: formData.id_number.trim(),
+        birth_date: formData.birth_date,
+        email: formData.email || null,
+        phone: formData.phone || null
+      });
+      
+      if (onSuccess && newClient.id) {
         onSuccess(newClient.id);
-      } else {
+      } else if (newClient.id) {
         navigate(`/clients/${newClient.id}`);
       }
     } catch (err: any) {
-      setError(handleApiError(err));
+      // Error message is now correctly formatted by our API utility
+      setError(`כשל בשמירה: ${err.message || "שגיאה לא מוכרת"}`);
     } finally {
       setLoading(false);
     }
@@ -53,11 +74,25 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
 
       <div>
         <label className="block text-sm font-medium mb-1">
-          שם מלא *
+          שם פרטי *
           <input
             type="text"
-            name="full_name"
-            value={formData.full_name}
+            name="first_name"
+            value={formData.first_name || ''}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
+          />
+        </label>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          שם משפחה *
+          <input
+            type="text"
+            name="last_name"
+            value={formData.last_name || ''}
             onChange={handleChange}
             required
             className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
@@ -70,8 +105,8 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
           מספר זהות *
           <input
             type="text"
-            name="id_number_raw"
-            value={formData.id_number_raw}
+            name="id_number"
+            value={formData.id_number}
             onChange={handleChange}
             required
             className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"

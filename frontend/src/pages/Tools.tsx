@@ -1,33 +1,57 @@
 import React, { useState } from "react";
 
-const API_BASE: string =
-  (import.meta as any).env?.VITE_API_BASE || "http://127.0.0.1:8000";
-
 export default function Tools() {
   const [clientId, setClientId] = useState<string>("1");
   const [scenarioIds, setScenarioIds] = useState<string>("2");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string>("");
+  
+  // API base path using environment variable or default relative path
+  const API_BASE = import.meta.env.VITE_API_BASE || "/api/v1";
 
   const exportPdf = async () => {
     setBusy(true);
     setMsg("");
     try {
+      // PDF report endpoint is not currently available
+      // Commenting out the fetch call to avoid 404 errors
+      /*
       const ids = scenarioIds.split(",").map(s => s.trim()).filter(Boolean).map(Number);
-      const r = await fetch(`${API_BASE}/api/v1/reports/pdf`, {
+      
+      // Using fetch with credentials:omit to avoid CORS issues
+      const response = await fetch(`${API_BASE}/reports/pdf/`, {
         method: "POST",
+        credentials: "omit",  // Critical change to avoid CORS issues
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ client_id: Number(clientId), scenario_ids: ids }),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
-      const blob = await r.blob();
+      
+      if (!response.ok) {
+        // Use simplified error handling with clone
+        let errorMsg = `HTTP ${response.status}`;
+        try {
+          const contentType = response.headers.get("content-type") ?? "";
+          if (contentType.includes("application/json")) {
+            const jsonError = await response.clone().json();
+            errorMsg = jsonError?.detail || JSON.stringify(jsonError);
+          } else {
+            errorMsg = await response.clone().text() || errorMsg;
+          }
+        } catch {}
+        throw new Error(errorMsg);
+      }
+      
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `report_${clientId}_${Date.now()}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      setMsg("✅ PDF הורד בהצלחה");
+      */
+      
+      // Display message about endpoint not being available
+      setMsg("⚠️ PDF export is temporarily unavailable - backend endpoint not implemented yet");
     } catch (e: any) {
       setMsg("❌ כשל ביצוא: " + (e?.message || e));
     } finally {
