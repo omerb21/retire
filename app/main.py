@@ -28,10 +28,10 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
-    allow_credentials=True,
+    allow_origins=["*"],          # מאפשר גם Origin=null של file:// וגם כל פורט מקומי
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=False,      # חייב להיות False כדי לאפשר "*"
 )
 
 # Include routers

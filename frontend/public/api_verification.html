@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>אימות ממשק API</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      text-align: right;
+      direction: rtl;
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .panel {
+      flex: 1;
+      min-width: 300px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      text-align: right;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #45a049;
+      cursor: pointer;
+    }
+    .response {
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      transition: all 0.3s ease;
+      animation: fadeIn 0.5s;
+    }
+    .success {
+      border-right: 5px solid #4CAF50;
+      border-left: none;
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      border-right: 5px solid #f44336;
+      border-left: none;
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .warning {
+      border-right: 5px solid #ffc107;
+      border-left: none;
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .info {
+      border-right: 5px solid #17a2b8;
+      border-left: none;
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #6c757d;
+      margin-top: 5px;
+      text-align: right;
+    }
+    
+    /* RTL-specific table styles */
+    .data-table {
+      direction: rtl;
+      text-align: right;
+    }
+    
+    .data-table th, .data-table td {
+      text-align: right;
+    }
+    
+    /* RTL tabs */
+    .tab-content {
+      direction: rtl;
+      text-align: right;
+    }
+    .auto-test-panel {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+    }
+    .test-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .test-options .form-group {
+      margin-bottom: 0;
+      flex: 1;
+      min-width: 150px;
+    }
+    .test-options label {
+      display: flex;
+      align-items: center;
+      font-weight: normal;
+    }
+    .test-options input[type="checkbox"] {
+      width: auto;
+      margin-right: 5px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #f3f3f3;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      background-color: #4CAF50;
+      border-radius: 5px;
+      transition: width 0.3s ease;
+    }
+    
+    /* Smoke Test Styling */
+    #smoke-test-panel {
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+      border-left: 4px solid #2196F3;
+    }
+    
+    .test-result-item {
+      padding: 8px;
+      margin: 5px 0;
+      border-radius: 4px;
+      border-left: 3px solid #ccc;
+    }
+    
+    .test-result-item.pass {
+      background-color: #d4edda;
+      border-right: 4px solid #28a745;
+      border-left: none;
+    }
+    .test-result-item.fail {
+      background-color: #f8d7da;
+      border-right: 4px solid #dc3545;
+      border-left: none;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+    }
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      margin-right: 5px;
+      border-radius: 5px 5px 0 0;
+    }
+    .tab.active {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>כלי אימות API</h1>
+  
+  <!-- Last Request/Response Panel -->
+  <div class="panel" id="last-request-panel">
+    <h2>תוצאת בקשה אחרונה</h2>
+    <div class="container">
+      <div class="panel" style="flex: 1;">
+        <h3>בקשה:</h3>
+        <pre id="last-request">אין בקשה אחרונה</pre>
+      </div>
+      <div class="panel" style="flex: 1;">
+        <h3>תשובה:</h3>
+        <pre id="last-response">אין תשובה אחרונה</pre>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Local Smoke Test Panel -->
+  <div class="panel" id="smoke-test-panel">
+    <h2>בדיקת עשן מקומית</h2>
+    <p>בדיקה מהירה של כל נקודות הקצה של ה-API</p>
+    <div class="form-group">
+      <label for="smoke-test-client-id">מזהה לקוח לבדיקה:</label>
+      <input type="text" id="smoke-test-client-id" placeholder="הכנס מזהה לקוח">
+    </div>
+    <button id="run-smoke-test" class="action-button">הרץ בדיקת עשן</button>
+    <div id="smoke-test-results" class="response"></div>
+    <div id="smoke-test-progress" class="progress-bar" style="display: none;">
+      <div class="progress-bar-inner"></div>
+    </div>
+  </div>
+  
+  <!-- Client Lookup Section -->
+  <div class="client-lookup">
+    <h2>חיפוש לקוח</h2>
+    <div class="form-group">
+      <label for="lookup-id-number">מספר זהות / מזהה לקוח:</label>
+      <input type="text" id="lookup-id-number" placeholder="הכנס מספר זהות או מזהה לקוח">
+      <button id="lookup-client">חפש לקוח</button>
+    </div>
+    <div id="client-lookup-response" class="response"></div>
+    <div id="client-info" style="display: none;" class="client-info-panel">
+      <h3>פרטי לקוח</h3>
+      <div id="client-details"></div>
+      <button id="use-client-id" class="action-button">השתמש בלקוח זה</button>
+    </div>
+  </div>
+  
+  <div class="auto-test-panel">
+    <h2>רצף בדיקות אוטומטי</h2>
+    <div class="form-group">
+      <label for="auto-test-client-id">מזהה לקוח לבדיקה:</label>
+      <input type="text" id="auto-test-client-id" placeholder="הכנס מזהה לקוח">
+    </div>
+    <div class="test-options">
+      <div class="form-group">
+        <label><input type="checkbox" id="test-pension-funds" checked> בדיקת קרנות פנסיה</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-additional-income" checked> בדיקת הכנסות נוספות</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-capital-assets" checked> בדיקת נכסי הון</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-scenarios" checked> בדיקת תרחישים</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-integration" checked> בדיקת אינטגרציה</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-fixation" checked> בדיקת קיבוע</label>
+      </div>
+    </div>
+    <button id="run-auto-tests" class="action-button">הרץ בדיקות אוטומטיות</button>
+    <div id="auto-test-results" class="response"></div>
+    <div id="test-progress" class="progress-bar" style="display: none;">
+      <div class="progress-bar-inner"></div>
+    </div>
+  </div>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="pension-funds">קרנות פנסיה</div>
+    <div class="tab" data-tab="fixation">קיבוע</div>
+    <div class="tab" data-tab="scenarios">תרחישים</div>
+    <div class="tab" data-tab="additional-income">הכנסות נוספות</div>
+    <div class="tab" data-tab="capital-assets">נכסי הון</div>
+    <div class="tab" data-tab="integration">אינטגרציה</div>
+  </div>
+  
+  <div class="tab-content active" id="pension-funds">
+    <h2>1. יצירת קרן פנסיה</h2>
+    <div class="container">
+      <div class="panel">
+        <h3>רשימת קרנות פנסיה</h3>
+        <div class="form-group">
+          <button id="load-pension-funds">טען קרנות פנסיה</button>
+          <button id="delete-all-funds" style="background-color: #f44336;">🗑️ מחק הכל</button>
+        </div>
+        <div id="funds-list" class="response"></div>
+      </div>
+    </div>
+    
+    <div class="container">
+      <div class="panel">
+        <h3>מצב מחושב</h3>
+        <div class="form-group">
+          <label for="pf-client-id">מזהה לקוח:</label>
+          <input type="text" id="pf-client-id" placeholder="הכנס מזהה לקוח">
+        </div>
+        <div class="form-group">
+          <label for="pf-fund-name">שם הקרן:</label>
+          <input type="text" id="pf-fund-name" value="קרן מחושבת לבדיקה">
+        </div>
+        <div class="form-group">
+          <label for="pf-balance">יתרה:</label>
+          <input type="number" id="pf-balance" value="100000">
+        </div>
+        <div class="form-group">
+          <label for="pf-annuity-factor">מקדם קצבה:</label>
+          <input type="number" id="pf-annuity-factor" value="220">
+        </div>
+        <div class="form-group">
+          <label for="pf-start-date">תאריך תחילת פנסיה:</label>
+          <input type="date" id="pf-start-date">
+        </div>
+        <div class="form-group">
+          <label for="pf-indexation">שיטת הצמדה:</label>
+          <select id="pf-indexation">
+            <option value="none">ללא הצמדה</option>
+            <option value="fixed">קבועה</option>
+            <option value="cpi">מדד</option>
+          </select>
+        </div>
+        <div class="form-group" id="pf-fixed-rate-group" style="display: none;">
+          <label for="pf-fixed-rate">שיעור הצמדה קבוע:</label>
+          <input type="number" id="pf-fixed-rate" value="0.02" step="0.01">
+        </div>
+        <button id="create-calculated-fund">צור קרן מחושבת</button>
+        <button id="delete-all-funds">מחק את כל הקרנות</button>
+        <div id="calculated-response" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>מצב ידני</h3>
+        <div class="form-group">
+          <label for="pf-manual-client-id">מזהה לקוח:</label>
+          <input type="number" id="pf-manual-client-id" value="1">
+        </div>
+        <div class="form-group">
+          <label for="pf-manual-fund-name">שם הקרן:</label>
+          <input type="text" id="pf-manual-fund-name" value="קרן ידנית לבדיקה">
+        </div>
+        <div class="form-group">
+          <label for="pf-pension-amount">סכום פנסיה:</label>
+          <input type="number" id="pf-pension-amount" value="5000">
+        </div>
+        <div class="form-group">
+          <label for="pf-manual-start-date">תאריך תחילת פנסיה:</label>
+          <input type="date" id="pf-manual-start-date">
+        </div>
+        <div class="form-group">
+          <label for="pf-manual-indexation">שיטת הצמדה:</label>
+          <select id="pf-manual-indexation">
+            <option value="none">ללא הצמדה</option>
+            <option value="fixed">קבועה</option>
+            <option value="cpi">מדד</option>
+          </select>
+        </div>
+        <div class="form-group" id="pf-manual-fixed-rate-group" style="display: none;">
+          <label for="pf-manual-fixed-rate">שיעור הצמדה קבוע:</label>
+          <input type="number" id="pf-manual-fixed-rate" value="0.02" step="0.01">
+        </div>
+        <button id="create-manual-fund">צור קרן ידנית</button>
+        <div id="manual-response" class="response"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tab-content" id="fixation">
+    <h2>2. חישוב קיבוע</h2>
+    <div class="panel">
+      <div class="form-group">
+        <label for="fixation-client-id">מזהה לקוח:</label>
+        <input type="text" id="fixation-client-id" placeholder="הכנס מזהה לקוח">
+      </div>
+      <button id="compute-fixation">חשב קיבוע</button>
+      <div id="fixation-response" class="response"></div>
+    </div>
+    
+    <h3>מודולים נוספים</h3>
+    <div class="container">
+      <div class="panel">
+        <h3>הכנסות נוספות</h3>
+        <div class="form-group">
+          <label for="income-client-id">מזהה לקוח:</label>
+          <input type="number" id="income-client-id" value="1">
+        </div>
+        <button id="load-incomes">טען הכנסות</button>
+        <button id="delete-all-incomes" style="background-color: #f44336;">🗑️ מחק את כל ההכנסות</button>
+        <div id="incomes-list" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>נכסי הון</h3>
+        <div class="form-group">
+          <label for="asset-client-id">מזהה לקוח:</label>
+          <input type="number" id="asset-client-id" value="1">
+        </div>
+        <button id="load-assets">טען נכסים</button>
+        <button id="delete-all-assets" style="background-color: #f44336;">🗑️ מחק את כל הנכסים</button>
+        <div id="assets-list" class="response"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tab-content" id="scenarios">
+    <h2>3. אינטגרציית תרחישים</h2>
+    <div class="container">
+      <div class="panel">
+        <h3>צור תרחיש</h3>
+        <div class="form-group">
+          <label for="scenario-client-id">מזהה לקוח:</label>
+          <input type="number" id="scenario-client-id" value="1">
+        </div>
+        <div class="form-group">
+          <label for="scenario-name">שם התרחיש:</label>
+          <input type="text" id="scenario-name" value="תרחיש ברירת מחדל">
+        </div>
+        <div class="form-group">
+          <label for="monthly-expenses">הוצאות חודשיות:</label>
+          <input type="number" id="monthly-expenses" value="10000">
+        </div>
+        <div class="form-group">
+          <label for="tax-optimization">אופטימיזציית מס:</label>
+          <select id="tax-optimization">
+            <option value="true">כן</option>
+            <option value="false">לא</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="reference-date">תאריך ייחוס:</label>
+          <input type="date" id="reference-date">
+        </div>
+        <div class="form-group">
+          <label for="capitalization">היוון:</label>
+          <select id="capitalization">
+            <option value="true">כן</option>
+            <option value="false">לא</option>
+          </select>
+        </div>
+        <button id="create-scenario">צור תרחיש</button>
+        <button id="list-scenarios">הצג תרחישים</button>
+        <div id="scenario-response" class="response"></div>
+        <h3>רשימת תרחישים</h3>
+        <div id="scenarios-list" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>נתוני תזרים מזומנים</h3>
+        <div id="cashflow-data" class="response"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="integration">
+    <h2>6. אינטגרציית תזרים מזומנים</h2>
+    <div class="container">
+      <div class="panel">
+        <h3>אינטגרציית תרחיש</h3>
+        <div class="form-group">
+          <label for="integration-client-id">מזהה לקוח:</label>
+          <input type="number" id="integration-client-id" placeholder="הכנס מזהה לקוח">
+        </div>
+        <div class="form-group">
+          <label for="integration-scenario-id">מזהה תרחיש:</label>
+          <input type="number" id="integration-scenario-id" placeholder="הכנס מזהה תרחיש">
+        </div>
+        <button id="view-cashflow">הצג תזרים</button>
+        <button id="integrate-all">אינטגרציית הכל</button>
+        <div id="integration-response" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>נתוני תזרים מזומנים</h3>
+        <div id="integration-cashflow-data" class="response"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+// === API BASE (8080 == סטטי → פנייה ישירה ל־backend) ===
+const API_BASE =
+  (location.port === '8080')
+    ? 'http://127.0.0.1:8000/api/v1'
+    : '/api/v1';
+
+// === עטיפת fetch – מחזירה data בלבד, וזורקת על !ok ===
+async function apiFetch(path, opts = {}) {
+  const API = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const init = { method: (opts.method || 'GET').toUpperCase(), headers: {} };
+  if (opts.body !== undefined) {
+    init.headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(opts.body);
+  }
+  
+  console.log(`API Call: ${init.method} ${API}`, opts.body || '');
+  
+  const res = await fetch(API, init);
+  let data = null;
+  if (res.status !== 204) {
+    const ct = res.headers.get('content-type') || '';
+    data = ct.includes('application/json') ? await res.json().catch(() => null) : await res.text();
+  }
+
+  console.log(`API Response: ${res.status} ${res.ok ? 'OK' : 'ERROR'}`, data);
+
+  // פאנל "תוצאת בקשה אחרונה" אם קיים
+  if (window.showLast) {
+    showLast({ url: API, method: init.method, body: opts.body ?? null }, { status: res.status, ok: res.ok, data });
+  }
+
+  return { ok: res.ok, status: res.status, data };
+}
+
+/* ==== פונקציות עזר להצגת בקשות ותשובות ==== */
+function pretty(obj) {
+  if (obj === null || obj === undefined) return 'אין מידע';
+  if (typeof obj === 'string') return obj;
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch (e) {
+    return String(obj);
+  }
+}
+
+function showLast(request, response) {
+  // הצג את הבקשה האחרונה
+  const requestElement = document.getElementById('last-request');
+  let requestContent = `<strong>URL:</strong> ${request.url}<br>`;
+  requestContent += `<strong>Method:</strong> ${request.method}<br>`;
+  
+  if (request.body) {
+    requestContent += `<strong>Body:</strong><pre>${pretty(request.body)}</pre>`;
+  }
+  
+  requestElement.innerHTML = requestContent;
+  
+  // הצג את התשובה האחרונה
+  const responseElement = document.getElementById('last-response');
+  let responseContent = `<strong>Status:</strong> ${response.status} ${response.statusText}<br>`;
+  
+  if (response.data) {
+    responseContent += `<strong>Data:</strong><pre>${pretty(response.data)}</pre>`;
+  }
+  
+  responseElement.innerHTML = responseContent;
+  
+  // הוסף סגנון מתאים לפי סטטוס התשובה
+  if (response.status >= 200 && response.status < 300) {
+    responseElement.classList.add('success');
+    responseElement.classList.remove('error');
+  } else {
+    responseElement.classList.add('error');
+    responseElement.classList.remove('success');
+  }
+}
+    
+    // Set default dates to first day of current month
+    function setDefaultDates() {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const dateString = firstDay.toISOString().split('T')[0];
+      
+      document.getElementById('pf-start-date').value = dateString;
+      document.getElementById('pf-manual-start-date').value = dateString;
+    }
+    
+    // Enhanced helper function to display API responses
+    function displayResponse(elementId, content, isSuccess = null) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      
+      element.innerHTML = pretty(content);
+      
+      // הסר כל הקלאסים הקיימים
+      element.className = 'response';
+      
+      // הוסף קלאס בהתאם לסטטוס
+      if (isSuccess === true) {
+        element.classList.add('success');
+      } else if (isSuccess === false) {
+        element.classList.add('error');
+      } else {
+        element.classList.add('info');
+      }
+      
+      // הוסף חותמת זמן
+      const timestamp = document.createElement('div');
+      timestamp.className = 'timestamp';
+      timestamp.textContent = new Date().toLocaleString('he-IL');
+      element.appendChild(timestamp);
+    }
+
+    // פונקציה לטיפול בשגיאות API
+    function handleApiError(error, elementId) {
+      console.error('API Error:', error);
+      const errorMessage = error.message || error.toString();
+      displayResponse(elementId, errorMessage, false);
+    }
+    
+    // Tab functionality
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Remove active class from all tabs and contents
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active class to clicked tab and corresponding content
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+    
+    // Show/hide fixed rate field based on indexation method
+    document.getElementById('pf-indexation').addEventListener('change', function() {
+      const fixedRateGroup = document.getElementById('pf-fixed-rate-group');
+      fixedRateGroup.style.display = this.value === 'fixed' ? 'block' : 'none';
+      
+      // Make fixed_index_rate required if indexation is fixed
+      const fixedRateInput = document.getElementById('pf-fixed-rate');
+      fixedRateInput.required = this.value === 'fixed';
+      
+      // Add validation message
+      if (this.value === 'fixed') {
+        fixedRateInput.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+        if (fixedRateInput.value) fixedRateInput.setCustomValidity('');
+      } else {
+        fixedRateInput.setCustomValidity('');
+      }
+    });
+    
+    document.getElementById('pf-manual-indexation').addEventListener('change', function() {
+      const fixedRateGroup = document.getElementById('pf-manual-fixed-rate-group');
+      fixedRateGroup.style.display = this.value === 'fixed' ? 'block' : 'none';
+      
+      // Make fixed_index_rate required if indexation is fixed
+      const fixedRateInput = document.getElementById('pf-manual-fixed-rate');
+      fixedRateInput.required = this.value === 'fixed';
+      
+      // Add validation message
+      if (this.value === 'fixed') {
+        fixedRateInput.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+        if (fixedRateInput.value) fixedRateInput.setCustomValidity('');
+      } else {
+        fixedRateInput.setCustomValidity('');
+      }
+    });
+    
+    // Add input event listeners to clear validation messages when user types
+    document.getElementById('pf-fixed-rate').addEventListener('input', function() {
+      if (this.value) this.setCustomValidity('');
+      else this.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+    });
+    
+    document.getElementById('pf-manual-fixed-rate').addEventListener('input', function() {
+      if (this.value) this.setCustomValidity('');
+      else this.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+    });
+    
+    // 1. Pension Fund Creation - Calculated Mode
+    document.getElementById('create-calculated-fund').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-client-id').value;
+        const indexationMethod = document.getElementById('pf-indexation').value;
+        
+        // Get start date and align to first day of month
+        const start = new Date(document.getElementById('pf-start-date').value);
+        start.setDate(1);
+        const pension_start_date = start.toISOString().slice(0, 10); // YYYY-MM-01
+        
+        // Validate fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          const fixedRate = document.getElementById('pf-fixed-rate').value;
+          if (fixedRate === '' || fixedRate == null || isNaN(fixedRate)) {
+            displayResponse('calculated-response', 'יש להזין שיעור הצמדה קבוע (למשל ‎0.02‎).', false);
+            return;
+          }
+        }
+        
+        const payload = {
+          client_id: Number(clientId),
+          fund_name: document.getElementById('pf-fund-name').value,
+          input_mode: "calculated",
+          balance: Number(document.getElementById('pf-balance').value),
+          annuity_factor: Number(document.getElementById('pf-annuity-factor').value),
+          pension_start_date: pension_start_date,
+          indexation_method: indexationMethod
+        };
+        
+        // Only add fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          payload.fixed_index_rate = Number(document.getElementById('pf-fixed-rate').value);
+        } else {
+          // Ensure we don't send fixed_index_rate when not needed
+          delete payload.fixed_index_rate;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`, {
+          method: 'POST',
+          body: payload
+        });
+        
+        const success = result && (result.data?.persisted_id || result.data?.id || result.persisted_id || result.id);
+        displayResponse('calculated-response', success ? 'קרן פנסיה נוצרה בהצלחה' : 'קרן נוצרה אך ללא מזהה', !!success);
+        
+        // Refresh the pension funds list
+        document.getElementById('load-pension-funds').click();
+      } catch (error) {
+        handleApiError(error, 'calculated-response');
+      }
+    });
+    
+    // Pension Fund Creation - Manual Mode
+    document.getElementById('create-manual-fund').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-manual-client-id').value;
+        const indexationMethod = document.getElementById('pf-manual-indexation').value;
+        
+        // Get start date and align to first day of month
+        const start = new Date(document.getElementById('pf-manual-start-date').value);
+        start.setDate(1);
+        const pension_start_date = start.toISOString().slice(0, 10); // YYYY-MM-01
+        
+        // Validate fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          const fixedRate = document.getElementById('pf-manual-fixed-rate').value;
+          if (fixedRate === '' || fixedRate == null || isNaN(fixedRate)) {
+            displayResponse('manual-response', 'יש להזין שיעור הצמדה קבוע (למשל ‎0.02‎).', false);
+            return;
+          }
+        }
+        
+        const payload = {
+          client_id: Number(clientId),
+          fund_name: document.getElementById('pf-manual-fund-name').value,
+          input_mode: "manual",
+          pension_amount: Number(document.getElementById('pf-pension-amount').value),
+          pension_start_date: pension_start_date,
+          indexation_method: indexationMethod
+        };
+        
+        // Only add fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          payload.fixed_index_rate = Number(document.getElementById('pf-manual-fixed-rate').value);
+        } else {
+          // Ensure we don't send fixed_index_rate when not needed
+          delete payload.fixed_index_rate;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`, {
+          method: 'POST',
+          body: payload
+        });
+        
+        const success = result && (result.data?.persisted_id || result.data?.id || result.persisted_id || result.id);
+        displayResponse('manual-response', success ? 'קרן פנסיה נוצרה בהצלחה' : 'קרן נוצרה אך ללא מזהה', !!success);
+        
+        // Refresh the pension funds list
+        document.getElementById('load-pension-funds').click();
+      } catch (error) {
+        handleApiError(error, 'manual-response');
+      }
+    });
+    
+    // 2. Fixation Compute
+    document.getElementById('compute-fixation').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('fixation-client-id').value;
+        if (!clientId) {
+          displayResponse('fixation-response', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        // Show computing message
+        displayResponse('fixation-response', 'מחשב קיבוע...', true);
+        
+        // Ensure we use POST method only
+        const result = await apiFetch(`/fixation/${clientId}/compute`, {
+          method: 'POST',
+          body: {} // Empty body for POST request
+        });
+        
+        // Format the response nicely
+        if (result.data) {
+          let formattedResponse;
+          if (typeof result.data === 'object') {
+            formattedResponse = `
+              <h4>תוצאות חישוב קיבוע</h4>
+              <div class="fixation-result">
+                <pre>${pretty(result.data)}</pre>
+              </div>
+            `;
+          } else {
+            formattedResponse = `<h4>תוצאות חישוב קיבוע</h4><p>${result.data}</p>`;
+          }
+          displayResponse('fixation-response', formattedResponse);
+        } else {
+          displayResponse('fixation-response', 'קיבוע חושב בהצלחה', true);
+        }
+      } catch (error) {
+        handleApiError(error, 'fixation-response');
+      }
+    });
+    
+    // 3. Create Scenario
+    document.getElementById('create-scenario').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('scenario-client-id').value;
+        if (!clientId) {
+          displayResponse('scenario-response', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        const scenarioName = document.getElementById('scenario-name').value;
+        if (!scenarioName) {
+          displayResponse('scenario-response', 'שם התרחיש נדרש', false);
+          return;
+        }
+        
+        const monthlyExpenses = document.getElementById('monthly-expenses').value;
+        if (!monthlyExpenses || isNaN(monthlyExpenses) || Number(monthlyExpenses) <= 0) {
+          displayResponse('scenario-response', 'הוצאות חודשיות חייבות להיות מספר חיובי', false);
+          return;
+        }
+        
+        const taxOptimization = document.getElementById('tax-optimization').value === 'true';
+        const capitalization = document.getElementById('capitalization').value === 'true';
+        
+        const payload = {
+          client_id: Number(clientId),
+          scenario_name: scenarioName,
+          monthly_expenses: Number(monthlyExpenses),
+          tax_optimization: taxOptimization,
+          capitalization: capitalization
+        };
+        
+        // Show creating message
+        displayResponse('scenario-response', 'יוצר תרחיש...', true);
+        
+        const result = await apiFetch(`/clients/${clientId}/scenarios`, {
+          method: 'POST',
+          body: payload
+        });
+        
+        // Set the created scenario ID as the integration scenario ID
+        if (result.data && result.data.id) {
+          document.getElementById('integration-client-id').value = clientId;
+          document.getElementById('integration-scenario-id').value = result.data.id;
+          displayResponse('scenario-response', `תרחיש נוצר בהצלחה עם מזהה: ${result.data.id}`);
+          
+          // Switch to the integration tab
+          document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+          document.querySelector('.tab[data-tab="integration"]').classList.add('active');
+          document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+          document.getElementById('integration').style.display = 'block';
+          
+          // Automatically list scenarios
+          document.getElementById('list-scenarios').click();
+          
+        } else {
+          displayResponse('scenario-response', 'תרחיש נוצר בהצלחה', true);
+        }
+      } catch (error) {
+        handleApiError(error, 'scenario-response');
+      }
+    });
+    
+    // List Scenarios
+    document.getElementById('list-scenarios').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('scenario-client-id').value;
+        if (!clientId) {
+          displayResponse('scenarios-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/scenarios`);
+        
+        if (Array.isArray(result.data) && result.data.length > 0) {
+          // Format scenarios as a table
+          const scenariosTable = `
+            <table class="data-table" style="width:100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">מזהה</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">שם</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">הוצאות חודשיות</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">אופט. מס</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">היוון</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">פעולות</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.data.map(scenario => `
+                  <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.id}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.scenario_name}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.monthly_expenses || 'לא זמין'} ₪</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.tax_optimization ? 'כן' : 'לא'}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.capitalization ? 'כן' : 'לא'}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                      <button class="select-scenario" data-id="${scenario.id}">בחר</button>
+                      <button class="view-cashflow" data-id="${scenario.id}">הצג תזרים</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          
+          displayResponse('scenarios-list', scenariosTable);
+          
+          // Set the first scenario as selected by default
+          document.getElementById('integration-client-id').value = clientId;
+          document.getElementById('integration-scenario-id').value = result.data[0].id;
+          
+          // Add event listeners to select buttons
+          document.querySelectorAll('.select-scenario').forEach(button => {
+            button.addEventListener('click', (e) => {
+              e.preventDefault();
+              const scenarioId = button.getAttribute('data-id');
+              document.getElementById('integration-scenario-id').value = scenarioId;
+              document.getElementById('integration-client-id').value = clientId;
+              displayResponse('scenarios-list', `תרחיש נבחר עם מזהה: ${scenarioId}`);
+            });
+          });
+          
+          // Add event listeners to view cashflow buttons
+          document.querySelectorAll('.view-cashflow').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const scenarioId = button.getAttribute('data-id');
+              try {
+                await fetchCashflow(clientId, scenarioId);
+              } catch (error) {
+                displayResponse('cashflow-data', error.message, false);
+              }
+            });
+          });
+        } else {
+          displayResponse('scenarios-list', 'לא נמצאו תרחישים עבור לקוח זה. אנא צור תרחיש תחילה.');
+        }
+      } catch (error) {
+        displayResponse('scenarios-list', error.error || error.message || error, false);
+      }
+    });
+    
+    // Function to fetch and display cashflow
+    async function fetchCashflow(clientId, scenarioId, targetElementId = 'cashflow-data') {
+      try {
+        if (!clientId || !scenarioId) {
+          displayResponse(targetElementId, 'מזהה לקוח ומזהה תרחיש נדרשים', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/api/v1/scenarios/${scenarioId}/cashflow`);
+        
+        if (result && result.data) {
+          displayResponse(targetElementId, result.data, true);
+          
+          // If we have cashflow data, render it as a table
+          if (result.data.cashflow && Array.isArray(result.data.cashflow)) {
+            renderCashflowTable(result.data.cashflow, targetElementId);
+          }
+        } else {
+          displayResponse(targetElementId, 'לא נמצאו נתוני תזרים', false);
+        }
+      } catch (error) {
+        displayResponse(targetElementId, `שגיאה בטעינת תזרים: ${error.message}`, false);
+      }
+    }
+
+    // Removed fetchCashflowForScenario - no longer needed as we don't call GET /api/v1/scenarios/{sid}/cashflow
+
+    // View Cashflow button
+    document.getElementById('view-cashflow').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('integration-client-id').value;
+        const scenarioId = document.getElementById('integration-scenario-id').value;
+        
+        if (!clientId) {
+          displayResponse('integration-cashflow-data', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        if (!scenarioId) {
+          displayResponse('integration-cashflow-data', 'אנא בחר תרחיש תחילה', false);
+          return;
+        }
+        
+        await fetchCashflow(clientId, scenarioId, 'integration-cashflow-data');
+      } catch (error) {
+        displayResponse('integration-cashflow-data', error.message, false);
+      }
+    });
+    
+    // Integrate All
+    document.getElementById('integrate-all').addEventListener('click', async () => {
+      try {
+        const clientId = Number(document.getElementById('integration-client-id').value);
+        const scenarioId = Number(document.getElementById('integration-scenario-id').value);
+        
+        if (!clientId) {
+          displayResponse('integration-response', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        if (!scenarioId) {
+          displayResponse('integration-response', 'אנא בחר תרחיש תחילה', false);
+          return;
+        }
+        
+        const res = await apiFetch(`/api/v1/clients/${clientId}/cashflow/integrate-all`, {
+          method: 'POST',
+          body: { scenario_id: scenarioId }
+        });
+        
+        const success = res.ok && (res.data?.status === 'ok' || res.data?.success === true);
+        displayResponse('integration-response', res, success);
+      } catch (error) {
+        displayResponse('integration-response', `שגיאה: ${error.message}`, false);
+      }
+    });
+    
+    // Load Pension Funds
+    document.getElementById('load-pension-funds').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-client-id').value || document.getElementById('pf-manual-client-id').value;
+        if (!clientId) {
+          displayResponse('funds-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`);
+        
+        // Debug: Log the actual response structure
+        console.log('Pension funds response:', result);
+        
+        // Handle both direct array and wrapped response
+        const funds = Array.isArray(result) ? result : (result.data || []);
+        
+        // Debug: Log each fund structure
+        if (funds.length > 0) {
+          console.log('First fund structure:', funds[0]);
+          console.log('Available ID fields:', {
+            id: funds[0].id,
+            persisted_id: funds[0].persisted_id,
+            fund_id: funds[0].fund_id,
+            pension_fund_id: funds[0].pension_fund_id
+          });
+        }
+        
+        if (funds.length > 0) {
+          // Add item count header
+          const countHeader = `<h4>נמצאו ${funds.length} קרנות פנסיה</h4>`;
+          
+          const fundsHtml = funds.map(fund => {
+            // Format indexation method properly
+            let indexationText;
+            if (fund.indexation_method === 'fixed') {
+              if (typeof fund.fixed_index_rate === 'number') {
+                indexationText = `קבועה ${(fund.fixed_index_rate * 100).toFixed(2)}%`;
+              } else {
+                indexationText = 'קבועה —';
+              }
+            } else if (fund.indexation_method === 'cpi') {
+              indexationText = 'מדד';
+            } else {
+              indexationText = 'לא צמוד';
+            }
+            
+            // Use the standard id field for deletion
+            const delId = fund.id;
+            
+            return `
+              <div class="fund-card">
+                <h4>${fund.fund_name}</h4>
+                <p>סוג: ${fund.input_mode === 'calculated' ? 'מחושב' : 'ידני'}</p>
+                <p>סכום: ${fund.pension_amount ? fund.pension_amount : 'לא זמין'} ₪</p>
+                <p>תאריך התחלה: ${fund.pension_start_date}</p>
+                <p>הצמדה: ${indexationText}</p>
+                <p>ID: ${fund.id}</p>
+                <button class="delete-fund btn-delete-fund" data-delete-id="${delId}" data-client-id="${clientId}">מחק</button>
+              </div>
+            `;
+          }).join('');
+          
+          displayResponse('funds-list', `${countHeader}<div class="funds-container">${fundsHtml}</div>`);
+          
+          // Add event listeners to delete buttons using event delegation
+          document.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.btn-delete-fund');
+            if (!btn) return;
+            e.preventDefault();
+            
+            const clientId = btn.getAttribute('data-client-id');
+            const fundId = btn.getAttribute('data-delete-id');
+            try {
+              await apiFetch(`/pension-funds/${fundId}`, {
+                method: 'DELETE'
+              });
+              displayResponse('funds-list', 'קרן נמחקה בהצלחה', true);
+              // Reload the list after deletion
+              document.getElementById('load-pension-funds').click();
+            } catch (error) {
+              handleApiError(error, 'funds-list');
+            }
+          });
+        } else {
+          displayResponse('funds-list', 'לא נמצאו קרנות פנסיה');
+        }
+      } catch (error) {
+        handleApiError(error, 'funds-list');
+      }
+    });
+    
+    // Delete All Funds
+    document.getElementById('delete-all-funds').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-client-id').value || document.getElementById('pf-manual-client-id').value;
+        if (!clientId) {
+          displayResponse('funds-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('\u05d4\u05d0\u05de \u05d0\u05ea\u05d4 \u05d1\u05d8\u05d5\u05d7 \u05e9\u05d1\u05e8\u05e6\u05d5\u05e0\u05da \u05dc\u05de\u05d7\u05d5\u05e7 \u05d0\u05ea \u05db\u05dc \u05d4\u05e7\u05e8\u05e0\u05d5\u05ea?')) {
+          return;
+        }
+        
+        // Get all funds
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`);
+        const funds = Array.isArray(result) ? result : (result.data || []);
+        
+        if (funds.length > 0) {
+          // Delete each fund using the correct API endpoint
+          const deletePromises = funds.map(fund => {
+            return apiFetch(`/pension-funds/${fund.id}`, {
+              method: 'DELETE'
+            });
+          });
+          
+          await Promise.all(deletePromises);
+          displayResponse('funds-list', `נמחקו בהצלחה ${funds.length} קרנות פנסיה`, true);
+          
+          // Reload the list
+          document.getElementById('load-pension-funds').click();
+        } else {
+          displayResponse('funds-list', 'אין קרנות פנסיה למחיקה');
+        }
+      } catch (error) {
+        handleApiError(error, 'funds-list');
+      }
+    });
+    
+    // Load Additional Incomes
+    document.getElementById('load-incomes').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('income-client-id').value;
+        if (!clientId) {
+          displayResponse('incomes-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/additional-incomes/`);
+        
+        const incomes = Array.isArray(result) ? result : (result.data || []);
+        if (incomes.length > 0) {
+          // Add item count header
+          const countHeader = `<h4>נמצאו ${incomes.length} הכנסות נוספות</h4>`;
+          
+          const incomesHtml = incomes.map(income => {
+            const delId = income.persisted_id ?? income.id;
+            return `
+              <div class="income-card">
+                <h4>${income.name || 'Unnamed Income'}</h4>
+                <p>סכום: ${income.amount || 0} ₪</p>
+                <p>תדירות: ${income.frequency || 'monthly'}</p>
+                <p>הצמדה: ${income.indexation_method || 'none'}</p>
+                <p>ID: ${income.id}</p>
+                <button class="delete-income" data-delete-id="${delId}" data-client-id="${clientId}">מחק</button>
+              </div>
+            `;
+          }).join('');
+          
+          displayResponse('incomes-list', `${countHeader}<div class="incomes-container">${incomesHtml}</div>`);
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-income').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const incomeId = button.getAttribute('data-delete-id');
+              const clientId = button.getAttribute('data-client-id');
+              try {
+                await apiFetch(`/clients/${clientId}/additional-incomes/${incomeId}/`, {
+                  method: 'DELETE'
+                });
+                displayResponse('incomes-list', 'הכנסה נמחקה בהצלחה', true);
+                // Reload the list after deletion
+                document.getElementById('load-incomes').click();
+              } catch (error) {
+                handleApiError(error, 'incomes-list');
+              }
+            });
+          });
+        } else {
+          displayResponse('incomes-list', 'לא נמצאו הכנסות נוספות');
+        }
+      } catch (error) {
+        handleApiError(error, 'incomes-list');
+      }
+    });
+    
+    // Delete All Incomes
+    document.getElementById('delete-all-incomes').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('income-client-id').value;
+        if (!clientId) {
+          displayResponse('incomes-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('האם אתה בטוח שברצונך למחוק את כל ההכנסות הנוספות?')) {
+          return;
+        }
+        
+        // Get all incomes
+        const result = await apiFetch(`/clients/${clientId}/additional-incomes/`);
+        const incomes = Array.isArray(result) ? result : (result.data || []);
+        
+        if (incomes.length > 0) {
+          // Delete each income using persisted_id if available
+          const deletePromises = incomes.map(income => {
+            const delId = income.persisted_id ?? income.id;
+            return apiFetch(`/clients/${clientId}/additional-incomes/${delId}/`, {
+              method: 'DELETE'
+            });
+          });
+          
+          await Promise.all(deletePromises);
+          displayResponse('incomes-list', `נמחקו בהצלחה ${incomes.length} הכנסות נוספות`, true);
+          
+          // Reload the list
+          document.getElementById('load-incomes').click();
+        } else {
+          displayResponse('incomes-list', 'אין הכנסות נוספות למחיקה');
+        }
+      } catch (error) {
+        handleApiError(error, 'incomes-list');
+      }
+    });
+    
+    // Load Capital Assets
+    document.getElementById('load-assets').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('asset-client-id').value;
+        if (!clientId) {
+          displayResponse('assets-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/capital-assets/`);
+        
+        const assets = Array.isArray(result) ? result : (result.data || []);
+        if (assets.length > 0) {
+          // Add item count header
+          const countHeader = `<h4>נמצאו ${assets.length} נכסי הון</h4>`;
+          
+          const assetsHtml = assets.map(asset => {
+            const delId = asset.persisted_id ?? asset.id;
+            return `
+              <div class="asset-card">
+                <h4>${asset.name || 'Unnamed Asset'}</h4>
+                <p>סכום: ${asset.amount || 0} ₪</p>
+                <p>תשואה: ${asset.return_rate || 0}%</p>
+                <p>הצמדה: ${asset.indexation_method || 'none'}</p>
+                <p>ID: ${asset.id}</p>
+                <button class="delete-asset" data-delete-id="${delId}" data-client-id="${clientId}">מחק</button>
+              </div>
+            `;
+          }).join('');
+          
+          displayResponse('assets-list', `${countHeader}<div class="assets-container">${assetsHtml}</div>`);
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-asset').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const assetId = button.getAttribute('data-delete-id');
+              const clientId = button.getAttribute('data-client-id');
+              try {
+                await apiFetch(`/clients/${clientId}/capital-assets/${assetId}/`, {
+                  method: 'DELETE'
+                });
+                displayResponse('assets-list', 'נכס נמחק בהצלחה', true);
+                // Reload the list after deletion
+                document.getElementById('load-assets').click();
+              } catch (error) {
+                handleApiError(error, 'assets-list');
+              }
+            });
+          });
+        } else {
+          displayResponse('assets-list', 'לא נמצאו נכסי הון');
+        }
+      } catch (error) {
+        handleApiError(error, 'assets-list');
+      }
+    });
+    
+    // Delete All Assets
+    document.getElementById('delete-all-assets').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('asset-client-id').value;
+        if (!clientId) {
+          displayResponse('assets-list', 'מזהה לקוח נדרש', false);
+          return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('האם אתה בטוח שברצונך למחוק את כל נכסי ההון?')) {
+          return;
+        }
+        
+        // Get all assets
+        const result = await apiFetch(`/clients/${clientId}/capital-assets/`);
+        const assets = Array.isArray(result) ? result : (result.data || []);
+        
+        if (assets.length > 0) {
+          // Delete each asset using persisted_id if available
+          const deletePromises = assets.map(asset => {
+            const delId = asset.persisted_id ?? asset.id;
+            return apiFetch(`/clients/${clientId}/capital-assets/${delId}/`, {
+              method: 'DELETE'
+            });
+          });
+          
+          await Promise.all(deletePromises);
+          displayResponse('assets-list', `נמחקו בהצלחה ${assets.length} נכסי הון`, true);
+          
+          // Reload the list
+          document.getElementById('load-assets').click();
+        } else {
+          displayResponse('assets-list', 'אין נכסי הון למחיקה');
+        }
+      } catch (error) {
+        handleApiError(error, 'assets-list');
+      }
+    });
+    
+    // Initialize
+    setDefaultDates();
+
+    // Client Lookup - supports both client_id and id_number with fallback
+    document.getElementById('lookup-client').addEventListener('click', async () => {
+      try {
+        const inputValue = document.getElementById('lookup-id-number').value.trim();
+        if (!inputValue) {
+          displayResponse('client-lookup-response', 'נא להזין מספר תעודת זהות או מזהה לקוח', false);
+          return;
+        }
+
+        const q = inputValue.trim();
+        let result;
+        
+        if (q.length === 9 && /^\d{9}$/.test(q)) {
+          // 9 digits - ID number lookup
+          try {
+            result = await apiFetch(`/clients/lookup?id_number=${q}`);
+          } catch (error) {
+            // If lookup fails, try searching in clients list
+            try {
+              const clientsList = await apiFetch('/clients');
+              const clients = Array.isArray(clientsList) ? clientsList : (clientsList.data || []);
+              const foundClient = clients.find(client => 
+                client.id_number === q || client.id_number_raw === q
+              );
+              
+              if (foundClient) {
+                result = foundClient;
+              } else {
+                displayResponse('client-lookup-response', 'לקוח לא נמצא', false);
+                return;
+              }
+            } catch (listError) {
+              throw error; // Throw original lookup error
+            }
+          }
+        } else if (q.length >= 1 && q.length <= 6 && /^\d+$/.test(q)) {
+          // 1-6 digits - client ID lookup
+          result = await apiFetch(`/clients/${q}`);
+        } else {
+          displayResponse('client-lookup-response', 'נא להזין מספר תעודת זהות (9 ספרות) או מזהה לקוח (1-6 ספרות)', false);
+          return;
+        }
+        
+        // Handle new apiFetch response format
+        const clientData = result.data || result;
+        
+        if (clientData && clientData.id) {
+          // Display client info
+          const clientInfo = `
+            <table class="data-table" style="width:100%; border-collapse: collapse; margin-top: 10px;">
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">מזהה לקוח</th>
+                <td style="border: 1px solid #ddd; padding: 8px;">${clientData.id}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">שם</th>
+                <td style="border: 1px solid #ddd; padding: 8px;">${clientData.first_name || ''} ${clientData.last_name || ''}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">תעודת זהות</th>
+                <td style="border: 1px solid #ddd; padding: 8px;">${clientData.id_number || clientData.id_number_raw || ''}</td>
+              </tr>
+            </table>
+          `;
+          
+          document.getElementById('client-details').innerHTML = clientInfo;
+          document.getElementById('client-info').style.display = 'block';
+          document.getElementById('client-lookup-response').className = 'response success';
+          document.getElementById('client-lookup-response').textContent = '✅ לקוח נמצא!';
+          
+          // Store client ID for use with the "Use This Client" button
+          document.getElementById('use-client-id').setAttribute('data-client-id', clientData.id);
+          
+          // Show success in last request panel if not already shown by apiFetch
+          if (!result.status) {
+            showLast(
+              { url: `/clients/lookup`, method: 'GET' },
+              { status: 200, statusText: 'OK', data: clientData }
+            );
+          }
+        } else {
+          document.getElementById('client-info').style.display = 'none';
+          displayResponse('client-lookup-response', 'לקוח לא נמצא', false);
+        }
+      } catch (error) {
+        document.getElementById('client-info').style.display = 'none';
+        handleApiError(error, 'client-lookup-response');
+        
+        // Show error in last request panel if not already shown by apiFetch
+        if (!error.status) {
+          showLast(
+            { url: `/clients/lookup`, method: 'GET' },
+            { status: 500, statusText: 'Error', data: error.error || error.message || error }
+          );
+        }
+      }
+    });
+
+    // Use Client ID button
+    document.getElementById('use-client-id').addEventListener('click', () => {
+      const clientId = document.getElementById('use-client-id').getAttribute('data-client-id');
+      if (clientId) {
+        // Set client ID in all input fields
+        document.getElementById('pf-client-id').value = clientId;
+        document.getElementById('pf-manual-client-id').value = clientId;
+        document.getElementById('fixation-client-id').value = clientId;
+        document.getElementById('scenario-client-id').value = clientId;
+        document.getElementById('integration-client-id').value = clientId;
+        document.getElementById('income-client-id').value = clientId;
+        document.getElementById('asset-client-id').value = clientId;
+        document.getElementById('auto-test-client-id').value = clientId;
+        
+        // Show success message
+        displayResponse('client-lookup-response', `מזהה לקוח ${clientId} הוגדר בכל הטפסים`, true);
+      }
+    });
+    
+    // Automatic Test Sequence
+    document.getElementById('run-auto-tests').addEventListener('click', async () => {
+      const clientId = document.getElementById('auto-test-client-id').value;
+      if (!clientId) {
+        displayResponse('auto-test-results', 'אנא הזן מזהה לקוח לבדיקה', false);
+        return;
+      }
+      
+      // Get selected test options
+      const testPensionFunds = document.getElementById('test-pension-funds').checked;
+      const testAdditionalIncome = document.getElementById('test-additional-income').checked;
+      const testCapitalAssets = document.getElementById('test-capital-assets').checked;
+      const testScenarios = document.getElementById('test-scenarios').checked;
+      const testIntegration = document.getElementById('test-integration').checked;
+      const testFixation = document.getElementById('test-fixation').checked;
+      
+      // Initialize test results container
+      const resultsContainer = document.getElementById('auto-test-results');
+      resultsContainer.innerHTML = '<h3>תוצאות בדיקה</h3>';
+      
+      // Show progress bar
+      const progressBar = document.getElementById('test-progress');
+      const progressBarInner = document.querySelector('.progress-bar-inner');
+      progressBar.style.display = 'block';
+      progressBarInner.style.width = '0%';
+      
+      // Create test plan
+      const testPlan = [];
+      if (testPensionFunds) {
+        testPlan.push({ name: 'צור קרן פנסיה', func: createTestPensionFund });
+        testPlan.push({ name: 'הצג קרנות פנסיה', func: listTestPensionFunds });
+      }
+      if (testAdditionalIncome) {
+        testPlan.push({ name: 'צור הכנסה נוספת', func: createTestAdditionalIncome });
+        testPlan.push({ name: 'הצג הכנסות נוספות', func: listTestAdditionalIncomes });
+      }
+      if (testCapitalAssets) {
+        testPlan.push({ name: 'צור נכס הון', func: createTestCapitalAsset });
+        testPlan.push({ name: 'הצג נכסי הון', func: listTestCapitalAssets });
+      }
+      if (testScenarios) {
+        testPlan.push({ name: 'צור תרחיש', func: createTestScenario });
+        testPlan.push({ name: 'הצג תרחישים', func: listTestScenarios });
+      }
+      if (testIntegration && testScenarios) {
+        testPlan.push({ name: 'אינטגרציית תרחיש', func: integrateTestScenario });
+      }
+      if (testFixation) {
+        testPlan.push({ name: 'חישוב קיבוע', func: computeTestFixation });
+      }
+      
+      // Run tests sequentially
+      let testResults = [];
+      let testIds = { pensionFundId: null, incomeId: null, assetId: null, scenarioId: null };
+      
+      for (let i = 0; i < testPlan.length; i++) {
+        const test = testPlan[i];
+        const progressPercent = (i / testPlan.length) * 100;
+        progressBarInner.style.width = `${progressPercent}%`;
+        
+        // Add test item to results
+        const testResultItem = document.createElement('div');
+        testResultItem.className = 'test-result-item';
+        testResultItem.innerHTML = `<strong>${test.name}</strong>: מריץ...`;
+        resultsContainer.appendChild(testResultItem);
+        
+        try {
+          // Run the test function
+          const result = await test.func(clientId, testIds);
+          
+          // Update test IDs if returned
+          if (result && result.id) {
+            if (test.name.includes('קרן פנסיה')) testIds.pensionFundId = result.id;
+            if (test.name.includes('הכנסה נוספת')) testIds.incomeId = result.id;
+            if (test.name.includes('נכס הון')) testIds.assetId = result.id;
+            if (test.name.includes('תרחיש') && !test.name.includes('אינטגרציית')) testIds.scenarioId = result.id;
+          }
+          
+          // Update test result
+          testResultItem.className = 'test-result-item pass';
+          testResultItem.innerHTML = `<strong>${test.name}</strong>: ✓ עבר בהצלחה`;
+          testResults.push({ name: test.name, passed: true });
+        } catch (error) {
+          // Update test result with error
+          testResultItem.className = 'test-result-item fail';
+          testResultItem.innerHTML = `<strong>${test.name}</strong>: ✗ נכשל - ${error.message}`;
+          testResults.push({ name: test.name, passed: false, error: error.message });
+        }
+        
+        // Small delay to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Complete progress bar
+      progressBarInner.style.width = '100%';
+      
+      // Add summary
+      const passedTests = testResults.filter(r => r.passed).length;
+      const totalTests = testResults.length;
+      const summaryElement = document.createElement('div');
+      summaryElement.className = passedTests === totalTests ? 'response success' : 'response warning';
+      summaryElement.innerHTML = `<h4>סיכום בדיקות</h4><p>${passedTests} מתוך ${totalTests} בדיקות עברו בהצלחה</p>`;
+      resultsContainer.appendChild(summaryElement);
+      
+      // Clean up test resources
+      await cleanupTestResources(clientId, testIds);
+    });
+    
+    // Test helper functions
+    async function createTestPensionFund(clientId, testIds) {
+      const testData = {
+        client_id: clientId,
+        fund_name: "Test Pension Fund",
+        input_mode: "calculated",
+        balance: 500000,
+        annuity_factor: 220,
+        pension_start_date: new Date().toISOString().split('T')[0],
+        indexation_method: "fixed",
+        fixed_index_rate: 0.02
+      };
+      return await apiFetch(`/clients/${clientId}/pension-funds`, { method: 'POST', body: testData });
+    }
+    
+    async function listTestPensionFunds(clientId) {
+      return await apiFetch(`/clients/${clientId}/pension-funds`);
+    }
+    
+    async function createTestAdditionalIncome(clientId) {
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(today.getFullYear() + 5);
+      
+      const testData = {
+        client_id: clientId,
+        name: "Test Additional Income",
+        amount: 5000,
+        frequency: "monthly",
+        start_date: today.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        indexation_method: "fixed",
+        fixed_index_rate: 0.02,
+        tax_treatment: "taxable"
+      };
+      return await apiFetch(`/clients/${clientId}/additional-incomes/`, { method: 'POST', body: testData });
+    }
+    
+    async function listTestAdditionalIncomes(clientId) {
+      return await apiFetch(`/clients/${clientId}/additional-incomes/`);
+    }
+    
+    async function createTestCapitalAsset(clientId) {
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(today.getFullYear() + 10);
+      
+      const testData = {
+        client_id: clientId,
+        name: "Test Capital Asset",
+        amount: 1000000,
+        return_rate: 0.04,
+        payment_frequency: "monthly",
+        start_date: today.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        indexation_method: "cpi",
+        tax_treatment: "taxable"
+      };
+      return await apiFetch(`/clients/${clientId}/capital-assets/`, { method: 'POST', body: testData });
+    }
+    
+    async function listTestCapitalAssets(clientId) {
+      return await apiFetch(`/clients/${clientId}/capital-assets/`);
+    }
+    
+    async function createTestScenario(clientId) {
+      const testData = {
+        client_id: clientId,
+        scenario_name: "Test Scenario",
+        monthly_expenses: 10000,
+        tax_optimization: true,
+        capitalization: false
+      };
+      return await apiFetch(`/clients/${clientId}/scenarios`, { method: 'POST', body: testData });
+    }
+    
+    async function listTestScenarios(clientId) {
+      return await apiFetch(`/clients/${clientId}/scenarios`);
+    }
+    
+    async function integrateTestScenario(clientId, testIds) {
+      if (!testIds.scenarioId) {
+        throw new Error("אין מזהה תרחיש זמין לאינטגרציה");
+      }
+      return await apiFetch(`/clients/${clientId}/scenarios/${testIds.scenarioId}/integrate`, { method: 'POST' });
+    }
+    
+    async function computeTestFixation(clientId) {
+      return await apiFetch(`/fixation/${clientId}/compute`, { method: 'POST' });
+    }
+    
+    async function cleanupTestResources(clientId, testIds) {
+      try {
+        // Delete in reverse order of dependencies
+        if (testIds.scenarioId) {
+          await apiFetch(`/clients/${clientId}/scenarios/${testIds.scenarioId}`, { method: 'DELETE' });
+        }
+        if (testIds.incomeId) {
+          await apiFetch(`/clients/${clientId}/additional-incomes/${testIds.incomeId}/`, { method: 'DELETE' });
+        }
+        if (testIds.assetId) {
+          await apiFetch(`/clients/${clientId}/capital-assets/${testIds.assetId}/`, { method: 'DELETE' });
+        }
+        if (testIds.pensionFundId) {
+          await apiFetch(`/pension-funds/${testIds.pensionFundId}`, { method: 'DELETE' });
+        }
+        console.log('משאבי הבדיקה נוקו בהצלחה');
+      } catch (error) {
+        console.error('שגיאה בניקוי משאבי הבדיקה:', error);
+      }
+    }
+    
+    // Local Smoke Test functionality
+    document.getElementById('run-smoke-test').addEventListener('click', async () => {
+      const clientId = document.getElementById('smoke-test-client-id').value;
+      if (!clientId) {
+        displayResponse('smoke-test-results', 'מזהה לקוח נדרש לבדיקה', false);
+        return;
+      }
+      
+      // Initialize results container
+      const resultsContainer = document.getElementById('smoke-test-results');
+      resultsContainer.innerHTML = '<h3>תוצאות בדיקת עשן</h3>';
+      
+      // Show progress bar
+      const progressBar = document.getElementById('smoke-test-progress');
+      const progressBarInner = progressBar.querySelector('.progress-bar-inner');
+      progressBar.style.display = 'block';
+      progressBarInner.style.width = '0%';
+      
+      // Define API endpoints to test
+      const endpoints = [
+        { name: 'חיפוש לקוח', url: `/clients/lookup?id_number=${clientId}`, method: 'GET' },
+        { name: 'רשימת לקוחות', url: '/clients', method: 'GET' },
+        { name: 'קרנות פנסיה', url: `/clients/${clientId}/pension-funds`, method: 'GET' },
+        { name: 'הכנסות נוספות', url: `/clients/${clientId}/additional-incomes/`, method: 'GET' },
+        { name: 'נכסי הון', url: `/clients/${clientId}/capital-assets/`, method: 'GET' },
+        { name: 'תרחישים', url: `/clients/${clientId}/scenarios`, method: 'GET' },
+        { name: 'קיבוע זכויות', url: `/fixation/${clientId}/compute`, method: 'POST', body: {} }
+      ];
+      
+      // Run tests sequentially
+      let results = [];
+      let passCount = 0;
+      
+      for (let i = 0; i < endpoints.length; i++) {
+        const endpoint = endpoints[i];
+        const progressPercent = (i / endpoints.length) * 100;
+        progressBarInner.style.width = `${progressPercent}%`;
+        
+        // Add test item to results
+        const testResultItem = document.createElement('div');
+        testResultItem.className = 'test-result-item';
+        testResultItem.innerHTML = `<strong>${endpoint.name}</strong>: מריץ...`;
+        resultsContainer.appendChild(testResultItem);
+        
+        try {
+          // Run the test
+          const opts = { method: endpoint.method };
+          if (endpoint.body) {
+            opts.body = endpoint.body;
+          }
+          
+          const result = await apiFetch(endpoint.url, opts);
+          
+          // Update test result
+          testResultItem.className = 'test-result-item pass';
+          testResultItem.innerHTML = `<strong>${endpoint.name}</strong>: ✓ עבר בהצלחה`;
+          results.push({ name: endpoint.name, passed: true });
+          passCount++;
+        } catch (error) {
+          // Update test result with error
+          testResultItem.className = 'test-result-item fail';
+          testResultItem.innerHTML = `<strong>${endpoint.name}</strong>: ✗ נכשל - ${error.message || error}`;
+          results.push({ name: endpoint.name, passed: false, error: error.message || error });
+        }
+        
+        // Small delay to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      // Complete progress bar
+      progressBarInner.style.width = '100%';
+      
+      // Add summary
+      const totalTests = endpoints.length;
+      const summaryElement = document.createElement('div');
+      summaryElement.className = passCount === totalTests ? 'response success' : 'response warning';
+      summaryElement.innerHTML = `<h4>סיכום בדיקת עשן</h4><p>${passCount} מתוך ${totalTests} נקודות קצה עברו בהצלחה</p>`;
+      resultsContainer.appendChild(summaryElement);
+      
+      // Set client ID in all input fields if all tests passed
+      if (passCount === totalTests) {
+        document.getElementById('pf-client-id').value = clientId;
+        document.getElementById('pf-manual-client-id').value = clientId;
+        document.getElementById('fixation-client-id').value = clientId;
+        document.getElementById('scenario-client-id').value = clientId;
+        document.getElementById('integration-client-id').value = clientId;
+        document.getElementById('income-client-id').value = clientId;
+        document.getElementById('asset-client-id').value = clientId;
+        document.getElementById('auto-test-client-id').value = clientId;
+      }
+    });
+  </script>
+
+<!-- === Integration (smoke) – self-contained block === -->
+<div id="integration-smoke" style="margin-top:24px;padding:16px;border:1px solid #ddd;border-radius:8px">
+  <h2 style="margin:0 0 12px">Integration smoke (integrate-all)</h2>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <label>API base URL:
+      <input id="smoke-api-base" type="text" value="http://127.0.0.1:8000" style="width:260px">
+    </label>
+    <label>Client ID:
+      <input id="smoke-client-id" type="number" value="1" style="width:100px">
+    </label>
+    <label>Date:
+      <input id="smoke-date" type="date" style="width:160px">
+    </label>
+    <button id="smoke-run" type="button">Run integrate-all</button>
+  </div>
+
+  <div id="cashflow-result" style="margin-top:12px"></div>
+  <pre id="smoke-log" style="margin-top:12px;background:#f7f7f7;padding:8px;border-radius:6px;max-height:240px;overflow:auto"></pre>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+
+  // קבע ערך ברירת מחדל של היום לשדה התאריך
+  const today = new Date().toISOString().slice(0,10);
+  if ($('smoke-date')) $('smoke-date').value = today;
+
+  function log(msg){
+    const el = $('smoke-log');
+    if (!el) return;
+    el.textContent += (typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2)) + '\n';
+  }
+
+  function renderCashflowTable(rows) {
+    const mount = $('cashflow-result');
+    if (!mount) return;
+
+    const headers = [
+      'date','inflow','outflow','net',
+      'additional_income_gross','additional_income_tax','additional_income_net',
+      'capital_return_gross','capital_return_tax','capital_return_net'
+    ];
+
+    const table = document.createElement('table');
+    table.style.borderCollapse = 'collapse';
+    table.style.marginTop = '8px';
+    table.style.fontFamily = 'ui-sans-serif, system-ui, Arial';
+
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    headers.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      th.style.border = '1px solid #ccc';
+      th.style.padding = '4px 8px';
+      th.style.background = '#fafafa';
+      th.style.textAlign = 'left';
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    (rows || []).forEach(r => {
+      const tr = document.createElement('tr');
+      headers.forEach(h => {
+        const td = document.createElement('td');
+        let v = (r && r[h] !== undefined && r[h] !== null) ? r[h] : '';
+        // נרמל תאריך ל־YYYY-MM-DD להצגה
+        if (h === 'date' && typeof v === 'string' && v.length >= 10) v = v.slice(0,10);
+        td.textContent = v;
+        td.style.border = '1px solid #eee';
+        td.style.padding = '4px 8px';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    mount.innerHTML = '';
+    mount.appendChild(table);
+  }
+
+  async function runIntegrateAll() {
+    const base = $('smoke-api-base').value.trim();
+    const clientId = Number($('smoke-client-id').value);
+    const date = $('smoke-date').value || new Date().toISOString().slice(0,10);
+
+    const url = `${base}/api/v1/clients/${clientId}/cashflow/integrate-all?reference_date=${encodeURIComponent(date)}`;
+
+    // גוף הבקשה **חייב להיות מערך** של אובייקטים עם בדיוק date, inflow, outflow, net
+    const payload = [
+      { date, inflow: 0, outflow: 0, net: 0 }
+    ];
+
+    $('smoke-log').textContent = '';
+    log('POST ' + url);
+    log('REQUEST BODY:');
+    log(payload);
+
+    let resp;
+    try {
+      resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      log('NETWORK ERROR: ' + e.message);
+      return;
+    }
+
+    log('STATUS: ' + resp.status + ' ' + resp.statusText);
+    const text = await resp.text();
+    try {
+      const json = text ? JSON.parse(text) : null;
+      if (!resp.ok) {
+        log('ERROR BODY:');
+        log(json || text);
+        return;
+      }
+      log('RESPONSE JSON:');
+      log(json);
+      renderCashflowTable(Array.isArray(json) ? json : []);
+    } catch {
+      // לא JSON
+      if (!resp.ok) {
+        log('ERROR BODY (text):');
+        log(text);
+        return;
+      }
+      log('RESPONSE (text):');
+      log(text);
+      renderCashflowTable([]);
+    }
+  }
+
+  const btn = $('smoke-run');
+  if (btn) btn.addEventListener('click', runIntegrateAll);
+})();
+</script>
+
+</body>
+</html>
