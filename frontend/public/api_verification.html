@@ -2316,6 +2316,7 @@ function showLast(request, response) {
 
   // ===== Sprint 9: Scenario Compare =====
   async function s9_compare() {
+    const btn = $("s9_btn");
     const base = $("s9_base_url").value.trim().replace(/\/+$/,"");
     const clientId = Number($("s9_client_id").value);
     const scenarioIds = $("s9_scenario_ids").value.split(",").map(s => Number(s.trim())).filter(n => n > 0);
@@ -2323,10 +2324,18 @@ function showLast(request, response) {
     const to = $("s9_to").value;
     const log = $("s9_log");
 
-    if (!base || !clientId || scenarioIds.length === 0 || !from || !to) {
-      log.innerHTML = '<div style="color: red;">Please fill all fields</div>';
+    // Input validation
+    const validation = validateS9Inputs(base, clientId, scenarioIds, from, to);
+    if (!validation.valid) {
+      log.innerHTML = `<div style="color: red;">❌ ${validation.message}</div>`;
       return;
     }
+
+    // Lock button and show spinner
+    btn.disabled = true;
+    btn.innerHTML = '🔄 Comparing...';
+    
+    try {
 
     const url = `${base}/api/v1/clients/${clientId}/scenarios/compare`;
     const body = {
@@ -2362,7 +2371,38 @@ function showLast(request, response) {
       }
     } catch (error) {
       log.innerHTML += `<div style="color: red;">FETCH ERROR: ${error.message}</div>`;
+    } finally {
+      // Restore button
+      btn.disabled = false;
+      btn.innerHTML = 'Compare Scenarios';
     }
+  }
+
+  function validateS9Inputs(base, clientId, scenarioIds, from, to) {
+    if (!base) {
+      return { valid: false, message: "API base URL is required" };
+    }
+    if (!clientId || clientId <= 0) {
+      return { valid: false, message: "Valid Client ID is required (positive number)" };
+    }
+    if (!scenarioIds || scenarioIds.length === 0) {
+      return { valid: false, message: "At least one Scenario ID is required" };
+    }
+    if (!from || !from.match(/^\d{4}-\d{2}$/)) {
+      return { valid: false, message: "From date must be in YYYY-MM format" };
+    }
+    if (!to || !to.match(/^\d{4}-\d{2}$/)) {
+      return { valid: false, message: "To date must be in YYYY-MM format" };
+    }
+    
+    // Date range validation
+    const fromDate = new Date(from + "-01");
+    const toDate = new Date(to + "-01");
+    if (fromDate > toDate) {
+      return { valid: false, message: "From date must be before or equal to To date" };
+    }
+    
+    return { valid: true };
   }
 
   function renderYearlyTables(data) {
