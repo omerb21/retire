@@ -33,6 +33,8 @@ from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 from sqlalchemy.orm import Session
 from app.models import Client, Scenario, Employment, Employer
 from app.schemas.scenario import ScenarioOut
+from app.schemas.report import ReportPdfRequest
+from app.services.cashflow_service import generate_cashflow
 
 _logger = logging.getLogger(__name__)
 _DEFAULT_HEBREW_FONT = "DejaVu Sans"  # Default to DejaVu which is bundled with matplotlib
@@ -516,3 +518,350 @@ class ReportService:
         buffer.seek(0)
         
         return buffer.getvalue()
+
+
+def generate_report_pdf(
+    db: Session,
+    client_id: int,
+    scenario_id: int,
+    request: ReportPdfRequest
+) -> bytes:
+    """
+    Generate PDF report with cashflow data, charts, and summaries.
+    
+    Args:
+        db: Database session
+        client_id: Client ID
+        scenario_id: Scenario ID
+        request: Report generation request with date range and sections
+        
+    Returns:
+        PDF as bytes
+    """
+    start_time = datetime.now()
+    _logger.info(f"Starting PDF report generation for client={client_id}, scenario={scenario_id}, range={request.from_}-{request.to}")
+    
+    try:
+        # Get client and scenario data
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if not client:
+            raise ValueError(f"Client {client_id} not found")
+            
+        scenario = db.query(Scenario).filter(Scenario.id == scenario_id).first()
+        if not scenario:
+            raise ValueError(f"Scenario {scenario_id} not found")
+        
+        # Generate cashflow data using Sprint 7 service
+        cashflow_data = generate_cashflow(
+            db=db,
+            client_id=client_id,
+            scenario_id=scenario_id,
+            start_ym=request.from_,
+            end_ym=request.to,
+            frequency=request.frequency
+        )
+        
+        # Calculate yearly totals for summary
+        yearly_totals = {}
+        for row in cashflow_data:
+            # Handle both string and date object formats
+            date_val = row['date']
+            if hasattr(date_val, 'strftime'):
+                year = date_val.strftime('%Y')
+            else:
+                year = str(date_val)[:4]  # Extract year from string
+            if year not in yearly_totals:
+                yearly_totals[year] = {
+                    'inflow': 0,
+                    'outflow': 0,
+                    'additional_income_net': 0,
+                    'capital_return_net': 0,
+                    'net': 0
+                }
+            yearly_totals[year]['inflow'] += row.get('inflow', 0)
+            yearly_totals[year]['outflow'] += row.get('outflow', 0)
+            yearly_totals[year]['additional_income_net'] += row.get('additional_income_net', 0)
+            yearly_totals[year]['capital_return_net'] += row.get('capital_return_net', 0)
+            yearly_totals[year]['net'] += row.get('net', 0)
+        
+        # Create chart data for matplotlib
+        chart_data = {
+            'dates': [row['date'].strftime('%Y-%m') if hasattr(row['date'], 'strftime') else str(row['date'])[:7] for row in cashflow_data],
+            'net_values': [row.get('net', 0) for row in cashflow_data]
+        }
+        
+        # Generate charts
+        chart_cashflow = None
+        if request.sections.get('net_chart', True):
+            chart_cashflow = create_net_cashflow_chart(chart_data)
+        
+        # Build PDF content
+        pdf_content = create_pdf_with_cashflow(
+            client=client,
+            scenario=scenario,
+            cashflow_data=cashflow_data,
+            yearly_totals=yearly_totals,
+            chart_cashflow=chart_cashflow,
+            sections=request.sections,
+            date_range=f"{request.from_} - {request.to}"
+        )
+        
+        # Log completion
+        duration = (datetime.now() - start_time).total_seconds()
+        pdf_size = len(pdf_content)
+        _logger.info(f"PDF report completed in {duration:.2f}s, size={pdf_size} bytes")
+        
+        return pdf_content
+        
+    except Exception as e:
+        _logger.error(f"Error generating PDF report: {e}")
+        raise
+
+
+def create_net_cashflow_chart(chart_data: Dict[str, List]) -> bytes:
+    """
+    Create net cashflow chart using matplotlib.
+    
+    Args:
+        chart_data: Dictionary with 'dates' and 'net_values' lists
+        
+    Returns:
+        PNG image as bytes
+    """
+    ensure_fonts()
+    try:
+        plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial Unicode MS', 'Tahoma']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        dates = chart_data['dates']
+        values = chart_data['net_values']
+        
+        # Convert dates to month indices for plotting
+        month_indices = list(range(len(dates)))
+        month_labels = [date[:7] for date in dates]  # YYYY-MM format
+        
+        # Plot the line
+        ax.plot(month_indices, values, linewidth=2, color='#2E86AB', marker='o', markersize=4)
+        ax.axhline(y=0, color='red', linestyle='--', alpha=0.7)
+        
+        # Formatting
+        ax.set_xlabel('חודש', fontsize=12)
+        ax.set_ylabel('תזרים נטו (₪)', fontsize=12)
+        ax.set_title('תזרים נטו חודשי', fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        
+        # Set x-axis labels (show every 3rd month to avoid crowding)
+        step = max(1, len(month_labels) // 4)
+        ax.set_xticks(month_indices[::step])
+        ax.set_xticklabels(month_labels[::step], rotation=45)
+        
+        # Format y-axis with thousands separator
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
+        
+        plt.tight_layout()
+        
+        # Save to bytes
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close(fig)
+        
+        return img_buffer.getvalue()
+        
+    except Exception as e:
+        _logger.error(f"Error creating net cashflow chart: {e}")
+        # Return empty chart
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.text(0.5, 0.5, f'שגיאה ביצירת גרף: {str(e)}', 
+               horizontalalignment='center', verticalalignment='center',
+               transform=ax.transAxes, fontsize=12)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close(fig)
+        
+        return img_buffer.getvalue()
+
+
+def create_pdf_with_cashflow(
+    client: Client,
+    scenario: Scenario,
+    cashflow_data: List[Dict[str, Any]],
+    yearly_totals: Dict[str, Dict[str, float]],
+    chart_cashflow: Optional[bytes],
+    sections: Dict[str, bool],
+    date_range: str
+) -> bytes:
+    """
+    Create PDF with cashflow data and charts.
+    
+    Args:
+        client: Client object
+        scenario: Scenario object
+        cashflow_data: Monthly cashflow data from Sprint 7
+        yearly_totals: Aggregated yearly totals
+        chart_cashflow: Chart image as bytes
+        sections: Which sections to include
+        date_range: Date range string for display
+        
+    Returns:
+        PDF as bytes
+    """
+    ensure_fonts()
+    buffer = io.BytesIO()
+    
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=18
+    )
+    
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Hebrew-compatible styles
+    hebrew_style = ParagraphStyle(
+        'Hebrew',
+        parent=styles['Normal'],
+        fontName=_DEFAULT_HEBREW_FONT,
+        fontSize=10,
+        alignment=TA_RIGHT,
+        wordWrap='RTL'
+    )
+    
+    title_style = ParagraphStyle(
+        'HebrewTitle',
+        parent=styles['Title'],
+        fontName=_DEFAULT_HEBREW_FONT,
+        fontSize=18,
+        alignment=TA_CENTER,
+        spaceAfter=30
+    )
+    
+    section_style = ParagraphStyle(
+        'SectionTitle',
+        parent=hebrew_style,
+        fontSize=14,
+        spaceAfter=10,
+        textColor=colors.darkblue
+    )
+    
+    # Title page
+    story.append(Paragraph("דוח תזרים נטו חודשי", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Header information
+    header_data = [
+        ['מזהה לקוח:', str(client.id)],
+        ['שם לקוח:', client.full_name or 'N/A'],
+        ['מזהה תרחיש:', str(scenario.id)],
+        ['טווח תאריכים:', date_range],
+        ['תדירות:', 'חודשי'],
+        ['תאריך יצירה:', datetime.now().strftime('%d/%m/%Y %H:%M')]
+    ]
+    
+    header_table = Table(header_data, colWidths=[2*inch, 3*inch])
+    header_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), _DEFAULT_HEBREW_FONT),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+    ]))
+    
+    story.append(header_table)
+    story.append(Spacer(1, 30))
+    
+    # Summary section
+    if sections.get('summary', True):
+        story.append(Paragraph("סיכום שנתי", section_style))
+        
+        summary_data = [['שנה', 'הכנסות', 'הוצאות', 'הכנסות נוספות', 'החזרי הון', 'נטו']]
+        for year, totals in sorted(yearly_totals.items()):
+            summary_data.append([
+                year,
+                f"{totals['inflow']:,.0f} ₪",
+                f"{totals['outflow']:,.0f} ₪",
+                f"{totals['additional_income_net']:,.0f} ₪",
+                f"{totals['capital_return_net']:,.0f} ₪",
+                f"{totals['net']:,.0f} ₪"
+            ])
+        
+        summary_table = Table(summary_data, colWidths=[0.8*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch])
+        summary_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _DEFAULT_HEBREW_FONT),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ]))
+        
+        story.append(summary_table)
+        story.append(Spacer(1, 20))
+    
+    # Monthly cashflow table
+    if sections.get('cashflow_table', True):
+        story.append(Paragraph("פירוט תזרים חודשי", section_style))
+        
+        table_data = [['תאריך', 'הכנסות', 'הוצאות', 'הכנסות נוספות', 'החזרי הון', 'נטו']]
+        for row in cashflow_data:
+            # Handle both string and date object formats
+            date_val = row['date']
+            if hasattr(date_val, 'strftime'):
+                date_str = date_val.strftime('%Y-%m')
+            else:
+                date_str = str(date_val)[:7]  # YYYY-MM format
+            
+            table_data.append([
+                date_str,
+                f"{row.get('inflow', 0):,.0f} ₪",
+                f"{row.get('outflow', 0):,.0f} ₪",
+                f"{row.get('additional_income_net', 0):,.0f} ₪",
+                f"{row.get('capital_return_net', 0):,.0f} ₪",
+                f"{row.get('net', 0):,.0f} ₪"
+            ])
+        
+        cashflow_table = Table(table_data, colWidths=[1*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch])
+        cashflow_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _DEFAULT_HEBREW_FONT),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            # Highlight negative values in red
+            ('TEXTCOLOR', (5, 1), (5, -1), colors.red),  # Net column
+        ]))
+        
+        story.append(cashflow_table)
+        story.append(Spacer(1, 20))
+    
+    # Net cashflow chart
+    if sections.get('net_chart', True) and chart_cashflow:
+        story.append(Paragraph("גרף תזרים נטו חודשי", section_style))
+        cashflow_img = Image(io.BytesIO(chart_cashflow), width=6*inch, height=3*inch)
+        story.append(cashflow_img)
+        story.append(Spacer(1, 20))
+    
+    # Footer
+    story.append(Spacer(1, 30))
+    story.append(Paragraph(
+        f"דוח נוצר בתאריך: {datetime.now().strftime('%d/%m/%Y %H:%M')} | מערכת תכנון פרישה", 
+        ParagraphStyle('Footer', parent=hebrew_style, fontSize=8, alignment=TA_CENTER, textColor=colors.grey)
+    ))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    
+    return buffer.getvalue()

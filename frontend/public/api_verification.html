@@ -1950,5 +1950,568 @@ function showLast(request, response) {
 })();
 </script>
 
+<!-- ===== Sprint 7: Cashflow generation (monthly) ===== -->
+<section style="margin-top:32px;padding:16px;border:1px solid #ddd;border-radius:8px">
+  <h2 style="margin-top:0">Cashflow (Sprint 7)</h2>
+  <div style="display:grid;grid-template-columns: 220px 1fr;gap:8px;max-width:720px">
+    <label>API base URL</label>
+    <input id="s7_base" value="http://127.0.0.1:8000" />
+
+    <label>Client ID</label>
+    <input id="s7_client" type="number" value="1" />
+
+    <label>Scenario ID</label>
+    <input id="s7_sid" type="number" value="24" />
+
+    <label>From (YYYY-MM)</label>
+    <input id="s7_from" type="month" value="2025-01" />
+
+    <label>To (YYYY-MM)</label>
+    <input id="s7_to" type="month" value="2025-12" />
+  </div>
+
+  <button id="s7_btn" style="margin-top:12px">Generate cashflow</button>
+
+  <pre id="s7_log" style="background:#fafafa;border:1px solid #eee;padding:8px;margin-top:12px;max-height:180px;overflow:auto"></pre>
+
+  <div id="s7_table_wrap" style="margin-top:12px;overflow:auto"></div>
+  
+  <!-- Chart and yearly totals -->
+  <canvas id="s7-net-chart" width="800" height="200" style="margin-top:16px;border:1px solid #ddd"></canvas>
+  
+  <div id="s7-yearly-wrap" style="margin-top:12px;overflow:auto"></div>
+</section>
+
+<!-- ===== Sprint 8: PDF Report Generation ===== -->
+<section style="margin-top:32px;padding:16px;border:1px solid #ddd;border-radius:8px">
+  <h2 style="margin-top:0">PDF Report Generation (Sprint 8)</h2>
+  <div style="display:grid;grid-template-columns: 220px 1fr;gap:8px;max-width:720px">
+    <label>API base URL</label>
+    <input id="s8_base_url" value="http://127.0.0.1:8002" />
+
+    <label>Client ID</label>
+    <input id="s8_client_id" type="number" value="1" />
+
+    <label>Scenario ID</label>
+    <input id="s8_scenario_id" type="number" value="24" />
+
+    <label>From (YYYY-MM)</label>
+    <input id="s8_from" type="month" value="2025-01" />
+
+    <label>To (YYYY-MM)</label>
+    <input id="s8_to" type="month" value="2025-12" />
+  </div>
+
+  <button id="s8_btn" style="margin-top:12px">Generate PDF Report</button>
+
+  <pre id="s8_log" style="background:#fafafa;border:1px solid #eee;padding:8px;margin-top:12px;max-height:180px;overflow:auto"></pre>
+</section>
+
+<!-- ===== Sprint 9: Scenario Compare & Yearly Totals ===== -->
+<section style="margin-top:32px;padding:16px;border:1px solid #ddd;border-radius:8px">
+  <h2 style="margin-top:0">Scenario Compare & Yearly Totals (Sprint 9)</h2>
+  <div style="display:grid;grid-template-columns: 220px 1fr;gap:8px;max-width:720px">
+    <label>API base URL</label>
+    <input id="s9_base_url" value="http://127.0.0.1:8002" />
+
+    <label>Client ID</label>
+    <input id="s9_client_id" type="number" value="1" />
+
+    <label>Scenario IDs (comma-separated)</label>
+    <input id="s9_scenario_ids" value="24,25" placeholder="24,25" />
+
+    <label>From (YYYY-MM)</label>
+    <input id="s9_from" type="month" value="2025-01" />
+
+    <label>To (YYYY-MM)</label>
+    <input id="s9_to" type="month" value="2025-12" />
+  </div>
+
+  <button id="s9_btn" style="margin-top:12px">Compare Scenarios</button>
+
+  <pre id="s9_log" style="background:#fafafa;border:1px solid #eee;padding:8px;margin-top:12px;max-height:180px;overflow:auto"></pre>
+
+  <!-- Yearly Totals Tables -->
+  <div id="s9_yearly_wrap" style="margin-top:12px;overflow:auto"></div>
+  
+  <!-- Net Cashflow Comparison Chart -->
+  <canvas id="s9-net-chart" width="800" height="300" style="margin-top:16px;border:1px solid #ddd"></canvas>
+</section>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+
+  async function s7_generate() {
+    const base = $("s7_base").value.trim().replace(/\/+$/,"");
+    const clientId = Number($("s7_client").value);
+    const sid = Number($("s7_sid").value);
+    const from = $("s7_from").value; // "YYYY-MM"
+    const to = $("s7_to").value;
+
+    const url = `${base}/api/v1/scenarios/${sid}/cashflow/generate?client_id=${clientId}`;
+    const body = { from, to, frequency: "monthly" };
+
+    const log = $("s7_log");
+    log.textContent = `POST ${url}\nREQUEST BODY:\n` + JSON.stringify(body, null, 2);
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+        body: JSON.stringify(body),
+      });
+
+      log.textContent += `\nSTATUS: ${res.status} ${res.statusText}`;
+      const data = await res.json();
+      log.textContent += `\nRESPONSE JSON:\n` + JSON.stringify(data, null, 2);
+
+      // Handle response based on status
+      if (res.ok) {
+        // Render table for successful response
+        const cols = ["date","inflow","outflow","additional_income_net","capital_return_net","net"];
+        const wrap = $("s7_table_wrap");
+        if (!Array.isArray(data) || data.length === 0) {
+          wrap.innerHTML = "<em>No rows</em>";
+          $("s7-yearly-wrap").innerHTML = "<em>No yearly data</em>";
+          // Clear chart
+          const canvas = $("s7-net-chart");
+          if (canvas) {
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+          }
+          return;
+        }
+
+        let html = "<table border='1' cellspacing='0' cellpadding='6'><thead><tr>";
+        for (const c of cols) html += `<th>${c}</th>`;
+        html += "</tr></thead><tbody>";
+        for (const r of data) {
+          html += "<tr>";
+          for (const c of cols) {
+            let v = r[c];
+            if (c === "date" && typeof v === "string") v = v;
+            if (typeof v === "number") v = Number(v.toFixed(2));
+            html += `<td>${v ?? ""}</td>`;
+          }
+          html += "</tr>";
+        }
+        html += "</tbody></table>";
+        wrap.innerHTML = html;
+
+        // Draw chart and yearly totals only for successful responses
+        drawNetChart(data);
+        renderYearlyTotals(data);
+      } else {
+        // Clear displays for error responses
+        $("s7_table_wrap").innerHTML = "<em>Error occurred - see log above</em>";
+        $("s7-yearly-wrap").innerHTML = "<em>No yearly data</em>";
+        const canvas = $("s7-net-chart");
+        if (canvas) {
+          const ctx = canvas.getContext("2d");
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+
+    } catch (err) {
+      log.textContent += `\nNETWORK ERROR: ${err}`;
+    }
+  }
+
+  function drawNetChart(data) {
+    const canvas = $("s7-net-chart");
+    if (!canvas || !data.length) return;
+    
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Prepare data
+    const labels = data.map(r => r.date.slice(0, 7)); // YYYY-MM
+    const values = data.map(r => r.net);
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+    const range = maxVal - minVal || 1;
+    
+    // Chart area
+    const padding = 60;
+    const chartWidth = width - 2 * padding;
+    const chartHeight = height - 2 * padding;
+    
+    // Draw axes
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, height - padding);
+    ctx.lineTo(width - padding, height - padding);
+    ctx.stroke();
+    
+    // Draw line
+    ctx.strokeStyle = "#007acc";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    for (let i = 0; i < values.length; i++) {
+      const x = padding + (i / (values.length - 1)) * chartWidth;
+      const y = height - padding - ((values[i] - minVal) / range) * chartHeight;
+      
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+      
+      // Draw point
+      ctx.fillStyle = "#007acc";
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    ctx.stroke();
+    
+    // Draw labels
+    ctx.fillStyle = "#666";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "center";
+    
+    // X-axis labels (every 2nd month to avoid crowding)
+    for (let i = 0; i < labels.length; i += 2) {
+      const x = padding + (i / (values.length - 1)) * chartWidth;
+      ctx.fillText(labels[i], x, height - padding + 20);
+    }
+    
+    // Y-axis labels
+    ctx.textAlign = "right";
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const val = minVal + (range * i / steps);
+      const y = height - padding - (i / steps) * chartHeight;
+      ctx.fillText(Math.round(val).toLocaleString(), padding - 10, y + 4);
+    }
+    
+    // Title
+    ctx.fillStyle = "#333";
+    ctx.font = "14px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Net Cashflow Over Time", width / 2, 20);
+  }
+
+  function renderYearlyTotals(data) {
+    const wrap = $("s7-yearly-wrap");
+    if (!wrap || !data.length) {
+      wrap.innerHTML = "<em>No yearly data</em>";
+      return;
+    }
+    
+    // Group by year
+    const yearlyData = {};
+    data.forEach(row => {
+      const year = row.date.slice(0, 4);
+      if (!yearlyData[year]) {
+        yearlyData[year] = {
+          year,
+          inflow: 0,
+          outflow: 0,
+          additional_income_net: 0,
+          capital_return_net: 0,
+          net: 0
+        };
+      }
+      yearlyData[year].inflow += row.inflow;
+      yearlyData[year].outflow += row.outflow;
+      yearlyData[year].additional_income_net += row.additional_income_net;
+      yearlyData[year].capital_return_net += row.capital_return_net;
+      yearlyData[year].net += row.net;
+    });
+    
+    const years = Object.keys(yearlyData).sort();
+    const cols = ["year", "inflow", "outflow", "additional_income_net", "capital_return_net", "net"];
+    
+    let html = "<h3>Yearly Totals</h3><table border='1' cellspacing='0' cellpadding='6'><thead><tr>";
+    for (const c of cols) html += `<th>${c}</th>`;
+    html += "</tr></thead><tbody>";
+    
+    for (const year of years) {
+      const r = yearlyData[year];
+      html += "<tr>";
+      for (const c of cols) {
+        let v = r[c];
+        if (typeof v === "number") v = Number(v.toFixed(2)).toLocaleString();
+        html += `<td>${v}</td>`;
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    wrap.innerHTML = html;
+  }
+
+  $("s7_btn").addEventListener("click", s7_generate);
+})();
+
+// Sprint 8 - PDF Report Generation
+(function() {
+  function $(id) { return document.getElementById(id); }
+
+  async function s8_generate() {
+    const baseUrl = $("s8_base_url").value.trim();
+    const clientId = $("s8_client_id").value.trim();
+    const scenarioId = $("s8_scenario_id").value.trim();
+    const fromMonth = $("s8_from").value.trim();
+    const toMonth = $("s8_to").value.trim();
+    
+    const log = $("s8_log");
+    log.innerHTML = "";
+    
+    if (!baseUrl || !clientId || !scenarioId || !fromMonth || !toMonth) {
+      log.innerHTML = '<div style="color: red;">Please fill all fields</div>';
+      return;
+    }
+    
+    const url = `${baseUrl}/api/v1/scenarios/${scenarioId}/report/pdf?client_id=${clientId}`;
+    const body = {
+      from: fromMonth,
+      to: toMonth,
+      frequency: "monthly",
+      sections: {
+        summary: true,
+        cashflow_table: true,
+        net_chart: true,
+        scenarios_compare: true
+      }
+    };
+    
+    log.innerHTML = `<div>REQUEST: POST ${url}</div><div>BODY: ${JSON.stringify(body)}</div>`;
+    
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      
+      log.innerHTML += `<div>STATUS: ${response.status} ${response.statusText}</div>`;
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        
+        log.innerHTML += `<div style="color: green;">PDF generated successfully (${blob.size} bytes)</div>`;
+        log.innerHTML += `<div><a href="${objectUrl}" download="report_${clientId}_${scenarioId}.pdf" style="color: blue; text-decoration: underline;">Download PDF Report</a></div>`;
+        log.innerHTML += `<div><button onclick="window.open('${objectUrl}')" style="margin-top: 5px;">Open PDF in New Tab</button></div>`;
+      } else {
+        const errorText = await response.text();
+        log.innerHTML += `<div style="color: red;">ERROR: ${errorText}</div>`;
+      }
+    } catch (error) {
+      log.innerHTML += `<div style="color: red;">FETCH ERROR: ${error.message}</div>`;
+    }
+  }
+
+  $("s8_btn").addEventListener("click", s8_generate);
+
+  // ===== Sprint 9: Scenario Compare =====
+  async function s9_compare() {
+    const base = $("s9_base_url").value.trim().replace(/\/+$/,"");
+    const clientId = Number($("s9_client_id").value);
+    const scenarioIds = $("s9_scenario_ids").value.split(",").map(s => Number(s.trim())).filter(n => n > 0);
+    const from = $("s9_from").value; // "YYYY-MM"
+    const to = $("s9_to").value;
+    const log = $("s9_log");
+
+    if (!base || !clientId || scenarioIds.length === 0 || !from || !to) {
+      log.innerHTML = '<div style="color: red;">Please fill all fields</div>';
+      return;
+    }
+
+    const url = `${base}/api/v1/clients/${clientId}/scenarios/compare`;
+    const body = {
+      scenarios: scenarioIds,
+      from: from,
+      to: to,
+      frequency: "monthly"
+    };
+    
+    log.innerHTML = `<div>REQUEST: POST ${url}</div><div>BODY: ${JSON.stringify(body)}</div>`;
+    
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      
+      log.innerHTML += `<div>STATUS: ${response.status} ${response.statusText}</div>`;
+      
+      if (response.ok) {
+        const data = await response.json();
+        log.innerHTML += `<div style="color: green;">SUCCESS: Received comparison data</div>`;
+        
+        // Display yearly totals tables
+        renderYearlyTables(data);
+        
+        // Display net cashflow chart
+        renderNetChart(data);
+      } else {
+        const errorText = await response.text();
+        log.innerHTML += `<div style="color: red;">ERROR: ${errorText}</div>`;
+      }
+    } catch (error) {
+      log.innerHTML += `<div style="color: red;">FETCH ERROR: ${error.message}</div>`;
+    }
+  }
+
+  function renderYearlyTables(data) {
+    const wrap = $("s9_yearly_wrap");
+    let html = '<h3>Yearly Totals by Scenario</h3>';
+    
+    for (const [scenarioId, scenarioData] of Object.entries(data.scenarios)) {
+      html += `<h4>Scenario ${scenarioId}</h4>`;
+      html += '<table style="border-collapse:collapse;margin-bottom:16px">';
+      html += '<tr style="background:#f5f5f5"><th style="border:1px solid #ddd;padding:6px">Year</th><th style="border:1px solid #ddd;padding:6px">Inflow</th><th style="border:1px solid #ddd;padding:6px">Outflow</th><th style="border:1px solid #ddd;padding:6px">Additional Income</th><th style="border:1px solid #ddd;padding:6px">Capital Return</th><th style="border:1px solid #ddd;padding:6px">Net</th></tr>';
+      
+      for (const [year, totals] of Object.entries(scenarioData.yearly)) {
+        html += `<tr>
+          <td style="border:1px solid #ddd;padding:6px">${year}</td>
+          <td style="border:1px solid #ddd;padding:6px;text-align:right">${totals.inflow.toLocaleString()}</td>
+          <td style="border:1px solid #ddd;padding:6px;text-align:right">${totals.outflow.toLocaleString()}</td>
+          <td style="border:1px solid #ddd;padding:6px;text-align:right">${totals.additional_income_net.toLocaleString()}</td>
+          <td style="border:1px solid #ddd;padding:6px;text-align:right">${totals.capital_return_net.toLocaleString()}</td>
+          <td style="border:1px solid #ddd;padding:6px;text-align:right;font-weight:bold">${totals.net.toLocaleString()}</td>
+        </tr>`;
+      }
+      html += '</table>';
+    }
+    
+    wrap.innerHTML = html;
+  }
+
+  function renderNetChart(data) {
+    const canvas = $("s9-net-chart");
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, w, h);
+    
+    // Collect all monthly data points for all scenarios
+    const scenarios = Object.entries(data.scenarios);
+    if (scenarios.length === 0) return;
+    
+    // Get all dates from first scenario (assuming all have same dates)
+    const dates = scenarios[0][1].monthly.map(row => row.date);
+    const numPoints = dates.length;
+    
+    if (numPoints === 0) return;
+    
+    // Collect net values for each scenario
+    const scenarioLines = scenarios.map(([scenarioId, scenarioData]) => ({
+      id: scenarioId,
+      values: scenarioData.monthly.map(row => row.net || 0),
+      color: getScenarioColor(scenarioId)
+    }));
+    
+    // Find min/max values across all scenarios
+    const allValues = scenarioLines.flatMap(line => line.values);
+    const minVal = Math.min(...allValues);
+    const maxVal = Math.max(...allValues);
+    const range = maxVal - minVal || 1;
+    
+    // Chart margins
+    const margin = { left: 80, right: 120, top: 30, bottom: 50 };
+    const chartW = w - margin.left - margin.right;
+    const chartH = h - margin.top - margin.bottom;
+    
+    // Draw axes
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, margin.top + chartH);
+    ctx.lineTo(margin.left + chartW, margin.top + chartH);
+    ctx.stroke();
+    
+    // Draw grid lines and Y-axis labels
+    ctx.strokeStyle = "#eee";
+    ctx.fillStyle = "#666";
+    ctx.font = "11px Arial";
+    ctx.textAlign = "right";
+    
+    for (let i = 0; i <= 5; i++) {
+      const y = margin.top + (chartH * i / 5);
+      const val = maxVal - (range * i / 5);
+      
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(margin.left + chartW, y);
+      ctx.stroke();
+      
+      ctx.fillText(val.toLocaleString(), margin.left - 5, y + 4);
+    }
+    
+    // Draw scenario lines
+    scenarioLines.forEach(line => {
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      for (let i = 0; i < line.values.length; i++) {
+        const x = margin.left + (chartW * i / (numPoints - 1));
+        const y = margin.top + chartH - ((line.values[i] - minVal) / range * chartH);
+        
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.stroke();
+      
+      // Draw points
+      ctx.fillStyle = line.color;
+      for (let i = 0; i < line.values.length; i++) {
+        const x = margin.left + (chartW * i / (numPoints - 1));
+        const y = margin.top + chartH - ((line.values[i] - minVal) / range * chartH);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    
+    // Draw legend
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    let legendY = margin.top + 20;
+    
+    scenarioLines.forEach(line => {
+      ctx.fillStyle = line.color;
+      ctx.fillRect(margin.left + chartW + 10, legendY - 8, 15, 3);
+      ctx.fillText(`Scenario ${line.id}`, margin.left + chartW + 30, legendY);
+      legendY += 20;
+    });
+    
+    // Chart title
+    ctx.fillStyle = "#333";
+    ctx.font = "14px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Net Cashflow Comparison", w / 2, 20);
+  }
+
+  function getScenarioColor(scenarioId) {
+    const colors = ["#2563eb", "#dc2626", "#16a34a", "#ca8a04", "#9333ea", "#c2410c"];
+    const index = parseInt(scenarioId) % colors.length;
+    return colors[index];
+  }
+
+  $("s9_btn").addEventListener("click", s9_compare);
+})();
+</script>
+
 </body>
 </html>

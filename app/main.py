@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.routers import client, fixation, files, employment, calc, report, current_employer, pension_fund, pension_scenario, additional_income, capital_asset, income_integration
+from app.routers import client, fixation, files, employment, calc, report, current_employer, pension_fund, pension_scenario, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,6 +46,9 @@ app.include_router(pension_scenario.router)
 app.include_router(additional_income.router, prefix="/api/v1")
 app.include_router(capital_asset.router, prefix="/api/v1")
 app.include_router(income_integration.router, prefix="/api/v1")
+app.include_router(cashflow_generation.router)
+app.include_router(report_generation.router)
+app.include_router(scenario_compare.router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
