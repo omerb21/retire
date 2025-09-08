@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator, Field, root_validator
+from pydantic import BaseModel, validator, Field, model_validator
 from typing import List, Literal, Optional
 
 
@@ -35,10 +35,10 @@ class ScenarioCompareRequest(BaseModel):
             raise ValueError("frequency must be 'monthly' - other frequencies not supported")
         return v
 
-    @root_validator
-    def validate_date_range(cls, values):
-        from_ = values.get("from_")
-        to = values.get("to")
+    @model_validator(mode="after")
+    def validate_date_range(self):
+        from_ = self.from_
+        to = self.to
         
         if from_ and to:
             # Convert YYYY-MM to comparable format
@@ -51,4 +51,4 @@ class ScenarioCompareRequest(BaseModel):
             if from_val > to_val:
                 raise ValueError("'from' date must be before or equal to 'to' date")
         
-        return values
+        return self

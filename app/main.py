@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.routers import client, fixation, files, employment, calc, report, current_employer, pension_fund, pension_scenario, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare
+from app.routers import client, fixation, files, employment, calc, report, current_employer, pension_fund, pension_scenario, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +49,7 @@ app.include_router(income_integration.router, prefix="/api/v1")
 app.include_router(cashflow_generation.router)
 app.include_router(report_generation.router)
 app.include_router(scenario_compare.router)
+app.include_router(case_detection.router, prefix="/api/v1")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -60,15 +61,25 @@ def read_root():
     return {"message": "Welcome to Retirement Planning System API"}
 
 
+@app.get("/ui")
+def ui_redirect():
+    """Permanent UI for operations"""
+    from fastapi.responses import HTMLResponse
+    with open("app/static/index.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
+
+
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
     return {"status": "ok"}
 
+@app.get("/api/v1/health")
+def health_check_v1():
+    """Health check endpoint with API prefix"""
+    return {"status": "ok"}
 
-@app.on_event("startup")
-def _init_db():
-    """Initialize database tables on application startup"""
-    Base.metadata.create_all(bind=engine)
+
 
 

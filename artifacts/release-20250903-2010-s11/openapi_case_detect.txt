@@ -1,0 +1,71 @@
+Case Detection Endpoint OpenAPI Documentation
+
+Path: /api/v1/clients/{client_id}/case/detect
+Method: GET
+
+Path Parameters:
+- client_id (integer, required): Client ID
+
+Request Body: None (GET request)
+
+Response:
+  200:
+    description: Client case detection result with reasoning
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/CaseDetectionResponse'
+  404:
+    description: Client not found
+  422:
+    description: Validation error (missing required data)
+  500:
+    description: Unexpected server error
+
+Schema Components:
+  CaseDetectionResponse:
+    type: object
+    properties:
+      result:
+        $ref: '#/components/schemas/CaseDetectionResult'
+  
+  CaseDetectionResult:
+    type: object
+    required:
+      - client_id
+      - case_id
+      - reasons
+      - detected_at
+    properties:
+      client_id:
+        type: integer
+        description: Client ID
+      case_id:
+        type: integer
+        description: Case identifier (1-5)
+      case_name:
+        type: string
+        description: Case name (NO_CURRENT_EMPLOYER, SELF_EMPLOYED_ONLY, etc.)
+      reasons:
+        type: array
+        items:
+          type: string
+        description: List of reasons why this case was detected
+      detected_at:
+        type: string
+        format: date-time
+        description: Timestamp when the case was detected
+
+Example Request:
+GET /api/v1/clients/1/case/detect
+
+Example Response:
+{
+  "result": {
+    "client_id": 1,
+    "case_id": 5,
+    "case_name": "REGULAR_WITH_LEAVE",
+    "reasons": ["has_current_employer", "planned_leave_detected_or_default"],
+    "detected_at": "2025-09-03T13:25:00Z"
+  }
+}

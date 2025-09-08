@@ -1,0 +1,47 @@
+{
+  "timestamp": "2025-09-08T14:32:37.039179",
+  "total_tests": 4,
+  "passed_tests": 3,
+  "success_rate": 0.75,
+  "overall_success": false,
+  "test_results": {
+    "health": {
+      "success": true,
+      "timestamp": "2025-09-08T14:32:36.556660",
+      "details": {
+        "status_code": 200,
+        "response": {
+          "status": "ok"
+        }
+      }
+    },
+    "cashflow_generate": {
+      "success": true,
+      "timestamp": "2025-09-08T14:32:36.708955",
+      "details": {
+        "status_code": 200,
+        "rows_count": 12,
+        "expected_rows": 12
+      }
+    },
+    "compare_scenarios": {
+      "success": true,
+      "timestamp": "2025-09-08T14:32:36.740321",
+      "details": {
+        "status_code": 200,
+        "scenarios_count": 1,
+        "monthly_count": 12,
+        "has_yearly_2025": true
+      }
+    },
+    "pdf_generation": {
+      "success": false,
+      "timestamp": "2025-09-08T14:32:37.038628",
+      "details": {
+        "status_code": 400,
+        "error": "{\"detail\":\"Internal PDF generation error: create_pdf_with_cashflow() got an unexpected keyword argument 'scenarios'\"}",
+        "error_file": "artifacts/test.pdf.error"
+      }
+    }
+  }
+}

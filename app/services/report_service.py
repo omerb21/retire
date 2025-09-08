@@ -35,6 +35,8 @@ from app.models import Client, Scenario, Employment, Employer
 from app.schemas.scenario import ScenarioOut
 from app.schemas.report import ReportPdfRequest
 from app.services.cashflow_service import generate_cashflow
+from app.services.case_service import detect_case
+from app.schemas.case import ClientCase
 
 _logger = logging.getLogger(__name__)
 _DEFAULT_HEBREW_FONT = "DejaVu Sans"  # Default to DejaVu which is bundled with matplotlib
@@ -125,6 +127,20 @@ class ReportService:
         Returns:
             Dictionary with summary data organized by sections
         """
+        # Detect case for client
+        try:
+            case_detection = detect_case(db, client.id)
+            case_id = case_detection.case_id
+            case_name = case_detection.case_name if hasattr(case_detection, 'case_name') else "standard"
+            case_display_name = case_detection.display_name if hasattr(case_detection, 'display_name') else "מקרה רגיל"
+            case_reasons = case_detection.reasons if hasattr(case_detection, 'reasons') else []
+        except Exception as e:
+            _logger.warning(f"Case detection failed for client {client.id}: {e}")
+            case_id = 1
+            case_name = "standard"
+            case_display_name = "מקרה רגיל"
+            case_reasons = ["זיהוי אוטומטי נכשל"]
+        
         summary = {
             'client_info': {
                 'full_name': client.full_name or 'N/A',
@@ -141,6 +157,12 @@ class ReportService:
                 'generated_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
                 'scenarios_count': len(scenarios),
                 'client_is_active': client.is_active
+            },
+            'case': {
+                'id': case_id,
+                'name': case_name,
+                'display_name': case_display_name,
+                'reasons': case_reasons
             }
         }
         
@@ -437,6 +459,36 @@ class ReportService:
         story.append(client_table)
         story.append(Spacer(1, 20))
         
+        # Case information
+        story.append(Paragraph("סיווג מקרה לקוח", ParagraphStyle('SectionTitle', parent=hebrew_style, fontSize=14, spaceAfter=10)))
+        
+        case_desc = {
+            ClientCase.NO_CURRENT_EMPLOYER: "לקוח ללא מעסיק נוכחי. התוכנית אינה כוללת חישובי פיצויים או קצבה ממעסיק נוכחי.",
+            ClientCase.SELF_EMPLOYED_ONLY: "לקוח עצמאי בלבד. התוכנית מתבססת על הכנסה עסקית עצמאית.",
+            ClientCase.PAST_RETIREMENT_AGE: "לקוח שכבר הגיע לגיל פרישה. התוכנית מתמקדת במיצוי זכויות קיימות.",
+            ClientCase.ACTIVE_NO_LEAVE: "לקוח עם מעסיק נוכחי ללא תכנון עזיבה. התוכנית אינה כוללת חישובי פיצויים סופיים.",
+            ClientCase.REGULAR_WITH_LEAVE: "לקוח עם מעסיק נוכחי ותוכנית פרישה. התוכנית כוללת חישובי פיצויים וקצבה מלאים."  
+        }.get(summary['case']['id'], "לא מוגדר")
+        
+        case_data = [
+            ['סוג מקרה:', summary['case']['display_name']],
+            ['תיאור:', case_desc],
+            ['גורמים מזהים:', ' | '.join(summary['case']['reasons'])]
+        ]
+        
+        case_table = Table(case_data, colWidths=[1.5*inch, 3.5*inch])
+        case_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _DEFAULT_HEBREW_FONT),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+        ]))
+        
+        story.append(case_table)
+        story.append(Spacer(1, 20))
+        
         # Employment information
         if summary['employment_info']:
             story.append(Paragraph("פרטי תעסוקה", ParagraphStyle('SectionTitle', parent=hebrew_style, fontSize=14, spaceAfter=10)))
@@ -523,43 +575,83 @@ class ReportService:
 def generate_report_pdf(
     db: Session,
     client_id: int,
-    scenario_id: int,
-    request: ReportPdfRequest
+    scenario_id: int = None,
+    request: ReportPdfRequest = None
 ) -> bytes:
     """
-    Generate PDF report with cashflow data, charts, and summaries.
+    Generate PDF report for client scenarios with cashflow data and charts.
     
     Args:
         db: Database session
         client_id: Client ID
-        scenario_id: Scenario ID
-        request: Report generation request with date range and sections
+        scenario_id: Single scenario ID (path parameter)
+        request: Report request containing date range and sections
         
     Returns:
-        PDF as bytes
+        PDF content as bytes
     """
     start_time = datetime.now()
     _logger.info(f"Starting PDF report generation for client={client_id}, scenario={scenario_id}, range={request.from_}-{request.to}")
     
     try:
-        # Get client and scenario data
+        # Get client data
         client = db.query(Client).filter(Client.id == client_id).first()
         if not client:
             raise ValueError(f"Client {client_id} not found")
-            
-        scenario = db.query(Scenario).filter(Scenario.id == scenario_id).first()
-        if not scenario:
-            raise ValueError(f"Scenario {scenario_id} not found")
+        
+        # Defensive handling: determine scenario_ids from multiple sources
+        scenario_ids = []
+        
+        # Priority 1: scenario_id from path parameter
+        if scenario_id is not None:
+            scenario_ids = [scenario_id]
+            _logger.info(f"Using scenario_id from path: {scenario_id}")
+        
+        # Priority 2: scenario_ids from request body (if exists)
+        elif hasattr(request, 'scenario_ids') and request.scenario_ids:
+            scenario_ids = request.scenario_ids
+            _logger.info(f"Using scenario_ids from request body: {scenario_ids}")
+        
+        # Priority 3: scenarios from request body (alternative field name)
+        elif hasattr(request, 'scenarios') and request.scenarios:
+            scenario_ids = request.scenarios
+            _logger.info(f"Using scenarios from request body: {scenario_ids}")
+        
+        # Fallback: error if no scenarios found
+        else:
+            raise ValueError("No scenario ID provided in path or request body")
+        
+        # Validate scenarios exist
+        scenarios = db.query(Scenario).filter(Scenario.id.in_(scenario_ids)).all()
+        
+        # Auto-detect case for consistency
+        try:
+            from app.services.case_service import detect_case
+            case_detection = detect_case(db, client_id)
+            case_id = case_detection.case_id
+            _logger.info(f"Detected case_id={case_id} for client={client_id}")
+        except Exception as e:
+            _logger.warning(f"Case detection failed, using default case: {e}")
+            case_id = 1  # Default to standard case
         
         # Generate cashflow data using Sprint 7 service
-        cashflow_data = generate_cashflow(
-            db=db,
-            client_id=client_id,
-            scenario_id=scenario_id,
-            start_ym=request.from_,
-            end_ym=request.to,
-            frequency=request.frequency
-        )
+        cashflow_data = []
+        for sid in scenario_ids:
+            try:
+                _logger.info(f"Generating cashflow for scenario_id={sid}")
+                cashflow_rows = generate_cashflow(
+                    db=db,
+                    client_id=client_id,
+                    scenario_id=sid,
+                    start_ym=request.from_,
+                    end_ym=request.to,
+                    case_id=case_id
+                )
+                _logger.info(f"Generated {len(cashflow_rows)} cashflow rows for scenario_id={sid}")
+                cashflow_data.extend(cashflow_rows)
+            except Exception as e:
+                _logger.error(f"Error generating cashflow for scenario_id={sid}: {e}")
+                raise ValueError(f"Failed to generate cashflow for scenario_id={sid}: {e}")
         
         # Calculate yearly totals for summary
         yearly_totals = {}
@@ -598,7 +690,7 @@ def generate_report_pdf(
         # Build PDF content
         pdf_content = create_pdf_with_cashflow(
             client=client,
-            scenario=scenario,
+            scenarios=scenarios,
             cashflow_data=cashflow_data,
             yearly_totals=yearly_totals,
             chart_cashflow=chart_cashflow,
@@ -613,9 +705,17 @@ def generate_report_pdf(
         
         return pdf_content
         
-    except Exception as e:
-        _logger.error(f"Error generating PDF report: {e}")
+    except ValueError as e:
+        # Specific validation errors - log and re-raise
+        _logger.error(f"PDF generation validation error: {e}")
         raise
+    except Exception as e:
+        # Log detailed error with traceback
+        import traceback
+        _logger.error(f"Unexpected error in PDF generation:\n{traceback.format_exc()}")
+        _logger.error(f"Error details: {e}")
+        # Safer to re-raise as ValueError for API consistency
+        raise ValueError(f"Internal PDF generation error: {e}")
 
 
 def create_net_cashflow_chart(chart_data: Dict[str, List]) -> bytes:

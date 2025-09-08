@@ -1,0 +1,8 @@
+BASE: http://127.0.0.1:8000
+CASE PATH: /api/v1/clients/{client_id}/case/detect
+REQUIRED: (none)
+PROPERTIES:
+EXAMPLE (required-only):
+{}
+EXAMPLE (full):
+{}

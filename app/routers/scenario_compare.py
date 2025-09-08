@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Any, Dict
 from app.database import get_db
@@ -16,7 +17,7 @@ def compare_scenarios_endpoint(
     client_id: int,
     body: ScenarioCompareRequest,
     db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+):
     """
     משווה מספר תרחישים עבור לקוח נתון ומחזיר תזרים חודשי וטוטלים שנתיים.
     
@@ -79,15 +80,17 @@ def compare_scenarios_endpoint(
     - frequency: רק "monthly" נתמך כרגע
     """
     try:
-        data = compare_scenarios(
+        # Call service function directly
+        result = compare_scenarios(
             db_session=db,
             client_id=client_id,
             scenario_ids=body.scenarios,
             from_yyyymm=body.from_,
             to_yyyymm=body.to,
-            frequency=body.frequency,
+            frequency=body.frequency
         )
-        return data
+        # Return as JSONResponse to ensure direct return without any wrapping
+        return JSONResponse(content=result)
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:

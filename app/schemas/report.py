@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, validator
-from typing import Dict, Literal, Optional
+from typing import Dict, Literal, Optional, List
 
 
 class ReportPdfRequest(BaseModel):
@@ -7,6 +7,8 @@ class ReportPdfRequest(BaseModel):
     from_: str = Field(..., alias="from", description="YYYY-MM, e.g. 2025-01")
     to: str = Field(..., description="YYYY-MM, e.g. 2025-12")
     frequency: Literal["monthly"] = "monthly"
+    scenario_ids: Optional[List[int]] = None  # Optional list of scenario IDs
+    scenarios: Optional[List[int]] = None     # Alternative field name
     sections: Dict[str, bool] = {
         "summary": True,
         "cashflow_table": True,

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retirement Planning System - Operations</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <h1>Retirement Planning System</h1>
+            <nav>
+                <ul>
+                    <li><a href="/ui">Operations</a></li>
+                    <li><a href="/docs">API Docs</a></li>
+                    <li><a href="/api_verification.html">QA Verification</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <h2>Operations → Cashflow & Reports & Case</h2>
+        
+        <div class="tab-container">
+            <div class="tabs">
+                <div class="tab active" data-tab="cashflow">Cashflow</div>
+                <div class="tab" data-tab="compare">Compare</div>
+                <div class="tab" data-tab="case-detection">Case Detection</div>
+            </div>
+
+            <div class="tab-content active" id="cashflow-tab">
+                <h3>Generate Cashflow</h3>
+                <form id="cashflow-form">
+                    <div class="form-group">
+                        <label for="cf-client-id">Client ID:</label>
+                        <input type="number" id="cf-client-id" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cf-scenario-id">Scenario ID:</label>
+                        <input type="number" id="cf-scenario-id" value="24" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cf-from">From (YYYY-MM):</label>
+                        <input type="text" id="cf-from" value="2025-01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cf-to">To (YYYY-MM):</label>
+                        <input type="text" id="cf-to" value="2025-12" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cf-frequency">Frequency:</label>
+                        <select id="cf-frequency">
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <button type="submit">Generate Cashflow</button>
+                </form>
+
+                <div id="cashflow-result" class="result-card" style="display: none;">
+                    <div class="result-header">Cashflow Results</div>
+                    <div class="chart-container">
+                        <canvas id="cashflow-chart"></canvas>
+                    </div>
+                    <div id="cashflow-summary"></div>
+                    <table id="cashflow-table">
+                        <thead>
+                            <tr>
+                                <th>Period</th>
+                                <th>Income</th>
+                                <th>Deductions</th>
+                                <th>Net</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div id="cashflow-log" class="log-container"></div>
+            </div>
+
+            <div class="tab-content" id="compare-tab">
+                <h3>Compare Scenarios</h3>
+                <form id="compare-form">
+                    <div class="form-group">
+                        <label for="comp-client-id">Client ID:</label>
+                        <input type="number" id="comp-client-id" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="comp-scenario-ids">Scenario IDs (comma-separated):</label>
+                        <input type="text" id="comp-scenario-ids" value="24" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="comp-from">From (YYYY-MM):</label>
+                        <input type="text" id="comp-from" value="2025-01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="comp-to">To (YYYY-MM):</label>
+                        <input type="text" id="comp-to" value="2025-12" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="comp-frequency">Frequency:</label>
+                        <select id="comp-frequency">
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <button type="submit">Compare Scenarios</button>
+                </form>
+
+                <div id="compare-result" class="result-card" style="display: none;">
+                    <div class="result-header">Comparison Results</div>
+                    <div class="chart-container">
+                        <canvas id="compare-chart"></canvas>
+                    </div>
+                    <h4>Yearly Totals</h4>
+                    <table id="yearly-totals-table">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Scenario</th>
+                                <th>Income</th>
+                                <th>Deductions</th>
+                                <th>Net</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div id="compare-log" class="log-container"></div>
+            </div>
+
+            <div class="tab-content" id="case-detection-tab">
+                <h3>Client Case Detection</h3>
+                <form id="case-form">
+                    <div class="form-group">
+                        <label for="case-client-id">Client ID:</label>
+                        <input type="number" id="case-client-id" value="1" required>
+                    </div>
+                    <button type="submit">Detect Case</button>
+                </form>
+
+                <div id="case-result" style="display: none;"></div>
+
+                <div class="form-group" style="margin-top: 20px; display: none;" id="integration-actions">
+                    <h4>Integration Tests</h4>
+                    <button id="test-cashflow" class="integration-btn">Test Cashflow with Case</button>
+                    <button id="test-compare" class="integration-btn">Test Compare with Case</button>
+                    <button id="test-report" class="integration-btn">Generate Report with Case</button>
+                </div>
+
+                <div id="case-log" class="log-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/ui.js"></script>
+</body>
+</html>
