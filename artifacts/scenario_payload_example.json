@@ -1,0 +1,7 @@
+{
+  "scenario_name": "Basic Retirement Planning",
+  "apply_tax_planning": true,
+  "apply_capitalization": false,
+  "apply_exemption_shield": true,
+  "parameters": "{\"retirement_age\": 67, \"current_age\": 45, \"monthly_salary\": 15000, \"pension_contributions\": {\"employee\": 0.06, \"employer\": 0.075}, \"severance_fund\": {\"balance\": 250000, \"monthly_contribution\": 500}, \"additional_income\": [{\"type\": \"rental\", \"monthly_amount\": 3000, \"start_year\": 2025, \"end_year\": 2040}], \"expenses\": {\"monthly_living\": 12000, \"annual_special\": 50000}, \"indexation\": {\"salary\": 0.02, \"expenses\": 0.025, \"pension\": 0.015}, \"tax_assumptions\": {\"income_tax_rate\": 0.31, \"capital_gains_rate\": 0.25, \"pension_tax_rate\": 0.10}}"
+}

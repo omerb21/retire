@@ -1,0 +1,27 @@
+{
+  "timestamp": "20250909_102927",
+  "commit_sha": "sprint11-closure-20250908-164627",
+  "results": {
+    "cashflow": {
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/v1/scenarios/24/cashflow/generate?client_id=1 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002CBAE561A10>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    },
+    "compare": {
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/v1/clients/1/scenarios/compare (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002CBAE574210>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    },
+    "pdf": {
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/v1/scenarios/24/report/pdf?client_id=1 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002CBAE55D810>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    },
+    "consistency": {
+      "status": "FAIL",
+      "error": "No compare data"
+    },
+    "zip": {
+      "status": "PASS",
+      "filename": "yearly_totals_verification_20250909_102927.zip",
+      "sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85"
+    }
+  }
+}
