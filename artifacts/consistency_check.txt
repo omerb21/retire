@@ -1,0 +1,34 @@
+Monthly vs Yearly Totals Consistency Check
+==================================================
+
+inflow:
+  Monthly sum: 30165600.0
+  Yearly total: 30165600.0
+  Difference: 0.0
+  Consistent: True
+
+outflow:
+  Monthly sum: 0.0
+  Yearly total: 0.0
+  Difference: 0.0
+  Consistent: True
+
+additional_income_net:
+  Monthly sum: 24165600.0
+  Yearly total: 24165600.0
+  Difference: 0.0
+  Consistent: True
+
+capital_return_net:
+  Monthly sum: 6000000.0
+  Yearly total: 6000000.0
+  Difference: 0.0
+  Consistent: True
+
+net:
+  Monthly sum: 60331200.0
+  Yearly total: 60331200.0
+  Difference: 0.0
+  Consistent: True
+
+Overall consistency: True

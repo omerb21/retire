@@ -1,0 +1,28 @@
+{
+  "timestamp": "20250908_175715",
+  "commit_sha": "sprint11-closure-20250908-164627",
+  "results": {
+    "cashflow": {
+      "status": "PASS",
+      "rows": 12
+    },
+    "compare": {
+      "status": "PASS",
+      "scenarios": 1,
+      "months": 12
+    },
+    "pdf": {
+      "status": "FAIL",
+      "code": 400
+    },
+    "consistency": {
+      "status": "FAIL",
+      "error": "'charmap' codec can't encode character '\\u2264' in position 11: character maps to <undefined>"
+    },
+    "zip": {
+      "status": "PASS",
+      "filename": "yearly_totals_verification_20250908_175715.zip",
+      "sha256": "fe870fb604ad4bdf7ca951a7130f76087128e4688e61260304384b66b57b95c8"
+    }
+  }
+}

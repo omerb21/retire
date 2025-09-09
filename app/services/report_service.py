@@ -687,10 +687,14 @@ def generate_report_pdf(
         if request.sections.get('net_chart', True):
             chart_cashflow = create_net_cashflow_chart(chart_data)
         
-        # Build PDF content
+        # Build PDF content - use first scenario for PDF generation
+        primary_scenario = scenarios[0] if scenarios else None
+        if not primary_scenario:
+            raise ValueError("No scenarios available for PDF generation")
+            
         pdf_content = create_pdf_with_cashflow(
             client=client,
-            scenarios=scenarios,
+            scenario=primary_scenario,
             cashflow_data=cashflow_data,
             yearly_totals=yearly_totals,
             chart_cashflow=chart_cashflow,
