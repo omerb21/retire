@@ -12,7 +12,11 @@ from datetime import date
 # Engine ברירת מחדל לזיכרון - כל מבחן מקבל טרנזקציה נפרדת
 @pytest.fixture(scope="session")
 def engine():
-    eng = create_engine("sqlite:///:memory:", echo=False)
+    eng = create_engine(
+        "sqlite:///:memory:", 
+        echo=False,
+        connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(eng)
     return eng
 
@@ -36,7 +40,8 @@ def client(db_session):
         first_name="Test",
         last_name="Client",
         birth_date=date(1970, 1, 1),
-        id_number="000000000"
+        id_number="000000000",
+        is_active=True
     )
     db_session.add(c)
     db_session.flush()  # כדי לקבל id
@@ -51,3 +56,14 @@ def test_client(client):
 @pytest.fixture(scope="function")
 def test_client_data(test_client):
     return {"client_id": test_client.id, "client_personal_number": test_client.id_number}
+
+# Legacy compatibility fixture for _test_db
+@pytest.fixture(scope="session")
+def _test_db(engine):
+    """Legacy compatibility fixture for existing tests that expect _test_db"""
+    TestingSessionLocal = sessionmaker(bind=engine)
+    return {
+        "engine": engine,
+        "Session": TestingSessionLocal,
+        "path": ":memory:"  # For compatibility with tests that check path
+    }

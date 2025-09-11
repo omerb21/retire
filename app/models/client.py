@@ -67,11 +67,25 @@ class Client(Base):
     # Relationships
     fixation_results = relationship("FixationResult", back_populates="client")
     pension_funds = relationship("PensionFund", back_populates="client", cascade="all, delete-orphan")
+    current_employers = relationship("CurrentEmployer", back_populates="client", cascade="all, delete-orphan")
+    grants = relationship("EmployerGrant", back_populates="client", cascade="all, delete-orphan")
     additional_incomes = relationship("AdditionalIncome", back_populates="client", cascade="all, delete-orphan")
     capital_assets = relationship("CapitalAsset", back_populates="client", cascade="all, delete-orphan")
+    scenarios = relationship("Scenario", back_populates="client", cascade="all, delete-orphan")
+    
+    def __init__(self, *args, **kwargs):
+        # map older or alternate kwarg names to canonical field names
+        alias_map = {
+            "client_id": "id",  # client_id -> id
+            "clientId": "id",   # clientId -> id
+        }
+        for alias, canonical in alias_map.items():
+            if alias in kwargs and canonical not in kwargs:
+                kwargs[canonical] = kwargs.pop(alias)
+        super().__init__(*args, **kwargs)
     
     def __repr__(self):
-        return f"<Client(id={self.id}, id_number={self.id_number}, full_name='{self.full_name}')>"
+        return f"<Client(id={self.id}, full_name='{self.full_name}', id_number='{self.id_number}')>"
 
 
 @event.listens_for(Client, "before_insert")
