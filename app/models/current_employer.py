@@ -79,6 +79,20 @@ class CurrentEmployer(Base):
     client = relationship("Client", backref="current_employers")
     grants = relationship("EmployerGrant", back_populates="employer", cascade="all, delete-orphan")
     
+    def __init__(self, *args, **kwargs):
+        # map older or alternate kwarg names to canonical field names
+        alias_map = {
+            "employer": "id",  # employer -> id (primary key)
+            "employerId": "id",  # employerId -> id
+            "employer_id": "id",  # employer_id -> id
+            "client": "client_id",
+            "clientId": "client_id",
+        }
+        for alias, canonical in alias_map.items():
+            if alias in kwargs and canonical not in kwargs:
+                kwargs[canonical] = kwargs.pop(alias)
+        super().__init__(*args, **kwargs)
+    
     def __repr__(self):
         return f"<CurrentEmployer(id={self.id}, client_id={self.client_id}, employer_name='{self.employer_name}')>"
     

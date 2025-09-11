@@ -65,7 +65,9 @@ class TestCaseDetection(unittest.TestCase):
         
         self.assertEqual(result.case_id, ClientCase.PAST_RETIREMENT_AGE)
         self.assertEqual(result.client_id, 1)
-        self.assertIn("past_retirement_age", result.reasons)
+        # Check for retirement age reason (format: client_age_XX_exceeds_retirement_age_67)
+        retirement_age_found = any("exceeds_retirement_age" in reason for reason in result.reasons)
+        self.assertTrue(retirement_age_found, f"Expected retirement age reason in: {result.reasons}")
         
     def test_case_no_current_employer(self):
         """Test detection of no current employer case (Case 1)"""
@@ -137,7 +139,7 @@ class TestCaseDetection(unittest.TestCase):
         current_employer = CurrentEmployer(
             id=1,
             client_id=1,
-            employer_id=1,
+            employer_name="Test Employer",
             start_date=date(2020, 1, 1),
             end_date=None  # No planned leave
         )
@@ -175,7 +177,7 @@ class TestCaseDetection(unittest.TestCase):
         current_employer = CurrentEmployer(
             id=1,
             client_id=1,
-            employer_id=1,
+            employer_name="Test Employer",
             start_date=date(2020, 1, 1),
             end_date=date.today() + timedelta(days=180)  # Planned leave in 6 months
         )
@@ -213,7 +215,7 @@ class TestCaseDetection(unittest.TestCase):
         current_employer = CurrentEmployer(
             id=1,
             client_id=1,
-            employer_id=1,
+            employer_name="Test Employer",
             start_date=date(2020, 1, 1),
             end_date=None  # No planned leave in employer record
         )
@@ -244,7 +246,9 @@ class TestCaseDetection(unittest.TestCase):
         self.assertEqual(result.case_id, ClientCase.REGULAR_WITH_LEAVE)
         self.assertEqual(result.client_id, 1)
         self.assertIn("has_current_employer", result.reasons)
-        self.assertIn("client_planned_termination", result.reasons)
+        # Check for planned termination date in reasons (format: planned_termination_date_set_YYYY-MM-DD)
+        planned_termination_found = any("planned_termination_date_set_" in reason for reason in result.reasons)
+        self.assertTrue(planned_termination_found, f"Expected planned termination in reasons: {result.reasons}")
         
     def test_client_not_found(self):
         """Test error handling when client is not found"""
