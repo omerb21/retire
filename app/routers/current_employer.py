@@ -49,6 +49,19 @@ def create_or_update_current_employer(
     if ce:
         # Update existing employer
         data = employer_data.model_dump(exclude_none=True)  # Important! Don't overwrite with None
+        
+        # Map monthly_salary to last_salary if monthly_salary is provided
+        if 'monthly_salary' in data and data['monthly_salary'] is not None:
+            data['last_salary'] = data['monthly_salary']
+            
+        # Map severance_balance to severance_accrued if provided
+        if 'severance_balance' in data and data['severance_balance'] is not None:
+            data['severance_accrued'] = data['severance_balance']
+        
+        # Remove fields that don't exist in the current DB schema
+        data.pop('monthly_salary', None)
+        data.pop('severance_balance', None)
+        
         for k, v in data.items():
             setattr(ce, k, v)
         ce.last_update = date.today()  # Always update by server
@@ -62,10 +75,24 @@ def create_or_update_current_employer(
         try:
             # Could try to derive data from Employment "current" here if needed
             
-            # Create new from payload
+            # Create new from payload - map frontend fields to DB fields
+            data = employer_data.model_dump(exclude_none=True)
+            
+            # Map monthly_salary to last_salary if monthly_salary is provided
+            if 'monthly_salary' in data and data['monthly_salary'] is not None:
+                data['last_salary'] = data['monthly_salary']
+                
+            # Map severance_balance to severance_accrued if provided
+            if 'severance_balance' in data and data['severance_balance'] is not None:
+                data['severance_accrued'] = data['severance_balance']
+            
+            # Remove fields that don't exist in the current DB schema
+            data.pop('monthly_salary', None)
+            data.pop('severance_balance', None)
+            
             ce = CurrentEmployer(
                 client_id=client_id,
-                **employer_data.model_dump(exclude_none=True)
+                **data
             )
             ce.last_update = date.today()
             

@@ -1,0 +1,13 @@
+﻿QA Signoff Template
+Name: <QA_NAME or SELF>
+Time: <ISO_TIMESTAMP>
+Commit: sprint11-closure-20250908-164627
+
+Checks:
+- PDF opens and is a real PDF: YES / NO
+- Months: 12/12: YES / NO
+- sum(monthly.net) == yearly_totals['2025'].net (diff = <value>): PASS / FAIL
+- ZIP present and SHA256 matches zip_sha256_FINAL.txt: YES / NO
+
+Verdict: APPROVED / REJECTED
+Comments: <optional>

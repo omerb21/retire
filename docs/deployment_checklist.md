@@ -25,11 +25,16 @@
 
 ### 3. Code Review
 
-- [ ] Verify all tests pass: `python -m unittest discover`
-- [ ] Check logging configuration (INFO for Prod, DEBUG for Staging)
-- [ ] Ensure no debug prints remain in code
-- [ ] Verify all endpoints return proper response models
-- [ ] Confirm path validation in file download endpoint
+- [ ] All unit tests pass (`pytest tests/unit/`)
+- [ ] All integration tests pass (`pytest tests/integration/`)
+- [ ] All E2E tests pass (`pytest tests/e2e/`)
+- [ ] Code quality checks pass (black, isort, flake8)
+- [ ] Security scan passes (bandit, safety)
+- [ ] Database migrations ready and tested
+- [ ] Environment variables configured
+- [ ] SSL certificates ready (production)
+- [ ] Docker images built and tested
+- [ ] Backup procedures verified
 
 ## Deployment
 

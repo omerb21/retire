@@ -9,10 +9,56 @@ import json
 from app.database import get_db
 from app.models.client import Client
 from app.models.scenario import Scenario
-from app.schemas import (
-    ScenarioCreate, ScenarioUpdate, Scenario as ScenarioResponse,
-    APIResponse
-)
+# ייבוא סכמות התרחיש
+try:
+    from app.schemas.scenario import ScenarioCreate, ScenarioUpdate, ScenarioResponse
+except ImportError:
+    # יצירת סכמות זמניות אם הקובץ לא קיים
+    from pydantic import BaseModel, Field
+    from typing import Optional
+    from datetime import datetime
+    
+    class ScenarioBase(BaseModel):
+        name: str
+        description: Optional[str] = None
+        parameters: str = Field(default="{}", description="JSON parameters for scenario")
+    
+    class ScenarioCreate(BaseModel):
+        name: str
+        description: Optional[str] = None
+    
+    class ScenarioUpdate(ScenarioBase):
+        name: Optional[str] = None
+        parameters: Optional[str] = None
+    
+    class ScenarioResponse(BaseModel):
+        id: int
+        client_id: int
+        name: str
+        description: Optional[str] = None
+        parameters: str = "{}"
+        cashflow_projection: Optional[str] = None
+        summary_results: Optional[str] = None
+        created_at: datetime
+        
+        @classmethod
+        def from_db_scenario(cls, db_scenario):
+            return cls(
+                id=db_scenario.id,
+                client_id=db_scenario.client_id,
+                name=db_scenario.scenario_name,
+                description=None,  # Not stored in DB
+                parameters=db_scenario.parameters or "{}",
+                cashflow_projection=db_scenario.cashflow_projection,
+                summary_results=db_scenario.summary_results,
+                created_at=db_scenario.created_at
+            )
+        
+        class Config:
+            from_attributes = True
+
+# ייבוא סכמת תגובת API
+from app.schemas import APIResponse
 from app.services.calculations import generate_cashflow
 
 router = APIRouter(
@@ -37,18 +83,9 @@ def create_scenario(
             detail="Client not found"
         )
     
-    # Parse scenario parameters
-    try:
-        scenario_params = json.loads(scenario.parameters) if scenario.parameters != "{}" else {}
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid JSON in parameters field"
-        )
-    
     # Generate cashflow using the calculation engine
     try:
-        cashflow_result = generate_cashflow(client_id, scenario_params)
+        cashflow_result = generate_cashflow(client_id, {})
         cashflow_json = json.dumps(cashflow_result)
     except Exception as e:
         raise HTTPException(
@@ -56,10 +93,13 @@ def create_scenario(
             detail=f"Failed to generate cashflow: {str(e)}"
         )
     
-    # Create scenario with generated cashflow
-    scenario_data = scenario.model_dump()
-    scenario_data["client_id"] = client_id
-    scenario_data["cashflow_projection"] = cashflow_json
+    # Create scenario with generated cashflow - map frontend fields to DB fields
+    db_scenario = Scenario(
+        client_id=client_id,
+        scenario_name=scenario.name,
+        parameters='{}',  # Default empty parameters
+        cashflow_projection=cashflow_json
+    )
     
     # Create summary results from cashflow
     summary_results = {
@@ -68,14 +108,13 @@ def create_scenario(
         "status": "completed",
         "generated_at": cashflow_result.get("calculation_date")
     }
-    scenario_data["summary_results"] = json.dumps(summary_results)
+    db_scenario.summary_results = json.dumps(summary_results)
     
-    db_scenario = Scenario(**scenario_data)
     db.add(db_scenario)
     db.commit()
     db.refresh(db_scenario)
     
-    return db_scenario
+    return ScenarioResponse.from_db_scenario(db_scenario)
 
 
 @router.get("/{client_id}/scenarios", response_model=List[ScenarioResponse])
@@ -93,7 +132,7 @@ def get_client_scenarios(
         )
     
     scenarios = db.query(Scenario).filter(Scenario.client_id == client_id).all()
-    return scenarios
+    return [ScenarioResponse.from_db_scenario(s) for s in scenarios]
 
 
 @router.get("/{client_id}/scenarios/{scenario_id}", response_model=ScenarioResponse)
@@ -114,7 +153,7 @@ def get_scenario(
             detail="Scenario not found"
         )
     
-    return db_scenario
+    return ScenarioResponse.from_db_scenario(db_scenario)
 
 
 @router.put("/{client_id}/scenarios/{scenario_id}", response_model=ScenarioResponse)

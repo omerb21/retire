@@ -9,8 +9,8 @@ from sqlalchemy import or_, and_
 
 from app.database import get_db
 from app.models.client import Client
-from app.schemas import ClientCreate, ClientUpdate, Client as ClientResponse, APIResponse
-from app.schemas.client import ClientList
+from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientList
+from app.schemas import APIResponse
 from app.services.client_service import prepare_client_payload, validate_client_data
 
 # Create router with prefix

@@ -20,6 +20,14 @@ class IncomeSourceType(str, Enum):
     FREELANCE = "freelance"
     OTHER = "other"
 
+# Add aliases for lowercase access to prevent AttributeError
+IncomeSourceType.rental = IncomeSourceType.RENTAL
+IncomeSourceType.dividends = IncomeSourceType.DIVIDENDS
+IncomeSourceType.interest = IncomeSourceType.INTEREST
+IncomeSourceType.business = IncomeSourceType.BUSINESS
+IncomeSourceType.freelance = IncomeSourceType.FREELANCE
+IncomeSourceType.other = IncomeSourceType.OTHER
+
 
 class PaymentFrequency(str, Enum):
     """Payment frequency options."""

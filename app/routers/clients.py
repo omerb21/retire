@@ -9,11 +9,43 @@ from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employer import CurrentEmployer
-from app.schemas import (
-    ClientCreate, ClientUpdate, Client as ClientResponse,
-    CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployer as CurrentEmployerResponse,
-    APIResponse
-)
+# ייבוא סכמות הלקוח
+from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
+
+# ייבוא סכמות המעסיק הנוכחי
+try:
+    from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerResponse
+except ImportError:
+    # יצירת סכמות זמניות אם הקובץ לא קיים
+    from pydantic import BaseModel
+    from typing import Optional
+    from datetime import date
+    
+    class CurrentEmployerBase(BaseModel):
+        employer_name: str
+        start_date: date
+        monthly_salary: float
+        position: Optional[str] = None
+    
+    class CurrentEmployerCreate(CurrentEmployerBase):
+        pass
+    
+    class CurrentEmployerUpdate(CurrentEmployerBase):
+        employer_name: Optional[str] = None
+        start_date: Optional[date] = None
+        monthly_salary: Optional[float] = None
+    
+    class CurrentEmployerResponse(CurrentEmployerBase):
+        id: int
+        client_id: int
+        created_at: date
+        updated_at: date
+        
+        class Config:
+            from_attributes = True
+
+# ייבוא סכמת תגובת API
+from app.schemas import APIResponse
 
 router = APIRouter(
     prefix="/api/v1/clients",

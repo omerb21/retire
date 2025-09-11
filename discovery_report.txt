@@ -1,0 +1,90 @@
+DISCOVERY REPORT - Retirement System Analysis
+===========================================
+
+1. CORE CALCULATION FUNCTIONS FOUND:
+=====================================
+
+calculate_pension_income:
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\calculations.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\services\scenario_engine.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\tests\unit\test_calculation_logging.py (1 match)
+
+apply_indexation:
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\calculation\pensions.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\additional_income_service.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\calculations.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\capital_asset_service.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\core_pension_test.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\services\scenario_engine.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\tests\unit\test_calculation_logging.py (1 match)
+
+generate_cashflow:
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\routers\cashflow_generation.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\calculations.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\cashflow_service.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\services\scenario_engine.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\sprint11_canonical_run.py (1 match)
+
+run_scenario:
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\tests\integration\test_scenario_engine.py (6 matches)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\routers\calc-nuc.py (3 matches)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\routers\calc.py (3 matches)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\routes\scenarios.py (3 matches)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\scenario_service-nuc.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\scenario_service.py (1 match)
+- C:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\services\scenario_engine.py (1 match)
+
+2. STUB/UNIMPLEMENTED CODE INDICATORS:
+=====================================
+
+Found 39 matches of pass$|raise NotImplementedError|TODO|FIXME|stub across files:
+
+Key files with stubs:
+- app\routers\fixation.py (5 matches) - CRITICAL
+- app\services\current_employer_service.py (5 matches) - CRITICAL  
+- app\services\calculations.py (3 matches) - CRITICAL
+- app\services\tax_data_service.py (3 matches)
+- app\services\cashflow_service.py (2 matches)
+- app\services\report_service.py (2 matches)
+
+3. FIXATION/RIGHTS PRESERVATION SYSTEM:
+======================================
+
+Found 76 matches of fixation-related terms:
+
+Key fixation system files:
+- מערכת קיבוע זכויות\ (Hebrew directory - Rights Fixation System)
+- app\routers\fixation.py (10 matches)
+- app\integrations\fixation_forms.py (6 matches)  
+- app\services\fixation_service.py (3 matches)
+- app\models\fixation_result.py (2 matches)
+- frontend\src\pages\SimpleFixation.tsx (33 matches)
+
+4. CRITICAL FINDINGS:
+====================
+
+A. EXISTING RIGHTS FIXATION SYSTEM FOUND:
+   - Complete Hebrew system in "מערכת קיבוע זכויות" directory
+   - Contains app/, client-ui/, migrations/, packages/ subdirectories
+   - Has its own database structure and PDF generation
+
+B. STUB IMPLEMENTATIONS DETECTED:
+   - Multiple calculation functions return None or pass
+   - Fixation router has placeholder endpoints
+   - Current employer service incomplete
+
+C. DUAL SYSTEM ARCHITECTURE:
+   - Main retirement system (English/mixed)
+   - Separate Hebrew rights fixation system
+   - Integration points not properly connected
+
+5. NEXT STEPS REQUIRED:
+======================
+
+1. Examine actual function implementations in key files
+2. Check if rights fixation system logic can be imported
+3. Identify which functions are stubs vs working implementations
+4. Test current API endpoints for actual functionality
+5. Bridge the gap between the two systems
+
+END OF DISCOVERY REPORT

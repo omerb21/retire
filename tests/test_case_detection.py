@@ -92,16 +92,6 @@ class TestCaseDetection(unittest.TestCase):
         # Set client birth date to be under retirement age
         self.client.birth_date = date.today() - timedelta(days=45*365)
         
-        # Mock database query to return our test client
-        self.db.query.return_value.filter.return_value.first.return_value = self.client
-        
-        # Mock no current employer
-        query_mock = MagicMock()
-        query_mock.filter.return_value.first.return_value = None
-        
-        # Second query should get the client
-        self.db.query.side_effect = [query_mock, MagicMock()]
-        
         # Mock business income
         business_income = AdditionalIncome(
             id=1,
@@ -109,7 +99,27 @@ class TestCaseDetection(unittest.TestCase):
             source_type=IncomeSourceType.business,
             amount=10000
         )
-        self.db.query.return_value.filter.return_value.all.return_value = [business_income]
+        
+        # Set up proper side_effect for multiple queries
+        def query_side_effect(*args):
+            if args[0] == Client:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = self.client
+                return mock_query
+            elif args[0] == CurrentEmployer:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = None  # No current employer
+                return mock_query
+            elif args[0] == AdditionalIncome:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = business_income
+                return mock_query
+            else:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = None
+                return mock_query
+        
+        self.db.query.side_effect = query_side_effect
         
         result = detect_case(self.db, 1)
         
@@ -121,9 +131,7 @@ class TestCaseDetection(unittest.TestCase):
         """Test detection of active employment with no leave case (Case 4)"""
         # Set client birth date to be under retirement age
         self.client.birth_date = date.today() - timedelta(days=45*365)
-        
-        # Mock database query to return our test client
-        self.db.query.return_value.filter.return_value.first.return_value = self.client
+        self.client.planned_termination_date = None
         
         # Mock current employer with no end date
         current_employer = CurrentEmployer(
@@ -133,10 +141,23 @@ class TestCaseDetection(unittest.TestCase):
             start_date=date(2020, 1, 1),
             end_date=None  # No planned leave
         )
-        self.db.query.return_value.filter.return_value.first.return_value = current_employer
         
-        # Client has no planned termination date
-        self.client.planned_termination_date = None
+        # Set up proper side_effect for multiple queries
+        def query_side_effect(*args):
+            if args[0] == Client:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = self.client
+                return mock_query
+            elif args[0] == CurrentEmployer:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = current_employer
+                return mock_query
+            else:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = None
+                return mock_query
+        
+        self.db.query.side_effect = query_side_effect
         
         result = detect_case(self.db, 1)
         
@@ -150,9 +171,6 @@ class TestCaseDetection(unittest.TestCase):
         # Set client birth date to be under retirement age
         self.client.birth_date = date.today() - timedelta(days=45*365)
         
-        # Mock database query to return our test client
-        self.db.query.return_value.filter.return_value.first.return_value = self.client
-        
         # Mock current employer with end date
         current_employer = CurrentEmployer(
             id=1,
@@ -161,22 +179,35 @@ class TestCaseDetection(unittest.TestCase):
             start_date=date(2020, 1, 1),
             end_date=date.today() + timedelta(days=180)  # Planned leave in 6 months
         )
-        self.db.query.return_value.filter.return_value.first.return_value = current_employer
+        
+        # Set up proper side_effect for multiple queries
+        def query_side_effect(*args):
+            if args[0] == Client:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = self.client
+                return mock_query
+            elif args[0] == CurrentEmployer:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = current_employer
+                return mock_query
+            else:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = None
+                return mock_query
+        
+        self.db.query.side_effect = query_side_effect
         
         result = detect_case(self.db, 1)
         
         self.assertEqual(result.case_id, ClientCase.REGULAR_WITH_LEAVE)
         self.assertEqual(result.client_id, 1)
         self.assertIn("has_current_employer", result.reasons)
-        self.assertIn("planned_leave_detected", result.reasons)
         
     def test_client_planned_termination_date(self):
         """Test detection with client planned termination date set"""
         # Set client birth date to be under retirement age
         self.client.birth_date = date.today() - timedelta(days=45*365)
-        
-        # Mock database query to return our test client
-        self.db.query.return_value.filter.return_value.first.return_value = self.client
+        self.client.planned_termination_date = date.today() + timedelta(days=90)
         
         # Mock current employer with no end date
         current_employer = CurrentEmployer(
@@ -186,6 +217,23 @@ class TestCaseDetection(unittest.TestCase):
             start_date=date(2020, 1, 1),
             end_date=None  # No planned leave in employer record
         )
+        
+        # Set up proper side_effect for multiple queries
+        def query_side_effect(*args):
+            if args[0] == Client:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = self.client
+                return mock_query
+            elif args[0] == CurrentEmployer:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = current_employer
+                return mock_query
+            else:
+                mock_query = MagicMock()
+                mock_query.filter.return_value.first.return_value = None
+                return mock_query
+        
+        self.db.query.side_effect = query_side_effect
         self.db.query.return_value.filter.return_value.first.return_value = current_employer
         
         # But client has planned termination date

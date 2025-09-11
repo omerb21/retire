@@ -57,6 +57,9 @@ def _compute_yearly_from_months(monthly_rows):
         "net": _round2(net),
     }
 
+# Alias for backwards compatibility with tests
+_yearly_totals = _compute_yearly_from_months
+
 
 def compare_scenarios(
     db_session,

@@ -1,20 +1,28 @@
 # Main project dependencies
-Flask==2.2.3
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
 SQLAlchemy==2.0.9
-Flask-SQLAlchemy==3.0.3
+psycopg2-binary==2.9.7
 requests>=2.31
 python-dotenv==1.0.0
 alembic==1.10.3
-pytest==7.3.1
-pytest-cov==4.1.0
-black==23.3.0
-isort==5.12.0
-pre-commit==3.3.1
+pydantic==2.4.2
+python-multipart==0.0.6
 
 # PDF and reporting dependencies
 reportlab==4.0.4
 matplotlib==3.7.1
 numpy<2
+Pillow==10.0.1
+
+# Testing dependencies
+pytest==7.3.1
+pytest-cov==4.1.0
+pytest-asyncio==0.21.1
+httpx==0.25.0
 
 # Development dependencies
+black==23.3.0
+isort==5.12.0
+pre-commit==3.3.1
 ipython==8.12.0

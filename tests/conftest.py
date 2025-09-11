@@ -88,6 +88,31 @@ def client():
     with TestClient(app) as c:
         yield c
 
+@pytest.fixture()
+def test_client(client):
+    """Alias for client fixture to support imports expecting test_client."""
+    return client
+
+@pytest.fixture()
+def test_client_data(db_session):
+    """Test client data fixture for cashflow tests."""
+    # Create a test client in the database
+    from app.models.client import Client
+    from datetime import date
+    
+    client = Client(
+        first_name="Test",
+        last_name="Client", 
+        birth_date=date(1980, 1, 1),
+        id_number="123456789",
+        is_active=True
+    )
+    db_session.add(client)
+    db_session.commit()
+    db_session.refresh(client)
+    
+    return {"id": client.id}
+
 @pytest.fixture(scope="session", autouse=True)
 def _teardown_db(_test_db):
     yield

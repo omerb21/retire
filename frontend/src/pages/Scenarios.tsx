@@ -35,10 +35,18 @@ export default function Scenarios() {
     setError("");
     
     try {
-      const data = await apiFetch<Scenario[]>(`/clients/${clientId}/scenarios`);
-      setScenarios(data || []);
+      const data = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios`);
+      // Handle both direct array and wrapped response formats
+      const scenarios = Array.isArray(data) ? data : (data?.scenarios || data?.items || []);
+      setScenarios(scenarios);
     } catch (e: any) {
-      setError(`שגיאה בטעינת תרחישים: ${e?.message || e}`);
+      // If no scenarios found, create empty array instead of showing error
+      if (e?.message?.includes('Not Found') || e?.status === 404) {
+        setScenarios([]);
+        setError(""); // Clear error for 404 - it's normal to have no scenarios initially
+      } else {
+        setError(`שגיאה בטעינת תרחישים: ${e?.message || e}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -72,7 +80,7 @@ export default function Scenarios() {
         description: form.description?.trim() || "",
       };
 
-      const newScenario = await apiFetch<Scenario>(`/clients/${clientId}/scenarios`, {
+      const newScenario = await apiFetch<Scenario>(`/api/v1/clients/${clientId}/scenarios`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -105,8 +113,13 @@ export default function Scenarios() {
     setShowCashflow(false);
     
     try {
-      const data = await apiFetch<CashflowEntry[]>(`/clients/${clientId}/cashflow/integrate-incomes?scenario_id=${selectedScenarioId}`, {
+      // First get the scenario cashflow
+      const scenarioData = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios/${selectedScenarioId}/cashflow`);
+      
+      // Then integrate incomes with the cashflow
+      const data = await apiFetch<CashflowEntry[]>(`/api/v1/clients/${clientId}/cashflow/integrate-incomes`, {
         method: "POST",
+        body: JSON.stringify(scenarioData || [])
       });
       
       setCashflow(data || []);
@@ -126,8 +139,13 @@ export default function Scenarios() {
     setShowCashflow(false);
     
     try {
-      const data = await apiFetch<CashflowEntry[]>(`/clients/${clientId}/cashflow/integrate-assets?scenario_id=${selectedScenarioId}`, {
+      // First get the scenario cashflow
+      const scenarioData = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios/${selectedScenarioId}/cashflow`);
+      
+      // Then integrate assets with the cashflow
+      const data = await apiFetch<CashflowEntry[]>(`/api/v1/clients/${clientId}/cashflow/integrate-assets`, {
         method: "POST",
+        body: JSON.stringify(scenarioData || [])
       });
       
       setCashflow(data || []);
@@ -147,8 +165,13 @@ export default function Scenarios() {
     setShowCashflow(false);
     
     try {
-      const data = await apiFetch<CashflowEntry[]>(`/clients/${clientId}/cashflow/integrate-all?scenario_id=${selectedScenarioId}`, {
+      // First get the scenario cashflow
+      const scenarioData = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios/${selectedScenarioId}/cashflow`);
+      
+      // Then integrate all with the cashflow
+      const data = await apiFetch<CashflowEntry[]>(`/api/v1/clients/${clientId}/cashflow/integrate-all`, {
         method: "POST",
+        body: JSON.stringify(scenarioData || [])
       });
       
       setCashflow(data || []);

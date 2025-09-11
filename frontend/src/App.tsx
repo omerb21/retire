@@ -6,7 +6,10 @@ import PensionFunds from "./pages/PensionFunds";
 import AdditionalIncome from "./pages/AdditionalIncome";
 import CapitalAssets from "./pages/CapitalAssets";
 import Scenarios from "./pages/Scenarios";
-import Fixation from "./pages/Fixation";
+import SimpleFixation from "./pages/SimpleFixation";
+import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
+import SimpleGrants from "./pages/SimpleGrants";
+import SimpleReports from "./pages/SimpleReports";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
@@ -17,8 +20,11 @@ const ClientDetails = () => {
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קרנות פנסיה</a>
         <a href={`/clients/${clientId}/additional-income`} style={moduleButtonStyle}>הכנסות נוספות</a>
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
+        <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
+        <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
         <a href={`/clients/${clientId}/scenarios`} style={moduleButtonStyle}>תרחישים</a>
         <a href={`/clients/${clientId}/fixation`} style={moduleButtonStyle}>קיבוע מס</a>
+        <a href={`/clients/${clientId}/reports`} style={moduleButtonStyle}>דוחות PDF</a>
       </div>
       <a href="/clients">חזרה לרשימת לקוחות</a>
     </div>
@@ -54,8 +60,11 @@ export default function App() {
             <Route path="/clients/:id/pension-funds" element={<PensionFunds />} />
             <Route path="/clients/:id/additional-income" element={<AdditionalIncome />} />
             <Route path="/clients/:id/capital-assets" element={<CapitalAssets />} />
+            <Route path="/clients/:id/current-employer" element={<SimpleCurrentEmployer />} />
+            <Route path="/clients/:id/grants" element={<SimpleGrants />} />
             <Route path="/clients/:id/scenarios" element={<Scenarios />} />
-            <Route path="/clients/:id/fixation" element={<Fixation />} />
+            <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
+            <Route path="/clients/:id/reports" element={<SimpleReports />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/" element={<Clients />} />
             <Route path="*" element={<Clients />} />

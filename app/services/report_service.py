@@ -374,6 +374,76 @@ class ReportService:
             return img_buffer.getvalue()
     
     @staticmethod
+    def generate_pdf_report(
+        client: Client,
+        scenarios: List[Scenario],
+        report_type: str = "comprehensive",
+        include_charts: bool = True,
+        include_cashflow: bool = True
+    ) -> io.BytesIO:
+        """
+        Generate PDF report for client scenarios.
+        
+        Args:
+            client: Client object
+            scenarios: List of scenario objects
+            report_type: Type of report to generate
+            include_charts: Whether to include charts
+            include_cashflow: Whether to include cashflow data
+            
+        Returns:
+            PDF buffer
+        """
+        try:
+            # Build summary data
+            from app.database import get_db
+            db = next(get_db())
+            summary = ReportService.build_summary_table(client, scenarios, db)
+            
+            # Generate charts if requested
+            chart_cashflow = None
+            chart_compare = None
+            
+            if include_charts and scenarios:
+                # Generate cashflow chart for first scenario
+                if scenarios[0].cashflow_projection:
+                    try:
+                        import json
+                        cashflow_data = json.loads(scenarios[0].cashflow_projection) if isinstance(scenarios[0].cashflow_projection, str) else scenarios[0].cashflow_projection
+                        chart_cashflow = ReportService.render_cashflow_chart(cashflow_data)
+                    except Exception as e:
+                        print(f"Error generating cashflow chart: {e}")
+                
+                # Generate comparison chart if multiple scenarios
+                if len(scenarios) > 1:
+                    chart_compare = ReportService.render_scenarios_compare_chart(scenarios)
+            
+            # Compose PDF
+            pdf_content = ReportService.compose_pdf(
+                client=client,
+                scenarios=scenarios,
+                summary=summary,
+                chart_cashflow=chart_cashflow or b'',
+                chart_compare=chart_compare or b''
+            )
+            
+            # Return as BytesIO buffer
+            buffer = io.BytesIO(pdf_content)
+            return buffer
+            
+        except Exception as e:
+            # Create error PDF
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            story = []
+            styles = getSampleStyleSheet()
+            
+            story.append(Paragraph(f"שגיאה ביצירת דוח: {str(e)}", styles['Normal']))
+            doc.build(story)
+            buffer.seek(0)
+            return buffer
+
+    @staticmethod
     def compose_pdf(
         client: Client, 
         scenarios: List[Scenario], 

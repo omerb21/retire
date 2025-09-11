@@ -1,6 +1,6 @@
 from enum import Enum
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -17,7 +17,7 @@ class ClientCase(str, Enum):
 class CaseDetectionResult(BaseModel):
     """Result of client case detection"""
     client_id: int = Field(..., description="Client ID")
-    case_id: int = Field(..., description="Case ID (1-5)")
+    case_id: Union[int, ClientCase] = Field(..., description="Case ID (1-5) or ClientCase enum")
     case_name: str = Field(..., description="Case name")
     reasons: List[str] = Field([], description="Reasons for case detection")
     detected_at: datetime = Field(default_factory=datetime.utcnow, description="Detection timestamp")
