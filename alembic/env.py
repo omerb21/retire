@@ -11,7 +11,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from models.base import Base
+from app.database import Base
 from models.client import Client
 
 # this is the Alembic Config object, which provides

@@ -26,12 +26,9 @@ def engine():
         connect_args={"check_same_thread": False}
     )
     
-    # Import models in a specific order to avoid dependency issues
-    from app.models.client import Client
-    from app.models.current_employer import CurrentEmployer
-    
-    # Create all tables
-    Base.metadata.create_all(eng)
+    # Use the new setup_database function
+    from app.database import setup_database
+    setup_database(eng)
     
     yield eng
     

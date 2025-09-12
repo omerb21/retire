@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
 from db.session import get_db
-from models.base import Base
+from app.database import Base
 import json
 
 # Test database setup

@@ -1,6 +1,9 @@
 """
 Unit tests for PDF generation functionality
 """
+import matplotlib
+matplotlib.use("Agg")  # Set non-interactive backend before any other matplotlib imports
+
 import pytest
 import tempfile
 import os

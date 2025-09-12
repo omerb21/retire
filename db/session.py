@@ -3,7 +3,7 @@ Database session management and connection setup
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models.base import Base
+from app.database import Base
 import os
 
 # Database configuration

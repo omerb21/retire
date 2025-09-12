@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from app.main import app
 from db.session import get_db
-from models.base import Base
+from app.database import Base
 
 # Test database configuration
 @pytest.fixture(scope="session")

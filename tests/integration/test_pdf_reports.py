@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
 from db.session import get_db
-from models.base import Base
+from app.database import Base
 from models.client import Client
 from models.scenario import Scenario
 from models.scenario_cashflow import ScenarioCashflow

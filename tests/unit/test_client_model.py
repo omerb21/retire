@@ -4,7 +4,7 @@ Unit tests for Client model CRUD operations
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models.base import Base
+from app.database import Base
 from models.client import Client
 from routes.clients import normalize_id
 

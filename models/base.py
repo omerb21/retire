@@ -1,11 +1,9 @@
 """
 Base SQLAlchemy models and common mixins
 """
-from sqlalchemy.orm import declarative_base
+from app.database import Base
 from sqlalchemy import Column, Integer, DateTime
 import datetime
-
-Base = declarative_base()
 
 class TimestampMixin:
     """Common timestamp fields for all models"""
