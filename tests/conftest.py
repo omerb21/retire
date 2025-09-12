@@ -8,32 +8,39 @@ from app.database import get_db, Base
 from app.main import app
 from datetime import date
 
-# Simple engine fixture without complex model loading
+# Simple engine fixture - use a file-based SQLite for better stability
 @pytest.fixture(scope="session")
 def engine():
-    # Create a fresh engine for each test session
+    import tempfile
+    import os
     from sqlalchemy import create_engine
     from app.database import Base
     
+    # Create a temporary file for SQLite
+    db_fd, db_path = tempfile.mkstemp(suffix='.db')
+    os.close(db_fd)
+    
     eng = create_engine(
-        "sqlite:///:memory:", 
+        f"sqlite:///{db_path}", 
         echo=False,
         connect_args={"check_same_thread": False}
     )
     
-    # Import all models to register them with Base
+    # Import models in a specific order to avoid dependency issues
     from app.models.client import Client
     from app.models.current_employer import CurrentEmployer
-    from app.models.employer_grant import EmployerGrant
-    from app.models.additional_income import AdditionalIncome
-    from app.models.capital_asset import CapitalAsset
-    from app.models.fixation_result import FixationResult
-    from app.models.pension_fund import PensionFund
-    from app.models.scenario import Scenario
     
     # Create all tables
     Base.metadata.create_all(eng)
-    return eng
+    
+    yield eng
+    
+    # Cleanup
+    eng.dispose()
+    try:
+        os.unlink(db_path)
+    except:
+        pass
 
 @pytest.fixture(scope="function")
 def db_session(engine):

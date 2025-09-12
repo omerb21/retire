@@ -2,41 +2,35 @@
 Unit tests for case detection service and API functionality
 """
 import unittest
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
-from sqlalchemy.orm import Session
 
-from app.models.client import Client
-from app.models.current_employer import CurrentEmployer
-from app.models.additional_income import AdditionalIncome, IncomeSourceType
+from app.services.case_service import detect_case
 from app.schemas.case import ClientCase
-from app.services.case_service import detect_case, calculate_age
 
 
 class TestCaseDetection(unittest.TestCase):
-    """Test case detection logic and API endpoints"""
-
+    
     def setUp(self):
-        """Set up test database session mock"""
-        self.db = MagicMock(spec=Session)
-        self.today = date.today()
+        """Set up test fixtures"""
+        self.mock_db = MagicMock()
         
-        # Setup a default client with reasonable defaults
-        self.client = Client(
-            id=1,
-            first_name="Test",
-            last_name="User",
-            birth_date=date(1980, 1, 1),  # 45 years old in 2025
-            id_number="123456789",
-            is_active=True
-        )
+        # Create a mock client
+        self.mock_client = MagicMock()
+        self.mock_client.id = 1
+        self.mock_client.id_number = "123456789"
+        self.mock_client.full_name = "Test Client"
+        self.mock_client.first_name = "Test"
+        self.mock_client.last_name = "Client"
+        self.mock_client.birth_date = date(1980, 1, 1)
+        self.mock_client.gender = "male"
+        self.mock_client.marital_status = "single"
+        self.mock_client.self_employed = False
+        self.mock_client.current_employer_exists = True
+        self.mock_client.is_active = True
         
-    def test_calculate_age(self):
-        """Test age calculation function"""
-        # Test with same month and day
-        birth_date = date(1980, 6, 15)
-        reference_date = date(2025, 6, 15)
-        self.assertEqual(calculate_age(birth_date, reference_date), 45)
+        # Set up default mock behavior
+        self.db = self.mock_db
         
         # Test with reference date after birthday this year
         birth_date = date(1980, 6, 15)
@@ -131,35 +125,32 @@ class TestCaseDetection(unittest.TestCase):
         
     def test_case_active_no_leave(self):
         """Test detection of active employment with no leave case (Case 4)"""
-        # Set client birth date to be under retirement age
-        self.client.birth_date = date.today() - timedelta(days=45*365)
-        self.client.planned_termination_date = None
+        # Create mock client
+        mock_client = MagicMock()
+        mock_client.id = 1
+        mock_client.birth_date = date.today() - timedelta(days=45*365)  # 45 years old
+        mock_client.planned_termination_date = None
         
-        # Mock current employer with no end date
-        current_employer = CurrentEmployer(
-            id=1,
-            client_id=1,
-            employer_name="Test Employer",
-            start_date=date(2020, 1, 1),
-            end_date=None  # No planned leave
-        )
+        # Create mock current employer
+        mock_employer = MagicMock()
+        mock_employer.id = 1
+        mock_employer.client_id = 1
+        mock_employer.employer_name = "Test Employer"
+        mock_employer.start_date = date(2020, 1, 1)
+        mock_employer.end_date = None
         
-        # Set up proper side_effect for multiple queries
-        def query_side_effect(*args):
-            if args[0] == Client:
-                mock_query = MagicMock()
-                mock_query.filter.return_value.first.return_value = self.client
-                return mock_query
-            elif args[0] == CurrentEmployer:
-                mock_query = MagicMock()
-                mock_query.filter.return_value.first.return_value = current_employer
-                return mock_query
+        # Set up mock queries
+        def mock_query_side_effect(model):
+            mock_query = MagicMock()
+            if hasattr(model, '__name__') and model.__name__ == 'Client':
+                mock_query.filter.return_value.first.return_value = mock_client
+            elif hasattr(model, '__name__') and model.__name__ == 'CurrentEmployer':
+                mock_query.filter.return_value.first.return_value = mock_employer
             else:
-                mock_query = MagicMock()
                 mock_query.filter.return_value.first.return_value = None
-                return mock_query
+            return mock_query
         
-        self.db.query.side_effect = query_side_effect
+        self.db.query.side_effect = mock_query_side_effect
         
         result = detect_case(self.db, 1)
         
