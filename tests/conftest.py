@@ -6,17 +6,32 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError
 from app.database import get_db, Base
 from app.main import app
-from app.models.client import Client
 from datetime import date
 
-# Engine ברירת מחדל לזיכרון - כל מבחן מקבל טרנזקציה נפרדת
+# Simple engine fixture without complex model loading
 @pytest.fixture(scope="session")
 def engine():
+    # Create a fresh engine for each test session
+    from sqlalchemy import create_engine
+    from app.database import Base
+    
     eng = create_engine(
         "sqlite:///:memory:", 
         echo=False,
         connect_args={"check_same_thread": False}
     )
+    
+    # Import all models to register them with Base
+    from app.models.client import Client
+    from app.models.current_employer import CurrentEmployer
+    from app.models.employer_grant import EmployerGrant
+    from app.models.additional_income import AdditionalIncome
+    from app.models.capital_asset import CapitalAsset
+    from app.models.fixation_result import FixationResult
+    from app.models.pension_fund import PensionFund
+    from app.models.scenario import Scenario
+    
+    # Create all tables
     Base.metadata.create_all(eng)
     return eng
 
@@ -36,6 +51,7 @@ def db_session(engine):
 # Alias ל־fixture בשם client כדי לשמור על backward compatibility
 @pytest.fixture(scope="function")
 def client(db_session):
+    from app.models.client import Client
     c = Client(
         first_name="Test",
         last_name="Client",
