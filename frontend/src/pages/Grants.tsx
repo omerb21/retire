@@ -19,37 +19,51 @@ interface Grant {
   };
 }
 
+interface NewGrant {
+  employer_name: string;
+  grant_type: string;
+  grant_date: string;
+  amount: number;
+  service_years?: number;
+  reason?: string;
+  work_start_date?: string;
+  work_end_date?: string;
+}
+
 const Grants: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [grants, setGrants] = useState<Grant[]>([]);
-  const [newGrant, setNewGrant] = useState<Grant>({
+  const [newGrant, setNewGrant] = useState<NewGrant>({
     employer_name: '',
     grant_type: 'severance',
     grant_date: '',
     amount: 0,
     service_years: 0,
     reason: '',
+    work_start_date: '',
+    work_end_date: ''
   });
 
-  // Fetch grants data
+  // Fetch grants data on component mount
   useEffect(() => {
-    const fetchGrants = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(`/api/v1/clients/${id}/grants`);
-        setGrants(response.data);
-        setLoading(false);
-      } catch (err: any) {
-        setError('שגיאה בטעינת נתוני מענקים: ' + err.message);
-        setLoading(false);
-      }
-    };
-
     fetchGrants();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch grants data function (extracted for reuse)
+  const fetchGrants = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`/api/v1/clients/${id}/grants`);
+      setGrants(response.data);
+      setLoading(false);
+    } catch (err: any) {
+      setError('שגיאה בטעינת נתוני מענקים: ' + err.message);
+      setLoading(false);
+    }
+  };
 
   // Handle grant form submission
   const handleGrantSubmit = async (e: React.FormEvent) => {
@@ -57,7 +71,8 @@ const Grants: React.FC = () => {
     try {
       setLoading(true);
       const response = await axios.post(`/api/v1/clients/${id}/grants`, newGrant);
-      setGrants([...grants, response.data]);
+      
+      // איפוס טופס המענק החדש
       setNewGrant({
         employer_name: '',
         grant_type: 'severance',
@@ -65,9 +80,15 @@ const Grants: React.FC = () => {
         amount: 0,
         service_years: 0,
         reason: '',
+        work_start_date: '',
+        work_end_date: ''
       });
+      
       setLoading(false);
       alert('מענק נוסף בהצלחה');
+      
+      // רענון הנתונים מהשרת לאחר הוספת מענק
+      fetchGrants();
     } catch (err: any) {
       setError('שגיאה בהוספת מענק: ' + err.message);
       setLoading(false);

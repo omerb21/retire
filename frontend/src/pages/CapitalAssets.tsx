@@ -132,6 +132,44 @@ export default function CapitalAssets() {
     }
   }
 
+  async function handleDelete(assetId: number) {
+    if (!clientId) return;
+    
+    if (!confirm("האם אתה בטוח שברצונך למחוק את נכס ההון?")) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
+        method: "DELETE",
+      });
+      
+      // Reload assets after deletion
+      await loadAssets();
+    } catch (e: any) {
+      setError(`שגיאה במחיקת נכס הון: ${e?.message || e}`);
+    }
+  }
+
+  function handleEdit(asset: any) {
+    // Populate form with asset data for editing
+    setForm({
+      asset_type: asset.asset_type,
+      current_value: asset.current_value || 0,
+      annual_return_rate: asset.annual_return_rate || 0,
+      payment_frequency: asset.payment_frequency,
+      start_date: asset.start_date,
+      end_date: asset.end_date || "",
+      indexation_method: asset.indexation_method,
+      tax_treatment: asset.tax_treatment,
+      fixed_rate: asset.fixed_rate || 0,
+      tax_rate: asset.tax_rate || 0,
+    });
+    
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   if (loading) return <div>טוען נכסי הון...</div>;
 
   return (
@@ -302,6 +340,28 @@ export default function CapitalAssets() {
                       <strong>תשלום חודשי מחושב:</strong> ₪{asset.computed_monthly_amount.toLocaleString()}
                     </div>
                   )}
+                  
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    {asset.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(asset)}
+                        style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        ערוך
+                      </button>
+                    )}
+                    
+                    {asset.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(asset.id!)}
+                        style={{ padding: "8px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        מחק
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

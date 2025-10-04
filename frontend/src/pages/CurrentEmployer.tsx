@@ -45,42 +45,49 @@ const CurrentEmployer: React.FC = () => {
     reserved_exemption: 0
   });
   const [grants, setGrants] = useState<EmployerGrant[]>([]);
-  const [newEmployer, setNewEmployer] = useState<CurrentEmployer>({
-    employer_name: '',
-    start_date: '',
-    monthly_salary: 0,
-    severance_balance: 0,
-  });
-  const [newGrant, setNewGrant] = useState<EmployerGrant>({
-    grant_type: 'severance',
-    grant_date: '',
-    amount: 0,
-    reason: '',
-  });
+  // Removed unused state variables
 
-  // Calculate service years and grant amounts
-  const calculateGrantDetails = () => {
-    if (!employer.start_date) return;
+  // Calculate service years and grant amounts using server API
+  const calculateGrantDetails = async () => {
+    if (!employer.start_date || !employer.monthly_salary) return;
 
-    const startDate = new Date(employer.start_date);
-    const currentDate = new Date();
-    const serviceYears = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-    
-    // Basic severance calculation (1 month salary per year)
-    const expectedGrant = employer.monthly_salary * serviceYears;
-    
-    // Tax exemption calculation (up to 375,000 NIS or 9 months salary, whichever is lower)
-    const maxExemption = Math.min(375000, employer.monthly_salary * 9);
-    const taxExemptAmount = Math.min(expectedGrant, maxExemption - (employer.reserved_exemption || 0));
-    const taxableAmount = expectedGrant - taxExemptAmount;
+    try {
+      const expectedGrant = employer.monthly_salary * ((new Date().getTime() - new Date(employer.start_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+      
+      const response = await axios.post(`/api/v1/clients/${id}/current-employer/calculate`, {
+        start_date: employer.start_date,
+        monthly_salary: employer.monthly_salary,
+        severance_amount: Math.round(expectedGrant)
+      });
 
-    setEmployer(prev => ({
-      ...prev,
-      service_years: Math.round(serviceYears * 100) / 100,
-      expected_grant_amount: Math.round(expectedGrant),
-      tax_exempt_amount: Math.max(0, Math.round(taxExemptAmount)),
-      taxable_amount: Math.max(0, Math.round(taxableAmount))
-    }));
+      const calculation = response.data;
+      
+      setEmployer(prev => ({
+        ...prev,
+        service_years: calculation.service_years,
+        expected_grant_amount: calculation.severance_amount,
+        tax_exempt_amount: calculation.final_exemption,
+        taxable_amount: calculation.taxable_amount
+      }));
+    } catch (error) {
+      console.error('שגיאה בחישוב פטור ממס:', error);
+      // Fallback to basic calculation
+      const startDate = new Date(employer.start_date);
+      const currentDate = new Date();
+      const serviceYears = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      const expectedGrant = employer.monthly_salary * serviceYears;
+      const maxExemption = Math.min(375000, employer.monthly_salary * 9);
+      const taxExemptAmount = Math.min(expectedGrant, maxExemption - (employer.reserved_exemption || 0));
+      const taxableAmount = expectedGrant - taxExemptAmount;
+
+      setEmployer(prev => ({
+        ...prev,
+        service_years: Math.round(serviceYears * 100) / 100,
+        expected_grant_amount: Math.round(expectedGrant),
+        tax_exempt_amount: Math.max(0, Math.round(taxExemptAmount)),
+        taxable_amount: Math.max(0, Math.round(taxableAmount))
+      }));
+    }
   };
 
   // Load existing employer data
@@ -106,10 +113,14 @@ const CurrentEmployer: React.FC = () => {
     }
   }, [id]);
 
-  // Recalculate when relevant fields change
+  // Recalculate when relevant fields change with debouncing
   useEffect(() => {
     if (employer.start_date && employer.monthly_salary > 0) {
-      calculateGrantDetails();
+      const timeoutId = setTimeout(() => {
+        calculateGrantDetails();
+      }, 500); // Debounce for 500ms
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [employer.start_date, employer.monthly_salary, employer.reserved_exemption]);
 
@@ -286,114 +297,8 @@ const CurrentEmployer: React.FC = () => {
           >
             ביטול
           </button>
-            <h4>הוספת מענק חדש</h4>
-            <form onSubmit={handleGrantSubmit}>
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>סוג מענק:</label>
-                <select
-                  value={newGrant.grant_type}
-                  onChange={(e) => setNewGrant({ ...newGrant, grant_type: e.target.value })}
-                  style={{ width: '100%', padding: '8px' }}
-                  required
-                >
-                  <option value="severance">פיצויים</option>
-                  <option value="bonus">בונוס</option>
-                  <option value="adjustment">התאמת שכר</option>
-                  <option value="other">אחר</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>תאריך מענק:</label>
-                <input
-                  type="date"
-                  value={newGrant.grant_date}
-                  onChange={(e) => setNewGrant({ ...newGrant, grant_date: e.target.value })}
-                  style={{ width: '100%', padding: '8px' }}
-                  required
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>סכום:</label>
-                <input
-                  type="number"
-                  value={newGrant.amount}
-                  onChange={(e) => setNewGrant({ ...newGrant, amount: Number(e.target.value) })}
-                  style={{ width: '100%', padding: '8px' }}
-                  required
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px' }}>סיבה:</label>
-                <input
-                  type="text"
-                  value={newGrant.reason}
-                  onChange={(e) => setNewGrant({ ...newGrant, reason: e.target.value })}
-                  style={{ width: '100%', padding: '8px' }}
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                style={{
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 15px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
-              >
-                הוסף מענק
-              </button>
-            </form>
-          </div>
-
-          {/* Grants List */}
-          <div>
-            <h4>רשימת מענקים</h4>
-            {grants.length === 0 ? (
-              <p>אין מענקים רשומים</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>סוג</th>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>תאריך</th>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>סכום</th>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>סיבה</th>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>פטור ממס</th>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>חייב במס</th>
-                    <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>מס לתשלום</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grants.map((grant) => (
-                    <tr key={grant.id}>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.grant_type}</td>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.grant_date}</td>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.amount.toLocaleString()}</td>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.reason}</td>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                        {grant.calculation?.grant_exempt.toLocaleString()}
-                      </td>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                        {grant.calculation?.grant_taxable.toLocaleString()}
-                      </td>
-                      <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                        {grant.calculation?.tax_due.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </div>
-      )}
+      </form>
     </div>
   );
 };

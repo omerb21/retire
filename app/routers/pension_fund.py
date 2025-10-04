@@ -48,6 +48,17 @@ def delete_pension_fund(fund_id: int, db: Session = Depends(get_db)):
     db.commit()
     return
 
+@router.delete("/clients/{client_id}/pension-funds/{fund_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_client_pension_fund(client_id: int, fund_id: int, db: Session = Depends(get_db)):
+    fund = db.get(PensionFund, fund_id)
+    if not fund:
+        raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
+    if fund.client_id != client_id:
+        raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא עבור לקוח זה"})
+    db.delete(fund)
+    db.commit()
+    return
+
 @router.post("/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
 def compute_pension_fund(
     fund_id: int, 
@@ -55,6 +66,25 @@ def compute_pension_fund(
     db: Session = Depends(get_db)
 ):
     try:
+        fund = compute_and_persist_fund(db, fund_id)
+        return fund
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail={"error": str(e)})
+
+@router.post("/clients/{client_id}/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
+def compute_client_pension_fund(
+    client_id: int,
+    fund_id: int, 
+    reference_date: Optional[date] = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        fund = db.get(PensionFund, fund_id)
+        if not fund:
+            raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
+        if fund.client_id != client_id:
+            raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא עבור לקוח זה"})
+        
         fund = compute_and_persist_fund(db, fund_id)
         return fund
     except ValueError as e:

@@ -4,14 +4,23 @@ import { apiFetch } from "../lib/api";
 
 type PensionFund = {
   id?: number;
+  fund_name?: string;
+  fund_number?: string;
+  fund_type?: string;
   calculation_mode: "calculated" | "manual";
-  balance?: number;
+  current_balance?: number;
+  balance?: number; // לתאימות לאחור
   annuity_factor?: number;
   monthly_amount?: number;
-  pension_start_date: string;
-  indexation_method: "none" | "fixed" | "cpi";
-  indexation_rate?: number;
   computed_monthly_amount?: number;
+  pension_start_date?: string;
+  start_date?: string; // לתאימות לאחור
+  end_date?: string;
+  indexation_method?: "none" | "fixed" | "cpi";
+  indexation_rate?: number;
+  employer_contributions?: number;
+  employee_contributions?: number;
+  annual_return_rate?: number;
 };
 
 export default function PensionFunds() {
@@ -36,7 +45,16 @@ export default function PensionFunds() {
     
     try {
       const data = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
-      setFunds(data || []);
+      console.log("Loaded pension funds:", data);
+      
+      // מיפוי שדות לפורמט אחיד
+      const mappedFunds = (data || []).map(fund => ({
+        ...fund,
+        balance: fund.current_balance || fund.balance,
+        pension_start_date: fund.pension_start_date || fund.start_date
+      }));
+      
+      setFunds(mappedFunds);
     } catch (e: any) {
       setError(`שגיאה בטעינת קרנות פנסיה: ${e?.message || e}`);
     } finally {
@@ -86,22 +104,25 @@ export default function PensionFunds() {
         // Required fields from schema
         client_id: Number(clientId),
         fund_name: "קרן פנסיה", // Required field in schema
-        input_mode: form.calculation_mode === "calculated" ? "calculated" : "manual",
+        fund_type: "pension",
+        calculation_mode: form.calculation_mode,
+        start_date: alignedDate.toISOString().split('T')[0],
         pension_start_date: alignedDate.toISOString().split('T')[0],
-        indexation_method: form.indexation_method
+        indexation_method: form.indexation_method || "none"
       };
       
       // Add mode-specific fields
-      if (payload.input_mode === "calculated") {
+      if (form.calculation_mode === "calculated") {
+        payload.current_balance = Number(form.balance);
         payload.balance = Number(form.balance);
         payload.annuity_factor = Number(form.annuity_factor);
-      } else if (payload.input_mode === "manual") {
-        payload.pension_amount = Number(form.monthly_amount);
+      } else if (form.calculation_mode === "manual") {
+        payload.monthly_amount = Number(form.monthly_amount);
       }
       
       // Add indexation rate only if method is fixed
       if (form.indexation_method === "fixed" && form.indexation_rate !== undefined) {
-        payload.fixed_index_rate = Number(form.indexation_rate);
+        payload.indexation_rate = Number(form.indexation_rate);
       }
       
       console.log("Sending pension fund payload:", payload);
@@ -141,6 +162,41 @@ export default function PensionFunds() {
     } catch (e: any) {
       setError(`שגיאה בחישוב: ${e?.message || e}`);
     }
+  }
+
+  async function handleDelete(fundId: number) {
+    if (!clientId) return;
+    
+    if (!confirm("האם אתה בטוח שברצונך למחוק את קרן הפנסיה?")) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/pension-funds/${fundId}`, {
+        method: "DELETE",
+      });
+      
+      // Reload funds after deletion
+      await loadFunds();
+    } catch (e: any) {
+      setError(`שגיאה במחיקת קרן פנסיה: ${e?.message || e}`);
+    }
+  }
+
+  function handleEdit(fund: PensionFund) {
+    // Populate form with fund data for editing
+    setForm({
+      calculation_mode: fund.calculation_mode,
+      balance: fund.balance || 0,
+      annuity_factor: fund.annuity_factor || 0,
+      monthly_amount: fund.monthly_amount || 0,
+      pension_start_date: fund.pension_start_date,
+      indexation_method: fund.indexation_method,
+      indexation_rate: fund.indexation_rate || 0,
+    });
+    
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   if (loading) return <div>טוען קרנות פנסיה...</div>;
@@ -255,11 +311,12 @@ export default function PensionFunds() {
             {funds.map((fund, index) => (
               <div key={fund.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
+                  <div><strong>שם הקרן:</strong> {fund.fund_name || "קרן פנסיה"}</div>
                   <div><strong>מצב:</strong> {fund.calculation_mode === "calculated" ? "מחושב" : "ידני"}</div>
                   
                   {fund.calculation_mode === "calculated" && (
                     <>
-                      <div><strong>יתרה:</strong> ₪{fund.balance?.toLocaleString()}</div>
+                      <div><strong>יתרה:</strong> ₪{(fund.current_balance || fund.balance || 0).toLocaleString()}</div>
                       <div><strong>מקדם קצבה:</strong> {fund.annuity_factor}</div>
                     </>
                   )}
@@ -268,7 +325,7 @@ export default function PensionFunds() {
                     <div><strong>סכום חודשי:</strong> ₪{fund.monthly_amount?.toLocaleString()}</div>
                   )}
                   
-                  <div><strong>תאריך תחילה:</strong> {fund.pension_start_date}</div>
+                  <div><strong>תאריך תחילה:</strong> {fund.pension_start_date || fund.start_date || "לא צוין"}</div>
                   <div><strong>הצמדה:</strong> {
                     fund.indexation_method === "none" ? "ללא" :
                     fund.indexation_method === "fixed" ? `קבועה ${fund.indexation_rate}%` :
@@ -281,15 +338,37 @@ export default function PensionFunds() {
                     </div>
                   )}
                   
-                  {fund.id && fund.calculation_mode === "calculated" && (
-                    <button
-                      type="button"
-                      onClick={() => handleCompute(fund.id!)}
-                      style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4, maxWidth: 200 }}
-                    >
-                      חשב ושמור
-                    </button>
-                  )}
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    {fund.id && fund.calculation_mode === "calculated" && (
+                      <button
+                        type="button"
+                        onClick={() => handleCompute(fund.id!)}
+                        style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        חשב ושמור
+                      </button>
+                    )}
+                    
+                    {fund.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(fund)}
+                        style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        ערוך
+                      </button>
+                    )}
+                    
+                    {fund.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(fund.id!)}
+                        style={{ padding: "8px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        מחק
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

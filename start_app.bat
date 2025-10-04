@@ -5,11 +5,12 @@ echo.
 REM הפעלת הסביבה הוירטואלית
 call venv\Scripts\activate
 
-REM הפעלת האפליקציה המינימלית
-echo האפליקציה תהיה זמינה בכתובת: http://localhost:8000
-echo תיעוד ה-API זמין בכתובת: http://localhost:8000/docs
+REM הפעלת השרת הראשי
+echo השרת עולה...
+echo האפליקציה תהיה זמינה בכתובת: http://localhost:8005
+echo תיעוד ה-API זמין בכתובת: http://localhost:8005/docs
 echo.
-echo לחץ Ctrl+C לעצירת האפליקציה.
+echo לחץ Ctrl+C לעצירת השרת.
 echo.
 
-uvicorn minimal_app:app --host 0.0.0.0 --port 8000
+python simple_server.py

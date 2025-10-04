@@ -97,7 +97,21 @@ const ClientNew: React.FC = () => {
     setSuccess('');
 
     try {
-      const response = await clientApi.create(formData);
+      // Convert full_name to first_name and last_name for API
+      const nameParts = formData.full_name.trim().split(' ');
+      const first_name = nameParts[0] || '';
+      const last_name = nameParts.slice(1).join(' ') || '';
+      
+      const clientData = {
+        first_name,
+        last_name,
+        id_number: formData.id_number_raw,
+        birth_date: formData.birth_date,
+        email: formData.email || null,
+        phone: formData.phone || null
+      };
+      
+      const response = await clientApi.create(clientData);
       
       // Update case detection with new client data
       updateClientData(response);

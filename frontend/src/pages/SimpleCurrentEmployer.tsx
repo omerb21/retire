@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8005/api/v1';
+
 interface SimpleEmployer {
   id?: number;
   employer_name: string;
@@ -66,42 +68,41 @@ const SimpleCurrentEmployer: React.FC = () => {
     }
   }, [id]);
 
-  // Calculate grant details when employer data changes
+  // Calculate grant details when employer data changes with debouncing
   useEffect(() => {
     const calculateGrantDetails = async () => {
       if (employer.start_date && employer.monthly_salary > 0) {
         const startDate = new Date(employer.start_date);
         const currentDate = new Date();
+        
+        // Calculate service years
         const serviceYears = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
         
         // Basic severance calculation (1 month salary per year)
         const expectedGrant = employer.monthly_salary * serviceYears;
         
         try {
-          // Get real-time severance cap and exemption from API
-          const [capResponse, exemptionResponse] = await Promise.all([
-            axios.get('/api/v1/tax-data/severance-cap'),
-            axios.get('/api/v1/tax-data/severance-exemption', {
-              params: { service_years: serviceYears }
-            })
-          ]);
-          
-          const realMonthlyCap = capResponse.data.monthly_cap;
-          const taxExemptAmount = Math.min(expectedGrant, exemptionResponse.data.total_exemption);
-          const taxableAmount = Math.max(0, expectedGrant - taxExemptAmount);
+          // Call the new severance calculation API
+          const response = await axios.post(`${API_BASE}/current-employer/calculate-severance`, {
+            start_date: employer.start_date,
+            monthly_salary: employer.monthly_salary
+          });
 
+          const calculation = response.data;
+          
           setGrantDetails({
-            serviceYears: Math.round(serviceYears * 100) / 100,
-            expectedGrant: Math.round(expectedGrant),
-            taxExemptAmount: Math.round(taxExemptAmount),
-            taxableAmount: Math.round(taxableAmount),
-            severanceCap: realMonthlyCap
+            serviceYears: calculation.service_years,
+            expectedGrant: calculation.severance_amount,
+            taxExemptAmount: calculation.exempt_amount,
+            taxableAmount: calculation.taxable_amount,
+            severanceCap: calculation.annual_exemption_cap
           });
         } catch (error) {
-          console.error('Error fetching real-time tax data:', error);
-          // Fallback calculation with current known cap
-          const fallbackCap = 41667; // תקרה חודשית נוכחית
-          const taxExemptAmount = Math.min(expectedGrant, fallbackCap * serviceYears);
+          console.error('Error calculating severance:', error);
+          // Fallback calculation with correct formula
+          const currentYearCap = 13750; // תקרת פטור למענקי פרישה 2025
+          const severanceExemption = currentYearCap * serviceYears;
+          const taxExemptAmount = Math.min(expectedGrant, severanceExemption);
           const taxableAmount = Math.max(0, expectedGrant - taxExemptAmount);
 
           setGrantDetails({
@@ -109,14 +110,19 @@ const SimpleCurrentEmployer: React.FC = () => {
             expectedGrant: Math.round(expectedGrant),
             taxExemptAmount: Math.round(taxExemptAmount),
             taxableAmount: Math.round(taxableAmount),
-            severanceCap: fallbackCap
+            severanceCap: currentYearCap
           });
         }
       }
     };
     
-    calculateGrantDetails();
-  }, [employer.start_date, employer.monthly_salary]);
+    // Add debouncing to prevent excessive API calls
+    const timeoutId = setTimeout(() => {
+      calculateGrantDetails();
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [employer.start_date, employer.monthly_salary, id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +185,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           
           {grantDetails.serviceYears > 0 && (
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px' }}>
-              <h4>חישוב מענק פיצויים צפוי (תקרה חודשית: ₪{grantDetails.severanceCap.toLocaleString()})</h4>
+              <h4>חישוב מענק פיצויים צפוי (תקרה שנתית: ₪{grantDetails.severanceCap.toLocaleString()})</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                 <div><strong>שנות שירות:</strong> {grantDetails.serviceYears}</div>
                 <div><strong>מענק צפוי:</strong> ₪{grantDetails.expectedGrant.toLocaleString()}</div>
@@ -299,35 +305,6 @@ const SimpleCurrentEmployer: React.FC = () => {
           />
         </div>
 
-        {/* Display calculated grant details */}
-        {grantDetails.serviceYears > 0 && (
-          <div style={{
-            marginBottom: '20px',
-            padding: '15px',
-            backgroundColor: '#f0f8ff',
-            border: '1px solid #007bff',
-            borderRadius: '4px'
-          }}>
-            <h3 style={{ marginTop: 0, color: '#007bff' }}>חישוב מענק פיצויים צפוי</h3>
-            <div style={{ marginBottom: '10px', fontSize: '14px', color: '#666' }}>
-              תקרה חודשית נוכחית: ₪{grantDetails.severanceCap.toLocaleString()} (מתעדכנת דרך API)
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <div>
-                <strong>שנות שירות:</strong> {grantDetails.serviceYears}
-              </div>
-              <div>
-                <strong>מענק צפוי:</strong> ₪{grantDetails.expectedGrant.toLocaleString()}
-              </div>
-              <div style={{ color: '#28a745' }}>
-                <strong>פטור ממס:</strong> ₪{grantDetails.taxExemptAmount.toLocaleString()}
-              </div>
-              <div style={{ color: '#dc3545' }}>
-                <strong>חייב במס:</strong> ₪{grantDetails.taxableAmount.toLocaleString()}
-              </div>
-            </div>
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button

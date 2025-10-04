@@ -2,7 +2,7 @@
 Client entity model for SQLAlchemy ORM
 """
 from datetime import date, datetime, timezone
-from sqlalchemy import Column, BigInteger, Integer, String, Date, DateTime, Boolean, Text, Index, event
+from sqlalchemy import Column, BigInteger, Integer, String, Date, DateTime, Boolean, Text, Index, event, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -51,6 +51,29 @@ class Client(Base):
     
     # Retirement planning
     retirement_target_date = Column(Date)
+    
+    # Tax-related fields
+    num_children = Column(Integer, default=0)
+    is_new_immigrant = Column(Boolean, default=False)
+    is_veteran = Column(Boolean, default=False)
+    is_disabled = Column(Boolean, default=False)
+    disability_percentage = Column(Integer)
+    is_student = Column(Boolean, default=False)
+    reserve_duty_days = Column(Integer, default=0)
+    
+    # Income and deductions
+    annual_salary = Column(Float)
+    pension_contributions = Column(Float, default=0)
+    study_fund_contributions = Column(Float, default=0)
+    insurance_premiums = Column(Float, default=0)
+    charitable_donations = Column(Float, default=0)
+    
+    # Tax credit points - נקודות זיכוי
+    tax_credit_points = Column(Float, default=0)
+    pension_start_date = Column(Date)
+    spouse_income = Column(Float)
+    immigration_date = Column(Date)
+    military_discharge_date = Column(Date)
     
     # Record management
     is_active = Column(Boolean, default=True, nullable=False)

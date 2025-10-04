@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8005/api/v1";
 
 function extractMessage(body: any): string | undefined {
   if (!body) return;
@@ -66,8 +66,10 @@ export type ClientItem = {
   first_name?: string | null;
   last_name?: string | null;
   birth_date?: string | null;
+  gender?: string | null;
   email?: string | null;
   phone?: string | null;
+  pension_start_date?: string | null;
 };
 
 export type Paged<T> = { items: T[]; total: number; page: number; page_size: number };
@@ -77,8 +79,14 @@ export type ClientCreate = {
   last_name: string;
   id_number: string;   // מחרוזת!
   birth_date: string;  // "YYYY-MM-DD"
+  gender: string;      // "male" or "female"
   email?: string | null;
   phone?: string | null;
+  address_street?: string | null;
+  address_city?: string | null;
+  address_postal_code?: string | null;
+  pension_start_date?: string | null;
+  tax_credit_points?: number | null;
 };
 
 export async function listClients(params?: { limit?: number; offset?: number }) {
@@ -86,7 +94,8 @@ export async function listClients(params?: { limit?: number; offset?: number }) 
   if (params?.limit != null) q.set("limit", String(params.limit));
   if (params?.offset != null) q.set("offset", String(params.offset));
   const qs = q.toString();
-  return apiFetch<Paged<ClientItem>>(`/clients/${qs ? `?${qs}` : ""}`);
+  const response = await apiFetch<{clients: ClientItem[], total: number}>(`/clients${qs ? `?${qs}` : ""}`);
+  return response.clients;
 }
 
 // Helper for valid Israeli ID - EXACT match to backend implementation
@@ -166,4 +175,17 @@ export async function createClient(payload: ClientCreate) {
 
 export async function getClient(id: number) {
   return apiFetch<ClientItem>(`/clients/${id}`);
+}
+
+export const clientApi = {
+  create: createClient,
+  get: getClient,
+  list: listClients
+};
+
+export function handleApiError(error: any): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'שגיאה לא ידועה';
 }

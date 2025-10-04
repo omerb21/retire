@@ -6,6 +6,7 @@ type Scenario = {
   id?: number;
   name: string;
   description?: string;
+  retirement_age?: number;
   created_at?: string;
 };
 
@@ -25,6 +26,7 @@ export default function Scenarios() {
   const [form, setForm] = useState<Partial<Scenario>>({
     name: "",
     description: "",
+    retirement_age: 67,
   });
   const [showCashflow, setShowCashflow] = useState(false);
 
@@ -35,7 +37,20 @@ export default function Scenarios() {
     setError("");
     
     try {
-      const data = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios`);
+      // שימוש בפנייה ישירה לשרת במקום apiFetch
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/scenarios`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          // If no scenarios found, create empty array instead of showing error
+          setScenarios([]);
+          setError(""); // Clear error for 404 - it's normal to have no scenarios initially
+          return;
+        }
+        throw new Error(`HTTP Error: ${response.status}`);
+      }
+      
+      const data = await response.json();
       // Handle both direct array and wrapped response formats
       const scenarios = Array.isArray(data) ? data : (data?.scenarios || data?.items || []);
       setScenarios(scenarios);
@@ -68,6 +83,7 @@ export default function Scenarios() {
     if (!clientId) return;
 
     setError("");
+    setLoading(true);
     
     try {
       // Basic validation
@@ -78,17 +94,30 @@ export default function Scenarios() {
       const payload = {
         name: form.name.trim(),
         description: form.description?.trim() || "",
+        retirement_age: form.retirement_age || 67,
       };
 
-      const newScenario = await apiFetch<Scenario>(`/api/v1/clients/${clientId}/scenarios`, {
+      // שימוש בפנייה ישירה לשרת במקום apiFetch
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/scenarios`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify(payload),
       });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `שגיאה ${response.status}`);
+      }
+      
+      const newScenario = await response.json();
 
       // Reset form
       setForm({
         name: "",
         description: "",
+        retirement_age: 67,
       });
 
       // Reload scenarios and select the newly created one
@@ -100,6 +129,8 @@ export default function Scenarios() {
       }
     } catch (e: any) {
       setError(`שגיאה ביצירת תרחיש: ${e?.message || e}`);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -111,21 +142,36 @@ export default function Scenarios() {
 
     setError("");
     setShowCashflow(false);
+    setLoading(true);
     
     try {
       // First get the scenario cashflow
-      const scenarioData = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios/${selectedScenarioId}/cashflow`);
+      const scenarioResponse = await fetch(`http://localhost:8005/api/v1/scenarios/${selectedScenarioId}/cashflow`);
+      if (!scenarioResponse.ok) {
+        throw new Error(`שגיאה בקבלת תזרים: ${scenarioResponse.status}`);
+      }
+      const scenarioData = await scenarioResponse.json();
       
       // Then integrate incomes with the cashflow
-      const data = await apiFetch<CashflowEntry[]>(`/api/v1/clients/${clientId}/cashflow/integrate-incomes`, {
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/cashflow/integrate-incomes`, {
         method: "POST",
-        body: JSON.stringify(scenarioData || [])
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(scenarioData?.cashflow || [])
       });
       
+      if (!response.ok) {
+        throw new Error(`שגיאה בשילוב הכנסות: ${response.status}`);
+      }
+      
+      const data = await response.json();
       setCashflow(data || []);
       setShowCashflow(true);
     } catch (e: any) {
       setError(`שגיאה בשילוב הכנסות: ${e?.message || e}`);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -137,21 +183,36 @@ export default function Scenarios() {
 
     setError("");
     setShowCashflow(false);
+    setLoading(true);
     
     try {
       // First get the scenario cashflow
-      const scenarioData = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios/${selectedScenarioId}/cashflow`);
+      const scenarioResponse = await fetch(`http://localhost:8005/api/v1/scenarios/${selectedScenarioId}/cashflow`);
+      if (!scenarioResponse.ok) {
+        throw new Error(`שגיאה בקבלת תזרים: ${scenarioResponse.status}`);
+      }
+      const scenarioData = await scenarioResponse.json();
       
       // Then integrate assets with the cashflow
-      const data = await apiFetch<CashflowEntry[]>(`/api/v1/clients/${clientId}/cashflow/integrate-assets`, {
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/cashflow/integrate-assets`, {
         method: "POST",
-        body: JSON.stringify(scenarioData || [])
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(scenarioData?.cashflow || [])
       });
       
+      if (!response.ok) {
+        throw new Error(`שגיאה בשילוב נכסים: ${response.status}`);
+      }
+      
+      const data = await response.json();
       setCashflow(data || []);
       setShowCashflow(true);
     } catch (e: any) {
       setError(`שגיאה בשילוב נכסים: ${e?.message || e}`);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -163,21 +224,36 @@ export default function Scenarios() {
 
     setError("");
     setShowCashflow(false);
+    setLoading(true);
     
     try {
       // First get the scenario cashflow
-      const scenarioData = await apiFetch<any>(`/api/v1/clients/${clientId}/scenarios/${selectedScenarioId}/cashflow`);
+      const scenarioResponse = await fetch(`http://localhost:8005/api/v1/scenarios/${selectedScenarioId}/cashflow`);
+      if (!scenarioResponse.ok) {
+        throw new Error(`שגיאה בקבלת תזרים: ${scenarioResponse.status}`);
+      }
+      const scenarioData = await scenarioResponse.json();
       
       // Then integrate all with the cashflow
-      const data = await apiFetch<CashflowEntry[]>(`/api/v1/clients/${clientId}/cashflow/integrate-all`, {
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/cashflow/integrate-all`, {
         method: "POST",
-        body: JSON.stringify(scenarioData || [])
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(scenarioData?.cashflow || [])
       });
       
+      if (!response.ok) {
+        throw new Error(`שגיאה בשילוב כולל: ${response.status}`);
+      }
+      
+      const data = await response.json();
       setCashflow(data || []);
       setShowCashflow(true);
     } catch (e: any) {
       setError(`שגיאה בשילוב כולל: ${e?.message || e}`);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -215,6 +291,20 @@ export default function Scenarios() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             style={{ padding: 8, minHeight: 60 }}
           />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label htmlFor="retirement-age" style={{ minWidth: "100px" }}>גיל פרישה:</label>
+            <input
+              id="retirement-age"
+              type="number"
+              min="50"
+              max="75"
+              value={form.retirement_age || 67}
+              onChange={(e) => setForm({ ...form, retirement_age: parseInt(e.target.value) || 67 })}
+              style={{ padding: 8, width: "80px" }}
+            />
+            <span style={{ fontSize: "14px", color: "#666" }}>(50-75)</span>
+          </div>
 
           <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
             צור תרחיש
@@ -320,6 +410,9 @@ export default function Scenarios() {
                 <div style={{ display: "grid", gap: 8 }}>
                   <div><strong>שם:</strong> {scenario.name}</div>
                   {scenario.description && <div><strong>תיאור:</strong> {scenario.description}</div>}
+                  {scenario.retirement_age && (
+                    <div><strong>גיל פרישה:</strong> {scenario.retirement_age}</div>
+                  )}
                   {scenario.created_at && (
                     <div><strong>נוצר:</strong> {new Date(scenario.created_at).toLocaleDateString('he-IL')}</div>
                   )}

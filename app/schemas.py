@@ -56,6 +56,29 @@ class ClientBase(BaseSchema):
     address_postal_code: Optional[str] = Field(None, max_length=10)
     retirement_target_date: Optional[date] = None
     notes: Optional[str] = None
+    
+    # Tax-related fields
+    num_children: int = Field(0, ge=0, description="מספר ילדים")
+    is_new_immigrant: bool = Field(False, description="עולה חדש")
+    is_veteran: bool = Field(False, description="חייל משוחרר")
+    is_disabled: bool = Field(False, description="נכה")
+    disability_percentage: Optional[int] = Field(None, ge=0, le=100, description="אחוז נכות")
+    is_student: bool = Field(False, description="סטודנט")
+    reserve_duty_days: int = Field(0, ge=0, description="ימי מילואים בשנה")
+    
+    # Income and deductions
+    annual_salary: Optional[float] = Field(None, ge=0, description="שכר שנתי")
+    pension_contributions: float = Field(0, ge=0, description="הפרשות לפנסיה")
+    study_fund_contributions: float = Field(0, ge=0, description="הפרשות לקרן השתלמות")
+    insurance_premiums: float = Field(0, ge=0, description="דמי ביטוח")
+    charitable_donations: float = Field(0, ge=0, description="תרומות")
+    
+    # Tax credit points - נקודות זיכוי
+    tax_credit_points: float = Field(0, ge=0, description="נקודות זיכוי במס (ידני)")
+    pension_start_date: Optional[date] = Field(None, description="תאריך תחילת קבלת פנסיה")
+    spouse_income: Optional[float] = Field(None, ge=0, description="הכנסת בן/בת זוג")
+    immigration_date: Optional[date] = Field(None, description="תאריך עלייה (לעולים חדשים)")
+    military_discharge_date: Optional[date] = Field(None, description="תאריך שחרור מצה\"ל")
 
 
 class ClientCreate(ClientBase):
@@ -79,6 +102,29 @@ class ClientUpdate(BaseSchema):
     address_postal_code: Optional[str] = Field(None, max_length=10)
     retirement_target_date: Optional[date] = None
     notes: Optional[str] = None
+    
+    # Tax-related fields
+    num_children: Optional[int] = Field(None, ge=0, description="מספר ילדים")
+    is_new_immigrant: Optional[bool] = Field(None, description="עולה חדש")
+    is_veteran: Optional[bool] = Field(None, description="חייל משוחרר")
+    is_disabled: Optional[bool] = Field(None, description="נכה")
+    disability_percentage: Optional[int] = Field(None, ge=0, le=100, description="אחוז נכות")
+    is_student: Optional[bool] = Field(None, description="סטודנט")
+    reserve_duty_days: Optional[int] = Field(None, ge=0, description="ימי מילואים בשנה")
+    
+    # Income and deductions
+    annual_salary: Optional[float] = Field(None, ge=0, description="שכר שנתי")
+    pension_contributions: Optional[float] = Field(None, ge=0, description="הפרשות לפנסיה")
+    study_fund_contributions: Optional[float] = Field(None, ge=0, description="הפרשות לקרן השתלמות")
+    insurance_premiums: Optional[float] = Field(None, ge=0, description="דמי ביטוח")
+    charitable_donations: Optional[float] = Field(None, ge=0, description="תרומות")
+    
+    # Tax credit points - נקודות זיכוי
+    tax_credit_points: Optional[float] = Field(None, ge=0, description="נקודות זיכוי במס (ידני)")
+    pension_start_date: Optional[date] = Field(None, description="תאריך תחילת קבלת פנסיה")
+    spouse_income: Optional[float] = Field(None, ge=0, description="הכנסת בן/בת זוג")
+    immigration_date: Optional[date] = Field(None, description="תאריך עלייה (לעולים חדשים)")
+    military_discharge_date: Optional[date] = Field(None, description="תאריך שחרור מצה\"ל")
 
 
 class Client(ClientBase):

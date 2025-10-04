@@ -9,7 +9,8 @@ interface Grant {
   work_end_date: string;
   grant_type: string;
   grant_date: string;
-  grant_amount: number;
+  amount?: number;       // שדה מהשרת
+  grant_amount?: number; // שדה מהקליינט
   reason?: string;
   tax_calculation?: {
     grant_exempt: number;
@@ -32,6 +33,7 @@ const SimpleGrants: React.FC = () => {
     grant_type: 'severance',
     grant_date: '',
     grant_amount: 0,
+    amount: 0,
     reason: ''
   });
 
@@ -46,6 +48,14 @@ const SimpleGrants: React.FC = () => {
         
         // Calculate details for each grant
         grantsData.forEach((grant: Grant) => {
+          // התאמת שדות - אם יש amount אבל אין grant_amount, העתק את הערך
+          if (grant.amount !== undefined && grant.grant_amount === undefined) {
+            grant.grant_amount = grant.amount;
+          }
+          // התאמת שדות - אם יש grant_amount אבל אין amount, העתק את הערך
+          if (grant.grant_amount !== undefined && grant.amount === undefined) {
+            grant.amount = grant.grant_amount;
+          }
           calculateGrantDetails(grant);
         });
       } catch (err) {
@@ -69,6 +79,9 @@ const SimpleGrants: React.FC = () => {
     const endDate = new Date(grant.work_end_date);
     const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
     
+    // וודא שיש ערך לסכום המענק (בין אם בשדה amount או grant_amount)
+    const grantAmount = grant.grant_amount || grant.amount || 0;
+    
     try {
       // Get official severance exemption from API
       const response = await axios.get('/api/v1/tax-data/severance-exemption', {
@@ -76,8 +89,8 @@ const SimpleGrants: React.FC = () => {
       });
       
       const maxExemption = response.data.total_exemption;
-      const exemptAmount = Math.min(grant.grant_amount, maxExemption);
-      const taxableAmount = Math.max(0, grant.grant_amount - exemptAmount);
+      const exemptAmount = Math.min(grantAmount, maxExemption);
+      const taxableAmount = Math.max(0, grantAmount - exemptAmount);
       
       // Tax calculation on taxable amount (assuming 10% tax rate for simplicity)
       const taxRate = 0.10;
@@ -96,8 +109,9 @@ const SimpleGrants: React.FC = () => {
       // Fallback to hardcoded values if API fails
       const fallbackCap = 41667;
       // Simple tax calculation fallback
-      const exemptAmount = Math.min(grant.grant_amount, fallbackCap * serviceYears);
-      const taxableAmount = Math.max(0, grant.grant_amount - exemptAmount);
+      const grantAmount = grant.grant_amount || grant.amount || 0;
+      const exemptAmount = Math.min(grantAmount, fallbackCap * serviceYears);
+      const taxableAmount = Math.max(0, grantAmount - exemptAmount);
       
       const taxRate = 0.10;
       const taxOwed = taxableAmount * taxRate;
@@ -122,7 +136,7 @@ const SimpleGrants: React.FC = () => {
 
       // Validate required fields
       if (!newGrant.employer_name || !newGrant.work_start_date || !newGrant.work_end_date || 
-          !newGrant.grant_date || newGrant.grant_amount <= 0) {
+          !newGrant.grant_date || (newGrant.grant_amount || 0) <= 0) {
         throw new Error('יש למלא את כל השדות הנדרשים');
       }
 
@@ -136,6 +150,7 @@ const SimpleGrants: React.FC = () => {
         grant_type: 'severance',
         grant_date: '',
         grant_amount: 0,
+        amount: 0,
         reason: ''
       });
 
@@ -155,8 +170,17 @@ const SimpleGrants: React.FC = () => {
     const { name, value } = e.target;
     setNewGrant(prev => ({
       ...prev,
-      [name]: name === 'grant_amount' ? parseFloat(value) || 0 : value
+      [name]: name === 'grant_amount' || name === 'amount' ? parseFloat(value) || 0 : value
     }));
+    
+    // אם מעדכנים את שדה grant_amount, עדכן גם את שדה amount
+    if (name === 'grant_amount') {
+      setNewGrant(prev => ({ ...prev, amount: parseFloat(value) || 0 }));
+    }
+    // אם מעדכנים את שדה amount, עדכן גם את שדה grant_amount
+    if (name === 'amount') {
+      setNewGrant(prev => ({ ...prev, grant_amount: parseFloat(value) || 0 }));
+    }
   };
 
   const handleDelete = async (grantId: number) => {
@@ -411,7 +435,7 @@ const SimpleGrants: React.FC = () => {
                       </div>
                       
                       <div style={{ marginBottom: '10px' }}>
-                        <strong>סכום מענק:</strong> ₪{grant.grant_amount.toLocaleString()}
+                        <div><strong>סכום מענק:</strong> ₪{(grant.grant_amount || grant.amount || 0).toLocaleString()}</div>
                       </div>
 
                       {details && (

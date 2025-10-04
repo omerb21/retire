@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { clientApi, ClientResponse } from '../lib/api';
+import { clientApi, ClientItem } from '../lib/api';
 import { Link } from 'react-router-dom';
 
 const Clients: React.FC = () => {
-  const [clients, setClients] = useState<ClientResponse[]>([]);
+  const [clients, setClients] = useState<ClientItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -27,7 +27,7 @@ const Clients: React.FC = () => {
   };
 
   const filteredClients = clients.filter(client => 
-    client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (client.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
     client.id_number.includes(searchTerm)
   );
 

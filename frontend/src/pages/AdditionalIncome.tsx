@@ -125,6 +125,43 @@ export default function AdditionalIncome() {
     }
   }
 
+  async function handleDelete(incomeId: number) {
+    if (!clientId) return;
+    
+    if (!confirm("האם אתה בטוח שברצונך למחוק את ההכנסה הנוספת?")) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/clients/${clientId}/additional-incomes/${incomeId}`, {
+        method: "DELETE",
+      });
+      
+      // Reload incomes after deletion
+      await loadIncomes();
+    } catch (e: any) {
+      setError(`שגיאה במחיקת הכנסה נוספת: ${e?.message || e}`);
+    }
+  }
+
+  function handleEdit(income: any) {
+    // Populate form with income data for editing
+    setForm({
+      source_type: income.source_type,
+      amount: income.amount || 0,
+      frequency: income.frequency,
+      start_date: income.start_date,
+      end_date: income.end_date || "",
+      indexation_method: income.indexation_method,
+      tax_treatment: income.tax_treatment,
+      fixed_rate: income.fixed_rate || 0,
+      tax_rate: income.tax_rate || 0,
+    });
+    
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   if (loading) return <div>טוען הכנסות נוספות...</div>;
 
   return (
@@ -285,6 +322,28 @@ export default function AdditionalIncome() {
                       <strong>סכום חודשי מחושב:</strong> ₪{income.computed_monthly_amount.toLocaleString()}
                     </div>
                   )}
+                  
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    {income.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(income)}
+                        style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        ערוך
+                      </button>
+                    )}
+                    
+                    {income.id && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(income.id!)}
+                        style={{ padding: "8px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: 4 }}
+                      >
+                        מחק
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

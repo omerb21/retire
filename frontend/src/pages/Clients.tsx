@@ -10,17 +10,38 @@ export default function Clients() {
     first_name: "",
     last_name: "",
     birth_date: new Date().toISOString().split('T')[0], // Default to today
+    gender: "male", // Default to male
     email: "",
     phone: "",
+    address_street: "",
+    address_city: "",
+    address_postal_code: "",
+    pension_start_date: "",
+    tax_credit_points: 0,
   });
   const [msg, setMsg] = useState<string>("");
+  const [editingClient, setEditingClient] = useState<ClientItem | null>(null);
+  const [editForm, setEditForm] = useState({
+    id_number: "",
+    first_name: "",
+    last_name: "",
+    birth_date: "",
+    gender: "male",
+    email: "",
+    phone: "",
+    address_street: "",
+    address_city: "",
+    address_postal_code: "",
+    pension_start_date: "",
+    tax_credit_points: 0
+  });
 
   async function refresh() {
     setLoading(true);
     setMsg("");
     try {
       const data = await listClients();
-      setItems(data.items || []);
+      setItems(data || []);
     } catch (e: any) {
       setMsg("שגיאה בטעינת לקוחות: " + (e?.message || e));
     } finally {
@@ -29,6 +50,114 @@ export default function Clients() {
   }
 
   useEffect(() => { refresh(); }, []);
+
+  async function deleteClient(clientId: number) {
+    if (!confirm("האם אתה בטוח שברצונך למחוק לקוח זה?")) {
+      return;
+    }
+    
+    try {
+      setMsg("");
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      setMsg("✅ לקוח נמחק בהצלחה");
+      refresh();
+    } catch (e: any) {
+      console.error("Delete error:", e);
+      setMsg("❌ כשל במחיקת לקוח: " + (e?.message || e));
+    }
+  }
+
+  function startEdit(client: ClientItem) {
+    setEditingClient(client);
+    setEditForm({
+      id_number: client.id_number || "",
+      first_name: client.first_name || "",
+      last_name: client.last_name || "",
+      birth_date: client.birth_date || "",
+      gender: client.gender || "male",
+      email: client.email || "",
+      phone: client.phone || "",
+      address_street: (client as any).address_street || "",
+      address_city: (client as any).address_city || "",
+      address_postal_code: (client as any).address_postal_code || "",
+      pension_start_date: (client as any).pension_start_date || "",
+      tax_credit_points: (client as any).tax_credit_points || 0
+    });
+  }
+
+  function cancelEdit() {
+    setEditingClient(null);
+    setEditForm({
+      id_number: "",
+      first_name: "",
+      last_name: "",
+      birth_date: "",
+      gender: "male",
+      email: "",
+      phone: "",
+      address_street: "",
+      address_city: "",
+      address_postal_code: "",
+      pension_start_date: "",
+      tax_credit_points: 0
+    });
+  }
+
+  async function saveEdit() {
+    if (!editingClient) return;
+    
+    try {
+      setMsg("");
+      
+      // Basic validation
+      if (!editForm.id_number) throw new Error('חובה למלא ת"ז');
+      if (!editForm.first_name) throw new Error('חובה למלא שם פרטי');
+      if (!editForm.last_name) throw new Error('חובה למלא שם משפחה');
+      if (!editForm.birth_date) throw new Error('חובה למלא תאריך לידה');
+      
+      const response = await fetch(`http://localhost:8005/api/v1/clients/${editingClient.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id_number: editForm.id_number.trim(),
+          first_name: editForm.first_name.trim(),
+          last_name: editForm.last_name.trim(),
+          birth_date: editForm.birth_date,
+          gender: editForm.gender,
+          email: editForm.email || null,
+          phone: editForm.phone || null,
+          address_street: editForm.address_street || null,
+          address_city: editForm.address_city || null,
+          address_postal_code: editForm.address_postal_code || null,
+          pension_start_date: editForm.pension_start_date || null,
+          tax_credit_points: editForm.tax_credit_points || 0
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      setMsg("✅ פרטי לקוח עודכנו בהצלחה");
+      cancelEdit();
+      refresh();
+    } catch (e: any) {
+      console.error("Update error:", e);
+      setMsg("❌ כשל בעדכון לקוח: " + (e?.message || e));
+    }
+  }
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -68,8 +197,14 @@ export default function Clients() {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         birth_date: form.birth_date,
+        gender: form.gender,
         email: form.email || null,
         phone: form.phone || null,
+        address_street: form.address_street || null,
+        address_city: form.address_city || null,
+        address_postal_code: form.address_postal_code || null,
+        pension_start_date: form.pension_start_date || null,
+        tax_credit_points: form.tax_credit_points || 0,
       });
       
       // Reset form after successful submission
@@ -78,8 +213,14 @@ export default function Clients() {
         first_name: "",
         last_name: "",
         birth_date: "", // Clear birth date field
+        gender: "male", // Reset to default
         email: "",
         phone: "",
+        address_street: "",
+        address_city: "",
+        address_postal_code: "",
+        pension_start_date: "",
+        tax_credit_points: 0,
       });
       
       setMsg("✅ לקוח נשמר");
@@ -115,6 +256,12 @@ export default function Clients() {
                  value={form.birth_date}
                  onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
                  style={{ padding: 8 }} />
+          <select value={form.gender}
+                  onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                  style={{ padding: 8 }}>
+            <option value="male">זכר</option>
+            <option value="female">נקבה</option>
+          </select>
           <input placeholder="Email (אופציונלי)"
                  value={form.email}
                  onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -123,7 +270,43 @@ export default function Clients() {
                  value={form.phone}
                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
                  style={{ padding: 8 }} />
-          <button type="submit" style={{ padding: "10px 14px" }}>שמור</button>
+          
+          <h4 style={{ marginTop: 16, marginBottom: 8 }}>כתובת</h4>
+          <input placeholder="רחוב (אופציונלי)"
+                 value={form.address_street}
+                 onChange={(e) => setForm({ ...form, address_street: e.target.value })}
+                 style={{ padding: 8 }} />
+          <input placeholder="עיר (אופציונלי)"
+                 value={form.address_city}
+                 onChange={(e) => setForm({ ...form, address_city: e.target.value })}
+                 style={{ padding: 8 }} />
+          <input placeholder="מיקוד (אופציונלי)"
+                 value={form.address_postal_code}
+                 onChange={(e) => setForm({ ...form, address_postal_code: e.target.value })}
+                 style={{ padding: 8 }} />
+          
+          <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+            <label style={{ marginLeft: 8 }}>תאריך התחלת קצבה:</label>
+            <input type="date"
+                   placeholder="תאריך התחלת קצבה (אופציונלי)"
+                   value={form.pension_start_date}
+                   onChange={(e) => setForm({ ...form, pension_start_date: e.target.value })}
+                   style={{ padding: 8, flexGrow: 1 }} />
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+            <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
+            <input type="number"
+                   placeholder="נקודות זיכוי"
+                   value={form.tax_credit_points}
+                   onChange={(e) => setForm({ ...form, tax_credit_points: parseFloat(e.target.value) || 0 })}
+                   min="0"
+                   step="0.1"
+                   style={{ padding: 8, flexGrow: 1 }} />
+          </div>
+          
+          <button type="submit" style={{ padding: "10px 14px", marginTop: 16 }}>שמור</button>
         </form>
       </section>
 
@@ -144,8 +327,10 @@ export default function Clients() {
                 <th style={th}>שם פרטי</th>
                 <th style={th}>שם משפחה</th>
                 <th style={th}>תאריך לידה</th>
+                <th style={th}>מין</th>
                 <th style={th}>Email</th>
-                <th style={th}>טלפון</th>
+                <th style={th}>תאריך קצבה</th>
+                <th style={th}>פעולות</th>
               </tr>
             </thead>
             <tbody>
@@ -164,7 +349,9 @@ export default function Clients() {
                     </Link>
                   </td>
                   <td style={td}>{c.birth_date ?? ""}</td>
+                  <td style={td}>{c.gender === "male" ? "זכר" : "נקבה"}</td>
                   <td style={td}>{c.email ?? ""}</td>
+                  <td style={td}>{(c as any).pension_start_date ?? ""}</td>
                   <td style={td}>
                     <Link 
                       to={`/clients/${c.id}`}
@@ -174,11 +361,41 @@ export default function Clients() {
                         borderRadius: "4px",
                         textDecoration: "none",
                         color: "#333",
-                        fontSize: "0.9em"
+                        fontSize: "0.9em",
+                        marginLeft: "4px"
                       }}
                     >
                       פתח
                     </Link>
+                    <button
+                      onClick={() => startEdit(c)}
+                      style={{
+                        padding: "4px 8px",
+                        backgroundColor: "#007bff",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        fontSize: "0.9em",
+                        cursor: "pointer",
+                        marginLeft: "4px"
+                      }}
+                    >
+                      ערוך
+                    </button>
+                    <button
+                      onClick={() => deleteClient(c.id!)}
+                      style={{
+                        padding: "4px 8px",
+                        backgroundColor: "#ff4444",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        fontSize: "0.9em",
+                        cursor: "pointer"
+                      }}
+                    >
+                      מחק
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -186,6 +403,152 @@ export default function Clients() {
           </table>
         )}
       </section>
+
+      {editingClient && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            padding: "20px",
+            borderRadius: "8px",
+            minWidth: "400px",
+            maxWidth: "500px",
+            direction: "rtl"
+          }}>
+            <h3>עריכת פרטי לקוח</h3>
+            <div style={{ display: "grid", gap: "12px" }}>
+              <input 
+                placeholder='ת"ז'
+                value={editForm.id_number}
+                onChange={(e) => setEditForm({ ...editForm, id_number: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <input 
+                placeholder="שם פרטי"
+                value={editForm.first_name}
+                onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <input 
+                placeholder="שם משפחה"
+                value={editForm.last_name}
+                onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <input 
+                type="date"
+                placeholder="תאריך לידה"
+                value={editForm.birth_date}
+                onChange={(e) => setEditForm({ ...editForm, birth_date: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <select 
+                value={editForm.gender}
+                onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                style={{ padding: 8 }}
+              >
+                <option value="male">זכר</option>
+                <option value="female">נקבה</option>
+              </select>
+              <input 
+                placeholder="Email (אופציונלי)"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <input 
+                placeholder="טלפון (אופציונלי)"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <h4 style={{ marginTop: 16, marginBottom: 8 }}>כתובת</h4>
+              <input 
+                placeholder="רחוב (אופציונלי)"
+                value={editForm.address_street}
+                onChange={(e) => setEditForm({ ...editForm, address_street: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <input 
+                placeholder="עיר (אופציונלי)"
+                value={editForm.address_city}
+                onChange={(e) => setEditForm({ ...editForm, address_city: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              <input 
+                placeholder="מיקוד (אופציונלי)"
+                value={editForm.address_postal_code}
+                onChange={(e) => setEditForm({ ...editForm, address_postal_code: e.target.value })}
+                style={{ padding: 8 }} 
+              />
+              
+              <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                <label style={{ marginLeft: 8 }}>תאריך התחלת קצבה:</label>
+                <input 
+                  type="date"
+                  placeholder="תאריך תחילת קצבה (אופציונלי)"
+                  value={editForm.pension_start_date}
+                  onChange={(e) => setEditForm({ ...editForm, pension_start_date: e.target.value })}
+                  style={{ padding: 8, flexGrow: 1 }} 
+                />
+              </div>
+              
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
+                <input 
+                  type="number"
+                  placeholder="נקודות זיכוי"
+                  value={editForm.tax_credit_points}
+                  onChange={(e) => setEditForm({ ...editForm, tax_credit_points: parseFloat(e.target.value) || 0 })}
+                  min="0"
+                  step="0.1"
+                  style={{ padding: 8, flexGrow: 1 }} 
+                />
+              </div>
+              
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: 16 }}>
+                <button 
+                  onClick={cancelEdit}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#6c757d",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  ביטול
+                </button>
+                <button 
+                  onClick={saveEdit}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#28a745",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  שמור
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
