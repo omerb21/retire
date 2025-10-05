@@ -15,61 +15,90 @@ logger = logging.getLogger(__name__)
 # CBS Consumer Price Index API endpoint
 CBS_CPI_API = "https://api.cbs.gov.il/index/data/calculator/120010"
 
-def calculate_adjusted_amount(amount: float, end_work_date: Union[str, date], to_date: Optional[Union[str, date]] = None) -> Optional[float]:
+def calculate_adjusted_amount(amount: float, grant_date: Union[str, date], to_date: Optional[Union[str, date]] = None) -> Optional[float]:
     """
     מחשב את הסכום המוצמד לפי API של הלמ"ס
     
     :param amount: סכום נומינלי להצמדה
-    :param end_work_date: תאריך סיום עבודה (YYYY-MM-DD)
+    :param grant_date: תאריך המענק (YYYY-MM-DD)
     :param to_date: תאריך יעד להצמדה (אם None, ישתמש בתאריך נוכחי)
     :return: סכום מוצמד או None בשגיאה
     """
     try:
         # וידוא שהתאריכים מועברים כמחרוזות בפורמט YYYY-MM-DD
-        if isinstance(end_work_date, date):
-            end_work_date = end_work_date.isoformat()
+        if isinstance(grant_date, date):
+            grant_date_str = grant_date.isoformat()
+        else:
+            grant_date_str = str(grant_date)
+            
         if to_date and isinstance(to_date, date):
-            to_date = to_date.isoformat()
+            to_date_str = to_date.isoformat()
+        else:
+            to_date_str = str(to_date) if to_date else datetime.today().date().isoformat()
+        
+        logger.info(f"Calculating indexation from {grant_date_str} to {to_date_str}")
+            
+        # בדיקה אם התאריכים תקינים
+        try:
+            from_date = datetime.strptime(grant_date_str, '%Y-%m-%d').date()
+            to_date_parsed = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            
+            if from_date > to_date_parsed:
+                logger.warning(f"תאריך התחלה {grant_date_str} מאוחר מתאריך סיום {to_date_str}")
+                return float(amount)  # מחזירים את הסכום המקורי בלי הצמדה
+                
+        except ValueError as e:
+            logger.error(f"שגיאה בניתוח תאריכים: {e}")
+            return None
             
         params = {
             'value': amount, 
-            'date': end_work_date,
-            'toDate': to_date if to_date else datetime.today().date().isoformat(), 
+            'date': grant_date_str,  # תאריך המענק
+            'toDate': to_date_str,  # תאריך יעד להצמדה
             'format': 'json', 
-            'download': 'false'
+            'download': 'false',
+            'lang': 'he'  # לוודא שהתוצאות בעברית
         }
         
+        logger.info(f"Calling CBS API with params: {params}")
         response = requests.get(CBS_CPI_API, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
         
+        logger.info(f"Raw API response: {data}")
+        
         answer = data.get('answer')
         if not answer:
-            logger.warning(f'אזהרה: API ללא answer עבור {end_work_date} | תשובה: {data}')
+            logger.warning(f'אזהרה: API ללא answer | תשובה: {data}')
             return None
             
         to_value = answer.get('to_value')
         if to_value is None:
-            logger.warning(f'אזהרה: אין to_value עבור {end_work_date} | תשובה: {data}')
+            logger.warning(f'אזהרה: אין to_value | תשובה: {data}')
             return None
-            
-        return round(float(to_value), 2)
+        
+        result = round(float(to_value), 2)
+        logger.info(f"Calculated adjusted amount: {amount} from {grant_date_str} to {to_date_str} = {result}")
+        return result
         
     except Exception as e:
-        logger.error(f'שגיאה בהצמדה עבור {end_work_date}: {e}')
+        # שימוש במשתני ברירת מחדל במקרה של שגיאה
+        error_grant_date = grant_date.isoformat() if isinstance(grant_date, date) else str(grant_date)
+        error_to_date = to_date.isoformat() if to_date and isinstance(to_date, date) else (str(to_date) if to_date else 'now')
+        logger.error(f'שגיאה בהצמדה מתאריך {error_grant_date} לתאריך {error_to_date}: {e}', exc_info=True)
         return None
 
-def index_grant(amount: float, start_date: Union[str, date], end_work_date: Union[str, date], elig_date: Optional[Union[str, date]] = None) -> Optional[float]:
+def index_grant(amount: float, start_date: Union[str, date], grant_date: Union[str, date], elig_date: Optional[Union[str, date]] = None) -> Optional[float]:
     """
     פונקציה עוטפת להצמדת מענק
     
     :param amount: סכום נומינלי
     :param start_date: תאריך תחילת עבודה (לא נדרש לחישוב הצמדה)
-    :param end_work_date: תאריך סיום עבודה
+    :param grant_date: תאריך המענק
     :param elig_date: תאריך הזכאות (אם None ישתמש בתאריך נוכחי)
     :return: סכום מוצמד
     """
-    return calculate_adjusted_amount(amount, end_work_date, elig_date)
+    return calculate_adjusted_amount(amount, grant_date, elig_date)
 
 # ========== 2. יחס החלקיות של 32 השנים האחרונות ==========
 
@@ -193,13 +222,17 @@ def compute_grant_effect(grant: Dict[str, Any], eligibility_date: Union[str, dat
     :return: מילון עם תוצאות החישוב
     """
     try:
-        # הצמדת המענק לסכום עדכני
-        indexed_full = index_grant(
+        # הצמדת המענק לסכום עדכני - מתאריך קבלת המענק
+        grant_date = grant.get('grant_date', grant['work_end_date'])  # fallback לתאריך סיום עבודה אם אין grant_date
+        logger.info(f"DEBUG: Using grant_date={grant_date} for indexation")
+        
+        # קריאה לפונקציה עם הפרמטרים המעודכנים
+        indexed_full = calculate_adjusted_amount(
             amount=grant['grant_amount'],
-            start_date=grant['work_start_date'],
-            end_work_date=grant['work_end_date'],
-            elig_date=eligibility_date
+            grant_date=grant_date,  # שימוש ב-grant_date במקום end_work_date
+            to_date=eligibility_date
         )
+        logger.info(f"DEBUG: Indexed amount result: {indexed_full}")
         
         if indexed_full is None:
             logger.error(f"כשל בהצמדת מענק: {grant}")
@@ -215,15 +248,48 @@ def compute_grant_effect(grant: Dict[str, Any], eligibility_date: Union[str, dat
         # חישוב סכום מוגבל ל-32 שנים
         limited_indexed_amount = round(indexed_full * ratio, 2)
         
-        # חישוב פגיעה בהון הפטור (הכפלה ב-1.35)
-        impact_on_exemption = round(limited_indexed_amount * 1.35, 2)
+        # בדיקת חוק "15 השנים" - ביטול קיזוז בגין היוון קצבה מוקדם
+        # אם חלפו יותר מ-15 שנים בין תאריך המענק לתאריך הזכאות, לא נחשב את ההשפעה על ההון הפטור
         
-        return {
+        # המרת תאריכים לאובייקטי date אם הם מחרוזות
+        if isinstance(grant_date, str):
+            grant_date_obj = datetime.strptime(grant_date, '%Y-%m-%d').date()
+        else:
+            grant_date_obj = grant_date
+            
+        if isinstance(eligibility_date, str):
+            eligibility_date_obj = datetime.strptime(eligibility_date, '%Y-%m-%d').date()
+        else:
+            eligibility_date_obj = eligibility_date
+        
+        # חישוב הפרש השנים
+        years_diff = (eligibility_date_obj.year - grant_date_obj.year) + \
+                     (eligibility_date_obj.month - grant_date_obj.month) / 12 + \
+                     (eligibility_date_obj.day - grant_date_obj.day) / 365.25
+        
+        # בדיקה אם חלפו יותר מ-15 שנים
+        exclusion_reason = None
+        if years_diff > 15:
+            logger.info(f"DEBUG: חוק 15 השנים חל - חלפו {years_diff:.2f} שנים בין המענק לזכאות")
+            impact_on_exemption = 0  # אין השפעה על ההון הפטור
+            exclusion_reason = "חוק 15 השנים - מענק ישן"
+        else:
+            # חישוב פגיעה בהון הפטור (הכפלה ב-1.35)
+            impact_on_exemption = round(limited_indexed_amount * 1.35, 2)
+            logger.info(f"DEBUG: חוק 15 השנים לא חל - חלפו {years_diff:.2f} שנים בין המענק לזכאות")
+        
+        result = {
             'indexed_full': indexed_full,
             'ratio_32y': ratio,
             'limited_indexed_amount': limited_indexed_amount,
             'impact_on_exemption': impact_on_exemption
         }
+        
+        # הוספת סיבת החרגה אם קיימת
+        if exclusion_reason:
+            result['exclusion_reason'] = exclusion_reason
+            
+        return result
         
     except Exception as e:
         logger.error(f"שגיאה בחישוב השפעת מענק: {e}")

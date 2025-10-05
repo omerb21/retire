@@ -73,12 +73,32 @@ const SimpleFixation: React.FC = () => {
 
   // Calculate pension summary
   const calculatePensionSummary = (): PensionSummary => {
-    const exemptAmount = exemptionSummary?.exempt_capital_initial || 0;
-    const totalGrants = grantsSummary.reduce((sum, grant) => sum + grant.grant_amount, 0);
-    const totalIndexed = grantsSummary.reduce((sum, grant) => sum + (grant.indexed_full || 0), 0);
+    console.log('DEBUG: calculatePensionSummary called');
+    console.log('DEBUG: grantsSummary:', grantsSummary);
+    console.log('DEBUG: grantsSummary.length:', grantsSummary.length);
+    console.log('DEBUG: exemptionSummary:', exemptionSummary);
     
-    // פטור מנוצל = סך המענקים המוצמדים × 1.35
-    const usedExemption = totalIndexed * 1.35;
+    const exemptAmount = exemptionSummary?.exempt_capital_initial || 0;
+    // סינון מענקים שלא הוחרגו לפי חוק "15 השנים"
+    const includedGrants = grantsSummary.filter(grant => 
+      !(grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) && !grant.exclusion_reason
+    );
+    
+    console.log('DEBUG: includedGrants:', includedGrants);
+    
+    const totalGrants = includedGrants.reduce((sum, grant) => sum + grant.grant_amount, 0);
+    const totalIndexed = includedGrants.reduce((sum, grant) => sum + (grant.indexed_full || 0), 0);
+    
+    // סכום הפגיעה בפטור מהשרת
+    const totalImpact = includedGrants.reduce((sum, grant) => sum + (grant.impact_on_exemption || 0), 0);
+    
+    console.log('DEBUG: exemptAmount:', exemptAmount);
+    console.log('DEBUG: totalGrants:', totalGrants);
+    console.log('DEBUG: totalIndexed:', totalIndexed);
+    console.log('DEBUG: totalImpact:', totalImpact);
+    
+    // פטור מנוצל = סך הפגיעה בפטור מהשרת
+    const usedExemption = totalImpact;
     
     // שדות עתידיים (כרגע אפס)
     const futureGrantReserved = 0;
@@ -148,27 +168,38 @@ const SimpleFixation: React.FC = () => {
         setEligibilityDate(currentEligibilityDate);
         
         // Use the new rights fixation service
+        console.log('DEBUG: grants array:', grants);
+        console.log('DEBUG: grants.length:', grants.length);
+        
         if (grants.length > 0) {
           try {
             const fixationResponse = await axios.post('/api/v1/rights-fixation/calculate', {
               client_id: parseInt(id!)
             });
             
+            console.log('DEBUG: Full API response:', fixationResponse.data);
+            
             const processedGrants = fixationResponse.data.grants || [];
             const exemptionData = fixationResponse.data.exemption_summary || {};
             
-            setGrantsSummary(processedGrants.map((grant: any) => ({
+            console.log('DEBUG: processedGrants:', processedGrants);
+            console.log('DEBUG: exemptionData:', exemptionData);
+            
+            const mappedGrants = processedGrants.map((grant: any) => ({
               employer_name: grant.employer_name,
               grant_amount: grant.grant_amount,
               work_start_date: grant.work_start_date,
               work_end_date: grant.work_end_date,
               grant_date: grant.grant_date,
-              indexed_full: grant.grant_indexed_amount,
-              ratio_32y: grant.grant_ratio,
-              limited_indexed_amount: grant.grant_indexed_amount,
+              indexed_full: grant.indexed_full,
+              ratio_32y: grant.ratio_32y,
+              limited_indexed_amount: grant.limited_indexed_amount,
               impact_on_exemption: grant.impact_on_exemption,
               exclusion_reason: grant.exclusion_reason
-            })));
+            }));
+            
+            console.log('DEBUG: mappedGrants:', mappedGrants);
+            setGrantsSummary(mappedGrants);
             
             setExemptionSummary(exemptionData);
             
@@ -210,6 +241,7 @@ const SimpleFixation: React.FC = () => {
             }
           }
         } else {
+          console.log('DEBUG: No grants found, skipping rights fixation calculation');
           setGrantsSummary([]);
           setExemptionSummary(null);
         }
@@ -240,8 +272,13 @@ const SimpleFixation: React.FC = () => {
         client_id: parseInt(id!)
       });
       
+      console.log('DEBUG: Recalculate API response:', fixationResponse.data);
+      
       const processedGrants = fixationResponse.data.grants || [];
       const exemptionData = fixationResponse.data.exemption_summary || {};
+      
+      console.log('DEBUG: Recalculate processedGrants:', processedGrants);
+      console.log('DEBUG: Recalculate exemptionData:', exemptionData);
       
       setGrantsSummary(processedGrants.map((grant: any) => ({
         employer_name: grant.employer_name,
@@ -249,9 +286,9 @@ const SimpleFixation: React.FC = () => {
         work_start_date: grant.work_start_date,
         work_end_date: grant.work_end_date,
         grant_date: grant.grant_date,
-        indexed_full: grant.grant_indexed_amount,
-        ratio_32y: grant.grant_ratio,
-        limited_indexed_amount: grant.grant_indexed_amount,
+        indexed_full: grant.indexed_full,
+        ratio_32y: grant.ratio_32y,
+        limited_indexed_amount: grant.limited_indexed_amount,
         impact_on_exemption: grant.impact_on_exemption,
         exclusion_reason: grant.exclusion_reason
       })));
@@ -302,6 +339,19 @@ const SimpleFixation: React.FC = () => {
         </div>
       )}
 
+      {/* Debug info */}
+      <div style={{ padding: '10px', backgroundColor: '#f0f0f0', marginBottom: '10px' }}>
+        DEBUG: grantsSummary.length = {grantsSummary.length}
+        {grantsSummary.length > 0 && (
+          <div>
+            <div>First grant indexed_full: {grantsSummary[0]?.indexed_full}</div>
+            <div>First grant ratio_32y: {grantsSummary[0]?.ratio_32y}</div>
+            <div>First grant impact_on_exemption: {grantsSummary[0]?.impact_on_exemption}</div>
+            <div>First grant employer_name: {grantsSummary[0]?.employer_name}</div>
+          </div>
+        )}
+      </div>
+
       {/* Grants Summary */}
       {grantsSummary.length > 0 && (
         <div style={{ 
@@ -335,16 +385,17 @@ const SimpleFixation: React.FC = () => {
                       ₪{grant.grant_amount.toLocaleString()}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
-                      {grant.exclusion_reason ? 'הוחרג' : `₪${(grant.grant_amount * (grant.ratio_32y || 0)).toLocaleString(undefined, {maximumFractionDigits: 2})}`}
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.grant_amount * (grant.ratio_32y || 0)).toLocaleString(undefined, {maximumFractionDigits: 2})}`}
                     </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason ? '#6c757d' : '#007bff' }}>
-                      {grant.exclusion_reason ? 'הוחרג' : `₪${(grant.indexed_full || 0).toLocaleString()}`}
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#007bff' }}>
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.indexed_full || 0).toLocaleString()}`}
                     </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason ? '#6c757d' : '#dc3545' }}>
-                      {grant.exclusion_reason ? 'הוחרג' : `₪${(grant.impact_on_exemption || 0).toLocaleString()}`}
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#dc3545' }}>
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.impact_on_exemption || 0).toLocaleString()}`}
                     </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', color: grant.exclusion_reason ? '#dc3545' : '#28a745' }}>
-                      {grant.exclusion_reason ? grant.exclusion_reason : 'נכלל בחישוב'}
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#dc3545' : '#28a745' }}>
+                      {grant.exclusion_reason ? grant.exclusion_reason : 
+                       (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג - חוק 15 השנים' : 'נכלל בחישוב'}
                     </td>
                   </tr>
                 ))}
@@ -549,9 +600,10 @@ const SimpleFixation: React.FC = () => {
         <strong>הסבר על טבלת הסיכום:</strong>
         <ul style={{ marginTop: '10px', paddingRight: '20px' }}>
           <li><strong>יתרת הון פטורה לשנת הזכאות:</strong> הסכום הכולל הזכאי לפטור ממס לפי חוק מס הכנסה</li>
-          <li><strong>סך נומינאלי של מענקי הפרישה:</strong> סכום נומינלי של כל המענקים שהתקבלו</li>
+          <li><strong>סך נומינאלי של מענקי הפרישה:</strong> סכום נומינלי של המענקים הנכללים בחישוב (לא כולל מענקים שהוחרגו)</li>
+          <li><strong>חוק "15 השנים":</strong> מענקים שניתנו לפני יותר מ-15 שנים מתאריך הזכאות מוחרגים מהחישוב ואינם משפיעים על ההון הפטור</li>
           <li><strong>סך המענקים הרלוונטים לאחר הוצמדה:</strong> סכום המענקים לאחר הצמדה למדד המחירים לצרכן</li>
-          <li><strong>סך הכל פגיעה בפטור בגין מענקים פטורים:</strong> המענקים המוצמדים כפול 1.35 (מקדם פיצויים)</li>
+          <li><strong>סך הכל פגיעה בפטור בגין מענקים פטורים:</strong> המענקים המוצמדים המוגבלים ל-32 שנים כפול 1.35 (מקדם פיצויים)</li>
           <li><strong>מענק עתידי משוריין (נומינלי):</strong> מענק שמתוכנן לעתיד (כרגע אפס)</li>
           <li><strong>השפעת מענק עתידי (×1.35):</strong> המענק העתידי כפול 1.35 (כרגע אפס)</li>
           <li><strong>סך היוונים:</strong> סכום היוונים שנוצלו (כרגע אפס)</li>
