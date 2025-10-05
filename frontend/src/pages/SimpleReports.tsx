@@ -57,15 +57,15 @@ const SimpleReports: React.FC = () => {
         setError(null);
 
         // Get client info
-        const clientResponse = await axios.get(`http://localhost:5000/api/v1/clients/${id}`);
+        const clientResponse = await axios.get(`/api/v1/clients/${id}`);
         const clientData = clientResponse.data;
         setClient(clientData);
 
         // Get financial data - pension funds, additional incomes, capital assets
         const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse] = await Promise.all([
-          axios.get(`http://localhost:5000/api/v1/clients/${id}/pension-funds`),
-          axios.get(`http://localhost:5000/api/v1/clients/${id}/additional-incomes/`),
-          axios.get(`http://localhost:5000/api/v1/clients/${id}/capital-assets/`)
+          axios.get(`/api/v1/clients/${id}/pension-funds`),
+          axios.get(`/api/v1/clients/${id}/additional-incomes`),
+          axios.get(`/api/v1/clients/${id}/capital-assets`)
         ]);
         
         const pensionFundsData = pensionFundsResponse.data || [];
@@ -80,15 +80,8 @@ const SimpleReports: React.FC = () => {
         // Calculate financial summary
         const totalPensionValue = pensionFundsData.reduce((sum: number, fund: any) => 
           sum + (fund.current_balance || fund.computed_monthly_amount * 12 * 20 || 0), 0);
-        const totalAdditionalIncome = additionalIncomesData.reduce((sum: number, income: any) => {
-          if (income.amount && income.frequency) {
-            // ����� ���
-            return sum + (income.frequency === 'monthly' ? income.amount * 12 : income.amount);
-          } else {
-            // ����� ���
-            return sum + ((income.amount && income.frequency ? (income.frequency === "monthly" ? income.amount * 12 : income.amount) : (income.annual_amount || income.monthly_amount * 12 || 0)));
-          }
-        }, 0);
+        const totalAdditionalIncome = additionalIncomesData.reduce((sum: number, income: any) => 
+          sum + (income.annual_amount || income.monthly_amount * 12 || 0), 0);
         const totalCapitalAssets = capitalAssetsData.reduce((sum: number, asset: any) => 
           sum + (asset.current_value || 0), 0);
         
@@ -107,7 +100,9 @@ const SimpleReports: React.FC = () => {
           const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
           const isPensionActive = monthDate >= pensionStartDate;
           
-          let monthlyAmount = 0;
+          let monthlyGrossAmount = 0;
+          let monthlyTax = 0;
+          let monthlyNetAmount = 0;
           let source = 'ללא הכנסה';
           
           if (isPensionActive) {
@@ -117,13 +112,43 @@ const SimpleReports: React.FC = () => {
             const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
               sum + (income.monthly_amount || income.annual_amount / 12 || 0), 0);
             
-            monthlyAmount = monthlyPension + monthlyAdditional;
+            monthlyGrossAmount = monthlyPension + monthlyAdditional;
+            
+            // חישוב מס על ההכנסה החודשית (הכנסות פנסיה = הכנסות עבודה רגילות)
+            if (monthlyGrossAmount > 0) {
+              const annualGrossAmount = monthlyGrossAmount * 12;
+              // חישוב מס בסיסי לפי מדרגות (ללא נקודות זיכוי כרגע)
+              let baseTax = 0;
+              let remainingIncome = annualGrossAmount;
+              
+              const taxBrackets = [
+                { min: 0, max: 84000, rate: 0.10 },
+                { min: 84000, max: 121000, rate: 0.14 },
+                { min: 121000, max: 202000, rate: 0.20 },
+                { min: 202000, max: 420000, rate: 0.31 },
+                { min: 420000, max: 672000, rate: 0.35 },
+                { min: 672000, max: Infinity, rate: 0.47 }
+              ];
+              
+              for (const bracket of taxBrackets) {
+                if (remainingIncome <= 0) break;
+                const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
+                baseTax += taxableInThisBracket * bracket.rate;
+                remainingIncome -= taxableInThisBracket;
+              }
+              
+              monthlyTax = baseTax / 12;
+              monthlyNetAmount = monthlyGrossAmount - monthlyTax;
+            }
+            
             source = monthlyPension > 0 ? 'פנסיה' : 'הכנסות נוספות';
           }
           
           return {
             date: monthDate.toISOString().split('T')[0],
-            amount: Math.round(monthlyAmount),
+            amount: Math.round(monthlyNetAmount), // הצגת הכנסה נטו אחרי מס
+            grossAmount: Math.round(monthlyGrossAmount), // הכנסה גולמית
+            tax: Math.round(monthlyTax), // מס חודשי
             source: source
           };
         });
@@ -136,8 +161,8 @@ const SimpleReports: React.FC = () => {
 
         setReportData({
           client_info: {
-            name: client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'לא צוין' : 'לא צוין',
-            id_number: client?.id_number || 'לא צוין'
+            name: clientData ? `${clientData.first_name || ''} ${clientData.last_name || ''}`.trim() || 'לא צוין' : 'לא צוין',
+            id_number: clientData?.id_number || 'לא צוין'
           },
           financial_summary: {
             total_pension_value: totalPensionValue,
@@ -188,65 +213,17 @@ const SimpleReports: React.FC = () => {
       remainingIncome -= taxableInThisBracket;
     }
     
-    // הקלות למס לפנסיונרים
-    if (incomeType === 'pension') {
-      baseTax *= 0.85; // הנחה של 15% לפנסיונרים
-    }
+    // הכנסות מקרן פנסיה הן הכנסות עבודה רגילות - ללא הנחות מיוחדות
+    // (ההנחה הוסרה - הכנסות פנסיה חייבות במס כמו הכנסות עבודה רגילות)
     
     // חישוב נקודות זיכוי
     let totalTaxCredits = 0;
     const creditPointValue = 2640; // ערך נקודת זיכוי 2024 בשקלים
     
     if (client) {
-      // נקודות זיכוי ידניות (אם הוזנו)
+      // נקודות זיכוי מקלט המשתמש בלבד
       if (client.tax_credit_points && client.tax_credit_points > 0) {
         totalTaxCredits = client.tax_credit_points * creditPointValue;
-      } else {
-        // חישוב אוטומטי של נקודות זיכוי
-        let creditPoints = 1; // נקודה בסיסית
-        
-        // נקודות זיכוי לילדים
-        if (client.num_children) {
-          creditPoints += client.num_children * 0.5;
-        }
-        
-        // נקודות זיכוי לנכות
-        if (client.is_disabled && client.disability_percentage) {
-          if (client.disability_percentage >= 75) {
-            creditPoints += 3;
-          } else if (client.disability_percentage >= 40) {
-            creditPoints += 1.5;
-          }
-        }
-        
-        // נקודות זיכוי לעולים חדשים
-        if (client.is_new_immigrant && client.immigration_date) {
-          const immigrationYear = new Date(client.immigration_date).getFullYear();
-          const currentYear = new Date().getFullYear();
-          const yearsInIsrael = currentYear - immigrationYear;
-          
-          if (yearsInIsrael <= 3.5) {
-            creditPoints += 1;
-          }
-        }
-        
-        // נקודות זיכוי למילואים
-        if (client.reserve_duty_days && client.reserve_duty_days > 0) {
-          const reservePoints = Math.min(client.reserve_duty_days / 30, 1);
-          creditPoints += reservePoints;
-        }
-        
-        // נקודות זיכוי לזקנה (לפנסיונרים)
-        if (incomeType === 'pension' && client.birth_date) {
-          const age = new Date().getFullYear() - new Date(client.birth_date).getFullYear();
-          const retirementAge = client.gender === 'male' ? 67 : 62;
-          
-          if (age >= retirementAge) {
-            creditPoints += 1;
-          }
-        }
-        
-        totalTaxCredits = creditPoints * creditPointValue;
       }
     }
     
@@ -306,28 +283,55 @@ const SimpleReports: React.FC = () => {
         totalMonthlyIncome += amount;
       });
       
-      // חישוב מס לכל הכנסה
+      // חישוב מס על סך כל ההכנסות (הדרך הנכונה)
       const taxBreakdown: number[] = [];
       let totalMonthlyTax = 0;
       
-      // מס על קרנות פנסיה
-      pensionFunds.forEach((fund, index) => {
-        const incomeAmount = incomeBreakdown[index] || 0;
-        const annualIncome = incomeAmount * 12;
-        const monthlyTax = calculateTaxForIncome(annualIncome, 'pension') / 12;
-        taxBreakdown.push(Math.round(monthlyTax));
-        totalMonthlyTax += monthlyTax;
-      });
+      // חישוב סך כל ההכנסות השנתיות
+      const totalAnnualIncome = totalMonthlyIncome * 12;
       
-      // מס על הכנסות נוספות
-      additionalIncomes.forEach((income, index) => {
-        const incomeIndex = pensionFunds.length + index;
-        const incomeAmount = incomeBreakdown[incomeIndex] || 0;
-        const annualIncome = incomeAmount * 12;
-        const monthlyTax = calculateTaxForIncome(annualIncome, 'additional') / 12;
-        taxBreakdown.push(Math.round(monthlyTax));
-        totalMonthlyTax += monthlyTax;
-      });
+      if (totalAnnualIncome > 0) {
+        // חישוב מס כולל על סך ההכנסות
+        let totalAnnualTax = 0;
+        let remainingIncome = totalAnnualIncome;
+        
+        const taxBrackets = [
+          { min: 0, max: 84000, rate: 0.10 },
+          { min: 84000, max: 121000, rate: 0.14 },
+          { min: 121000, max: 202000, rate: 0.20 },
+          { min: 202000, max: 420000, rate: 0.31 },
+          { min: 420000, max: 672000, rate: 0.35 },
+          { min: 672000, max: Infinity, rate: 0.47 }
+        ];
+        
+        for (const bracket of taxBrackets) {
+          if (remainingIncome <= 0) break;
+          const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
+          totalAnnualTax += taxableInThisBracket * bracket.rate;
+          remainingIncome -= taxableInThisBracket;
+        }
+        
+        totalMonthlyTax = totalAnnualTax / 12;
+        
+        // חלוקת המס באופן יחסי לפי ההכנסות
+        pensionFunds.forEach((fund, index) => {
+          const incomeAmount = incomeBreakdown[index] || 0;
+          const taxPortion = totalMonthlyIncome > 0 ? (incomeAmount / totalMonthlyIncome) * totalMonthlyTax : 0;
+          taxBreakdown.push(Math.round(taxPortion));
+        });
+        
+        additionalIncomes.forEach((income, index) => {
+          const incomeIndex = pensionFunds.length + index;
+          const incomeAmount = incomeBreakdown[incomeIndex] || 0;
+          const taxPortion = totalMonthlyIncome > 0 ? (incomeAmount / totalMonthlyIncome) * totalMonthlyTax : 0;
+          taxBreakdown.push(Math.round(taxPortion));
+        });
+      } else {
+        // אין הכנסה - אין מס
+        for (let i = 0; i < pensionFunds.length + additionalIncomes.length; i++) {
+          taxBreakdown.push(0);
+        }
+      }
 
       yearlyData.push({
         year,
@@ -342,60 +346,7 @@ const SimpleReports: React.FC = () => {
     return yearlyData;
   };
 
-  const calculateTaxImpact = async () => {
-    if (!reportData) return;
-
-    try {
-      // חישוב סך ההכנסות השנתיות
-      const totalPensionIncome = pensionFunds.reduce((sum, fund) => {
-        return sum + ((fund.computed_monthly_amount || fund.monthly_amount || 0) * 12);
-      }, 0);
-
-      const totalAdditionalIncome = additionalIncomes.reduce((sum, income) => {
-        return sum + (income.annual_amount || (income.monthly_amount * 12) || 0);
-      }, 0);
-
-      // יצירת נתוני קלט לחישוב מס
-      const taxInput = {
-        tax_year: new Date().getFullYear(),
-        personal_details: {
-          birth_date: reportData.client_info.birth_year ? `${reportData.client_info.birth_year}-01-01` : null,
-          marital_status: 'single', // ברירת מחדל
-          num_children: 0,
-          is_new_immigrant: false,
-          is_veteran: false,
-          is_disabled: false,
-          is_student: false,
-          reserve_duty_days: 0
-        },
-        salary_income: 0, // אין שכר בפרישה
-        pension_income: totalPensionIncome,
-        rental_income: totalAdditionalIncome, // מניחים שזה הכנסה משכירות
-        capital_gains: 0,
-        business_income: 0,
-        interest_income: 0,
-        dividend_income: 0,
-        other_income: 0,
-        pension_contributions: 0, // אין הפרשות בפרישה
-        study_fund_contributions: 0,
-        insurance_premiums: 0,
-        charitable_donations: 0
-      };
-
-      const response = await axios.post('/api/v1/tax/calculate', taxInput);
-      setTaxCalculation(response.data);
-
-    } catch (err) {
-      console.error('שגיאה בחישוב מס:', err);
-    }
-  };
-
-  // חישוב מס אוטומטי כשהנתונים מוכנים
-  useEffect(() => {
-    if (reportData && pensionFunds.length > 0) {
-      calculateTaxImpact();
-    }
-  }, [reportData, pensionFunds, additionalIncomes]);
+  // הוסר calculateTaxImpact - המס מחושב ישירות בטבלה
 
   const handleGeneratePdf = async () => {
     try {
@@ -461,9 +412,12 @@ const SimpleReports: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Generate Excel report
+      // Generate Excel report - use same endpoint as PDF but request Excel format
       const response = await axios.post(`/api/v1/reports/clients/${id}/reports/excel`, {
-        report_data: reportData
+        scenario_id: 1, // Default scenario
+        report_type: "excel",
+        include_charts: false,
+        include_cashflow: true
       }, {
         responseType: 'blob'
       });
@@ -653,9 +607,9 @@ const SimpleReports: React.FC = () => {
                       borderRadius: '4px',
                       border: '1px solid #d4edda'
                     }}>
-                      <div><strong>{income.description || income.income_type || income.source_type}</strong></div>
-                      <div>הכנסה חודשית: ₪{((income.amount && income.frequency === "monthly" ? income.amount : income.monthly_amount || 0)).toLocaleString()}</div>
-                      <div>הכנסה שנתית: ₪{((income.amount && income.frequency ? (income.frequency === "monthly" ? income.amount * 12 : income.amount) : (income.annual_amount || income.monthly_amount * 12 || 0))).toLocaleString()}</div>
+                      <div><strong>{income.description || income.income_type}</strong></div>
+                      <div>הכנסה חודשית: ₪{(income.monthly_amount || 0).toLocaleString()}</div>
+                      <div>הכנסה שנתית: ₪{(income.annual_amount || income.monthly_amount * 12 || 0).toLocaleString()}</div>
                       <div>תאריך התחלה: {income.start_date || 'לא צוין'}</div>
                     </div>
                   ))}
@@ -705,10 +659,67 @@ const SimpleReports: React.FC = () => {
             }}>
               <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>סיכום</h5>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div><strong>סך הכנסה חודשית:</strong> ₪{((reportData.financial_summary.total_pension_value / 240) + (reportData.financial_summary.total_additional_income / 12)).toLocaleString()}</div>
-                <div><strong>סך נכסים:</strong> ₪{reportData.financial_summary.total_wealth.toLocaleString()}</div>
-                <div><strong>תאריך התחלת תזרים:</strong> {reportData.cashflow_projection[0]?.date ? new Date(reportData.cashflow_projection[0].date).toLocaleDateString('he-IL') : 'לא צוין'}</div>
-                <div style={{ color: '#dc3545' }}><strong>מס משוער:</strong> ₪{reportData.financial_summary.estimated_tax.toLocaleString()}</div>
+                <div><strong>סך הכנסה חודשית:</strong> ₪{(() => {
+                  const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
+                    sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+                  const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
+                    sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0)), 0);
+                  return (monthlyPension + monthlyAdditional).toLocaleString();
+                })()}</div>
+                <div><strong>סך נכסים:</strong> ₪{(() => {
+                  const totalPensionBalance = pensionFunds.reduce((sum: number, fund: any) => 
+                    sum + (fund.current_balance || 0), 0);
+                  const totalCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
+                    sum + (asset.current_value || 0), 0);
+                  return (totalPensionBalance + totalCapitalAssets).toLocaleString();
+                })()}</div>
+                <div><strong>תאריך התחלת תזרים:</strong> {(() => {
+                  // מציאת השנה הראשונה עם הכנסה
+                  const firstIncomeYear = Math.min(
+                    ...pensionFunds.map((fund: any) => 
+                      fund.start_date ? parseInt(fund.start_date.split('-')[0]) : new Date().getFullYear() + 10
+                    ),
+                    ...additionalIncomes.map((income: any) => 
+                      income.start_date ? parseInt(income.start_date.split('-')[0]) : new Date().getFullYear() + 10
+                    )
+                  );
+                  return firstIncomeYear < new Date().getFullYear() + 10 ? `01/01/${firstIncomeYear}` : 'לא צוין';
+                })()}</div>
+                <div style={{ color: '#dc3545' }}><strong>מס משוער:</strong> ₪{(() => {
+                  const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
+                    sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+                  const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
+                    sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0)), 0);
+                  const totalAnnualIncome = (monthlyPension + monthlyAdditional) * 12;
+                  
+                  // חישוב מס בסיסי לפי מדרגות
+                  let tax = 0;
+                  let remaining = totalAnnualIncome;
+                  const brackets = [
+                    { max: 84000, rate: 0.10 },
+                    { max: 121000, rate: 0.14 },
+                    { max: 202000, rate: 0.20 },
+                    { max: 420000, rate: 0.31 },
+                    { max: 672000, rate: 0.35 },
+                    { max: Infinity, rate: 0.47 }
+                  ];
+                  
+                  let prevMax = 0;
+                  for (const bracket of brackets) {
+                    if (remaining <= 0) break;
+                    const taxableInBracket = Math.min(remaining, bracket.max - prevMax);
+                    tax += taxableInBracket * bracket.rate;
+                    remaining -= taxableInBracket;
+                    prevMax = bracket.max;
+                  }
+                  
+                  // הפחתת נקודות זיכוי אם קיימות
+                  if (client?.tax_credit_points) {
+                    tax = Math.max(0, tax - (client.tax_credit_points * 2640));
+                  }
+                  
+                  return tax.toLocaleString();
+                })()}</div>
               </div>
             </div>
           </div>
@@ -780,16 +791,32 @@ const SimpleReports: React.FC = () => {
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* Personal Tax Details */}
+                {/* Personal Tax Details - רק נתונים קיימים */}
                 <div>
                   <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>פרטים אישיים למיסוי</h5>
                   <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}>
-                    <div><strong>גיל:</strong> {client.birth_date ? new Date().getFullYear() - new Date(client.birth_date).getFullYear() : 'לא צוין'}</div>
-                    <div><strong>מין:</strong> {client.gender === 'male' ? 'זכר' : client.gender === 'female' ? 'נקבה' : 'לא צוין'}</div>
-                    <div><strong>מצב משפחתי:</strong> {client.marital_status || 'לא צוין'}</div>
-                    <div><strong>מספר ילדים:</strong> {client.num_children || 0}</div>
-                    {client.is_disabled && (
-                      <div><strong>אחוז נכות:</strong> {client.disability_percentage || 0}%</div>
+                    {/* הצגת פרטים בסיסיים בלבד */}
+                    {client.birth_date && (
+                      <div><strong>גיל:</strong> {new Date().getFullYear() - new Date(client.birth_date).getFullYear()}</div>
+                    )}
+                    {client.gender && (
+                      <div><strong>מין:</strong> {client.gender === 'male' ? 'זכר' : client.gender === 'female' ? 'נקבה' : client.gender}</div>
+                    )}
+                    
+                    {/* הצגת נקודות זיכוי רק אם קיימות */}
+                    {client.tax_credit_points && client.tax_credit_points > 0 && (
+                      <div><strong>נקודות זיכוי (ידני):</strong> {client.tax_credit_points}</div>
+                    )}
+                    
+                    {/* הצגת שדות נוספים רק אם קיימים ומוגדרים */}
+                    {client.marital_status && (
+                      <div><strong>מצב משפחתי:</strong> {client.marital_status}</div>
+                    )}
+                    {client.num_children && client.num_children > 0 && (
+                      <div><strong>מספר ילדים:</strong> {client.num_children}</div>
+                    )}
+                    {client.is_disabled && client.disability_percentage && (
+                      <div><strong>אחוז נכות:</strong> {client.disability_percentage}%</div>
                     )}
                     {client.is_new_immigrant && (
                       <div><strong>עולה חדש:</strong> כן {client.immigration_date && `(מ-${new Date(client.immigration_date).getFullYear()})`}</div>
@@ -797,15 +824,22 @@ const SimpleReports: React.FC = () => {
                     {client.is_veteran && (
                       <div><strong>חייל משוחרר:</strong> כן {client.military_discharge_date && `(${new Date(client.military_discharge_date).getFullYear()})`}</div>
                     )}
-                    {client.reserve_duty_days > 0 && (
+                    {client.reserve_duty_days && client.reserve_duty_days > 0 && (
                       <div><strong>ימי מילואים:</strong> {client.reserve_duty_days} ימים בשנה</div>
+                    )}
+                    
+                    {/* אם אין נתונים מיוחדים */}
+                    {!client.marital_status && !client.num_children && !client.is_disabled && 
+                     !client.is_new_immigrant && !client.is_veteran && !client.reserve_duty_days && 
+                     (!client.tax_credit_points || client.tax_credit_points === 0) && (
+                      <div style={{ color: '#6c757d', fontStyle: 'italic' }}>לא הוזנו פרטים מיוחדים למיסוי</div>
                     )}
                   </div>
                 </div>
 
-                {/* Tax Credits Calculation */}
+                {/* Tax Credits Display - רק הצגה ללא חישובים */}
                 <div>
-                  <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>חישוב נקודות זיכוי</h5>
+                  <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>נקודות זיכוי</h5>
                   <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}>
                     {client.tax_credit_points && client.tax_credit_points > 0 ? (
                       <div>
@@ -813,103 +847,116 @@ const SimpleReports: React.FC = () => {
                         <div><strong>סכום זיכוי שנתי:</strong> ₪{(client.tax_credit_points * 2640).toLocaleString()}</div>
                       </div>
                     ) : (
-                      <div>
-                        <div><strong>נקודת זיכוי בסיסית:</strong> 1.0 נקודה</div>
-                        {client.num_children > 0 && (
-                          <div><strong>זיכוי לילדים:</strong> {client.num_children * 0.5} נקודות</div>
-                        )}
-                        {client.is_disabled && client.disability_percentage >= 40 && (
-                          <div><strong>זיכוי נכות:</strong> {client.disability_percentage >= 75 ? '3.0' : '1.5'} נקודות</div>
-                        )}
-                        {client.is_new_immigrant && client.immigration_date && 
-                         (new Date().getFullYear() - new Date(client.immigration_date).getFullYear() <= 3.5) && (
-                          <div><strong>זיכוי עולה חדש:</strong> 1.0 נקודה</div>
-                        )}
-                        {client.reserve_duty_days > 0 && (
-                          <div><strong>זיכוי מילואים:</strong> {Math.min(client.reserve_duty_days / 30, 1).toFixed(1)} נקודות</div>
-                        )}
-                        <div style={{ borderTop: '1px solid #eee', paddingTop: '5px', marginTop: '5px', fontWeight: 'bold' }}>
-                          <div><strong>סה"כ נקודות זיכוי:</strong> {(() => {
-                            let total = 1; // בסיסי
-                            if (client.num_children) total += client.num_children * 0.5;
-                            if (client.is_disabled && client.disability_percentage >= 75) total += 3;
-                            else if (client.is_disabled && client.disability_percentage >= 40) total += 1.5;
-                            if (client.is_new_immigrant && client.immigration_date && 
-                                (new Date().getFullYear() - new Date(client.immigration_date).getFullYear() <= 3.5)) total += 1;
-                            if (client.reserve_duty_days > 0) total += Math.min(client.reserve_duty_days / 30, 1);
-                            return total.toFixed(1);
-                          })()} נקודות</div>
-                          <div><strong>סכום זיכוי שנתי:</strong> ₪{(() => {
-                            let total = 1;
-                            if (client.num_children) total += client.num_children * 0.5;
-                            if (client.is_disabled && client.disability_percentage >= 75) total += 3;
-                            else if (client.is_disabled && client.disability_percentage >= 40) total += 1.5;
-                            if (client.is_new_immigrant && client.immigration_date && 
-                                (new Date().getFullYear() - new Date(client.immigration_date).getFullYear() <= 3.5)) total += 1;
-                            if (client.reserve_duty_days > 0) total += Math.min(client.reserve_duty_days / 30, 1);
-                            return (total * 2640).toLocaleString();
-                          })()}</div>
-                        </div>
+                      <div style={{ color: '#6c757d', fontStyle: 'italic' }}>
+                        לא הוזנו נקודות זיכוי
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Sample Tax Calculation */}
+              {/* Current Case Tax Calculation - חישוב מס למקרה הנוכחי */}
               <div style={{ marginTop: '15px' }}>
-                <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>דוגמה לחישוב מס (על הכנסה שנתית של ₪200,000)</h5>
+                <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>חישוב מס למקרה הנוכחי</h5>
                 <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
-                    <div>
-                      <strong>מס בסיסי:</strong>
-                      <div>₪0-84,000: ₪8,400 (10%)</div>
-                      <div>₪84,001-121,000: ₪5,180 (14%)</div>
-                      <div>₪121,001-200,000: ₪15,800 (20%)</div>
-                      <div style={{ borderTop: '1px solid #eee', paddingTop: '5px', marginTop: '5px' }}>
-                        <strong>סה"כ מס בסיסי: ₪29,380</strong>
+                  {(() => {
+                    // חישוב הכנסה שנתית נוכחית
+                    const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
+                      sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+                    const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
+                      sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0)), 0);
+                    const totalAnnualIncome = (monthlyPension + monthlyAdditional) * 12;
+                    
+                    if (totalAnnualIncome === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', color: '#6c757d', fontStyle: 'italic' }}>
+                          אין הכנסות מוגדרות לחישוב מס
+                        </div>
+                      );
+                    }
+                    
+                    // חישוב מס בסיסי לפי מדרגות
+                    let baseTax = 0;
+                    let remaining = totalAnnualIncome;
+                    const brackets = [
+                      { min: 0, max: 84000, rate: 0.10 },
+                      { min: 84000, max: 121000, rate: 0.14 },
+                      { min: 121000, max: 202000, rate: 0.20 },
+                      { min: 202000, max: 420000, rate: 0.31 },
+                      { min: 420000, max: 672000, rate: 0.35 },
+                      { min: 672000, max: Infinity, rate: 0.47 }
+                    ];
+                    
+                    const taxBreakdown = [];
+                    for (const bracket of brackets) {
+                      if (remaining <= 0) break;
+                      const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
+                      const taxInBracket = taxableInBracket * bracket.rate;
+                      if (taxableInBracket > 0) {
+                        baseTax += taxInBracket;
+                        taxBreakdown.push({
+                          range: bracket.max === Infinity ? `₪${bracket.min.toLocaleString()}+` : `₪${bracket.min.toLocaleString()}-${bracket.max.toLocaleString()}`,
+                          amount: taxableInBracket,
+                          rate: (bracket.rate * 100).toFixed(0),
+                          tax: taxInBracket
+                        });
+                      }
+                      remaining -= taxableInBracket;
+                    }
+                    
+                    // חישוב נקודות זיכוי
+                    const taxCredits = client?.tax_credit_points ? client.tax_credit_points * 2640 : 0;
+                    const finalTax = Math.max(0, baseTax - taxCredits);
+                    
+                    return (
+                      <div>
+                        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                          <strong>סך הכנסה שנתית: ₪{totalAnnualIncome.toLocaleString()}</strong>
+                          <div>הכנסה חודשית: ₪{(totalAnnualIncome / 12).toLocaleString()}</div>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+                          <div>
+                            <strong>חישוב מס לפי מדרגות:</strong>
+                            {taxBreakdown.map((item, index) => (
+                              <div key={index}>
+                                {item.range}: ₪{item.tax.toLocaleString()} ({item.rate}%)
+                              </div>
+                            ))}
+                            <div style={{ borderTop: '1px solid #eee', paddingTop: '5px', marginTop: '5px' }}>
+                              <strong>סה"כ מס בסיסי: ₪{baseTax.toLocaleString()}</strong>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <strong>נקודות זיכוי:</strong>
+                            {client?.tax_credit_points && client.tax_credit_points > 0 ? (
+                              <div>
+                                <div>נקודות: {client.tax_credit_points}</div>
+                                <div>זיכוי שנתי: ₪{taxCredits.toLocaleString()}</div>
+                              </div>
+                            ) : (
+                              <div style={{ color: '#6c757d' }}>ללא נקודות זיכוי</div>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <strong>מס סופי:</strong>
+                            <div>מס בסיסי: ₪{baseTax.toLocaleString()}</div>
+                            {taxCredits > 0 && (
+                              <div>פחות זיכוי: ₪{taxCredits.toLocaleString()}</div>
+                            )}
+                            <div style={{ borderTop: '1px solid #eee', paddingTop: '5px', marginTop: '5px', fontWeight: 'bold', color: '#28a745' }}>
+                              <strong>מס לתשלום: ₪{finalTax.toLocaleString()}</strong>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                              מס חודשי: ₪{(finalTax / 12).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <strong>נקודות זיכוי:</strong>
-                      <div>זיכוי שנתי: ₪{(() => {
-                        let total = 1;
-                        if (client.num_children) total += client.num_children * 0.5;
-                        if (client.is_disabled && client.disability_percentage >= 75) total += 3;
-                        else if (client.is_disabled && client.disability_percentage >= 40) total += 1.5;
-                        if (client.is_new_immigrant && client.immigration_date && 
-                            (new Date().getFullYear() - new Date(client.immigration_date).getFullYear() <= 3.5)) total += 1;
-                        if (client.reserve_duty_days > 0) total += Math.min(client.reserve_duty_days / 30, 1);
-                        return (total * 2640).toLocaleString();
-                      })()}</div>
-                    </div>
-                    <div>
-                      <strong>מס סופי:</strong>
-                      <div>מס בסיסי: ₪29,380</div>
-                      <div>פחות זיכוי: ₪{(() => {
-                        let total = 1;
-                        if (client.num_children) total += client.num_children * 0.5;
-                        if (client.is_disabled && client.disability_percentage >= 75) total += 3;
-                        else if (client.is_disabled && client.disability_percentage >= 40) total += 1.5;
-                        if (client.is_new_immigrant && client.immigration_date && 
-                            (new Date().getFullYear() - new Date(client.immigration_date).getFullYear() <= 3.5)) total += 1;
-                        if (client.reserve_duty_days > 0) total += Math.min(client.reserve_duty_days / 30, 1);
-                        return (total * 2640).toLocaleString();
-                      })()}</div>
-                      <div style={{ borderTop: '1px solid #eee', paddingTop: '5px', marginTop: '5px', fontWeight: 'bold', color: '#28a745' }}>
-                        <strong>מס לתשלום: ₪{Math.max(0, 29380 - (() => {
-                          let total = 1;
-                          if (client.num_children) total += client.num_children * 0.5;
-                          if (client.is_disabled && client.disability_percentage >= 75) total += 3;
-                          else if (client.is_disabled && client.disability_percentage >= 40) total += 1.5;
-                          if (client.is_new_immigrant && client.immigration_date && 
-                              (new Date().getFullYear() - new Date(client.immigration_date).getFullYear() <= 3.5)) total += 1;
-                          if (client.reserve_duty_days > 0) total += Math.min(client.reserve_duty_days / 30, 1);
-                          return total * 2640;
-                        })()).toLocaleString()}</strong>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()} 
                 </div>
               </div>
             </div>
@@ -948,10 +995,10 @@ const SimpleReports: React.FC = () => {
                     {additionalIncomes.map(income => (
                       <React.Fragment key={`income-${income.id}`}>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>
-                          {income.description || income.income_type || income.source_type}
+                          {income.description || income.income_type}
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
-                          מס {income.description || income.income_type || income.source_type}
+                          מס {income.description || income.income_type}
                         </th>
                       </React.Fragment>
                     ))}
@@ -1030,7 +1077,3 @@ const SimpleReports: React.FC = () => {
 };
 
 export default SimpleReports;
-
-
-
-
