@@ -916,9 +916,7 @@ const SimpleReports: React.FC = () => {
                     {client.marital_status && (
                       <div><strong>מצב משפחתי:</strong> {client.marital_status}</div>
                     )}
-                    {client.num_children && client.num_children > 0 && (
-                      <div><strong>מספר ילדים:</strong> {client.num_children}</div>
-                    )}
+                    {/* שדה מספר ילדים הוסר לפי דרישה */}
                     {client.is_disabled && client.disability_percentage && (
                       <div><strong>אחוז נכות:</strong> {client.disability_percentage}%</div>
                     )}
@@ -928,13 +926,11 @@ const SimpleReports: React.FC = () => {
                     {client.is_veteran && (
                       <div><strong>חייל משוחרר:</strong> כן {client.military_discharge_date && `(${new Date(client.military_discharge_date).getFullYear()})`}</div>
                     )}
-                    {client.reserve_duty_days && client.reserve_duty_days > 0 && (
-                      <div><strong>ימי מילואים:</strong> {client.reserve_duty_days} ימים בשנה</div>
-                    )}
+                    {/* שדה ימי מילואים הוסר לפי דרישה */}
                     
                     {/* אם אין נתונים מיוחדים */}
-                    {!client.marital_status && !client.num_children && !client.is_disabled && 
-                     !client.is_new_immigrant && !client.is_veteran && !client.reserve_duty_days && 
+                    {!client.marital_status && !client.is_disabled && 
+                     !client.is_new_immigrant && !client.is_veteran && 
                      (!client.tax_credit_points || client.tax_credit_points === 0) && (
                       <div style={{ color: '#6c757d', fontStyle: 'italic' }}>לא הוזנו פרטים מיוחדים למיסוי</div>
                     )}
