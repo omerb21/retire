@@ -265,7 +265,9 @@ const SimpleReports: React.FC = () => {
   const generateYearlyProjection = (): YearlyProjection[] => {
     if (!reportData) return [];
     
-    const currentYear = new Date().getFullYear();
+    // קביעת השנה הנוכחית - 2025 במקום להשתמש בתאריך המערכת
+    // הערה: אנו משתמשים בערך קבוע כדי לוודא שהתזרים מתחיל בשנה הנכונה
+    const currentYear = 2025;
     const clientBirthYear = 1957; // Default birth year if not available
     const maxAge = 90;
     const maxYear = clientBirthYear + maxAge;
@@ -284,14 +286,15 @@ const SimpleReports: React.FC = () => {
       
       // Add pension fund incomes
       pensionFunds.forEach(fund => {
-        // תיקון חישוב שנת התחלה - התחשבות בשנים עתידיות בלבד
+        // תיקון חישוב שנת התחלה - השתמש בשנת ההתחלה המקורית של הקרן
         let fundStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
         if (fund.start_date) {
-          const parsedYear = parseInt(fund.start_date.split('-')[0]);
-          // אם הקרן התחילה בעתיד, נשתמש בתאריך ההתחלה המקורי
-          // אם הקרן התחילה בעבר, נשתמש בשנה הנוכחית
-          fundStartYear = Math.max(parsedYear, currentYear);
+          // השתמש בשנת ההתחלה המקורית של הקרן
+          fundStartYear = parseInt(fund.start_date.split('-')[0]);
+          
+          // הדפסת מידע לבדיקה
+          console.log(`Fund ${fund.fund_name || 'unnamed'} start date: ${fund.start_date}, parsed year: ${fundStartYear}`);
         }
         
         const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
@@ -311,14 +314,15 @@ const SimpleReports: React.FC = () => {
       
       // Add additional incomes
       additionalIncomes.forEach(income => {
-        // תיקון חישוב שנת התחלה - התחשבות בשנים עתידיות בלבד
+        // תיקון חישוב שנת התחלה - השתמש בשנת ההתחלה המקורית של ההכנסה
         let incomeStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
         if (income.start_date) {
-          const parsedYear = parseInt(income.start_date.split('-')[0]);
-          // אם ההכנסה מתחילה בעתיד, נשתמש בתאריך ההתחלה המקורי
-          // אם ההכנסה מתחילה בעבר, נשתמש בשנה הנוכחית
-          incomeStartYear = Math.max(parsedYear, currentYear);
+          // השתמש בשנת ההתחלה המקורית של ההכנסה
+          incomeStartYear = parseInt(income.start_date.split('-')[0]);
+          
+          // הדפסת מידע לבדיקה
+          console.log(`Income ${income.income_name || 'unnamed'} start date: ${income.start_date}, parsed year: ${incomeStartYear}`);
         }
         
         const incomeEndYear = income.end_date ? parseInt(income.end_date.split('-')[0]) : maxYear;
