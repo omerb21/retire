@@ -907,11 +907,6 @@ const SimpleReports: React.FC = () => {
                       <div><strong>מין:</strong> {client.gender === 'male' ? 'זכר' : client.gender === 'female' ? 'נקבה' : client.gender}</div>
                     )}
                     
-                    {/* הצגת נקודות זיכוי רק אם קיימות */}
-                    {client.tax_credit_points && client.tax_credit_points > 0 && (
-                      <div><strong>נקודות זיכוי (ידני):</strong> {client.tax_credit_points}</div>
-                    )}
-                    
                     {/* הצגת שדות נוספים רק אם קיימים ומוגדרים */}
                     {client.marital_status && (
                       <div>
