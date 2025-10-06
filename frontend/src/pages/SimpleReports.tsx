@@ -265,30 +265,9 @@ const SimpleReports: React.FC = () => {
   const generateYearlyProjection = (): YearlyProjection[] => {
     if (!reportData) return [];
     
-    // קביעת שנת התחלה של התזרים - נתחיל משנה קודמת כדי לכלול קרנות שהתחילו בעבר
+    // קביעת שנת התחלה של התזרים - תמיד מתחיל משנת 2025 (השנה הנוכחית)
     const currentYear = 2025;
-    
-    // מציאת השנה המוקדמת ביותר שבה מתחילה קרן פנסיה או הכנסה נוספת
-    let earliestStartYear = currentYear;
-    
-    // בדיקת קרנות פנסיה
-    pensionFunds.forEach(fund => {
-      if (fund.start_date) {
-        const fundStartYear = parseInt(fund.start_date.split('-')[0]);
-        earliestStartYear = Math.min(earliestStartYear, fundStartYear);
-      }
-    });
-    
-    // בדיקת הכנסות נוספות
-    additionalIncomes.forEach(income => {
-      if (income.start_date) {
-        const incomeStartYear = parseInt(income.start_date.split('-')[0]);
-        earliestStartYear = Math.min(earliestStartYear, incomeStartYear);
-      }
-    });
-    
-    // התזרים יתחיל מהשנה המוקדמת ביותר
-    const projectionStartYear = earliestStartYear;
+    const projectionStartYear = currentYear;
     const clientBirthYear = 1957; // Default birth year if not available
     const maxAge = 90;
     const maxYear = clientBirthYear + maxAge;
@@ -307,15 +286,17 @@ const SimpleReports: React.FC = () => {
       
       // Add pension fund incomes
       pensionFunds.forEach(fund => {
-        // תיקון חישוב שנת התחלה - השתמש בשנת ההתחלה המקורית של הקרן
+        // חישוב שנת התחלה נכונה - קרן שהתחילה בעבר תוצג מהשנה הנוכחית
         let fundStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
         if (fund.start_date) {
-          // השתמש בשנת ההתחלה המקורית של הקרן
-          fundStartYear = parseInt(fund.start_date.split('-')[0]);
+          const parsedYear = parseInt(fund.start_date.split('-')[0]);
+          // אם הקרן מתחילה בעתיד, נשתמש בשנת ההתחלה המקורית
+          // אם הקרן התחילה בעבר או בהווה, נשתמש בשנה הנוכחית
+          fundStartYear = Math.max(parsedYear, currentYear);
           
           // הדפסת מידע לבדיקה
-          console.log(`Fund ${fund.fund_name || 'unnamed'} start date: ${fund.start_date}, parsed year: ${fundStartYear}`);
+          console.log(`Fund ${fund.fund_name || 'unnamed'} original start: ${parsedYear}, effective start: ${fundStartYear}, current year: ${year}`);
         }
         
         const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
@@ -335,15 +316,17 @@ const SimpleReports: React.FC = () => {
       
       // Add additional incomes
       additionalIncomes.forEach(income => {
-        // תיקון חישוב שנת התחלה - השתמש בשנת ההתחלה המקורית של ההכנסה
+        // חישוב שנת התחלה נכונה - הכנסה שהתחילה בעבר תוצג מהשנה הנוכחית
         let incomeStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
         if (income.start_date) {
-          // השתמש בשנת ההתחלה המקורית של ההכנסה
-          incomeStartYear = parseInt(income.start_date.split('-')[0]);
+          const parsedYear = parseInt(income.start_date.split('-')[0]);
+          // אם ההכנסה מתחילה בעתיד, נשתמש בשנת ההתחלה המקורית
+          // אם ההכנסה התחילה בעבר או בהווה, נשתמש בשנה הנוכחית
+          incomeStartYear = Math.max(parsedYear, currentYear);
           
           // הדפסת מידע לבדיקה
-          console.log(`Income ${income.income_name || 'unnamed'} start date: ${income.start_date}, parsed year: ${incomeStartYear}`);
+          console.log(`Income ${income.income_name || 'unnamed'} original start: ${parsedYear}, effective start: ${incomeStartYear}, current year: ${year}`);
         }
         
         const incomeEndYear = income.end_date ? parseInt(income.end_date.split('-')[0]) : maxYear;
