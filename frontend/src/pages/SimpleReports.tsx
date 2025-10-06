@@ -357,17 +357,29 @@ const SimpleReports: React.FC = () => {
         totalMonthlyTax = totalAnnualTax / 12;
         
         // חלוקת המס באופן יחסי לפי ההכנסות
+        // חישוב סך ההכנסה החייבת במס
+        const taxableTotalMonthlyIncome = monthlyTaxableIncome + monthlyTaxableAdditionalIncome;
+        
         pensionFunds.forEach((fund, index) => {
           const incomeAmount = incomeBreakdown[index] || 0;
-          const taxPortion = totalMonthlyIncome > 0 ? (incomeAmount / totalMonthlyIncome) * totalMonthlyTax : 0;
+          // חלוקת המס רק על ההכנסות החייבות במס
+          const taxPortion = taxableTotalMonthlyIncome > 0 ? (incomeAmount / taxableTotalMonthlyIncome) * totalMonthlyTax : 0;
           taxBreakdown.push(Math.round(taxPortion));
         });
         
         additionalIncomes.forEach((income, index) => {
           const incomeIndex = pensionFunds.length + index;
           const incomeAmount = incomeBreakdown[incomeIndex] || 0;
-          const taxPortion = totalMonthlyIncome > 0 ? (incomeAmount / totalMonthlyIncome) * totalMonthlyTax : 0;
-          taxBreakdown.push(Math.round(taxPortion));
+          
+          // אם ההכנסה פטורה ממס, המס הוא אפס
+          if (income.tax_treatment === 'exempt') {
+            taxBreakdown.push(0);
+          } else {
+            // חלוקת המס רק על ההכנסות החייבות במס
+            // משתמשים במשתנה שהוגדר למעלה
+            const taxPortion = taxableTotalMonthlyIncome > 0 ? (incomeAmount / taxableTotalMonthlyIncome) * totalMonthlyTax : 0;
+            taxBreakdown.push(Math.round(taxPortion));
+          }
         });
       } else {
         // אין הכנסה - אין מס
