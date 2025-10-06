@@ -150,7 +150,7 @@ class TaxCalculator:
     
     def calculate_applicable_credits(self, input_data: TaxCalculationInput) -> Tuple[float, List[TaxCreditInput]]:
         """
-        מחשב את נקודות הזיכוי הרלוונטיות
+        מחשב את נקודות הזיכוי מהקלט בלבד - ללא חישובים אוטומטיים
         
         Args:
             input_data: נתוני הקלט
@@ -161,116 +161,7 @@ class TaxCalculator:
         applied_credits = []
         total_credits = 0.0
         
-        personal = input_data.personal_details
-        age = personal.get_age()
-        
-        # זיכוי בסיסי - לכולם
-        basic_credit = next((c for c in self.available_credits if c.code == "basic"), None)
-        if basic_credit:
-            applied_credits.append(TaxCreditInput(
-                code=basic_credit.code,
-                amount=basic_credit.amount,
-                description=basic_credit.description
-            ))
-            total_credits += basic_credit.amount
-        
-        # זיכוי בן/בת זוג
-        if personal.marital_status == "married":
-            spouse_credit = next((c for c in self.available_credits if c.code == "spouse"), None)
-            if spouse_credit:
-                applied_credits.append(TaxCreditInput(
-                    code=spouse_credit.code,
-                    amount=spouse_credit.amount,
-                    description=spouse_credit.description
-                ))
-                total_credits += spouse_credit.amount
-        
-        # זיכוי ילדים
-        if personal.num_children > 0:
-            child_credit = next((c for c in self.available_credits if c.code == "child"), None)
-            if child_credit:
-                child_amount = child_credit.amount * personal.num_children
-                applied_credits.append(TaxCreditInput(
-                    code=child_credit.code,
-                    amount=child_amount,
-                    description=f"{child_credit.description} ({personal.num_children} ילדים)"
-                ))
-                total_credits += child_amount
-        
-        # זיכוי זקנה
-        if age >= 67:
-            elderly_credit = next((c for c in self.available_credits if c.code == "elderly"), None)
-            if elderly_credit:
-                applied_credits.append(TaxCreditInput(
-                    code=elderly_credit.code,
-                    amount=elderly_credit.amount,
-                    description=elderly_credit.description
-                ))
-                total_credits += elderly_credit.amount
-        
-        # זיכוי עולה חדש
-        if personal.is_new_immigrant:
-            immigrant_credit = next((c for c in self.available_credits if c.code == "new_immigrant"), None)
-            if immigrant_credit:
-                applied_credits.append(TaxCreditInput(
-                    code=immigrant_credit.code,
-                    amount=immigrant_credit.amount,
-                    description=immigrant_credit.description
-                ))
-                total_credits += immigrant_credit.amount
-        
-        # זיכוי נכה
-        if personal.is_disabled:
-            disabled_credit = next((c for c in self.available_credits if c.code == "disabled"), None)
-            if disabled_credit:
-                # חישוב לפי אחוז נכות
-                disability_amount = disabled_credit.amount
-                if personal.disability_percentage:
-                    disability_amount = disabled_credit.amount * (personal.disability_percentage / 100)
-                
-                applied_credits.append(TaxCreditInput(
-                    code=disabled_credit.code,
-                    amount=disability_amount,
-                    description=f"{disabled_credit.description} ({personal.disability_percentage}%)"
-                ))
-                total_credits += disability_amount
-        
-        # זיכוי נכה צה"ל
-        if personal.is_veteran:
-            veteran_credit = next((c for c in self.available_credits if c.code == "veteran"), None)
-            if veteran_credit:
-                applied_credits.append(TaxCreditInput(
-                    code=veteran_credit.code,
-                    amount=veteran_credit.amount,
-                    description=veteran_credit.description
-                ))
-                total_credits += veteran_credit.amount
-        
-        # זיכוי סטודנט
-        if personal.is_student:
-            student_credit = next((c for c in self.available_credits if c.code == "student"), None)
-            if student_credit:
-                applied_credits.append(TaxCreditInput(
-                    code=student_credit.code,
-                    amount=student_credit.amount,
-                    description=student_credit.description
-                ))
-                total_credits += student_credit.amount
-        
-        # זיכוי מילואים
-        if personal.reserve_duty_days > 0:
-            reserve_credit = next((c for c in self.available_credits if c.code == "reserve_duty"), None)
-            if reserve_credit:
-                # חישוב לפי ימי מילואים (מקסימום שנה)
-                reserve_amount = reserve_credit.amount * min(personal.reserve_duty_days / 365, 1.0)
-                applied_credits.append(TaxCreditInput(
-                    code=reserve_credit.code,
-                    amount=reserve_amount,
-                    description=f"{reserve_credit.description} ({personal.reserve_duty_days} ימים)"
-                ))
-                total_credits += reserve_amount
-        
-        # זיכויים נוספים שהוזנו ידנית
+        # רק זיכויים שהוזנו ידנית מהקלט
         for credit in input_data.additional_tax_credits:
             applied_credits.append(credit)
             total_credits += credit.amount or 0

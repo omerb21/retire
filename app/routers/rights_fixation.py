@@ -25,7 +25,12 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
     """
     חישוב קיבוע זכויות מלא עבור לקוח
     
-    Body:
+    Body format 1 (client_id):
+    {
+        "client_id": 1
+    }
+    
+    Body format 2 (detailed):
     {
         "grants": [
             {
@@ -40,8 +45,54 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
     }
     """
     try:
-        result = calculate_full_fixation(client_data)
-        return result
+        print(f"DEBUG: Rights fixation router called with: {client_data}")
+        
+        # אם זה client_id, נטען את הנתונים מהמסד
+        if "client_id" in client_data and "grants" not in client_data:
+            from app.database import SessionLocal
+            from app.models.client import Client
+            from app.models.grant import Grant
+            from datetime import date
+            
+            client_id = client_data["client_id"]
+            
+            with SessionLocal() as db:
+                # טעינת לקוח
+                client = db.query(Client).filter(Client.id == client_id).first()
+                if not client:
+                    raise HTTPException(status_code=404, detail="Client not found")
+                
+                # טעינת מענקים
+                grants = db.query(Grant).filter(Grant.client_id == client_id).all()
+                
+                # הכנת נתונים לשירות
+                formatted_data = {
+                    "id": client_id,
+                    "birth_date": client.birth_date.isoformat() if client.birth_date else None,
+                    "gender": client.gender,
+                    "grants": [
+                        {
+                            "grant_amount": grant.amount,
+                            "work_start_date": grant.work_start_date.isoformat() if grant.work_start_date else None,
+                            "work_end_date": grant.work_end_date.isoformat() if grant.work_end_date else None,
+                            "employer_name": grant.employer_name,
+                            "grant_type": grant.grant_type
+                        }
+                        for grant in grants
+                    ],
+                    "eligibility_date": date.today().isoformat(),
+                    "eligibility_year": date.today().year
+                }
+                
+                print(f"DEBUG: Formatted data for service: {formatted_data}")
+                result = calculate_full_fixation(formatted_data)
+                print(f"DEBUG: Service result: {result}")
+                return result
+        else:
+            # פורמט מפורט - שימוש ישיר
+            result = calculate_full_fixation(client_data)
+            return result
+            
     except Exception as e:
         logger.error(f"שגיאה בחישוב קיבוע זכויות: {e}")
         raise HTTPException(status_code=500, detail=f"שגיאה בחישוב: {str(e)}")

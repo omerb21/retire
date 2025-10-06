@@ -122,12 +122,13 @@ const SimpleReports: React.FC = () => {
               let remainingIncome = annualGrossAmount;
               
               const taxBrackets = [
-                { min: 0, max: 84000, rate: 0.10 },
-                { min: 84000, max: 121000, rate: 0.14 },
-                { min: 121000, max: 202000, rate: 0.20 },
-                { min: 202000, max: 420000, rate: 0.31 },
-                { min: 420000, max: 672000, rate: 0.35 },
-                { min: 672000, max: Infinity, rate: 0.47 }
+                { min: 0, max: 84120, rate: 0.10 },
+                { min: 84120, max: 120720, rate: 0.14 },
+                { min: 120720, max: 193800, rate: 0.20 },
+                { min: 193800, max: 269280, rate: 0.31 },
+                { min: 269280, max: 560280, rate: 0.35 },
+                { min: 560280, max: 721560, rate: 0.47 },
+                { min: 721560, max: Infinity, rate: 0.50 }
               ];
               
               for (const bracket of taxBrackets) {
@@ -301,12 +302,13 @@ const SimpleReports: React.FC = () => {
         let remainingIncome = totalAnnualIncome;
         
         const taxBrackets = [
-          { min: 0, max: 84000, rate: 0.10 },
-          { min: 84000, max: 121000, rate: 0.14 },
-          { min: 121000, max: 202000, rate: 0.20 },
-          { min: 202000, max: 420000, rate: 0.31 },
-          { min: 420000, max: 672000, rate: 0.35 },
-          { min: 672000, max: Infinity, rate: 0.47 }
+          { min: 0, max: 84120, rate: 0.10 },
+          { min: 84120, max: 120720, rate: 0.14 },
+          { min: 120720, max: 193800, rate: 0.20 },
+          { min: 193800, max: 269280, rate: 0.31 },
+          { min: 269280, max: 560280, rate: 0.35 },
+          { min: 560280, max: 721560, rate: 0.47 },
+          { min: 721560, max: Infinity, rate: 0.50 }
         ];
         
         for (const bracket of taxBrackets) {
@@ -706,12 +708,13 @@ const SimpleReports: React.FC = () => {
                   let tax = 0;
                   let remaining = totalAnnualIncome;
                   const brackets = [
-                    { max: 84000, rate: 0.10 },
-                    { max: 121000, rate: 0.14 },
-                    { max: 202000, rate: 0.20 },
-                    { max: 420000, rate: 0.31 },
-                    { max: 672000, rate: 0.35 },
-                    { max: Infinity, rate: 0.47 }
+                    { max: 84120, rate: 0.10 },
+                    { max: 120720, rate: 0.14 },
+                    { max: 193800, rate: 0.20 },
+                    { max: 269280, rate: 0.31 },
+                    { max: 560280, rate: 0.35 },
+                    { max: 721560, rate: 0.47 },
+                    { max: Infinity, rate: 0.50 }
                   ];
                   
                   let prevMax = 0;
@@ -889,12 +892,13 @@ const SimpleReports: React.FC = () => {
                     let baseTax = 0;
                     let remaining = totalAnnualIncome;
                     const brackets = [
-                      { min: 0, max: 84000, rate: 0.10 },
-                      { min: 84000, max: 121000, rate: 0.14 },
-                      { min: 121000, max: 202000, rate: 0.20 },
-                      { min: 202000, max: 420000, rate: 0.31 },
-                      { min: 420000, max: 672000, rate: 0.35 },
-                      { min: 672000, max: Infinity, rate: 0.47 }
+                      { min: 0, max: 84120, rate: 0.10 },
+                      { min: 84120, max: 120720, rate: 0.14 },
+                      { min: 120720, max: 193800, rate: 0.20 },
+                      { min: 193800, max: 269280, rate: 0.31 },
+                      { min: 269280, max: 560280, rate: 0.35 },
+                      { min: 560280, max: 721560, rate: 0.47 },
+                      { min: 721560, max: Infinity, rate: 0.50 }
                     ];
                     
                     const taxBreakdown = [];

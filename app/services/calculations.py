@@ -265,6 +265,17 @@ def calculate_tax_impact_for_client(client_data: Dict[str, Any],
                 else:
                     other_income += amount
         
+        # הכנת נקודות זיכוי מהקלט
+        additional_credits = []
+        if client_data.get('tax_credit_points', 0) > 0:
+            from ..schemas.tax_schemas import TaxCreditInput
+            credit_amount = client_data.get('tax_credit_points', 0) * 2640  # ערך נקודת זיכוי 2024
+            additional_credits.append(TaxCreditInput(
+                code="manual_input",
+                amount=credit_amount,
+                description=f"נקודות זיכוי ידניות ({client_data.get('tax_credit_points', 0)} נקודות)"
+            ))
+
         # יצירת קלט לחישוב מס
         tax_input = TaxCalculationInput(
             tax_year=datetime.now().year,
@@ -276,7 +287,8 @@ def calculate_tax_impact_for_client(client_data: Dict[str, Any],
             pension_contributions=client_data.get('pension_contributions', 0),
             study_fund_contributions=client_data.get('study_fund_contributions', 0),
             insurance_premiums=client_data.get('insurance_premiums', 0),
-            charitable_donations=client_data.get('charitable_donations', 0)
+            charitable_donations=client_data.get('charitable_donations', 0),
+            additional_tax_credits=additional_credits
         )
         
         # חישוב המס

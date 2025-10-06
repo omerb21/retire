@@ -5,6 +5,7 @@ import { apiFetch } from "../lib/api";
 type AdditionalIncome = {
   id?: number;
   source_type: string;
+  income_name: string; // הוספת שדה שם הכנסה
   amount: number;
   frequency: "monthly" | "quarterly" | "annual";
   start_date: string;
@@ -27,6 +28,7 @@ export default function AdditionalIncome() {
   const [error, setError] = useState<string>("");
   const [form, setForm] = useState<Partial<AdditionalIncome>>({
     source_type: "rental",
+    income_name: "", // הוספת שדה שם הכנסה
     amount: 0,
     frequency: "monthly",
     start_date: "",
@@ -109,6 +111,7 @@ export default function AdditionalIncome() {
       // Reset form
       setForm({
         source_type: "rental",
+        income_name: "", // הוספת שדה שם הכנסה
         amount: 0,
         frequency: "monthly",
         start_date: "",
@@ -148,6 +151,7 @@ export default function AdditionalIncome() {
     // Populate form with income data for editing
     setForm({
       source_type: income.source_type,
+      income_name: income.income_name || "", // הוספת שדה שם הכנסה
       amount: income.amount || 0,
       frequency: income.frequency,
       start_date: income.start_date,
@@ -193,6 +197,18 @@ export default function AdditionalIncome() {
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label>שם הכנסה:</label>
+            <input
+              type="text"
+              placeholder="שם הכנסה"
+              value={form.income_name || ""}
+              onChange={(e) => setForm({ ...form, income_name: e.target.value })}
+              style={{ padding: 8, width: "100%" }}
+              required
+            />
           </div>
 
           <input
@@ -299,6 +315,7 @@ export default function AdditionalIncome() {
               <div key={income.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
                   <div><strong>סוג:</strong> {income.source_type}</div>
+                  <div><strong>שם הכנסה:</strong> {income.income_name || ""}</div>
                   <div><strong>סכום:</strong> ₪{income.amount?.toLocaleString()}</div>
                   <div><strong>תדירות:</strong> {
                     income.frequency === "monthly" ? "חודשי" :

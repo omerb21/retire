@@ -29,6 +29,7 @@ export default function PensionFunds() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [form, setForm] = useState<Partial<PensionFund>>({
+    fund_name: "",
     calculation_mode: "calculated",
     balance: 0,
     annuity_factor: 0,
@@ -74,6 +75,9 @@ export default function PensionFunds() {
     
     try {
       // Basic validation
+      if (!form.fund_name || form.fund_name.trim() === "") {
+        throw new Error("חובה למלא שם קרן");
+      }
       if (!form.pension_start_date) {
         throw new Error("חובה למלא תאריך תחילת פנסיה");
       }
@@ -103,7 +107,7 @@ export default function PensionFunds() {
       const payload: Record<string, any> = {
         // Required fields from schema
         client_id: Number(clientId),
-        fund_name: "קרן פנסיה", // Required field in schema
+        fund_name: form.fund_name?.trim() || "קרן פנסיה",
         fund_type: "pension",
         calculation_mode: form.calculation_mode,
         start_date: alignedDate.toISOString().split('T')[0],
@@ -134,6 +138,7 @@ export default function PensionFunds() {
 
       // Reset form
       setForm({
+        fund_name: "",
         calculation_mode: "calculated",
         balance: 0,
         annuity_factor: 0,
@@ -153,8 +158,30 @@ export default function PensionFunds() {
     if (!clientId) return;
 
     try {
-      await apiFetch(`/clients/${clientId}/pension-funds/${fundId}/compute`, {
-        method: "POST",
+      // חישוב הקצבה החודשית על בסיס היתרה והמקדם
+      const fund = funds.find(f => f.id === fundId);
+      if (!fund) {
+        throw new Error("קרן לא נמצאה");
+      }
+      
+      const balance = fund.current_balance || fund.balance || 0;
+      const factor = fund.annuity_factor || 0;
+      
+      if (balance <= 0 || factor <= 0) {
+        throw new Error("יתרה ומקדם קצבה חייבים להיות חיוביים");
+      }
+      
+      // חישוב נכון של הקצבה: יתרה חלקי מקדם קצבה
+      const computed_monthly_amount = Math.round(balance / factor);
+      
+      // עדכון הקרן עם הסכום המחושב
+      await apiFetch(`/clients/${clientId}/pension-funds/${fundId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          ...fund,
+          computed_monthly_amount: computed_monthly_amount,
+          monthly_amount: computed_monthly_amount
+        }),
       });
       
       // Reload to get updated computed amount
@@ -186,6 +213,7 @@ export default function PensionFunds() {
   function handleEdit(fund: PensionFund) {
     // Populate form with fund data for editing
     setForm({
+      fund_name: fund.fund_name || "",
       calculation_mode: fund.calculation_mode,
       balance: fund.balance || 0,
       annuity_factor: fund.annuity_factor || 0,
@@ -219,6 +247,15 @@ export default function PensionFunds() {
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
         <h3>הוסף קרן פנסיה</h3>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 400 }}>
+          <input
+            type="text"
+            placeholder="שם הקרן"
+            value={form.fund_name || ""}
+            onChange={(e) => setForm({ ...form, fund_name: e.target.value })}
+            style={{ padding: 8 }}
+            required
+          />
+          
           <div>
             <label>מצב חישוב:</label>
             <select

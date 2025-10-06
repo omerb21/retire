@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+print("DEBUG: Loading simple_server.py with REAL rights fixation service")
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
@@ -65,8 +66,13 @@ additional_incomes_db = {
         "id": 1,
         "client_id": 1,
         "source_type": "business",
+        "income_name": "הכנסה עסקית", # הוספת שדה שם הכנסה
+        "description": "הכנסה עסקית",
+        "income_type": "עסק עצמאי",
         "amount": 25000,
         "frequency": "monthly",
+        "monthly_amount": 25000,
+        "annual_amount": 300000,
         "start_date": "2025-01-01",
         "end_date": "2035-01-01",
         "indexation_method": "none",
@@ -436,6 +442,7 @@ def create_additional_income(client_id: int, income_data: dict):
             "id": new_id,
             "client_id": client_id,
             "source_type": income_data.get("source_type", "other"),
+            "income_name": income_data.get("income_name", ""),  # הוספת שדה שם הכנסה
             "description": income_data.get("description", ""),
             "amount": income_data.get("amount", 0),
             "frequency": income_data.get("frequency", "monthly"),
@@ -476,6 +483,7 @@ def update_additional_income(client_id: int, income_id: int, income_data: dict):
             "id": income_id,
             "client_id": client_id,
             "source_type": income_data.get("source_type", existing_income.get("source_type")),
+            "income_name": income_data.get("income_name", existing_income.get("income_name", "")),  # הוספת שדה שם הכנסה
             "description": income_data.get("description", existing_income.get("description")),
             "amount": income_data.get("amount", existing_income.get("amount")),
             "frequency": income_data.get("frequency", existing_income.get("frequency")),
@@ -1094,122 +1102,112 @@ def integrate_all(client_id: int, cashflow_data: List = None):
         return []
 
 # Rights fixation endpoints
+@app.post("/api/v1/test-new-endpoint")
+def test_new_endpoint(data: dict):
+    """בדיקת endpoint חדש"""
+    print("DEBUG: NEW ENDPOINT CALLED!")
+    print(f"DEBUG: Data: {data}")
+    return {"status": "success", "message": "New endpoint working!", "data": data}
+
 @app.post("/api/v1/rights-fixation/calculate")
-def calculate_rights_fixation(data: dict):
-    """חישוב קיבוע זכויות מפורט"""
+def calculate_rights_fixation_OVERRIDE(data: dict):
+    """חישוב קיבוע זכויות - OVERRIDE"""
+    with open("debug.log", "a", encoding="utf-8") as f:
+        f.write(f"DEBUG: OVERRIDE ENDPOINT CALLED! Data: {data}\n")
+    print("DEBUG: OVERRIDE ENDPOINT CALLED!")
+    print(f"DEBUG: Data: {data}")
     try:
+        from app.services.rights_fixation import calculate_full_fixation
+        
         client_id = data.get("client_id")
         if not client_id or client_id not in clients_db:
             raise HTTPException(status_code=404, detail="Client not found")
         
         client = clients_db[client_id]
         
-        # בדיקת זכאות
-        birth_date = client.get("birth_date") or client.get("birthdate")
-        if not birth_date:
-            raise HTTPException(status_code=400, detail="Missing birth date")
-        
-        from datetime import datetime, date
-        birth_date_obj = datetime.strptime(birth_date, "%Y-%m-%d").date()
-        today = date.today()
-        age = today.year - birth_date_obj.year - ((today.month, today.day) < (birth_date_obj.month, birth_date_obj.day))
-        
-        gender = client.get("gender", "male")
-        eligibility_age = 67 if gender == "male" else 65
-        
-        if age < eligibility_age:
-            reasons = [f"גיל נוכחי ({age}) נמוך מגיל הזכאות ({eligibility_age})"]
-            eligibility_date = date(birth_date_obj.year + eligibility_age, birth_date_obj.month, birth_date_obj.day)
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "לא זכאי לקיבוע זכויות",
-                    "reasons": reasons,
-                    "eligibility_date": eligibility_date.isoformat()
-                }
-            )
-        
-        # קבלת מענקים
+        # קבלת מענקים מהבקשה או ממסד הנתונים
         grants = []
-        for grant_id, grant in grants_db.items():
-            if grant.get("client_id") == client_id:
-                grants.append(grant)
         
-        # עיבוד מענקים
-        processed_grants = []
-        total_indexed = 0
+        # בדיקה אם יש מענקים בבקשה
+        request_grants = data.get("grants", [])
+        if request_grants:
+            print(f"DEBUG: Using {len(request_grants)} grants from request")
+            for i, grant in enumerate(request_grants):
+                # התאמת השדות לפורמט שהשירות מצפה לו
+                adapted_grant = {
+                    "id": i + 1,  # מזהה זמני
+                    "client_id": client_id,
+                    "grant_type": "severance",  # ברירת מחדל
+                    "grant_amount": grant.get("grant_amount"),
+                    "amount": grant.get("grant_amount"),  # שמירת השדה המקורי גם
+                    "grant_date": grant.get("grant_date"),
+                    "employer_name": grant.get("employer_name"),
+                    "tax_withholding": grant.get("tax_withholding", 0),
+                    "is_exempt": grant.get("is_exempt", False),
+                    "exempt_amount": grant.get("exempt_amount", 0),
+                    "work_start_date": grant.get("work_start_date"),
+                    "work_end_date": grant.get("work_end_date")
+                }
+                grants.append(adapted_grant)
+        else:
+            # אם אין מענקים בבקשה, נשתמש במענקים ממסד הנתונים
+            print(f"DEBUG: Using grants from database for client {client_id}")
+            for grant_id, grant in grants_db.items():
+                if grant.get("client_id") == client_id:
+                    # התאמת השדות לפורמט שהשירות מצפה לו
+                    adapted_grant = {
+                        "id": grant.get("id"),
+                        "client_id": grant.get("client_id"),
+                        "grant_type": grant.get("grant_type"),
+                        "grant_amount": grant.get("amount"),  # amount -> grant_amount
+                        "amount": grant.get("amount"),  # שמירת השדה המקורי גם
+                        "grant_date": grant.get("grant_date"),
+                        "employer_name": grant.get("employer_name"),
+                        "tax_withholding": grant.get("tax_withholding"),
+                        "is_exempt": grant.get("is_exempt"),
+                        "exempt_amount": grant.get("exempt_amount"),
+                        "work_start_date": grant.get("work_start_date"),
+                        "work_end_date": grant.get("work_end_date")
+                    }
+                    grants.append(adapted_grant)
         
-        eligibility_year = today.year
+        # הכנת נתוני הלקוח לשירות
+        from datetime import date
+        from app.services.rights_fixation import calculate_eligibility_age
         
-        for grant in grants:
-            # חישוב יחס 32 שנים
-            work_start = datetime.strptime(grant.get("work_start_date", "2000-01-01"), "%Y-%m-%d").date()
-            work_end = datetime.strptime(grant.get("work_end_date", "2023-12-31"), "%Y-%m-%d").date()
-            
-            # תקופת 32 השנים
-            period_32_start = date(eligibility_year - 32, 1, 1)
-            period_32_end = date(eligibility_year, 1, 1)
-            
-            # חישוב ימי עבודה
-            work_days_total = (work_end - work_start).days
-            
-            # חישוב ימי עבודה ב-32 השנים
-            overlap_start = max(work_start, period_32_start)
-            overlap_end = min(work_end, period_32_end)
-            
-            if overlap_start < overlap_end:
-                work_days_32 = (overlap_end - overlap_start).days
-                ratio_32y = min(work_days_32 / (32 * 365.25), 1.0) if work_days_total > 0 else 0
-            else:
-                ratio_32y = 0
-            
-            # הצמדה פשוטה (בפועל צריך להשתמש במדד CPI)
-            grant_date = datetime.strptime(grant.get("grant_date", "2023-12-31"), "%Y-%m-%d").date()
-            years_diff = eligibility_year - grant_date.year
-            inflation_factor = 1.03 ** years_diff  # הנחה של 3% אינפלציה שנתית
-            
-            indexed_amount = grant.get("amount", 0) * ratio_32y * inflation_factor
-            impact_on_exemption = indexed_amount * 1.35
-            
-            processed_grant = {
-                "employer_name": grant.get("employer_name", "מעסיק לא ידוע"),
-                "grant_amount": grant.get("amount", 0),
-                "work_start_date": grant.get("work_start_date", ""),
-                "work_end_date": grant.get("work_end_date", ""),
-                "grant_date": grant.get("grant_date", ""),
-                "grant_indexed_amount": round(indexed_amount),
-                "grant_ratio": round(ratio_32y, 3),
-                "impact_on_exemption": round(impact_on_exemption),
-                "exclusion_reason": None if ratio_32y > 0 else "מחוץ לתקופת 32 השנים"
-            }
-            
-            processed_grants.append(processed_grant)
-            if ratio_32y > 0:
-                total_indexed += indexed_amount
+        # חישוב תאריך זכאות נכון על בסיס גיל ותאריך תחילת קצבה
+        birth_date = date.fromisoformat(client.get("birth_date") or client.get("birthdate"))
+        gender = client.get("gender")
+        # שימוש בתאריך תחילת קצבה מהנתונים של הלקוח או מהבקשה
+        pension_start = date.fromisoformat(
+            data.get("pension_start") or 
+            client.get("pension_start_date") or 
+            "2025-01-01"
+        )
         
-        # חישוב סיכום פטור
-        # הנחה: סכום פטור בסיסי לפי גיל (זה צריך להיות מחושב לפי הכללים האמיתיים)
-        base_exempt_capital = 800000  # הנחה
-        used_exemption = total_indexed * 1.35
-        remaining_exempt_capital = max(0, base_exempt_capital - used_exemption)
+        eligibility_date = calculate_eligibility_age(birth_date, gender, pension_start)
         
-        exemption_summary = {
-            "exempt_capital_initial": base_exempt_capital,
-            "total_impact": used_exemption,
-            "remaining_exempt_capital": remaining_exempt_capital,
-            "remaining_monthly_exemption": remaining_exempt_capital / 180,
-            "eligibility_year": eligibility_year,
-            "exemption_percentage": (remaining_exempt_capital / base_exempt_capital * 100) if base_exempt_capital > 0 else 0
+        # הדפסת דיבאג
+        print(f"DEBUG: birth_date={birth_date}, gender={gender}, pension_start={pension_start}")
+        print(f"DEBUG: calculated eligibility_date={eligibility_date}")
+        
+        client_data = {
+            "id": client_id,
+            "birth_date": client.get("birth_date") or client.get("birthdate"),
+            "gender": client.get("gender"),
+            "grants": grants,
+            "eligibility_date": eligibility_date.isoformat(),  # תאריך זכאות מחושב נכון
+            "eligibility_year": eligibility_date.year  # שנת זכאות מחושבת נכון
         }
         
-        return {
-            "client_id": client_id,
-            "grants": processed_grants,
-            "exemption_summary": exemption_summary,
-            "eligibility_date": today.isoformat(),
-            "eligibility_year": eligibility_year,
-            "status": "calculated"
-        }
+        # קריאה לשירות האמיתי
+        with open("debug.log", "a", encoding="utf-8") as f:
+            f.write(f"DEBUG: Calling service with client_data: {client_data}\n")
+        result = calculate_full_fixation(client_data)
+        with open("debug.log", "a", encoding="utf-8") as f:
+            f.write(f"DEBUG: Service returned: {result}\n")
+        
+        return result
         
     except HTTPException:
         raise
@@ -1249,7 +1247,39 @@ def generate_pdf_report(client_id: int, report_data: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF report: {str(e)}")
 
+@app.post("/api/v1/reports/clients/{client_id}/reports/excel")
+def generate_excel_report(client_id: int, report_data: dict):
+    """יצירת דוח Excel"""
+    try:
+        # Check if client exists
+        if client_id not in clients_db:
+            raise HTTPException(status_code=404, detail="Client not found")
+        
+        # Check if scenario exists
+        scenario_id = report_data.get("scenario_id", 1)
+        if scenario_id not in scenarios_db:
+            # Create default scenario if it doesn't exist
+            scenario = create_scenario(client_id, {
+                "name": "תרחיש ברירת מחדל",
+                "description": "תרחיש ברירת מחדל ליצירת דוח",
+                "parameters": "{}"
+            })
+            scenario_id = scenario.get("id")
+        
+        # Return dummy Excel data
+        return {
+            "status": "success",
+            "message": "Excel report generated successfully",
+            "client_id": client_id,
+            "scenario_id": scenario_id,
+            "report_type": report_data.get("report_type", "excel"),
+            "created_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Excel report: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
-    print("Starting simple server with rights fixation on port 8005...")
+    print("Starting UPDATED simple server with REAL CBS API on port 8005...")
     uvicorn.run(app, host="0.0.0.0", port=8005)

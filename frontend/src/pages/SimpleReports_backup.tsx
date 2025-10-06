@@ -191,55 +191,9 @@ const SimpleReports: React.FC = () => {
     const creditPointValue = 2640; // ערך נקודת זיכוי 2024 בשקלים
     
     if (client) {
-      // נקודות זיכוי ידניות (אם הוזנו)
+      // נקודות זיכוי מקלט המשתמש בלבד
       if (client.tax_credit_points && client.tax_credit_points > 0) {
         totalTaxCredits = client.tax_credit_points * creditPointValue;
-      } else {
-        // חישוב אוטומטי של נקודות זיכוי
-        let creditPoints = 1; // נקודה בסיסית
-        
-        // נקודות זיכוי לילדים
-        if (client.num_children) {
-          creditPoints += client.num_children * 0.5;
-        }
-        
-        // נקודות זיכוי לנכות
-        if (client.is_disabled && client.disability_percentage) {
-          if (client.disability_percentage >= 75) {
-            creditPoints += 3;
-          } else if (client.disability_percentage >= 40) {
-            creditPoints += 1.5;
-          }
-        }
-        
-        // נקודות זיכוי לעולים חדשים
-        if (client.is_new_immigrant && client.immigration_date) {
-          const immigrationYear = new Date(client.immigration_date).getFullYear();
-          const currentYear = new Date().getFullYear();
-          const yearsInIsrael = currentYear - immigrationYear;
-          
-          if (yearsInIsrael <= 3.5) {
-            creditPoints += 1;
-          }
-        }
-        
-        // נקודות זיכוי למילואים
-        if (client.reserve_duty_days && client.reserve_duty_days > 0) {
-          const reservePoints = Math.min(client.reserve_duty_days / 30, 1);
-          creditPoints += reservePoints;
-        }
-        
-        // נקודות זיכוי לזקנה (לפנסיונרים)
-        if (incomeType === 'pension' && client.birth_date) {
-          const age = new Date().getFullYear() - new Date(client.birth_date).getFullYear();
-          const retirementAge = client.gender === 'male' ? 67 : 62;
-          
-          if (age >= retirementAge) {
-            creditPoints += 1;
-          }
-        }
-        
-        totalTaxCredits = creditPoints * creditPointValue;
       }
     }
     
