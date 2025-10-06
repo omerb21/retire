@@ -265,19 +265,40 @@ const SimpleReports: React.FC = () => {
   const generateYearlyProjection = (): YearlyProjection[] => {
     if (!reportData) return [];
     
-    // קביעת השנה הנוכחית - 2025 במקום להשתמש בתאריך המערכת
-    // הערה: אנו משתמשים בערך קבוע כדי לוודא שהתזרים מתחיל בשנה הנכונה
+    // קביעת שנת התחלה של התזרים - נתחיל משנה קודמת כדי לכלול קרנות שהתחילו בעבר
     const currentYear = 2025;
+    
+    // מציאת השנה המוקדמת ביותר שבה מתחילה קרן פנסיה או הכנסה נוספת
+    let earliestStartYear = currentYear;
+    
+    // בדיקת קרנות פנסיה
+    pensionFunds.forEach(fund => {
+      if (fund.start_date) {
+        const fundStartYear = parseInt(fund.start_date.split('-')[0]);
+        earliestStartYear = Math.min(earliestStartYear, fundStartYear);
+      }
+    });
+    
+    // בדיקת הכנסות נוספות
+    additionalIncomes.forEach(income => {
+      if (income.start_date) {
+        const incomeStartYear = parseInt(income.start_date.split('-')[0]);
+        earliestStartYear = Math.min(earliestStartYear, incomeStartYear);
+      }
+    });
+    
+    // התזרים יתחיל מהשנה המוקדמת ביותר
+    const projectionStartYear = earliestStartYear;
     const clientBirthYear = 1957; // Default birth year if not available
     const maxAge = 90;
     const maxYear = clientBirthYear + maxAge;
-    const projectionYears = Math.min(maxYear - currentYear + 1, 40); // Limit to 40 years max
+    const projectionYears = Math.min(maxYear - projectionStartYear + 1, 40); // Limit to 40 years max
     
-    // Create array of years from current year to max age (or 40 years, whichever is less)
+    // Create array of years from projection start year to max age (or 40 years, whichever is less)
     const yearlyData: YearlyProjection[] = [];
     
     for (let i = 0; i < projectionYears; i++) {
-      const year = currentYear + i;
+      const year = projectionStartYear + i;
       const clientAge = year - clientBirthYear;
       
       // Initialize income breakdown array
@@ -337,32 +358,32 @@ const SimpleReports: React.FC = () => {
         totalMonthlyIncome += amount;
       });
       
-      // חישוב מס על סך כל ההכנסות (הדרך הנכונה)
+      // חישוב מס על סך כל ההכנסות הדינמיות של השנה הנוכחית
       const taxBreakdown: number[] = [];
       let totalMonthlyTax = 0;
       
-      // חישוב סך כל ההכנסות השנתיות
+      // חישוב סך כל ההכנסות השנתיות בהתבסס על ההכנסות הדינמיות של השנה הנוכחית
       let totalTaxableAnnualIncome = 0;
       let totalExemptIncome = 0;
       
-      // חישוב הכנסה חייבת במס והכנסה פטורה ממס
-      const monthlyTaxableIncome = pensionFunds.reduce((sum: number, fund: any) => 
-        sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+      // חישוב הכנסה חייבת במס מקרנות פנסיה (בהתבסס על ההכנסות הדינמיות)
+      let monthlyTaxableIncome = 0;
+      incomeBreakdown.slice(0, pensionFunds.length).forEach(income => {
+        monthlyTaxableIncome += income;
+      });
       
-      // הכנסות נוספות - בדיקת פטור ממס
-      const monthlyExemptIncome = additionalIncomes.reduce((sum: number, income: any) => {
-        if (income.tax_treatment === 'exempt') {
-          return sum + (income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0));
-        }
-        return sum;
-      }, 0);
+      // חישוב הכנסה פטורה וחייבת במס מהכנסות נוספות (בהתבסס על ההכנסות הדינמיות)
+      let monthlyExemptIncome = 0;
+      let monthlyTaxableAdditionalIncome = 0;
       
-      const monthlyTaxableAdditionalIncome = additionalIncomes.reduce((sum: number, income: any) => {
-        if (income.tax_treatment !== 'exempt') {
-          return sum + (income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0));
+      incomeBreakdown.slice(pensionFunds.length).forEach((income, index) => {
+        const additionalIncome = additionalIncomes[index];
+        if (additionalIncome && additionalIncome.tax_treatment === 'exempt') {
+          monthlyExemptIncome += income;
+        } else {
+          monthlyTaxableAdditionalIncome += income;
         }
-        return sum;
-      }, 0);
+      });
       
       totalTaxableAnnualIncome = (monthlyTaxableIncome + monthlyTaxableAdditionalIncome) * 12;
       totalExemptIncome = monthlyExemptIncome * 12;
