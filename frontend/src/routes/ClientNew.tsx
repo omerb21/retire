@@ -12,7 +12,7 @@ import {
 } from '@mui/material';
 import FormField from '../components/forms/FormField';
 import DateField from '../components/forms/DateField';
-import { clientApi, handleApiError } from '../lib/api';
+import { clientApi, handleApiError, ClientCreate } from '../lib/api';
 import { validateClientForm } from '../lib/validation';
 import { useCaseDetection } from '../lib/case-detection';
 
@@ -23,6 +23,7 @@ interface ClientFormData {
   email: string;
   phone: string;
   retirement_date: string;
+  marital_status: string;
 }
 
 const ClientNew: React.FC = () => {
@@ -37,6 +38,7 @@ const ClientNew: React.FC = () => {
     email: '',
     phone: '',
     retirement_date: '',
+    marital_status: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -102,19 +104,27 @@ const ClientNew: React.FC = () => {
       const first_name = nameParts[0] || '';
       const last_name = nameParts.slice(1).join(' ') || '';
       
-      const clientData = {
+      // הכנת נתוני הלקוח לשליחה ל-API
+      const clientData: ClientCreate = {
         first_name,
         last_name,
         id_number: formData.id_number_raw,
         birth_date: formData.birth_date,
-        email: formData.email || null,
-        phone: formData.phone || null
+        email: formData.email || "",
+        phone: formData.phone || "",
+        marital_status: formData.marital_status || "",
+        gender: "" // שדה נדרש ע"י ה-API
       };
       
       const response = await clientApi.create(clientData);
       
       // Update case detection with new client data
-      updateClientData(response);
+      // המרה לפורמט הנדרש על ידי updateClientData
+      updateClientData({
+        id: response.id,
+        full_name: `${response.first_name} ${response.last_name}`.trim(),
+        id_number: response.id_number
+      });
       
       setSuccess('פרטי הלקוח נשמרו בהצלחה');
       
@@ -219,6 +229,31 @@ const ClientNew: React.FC = () => {
               placeholder="050-1234567"
               helperText="מספר טלפון (אופציונלי)"
             />
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Box sx={{ width: '100%' }}>
+              <Typography variant="subtitle2" gutterBottom>
+                מצב משפחתי
+              </Typography>
+              <select
+                value={formData.marital_status}
+                onChange={(e) => handleFieldChange('marital_status')(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '4px',
+                  border: '1px solid #ccc',
+                  fontSize: '16px'
+                }}
+              >
+                <option value="">בחר מצב משפחתי</option>
+                <option value="single">רווק/ה</option>
+                <option value="married">נשוי/ה</option>
+                <option value="divorced">גרוש/ה</option>
+                <option value="widowed">אלמן/ה</option>
+              </select>
+            </Box>
           </Grid>
         </Grid>
 

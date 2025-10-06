@@ -87,6 +87,7 @@ export type ClientCreate = {
   address_postal_code?: string | null;
   pension_start_date?: string | null;
   tax_credit_points?: number | null;
+  marital_status?: string | null;  // שדה חדש שהוספנו - מצב משפחתי
 };
 
 export async function listClients(params?: { limit?: number; offset?: number }) {
