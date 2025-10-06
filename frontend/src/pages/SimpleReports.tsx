@@ -114,10 +114,10 @@ const SimpleReports: React.FC = () => {
             
             monthlyGrossAmount = monthlyPension + monthlyAdditional;
             
-            // חישוב מס על ההכנסה החודשית (הכנסות פנסיה = הכנסות עבודה רגילות)
+            // חישוב מס על ההכנסה החודשית עם נקודות זיכוי
             if (monthlyGrossAmount > 0) {
               const annualGrossAmount = monthlyGrossAmount * 12;
-              // חישוב מס בסיסי לפי מדרגות (ללא נקודות זיכוי כרגע)
+              // חישוב מס בסיסי לפי מדרגות
               let baseTax = 0;
               let remainingIncome = annualGrossAmount;
               
@@ -135,6 +135,11 @@ const SimpleReports: React.FC = () => {
                 const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
                 baseTax += taxableInThisBracket * bracket.rate;
                 remainingIncome -= taxableInThisBracket;
+              }
+              
+              // הפחתת נקודות זיכוי אם קיימות
+              if (clientData?.tax_credit_points) {
+                baseTax = Math.max(0, baseTax - (clientData.tax_credit_points * 2640));
               }
               
               monthlyTax = baseTax / 12;
@@ -309,6 +314,11 @@ const SimpleReports: React.FC = () => {
           const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
           totalAnnualTax += taxableInThisBracket * bracket.rate;
           remainingIncome -= taxableInThisBracket;
+        }
+        
+        // הפחתת נקודות זיכוי אם קיימות
+        if (client?.tax_credit_points) {
+          totalAnnualTax = Math.max(0, totalAnnualTax - (client.tax_credit_points * 2640));
         }
         
         totalMonthlyTax = totalAnnualTax / 12;
