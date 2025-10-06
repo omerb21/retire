@@ -943,23 +943,6 @@ const SimpleReports: React.FC = () => {
                     )}
                   </div>
                 </div>
-
-                {/* Tax Credits Display - רק הצגה ללא חישובים */}
-                <div>
-                  <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>נקודות זיכוי</h5>
-                  <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}>
-                    {client.tax_credit_points && client.tax_credit_points > 0 ? (
-                      <div>
-                        <div><strong>נקודות זיכוי (ידני):</strong> {client.tax_credit_points}</div>
-                        <div><strong>סכום זיכוי שנתי:</strong> ₪{(client.tax_credit_points * 2640).toLocaleString()}</div>
-                      </div>
-                    ) : (
-                      <div style={{ color: '#6c757d', fontStyle: 'italic' }}>
-                        לא הוזנו נקודות זיכוי
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
 
               {/* Current Case Tax Calculation - חישוב מס למקרה הנוכחי */}
