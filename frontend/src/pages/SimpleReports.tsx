@@ -304,11 +304,13 @@ const SimpleReports: React.FC = () => {
         // Apply annual increase (2% by default)
         const yearsActive = year >= fundStartYear ? year - fundStartYear : 0;
         const indexationRate = fund.indexation_rate || 0.02; // Default 2% annual increase
-        const adjustedAmount = yearsActive > 0 ? 
+        
+        // תיקון: גם כשהקרן מתחילה בשנה הנוכחית (yearsActive = 0), היא צריכה להניב הכנסה
+        const adjustedAmount = year >= fundStartYear ? 
           monthlyAmount * Math.pow(1 + indexationRate, yearsActive) : 0;
         
         // Only add income if pension has started
-        const amount = year >= fundStartYear ? adjustedAmount : 0;
+        const amount = adjustedAmount;
         
         incomeBreakdown.push(Math.round(amount));
         totalMonthlyIncome += amount;
