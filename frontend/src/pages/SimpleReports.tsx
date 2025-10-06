@@ -74,6 +74,7 @@ const SimpleReports: React.FC = () => {
         
         // לוג לבדיקת מבנה הנתונים
         console.log('Additional Incomes Data:', JSON.stringify(additionalIncomesData, null, 2));
+        console.log('Capital Assets Data:', JSON.stringify(capitalAssetsData, null, 2));
         console.log('First Additional Income:', additionalIncomesData[0]);
         
         // לוג לבדיקת קרנות פנסיה
@@ -356,9 +357,13 @@ const SimpleReports: React.FC = () => {
         // חישוב הכנסה חודשית מנכס הון
         let monthlyAmount = 0;
         
-        if (asset.asset_type === 'rental_property' && asset.monthly_rental_income) {
-          // שכר דירה
-          monthlyAmount = asset.monthly_rental_income;
+        // הדפסת מידע לבדיקה
+        console.log(`Asset ${asset.asset_name || 'unnamed'} type: ${asset.asset_type}, rental_income: ${asset.rental_income}, monthly_rental_income: ${asset.monthly_rental_income}`);
+        
+        if (asset.asset_type === 'rental_property') {
+          // שכר דירה - בדיקת כל השדות האפשריים
+          monthlyAmount = asset.monthly_rental_income || asset.rental_income || asset.monthly_income || 0;
+          console.log(`Rental property ${asset.asset_name || 'unnamed'} monthly amount: ${monthlyAmount}`);
         } else if (asset.asset_type === 'investment' && asset.annual_return_rate && asset.current_value) {
           // השקעות עם תשואה שנתית
           const annualReturn = asset.current_value * (asset.annual_return_rate / 100);
