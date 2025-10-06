@@ -914,7 +914,19 @@ const SimpleReports: React.FC = () => {
                     
                     {/* הצגת שדות נוספים רק אם קיימים ומוגדרים */}
                     {client.marital_status && (
-                      <div><strong>מצב משפחתי:</strong> {client.marital_status}</div>
+                      <div>
+                        <strong>מצב משפחתי:</strong> {
+                          (() => {
+                            const statusMap: Record<string, string> = {
+                              'single': 'רווק/ה',
+                              'married': 'נשוי/ה',
+                              'divorced': 'גרוש/ה',
+                              'widowed': 'אלמן/ה'
+                            };
+                            return statusMap[client.marital_status] || client.marital_status;
+                          })()
+                        }
+                      </div>
                     )}
                     {/* שדה מספר ילדים הוסר לפי דרישה */}
                     {client.is_disabled && client.disability_percentage && (
