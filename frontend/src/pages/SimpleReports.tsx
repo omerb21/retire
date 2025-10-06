@@ -286,6 +286,8 @@ const SimpleReports: React.FC = () => {
         // Only add income if it's active in this year
         const amount = (year >= incomeStartYear && year <= incomeEndYear) ? monthlyAmount : 0;
         incomeBreakdown.push(Math.round(amount));
+        
+        // הוספה לסך ההכנסה החודשית
         totalMonthlyIncome += amount;
       });
       
@@ -294,12 +296,36 @@ const SimpleReports: React.FC = () => {
       let totalMonthlyTax = 0;
       
       // חישוב סך כל ההכנסות השנתיות
-      const totalAnnualIncome = totalMonthlyIncome * 12;
+      let totalTaxableAnnualIncome = 0;
+      let totalExemptIncome = 0;
       
-      if (totalAnnualIncome > 0) {
-        // חישוב מס כולל על סך ההכנסות
+      // חישוב הכנסה חייבת במס והכנסה פטורה ממס
+      const monthlyTaxableIncome = pensionFunds.reduce((sum: number, fund: any) => 
+        sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+      
+      // הכנסות נוספות - בדיקת פטור ממס
+      const monthlyExemptIncome = additionalIncomes.reduce((sum: number, income: any) => {
+        if (income.tax_treatment === 'exempt') {
+          return sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0));
+        }
+        return sum;
+      }, 0);
+      
+      const monthlyTaxableAdditionalIncome = additionalIncomes.reduce((sum: number, income: any) => {
+        if (income.tax_treatment !== 'exempt') {
+          return sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0));
+        }
+        return sum;
+      }, 0);
+      
+      totalTaxableAnnualIncome = (monthlyTaxableIncome + monthlyTaxableAdditionalIncome) * 12;
+      totalExemptIncome = monthlyExemptIncome * 12;
+      const totalAnnualIncome = totalTaxableAnnualIncome + totalExemptIncome;
+      
+      if (totalTaxableAnnualIncome > 0) {
+        // חישוב מס כולל על סך ההכנסות החייבות במס
         let totalAnnualTax = 0;
-        let remainingIncome = totalAnnualIncome;
+        let remainingIncome = totalTaxableAnnualIncome;
         
         const taxBrackets = [
           { min: 0, max: 84120, rate: 0.10 },
@@ -619,10 +645,11 @@ const SimpleReports: React.FC = () => {
                       borderRadius: '4px',
                       border: '1px solid #d4edda'
                     }}>
-                      <div><strong>{income.description || income.income_type}</strong></div>
+                      <div><strong>{income.income_name || income.description || income.income_type || income.source_type || 'הכנסה נוספת'}</strong></div>
                       <div>הכנסה חודשית: ₪{(income.monthly_amount || 0).toLocaleString()}</div>
                       <div>הכנסה שנתית: ₪{(income.annual_amount || income.monthly_amount * 12 || 0).toLocaleString()}</div>
                       <div>תאריך התחלה: {income.start_date || 'לא צוין'}</div>
+                      {income.tax_treatment && <div>יחס מס: {income.tax_treatment === 'exempt' ? 'פטור ממס' : income.tax_treatment === 'taxable' ? 'חייב במס' : 'שיעור קבוע'}</div>}
                     </div>
                   ))}
                 </div>
@@ -1009,10 +1036,10 @@ const SimpleReports: React.FC = () => {
                     {additionalIncomes.map(income => (
                       <React.Fragment key={`income-${income.id}`}>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>
-                          {income.description || income.income_type}
+                          {income.income_name || income.description || income.income_type || income.source_type || 'הכנסה נוספת'}
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
-                          מס {income.description || income.income_type}
+                          מס {income.income_name || income.description || income.income_type || income.source_type || 'הכנסה נוספת'}
                         </th>
                       </React.Fragment>
                     ))}
