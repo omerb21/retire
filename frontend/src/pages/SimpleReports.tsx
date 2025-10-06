@@ -256,7 +256,12 @@ const SimpleReports: React.FC = () => {
     return finalTax;
   };
 
-  // Generate yearly projection data based on pension funds and additional incomes
+  /**
+   * מייצר תחזית שנתית של תזרים מזומנים
+   * הפונקציה מציגה רק שנים עתידיות בתזרים, החל מהשנה הנוכחית
+   * קרנות פנסיה והכנסות נוספות שהתחילו בעבר יוצגו החל מהשנה הנוכחית
+   * קרנות פנסיה והכנסות נוספות שמתחילות בעתיד יוצגו החל משנת ההתחלה שלהן
+   */
   const generateYearlyProjection = (): YearlyProjection[] => {
     if (!reportData) return [];
     
@@ -279,14 +284,17 @@ const SimpleReports: React.FC = () => {
       
       // Add pension fund incomes
       pensionFunds.forEach(fund => {
-        // תיקון חישוב שנת התחלה - השתמש בשנה הנוכחית כברירת מחדל
-        const fundStartYear = fund.start_date ? parseInt(fund.start_date.split('-')[0]) : currentYear;
-        const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
+        // תיקון חישוב שנת התחלה - התחשבות בשנים עתידיות בלבד
+        let fundStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
-        // הוספת לוג לבדיקה
-        console.log(`Processing fund ${fund.fund_name || 'unnamed'} for year ${year}:`);
-        console.log(`  Fund start year: ${fundStartYear}, Current year: ${year}`);
-        console.log(`  Monthly amount: ${monthlyAmount}`);
+        if (fund.start_date) {
+          const parsedYear = parseInt(fund.start_date.split('-')[0]);
+          // אם הקרן התחילה בעתיד, נשתמש בתאריך ההתחלה המקורי
+          // אם הקרן התחילה בעבר, נשתמש בשנה הנוכחית
+          fundStartYear = Math.max(parsedYear, currentYear);
+        }
+        
+        const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
         
         // Apply annual increase (2% by default)
         const yearsActive = year >= fundStartYear ? year - fundStartYear : 0;
@@ -296,7 +304,6 @@ const SimpleReports: React.FC = () => {
         
         // Only add income if pension has started
         const amount = year >= fundStartYear ? adjustedAmount : 0;
-        console.log(`  Years active: ${yearsActive}, Adjusted amount: ${adjustedAmount}, Final amount: ${amount}`);
         
         incomeBreakdown.push(Math.round(amount));
         totalMonthlyIncome += amount;
@@ -304,7 +311,16 @@ const SimpleReports: React.FC = () => {
       
       // Add additional incomes
       additionalIncomes.forEach(income => {
-        const incomeStartYear = income.start_date ? parseInt(income.start_date.split('-')[0]) : currentYear;
+        // תיקון חישוב שנת התחלה - התחשבות בשנים עתידיות בלבד
+        let incomeStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
+        
+        if (income.start_date) {
+          const parsedYear = parseInt(income.start_date.split('-')[0]);
+          // אם ההכנסה מתחילה בעתיד, נשתמש בתאריך ההתחלה המקורי
+          // אם ההכנסה מתחילה בעבר, נשתמש בשנה הנוכחית
+          incomeStartYear = Math.max(parsedYear, currentYear);
+        }
+        
         const incomeEndYear = income.end_date ? parseInt(income.end_date.split('-')[0]) : maxYear;
         // בדיקת כל השדות האפשריים להכנסה חודשית
         const monthlyAmount = income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0);
