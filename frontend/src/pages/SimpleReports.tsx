@@ -94,9 +94,8 @@ const SimpleReports: React.FC = () => {
         setAdditionalIncomes(additionalIncomesData);
         setCapitalAssets(capitalAssetsData);
         
-        // Calculate financial summary
-        const totalPensionValue = pensionFundsData.reduce((sum: number, fund: any) => 
-          sum + (fund.current_balance || fund.computed_monthly_amount * 12 * 20 || 0), 0);
+        // Calculate financial summary - pension funds only contribute monthly income, not balance
+        const totalPensionValue = 0; // קרנות פנסיה לא נכללות בסך הנכסים
         const totalAdditionalIncome = additionalIncomesData.reduce((sum: number, income: any) => 
           sum + (income.annual_amount || income.monthly_amount * 12 || 0), 0);
         const totalCapitalAssets = capitalAssetsData.reduce((sum: number, asset: any) => 
@@ -342,6 +341,46 @@ const SimpleReports: React.FC = () => {
         // הוספה לסך ההכנסה החודשית
         totalMonthlyIncome += amount;
       });
+
+      // Add capital assets income
+      capitalAssets.forEach(asset => {
+        let assetStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
+        
+        if (asset.start_date) {
+          const parsedYear = parseInt(asset.start_date.split('-')[0]);
+          assetStartYear = Math.max(parsedYear, currentYear);
+        }
+        
+        const assetEndYear = asset.end_date ? parseInt(asset.end_date.split('-')[0]) : maxYear;
+        
+        // חישוב הכנסה חודשית מנכס הון
+        let monthlyAmount = 0;
+        
+        if (asset.asset_type === 'rental_property' && asset.monthly_rental_income) {
+          // שכר דירה
+          monthlyAmount = asset.monthly_rental_income;
+        } else if (asset.asset_type === 'investment' && asset.annual_return_rate && asset.current_value) {
+          // השקעות עם תשואה שנתית
+          const annualReturn = asset.current_value * (asset.annual_return_rate / 100);
+          monthlyAmount = annualReturn / 12;
+        } else if (asset.monthly_income) {
+          // הכנסה חודשית כללית
+          monthlyAmount = asset.monthly_income;
+        }
+        
+        // Apply annual increase if specified
+        const yearsActive = year >= assetStartYear ? year - assetStartYear : 0;
+        const indexationRate = asset.indexation_rate || 0.02; // Default 2% annual increase
+        const adjustedAmount = year >= assetStartYear ? 
+          monthlyAmount * Math.pow(1 + indexationRate, yearsActive) : 0;
+        
+        // Only add income if asset is active in this year
+        const amount = (year >= assetStartYear && year <= assetEndYear) ? adjustedAmount : 0;
+        incomeBreakdown.push(Math.round(amount));
+        
+        // הוספה לסך ההכנסה החודשית
+        totalMonthlyIncome += amount;
+      });
       
       // חישוב מס על סך כל ההכנסות הדינמיות של השנה הנוכחית
       const taxBreakdown: number[] = [];
@@ -360,13 +399,23 @@ const SimpleReports: React.FC = () => {
       // חישוב הכנסה פטורה וחייבת במס מהכנסות נוספות (בהתבסס על ההכנסות הדינמיות)
       let monthlyExemptIncome = 0;
       let monthlyTaxableAdditionalIncome = 0;
+      let monthlyCapitalAssetIncome = 0;
       
-      incomeBreakdown.slice(pensionFunds.length).forEach((income, index) => {
+      // הכנסות נוספות
+      incomeBreakdown.slice(pensionFunds.length, pensionFunds.length + additionalIncomes.length).forEach((income, index) => {
         const additionalIncome = additionalIncomes[index];
         if (additionalIncome && additionalIncome.tax_treatment === 'exempt') {
           monthlyExemptIncome += income;
         } else {
           monthlyTaxableAdditionalIncome += income;
+        }
+      });
+
+      // נכסי הון - מיסוי מיוחד
+      incomeBreakdown.slice(pensionFunds.length + additionalIncomes.length).forEach((income, index) => {
+        const asset = capitalAssets[index];
+        if (asset) {
+          monthlyCapitalAssetIncome += income;
         }
       });
       
@@ -400,8 +449,49 @@ const SimpleReports: React.FC = () => {
         if (client?.tax_credit_points) {
           totalAnnualTax = Math.max(0, totalAnnualTax - (client.tax_credit_points * 2640));
         }
+
+        // חישוב מס על נכסי הון
+        let capitalAssetTax = 0;
+        capitalAssets.forEach((asset, index) => {
+          const assetIncomeIndex = pensionFunds.length + additionalIncomes.length + index;
+          const monthlyIncome = incomeBreakdown[assetIncomeIndex] || 0;
+          const annualIncome = monthlyIncome * 12;
+          
+          if (asset.asset_type === 'rental_property') {
+            // שכר דירה - מס רגיל אם מעל התקרה, אחרת פטור
+            const exemptionThreshold = 5070 * 12; // תקרת פטור שנתית
+            if (annualIncome > exemptionThreshold) {
+              const taxableRentalIncome = annualIncome - exemptionThreshold;
+              // מס רגיל על החלק העודף
+              let rentalTax = 0;
+              let remaining = taxableRentalIncome;
+              for (const bracket of taxBrackets) {
+                if (remaining <= 0) break;
+                const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
+                rentalTax += taxableInBracket * bracket.rate;
+                remaining -= taxableInBracket;
+              }
+              capitalAssetTax += rentalTax;
+            }
+          } else if (asset.asset_type === 'investment') {
+            // השקעות - מס רווח הון 25% על הרווח הריאלי
+            const realGain = annualIncome; // נניח שזה הרווח הריאלי
+            capitalAssetTax += realGain * 0.25;
+          } else {
+            // נכסי הון אחרים - מס רגיל
+            let otherAssetTax = 0;
+            let remaining = annualIncome;
+            for (const bracket of taxBrackets) {
+              if (remaining <= 0) break;
+              const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
+              otherAssetTax += taxableInBracket * bracket.rate;
+              remaining -= taxableInBracket;
+            }
+            capitalAssetTax += otherAssetTax;
+          }
+        });
         
-        totalMonthlyTax = totalAnnualTax / 12;
+        totalMonthlyTax = (totalAnnualTax + capitalAssetTax) / 12;
         
         // חלוקת המס באופן יחסי לפי ההכנסות
         // חישוב סך ההכנסה החייבת במס
@@ -428,9 +518,47 @@ const SimpleReports: React.FC = () => {
             taxBreakdown.push(Math.round(taxPortion));
           }
         });
+
+        // חישוב מס עבור נכסי הון
+        capitalAssets.forEach((asset, index) => {
+          const assetIncomeIndex = pensionFunds.length + additionalIncomes.length + index;
+          const monthlyIncome = incomeBreakdown[assetIncomeIndex] || 0;
+          const annualIncome = monthlyIncome * 12;
+          let assetTax = 0;
+          
+          if (asset.asset_type === 'rental_property') {
+            // שכר דירה - מס רגיל אם מעל התקרה, אחרת פטור
+            const exemptionThreshold = 5070 * 12; // תקרת פטור שנתית
+            if (annualIncome > exemptionThreshold) {
+              const taxableRentalIncome = annualIncome - exemptionThreshold;
+              // מס רגיל על החלק העודף
+              let remaining = taxableRentalIncome;
+              for (const bracket of taxBrackets) {
+                if (remaining <= 0) break;
+                const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
+                assetTax += taxableInBracket * bracket.rate;
+                remaining -= taxableInBracket;
+              }
+            }
+          } else if (asset.asset_type === 'investment') {
+            // השקעות - מס רווח הון 25% על הרווח הריאלי
+            assetTax = annualIncome * 0.25;
+          } else {
+            // נכסי הון אחרים - מס רגיל
+            let remaining = annualIncome;
+            for (const bracket of taxBrackets) {
+              if (remaining <= 0) break;
+              const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
+              assetTax += taxableInBracket * bracket.rate;
+              remaining -= taxableInBracket;
+            }
+          }
+          
+          taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי
+        });
       } else {
         // אין הכנסה - אין מס
-        for (let i = 0; i < pensionFunds.length + additionalIncomes.length; i++) {
+        for (let i = 0; i < pensionFunds.length + additionalIncomes.length + capitalAssets.length; i++) {
           taxBreakdown.push(0);
         }
       }
@@ -681,8 +809,7 @@ const SimpleReports: React.FC = () => {
                     }}>
                       <div><strong>{fund.fund_name}</strong></div>
                       <div>קצבה חודשית: ₪{(fund.computed_monthly_amount || fund.monthly_amount || 0).toLocaleString()}</div>
-                      <div>יתרה נוכחית: ₪{(fund.current_balance || 0).toLocaleString()}</div>
-                      <div>תאריך התחלה: {fund.start_date || 'לא צוין'}</div>
+                      <div>תאריך התחלה: {fund.start_date ? new Date(fund.start_date).toLocaleDateString('he-IL') : 'לא צוין'}</div>
                     </div>
                   ))}
                 </div>
@@ -770,11 +897,10 @@ const SimpleReports: React.FC = () => {
                   return (monthlyPension + monthlyAdditional).toLocaleString();
                 })()}</div>
                 <div><strong>סך נכסים:</strong> ₪{(() => {
-                  const totalPensionBalance = pensionFunds.reduce((sum: number, fund: any) => 
-                    sum + (fund.current_balance || 0), 0);
+                  // רק נכסי הון נכללים בסך הנכסים, לא יתרות קרנות פנסיה
                   const totalCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
                     sum + (asset.current_value || 0), 0);
-                  return (totalPensionBalance + totalCapitalAssets).toLocaleString();
+                  return totalCapitalAssets.toLocaleString();
                 })()}</div>
                 <div><strong>תאריך התחלת תזרים:</strong> {(() => {
                   // מציאת השנה הראשונה עם הכנסה
@@ -787,42 +913,6 @@ const SimpleReports: React.FC = () => {
                     )
                   );
                   return firstIncomeYear < new Date().getFullYear() + 10 ? `01/01/${firstIncomeYear}` : 'לא צוין';
-                })()}</div>
-                <div style={{ color: '#dc3545' }}><strong>מס משוער:</strong> ₪{(() => {
-                  const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
-                    sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
-                  const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
-                    sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0)), 0);
-                  const totalAnnualIncome = (monthlyPension + monthlyAdditional) * 12;
-                  
-                  // חישוב מס בסיסי לפי מדרגות
-                  let tax = 0;
-                  let remaining = totalAnnualIncome;
-                  const brackets = [
-                    { max: 84120, rate: 0.10 },
-                    { max: 120720, rate: 0.14 },
-                    { max: 193800, rate: 0.20 },
-                    { max: 269280, rate: 0.31 },
-                    { max: 560280, rate: 0.35 },
-                    { max: 721560, rate: 0.47 },
-                    { max: Infinity, rate: 0.50 }
-                  ];
-                  
-                  let prevMax = 0;
-                  for (const bracket of brackets) {
-                    if (remaining <= 0) break;
-                    const taxableInBracket = Math.min(remaining, bracket.max - prevMax);
-                    tax += taxableInBracket * bracket.rate;
-                    remaining -= taxableInBracket;
-                    prevMax = bracket.max;
-                  }
-                  
-                  // הפחתת נקודות זיכוי אם קיימות
-                  if (client?.tax_credit_points) {
-                    tax = Math.max(0, tax - (client.tax_credit_points * 2640));
-                  }
-                  
-                  return tax.toLocaleString();
                 })()}</div>
               </div>
             </div>
@@ -1090,6 +1180,16 @@ const SimpleReports: React.FC = () => {
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
                           מס {income.income_name || income.description || income.income_type || income.source_type || 'הכנסה נוספת'}
+                        </th>
+                      </React.Fragment>
+                    ))}
+                    {capitalAssets.map(asset => (
+                      <React.Fragment key={`asset-${asset.id}`}>
+                        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#fff8f0' }}>
+                          {asset.asset_name || asset.description || 'נכס הון'}
+                        </th>
+                        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
+                          מס {asset.asset_name || asset.description || 'נכס הון'}
                         </th>
                       </React.Fragment>
                     ))}
