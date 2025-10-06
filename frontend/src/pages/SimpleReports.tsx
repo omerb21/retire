@@ -72,6 +72,10 @@ const SimpleReports: React.FC = () => {
         const additionalIncomesData = additionalIncomesResponse.data || [];
         const capitalAssetsData = capitalAssetsResponse.data || [];
         
+        // לוג לבדיקת מבנה הנתונים
+        console.log('Additional Incomes Data:', JSON.stringify(additionalIncomesData, null, 2));
+        console.log('First Additional Income:', additionalIncomesData[0]);
+        
         // Update state with fetched data
         setPensionFunds(pensionFundsData);
         setAdditionalIncomes(additionalIncomesData);
@@ -281,7 +285,8 @@ const SimpleReports: React.FC = () => {
       additionalIncomes.forEach(income => {
         const incomeStartYear = income.start_date ? parseInt(income.start_date.split('-')[0]) : currentYear;
         const incomeEndYear = income.end_date ? parseInt(income.end_date.split('-')[0]) : maxYear;
-        const monthlyAmount = income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0);
+        // בדיקת כל השדות האפשריים להכנסה חודשית
+        const monthlyAmount = income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0);
         
         // Only add income if it's active in this year
         const amount = (year >= incomeStartYear && year <= incomeEndYear) ? monthlyAmount : 0;
@@ -306,14 +311,14 @@ const SimpleReports: React.FC = () => {
       // הכנסות נוספות - בדיקת פטור ממס
       const monthlyExemptIncome = additionalIncomes.reduce((sum: number, income: any) => {
         if (income.tax_treatment === 'exempt') {
-          return sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0));
+          return sum + (income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0));
         }
         return sum;
       }, 0);
       
       const monthlyTaxableAdditionalIncome = additionalIncomes.reduce((sum: number, income: any) => {
         if (income.tax_treatment !== 'exempt') {
-          return sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0));
+          return sum + (income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0));
         }
         return sum;
       }, 0);
@@ -646,8 +651,8 @@ const SimpleReports: React.FC = () => {
                       border: '1px solid #d4edda'
                     }}>
                       <div><strong>{income.income_name || income.description || income.income_type || income.source_type || 'הכנסה נוספת'}</strong></div>
-                      <div>הכנסה חודשית: ₪{(income.monthly_amount || 0).toLocaleString()}</div>
-                      <div>הכנסה שנתית: ₪{(income.annual_amount || income.monthly_amount * 12 || 0).toLocaleString()}</div>
+                      <div>הכנסה חודשית: ₪{(income.monthly_amount || income.amount || 0).toLocaleString()}</div>
+                      <div>הכנסה שנתית: ₪{(income.annual_amount || (income.monthly_amount || income.amount) * 12 || 0).toLocaleString()}</div>
                       <div>תאריך התחלה: {income.start_date || 'לא צוין'}</div>
                       {income.tax_treatment && <div>יחס מס: {income.tax_treatment === 'exempt' ? 'פטור ממס' : income.tax_treatment === 'taxable' ? 'חייב במס' : 'שיעור קבוע'}</div>}
                     </div>
