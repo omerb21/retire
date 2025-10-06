@@ -18,6 +18,7 @@ export default function Clients() {
     address_postal_code: "",
     pension_start_date: "",
     tax_credit_points: 0,
+    marital_status: "", // שדה חדש - מצב משפחתי
   });
   const [msg, setMsg] = useState<string>("");
   const [editingClient, setEditingClient] = useState<ClientItem | null>(null);
@@ -33,7 +34,8 @@ export default function Clients() {
     address_city: "",
     address_postal_code: "",
     pension_start_date: "",
-    tax_credit_points: 0
+    tax_credit_points: 0,
+    marital_status: "" // שדה חדש - מצב משפחתי
   });
 
   async function refresh() {
@@ -73,7 +75,6 @@ export default function Clients() {
       refresh();
     } catch (e: any) {
       console.error("Delete error:", e);
-      setMsg("❌ כשל במחיקת לקוח: " + (e?.message || e));
     }
   }
 
@@ -91,7 +92,8 @@ export default function Clients() {
       address_city: (client as any).address_city || "",
       address_postal_code: (client as any).address_postal_code || "",
       pension_start_date: (client as any).pension_start_date || "",
-      tax_credit_points: (client as any).tax_credit_points || 0
+      tax_credit_points: (client as any).tax_credit_points || 0,
+      marital_status: (client as any).marital_status || ""
     });
   }
 
@@ -109,7 +111,8 @@ export default function Clients() {
       address_city: "",
       address_postal_code: "",
       pension_start_date: "",
-      tax_credit_points: 0
+      tax_credit_points: 0,
+      marital_status: ""
     });
   }
 
@@ -142,7 +145,8 @@ export default function Clients() {
           address_city: editForm.address_city || null,
           address_postal_code: editForm.address_postal_code || null,
           pension_start_date: editForm.pension_start_date || null,
-          tax_credit_points: editForm.tax_credit_points || 0
+          tax_credit_points: editForm.tax_credit_points || 0,
+          marital_status: editForm.marital_status || null
         })
       });
       
@@ -205,6 +209,7 @@ export default function Clients() {
         address_postal_code: form.address_postal_code || null,
         pension_start_date: form.pension_start_date || null,
         tax_credit_points: form.tax_credit_points || 0,
+        marital_status: form.marital_status || null,
       });
       
       // Reset form after successful submission
@@ -221,6 +226,7 @@ export default function Clients() {
         address_postal_code: "",
         pension_start_date: "",
         tax_credit_points: 0,
+        marital_status: "", // איפוס מצב משפחתי
       });
       
       setMsg("✅ לקוח נשמר");
@@ -286,8 +292,24 @@ export default function Clients() {
                  style={{ padding: 8 }} />
           
           <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+          
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <label style={{ marginLeft: 8 }}>תאריך התחלת קצבה:</label>
+            <label style={{ marginLeft: 8, minWidth: 100 }}>מצב משפחתי:</label>
+            <select
+              value={form.marital_status}
+              onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
+              style={{ padding: 8, flexGrow: 1 }}
+            >
+              <option value="">בחר מצב משפחתי</option>
+              <option value="single">רווק/ה</option>
+              <option value="married">נשוי/ה</option>
+              <option value="divorced">גרוש/ה</option>
+              <option value="widowed">אלמן/ה</option>
+            </select>
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+            <label style={{ marginLeft: 8, minWidth: 100 }}>תאריך התחלת קצבה:</label>
             <input type="date"
                    placeholder="תאריך התחלת קצבה (אופציונלי)"
                    value={form.pension_start_date}
@@ -493,8 +515,24 @@ export default function Clients() {
               />
               
               <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+              
               <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                <label style={{ marginLeft: 8 }}>תאריך התחלת קצבה:</label>
+                <label style={{ marginLeft: 8, minWidth: 100 }}>מצב משפחתי:</label>
+                <select
+                  value={editForm.marital_status}
+                  onChange={(e) => setEditForm({ ...editForm, marital_status: e.target.value })}
+                  style={{ padding: 8, flexGrow: 1 }}
+                >
+                  <option value="">בחר מצב משפחתי</option>
+                  <option value="single">רווק/ה</option>
+                  <option value="married">נשוי/ה</option>
+                  <option value="divorced">גרוש/ה</option>
+                  <option value="widowed">אלמן/ה</option>
+                </select>
+              </div>
+              
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                <label style={{ marginLeft: 8, minWidth: 100 }}>תאריך התחלת קצבה:</label>
                 <input 
                   type="date"
                   placeholder="תאריך תחילת קצבה (אופציונלי)"
