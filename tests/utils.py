@@ -1,4 +1,5 @@
 import time, itertools
+import random
 
 _ctr = itertools.count()
 
@@ -16,3 +17,7 @@ def gen_valid_id() -> str:
     seed = int(time.time() * 1000) + next(_ctr)
     d8 = f"{seed % 100_000_000:08d}"
     return d8 + _checksum(d8)
+
+def gen_reg_no() -> str:
+    """Generate unique registration number to prevent collisions between tests"""
+    return ''.join(str(random.randint(0, 9)) for _ in range(9))

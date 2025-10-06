@@ -1,0 +1,29 @@
+{
+  "timestamp": "20250908_180632",
+  "commit_sha": "sprint11-closure-20250908-164627",
+  "results": {
+    "cashflow": {
+      "status": "PASS",
+      "rows": 12
+    },
+    "compare": {
+      "status": "PASS",
+      "scenarios": 1,
+      "months": 12
+    },
+    "pdf": {
+      "status": "PASS",
+      "size": 76869,
+      "valid": true
+    },
+    "consistency": {
+      "status": "PASS",
+      "diff": 0.0
+    },
+    "zip": {
+      "status": "PASS",
+      "filename": "yearly_totals_verification_20250908_180632.zip",
+      "sha256": "2b17f19de611d3be14e7d409e3447188f69102b0e44ee823dd45079184c8bbb7"
+    }
+  }
+}

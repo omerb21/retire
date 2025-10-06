@@ -1,4 +1,4 @@
-"""
+﻿"""
 Logging configuration for the application
 Provides structured logging for monitoring and alerting
 """
@@ -125,3 +125,4 @@ def get_logger(name):
         Logger instance
     """
     return logging.getLogger(name)
+

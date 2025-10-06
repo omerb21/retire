@@ -1,0 +1,2 @@
+Status: 400
+Error: {"detail":"Internal PDF generation error: create_pdf_with_cashflow() got an unexpected keyword argument 'scenarios'"}

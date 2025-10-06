@@ -1,4 +1,4 @@
-"""
+﻿"""
 Client service module for business logic and validation
 """
 import re
@@ -24,7 +24,7 @@ def normalise_and_validate_id_number(raw: str) -> Tuple[str, bool]:
     for i, ch in enumerate(s):
         val = int(ch) * (1 if i % 2 == 0 else 2)
         if val > 9:
-            val -= 9  # זהה לחיבור הספרות
+            val -= 9  # ׳–׳”׳” ׳׳—׳™׳‘׳•׳¨ ׳”׳¡׳₪׳¨׳•׳×
         checksum += val
     
     return s, checksum % 10 == 0
@@ -229,13 +229,13 @@ def prepare_client_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         if value is not None:  # Skip None values
             result[key] = value
     
-    # שלב 1 – ניקוי כל שדה טקסטי, כולל id_number_raw
+    # ׳©׳׳‘ 1 ג€“ ׳ ׳™׳§׳•׳™ ׳›׳ ׳©׳“׳” ׳˜׳§׳¡׳˜׳™, ׳›׳•׳׳ id_number_raw
     for field in ['full_name', 'first_name', 'last_name',
                   'address_city', 'address_street', 'address_postal_code', 'notes', 'id_number_raw']:
         if field in result and result[field] is not None:
             result[field] = normalize_text(result[field])
     
-    # שלב 2 – נרמול ID והכנסת id_number
+    # ׳©׳׳‘ 2 ג€“ ׳ ׳¨׳׳•׳ ID ׳•׳”׳›׳ ׳¡׳× id_number
     if 'id_number_raw' in result:
         nid, ok = normalise_and_validate_id_number(result['id_number_raw'])
         if not ok:
@@ -298,32 +298,33 @@ def validate_client_data(data: Dict[str, Any]) -> Dict[str, str]:
     # Validate ID number
     if 'id_number' in data:
         if not validate_id_number(data['id_number']):
-            errors['id_number_raw'] = "תעודת זהות אינה תקינה"
+            errors['id_number_raw'] = "׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”"
     
     # Validate birth date
     if 'birth_date' in data:
         if not validate_birth_date(data['birth_date']):
-            errors['birth_date'] = "תאריך לידה לא הגיוני - גיל חייב להיות בין 18 ל-120"
+            errors['birth_date'] = "׳×׳׳¨׳™׳ ׳׳™׳“׳” ׳׳ ׳”׳’׳™׳•׳ ׳™ - ׳’׳™׳ ׳—׳™׳™׳‘ ׳׳”׳™׳•׳× ׳‘׳™׳ 18 ׳-120"
     
     # Validate employment flags
     if 'self_employed' in data and 'current_employer_exists' in data:
         if not validate_employment_flags(data['self_employed'], data['current_employer_exists']):
-            errors['self_employed'] = "לקוח לא יכול להיות גם עצמאי וגם שכיר"
+            errors['self_employed'] = "׳׳§׳•׳— ׳׳ ׳™׳›׳•׳ ׳׳”׳™׳•׳× ׳’׳ ׳¢׳¦׳׳׳™ ׳•׳’׳ ׳©׳›׳™׳¨"
     
     # Validate planned termination date
     if 'planned_termination_date' in data and data['planned_termination_date']:
         if 'current_employer_exists' not in data or not data['current_employer_exists']:
-            errors['planned_termination_date'] = "תאריך סיום העסקה יכול להיות מוגדר רק אם קיים מעסיק נוכחי"
+            errors['planned_termination_date'] = "׳×׳׳¨׳™׳ ׳¡׳™׳•׳ ׳”׳¢׳¡׳§׳” ׳™׳›׳•׳ ׳׳”׳™׳•׳× ׳׳•׳’׳“׳¨ ׳¨׳§ ׳׳ ׳§׳™׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™"
         elif data['planned_termination_date'] < date.today():
-            errors['planned_termination_date'] = "תאריך סיום העסקה חייב להיות היום או בעתיד"
+            errors['planned_termination_date'] = "׳×׳׳¨׳™׳ ׳¡׳™׳•׳ ׳”׳¢׳¡׳§׳” ׳—׳™׳™׳‘ ׳׳”׳™׳•׳× ׳”׳™׳•׳ ׳׳• ׳‘׳¢׳×׳™׳“"
     
     # Validate retirement target date
     if 'retirement_target_date' in data and data['retirement_target_date']:
         if data['retirement_target_date'] < date.today():
-            errors['retirement_target_date'] = "תאריך יעד לפרישה חייב להיות היום או בעתיד"
+            errors['retirement_target_date'] = "׳×׳׳¨׳™׳ ׳™׳¢׳“ ׳׳₪׳¨׳™׳©׳” ׳—׳™׳™׳‘ ׳׳”׳™׳•׳× ׳”׳™׳•׳ ׳׳• ׳‘׳¢׳×׳™׳“"
     
     # Validate email
     if 'email' in data and data['email'] and not validate_email(data['email']):
-        errors['email'] = "כתובת אימייל לא תקינה"
+        errors['email'] = "׳›׳×׳•׳‘׳× ׳׳™׳׳™׳™׳ ׳׳ ׳×׳§׳™׳ ׳”"
     
     return errors
+

@@ -1,0 +1,40 @@
+כל למערכת אחת?
+
+הנה המדריך המעודכן להרצת המערכת:
+
+🚀 הרצת המערכת - גרסה מאוחדת
+1. הפעלת שרת ה-Backend
+bash
+cd c:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire
+python simple_server.py
+השרת רץ על פורט 8005.
+
+2. הפעלת ה-Frontend
+bash
+cd c:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\frontend
+npm start
+האפליקציה תיפתח אוטומטית בדפדפן בכתובת: http://localhost:3000
+
+🔄 מה השתנה?
+איחוד שרתים: כל הפונקציונליות עברה לשרת אחד (
+simple_server.py
+) שמריץ FastAPI
+פורט יחיד: הכל רץ תחת פורט 8005
+בסיס נתונים פשוט: משתמש בקבצי JSON (clients.json, grants.json)
+📂 מבנה הפרויקט
+retire/
+├── simple_server.py     # שרת Backend
+├── clients.json         # מסד נתונים של לקוחות
+├── grants.json          # מסד נתונים של מענקים
+├── frontend/            # אפליקציית React
+│   ├── src/
+│   └── package.json
+└── test_new_logic.py    # סקריפט בדיקה
+🔍 איך בודקים שהכל עובד?
+פתחו דפדפן בכתובת: http://localhost:3000
+נסו להיכנס למסך "קיבוע זכויות" ולחצו על "חשב" עבור לקוח קיים
+לבדיקות מתקדמות, השתמשו ב-
+test_new_logic.py
+האם תרצה שאסביר חלק ספציפי בצורה מפורטת יותר?
+
+Feedback submitted

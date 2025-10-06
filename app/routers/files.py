@@ -1,4 +1,4 @@
-"""
+﻿"""
 Router for file download endpoints
 """
 from fastapi import APIRouter, HTTPException, Query
@@ -30,14 +30,14 @@ def download_file(path: str = Query(..., description="File path relative to pack
         if not str(requested_path).startswith(str(packages_dir)):
             raise HTTPException(
                 status_code=403,
-                detail={"error": "גישה לנתיב זה אסורה - רק קבצים בתיקיית packages מותרים"}
+                detail={"error": "׳’׳™׳©׳” ׳׳ ׳×׳™׳‘ ׳–׳” ׳׳¡׳•׳¨׳” - ׳¨׳§ ׳§׳‘׳¦׳™׳ ׳‘׳×׳™׳§׳™׳™׳× packages ׳׳•׳×׳¨׳™׳"}
             )
         
         # Check if file exists
         if not requested_path.exists() or not requested_path.is_file():
             raise HTTPException(
                 status_code=404,
-                detail={"error": "הקובץ לא נמצא"}
+                detail={"error": "׳”׳§׳•׳‘׳¥ ׳׳ ׳ ׳׳¦׳"}
             )
         
         # Get filename for download
@@ -57,5 +57,6 @@ def download_file(path: str = Query(..., description="File path relative to pack
         logger.error(f"Error serving file {path}: {e}")
         raise HTTPException(
             status_code=500,
-            detail={"error": f"שגיאה בהורדת הקובץ: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳”׳•׳¨׳“׳× ׳”׳§׳•׳‘׳¥: {str(e)}"}
         )
+

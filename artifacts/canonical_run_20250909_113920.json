@@ -1,0 +1,11 @@
+{
+  "timestamp": "20250909_113920",
+  "commit_sha": "new-api-system-20250909",
+  "overall_success": false,
+  "results": {
+    "health": {
+      "status": "FAIL",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000026A71685BD0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))"
+    }
+  }
+}

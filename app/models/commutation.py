@@ -1,4 +1,4 @@
-"""
+﻿"""
 Commutation entity model for SQLAlchemy ORM - compatible with rights fixation system
 """
 from sqlalchemy import Column, Integer, ForeignKey, Float, Date, DateTime, func
@@ -16,8 +16,8 @@ class Commutation(Base):
     pension_id = Column(Integer, ForeignKey("pension.id", ondelete="CASCADE"), nullable=False)
     commutation_date = Column(Date, nullable=True)
     commutation_amount = Column(Float, nullable=True)
-    commutation_ratio = Column(Float, nullable=True)  # אחוז היוון
-    impact_on_exemption = Column(Float, nullable=True)  # פגיעה בתקרה
+    commutation_ratio = Column(Float, nullable=True)  # ׳׳—׳•׳– ׳”׳™׳•׳•׳
+    impact_on_exemption = Column(Float, nullable=True)  # ׳₪׳’׳™׳¢׳” ׳‘׳×׳§׳¨׳”
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow, server_default=func.now())
@@ -33,3 +33,4 @@ class Commutation(Base):
             "commutation_ratio": self.commutation_ratio,
             "impact_on_exemption": self.impact_on_exemption
         }
+

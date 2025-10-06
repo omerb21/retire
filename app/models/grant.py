@@ -1,4 +1,4 @@
-"""
+﻿"""
 Grant entity model for SQLAlchemy ORM - compatible with rights fixation system
 """
 from sqlalchemy import Column, Integer, ForeignKey, String, Float, Date, DateTime, func
@@ -17,12 +17,12 @@ class Grant(Base):
     employer_name = Column(String(200), nullable=True)
     work_start_date = Column(Date, nullable=True)
     work_end_date = Column(Date, nullable=True)
-    grant_amount = Column(Float, nullable=True)  # נומינלי
+    grant_amount = Column(Float, nullable=True)  # ׳ ׳•׳׳™׳ ׳׳™
     grant_date = Column(Date, nullable=True)
-    grant_indexed_amount = Column(Float, nullable=True)  # סכום מוצמד ("מענק פטור צמוד")
-    limited_indexed_amount = Column(Float, nullable=True)  # סכום מוגבל ל-32 שנים ("מענק פטור צמוד (32 שנים)")
-    grant_ratio = Column(Float, nullable=True)  # חלק יחסי
-    impact_on_exemption = Column(Float, nullable=True)  # פגיעה בתקרה
+    grant_indexed_amount = Column(Float, nullable=True)  # ׳¡׳›׳•׳ ׳׳•׳¦׳׳“ ("׳׳¢׳ ׳§ ׳₪׳˜׳•׳¨ ׳¦׳׳•׳“")
+    limited_indexed_amount = Column(Float, nullable=True)  # ׳¡׳›׳•׳ ׳׳•׳’׳‘׳ ׳-32 ׳©׳ ׳™׳ ("׳׳¢׳ ׳§ ׳₪׳˜׳•׳¨ ׳¦׳׳•׳“ (32 ׳©׳ ׳™׳)")
+    grant_ratio = Column(Float, nullable=True)  # ׳—׳׳§ ׳™׳—׳¡׳™
+    impact_on_exemption = Column(Float, nullable=True)  # ׳₪׳’׳™׳¢׳” ׳‘׳×׳§׳¨׳”
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow, server_default=func.now())
@@ -43,3 +43,4 @@ class Grant(Base):
             "grant_ratio": self.grant_ratio,
             "impact_on_exemption": self.impact_on_exemption
         }
+

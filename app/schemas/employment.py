@@ -1,7 +1,8 @@
 # app/schemas/employment.py
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, Field, field_serializer
+from pydantic.config import ConfigDict
 
 class EmploymentBase(BaseModel):
     employer_name: str = Field(..., min_length=2, max_length=255)
@@ -11,8 +12,9 @@ class EmploymentBase(BaseModel):
     start_date: date
 
 class EmploymentCreate(EmploymentBase):
-    # current employment only (נוכחי)
-    pass
+    # current employment only (׳ ׳•׳›׳—׳™)
+    last_salary: Optional[float] = None
+    end_date: Optional[date] = None
 
 class EmploymentOut(BaseModel):
     id: int
@@ -24,8 +26,7 @@ class EmploymentOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TerminationPlanIn(BaseModel):
     planned_termination_date: date
@@ -53,3 +54,4 @@ class TerminationEventOut(BaseModel):
         if v is None:
             return None
         return getattr(v, "value", v)
+

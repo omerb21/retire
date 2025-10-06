@@ -1,0 +1,6 @@
+Monthly vs Yearly Totals Consistency Check
+==================================================
+
+Monthly sum (net): 60331200.00
+Yearly total (net): 60331200.00
+Difference: 0.00

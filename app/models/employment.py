@@ -1,4 +1,4 @@
-"""
+﻿"""
 Employment entity model for SQLAlchemy ORM
 """
 from sqlalchemy import Column, Integer, ForeignKey, Date, Boolean, Numeric, DateTime, func, Index
@@ -27,6 +27,7 @@ class Employment(Base):
 
     employer = relationship("Employer", lazy="joined")
 
-# אינדקסים שימושיים
+# ׳׳™׳ ׳“׳§׳¡׳™׳ ׳©׳™׳׳•׳©׳™׳™׳
 Index("ix_employment_client_current", Employment.client_id, Employment.is_current)
 Index("ix_employment_employer", Employment.employer_id)
+

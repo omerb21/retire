@@ -1,0 +1,34 @@
+[33mcommit a09c5325fe82d5fcbc1cec85b43b8c136a3f2fdf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32msprint11-closure-20250908-164627[m[33m)[m
+Author: omerb21 <omerb31@gmail.com>
+Date:   Tue Sep 9 11:39:58 2025 +0300
+
+    Add new FastAPI system with CRUD operations and canonical tests
+
+README_migration.md
+app/main.py
+app/routers/client.py
+app/routers/clients.py
+app/routers/scenarios.py
+app/schemas.py
+app/services/calculations.py
+app/utils/report_export.py
+artifacts/README_run_instructions.txt
+artifacts/canonical_run_20250909_102927.json
+artifacts/canonical_run_20250909_103717.json
+artifacts/canonical_run_20250909_104448.json
+artifacts/canonical_run_20250909_113920.json
+artifacts/commit_sha.txt
+artifacts/scenario_payload_example.json
+artifacts/test_report.pdf
+artifacts/yearly_totals_verification_20250909_102927.zip
+artifacts/yearly_totals_verification_20250909_103717.zip
+artifacts/yearly_totals_verification_20250909_104448.zip
+artifacts/zip_sha256_20250909_102927.txt
+artifacts/zip_sha256_20250909_103717.txt
+artifacts/zip_sha256_20250909_104448.txt
+migrations/001_init.sql
+new_canonical_test.py
+sprint11_merge_instructions.md
+sprint11_pr_content.md
+sprint11_qa_request.md
+tests/test_calculations.py

@@ -1,4 +1,4 @@
-"""
+﻿"""
 TerminationEvent entity model for SQLAlchemy ORM
 """
 from sqlalchemy import Column, Integer, ForeignKey, Date, Enum, Numeric, Text, DateTime, func
@@ -28,10 +28,11 @@ class TerminationEvent(Base):
     actual_termination_date = Column(Date, nullable=True)
     reason = Column(Enum(TerminationReason), nullable=True)
 
-    severance_basis_nominal = Column(Numeric(12,2), nullable=True)  # בסיס פיצויים אם ידוע
-    package_paths = Column(Text, nullable=True)  # JSON כטקסט של נתיבי קבצים שנוצרו בשלב B
+    severance_basis_nominal = Column(Numeric(12,2), nullable=True)  # ׳‘׳¡׳™׳¡ ׳₪׳™׳¦׳•׳™׳™׳ ׳׳ ׳™׳“׳•׳¢
+    package_paths = Column(Text, nullable=True)  # JSON ׳›׳˜׳§׳¡׳˜ ׳©׳ ׳ ׳×׳™׳‘׳™ ׳§׳‘׳¦׳™׳ ׳©׳ ׳•׳¦׳¨׳• ׳‘׳©׳׳‘ B
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow, server_default=func.now())
 
     employment = relationship("Employment")
+

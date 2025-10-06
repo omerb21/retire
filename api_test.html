@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Connection Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      direction: rtl;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .test-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #e6ffe6;
+      border-color: #99cc99;
+    }
+    .error {
+      background-color: #ffe6e6;
+      border-color: #cc9999;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      direction: ltr;
+      text-align: left;
+    }
+    #results {
+      margin-top: 20px;
+    }
+    .test-result {
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>בדיקת חיבור API</h1>
+  <p>כלי זה בודק את החיבור ל-API ואת תקינות הגדרות CORS/fetch</p>
+  
+  <div class="test-section">
+    <h2>הגדרות:</h2>
+    <div>
+      <label for="apiBase">כתובת בסיס ה-API:</label>
+      <input type="text" id="apiBase" value="/api/v1" />
+    </div>
+    <div>
+      <label>הגדרת Credentials:</label>
+      <select id="credentials">
+        <option value="omit" selected>omit (מומלץ)</option>
+        <option value="include">include</option>
+        <option value="same-origin">same-origin</option>
+      </select>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h2>בדיקות API:</h2>
+    <button id="testClients">בדיקת רשימת לקוחות</button>
+    <button id="testNewClient">בדיקת יצירת לקוח</button>
+    <button id="testHealth">בדיקת Health Check</button>
+  </div>
+  
+  <div id="results"></div>
+  
+  <script>
+    // Helper to add results
+    function addResult(success, title, content) {
+      const resultDiv = document.getElementById('results');
+      const resultItem = document.createElement('div');
+      resultItem.className = `test-result ${success ? 'success' : 'error'}`;
+      
+      const titleEl = document.createElement('h3');
+      titleEl.textContent = title;
+      resultItem.appendChild(titleEl);
+      
+      if (typeof content === 'object') {
+        const pre = document.createElement('pre');
+        pre.textContent = JSON.stringify(content, null, 2);
+        resultItem.appendChild(pre);
+      } else {
+        const p = document.createElement('p');
+        p.textContent = content;
+        resultItem.appendChild(p);
+      }
+      
+      resultDiv.insertBefore(resultItem, resultDiv.firstChild);
+    }
+    
+    // Safe fetch wrapper
+    async function apiFetch(path, options = {}) {
+      const apiBase = document.getElementById('apiBase').value;
+      const credentials = document.getElementById('credentials').value;
+      
+      const url = path.startsWith('http') ? path : `${apiBase}${path}`;
+      
+      try {
+        console.log(`Fetching: ${url} with credentials: ${credentials}`);
+        const response = await fetch(url, {
+          credentials: credentials,
+          headers: { 'Content-Type': 'application/json' },
+          ...options
+        });
+        
+        // Get status info
+        const statusInfo = {
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+          headers: {}
+        };
+        
+        // Extract headers
+        response.headers.forEach((value, key) => {
+          statusInfo.headers[key] = value;
+        });
+        
+        // Try to parse response
+        let data;
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          data = await response.text();
+        }
+        
+        if (!response.ok) {
+          return {
+            success: false,
+            status: statusInfo,
+            error: typeof data === 'object' ? data : { message: data }
+          };
+        }
+        
+        return {
+          success: true,
+          status: statusInfo,
+          data
+        };
+      } catch (error) {
+        return {
+          success: false,
+          status: { status: 0, statusText: 'Network Error' },
+          error: { message: error.message }
+        };
+      }
+    }
+    
+    // Test clients endpoint
+    document.getElementById('testClients').addEventListener('click', async () => {
+      const result = await apiFetch('/clients?limit=5');
+      
+      if (result.success) {
+        addResult(true, 'רשימת לקוחות התקבלה בהצלחה', {
+          status: result.status,
+          data: result.data
+        });
+      } else {
+        addResult(false, 'שגיאה בקבלת רשימת לקוחות', {
+          status: result.status,
+          error: result.error
+        });
+      }
+    });
+    
+    // Test client creation
+    document.getElementById('testNewClient').addEventListener('click', async () => {
+      const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+      
+      const newClient = {
+        first_name: `טסט${timestamp.slice(8)}`,
+        last_name: `משתמש${timestamp.slice(11)}`,
+        id_number: "123456789",
+        birth_date: "1980-01-01"
+      };
+      
+      const result = await apiFetch('/clients', {
+        method: 'POST',
+        body: JSON.stringify(newClient)
+      });
+      
+      if (result.success) {
+        addResult(true, 'לקוח נוצר בהצלחה', {
+          status: result.status,
+          client: result.data
+        });
+      } else {
+        addResult(false, 'שגיאה ביצירת לקוח', {
+          status: result.status,
+          request: newClient,
+          error: result.error
+        });
+      }
+    });
+    
+    // Test health endpoint
+    document.getElementById('testHealth').addEventListener('click', async () => {
+      const result = await apiFetch('/health');
+      
+      if (result.success) {
+        addResult(true, 'בדיקת תקינות מוצלחת', {
+          status: result.status,
+          data: result.data
+        });
+      } else {
+        addResult(false, 'שגיאה בבדיקת תקינות', {
+          status: result.status,
+          error: result.error
+        });
+      }
+    });
+  </script>
+</body>
+</html>

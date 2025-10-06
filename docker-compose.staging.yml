@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Staging database
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: retirement_staging
+      POSTGRES_USER: staging_user
+      POSTGRES_PASSWORD: staging_pass_change_me
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staging_user -d retirement_staging"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Staging application
+  app:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://staging_user:staging_pass_change_me@db:5432/retirement_staging
+      - ENVIRONMENT=staging
+      - DEBUG=true
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./artifacts:/app/artifacts
+      - ./temp:/app/temp
+    restart: unless-stopped
+
+volumes:
+  staging_postgres_data:

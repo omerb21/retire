@@ -1,0 +1,208 @@
+/**
+ * Yearly Totals Verification - Dedicated Styles
+ */
+
+/* Test mode watermark */
+#test-mode-watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 100px;
+  font-weight: bold;
+  color: rgba(255, 0, 0, 0.2);
+  pointer-events: none;
+  z-index: 9999;
+  display: none;
+  font-family: Arial, sans-serif;
+  white-space: nowrap;
+}
+
+/* YTV specific styling */
+.ytv-container {
+  direction: rtl;
+  text-align: right;
+}
+
+.ytv-panel {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 15px;
+  margin-bottom: 20px;
+  background-color: #f9f9f9;
+}
+
+.ytv-form-group {
+  margin-bottom: 15px;
+}
+
+.ytv-form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.ytv-form-group input,
+.ytv-form-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  text-align: right;
+}
+
+.ytv-checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.ytv-checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin-left: 8px;
+}
+
+.ytv-button {
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-left: 10px;
+}
+
+.ytv-button:hover {
+  background-color: #45a049;
+}
+
+.ytv-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.ytv-progress {
+  width: 100%;
+  height: 20px;
+  background-color: #f3f3f3;
+  border-radius: 5px;
+  margin: 10px 0;
+  display: none;
+}
+
+.ytv-progress-inner {
+  height: 100%;
+  background-color: #4CAF50;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.ytv-response {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  direction: rtl;
+  text-align: right;
+}
+
+.ytv-response.success {
+  border-right: 5px solid #4CAF50;
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.ytv-response.error {
+  border-right: 5px solid #f44336;
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.ytv-response.info {
+  border-right: 5px solid #17a2b8;
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.ytv-result-item {
+  padding: 8px;
+  margin: 5px 0;
+  border-radius: 4px;
+  border-right: 3px solid #ccc;
+}
+
+.ytv-result-item.pass {
+  background-color: #d4edda;
+  border-right: 4px solid #28a745;
+}
+
+.ytv-result-item.fail {
+  background-color: #f8d7da;
+  border-right: 4px solid #dc3545;
+}
+
+.ytv-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  direction: rtl;
+  text-align: right;
+}
+
+.ytv-data-table th,
+.ytv-data-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: right;
+}
+
+.ytv-data-table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.ytv-data-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* Mock data indicator */
+.ytv-mock-indicator {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 15px;
+  color: #856404;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* Proof summary specific styling */
+.ytv-proof-summary {
+  direction: ltr;
+  text-align: left;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 15px;
+  overflow-x: auto;
+}
+
+/* Action buttons container */
+.ytv-actions {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.ytv-actions button {
+  display: none;
+  margin: 0 5px;
+}

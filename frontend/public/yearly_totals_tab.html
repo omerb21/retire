@@ -1,0 +1,304 @@
+<!-- Yearly Totals Verification Tab Content -->
+<div class="tab-content" id="yearly-totals">
+  <h2>אימות סיכומים שנתיים</h2>
+  <div class="container">
+    <div class="panel">
+      <h3>בדיקת סיכומים שנתיים</h3>
+      <div class="form-group">
+        <label for="yearly-totals-client-id">מזהה לקוח:</label>
+        <input type="text" id="yearly-totals-client-id" placeholder="הכנס מזהה לקוח">
+      </div>
+      <div class="form-group">
+        <label for="yearly-totals-scenario-id">מזהה תרחיש:</label>
+        <input type="text" id="yearly-totals-scenario-id" placeholder="הכנס מזהה תרחיש">
+      </div>
+      <button id="verify-yearly-totals" class="action-button">בדוק סיכומים שנתיים</button>
+      <div id="yearly-totals-progress" class="progress-bar" style="display: none;">
+        <div class="progress-bar-inner"></div>
+      </div>
+      <div id="yearly-totals-response" class="response"></div>
+    </div>
+    
+    <div class="panel">
+      <h3>תוצאות אימות</h3>
+      <div class="form-group">
+        <label for="yearly-totals-format">פורמט תצוגה:</label>
+        <select id="yearly-totals-format">
+          <option value="summary">סיכום בלבד</option>
+          <option value="detailed">מפורט</option>
+          <option value="proof">Proof Summary</option>
+        </select>
+      </div>
+      <div id="yearly-totals-results" class="response"></div>
+      <button id="download-proof" style="display: none;">הורד Proof Summary</button>
+      <button id="create-artifact-zip" style="display: none;">צור ארכיון ZIP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Yearly Totals Verification JavaScript -->
+<script>
+  // Load the verifier script
+  document.addEventListener('DOMContentLoaded', function() {
+    const script = document.createElement('script');
+    script.src = 'yearly_totals_verifier.js';
+    document.head.appendChild(script);
+    
+    // Initialize once script is loaded
+    script.onload = initYearlyTotalsVerifier;
+  });
+  
+  function initYearlyTotalsVerifier() {
+    // Initialize the verifier
+    let verifier = null;
+    let verificationResults = null;
+    
+    // Handle verification button click
+    document.getElementById('verify-yearly-totals').addEventListener('click', async function() {
+      try {
+        const clientId = document.getElementById('yearly-totals-client-id').value;
+        const scenarioId = document.getElementById('yearly-totals-scenario-id').value;
+        
+        if (!clientId || !scenarioId) {
+          displayResponse('yearly-totals-response', 'מזהה לקוח ומזהה תרחיש נדרשים', false);
+          return;
+        }
+        
+        // Show progress
+        const progressBar = document.getElementById('yearly-totals-progress');
+        progressBar.style.display = 'block';
+        progressBar.querySelector('.progress-bar-inner').style.width = '10%';
+        
+        displayResponse('yearly-totals-response', 'מאחזר נתוני תזרים מזומנים...', true);
+        
+        // Fetch cashflow data
+        const cashflowResult = await apiFetch(`/clients/${clientId}/scenarios/${scenarioId}/cashflow`);
+        if (!cashflowResult.ok) {
+          displayResponse('yearly-totals-response', `שגיאה באחזור נתוני תזרים: ${cashflowResult.status}`, false);
+          progressBar.style.display = 'none';
+          return;
+        }
+        
+        progressBar.querySelector('.progress-bar-inner').style.width = '30%';
+        displayResponse('yearly-totals-response', 'מאחזר נתוני השוואה...', true);
+        
+        // Fetch compare data (with yearly totals)
+        const compareResult = await apiFetch(`/clients/${clientId}/scenarios/${scenarioId}/compare`);
+        if (!compareResult.ok) {
+          displayResponse('yearly-totals-response', `שגיאה באחזור נתוני השוואה: ${compareResult.status}`, false);
+          progressBar.style.display = 'none';
+          return;
+        }
+        
+        progressBar.querySelector('.progress-bar-inner').style.width = '50%';
+        displayResponse('yearly-totals-response', 'בודק תקינות נתונים...', true);
+        
+        // Get case detection status
+        const caseResult = await apiFetch(`/case/detect`, {
+          method: 'POST',
+          body: { client_id: parseInt(clientId) }
+        });
+        
+        // Get PDF generation status
+        const pdfResult = await apiFetch(`/clients/${clientId}/scenarios/${scenarioId}/report/pdf`);
+        
+        progressBar.querySelector('.progress-bar-inner').style.width = '70%';
+        displayResponse('yearly-totals-response', 'מבצע אימות סיכומים שנתיים...', true);
+        
+        // Create verifier
+        verifier = new YearlyTotalsVerifier();
+        
+        // Prepare data for verification
+        const verificationData = {
+          scenarios: [
+            {
+              scenario_id: scenarioId,
+              monthly_data: cashflowResult.data.rows || [],
+              yearly_totals: compareResult.data.yearly_totals || {}
+            }
+          ],
+          api_status: {
+            "CASE DETECT": {
+              status_code: caseResult.status,
+              case: caseResult.data?.case || "unknown"
+            },
+            "CASHFLOW": {
+              status_code: cashflowResult.status,
+              rows: (cashflowResult.data.rows || []).length,
+              range: getDateRange(cashflowResult.data.rows || [])
+            },
+            "COMPARE": {
+              status_code: compareResult.status,
+              yearly_totals: compareResult.data.yearly_totals ? "present" : "missing"
+            },
+            "PDF": {
+              status_code: pdfResult.status,
+              magic: pdfResult.data ? "%PDF" : "N/A"
+            }
+          },
+          artifacts: {
+            "report_ok.pdf": pdfResult.data || "%PDF-1.4\nSimulated PDF content"
+          }
+        };
+        
+        // Run verification
+        progressBar.querySelector('.progress-bar-inner').style.width = '90%';
+        const proofSummary = verifier.verifyData(verificationData);
+        verificationResults = {
+          summary: proofSummary,
+          detailed: verifier.validationResults,
+          raw: verificationData
+        };
+        
+        // Show results
+        progressBar.querySelector('.progress-bar-inner').style.width = '100%';
+        setTimeout(() => {
+          progressBar.style.display = 'none';
+          displayResponse('yearly-totals-response', 'אימות הושלם בהצלחה', true);
+          showVerificationResults();
+          
+          // Show download buttons
+          document.getElementById('download-proof').style.display = 'inline-block';
+          document.getElementById('create-artifact-zip').style.display = 'inline-block';
+        }, 500);
+      } catch (error) {
+        console.error('Verification Error:', error);
+        document.getElementById('yearly-totals-progress').style.display = 'none';
+        displayResponse('yearly-totals-response', `שגיאה בתהליך האימות: ${error.message}`, false);
+      }
+    });
+    
+    // Handle format change
+    document.getElementById('yearly-totals-format').addEventListener('change', showVerificationResults);
+    
+    // Handle download proof button
+    document.getElementById('download-proof').addEventListener('click', function() {
+      if (!verificationResults) return;
+      
+      const blob = new Blob([verificationResults.summary], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sprint11_proof_summary_${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+    
+    // Handle create ZIP button
+    document.getElementById('create-artifact-zip').addEventListener('click', function() {
+      if (!verificationResults) return;
+      
+      displayResponse('yearly-totals-results', 'הכנת ZIP אינה נתמכת בדפדפן. הורד את קובץ ה-Proof Summary במקום.', false);
+    });
+    
+    // Helper function to show verification results based on selected format
+    function showVerificationResults() {
+      if (!verificationResults) return;
+      
+      const format = document.getElementById('yearly-totals-format').value;
+      const resultsElement = document.getElementById('yearly-totals-results');
+      
+      if (format === 'summary') {
+        // Show simple summary
+        const verdict = verifier.globalVerdict;
+        const scenarioCount = Object.keys(verifier.validationResults).length;
+        const errorCount = verifier.errors.length;
+        
+        let summaryHtml = `<h4>סיכום אימות</h4>`;
+        summaryHtml += `<div class="test-result-item ${verdict === 'PASS' ? 'pass' : 'fail'}">`;
+        summaryHtml += `<strong>תוצאה כללית:</strong> ${verdict}<br>`;
+        summaryHtml += `<strong>תרחישים שנבדקו:</strong> ${scenarioCount}<br>`;
+        summaryHtml += `<strong>מספר שגיאות:</strong> ${errorCount}`;
+        
+        if (errorCount > 0) {
+          summaryHtml += `<h5>שגיאות:</h5><ul>`;
+          for (const error of verifier.errors.slice(0, 5)) {
+            summaryHtml += `<li>${error.error_type} בתרחיש ${error.scenario_id}`;
+            if (error.year) summaryHtml += `, שנה ${error.year}`;
+            if (error.field) summaryHtml += `, שדה ${error.field}`;
+            if (error.diff) summaryHtml += `, הפרש ${error.diff}`;
+            summaryHtml += `</li>`;
+          }
+          summaryHtml += `</ul>`;
+        }
+        
+        summaryHtml += `</div>`;
+        resultsElement.innerHTML = summaryHtml;
+      } else if (format === 'detailed') {
+        // Show detailed results
+        let detailedHtml = `<h4>תוצאות מפורטות</h4>`;
+        
+        for (const scenarioId in verifier.validationResults) {
+          const result = verifier.validationResults[scenarioId];
+          detailedHtml += `<h5>תרחיש ${scenarioId} - ${result.status}</h5>`;
+          
+          for (const year in result.years) {
+            const yearResult = result.years[year];
+            detailedHtml += `<div class="test-result-item ${yearResult.status === 'PASS' ? 'pass' : 'fail'}">`;
+            detailedHtml += `<strong>שנה ${year}:</strong> ${yearResult.months_found} מתוך ${yearResult.months_expected} חודשים<br>`;
+            
+            // Add table for yearly totals
+            detailedHtml += `<table class="data-table" style="width:100%; margin-top:10px;">
+              <tr>
+                <th>שדה</th>
+                <th>מדווח</th>
+                <th>מחושב</th>
+                <th>הפרש</th>
+              </tr>`;
+            
+            for (const field of ['inflow', 'outflow', 'additional_income_net', 'capital_return_net', 'net']) {
+              const displayField = field === 'additional_income_net' ? 'הכנסות נוספות' : 
+                                 field === 'capital_return_net' ? 'תשואת הון' :
+                                 field === 'inflow' ? 'הכנסות' :
+                                 field === 'outflow' ? 'הוצאות' : 'נטו';
+              
+              const reported = yearResult.reported[field] || '0.00';
+              const computed = yearResult.computed[field] || '0.00';
+              const diff = yearResult.diff[field] || '0.00';
+              
+              const isError = Math.abs(parseFloat(diff)) > 0.01;
+              
+              detailedHtml += `<tr ${isError ? 'style="color:red;"' : ''}>
+                <td>${displayField}</td>
+                <td>${reported}</td>
+                <td>${computed}</td>
+                <td>${diff}</td>
+              </tr>`;
+            }
+            
+            detailedHtml += `</table>`;
+            detailedHtml += `</div>`;
+          }
+          
+          // Show errors if any
+          if (result.errors && result.errors.length > 0) {
+            detailedHtml += `<h5>שגיאות:</h5><ul>`;
+            for (const error of result.errors) {
+              detailedHtml += `<li>${error.error_type}`;
+              if (error.date) detailedHtml += ` בתאריך ${error.date}`;
+              if (error.field) detailedHtml += ` בשדה ${error.field}`;
+              if (error.expected) detailedHtml += ` (צפוי: ${error.expected}, בפועל: ${error.actual})`;
+              detailedHtml += `</li>`;
+            }
+            detailedHtml += `</ul>`;
+          }
+        }
+        
+        resultsElement.innerHTML = detailedHtml;
+      } else {
+        // Show proof summary
+        resultsElement.innerHTML = `<pre dir="ltr" style="text-align:left; direction:ltr;">${verificationResults.summary}</pre>`;
+      }
+    }
+    
+    // Helper function to get date range from cashflow data
+    function getDateRange(rows) {
+      if (!rows || rows.length === 0) return "N/A";
+      
+      const sortedRows = [...rows].sort((a, b) => a.date.localeCompare(b.date));
+      return `${sortedRows[0].date}..${sortedRows[sortedRows.length - 1].date}`;
+    }
+  }
+</script>

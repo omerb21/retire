@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Fixes Verification</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .panel {
+      flex: 1;
+      min-width: 300px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .response {
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      transition: all 0.3s ease;
+      animation: fadeIn 0.5s;
+    }
+    .success {
+      border-left: 5px solid #4CAF50;
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      border-left: 5px solid #f44336;
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .warning {
+      border-left: 5px solid #ffc107;
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .info {
+      border-left: 5px solid #17a2b8;
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #6c757d;
+      margin-top: 5px;
+      text-align: right;
+    }
+    .auto-test-panel {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+      background-color: #f9f9f9;
+    }
+    .test-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .test-options .form-group {
+      margin-bottom: 0;
+      flex: 1;
+      min-width: 150px;
+    }
+    .test-options label {
+      display: flex;
+      align-items: center;
+      font-weight: normal;
+    }
+    .test-options input[type="checkbox"] {
+      width: auto;
+      margin-right: 5px;
+    }
+    .progress-bar {
+      height: 20px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .test-result-item {
+      margin-bottom: 10px;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .test-result-item.pass {
+      background-color: #d4edda;
+      border-left: 4px solid #28a745;
+    }
+    .test-result-item.fail {
+      background-color: #f8d7da;
+      border-left: 4px solid #dc3545;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+    }
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      margin-right: 5px;
+      border-radius: 5px 5px 0 0;
+    }
+    .tab.active {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>API Verification Tool</h1>
+  
+  <!-- Client Lookup Section -->
+  <div class="client-lookup">
+    <h2>Client Lookup</h2>
+    <div class="form-group">
+      <label for="lookup-id-number">ID Number:</label>
+      <input type="text" id="lookup-id-number" placeholder="Enter ID number">
+      <button id="lookup-client">Lookup Client</button>
+    </div>
+    <div id="client-lookup-response" class="response"></div>
+    <div id="client-info" style="display: none;" class="client-info-panel">
+      <h3>Client Information</h3>
+      <div id="client-details"></div>
+      <button id="use-client-id" class="action-button">Use This Client</button>
+    </div>
+  </div>
+  
+  <div class="auto-test-panel">
+    <h2>Automatic Test Sequence</h2>
+    <div class="form-group">
+      <label for="auto-test-client-id">Client ID for Testing:</label>
+      <input type="text" id="auto-test-client-id" placeholder="Enter client ID">
+    </div>
+    <div class="test-options">
+      <div class="form-group">
+        <label><input type="checkbox" id="test-pension-funds" checked> Test Pension Funds</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-additional-income" checked> Test Additional Income</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-capital-assets" checked> Test Capital Assets</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-scenarios" checked> Test Scenarios</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-integration" checked> Test Integration</label>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" id="test-fixation" checked> Test Fixation</label>
+      </div>
+    </div>
+    <button id="run-auto-tests" class="action-button">Run Automatic Tests</button>
+    <div id="auto-test-results" class="response"></div>
+    <div id="test-progress" class="progress-bar" style="display: none;">
+      <div class="progress-bar-inner"></div>
+    </div>
+  </div>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="pension-funds">Pension Funds</div>
+    <div class="tab" data-tab="fixation">Fixation</div>
+    <div class="tab" data-tab="scenarios">Scenarios</div>
+    <div class="tab" data-tab="integration">Integration</div>
+    <div class="tab" data-tab="additional-income">Additional Income</div>
+    <div class="tab" data-tab="capital-assets">Capital Assets</div>
+  </div>
+  
+  <div class="tab-content active" id="pension-funds">
+    <h2>1. Pension Fund Creation</h2>
+    <div class="container">
+      <div class="panel">
+        <h3>Pension Funds List</h3>
+        <div class="form-group">
+          <button id="load-pension-funds">Load Pension Funds</button>
+          <button id="delete-all-funds" style="background-color: #f44336;">🗑️ Delete All</button>
+        </div>
+        <div id="funds-list" class="response"></div>
+      </div>
+    </div>
+    
+    <div class="container">
+      <div class="panel">
+        <h3>Calculated Mode</h3>
+        <div class="form-group">
+          <label for="pf-client-id">Client ID:</label>
+          <input type="number" id="pf-client-id" value="1">
+        </div>
+        <div class="form-group">
+          <label for="pf-fund-name">Fund Name:</label>
+          <input type="text" id="pf-fund-name" value="Test Calculated Fund">
+        </div>
+        <div class="form-group">
+          <label for="pf-balance">Balance:</label>
+          <input type="number" id="pf-balance" value="100000">
+        </div>
+        <div class="form-group">
+          <label for="pf-annuity-factor">Annuity Factor:</label>
+          <input type="number" id="pf-annuity-factor" value="220">
+        </div>
+        <div class="form-group">
+          <label for="pf-start-date">Pension Start Date:</label>
+          <input type="date" id="pf-start-date">
+        </div>
+        <div class="form-group">
+          <label for="pf-indexation">Indexation Method:</label>
+          <select id="pf-indexation">
+            <option value="none">None</option>
+            <option value="fixed">Fixed</option>
+            <option value="cpi">CPI</option>
+          </select>
+        </div>
+        <div class="form-group" id="pf-fixed-rate-group" style="display: none;">
+          <label for="pf-fixed-rate">Fixed Index Rate:</label>
+          <input type="number" id="pf-fixed-rate" value="0.02" step="0.01">
+        </div>
+        <button id="create-calculated-fund">Create Calculated Fund</button>
+        <button id="delete-all-funds">Delete All Funds</button>
+        <div id="calculated-response" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>Manual Mode</h3>
+        <div class="form-group">
+          <label for="pf-manual-client-id">Client ID:</label>
+          <input type="number" id="pf-manual-client-id" value="1">
+        </div>
+        <div class="form-group">
+          <label for="pf-manual-fund-name">Fund Name:</label>
+          <input type="text" id="pf-manual-fund-name" value="Test Manual Fund">
+        </div>
+        <div class="form-group">
+          <label for="pf-pension-amount">Pension Amount:</label>
+          <input type="number" id="pf-pension-amount" value="5000">
+        </div>
+        <div class="form-group">
+          <label for="pf-manual-start-date">Pension Start Date:</label>
+          <input type="date" id="pf-manual-start-date">
+        </div>
+        <div class="form-group">
+          <label for="pf-manual-indexation">Indexation Method:</label>
+          <select id="pf-manual-indexation">
+            <option value="none">None</option>
+            <option value="fixed">Fixed</option>
+            <option value="cpi">CPI</option>
+          </select>
+        </div>
+        <div class="form-group" id="pf-manual-fixed-rate-group" style="display: none;">
+          <label for="pf-manual-fixed-rate">Fixed Index Rate:</label>
+          <input type="number" id="pf-manual-fixed-rate" value="0.02" step="0.01">
+        </div>
+        <button id="create-manual-fund">Create Manual Fund</button>
+        <div id="manual-response" class="response"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tab-content" id="fixation">
+    <h2>2. Fixation Compute</h2>
+    <div class="panel">
+      <div class="form-group">
+        <label for="fixation-client-id">Client ID:</label>
+        <input type="number" id="fixation-client-id" value="1">
+      </div>
+      <button id="compute-fixation">Compute Fixation</button>
+      <div id="fixation-response" class="response"></div>
+    </div>
+    
+    <h3>Additional Modules</h3>
+    <div class="container">
+      <div class="panel">
+        <h3>Additional Incomes</h3>
+        <div class="form-group">
+          <label for="income-client-id">Client ID:</label>
+          <input type="number" id="income-client-id" value="1">
+        </div>
+        <button id="load-incomes">Load Incomes</button>
+        <button id="delete-all-incomes" style="background-color: #f44336;">🗑️ Delete All Incomes</button>
+        <div id="incomes-list" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>Capital Assets</h3>
+        <div class="form-group">
+          <label for="asset-client-id">Client ID:</label>
+          <input type="number" id="asset-client-id" value="1">
+        </div>
+        <button id="load-assets">Load Assets</button>
+        <button id="delete-all-assets" style="background-color: #f44336;">🗑️ Delete All Assets</button>
+        <div id="assets-list" class="response"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tab-content" id="scenarios">
+    <h2>3. Scenarios Integration</h2>
+    <div class="container">
+      <div class="panel">
+        <h3>Create Scenario</h3>
+        <div class="form-group">
+          <label for="scenario-client-id">Client ID:</label>
+          <input type="number" id="scenario-client-id" value="1">
+        </div>
+        <div class="form-group">
+          <label for="scenario-name">Scenario Name:</label>
+          <input type="text" id="scenario-name" value="Default Scenario">
+        </div>
+        <div class="form-group">
+          <label for="monthly-expenses">Monthly Expenses:</label>
+          <input type="number" id="monthly-expenses" value="10000">
+        </div>
+        <div class="form-group">
+          <label for="tax-optimization">Tax Optimization:</label>
+          <select id="tax-optimization">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="capitalization">Capitalization:</label>
+          <select id="capitalization">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+        <button id="create-scenario">Create Scenario</button>
+        <button id="list-scenarios">List Scenarios</button>
+        <div id="scenario-response" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>Integrate Scenario</h3>
+        <div class="form-group">
+          <label for="integration-client-id">Client ID:</label>
+          <input type="number" id="integration-client-id" value="1">
+        </div>
+        <div class="form-group">
+          <label for="integration-scenario-id">Scenario ID:</label>
+          <input type="number" id="integration-scenario-id">
+        </div>
+        <button id="integrate-all">Integrate All</button>
+        <button id="view-cashflow">View Cashflow</button>
+        <div id="integration-response" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>Scenarios List</h3>
+        <div id="scenarios-list" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>Cashflow Data</h3>
+        <div id="cashflow-data" class="response"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Set default dates to first day of current month
+    function setDefaultDates() {
+      const today = new Date();
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      const dateString = firstDay.toISOString().split('T')[0];
+      
+      document.getElementById('pf-start-date').value = dateString;
+      document.getElementById('pf-manual-start-date').value = dateString;
+    }
+    
+    // Enhanced API fetch helper with better error handling
+    async function apiFetch(endpoint, method = 'GET', body = null) {
+      const API_BASE_URL = "http://localhost:8000/api/v1";
+      try {
+        const options = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        };
+
+        if (body) {
+          options.body = JSON.stringify(body);
+        }
+
+        console.log(`API Request: ${method} ${API_BASE_URL}${endpoint}`);
+        if (body) console.log('Request Body:', body);
+        
+        const startTime = performance.now();
+        const res = await fetch(`${API_BASE_URL}${endpoint}`, options);
+        const responseTime = Math.round(performance.now() - startTime);
+        
+        const looksJson = res.headers.get('content-type')?.includes('application/json');
+        
+        if (!res.ok) {
+          let errorText = 'Unknown error';
+          let errorDetails = {};
+          
+          try {
+            if (looksJson) {
+              const errorData = await res.json();
+              errorText = errorData.detail || JSON.stringify(errorData);
+              errorDetails = errorData;
+            } else {
+              errorText = await res.text();
+            }
+          } catch (e) {
+            errorText = `Failed to parse error response: ${e.message}`;
+          }
+          
+          console.error(`API Error (${responseTime}ms): ${method} ${endpoint} - HTTP ${res.status}:`, errorDetails || errorText);
+          
+          // Create a structured error object
+          const error = new Error(`HTTP ${res.status}: ${errorText}`);
+          error.status = res.status;
+          error.details = errorDetails;
+          error.endpoint = endpoint;
+          error.responseTime = responseTime;
+          throw error;
+        }
+
+        const data = looksJson ? await res.json() : await res.text();
+        console.log(`API Success (${responseTime}ms): ${method} ${endpoint}`, data);
+        return data;
+      } catch (error) {
+        if (!error.status) {
+          // This is a network or other non-HTTP error
+          console.error(`API Network Error: ${error.message}`);
+        }
+        throw error;
+      }
+    }
+    
+    // Enhanced helper function to display API responses
+    function displayResponse(elementId, message, isSuccess = true) {
+      const element = document.getElementById(elementId);
+      
+      // Clear previous content
+      element.innerHTML = '';
+      
+      // Create response container
+      const responseContainer = document.createElement('div');
+      responseContainer.className = isSuccess ? 'response success' : 'response error';
+      
+      // Add icon based on success/error
+      const icon = document.createElement('span');
+      icon.textContent = isSuccess ? '✓ ' : '✗ ';
+      icon.style.fontWeight = 'bold';
+      responseContainer.appendChild(icon);
+      
+      // Add message
+      const messageSpan = document.createElement('span');
+      
+      // Handle error objects
+      if (typeof message === 'object' && message !== null) {
+        if (message.detail) {
+          messageSpan.textContent = message.detail;
+        } else if (message.message) {
+          messageSpan.textContent = message.message;
+        } else {
+          try {
+            messageSpan.textContent = JSON.stringify(message);
+          } catch (e) {
+            messageSpan.textContent = 'Unknown error';
+          }
+        }
+      } else {
+        messageSpan.textContent = message;
+      }
+      
+      responseContainer.appendChild(messageSpan);
+      
+      // Add timestamp
+      const timestamp = document.createElement('div');
+      timestamp.className = 'timestamp';
+      timestamp.textContent = new Date().toLocaleTimeString();
+      timestamp.style.fontSize = '0.8em';
+      timestamp.style.marginTop = '5px';
+      responseContainer.appendChild(timestamp);
+      
+      // Add to DOM
+      element.appendChild(responseContainer);
+      
+      // Auto-scroll to response
+      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    // Tab functionality
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Remove active class from all tabs and contents
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active class to clicked tab and corresponding content
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+    
+    // Show/hide fixed rate field based on indexation method
+    document.getElementById('pf-indexation').addEventListener('change', function() {
+      const fixedRateGroup = document.getElementById('pf-fixed-rate-group');
+      fixedRateGroup.style.display = this.value === 'fixed' ? 'block' : 'none';
+      
+      // Make fixed_index_rate required if indexation is fixed
+      const fixedRateInput = document.getElementById('pf-fixed-rate');
+      fixedRateInput.required = this.value === 'fixed';
+      
+      // Add validation message
+      if (this.value === 'fixed') {
+        fixedRateInput.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+        if (fixedRateInput.value) fixedRateInput.setCustomValidity('');
+      } else {
+        fixedRateInput.setCustomValidity('');
+      }
+    });
+    
+    document.getElementById('pf-manual-indexation').addEventListener('change', function() {
+      const fixedRateGroup = document.getElementById('pf-manual-fixed-rate-group');
+      fixedRateGroup.style.display = this.value === 'fixed' ? 'block' : 'none';
+      
+      // Make fixed_index_rate required if indexation is fixed
+      const fixedRateInput = document.getElementById('pf-manual-fixed-rate');
+      fixedRateInput.required = this.value === 'fixed';
+      
+      // Add validation message
+      if (this.value === 'fixed') {
+        fixedRateInput.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+        if (fixedRateInput.value) fixedRateInput.setCustomValidity('');
+      } else {
+        fixedRateInput.setCustomValidity('');
+      }
+    });
+    
+    // Add input event listeners to clear validation messages when user types
+    document.getElementById('pf-fixed-rate').addEventListener('input', function() {
+      if (this.value) this.setCustomValidity('');
+      else this.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+    });
+    
+    document.getElementById('pf-manual-fixed-rate').addEventListener('input', function() {
+      if (this.value) this.setCustomValidity('');
+      else this.setCustomValidity('שיעור הצמדה קבוע הוא שדה חובה');
+    });
+    
+    // 1. Pension Fund Creation - Calculated Mode
+    document.getElementById('create-calculated-fund').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-client-id').value;
+        const indexationMethod = document.getElementById('pf-indexation').value;
+        
+        // Get start date and align to first day of month
+        const start = new Date(document.getElementById('pf-start-date').value);
+        start.setDate(1);
+        const pension_start_date = start.toISOString().slice(0, 10); // YYYY-MM-01
+        
+        // Validate fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          const fixedRate = document.getElementById('pf-fixed-rate').value;
+          if (fixedRate === '' || fixedRate == null || isNaN(fixedRate)) {
+            displayResponse('calculated-response', 'יש להזין שיעור הצמדה קבוע (למשל ‎0.02‎).', false);
+            return;
+          }
+        }
+        
+        const payload = {
+          client_id: Number(clientId),
+          fund_name: document.getElementById('pf-fund-name').value,
+          input_mode: "calculated",
+          balance: Number(document.getElementById('pf-balance').value),
+          annuity_factor: Number(document.getElementById('pf-annuity-factor').value),
+          pension_start_date: pension_start_date,
+          indexation_method: indexationMethod
+        };
+        
+        // Only add fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          payload.fixed_index_rate = Number(document.getElementById('pf-fixed-rate').value);
+        } else {
+          // Ensure we don't send fixed_index_rate when not needed
+          delete payload.fixed_index_rate;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        
+        displayResponse('calculated-response', result);
+      } catch (error) {
+        displayResponse('calculated-response', error.message, false);
+      }
+    });
+    
+    // Pension Fund Creation - Manual Mode
+    document.getElementById('create-manual-fund').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-manual-client-id').value;
+        const indexationMethod = document.getElementById('pf-manual-indexation').value;
+        
+        // Get start date and align to first day of month
+        const start = new Date(document.getElementById('pf-manual-start-date').value);
+        start.setDate(1);
+        const pension_start_date = start.toISOString().slice(0, 10); // YYYY-MM-01
+        
+        // Validate fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          const fixedRate = document.getElementById('pf-manual-fixed-rate').value;
+          if (fixedRate === '' || fixedRate == null || isNaN(fixedRate)) {
+            displayResponse('manual-response', 'יש להזין שיעור הצמדה קבוע (למשל ‎0.02‎).', false);
+            return;
+          }
+        }
+        
+        const payload = {
+          client_id: Number(clientId),
+          fund_name: document.getElementById('pf-manual-fund-name').value,
+          input_mode: "manual",
+          pension_amount: Number(document.getElementById('pf-pension-amount').value),
+          pension_start_date: pension_start_date,
+          indexation_method: indexationMethod
+        };
+        
+        // Only add fixed_index_rate if indexation is fixed
+        if (indexationMethod === 'fixed') {
+          payload.fixed_index_rate = Number(document.getElementById('pf-manual-fixed-rate').value);
+        } else {
+          // Ensure we don't send fixed_index_rate when not needed
+          delete payload.fixed_index_rate;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        
+        displayResponse('manual-response', result);
+      } catch (error) {
+        displayResponse('manual-response', error.message, false);
+      }
+    });
+    
+    // 2. Fixation Compute
+    document.getElementById('compute-fixation').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('fixation-client-id').value;
+        const res = await apiFetch(`/fixation/${clientId}/compute`, {
+          method: "POST"
+        });
+        
+        const data = await res.json();
+        if (res.ok && data?.success) {
+          displayResponse('fixation-response', data);
+        } else {
+          const msg = data?.message || 'כשל בחישוב קיבוע';
+          throw new Error(msg);
+        }
+      } catch (error) {
+        displayResponse('fixation-response', error.message, false);
+      }
+    });
+    
+    // 3. Create Scenario
+    document.getElementById('create-scenario').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('scenario-client-id').value;
+        if (!clientId) {
+          displayResponse('scenario-response', 'Client ID is required', false);
+          return;
+        }
+        
+        const scenarioName = document.getElementById('scenario-name').value;
+        if (!scenarioName) {
+          displayResponse('scenario-response', 'Scenario name is required', false);
+          return;
+        }
+        
+        const monthlyExpenses = document.getElementById('monthly-expenses').value;
+        if (!monthlyExpenses || isNaN(monthlyExpenses) || Number(monthlyExpenses) <= 0) {
+          displayResponse('scenario-response', 'Monthly expenses must be a positive number', false);
+          return;
+        }
+        
+        const taxOptimization = document.getElementById('tax-optimization').value === 'true';
+        const capitalization = document.getElementById('capitalization').value === 'true';
+        
+        const payload = {
+          client_id: Number(clientId),
+          scenario_name: scenarioName,
+          monthly_expenses: Number(monthlyExpenses),
+          tax_optimization: taxOptimization,
+          capitalization: capitalization
+        };
+        
+        const result = await apiFetch(`/clients/${clientId}/scenarios`, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        
+        // Set the created scenario ID as the integration scenario ID
+        if (result && result.id) {
+          document.getElementById('integration-client-id').value = clientId;
+          document.getElementById('integration-scenario-id').value = result.id;
+          displayResponse('scenario-response', `Scenario created successfully with ID: ${result.id}`);
+          
+          // Automatically list scenarios
+          document.getElementById('list-scenarios').click();
+        } else {
+          displayResponse('scenario-response', result);
+        }
+      } catch (error) {
+        displayResponse('scenario-response', error.message, false);
+      }
+    });
+    
+    // List Scenarios
+    document.getElementById('list-scenarios').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('scenario-client-id').value;
+        if (!clientId) {
+          displayResponse('scenarios-list', 'Client ID is required', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/scenarios`);
+        
+        if (Array.isArray(result) && result.length > 0) {
+          // Format scenarios as a table
+          const scenariosTable = `
+            <table class="data-table" style="width:100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ID</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Name</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Monthly Expenses</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tax Opt.</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Cap.</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.map(scenario => `
+                  <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.id}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.scenario_name}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.monthly_expenses || 'N/A'} ₪</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.tax_optimization ? 'Yes' : 'No'}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${scenario.capitalization ? 'Yes' : 'No'}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">
+                      <button class="select-scenario" data-id="${scenario.id}">Select</button>
+                      <button class="view-cashflow" data-id="${scenario.id}">View Cashflow</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          
+          displayResponse('scenarios-list', scenariosTable);
+          
+          // Set the first scenario as selected by default
+          document.getElementById('integration-client-id').value = clientId;
+          document.getElementById('integration-scenario-id').value = result[0].id;
+          
+          // Add event listeners to select buttons
+          document.querySelectorAll('.select-scenario').forEach(button => {
+            button.addEventListener('click', (e) => {
+              e.preventDefault();
+              const scenarioId = button.getAttribute('data-id');
+              document.getElementById('integration-scenario-id').value = scenarioId;
+              document.getElementById('integration-client-id').value = clientId;
+              displayResponse('scenarios-list', `Selected scenario ID: ${scenarioId}`);
+            });
+          });
+          
+          // Add event listeners to view cashflow buttons
+          document.querySelectorAll('.view-cashflow').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const scenarioId = button.getAttribute('data-id');
+              try {
+                await fetchCashflow(clientId, scenarioId);
+              } catch (error) {
+                displayResponse('cashflow-data', error.message, false);
+              }
+            });
+          });
+        } else {
+          displayResponse('scenarios-list', 'No scenarios found for this client. Please create a scenario first.');
+        }
+      } catch (error) {
+        displayResponse('scenarios-list', error.message, false);
+      }
+    });
+    
+    // Function to fetch and display cashflow
+    async function fetchCashflow(clientId, scenarioId) {
+      try {
+        if (!clientId || !scenarioId) {
+          displayResponse('cashflow-data', 'Client ID and Scenario ID are required', false);
+          return;
+        }
+        
+        const cashflowData = await apiFetch(`/clients/${clientId}/scenarios/${scenarioId}/cashflow`);
+        
+        if (Array.isArray(cashflowData) && cashflowData.length > 0) {
+          // Format cashflow as a table
+          const cashflowTable = `
+            <h4>Cashflow for Scenario ID: ${scenarioId}</h4>
+            <table class="data-table" style="width:100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Date</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Income</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Expenses</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${cashflowData.slice(0, 12).map(cf => `
+                  <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${cf.date}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${cf.income || 0} ₪</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${cf.expenses || 0} ₪</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${(cf.income || 0) - (cf.expenses || 0)} ₪</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <p><em>Showing first 12 months of cashflow</em></p>
+          `;
+          
+          displayResponse('cashflow-data', cashflowTable);
+        } else {
+          displayResponse('cashflow-data', 'No cashflow data available for this scenario. Try running integration first.');
+        }
+      } catch (error) {
+        displayResponse('cashflow-data', error.message, false);
+      }
+    }
+    
+    // View Cashflow button
+    document.getElementById('view-cashflow').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('integration-client-id').value;
+        const scenarioId = document.getElementById('integration-scenario-id').value;
+        
+        if (!clientId) {
+          displayResponse('cashflow-data', 'Client ID is required', false);
+          return;
+        }
+        
+        if (!scenarioId) {
+          displayResponse('cashflow-data', 'Please select a scenario first', false);
+          return;
+        }
+        
+        await fetchCashflow(clientId, scenarioId);
+      } catch (error) {
+        displayResponse('cashflow-data', error.message, false);
+      }
+    });
+    
+    // Integrate All
+    document.getElementById('integrate-all').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('integration-client-id').value;
+        const scenarioId = document.getElementById('integration-scenario-id').value;
+        
+        if (!clientId) {
+          displayResponse('integration-response', 'Client ID is required', false);
+          return;
+        }
+        
+        if (!scenarioId) {
+          displayResponse('integration-response', 'Please select a scenario first', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/scenarios/${scenarioId}/integrate`, {
+          method: "POST"
+        });
+        
+        displayResponse('integration-response', 'Integration successful!');
+        
+        // Automatically view cashflow after integration
+        await fetchCashflow(clientId, scenarioId);
+      } catch (error) {
+        displayResponse('integration-response', error.message, false);
+      }
+    });
+    
+    // Load Pension Funds
+    document.getElementById('load-pension-funds').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-client-id').value || document.getElementById('pf-manual-client-id').value;
+        if (!clientId) {
+          displayResponse('funds-list', 'Client ID is required', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/pension-funds`);
+        
+        if (Array.isArray(result) && result.length > 0) {
+          const fundsHtml = result.map(fund => {
+            // Format indexation method properly
+            let indexationText;
+            if (fund.indexation_method === 'fixed') {
+              if (fund.fixed_index_rate !== undefined && fund.fixed_index_rate !== null) {
+                indexationText = `\u05e7\u05d1\u05d5\u05e2\u05d4 ${(fund.fixed_index_rate * 100).toFixed(2)}%`;
+              } else {
+                indexationText = '\u05e7\u05d1\u05d5\u05e2\u05d4 \u2014';
+              }
+            } else if (fund.indexation_method === 'cpi') {
+              indexationText = '\u05de\u05d3\u05d3';
+            } else {
+              indexationText = '\u05dc\u05d0 \u05e6\u05de\u05d5\u05d3';
+            }
+            
+            return `
+              <div class="fund-card">
+                <h4>${fund.fund_name}</h4>
+                <p>\u05e1\u05d5\u05d2: ${fund.input_mode === 'calculated' ? '\u05de\u05d7\u05d5\u05e9\u05d1' : '\u05d9\u05d3\u05e0\u05d9'}</p>
+                <p>\u05e1\u05db\u05d5\u05dd: ${fund.pension_amount ? fund.pension_amount : '\u05dc\u05d0 \u05d6\u05de\u05d9\u05df'} \u20aa</p>
+                <p>\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05ea\u05d7\u05dc\u05d4: ${fund.pension_start_date}</p>
+                <p>\u05d4\u05e6\u05de\u05d3\u05d4: ${indexationText}</p>
+                <p>ID: ${fund.id}</p>
+                <button class="delete-fund" data-id="${fund.id}" data-client-id="${clientId}">\u05de\u05d7\u05e7</button>
+              </div>
+            `;
+          }).join('');
+          
+          displayResponse('funds-list', `<div class="funds-container">${fundsHtml}</div>`);
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-fund').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const fundId = button.getAttribute('data-id');
+              const clientId = button.getAttribute('data-client-id');
+              try {
+                await apiFetch(`/clients/${clientId}/pension-funds/${fundId}`, {
+                  method: "DELETE"
+                });
+                // Reload the list after deletion
+                document.getElementById('load-pension-funds').click();
+              } catch (error) {
+                displayResponse('funds-list', error.message, false);
+              }
+            });
+          });
+        } else {
+          displayResponse('funds-list', 'No pension funds found');
+        }
+      } catch (error) {
+        displayResponse('funds-list', error.message, false);
+      }
+    });
+    
+    // Delete All Funds
+    document.getElementById('delete-all-funds').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('pf-client-id').value || document.getElementById('pf-manual-client-id').value;
+        if (!clientId) {
+          displayResponse('funds-list', 'Client ID is required', false);
+          return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('\u05d4\u05d0\u05dd \u05d0\u05ea\u05d4 \u05d1\u05d8\u05d5\u05d7 \u05e9\u05d1\u05e8\u05e6\u05d5\u05e0\u05da \u05dc\u05de\u05d7\u05d5\u05e7 \u05d0\u05ea \u05db\u05dc \u05d4\u05e7\u05e8\u05e0\u05d5\u05ea?')) {
+          return;
+        }
+        
+        // Get all funds
+        const funds = await apiFetch(`/clients/${clientId}/pension-funds`);
+        
+        if (Array.isArray(funds) && funds.length > 0) {
+          // Delete each fund
+          const deletePromises = funds.map(fund => 
+            apiFetch(`/clients/${clientId}/pension-funds/${fund.id}`, {
+              method: "DELETE"
+            })
+          );
+          
+          await Promise.all(deletePromises);
+          displayResponse('funds-list', `Successfully deleted ${funds.length} pension funds`);
+          
+          // Reload the list
+          document.getElementById('load-pension-funds').click();
+        } else {
+          displayResponse('funds-list', 'No pension funds to delete');
+        }
+      } catch (error) {
+        displayResponse('funds-list', error.message, false);
+      }
+    });
+    
+    // Load Additional Incomes
+    document.getElementById('load-incomes').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('income-client-id').value;
+        if (!clientId) {
+          displayResponse('incomes-list', 'Client ID is required', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/additional-incomes`);
+        
+        if (Array.isArray(result) && result.length > 0) {
+          const incomesHtml = result.map(income => {
+            return `
+              <div class="income-card">
+                <h4>${income.name || 'Unnamed Income'}</h4>
+                <p>סכום: ${income.amount || 0} ₪</p>
+                <p>תדירות: ${income.frequency || 'monthly'}</p>
+                <p>הצמדה: ${income.indexation_method || 'none'}</p>
+                <p>ID: ${income.id}</p>
+                <button class="delete-income" data-id="${income.id}" data-client-id="${clientId}">מחק</button>
+              </div>
+            `;
+          }).join('');
+          
+          displayResponse('incomes-list', `<div class="incomes-container">${incomesHtml}</div>`);
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-income').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const incomeId = button.getAttribute('data-id');
+              const clientId = button.getAttribute('data-client-id');
+              try {
+                await apiFetch(`/clients/${clientId}/additional-incomes/${incomeId}`, {
+                  method: "DELETE"
+                });
+                // Reload the list after deletion
+                document.getElementById('load-incomes').click();
+              } catch (error) {
+                displayResponse('incomes-list', error.message, false);
+              }
+            });
+          });
+        } else {
+          displayResponse('incomes-list', 'No additional incomes found');
+        }
+      } catch (error) {
+        displayResponse('incomes-list', error.message, false);
+      }
+    });
+    
+    // Delete All Incomes
+    document.getElementById('delete-all-incomes').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('income-client-id').value;
+        if (!clientId) {
+          displayResponse('incomes-list', 'Client ID is required', false);
+          return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('האם אתה בטוח שברצונך למחוק את כל ההכנסות הנוספות?')) {
+          return;
+        }
+        
+        // Get all incomes
+        const incomes = await apiFetch(`/clients/${clientId}/additional-incomes`);
+        
+        if (Array.isArray(incomes) && incomes.length > 0) {
+          // Delete each income
+          const deletePromises = incomes.map(income => 
+            apiFetch(`/clients/${clientId}/additional-incomes/${income.id}`, {
+              method: "DELETE"
+            })
+          );
+          
+          await Promise.all(deletePromises);
+          displayResponse('incomes-list', `Successfully deleted ${incomes.length} additional incomes`);
+          
+          // Reload the list
+          document.getElementById('load-incomes').click();
+        } else {
+          displayResponse('incomes-list', 'No additional incomes to delete');
+        }
+      } catch (error) {
+        displayResponse('incomes-list', error.message, false);
+      }
+    });
+    
+    // Load Capital Assets
+    document.getElementById('load-assets').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('asset-client-id').value;
+        if (!clientId) {
+          displayResponse('assets-list', 'Client ID is required', false);
+          return;
+        }
+        
+        const result = await apiFetch(`/clients/${clientId}/capital-assets`);
+        
+        if (Array.isArray(result) && result.length > 0) {
+          const assetsHtml = result.map(asset => {
+            return `
+              <div class="asset-card">
+                <h4>${asset.name || 'Unnamed Asset'}</h4>
+                <p>סכום: ${asset.amount || 0} ₪</p>
+                <p>תשואה: ${asset.return_rate || 0}%</p>
+                <p>הצמדה: ${asset.indexation_method || 'none'}</p>
+                <p>ID: ${asset.id}</p>
+                <button class="delete-asset" data-id="${asset.id}" data-client-id="${clientId}">מחק</button>
+              </div>
+            `;
+          }).join('');
+          
+          displayResponse('assets-list', `<div class="assets-container">${assetsHtml}</div>`);
+          
+          // Add event listeners to delete buttons
+          document.querySelectorAll('.delete-asset').forEach(button => {
+            button.addEventListener('click', async (e) => {
+              e.preventDefault();
+              const assetId = button.getAttribute('data-id');
+              const clientId = button.getAttribute('data-client-id');
+              try {
+                await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
+                  method: "DELETE"
+                });
+                // Reload the list after deletion
+                document.getElementById('load-assets').click();
+              } catch (error) {
+                displayResponse('assets-list', error.message, false);
+              }
+            });
+          });
+        } else {
+          displayResponse('assets-list', 'No capital assets found');
+        }
+      } catch (error) {
+        displayResponse('assets-list', error.message, false);
+      }
+    });
+    
+    // Delete All Assets
+    document.getElementById('delete-all-assets').addEventListener('click', async () => {
+      try {
+        const clientId = document.getElementById('asset-client-id').value;
+        if (!clientId) {
+          displayResponse('assets-list', 'Client ID is required', false);
+          return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('האם אתה בטוח שברצונך למחוק את כל נכסי ההון?')) {
+          return;
+        }
+        
+        // Get all assets
+        const assets = await apiFetch(`/clients/${clientId}/capital-assets`);
+        
+        if (Array.isArray(assets) && assets.length > 0) {
+          // Delete each asset
+          const deletePromises = assets.map(asset => 
+            apiFetch(`/clients/${clientId}/capital-assets/${asset.id}`, {
+              method: "DELETE"
+            })
+          );
+          
+          await Promise.all(deletePromises);
+          displayResponse('assets-list', `Successfully deleted ${assets.length} capital assets`);
+          
+          // Reload the list
+          document.getElementById('load-assets').click();
+        } else {
+          displayResponse('assets-list', 'No capital assets to delete');
+        }
+      } catch (error) {
+        displayResponse('assets-list', error.message, false);
+      }
+    });
+    
+    // Initialize
+    setDefaultDates();
+
+    // Client Lookup
+    document.getElementById('lookup-client').addEventListener('click', async () => {
+      try {
+        const idNumber = document.getElementById('lookup-id-number').value;
+        if (!idNumber) {
+          displayResponse('client-lookup-response', 'Please enter an ID number', false);
+          return;
+        }
+
+        const result = await apiFetch(`/clients/lookup?id_number=${encodeURIComponent(idNumber)}`);
+        
+        if (result && result.id) {
+          // Display client info
+          const clientInfo = `
+            <table class="data-table" style="width:100%; border-collapse: collapse; margin-top: 10px;">
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ID</th>
+                <td style="border: 1px solid #ddd; padding: 8px;">${result.id}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Name</th>
+                <td style="border: 1px solid #ddd; padding: 8px;">${result.first_name || ''} ${result.last_name || ''}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ID Number</th>
+                <td style="border: 1px solid #ddd; padding: 8px;">${result.id_number || ''}</td>
+              </tr>
+            </table>
+          `;
+          
+          document.getElementById('client-details').innerHTML = clientInfo;
+          document.getElementById('client-info').style.display = 'block';
+          document.getElementById('client-lookup-response').className = 'response success';
+          document.getElementById('client-lookup-response').textContent = 'Client found!';
+          
+          // Store client ID for use with the "Use This Client" button
+          document.getElementById('use-client-id').setAttribute('data-client-id', result.id);
+        } else {
+          document.getElementById('client-info').style.display = 'none';
+          displayResponse('client-lookup-response', 'Client not found with this ID number', false);
+        }
+      } catch (error) {
+        document.getElementById('client-info').style.display = 'none';
+        displayResponse('client-lookup-response', error.message, false);
+      }
+    });
+
+    // Use Client ID button
+    document.getElementById('use-client-id').addEventListener('click', () => {
+      const clientId = document.getElementById('use-client-id').getAttribute('data-client-id');
+      if (clientId) {
+        // Set client ID in all input fields
+        document.getElementById('pf-client-id').value = clientId;
+        document.getElementById('pf-manual-client-id').value = clientId;
+        document.getElementById('fixation-client-id').value = clientId;
+        document.getElementById('scenario-client-id').value = clientId;
+        document.getElementById('integration-client-id').value = clientId;
+        document.getElementById('income-client-id').value = clientId;
+        document.getElementById('asset-client-id').value = clientId;
+        document.getElementById('auto-test-client-id').value = clientId;
+        
+        // Show success message
+        displayResponse('client-lookup-response', `Client ID ${clientId} has been set in all forms`, true);
+      }
+    });
+    
+    // Automatic Test Sequence
+    document.getElementById('run-auto-tests').addEventListener('click', async () => {
+      const clientId = document.getElementById('auto-test-client-id').value;
+      if (!clientId) {
+        displayResponse('auto-test-results', 'Please enter a client ID for testing', false);
+        return;
+      }
+      
+      // Get selected test options
+      const testPensionFunds = document.getElementById('test-pension-funds').checked;
+      const testAdditionalIncome = document.getElementById('test-additional-income').checked;
+      const testCapitalAssets = document.getElementById('test-capital-assets').checked;
+      const testScenarios = document.getElementById('test-scenarios').checked;
+      const testIntegration = document.getElementById('test-integration').checked;
+      const testFixation = document.getElementById('test-fixation').checked;
+      
+      // Initialize test results container
+      const resultsContainer = document.getElementById('auto-test-results');
+      resultsContainer.innerHTML = '<h3>Test Results</h3>';
+      
+      // Show progress bar
+      const progressBar = document.getElementById('test-progress');
+      const progressBarInner = document.querySelector('.progress-bar-inner');
+      progressBar.style.display = 'block';
+      progressBarInner.style.width = '0%';
+      
+      // Create test plan
+      const testPlan = [];
+      if (testPensionFunds) {
+        testPlan.push({ name: 'Create Pension Fund', func: createTestPensionFund });
+        testPlan.push({ name: 'List Pension Funds', func: listTestPensionFunds });
+      }
+      if (testAdditionalIncome) {
+        testPlan.push({ name: 'Create Additional Income', func: createTestAdditionalIncome });
+        testPlan.push({ name: 'List Additional Incomes', func: listTestAdditionalIncomes });
+      }
+      if (testCapitalAssets) {
+        testPlan.push({ name: 'Create Capital Asset', func: createTestCapitalAsset });
+        testPlan.push({ name: 'List Capital Assets', func: listTestCapitalAssets });
+      }
+      if (testScenarios) {
+        testPlan.push({ name: 'Create Scenario', func: createTestScenario });
+        testPlan.push({ name: 'List Scenarios', func: listTestScenarios });
+      }
+      if (testIntegration && testScenarios) {
+        testPlan.push({ name: 'Integrate Scenario', func: integrateTestScenario });
+      }
+      if (testFixation) {
+        testPlan.push({ name: 'Compute Fixation', func: computeTestFixation });
+      }
+      
+      // Run tests sequentially
+      let testResults = [];
+      let testIds = { pensionFundId: null, incomeId: null, assetId: null, scenarioId: null };
+      
+      for (let i = 0; i < testPlan.length; i++) {
+        const test = testPlan[i];
+        const progressPercent = (i / testPlan.length) * 100;
+        progressBarInner.style.width = `${progressPercent}%`;
+        
+        // Add test item to results
+        const testResultItem = document.createElement('div');
+        testResultItem.className = 'test-result-item';
+        testResultItem.innerHTML = `<strong>${test.name}</strong>: Running...`;
+        resultsContainer.appendChild(testResultItem);
+        
+        try {
+          // Run the test function
+          const result = await test.func(clientId, testIds);
+          
+          // Update test IDs if returned
+          if (result && result.id) {
+            if (test.name.includes('Pension Fund')) testIds.pensionFundId = result.id;
+            if (test.name.includes('Additional Income')) testIds.incomeId = result.id;
+            if (test.name.includes('Capital Asset')) testIds.assetId = result.id;
+            if (test.name.includes('Scenario')) testIds.scenarioId = result.id;
+          }
+          
+          // Update test result
+          testResultItem.className = 'test-result-item pass';
+          testResultItem.innerHTML = `<strong>${test.name}</strong>: ✓ Passed`;
+          testResults.push({ name: test.name, passed: true });
+        } catch (error) {
+          // Update test result with error
+          testResultItem.className = 'test-result-item fail';
+          testResultItem.innerHTML = `<strong>${test.name}</strong>: ✗ Failed - ${error.message}`;
+          testResults.push({ name: test.name, passed: false, error: error.message });
+        }
+        
+        // Small delay to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Complete progress bar
+      progressBarInner.style.width = '100%';
+      
+      // Add summary
+      const passedTests = testResults.filter(r => r.passed).length;
+      const totalTests = testResults.length;
+      const summaryElement = document.createElement('div');
+      summaryElement.className = passedTests === totalTests ? 'response success' : 'response warning';
+      summaryElement.innerHTML = `<h4>Test Summary</h4><p>${passedTests} of ${totalTests} tests passed</p>`;
+      resultsContainer.appendChild(summaryElement);
+      
+      // Clean up test resources
+      await cleanupTestResources(clientId, testIds);
+    });
+    
+    // Test helper functions
+    async function createTestPensionFund(clientId, testIds) {
+      const testData = {
+        client_id: clientId,
+        fund_name: "Test Pension Fund",
+        input_mode: "calculated",
+        balance: 500000,
+        annuity_factor: 220,
+        pension_start_date: new Date().toISOString().split('T')[0],
+        indexation_method: "fixed",
+        fixed_index_rate: 0.02
+      };
+      return await apiFetch(`/clients/${clientId}/pension-funds`, 'POST', testData);
+    }
+    
+    async function listTestPensionFunds(clientId) {
+      return await apiFetch(`/clients/${clientId}/pension-funds`);
+    }
+    
+    async function createTestAdditionalIncome(clientId) {
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(today.getFullYear() + 5);
+      
+      const testData = {
+        client_id: clientId,
+        name: "Test Additional Income",
+        amount: 5000,
+        frequency: "monthly",
+        start_date: today.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        indexation_method: "fixed",
+        fixed_index_rate: 0.02,
+        tax_treatment: "taxable"
+      };
+      return await apiFetch(`/clients/${clientId}/additional-incomes`, 'POST', testData);
+    }
+    
+    async function listTestAdditionalIncomes(clientId) {
+      return await apiFetch(`/clients/${clientId}/additional-incomes`);
+    }
+    
+    async function createTestCapitalAsset(clientId) {
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setFullYear(today.getFullYear() + 10);
+      
+      const testData = {
+        client_id: clientId,
+        name: "Test Capital Asset",
+        amount: 1000000,
+        return_rate: 0.04,
+        payment_frequency: "monthly",
+        start_date: today.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+        indexation_method: "cpi",
+        tax_treatment: "taxable"
+      };
+      return await apiFetch(`/clients/${clientId}/capital-assets`, 'POST', testData);
+    }
+    
+    async function listTestCapitalAssets(clientId) {
+      return await apiFetch(`/clients/${clientId}/capital-assets`);
+    }
+    
+    async function createTestScenario(clientId) {
+      const testData = {
+        client_id: clientId,
+        scenario_name: "Test Scenario",
+        monthly_expenses: 10000,
+        tax_optimization: true,
+        capitalization: false
+      };
+      return await apiFetch(`/clients/${clientId}/scenarios`, 'POST', testData);
+    }
+    
+    async function listTestScenarios(clientId) {
+      return await apiFetch(`/clients/${clientId}/scenarios`);
+    }
+    
+    async function integrateTestScenario(clientId, testIds) {
+      if (!testIds.scenarioId) {
+        throw new Error("No scenario ID available for integration");
+      }
+      return await apiFetch(`/clients/${clientId}/scenarios/${testIds.scenarioId}/integrate`, 'POST');
+    }
+    
+    async function computeTestFixation(clientId) {
+      return await apiFetch(`/fixation/${clientId}/compute`, 'POST');
+    }
+    
+    async function cleanupTestResources(clientId, testIds) {
+      try {
+        // Delete in reverse order of dependencies
+        if (testIds.scenarioId) {
+          await apiFetch(`/clients/${clientId}/scenarios/${testIds.scenarioId}`, 'DELETE');
+        }
+        if (testIds.incomeId) {
+          await apiFetch(`/clients/${clientId}/additional-incomes/${testIds.incomeId}`, 'DELETE');
+        }
+        if (testIds.assetId) {
+          await apiFetch(`/clients/${clientId}/capital-assets/${testIds.assetId}`, 'DELETE');
+        }
+        if (testIds.pensionFundId) {
+          await apiFetch(`/clients/${clientId}/pension-funds/${testIds.pensionFundId}`, 'DELETE');
+        }
+        console.log('Test resources cleaned up successfully');
+      } catch (error) {
+        console.error('Error cleaning up test resources:', error);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+﻿Title: Sprint11 closure — local release
+Commit: sprint11-closure-20250908-164627
+Timestamp: 2025-09-09T11:58:29.4454982+03:00
+
+Artifacts:
+- artifacts\cashflow_live_*.json
+- artifacts\compare_live_*.json
+- artifacts\test_*.pdf
+- artifacts\consistency_check_*.txt
+- artifacts\yearly_totals_verification_*.zip
+- artifacts\zip_sha256_*.txt
+Checks (canonical run):
+- Cashflow: 12 months -> PASS
+- Compare: scenarios[0].monthly = 12 -> PASS
+- PDF: real PDF (%PDF) -> PASS
+- Consistency: |sum(monthly.net) - yearly.net| ≤ 0.01 -> PASS
+
+Notes:
+- No remote push performed (local commit only).
+- Keep this folder as canonical run evidence.
+482C13F4222253C336B710C378423EC858AAD6A873046C29F84A3027DE2776CA

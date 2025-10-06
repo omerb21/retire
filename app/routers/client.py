@@ -10,6 +10,7 @@ from sqlalchemy import or_, and_
 from app.database import get_db
 from app.models.client import Client
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientList
+from app.schemas import APIResponse
 from app.services.client_service import prepare_client_payload, validate_client_data
 
 # Create router with prefix
@@ -21,6 +22,7 @@ router = APIRouter(
 
 
 @router.post("", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     """
     Create a new client
@@ -36,13 +38,13 @@ def create_client(client: ClientCreate, db: Session = Depends(get_db)):
             detail=errors
         )
     
-    # בדיקת כפילות לפני ה-INSERT
+    # ׳‘׳“׳™׳§׳× ׳›׳₪׳™׳׳•׳× ׳׳₪׳ ׳™ ׳”-INSERT
     if "id_number" in client_data:
         db_id = db.query(Client.id).filter(Client.id_number == client_data["id_number"]).scalar()
         if db_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail={"id_number_raw": "תעודת זהות כבר קיימת במערכת"}
+                detail={"id_number_raw": "׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳›׳‘׳¨ ׳§׳™׳™׳׳× ׳‘׳׳¢׳¨׳›׳×"}
             )
     
     # Create new client
@@ -56,7 +58,7 @@ def create_client(client: ClientCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"id_number_raw": "תעודת זהות כבר קיימת במערכת"}
+            detail={"id_number_raw": "׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳›׳‘׳¨ ׳§׳™׳™׳׳× ׳‘׳׳¢׳¨׳›׳×"}
         )
     
     return db_client
@@ -71,7 +73,7 @@ def get_client(client_id: int = Path(..., description="Client ID"), db: Session 
     if not db_client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="לקוח לא נמצא"
+            detail="׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳"
         )
     return db_client
 
@@ -90,7 +92,7 @@ def update_client(
     if not db_client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="לקוח לא נמצא"
+            detail="׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳"
         )
     
     # Prepare client data
@@ -102,7 +104,7 @@ def update_client(
         if existing_client:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail={"id_number_raw": "תעודת זהות כבר קיימת במערכת"}
+                detail={"id_number_raw": "׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳›׳‘׳¨ ׳§׳™׳™׳׳× ׳‘׳׳¢׳¨׳›׳×"}
             )
     
     # Validate client data
@@ -124,7 +126,7 @@ def update_client(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"id_number_raw": "תעודת זהות כבר קיימת במערכת"}
+            detail={"id_number_raw": "׳×׳¢׳•׳“׳× ׳–׳”׳•׳× ׳›׳‘׳¨ ׳§׳™׳™׳׳× ׳‘׳׳¢׳¨׳›׳×"}
         )
     
     return db_client
@@ -139,7 +141,7 @@ def delete_client(client_id: int = Path(..., description="Client ID"), db: Sessi
     if not db_client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="לקוח לא נמצא"
+            detail="׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳"
         )
     
     db.delete(db_client)
@@ -149,6 +151,7 @@ def delete_client(client_id: int = Path(..., description="Client ID"), db: Sessi
 
 
 @router.get("", response_model=ClientList)
+@router.get("/", response_model=ClientList)
 def list_clients(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     gender: Optional[str] = Query(None, description="Filter by gender"),
@@ -199,3 +202,4 @@ def list_clients(
         "page": skip // limit + 1 if limit > 0 else 1,
         "page_size": limit
     }
+

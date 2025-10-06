@@ -1,0 +1,74 @@
+{
+  "sprint11_closure_status": {
+    "timestamp": "2025-09-08T16:58:53.941331",
+    "overall_success": false,
+    "branch": "sprint11-closure-20250908-164627",
+    "commit_message": "Sprint11 closure: Fix PDF generation, normalize contracts, add Decimal precision"
+  },
+  "mandatory_criteria": {
+    "health_ok": true,
+    "compare_12_months": true,
+    "consistency_check": false,
+    "pdf_real_generated": false,
+    "proof_zip_created": false
+  },
+  "test_results": {
+    "health": {
+      "status": "PASS",
+      "timestamp": "2025-09-08T16:58:53.448240",
+      "details": {
+        "response": {
+          "status": "ok"
+        }
+      }
+    },
+    "cashflow_generate": {
+      "status": "PASS",
+      "timestamp": "2025-09-08T16:58:53.551037",
+      "details": {
+        "rows_count": 12,
+        "date_range": "2025-01-01..2025-12-01"
+      }
+    },
+    "compare_scenarios": {
+      "status": "PASS",
+      "timestamp": "2025-09-08T16:58:53.591525",
+      "details": {
+        "scenario_count": 1,
+        "monthly_count": 12,
+        "has_yearly_2025": true
+      }
+    },
+    "pdf_generation": {
+      "status": "FAIL",
+      "timestamp": "2025-09-08T16:58:53.934836",
+      "details": {
+        "status_code": 400,
+        "error": "{\"detail\":\"Internal PDF generation error: create_pdf_with_cashflow() got an unexpected keyword argument 'scenarios'\"}"
+      }
+    },
+    "consistency_check": {
+      "status": "FAIL",
+      "timestamp": "2025-09-08T16:58:53.941331",
+      "details": {
+        "error": "'charmap' codec can't encode character '\\u2264' in position 11: character maps to <undefined>"
+      }
+    }
+  },
+  "artifacts_created": {
+    "uvicorn_log": "NOT_FOUND",
+    "compare_live_json": "artifacts/compare_live.json",
+    "cashflow_live_json": "artifacts/cashflow_live.json",
+    "test_pdf": "artifacts/test.pdf.error",
+    "consistency_check": "artifacts/consistency_check.txt",
+    "report_pdf_log": "artifacts/report_pdf_run.log",
+    "proof_zip": "FAILED",
+    "sha256": "FAILED"
+  },
+  "closure_verdict": "FAILED",
+  "next_steps": [
+    "Review failed criteria",
+    "Fix remaining issues",
+    "Re-run closure checklist"
+  ]
+}

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>אימות ממשק API</title>
+  
+  <!-- External CSS -->
+  <link rel="stylesheet" href="ytv-styles.css">
+  
+  <!-- Base styles -->
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      text-align: right;
+      direction: rtl;
+    }
+    h1, h2, h3 {
+      color: #333;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .panel {
+      flex: 1;
+      min-width: 300px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+      text-align: right;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .response {
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .success {
+      border-right: 5px solid #4CAF50;
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      border-right: 5px solid #f44336;
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .info {
+      border-right: 5px solid #17a2b8;
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+    }
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      background-color: #f1f1f1;
+      margin-right: 5px;
+      border-radius: 5px 5px 0 0;
+    }
+    .tab.active {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background-color: #f3f3f3;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      background-color: #4CAF50;
+      border-radius: 5px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <h1>כלי אימות API</h1>
+
+  <!-- Test Mode Watermark -->
+  <div id="test-mode-watermark">TEST MODE</div>
+  
+  <!-- Tabs Navigation -->
+  <div class="tabs">
+    <div class="tab" data-tab="pension-funds">קרנות פנסיה</div>
+    <div class="tab" data-tab="fixation">קיבוע</div>
+    <div class="tab" data-tab="scenarios">תרחישים</div>
+    <div class="tab" data-tab="additional-income">הכנסות נוספות</div>
+    <div class="tab" data-tab="capital-assets">נכסי הון</div>
+    <div class="tab" data-tab="integration">אינטגרציה</div>
+    <div class="tab active" data-tab="yearly-totals">סיכומים שנתיים</div>
+  </div>
+
+  <!-- Placeholder tabs for other functionality -->
+  <div class="tab-content" id="pension-funds">
+    <h2>קרנות פנסיה</h2>
+    <p>תכונה זו תתווסף בעתיד</p>
+  </div>
+
+  <div class="tab-content" id="fixation">
+    <h2>קיבוע</h2>
+    <p>תכונה זו תתווסף בעתיד</p>
+  </div>
+
+  <div class="tab-content" id="scenarios">
+    <h2>תרחישים</h2>
+    <p>תכונה זו תתווסף בעתיד</p>
+  </div>
+
+  <div class="tab-content" id="additional-income">
+    <h2>הכנסות נוספות</h2>
+    <p>תכונה זו תתווסף בעתיד</p>
+  </div>
+
+  <div class="tab-content" id="capital-assets">
+    <h2>נכסי הון</h2>
+    <p>תכונה זו תתווסף בעתיד</p>
+  </div>
+
+  <div class="tab-content" id="integration">
+    <h2>אינטגרציה</h2>
+    <p>תכונה זו תתווסף בעתיד</p>
+  </div>
+
+  <!-- Yearly Totals Verification Tab Content -->
+  <div class="tab-content active" id="yearly-totals">
+    <h2>7. אימות סיכומים שנתיים</h2>
+    <div class="container">
+      <div class="panel">
+        <h3>בדיקת סיכומים שנתיים</h3>
+        <div class="form-group">
+          <label for="yearly-totals-client-id">מזהה לקוח:</label>
+          <input type="text" id="yearly-totals-client-id" placeholder="הכנס מזהה לקוח" value="1">
+        </div>
+        <div class="form-group">
+          <label for="yearly-totals-scenario-id">מזהה תרחיש:</label>
+          <input type="text" id="yearly-totals-scenario-id" placeholder="הכנס מזהה תרחיש" value="1">
+        </div>
+        <div class="form-group ytv-checkbox-group">
+          <input type="checkbox" id="yearly-totals-test-mode">
+          <label for="yearly-totals-test-mode">מצב בדיקה (נתוני דמה)</label>
+        </div>
+        <button id="verify-yearly-totals" class="ytv-button">בדוק סיכומים שנתיים</button>
+        <div id="yearly-totals-progress" class="progress-bar" style="display: none;">
+          <div class="progress-bar-inner"></div>
+        </div>
+        <div id="yearly-totals-response" class="response"></div>
+      </div>
+      
+      <div class="panel">
+        <h3>תוצאות אימות</h3>
+        <div class="form-group">
+          <label for="yearly-totals-format">פורמט תצוגה:</label>
+          <select id="yearly-totals-format">
+            <option value="summary">סיכום בלבד</option>
+            <option value="detailed">מפורט</option>
+            <option value="proof">Proof Summary</option>
+          </select>
+        </div>
+        <div id="yearly-totals-results" class="response"></div>
+        <div class="ytv-actions">
+          <button id="download-proof" class="ytv-button">הורד Proof Summary</button>
+          <button id="create-zip" class="ytv-button">צור ארכיון ZIP</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- External JavaScript modules -->
+  <script src="ytv-mock-pdf.js"></script>
+  <script src="ytv-data-fix.js"></script>
+  <script src="ytv-core.js"></script>
+
+  <!-- Basic tab functionality -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize tabs functionality
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          tab.classList.add('active');
+          const targetTab = document.getElementById(tab.dataset.tab);
+          if (targetTab) {
+            targetTab.classList.add('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
