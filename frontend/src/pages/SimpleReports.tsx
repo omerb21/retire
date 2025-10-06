@@ -358,20 +358,11 @@ const SimpleReports: React.FC = () => {
         let monthlyAmount = 0;
         
         // הדפסת מידע לבדיקה
-        console.log(`Asset ${asset.asset_name || 'unnamed'} type: ${asset.asset_type}, rental_income: ${asset.rental_income}, monthly_rental_income: ${asset.monthly_rental_income}`);
+        console.log(`Asset ${asset.asset_name || 'unnamed'} type: ${asset.asset_type}, monthly_income: ${asset.monthly_income}`);
         
-        if (asset.asset_type === 'rental_property') {
-          // שכר דירה - בדיקת כל השדות האפשריים
-          monthlyAmount = asset.monthly_rental_income || asset.rental_income || asset.monthly_income || 0;
-          console.log(`Rental property ${asset.asset_name || 'unnamed'} monthly amount: ${monthlyAmount}`);
-        } else if (asset.asset_type === 'investment' && asset.annual_return_rate && asset.current_value) {
-          // השקעות עם תשואה שנתית
-          const annualReturn = asset.current_value * (asset.annual_return_rate / 100);
-          monthlyAmount = annualReturn / 12;
-        } else if (asset.monthly_income) {
-          // הכנסה חודשית כללית
-          monthlyAmount = asset.monthly_income;
-        }
+        // השדה העיקרי להכנסה חודשית
+        monthlyAmount = asset.monthly_income || 0;
+        console.log(`Asset ${asset.asset_name || 'unnamed'} monthly amount: ${monthlyAmount}`);
         
         // Apply annual increase if specified
         const yearsActive = year >= assetStartYear ? year - assetStartYear : 0;
@@ -462,12 +453,23 @@ const SimpleReports: React.FC = () => {
           const monthlyIncome = incomeBreakdown[assetIncomeIndex] || 0;
           const annualIncome = monthlyIncome * 12;
           
-          if (asset.asset_type === 'rental_property') {
-            // שכר דירה - מס רגיל אם מעל התקרה, אחרת פטור
+          // חישוב מס לפי סוג המיסוי
+          if (asset.tax_treatment === 'exempt') {
+            // פטור ממס
+            capitalAssetTax += 0;
+          } else if (asset.tax_treatment === 'capital_gains') {
+            // מס רווח הון - 25% מהרווח הריאלי (תשואה פחות 2%)
+            const realReturnRate = Math.max(0, (asset.annual_return_rate || 0) - 2); // פחות 2% מדד
+            const realGain = annualIncome * (realReturnRate / (asset.annual_return_rate || 1)); // חלק מההכנסה שהוא רווח ריאלי
+            capitalAssetTax += realGain * 0.25;
+          } else if (asset.tax_treatment === 'fixed_rate') {
+            // שיעור מס קבוע
+            capitalAssetTax += annualIncome * ((asset.tax_rate || 0) / 100);
+          } else if (asset.asset_type === 'rental_property') {
+            // שכר דירה - מס רגיל אם מעל התקרה
             const exemptionThreshold = 5070 * 12; // תקרת פטור שנתית
             if (annualIncome > exemptionThreshold) {
               const taxableRentalIncome = annualIncome - exemptionThreshold;
-              // מס רגיל על החלק העודף
               let rentalTax = 0;
               let remaining = taxableRentalIncome;
               for (const bracket of taxBrackets) {
@@ -478,12 +480,8 @@ const SimpleReports: React.FC = () => {
               }
               capitalAssetTax += rentalTax;
             }
-          } else if (asset.asset_type === 'investment') {
-            // השקעות - מס רווח הון 25% על הרווח הריאלי
-            const realGain = annualIncome; // נניח שזה הרווח הריאלי
-            capitalAssetTax += realGain * 0.25;
           } else {
-            // נכסי הון אחרים - מס רגיל
+            // מס רגיל על נכסי הון אחרים
             let otherAssetTax = 0;
             let remaining = annualIncome;
             for (const bracket of taxBrackets) {
@@ -531,12 +529,23 @@ const SimpleReports: React.FC = () => {
           const annualIncome = monthlyIncome * 12;
           let assetTax = 0;
           
-          if (asset.asset_type === 'rental_property') {
-            // שכר דירה - מס רגיל אם מעל התקרה, אחרת פטור
-            const exemptionThreshold = 5070 * 12; // תקרת פטור שנתית
+          // חישוב מס לפי סוג המיסוי
+          if (asset.tax_treatment === 'exempt') {
+            // פטור ממס
+            assetTax = 0;
+          } else if (asset.tax_treatment === 'capital_gains') {
+            // מס רווח הון - 25% מהרווח הריאלי (תשואה פחות 2%)
+            const realReturnRate = Math.max(0, (asset.annual_return_rate || 0) - 2);
+            const realGain = annualIncome * (realReturnRate / (asset.annual_return_rate || 1));
+            assetTax = realGain * 0.25;
+          } else if (asset.tax_treatment === 'fixed_rate') {
+            // שיעור מס קבוע
+            assetTax = annualIncome * ((asset.tax_rate || 0) / 100);
+          } else if (asset.asset_type === 'rental_property') {
+            // שכר דירה - מס רגיל אם מעל התקרה
+            const exemptionThreshold = 5070 * 12;
             if (annualIncome > exemptionThreshold) {
               const taxableRentalIncome = annualIncome - exemptionThreshold;
-              // מס רגיל על החלק העודף
               let remaining = taxableRentalIncome;
               for (const bracket of taxBrackets) {
                 if (remaining <= 0) break;
@@ -545,11 +554,8 @@ const SimpleReports: React.FC = () => {
                 remaining -= taxableInBracket;
               }
             }
-          } else if (asset.asset_type === 'investment') {
-            // השקעות - מס רווח הון 25% על הרווח הריאלי
-            assetTax = annualIncome * 0.25;
           } else {
-            // נכסי הון אחרים - מס רגיל
+            // מס רגיל על נכסי הון אחרים
             let remaining = annualIncome;
             for (const bracket of taxBrackets) {
               if (remaining <= 0) break;
