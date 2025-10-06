@@ -76,6 +76,19 @@ const SimpleReports: React.FC = () => {
         console.log('Additional Incomes Data:', JSON.stringify(additionalIncomesData, null, 2));
         console.log('First Additional Income:', additionalIncomesData[0]);
         
+        // לוג לבדיקת קרנות פנסיה
+        console.log('Pension Funds Data:', JSON.stringify(pensionFundsData, null, 2));
+        pensionFundsData.forEach((fund: any, index: number) => {
+          console.log(`Pension Fund ${index + 1} - start_date:`, fund.start_date);
+          if (fund.start_date) {
+            const parsedYear = parseInt(fund.start_date.split('-')[0]);
+            const parsedMonth = parseInt(fund.start_date.split('-')[1]);
+            const parsedDay = parseInt(fund.start_date.split('-')[2]);
+            console.log(`  Parsed Date: Year=${parsedYear}, Month=${parsedMonth}, Day=${parsedDay}`);
+            console.log(`  Full Date:`, new Date(fund.start_date));
+          }
+        });
+        
         // Update state with fetched data
         setPensionFunds(pensionFundsData);
         setAdditionalIncomes(additionalIncomesData);
@@ -266,8 +279,14 @@ const SimpleReports: React.FC = () => {
       
       // Add pension fund incomes
       pensionFunds.forEach(fund => {
-        const fundStartYear = fund.start_date ? parseInt(fund.start_date.split('-')[0]) : 2025;
+        // תיקון חישוב שנת התחלה - השתמש בשנה הנוכחית כברירת מחדל
+        const fundStartYear = fund.start_date ? parseInt(fund.start_date.split('-')[0]) : currentYear;
         const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
+        
+        // הוספת לוג לבדיקה
+        console.log(`Processing fund ${fund.fund_name || 'unnamed'} for year ${year}:`);
+        console.log(`  Fund start year: ${fundStartYear}, Current year: ${year}`);
+        console.log(`  Monthly amount: ${monthlyAmount}`);
         
         // Apply annual increase (2% by default)
         const yearsActive = year >= fundStartYear ? year - fundStartYear : 0;
@@ -277,6 +296,8 @@ const SimpleReports: React.FC = () => {
         
         // Only add income if pension has started
         const amount = year >= fundStartYear ? adjustedAmount : 0;
+        console.log(`  Years active: ${yearsActive}, Adjusted amount: ${adjustedAmount}, Final amount: ${amount}`);
+        
         incomeBreakdown.push(Math.round(amount));
         totalMonthlyIncome += amount;
       });
