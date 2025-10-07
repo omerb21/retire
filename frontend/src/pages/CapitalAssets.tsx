@@ -154,7 +154,16 @@ export default function CapitalAssets() {
         annual_return_rate: Number(form.annual_return_rate) / 100 || 0, // המרה לעשרוני
         payment_frequency: form.payment_frequency,
         liquidity: "medium", // ערך ברירת מחדל
-        risk_level: "medium" // ערך ברירת מחדל
+        risk_level: "medium", // ערך ברירת מחדל
+        
+        // השדות הנדרשים לתצוגה
+        monthly_income: Number(form.monthly_income) || 0,
+        start_date: alignedStartDate.toISOString().split('T')[0],
+        end_date: alignedEndDate?.toISOString().split('T')[0] || null,
+        indexation_method: form.indexation_method || "none",
+        fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : 0,
+        tax_treatment: form.tax_treatment || "undefined",
+        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : 0
       };
 
       console.log("SENDING PAYLOAD TO SERVER:", JSON.stringify(payload, null, 2));
