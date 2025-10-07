@@ -11,17 +11,29 @@ const ASSET_TYPES = [
   { value: "mutual_funds", label: "קרנות נאמנות" },
   { value: "real_estate", label: "נדלן" },
   { value: "savings_account", label: "חשבון חיסכון" },
-  { value: "deposits", label: "פקדות" },
   { value: "other", label: "אחר" }
 ];
 
 interface YearlyProjection {
   year: number;
+  clientAge: number;
   totalMonthlyIncome: number;
   totalMonthlyTax: number;
   netMonthlyIncome: number;
   incomeBreakdown: number[];
   taxBreakdown: number[];
+}
+
+/**
+ * מחשב את הערך הנוכחי הנקי (NPV) של תזרים מזומנים
+ * @param cashFlows מערך של תזרימי מזומנים (ערך שלילי עבור השקעה ראשונית, חיובי עבור תקבולים)
+ * @param discountRate שיעור היוון שנתי (למשל 0.05 עבור 5%)
+ * @returns הערך הנוכחי הנקי (NPV)
+ */
+function calculateNPV(cashFlows: number[], discountRate: number): number {
+  return cashFlows.reduce((sum, cashFlow, year) => {
+    return sum + (cashFlow / Math.pow(1 + discountRate, year));
+  }, 0);
 }
 
 interface ReportData {
@@ -647,6 +659,7 @@ const SimpleReports: React.FC = () => {
 
       yearlyData.push({
         year,
+        clientAge,
         totalMonthlyIncome: Math.round(totalMonthlyIncome),
         totalMonthlyTax: Math.round(totalMonthlyTax),
         netMonthlyIncome: Math.round(totalMonthlyIncome - totalMonthlyTax),
@@ -1246,6 +1259,49 @@ const SimpleReports: React.FC = () => {
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
               הטבלה מציגה הכנסות חודשיות, מס חודשי והכנסה נטו לכל שנה. עמודות המס מוצגות בצבע אדום בהיר.
             </div>
+            
+            {/* חישוב והצגת ה-NPV */}
+            {(() => {
+              // חישוב תזרים המזומנים השנתי
+              const yearlyProjection = generateYearlyProjection();
+              const annualNetCashFlows = yearlyProjection.map(yearData => {
+                // הכנסה שנתית נטו = (הכנסה חודשית נטו) * 12
+                return yearData.netMonthlyIncome * 12;
+              });
+              
+              // חישוב ה-NPV עם שיעור היוון של 3%
+              const discountRate = 0.03; // 3%
+              const npv = calculateNPV(annualNetCashFlows, discountRate);
+              
+              return (
+                <div style={{ 
+                  marginBottom: '20px', 
+                  padding: '15px', 
+                  backgroundColor: '#e8f5e9', 
+                  borderRadius: '4px',
+                  border: '1px solid #c8e6c9'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>ערך נוכחי נקי (NPV) של התזרים:</strong>
+                      <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                        מהוון בשיעור של {(discountRate * 100).toFixed(1)}% לשנה
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: '24px', 
+                      fontWeight: 'bold', 
+                      color: '#2e7d32',
+                      direction: 'ltr',
+                      textAlign: 'left'
+                    }}>
+                      ₪{Math.round(npv).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            
             <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1200px' }}>
                 <thead>
