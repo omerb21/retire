@@ -419,9 +419,25 @@ const SimpleReports: React.FC = () => {
           console.log(`ASSET DEBUG - FORCED TEST VALUE: ${monthlyAmount}`);
         }
         
-        // Apply annual increase if specified
+        // Apply annual increase only if indexation is specified
         const yearsActive = year >= assetStartYear ? year - assetStartYear : 0;
-        const indexationRate = asset.indexation_rate || 0.02; // Default 2% annual increase
+        
+        // קביעת שיעור הצמדה לפי הגדרות הנכס
+        let indexationRate = 0; // ברירת מחדל - ללא הצמדה
+        
+        if (asset.indexation_method === "fixed" && asset.fixed_rate) {
+          // הצמדה קבועה לפי השיעור שהוגדר
+          indexationRate = asset.fixed_rate / 100;
+          console.log(`ASSET DEBUG - Using fixed indexation rate: ${indexationRate} (${asset.fixed_rate}%)`);  
+        } else if (asset.indexation_method === "cpi") {
+          // הצמדה למדד - נניח 2% כברירת מחדל
+          indexationRate = 0.02;
+          console.log(`ASSET DEBUG - Using CPI indexation: ${indexationRate}`);  
+        } else {
+          // ללא הצמדה
+          console.log(`ASSET DEBUG - No indexation for asset: ${asset.asset_name || asset.description}`);  
+        }
+        
         const adjustedAmount = year >= assetStartYear ? 
           monthlyAmount * Math.pow(1 + indexationRate, yearsActive) : 0;
         
