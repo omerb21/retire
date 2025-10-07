@@ -201,7 +201,7 @@ export default function ClientDetails() {
         marginBottom: '20px'
       }}>
         <ModuleLink to={`/clients/${id}/pension-funds`} label="קרנות פנסיה" />
-        <ModuleLink to={`/clients/${id}/additional-income`} label="הכנסות נוספות" />
+        <ModuleLink to={`/clients/${id}/additional-incomes`} label="הכנסות נוספות" />
         <ModuleLink to={`/clients/${id}/capital-assets`} label="נכסי הון" />
         <ModuleLink to={`/clients/${id}/scenarios`} label="תרחישים" />
         <ModuleLink to={`/clients/${id}/fixation`} label="קיבוע מס" />

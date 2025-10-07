@@ -18,7 +18,7 @@ const ClientDetails = () => {
       <h2>פרטי לקוח</h2>
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קרנות פנסיה</a>
-        <a href={`/clients/${clientId}/additional-income`} style={moduleButtonStyle}>הכנסות נוספות</a>
+        <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
         <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
@@ -58,7 +58,7 @@ export default function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/clients/:id" element={<ClientDetails />} />
             <Route path="/clients/:id/pension-funds" element={<PensionFunds />} />
-            <Route path="/clients/:id/additional-income" element={<AdditionalIncome />} />
+            <Route path="/clients/:id/additional-incomes" element={<AdditionalIncome />} />
             <Route path="/clients/:id/capital-assets" element={<CapitalAssets />} />
             <Route path="/clients/:id/current-employer" element={<SimpleCurrentEmployer />} />
             <Route path="/clients/:id/grants" element={<SimpleGrants />} />
