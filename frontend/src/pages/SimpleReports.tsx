@@ -939,7 +939,11 @@ const SimpleReports: React.FC = () => {
                       <div>סוג: {ASSET_TYPES.find((t: any) => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</div>
                       <div>ערך נוכחי: ₪{asset.current_value?.toLocaleString() || 0}</div>
                       <div>ערך רכישה: ₪{asset.purchase_value?.toLocaleString() || 0}</div>
-                      <div>תשואה שנתית: {((asset.annual_return_rate || 0) * 100)}%</div>
+                      <div>תשואה שנתית: {
+                        asset.annual_return_rate > 1 ? asset.annual_return_rate : 
+                        asset.annual_return_rate ? (asset.annual_return_rate * 100) : 
+                        asset.annual_return || 0
+                      }%</div>
                       <div>תאריך רכישה: {asset.purchase_date || 'לא צוין'}</div>
                       <div>רמת נזילות: {asset.liquidity || 'לא צוין'}</div>
                     </div>

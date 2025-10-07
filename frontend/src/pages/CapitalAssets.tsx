@@ -408,7 +408,11 @@ export default function CapitalAssets() {
                       <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
                       <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString() || 0}</div>
                       <div><strong>ערך רכישה:</strong> ₪{asset.purchase_value?.toLocaleString() || 0}</div>
-                      <div><strong>תשואה שנתית:</strong> {(asset.annual_return_rate * 100) || asset.annual_return || 0}%</div>
+                      <div><strong>תשואה שנתית:</strong> {
+                        asset.annual_return_rate > 1 ? asset.annual_return_rate : 
+                        asset.annual_return_rate ? (asset.annual_return_rate * 100) : 
+                        asset.annual_return || 0
+                      }%</div>
                       <div><strong>רמת נזילות:</strong> {asset.liquidity || "לא צוין"}</div>
                     </div>
                     

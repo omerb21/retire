@@ -86,14 +86,14 @@ capital_assets_db = {
     1: {
         "id": 1,
         "client_id": 1,
-        "asset_type": "real_estate",
+        "asset_type": "rental_property",
         "description": "דירה להשכרה",
-        "current_value": 2000000,
-        "purchase_value": 1500000,
+        "current_value": 3000000,
+        "purchase_value": 0,
         "purchase_date": "2020-01-01",
-        "annual_return": 3,
-        "annual_return_rate": 0.03,
-        "payment_frequency": "quarterly",
+        "annual_return": 0,
+        "annual_return_rate": 3,
+        "payment_frequency": "monthly",
         "liquidity": "medium",
         "risk_level": "medium"
     }
