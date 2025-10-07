@@ -4,10 +4,13 @@ import { apiFetch } from "../lib/api";
 
 type CapitalAsset = {
   id?: number;
-  asset_name: string;
+  asset_name?: string;
+  description?: string;
   asset_type: string;
   current_value: number;
-  monthly_income: number;
+  monthly_income?: number;
+  rental_income?: number;
+  monthly_rental_income?: number;
   annual_return_rate: number;
   payment_frequency: "monthly" | "quarterly" | "annual";
   start_date: string;
@@ -58,8 +61,28 @@ export default function CapitalAssets() {
     
     try {
       const data = await apiFetch<CapitalAsset[]>(`/clients/${clientId}/capital-assets/`);
+      console.log("SERVER RESPONSE - Capital Assets:", JSON.stringify(data, null, 2));
+      
+      // בדיקה מפורטת של כל נכס
+      if (data && data.length > 0) {
+        data.forEach((asset, index) => {
+          console.log(`ASSET ${index + 1} DETAILS:`);
+          console.log(`  ID: ${asset.id}`);
+          console.log(`  Name: ${asset.asset_name || asset.description || 'No name'}`);
+          console.log(`  Type: ${asset.asset_type}`);
+          console.log(`  Monthly Income: ${asset.monthly_income || 0}`);
+          console.log(`  Current Value: ${asset.current_value || 0}`);
+          console.log(`  Start Date: ${asset.start_date || 'Not set'}`);
+          console.log(`  End Date: ${asset.end_date || 'Not set'}`);
+          console.log(`  All Properties:`, asset);
+        });
+      } else {
+        console.log("No assets returned from server");
+      }
+      
       setAssets(data || []);
     } catch (e: any) {
+      console.error("Error loading assets:", e);
       setError(`שגיאה בטעינת נכסי הון: ${e?.message || e}`);
     } finally {
       setLoading(false);
@@ -114,25 +137,37 @@ export default function CapitalAssets() {
         alignedEndDate.setDate(1);
       }
       
+      // בדיקה מה השדות שהשרת מצפה לקבל
+      console.log("FORM DATA BEFORE SUBMIT:", form);
+      
       const payload = {
-        ...form,
-        asset_name: form.asset_name?.trim(),
-        description: form.asset_name?.trim(), // שימוש בשם הנכס גם כתיאור לתאימות לאחור
+        description: form.asset_name?.trim(), // השרת משתמש ב-description במקום asset_name
+        asset_type: form.asset_type,
         current_value: Number(form.current_value) || 0,
-        monthly_income: Number(form.monthly_income),
-        rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0, // לתאימות לאחור
-        monthly_rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0, // לתאימות לאחור
         annual_return_rate: Number(form.annual_return_rate) || 0,
-        fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
-        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
+        payment_frequency: form.payment_frequency,
         start_date: alignedStartDate.toISOString().split('T')[0],
         end_date: alignedEndDate?.toISOString().split('T')[0] || null,
+        indexation_method: form.indexation_method,
+        tax_treatment: form.tax_treatment,
+        fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
+        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
+        
+        // הוספת שדות נוספים לשימוש בפרונטאנד
+        asset_name: form.asset_name?.trim(),
+        monthly_income: Number(form.monthly_income),
+        rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0,
+        monthly_rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0,
       };
 
-      await apiFetch(`/clients/${clientId}/capital-assets/`, {
+      console.log("SENDING PAYLOAD TO SERVER:", JSON.stringify(payload, null, 2));
+      
+      const response = await apiFetch(`/clients/${clientId}/capital-assets/`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      
+      console.log("SERVER RESPONSE AFTER CREATE:", JSON.stringify(response, null, 2));
 
       // Reset form
       setForm({
@@ -367,14 +402,14 @@ export default function CapitalAssets() {
               <div key={asset.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4, backgroundColor: "#f9f9f9" }}>
                 <div style={{ display: "grid", gap: 8 }}>
                   <div style={{ fontSize: "18px", fontWeight: "bold", color: "#0056b3", marginBottom: "8px" }}>
-                    {asset.asset_name || "נכס ללא שם"}
+                    {asset.asset_name || asset.description || "נכס ללא שם"}
                   </div>
                   
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
                       <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
                       <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
-                      <div><strong>תשלום חודשי:</strong> ₪{asset.monthly_income?.toLocaleString() || 0}</div>
+                      <div><strong>תשלום חודשי:</strong> ₪{(asset.monthly_income || asset.monthly_rental_income || asset.rental_income || 0).toLocaleString()}</div>
                       {asset.current_value > 0 && <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString()}</div>}
                       {asset.annual_return_rate > 0 && <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate}%</div>}
                     </div>
