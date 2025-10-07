@@ -361,30 +361,46 @@ export default function CapitalAssets() {
         ) : (
           <div style={{ display: "grid", gap: 16 }}>
             {assets.map((asset, index) => (
-              <div key={asset.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+              <div key={asset.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4, backgroundColor: "#f9f9f9" }}>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div><strong>שם הנכס:</strong> {asset.asset_name}</div>
-                  <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
-                  <div><strong>תשלום חודשי:</strong> ₪{asset.monthly_income?.toLocaleString()}</div>
-                  {asset.current_value > 0 && <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString()}</div>}
-                  {asset.annual_return_rate > 0 && <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate}%</div>}
-                  <div><strong>תדירות תשלום:</strong> {
-                    asset.payment_frequency === "monthly" ? "חודשי" :
-                    asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"
-                  }</div>
-                  <div><strong>תאריך התחלה:</strong> {asset.start_date}</div>
-                  {asset.end_date && <div><strong>תאריך סיום:</strong> {asset.end_date}</div>}
-                  <div><strong>הצמדה:</strong> {
-                    asset.indexation_method === "none" ? "ללא" :
-                    asset.indexation_method === "fixed" ? `קבועה ${asset.fixed_rate}%` :
-                    "למדד"
-                  }</div>
-                  <div><strong>יחס מס:</strong> {
-                    asset.tax_treatment === "exempt" ? "פטור ממס" :
-                    asset.tax_treatment === "taxable" ? "חייב במס רגיל" :
-                    asset.tax_treatment === "capital_gains" ? "מס רווח הון (25%)" :
-                    `שיעור קבוע ${asset.tax_rate}%`
-                  }</div>
+                  <div style={{ fontSize: "18px", fontWeight: "bold", color: "#0056b3", marginBottom: "8px" }}>
+                    {asset.asset_name || "נכס ללא שם"}
+                  </div>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
+                      <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
+                      <div><strong>תשלום חודשי:</strong> ₪{asset.monthly_income?.toLocaleString() || 0}</div>
+                      {asset.current_value > 0 && <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString()}</div>}
+                      {asset.annual_return_rate > 0 && <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate}%</div>}
+                    </div>
+                    
+                    <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>תאריכים והצמדה</div>
+                      <div><strong>תאריך התחלה:</strong> {asset.start_date || "לא צוין"}</div>
+                      <div><strong>תאריך סיום:</strong> {asset.end_date || "ללא הגבלה"}</div>
+                      <div><strong>תדירות תשלום:</strong> {
+                        asset.payment_frequency === "monthly" ? "חודשי" :
+                        asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"
+                      }</div>
+                      <div><strong>הצמדה:</strong> {
+                        asset.indexation_method === "none" ? "ללא" :
+                        asset.indexation_method === "fixed" ? `קבועה ${asset.fixed_rate}%` :
+                        "למדד"
+                      }</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ backgroundColor: "#f0f8ff", padding: "8px", borderRadius: "4px", border: "1px solid #d1e7ff" }}>
+                    <div style={{ fontWeight: "bold", marginBottom: "4px" }}>מיסוי</div>
+                    <div><strong>יחס מס:</strong> {
+                      asset.tax_treatment === "exempt" ? "פטור ממס" :
+                      asset.tax_treatment === "taxable" ? "חייב במס רגיל" :
+                      asset.tax_treatment === "capital_gains" ? "מס רווח הון (25%)" :
+                      `שיעור קבוע ${asset.tax_rate}%`
+                    }</div>
+                  </div>
                   
                   {asset.computed_monthly_amount && (
                     <div style={{ color: "green", fontWeight: "bold" }}>

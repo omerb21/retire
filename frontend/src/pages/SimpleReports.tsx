@@ -1,6 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { apiFetch } from "../lib/api";
+
+const ASSET_TYPES = [
+  { value: "rental_property", label: "דירה להשכרה" },
+  { value: "investment", label: "השקעות" },
+  { value: "stocks", label: "מניות" },
+  { value: "bonds", label: "אגרות חוב" },
+  { value: "mutual_funds", label: "קרנות נאמנות" },
+  { value: "real_estate", label: "נדלן" },
+  { value: "savings_account", label: "חשבון חיסכון" },
+  { value: "deposits", label: "פקדות" },
+  { value: "other", label: "אחר" }
+];
 
 interface YearlyProjection {
   year: number;
@@ -920,10 +933,14 @@ const SimpleReports: React.FC = () => {
                       borderRadius: '4px',
                       border: '1px solid #ffeeba'
                     }}>
-                      <div><strong>{asset.description || asset.asset_type}</strong></div>
-                      <div>ערך נוכחי: ₪{(asset.current_value || 0).toLocaleString()}</div>
-                      <div>מחיר רכישה: ₪{(asset.purchase_price || 0).toLocaleString()}</div>
-                      <div>תאריך רכישה: {asset.purchase_date || 'לא צוין'}</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
+                        {asset.asset_name || 'נכס הון'}
+                      </div>
+                      <div>סוג: {ASSET_TYPES.find((t: any) => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</div>
+                      <div>תשלום חודשי: ₪{(asset.monthly_income || 0).toLocaleString()}</div>
+                      {asset.current_value > 0 && <div>ערך נוכחי: ₪{asset.current_value.toLocaleString()}</div>}
+                      <div>תאריך התחלה: {asset.start_date || 'לא צוין'}</div>
+                      <div>תאריך סיום: {asset.end_date || 'ללא הגבלה'}</div>
                     </div>
                   ))}
                 </div>
@@ -1239,10 +1256,10 @@ const SimpleReports: React.FC = () => {
                     {capitalAssets.map(asset => (
                       <React.Fragment key={`asset-${asset.id}`}>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#fff8f0' }}>
-                          {asset.asset_name || asset.description || 'נכס הון'}
+                          {asset.asset_name || 'נכס הון'} ({asset.monthly_income || 0} ₪)
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
-                          מס {asset.asset_name || asset.description || 'נכס הון'}
+                          מס {asset.asset_name || 'נכס הון'}
                         </th>
                       </React.Fragment>
                     ))}
