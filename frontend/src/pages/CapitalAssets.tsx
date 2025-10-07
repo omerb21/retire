@@ -117,8 +117,11 @@ export default function CapitalAssets() {
       const payload = {
         ...form,
         asset_name: form.asset_name?.trim(),
+        description: form.asset_name?.trim(), // שימוש בשם הנכס גם כתיאור לתאימות לאחור
         current_value: Number(form.current_value) || 0,
         monthly_income: Number(form.monthly_income),
+        rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0, // לתאימות לאחור
+        monthly_rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0, // לתאימות לאחור
         annual_return_rate: Number(form.annual_return_rate) || 0,
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
         tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,

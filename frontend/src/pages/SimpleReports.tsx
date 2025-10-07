@@ -382,28 +382,28 @@ const SimpleReports: React.FC = () => {
         let monthlyAmount = 0;
         
         // הדפסת מידע מפורט לבדיקה
-        console.log(`ASSET DEBUG - ID: ${asset.id}, Name: ${asset.asset_name || 'unnamed'}`);
+        console.log(`ASSET DEBUG - ID: ${asset.id}, Name: ${asset.asset_name || asset.description || 'unnamed'}`);
         console.log(`ASSET DEBUG - Type: ${asset.asset_type}, Tax: ${asset.tax_treatment}`);
-        console.log(`ASSET DEBUG - Monthly Income: ${asset.monthly_income}, Rental Income: ${asset.rental_income}`);
+        console.log(`ASSET DEBUG - Monthly Income: ${asset.monthly_income}, Rental Income: ${asset.rental_income}, Monthly Rental: ${asset.monthly_rental_income}`);
         console.log(`ASSET DEBUG - All properties:`, JSON.stringify(asset, null, 2));
         
-        // נסה למצוא הכנסה חודשית בכל השדות האפשריים
+        // בדיקה מקיפה של כל השדות האפשריים להכנסה חודשית
         if (asset.monthly_income) {
           monthlyAmount = asset.monthly_income;
           console.log(`ASSET DEBUG - Using monthly_income: ${monthlyAmount}`);
-        } else if (asset.rental_income) {
-          monthlyAmount = asset.rental_income;
-          console.log(`ASSET DEBUG - Using rental_income: ${monthlyAmount}`);
         } else if (asset.monthly_rental_income) {
           monthlyAmount = asset.monthly_rental_income;
           console.log(`ASSET DEBUG - Using monthly_rental_income: ${monthlyAmount}`);
+        } else if (asset.rental_income) {
+          monthlyAmount = asset.rental_income;
+          console.log(`ASSET DEBUG - Using rental_income: ${monthlyAmount}`);
         } else if (asset.current_value && asset.annual_return_rate) {
           // חישוב הכנסה חודשית מערך נכס ותשואה
           const annualReturn = asset.current_value * (asset.annual_return_rate / 100);
           monthlyAmount = annualReturn / 12;
           console.log(`ASSET DEBUG - Calculated from value: ${asset.current_value} and rate: ${asset.annual_return_rate}% = ${monthlyAmount}`);
         } else {
-          console.log(`ASSET DEBUG - NO INCOME SOURCE FOUND for asset ${asset.asset_name}`);
+          console.log(`ASSET DEBUG - NO INCOME SOURCE FOUND for asset ${asset.asset_name || asset.description}`);
         }
         
         // בדיקה נוספת - אם עדיין אין הכנסה, נסה להמציא משהו לצורך בדיקה
@@ -934,10 +934,10 @@ const SimpleReports: React.FC = () => {
                       border: '1px solid #ffeeba'
                     }}>
                       <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
-                        {asset.asset_name || 'נכס הון'}
+                        {asset.asset_name || asset.description || 'נכס הון'}
                       </div>
                       <div>סוג: {ASSET_TYPES.find((t: any) => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</div>
-                      <div>תשלום חודשי: ₪{(asset.monthly_income || 0).toLocaleString()}</div>
+                      <div>תשלום חודשי: ₪{(asset.monthly_income || asset.monthly_rental_income || asset.rental_income || 0).toLocaleString()}</div>
                       {asset.current_value > 0 && <div>ערך נוכחי: ₪{asset.current_value.toLocaleString()}</div>}
                       <div>תאריך התחלה: {asset.start_date || 'לא צוין'}</div>
                       <div>תאריך סיום: {asset.end_date || 'ללא הגבלה'}</div>
@@ -1256,10 +1256,10 @@ const SimpleReports: React.FC = () => {
                     {capitalAssets.map(asset => (
                       <React.Fragment key={`asset-${asset.id}`}>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#fff8f0' }}>
-                          {asset.asset_name || 'נכס הון'} ({asset.monthly_income || 0} ₪)
+                          {asset.asset_name || asset.description || 'נכס הון'} ({(asset.monthly_income || asset.monthly_rental_income || asset.rental_income || 0).toLocaleString()} ₪)
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
-                          מס {asset.asset_name || 'נכס הון'}
+                          מס {asset.asset_name || asset.description || 'נכס הון'}
                         </th>
                       </React.Fragment>
                     ))}

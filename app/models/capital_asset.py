@@ -13,6 +13,8 @@ from app.database import Base
 
 class AssetType(str, Enum):
     """Types of capital assets."""
+    RENTAL_PROPERTY = "rental_property"
+    INVESTMENT = "investment"
     STOCKS = "stocks"
     BONDS = "bonds"
     MUTUAL_FUNDS = "mutual_funds"
@@ -41,6 +43,7 @@ class TaxTreatment(str, Enum):
     EXEMPT = "exempt"
     TAXABLE = "taxable"
     FIXED_RATE = "fixed_rate"
+    CAPITAL_GAINS = "capital_gains"
 
 
 class CapitalAsset(Base):
@@ -52,9 +55,13 @@ class CapitalAsset(Base):
     client_id = Column(Integer, ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Asset details
+    asset_name = Column(String(255), nullable=True)  # שם הנכס
     asset_type = Column(String(50), nullable=False)
     description = Column(String(255), nullable=True)
     current_value = Column(Numeric(15, 2), nullable=False)
+    monthly_income = Column(Numeric(15, 2), nullable=True)  # תשלום חודשי
+    rental_income = Column(Numeric(15, 2), nullable=True)  # הכנסה משכירות (לתאימות לאחור)
+    monthly_rental_income = Column(Numeric(15, 2), nullable=True)  # הכנסה חודשית משכירות (לתאימות לאחור)
     annual_return_rate = Column(Numeric(5, 4), nullable=False)
     payment_frequency = Column(String(20), nullable=False)
     

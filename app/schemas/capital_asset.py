@@ -10,9 +10,13 @@ from app.models.capital_asset import AssetType, PaymentFrequency, IndexationMeth
 
 class CapitalAssetBase(BaseModel):
     """Base schema for Capital Asset."""
+    asset_name: Optional[str] = Field(None, max_length=255, description="Asset name")
     asset_type: AssetType = Field(..., description="Type of capital asset")
     description: Optional[str] = Field(None, max_length=255, description="Description of the asset")
     current_value: Decimal = Field(..., gt=0, description="Current asset value")
+    monthly_income: Optional[Decimal] = Field(None, ge=0, description="Monthly income from asset")
+    rental_income: Optional[Decimal] = Field(None, ge=0, description="Rental income (legacy)")
+    monthly_rental_income: Optional[Decimal] = Field(None, ge=0, description="Monthly rental income (legacy)")
     annual_return_rate: Decimal = Field(..., ge=0, description="Annual return rate")
     payment_frequency: PaymentFrequency = Field(..., description="Payment frequency")
     start_date: date = Field(..., description="Asset start date")
