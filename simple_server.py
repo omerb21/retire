@@ -95,7 +95,14 @@ capital_assets_db = {
         "annual_return_rate": 3,
         "payment_frequency": "monthly",
         "liquidity": "medium",
-        "risk_level": "medium"
+        "risk_level": "medium",
+        "monthly_income": 0,
+        "start_date": "לא צוין",
+        "end_date": "ללא הגבלה",
+        "indexation_method": "none",
+        "fixed_rate": 0,
+        "tax_treatment": "undefined",
+        "tax_rate": 0
     }
 }
 

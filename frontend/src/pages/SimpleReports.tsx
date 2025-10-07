@@ -937,15 +937,15 @@ const SimpleReports: React.FC = () => {
                         {asset.description || 'נכס הון'}
                       </div>
                       <div>סוג: {ASSET_TYPES.find((t: any) => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</div>
+                      <div>תשלום חודשי: ₪{(asset.monthly_income || 0).toLocaleString()}</div>
                       <div>ערך נוכחי: ₪{asset.current_value?.toLocaleString() || 0}</div>
-                      <div>ערך רכישה: ₪{asset.purchase_value?.toLocaleString() || 0}</div>
                       <div>תשואה שנתית: {
                         asset.annual_return_rate > 1 ? asset.annual_return_rate : 
                         asset.annual_return_rate ? (asset.annual_return_rate * 100) : 
                         asset.annual_return || 0
                       }%</div>
-                      <div>תאריך רכישה: {asset.purchase_date || 'לא צוין'}</div>
-                      <div>רמת נזילות: {asset.liquidity || 'לא צוין'}</div>
+                      <div>תאריך התחלה: {asset.start_date || 'לא צוין'}</div>
+                      <div>תאריך סיום: {asset.end_date || 'ללא הגבלה'}</div>
                     </div>
                   ))}
                 </div>
@@ -1261,7 +1261,7 @@ const SimpleReports: React.FC = () => {
                     {capitalAssets.map(asset => (
                       <React.Fragment key={`asset-${asset.id}`}>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#fff8f0' }}>
-                          {asset.description || 'נכס הון'} (₪{asset.current_value?.toLocaleString() || 0})
+                          {asset.description || 'נכס הון'} (₪{(asset.monthly_income || 0).toLocaleString()})
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
                           מס {asset.description || 'נכס הון'}

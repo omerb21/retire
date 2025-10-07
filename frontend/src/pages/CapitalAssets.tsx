@@ -406,25 +406,28 @@ export default function CapitalAssets() {
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
                       <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
                       <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
+                      <div><strong>תשלום חודשי:</strong> ₪{(asset.monthly_income || 0).toLocaleString()}</div>
                       <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString() || 0}</div>
-                      <div><strong>ערך רכישה:</strong> ₪{asset.purchase_value?.toLocaleString() || 0}</div>
                       <div><strong>תשואה שנתית:</strong> {
                         asset.annual_return_rate > 1 ? asset.annual_return_rate : 
                         asset.annual_return_rate ? (asset.annual_return_rate * 100) : 
                         asset.annual_return || 0
                       }%</div>
-                      <div><strong>רמת נזילות:</strong> {asset.liquidity || "לא צוין"}</div>
                     </div>
                     
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
-                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטים נוספים</div>
-                      <div><strong>תאריך רכישה:</strong> {asset.purchase_date || "לא צוין"}</div>
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>תאריכים והצמדה</div>
+                      <div><strong>תאריך התחלה:</strong> {asset.start_date || "לא צוין"}</div>
+                      <div><strong>תאריך סיום:</strong> {asset.end_date || "ללא הגבלה"}</div>
                       <div><strong>תדירות תשלום:</strong> {
                         asset.payment_frequency === "monthly" ? "חודשי" :
                         asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"
                       }</div>
-                      <div><strong>רמת סיכון:</strong> {asset.risk_level || "לא צוין"}</div>
-                      <div><strong>תשואה שנתית:</strong> ₪{asset.annual_return?.toLocaleString() || 0}</div>
+                      <div><strong>הצמדה:</strong> {
+                        asset.indexation_method === "none" ? "ללא" :
+                        asset.indexation_method === "fixed" ? `קבועה ${asset.fixed_rate}%` :
+                        "למדד"
+                      }</div>
                     </div>
                   </div>
                   
