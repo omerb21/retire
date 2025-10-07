@@ -559,7 +559,14 @@ def create_capital_asset(client_id: int, asset_data: dict):
             "annual_return_rate": asset_data.get("annual_return_rate", 0),
             "payment_frequency": asset_data.get("payment_frequency", "quarterly"),
             "liquidity": asset_data.get("liquidity", "medium"),
-            "risk_level": asset_data.get("risk_level", "medium")
+            "risk_level": asset_data.get("risk_level", "medium"),
+            "monthly_income": asset_data.get("monthly_income", 0),
+            "start_date": asset_data.get("start_date", "לא צוין"),
+            "end_date": asset_data.get("end_date", "ללא הגבלה"),
+            "indexation_method": asset_data.get("indexation_method", "none"),
+            "fixed_rate": asset_data.get("fixed_rate", 0),
+            "tax_treatment": asset_data.get("tax_treatment", "undefined"),
+            "tax_rate": asset_data.get("tax_rate", 0)
         }
         
         # Add to database
@@ -599,7 +606,14 @@ def update_capital_asset(client_id: int, asset_id: int, asset_data: dict):
             "annual_return_rate": asset_data.get("annual_return_rate", existing_asset.get("annual_return_rate")),
             "payment_frequency": asset_data.get("payment_frequency", existing_asset.get("payment_frequency")),
             "liquidity": asset_data.get("liquidity", existing_asset.get("liquidity")),
-            "risk_level": asset_data.get("risk_level", existing_asset.get("risk_level"))
+            "risk_level": asset_data.get("risk_level", existing_asset.get("risk_level")),
+            "monthly_income": asset_data.get("monthly_income", existing_asset.get("monthly_income", 0)),
+            "start_date": asset_data.get("start_date", existing_asset.get("start_date", "לא צוין")),
+            "end_date": asset_data.get("end_date", existing_asset.get("end_date", "ללא הגבלה")),
+            "indexation_method": asset_data.get("indexation_method", existing_asset.get("indexation_method", "none")),
+            "fixed_rate": asset_data.get("fixed_rate", existing_asset.get("fixed_rate", 0)),
+            "tax_treatment": asset_data.get("tax_treatment", existing_asset.get("tax_treatment", "undefined")),
+            "tax_rate": asset_data.get("tax_rate", existing_asset.get("tax_rate", 0))
         }
         
         # Save to database
