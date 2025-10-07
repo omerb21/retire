@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { apiFetch } from "../lib/api";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 const ASSET_TYPES = [
   { value: "rental_property", label: "דירה להשכרה" },
@@ -34,6 +37,253 @@ function calculateNPV(cashFlows: number[], discountRate: number): number {
   return cashFlows.reduce((sum, cashFlow, year) => {
     return sum + (cashFlow / Math.pow(1 + discountRate, year));
   }, 0);
+}
+
+/**
+ * יוצר דוח PDF עם תמיכה מלאה בעברית
+ */
+function generatePDFReport(
+  yearlyProjection: YearlyProjection[],
+  pensionFunds: any[],
+  additionalIncomes: any[],
+  capitalAssets: any[],
+  clientData: any
+) {
+  const doc = new jsPDF();
+  
+  // הגדרת כיוון RTL ופונט תומך עברית
+  doc.setR2L(true);
+  doc.setLanguage("he");
+  
+  let yPosition = 20;
+  
+  // כותרת הדוח
+  doc.setFontSize(20);
+  doc.text('דוח פנסיוני - תמונת מצב', 105, yPosition, { align: 'center' });
+  yPosition += 15;
+  
+  // תאריך יצירת הדוח
+  doc.setFontSize(12);
+  const currentDate = new Date().toLocaleDateString('he-IL');
+  doc.text(`תאריך יצירת הדוח: ${currentDate}`, 200, yPosition, { align: 'right' });
+  yPosition += 20;
+  
+  // חישוב NPV
+  const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
+  const npv = calculateNPV(annualNetCashFlows, 0.03);
+  
+  // הצגת NPV
+  doc.setFontSize(14);
+  doc.text('ערך נוכחי נקי (NPV) של התזרים:', 200, yPosition, { align: 'right' });
+  yPosition += 10;
+  doc.setFontSize(16);
+  doc.setTextColor(0, 128, 0); // צבע ירוק
+  doc.text(`₪${Math.round(npv).toLocaleString()}`, 200, yPosition, { align: 'right' });
+  doc.setTextColor(0, 0, 0); // חזרה לצבע שחור
+  yPosition += 20;
+  
+  // טבלת תזרים מזומנים
+  doc.setFontSize(14);
+  doc.text('תחזית תזרים מזומנים שנתי:', 200, yPosition, { align: 'right' });
+  yPosition += 10;
+  
+  const tableData = yearlyProjection.map(year => [
+    year.year.toString(),
+    `₪${year.totalMonthlyIncome.toLocaleString()}`,
+    `₪${year.totalMonthlyTax.toLocaleString()}`,
+    `₪${year.netMonthlyIncome.toLocaleString()}`,
+    `₪${(year.netMonthlyIncome * 12).toLocaleString()}`
+  ]);
+  
+  autoTable(doc, {
+    head: [['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי']],
+    body: tableData,
+    startY: yPosition,
+    styles: {
+      font: 'helvetica',
+      fontSize: 10,
+      cellPadding: 3,
+      halign: 'center'
+    },
+    headStyles: {
+      fillColor: [233, 236, 239],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold'
+    },
+    columnStyles: {
+      0: { halign: 'center' },
+      1: { halign: 'right' },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+      4: { halign: 'right' }
+    },
+    margin: { right: 20, left: 20 }
+  });
+  
+  // עמוד חדש לפירוט נכסים
+  doc.addPage();
+  yPosition = 20;
+  
+  // פירוט נכסי הון
+  if (capitalAssets.length > 0) {
+    doc.setFontSize(14);
+    doc.text('נכסי הון:', 200, yPosition, { align: 'right' });
+    yPosition += 10;
+    
+    const capitalAssetsData = capitalAssets.map(asset => [
+      asset.description || 'ללא תיאור',
+      ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type,
+      `₪${(asset.monthly_income || 0).toLocaleString()}`,
+      `₪${(asset.current_value || 0).toLocaleString()}`,
+      asset.start_date || 'לא צוין',
+      asset.end_date || 'ללא הגבלה'
+    ]);
+    
+    autoTable(doc, {
+      head: [['תיאור', 'סוג נכס', 'הכנסה חודשית', 'ערך נוכחי', 'תאריך התחלה', 'תאריך סיום']],
+      body: capitalAssetsData,
+      startY: yPosition,
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 2
+      },
+      headStyles: {
+        fillColor: [233, 236, 239],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold'
+      },
+      margin: { right: 20, left: 20 }
+    });
+    
+    yPosition = (doc as any).lastAutoTable.finalY + 20;
+  }
+  
+  // פירוט קרנות פנסיה
+  if (pensionFunds.length > 0) {
+    doc.setFontSize(14);
+    doc.text('קרנות פנסיה:', 200, yPosition, { align: 'right' });
+    yPosition += 10;
+    
+    const pensionData = pensionFunds.map(fund => [
+      fund.fund_name || 'ללא שם',
+      `₪${(fund.current_balance || 0).toLocaleString()}`,
+      `₪${(fund.monthly_deposit || 0).toLocaleString()}`,
+      `${((fund.annual_return_rate || 0) * 100).toFixed(1)}%`,
+      (fund.retirement_age || 67).toString()
+    ]);
+    
+    autoTable(doc, {
+      head: [['שם הקרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית', 'גיל פרישה']],
+      body: pensionData,
+      startY: yPosition,
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 2
+      },
+      headStyles: {
+        fillColor: [233, 236, 239],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold'
+      },
+      margin: { right: 20, left: 20 }
+    });
+  }
+  
+  // שמירת הקובץ
+  doc.save(`דוח-פנסיוני-${currentDate}.pdf`);
+}
+
+/**
+ * יוצר דוח Excel
+ */
+function generateExcelReport(
+  yearlyProjection: YearlyProjection[],
+  pensionFunds: any[],
+  additionalIncomes: any[],
+  capitalAssets: any[],
+  clientData: any
+) {
+  const workbook = XLSX.utils.book_new();
+  
+  // גיליון 1: תזרים מזומנים
+  const cashflowData = [
+    ['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי'],
+    ...yearlyProjection.map(year => [
+      year.year.toString(),
+      year.totalMonthlyIncome.toString(),
+      year.totalMonthlyTax.toString(),
+      year.netMonthlyIncome.toString(),
+      (year.netMonthlyIncome * 12).toString()
+    ])
+  ];
+  
+  // חישוב NPV
+  const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
+  const npv = calculateNPV(annualNetCashFlows, 0.03);
+  
+  // הוספת NPV לגיליון
+  cashflowData.push(['', '', '', '', '']);
+  cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', Math.round(npv).toString()]);
+  
+  const cashflowSheet = XLSX.utils.aoa_to_sheet(cashflowData);
+  XLSX.utils.book_append_sheet(workbook, cashflowSheet, 'תזרים מזומנים');
+  
+  // גיליון 2: נכסי הון
+  if (capitalAssets.length > 0) {
+    const capitalAssetsData = [
+      ['תיאור', 'סוג נכס', 'הכנסה חודשית', 'ערך נוכחי', 'תאריך התחלה', 'תאריך סיום'],
+      ...capitalAssets.map(asset => [
+        asset.description || 'ללא תיאור',
+        ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type,
+        (asset.monthly_income || 0).toString(),
+        (asset.current_value || 0).toString(),
+        asset.start_date || 'לא צוין',
+        asset.end_date || 'ללא הגבלה'
+      ])
+    ];
+    
+    const capitalAssetsSheet = XLSX.utils.aoa_to_sheet(capitalAssetsData);
+    XLSX.utils.book_append_sheet(workbook, capitalAssetsSheet, 'נכסי הון');
+  }
+  
+  // גיליון 3: קרנות פנסיה
+  if (pensionFunds.length > 0) {
+    const pensionData = [
+      ['שם הקרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית', 'גיל פרישה'],
+      ...pensionFunds.map(fund => [
+        fund.fund_name || 'ללא שם',
+        (fund.current_balance || 0).toString(),
+        (fund.monthly_deposit || 0).toString(),
+        ((fund.annual_return_rate || 0) * 100).toString(),
+        (fund.retirement_age || 67).toString()
+      ])
+    ];
+    
+    const pensionSheet = XLSX.utils.aoa_to_sheet(pensionData);
+    XLSX.utils.book_append_sheet(workbook, pensionSheet, 'קרנות פנסיה');
+  }
+  
+  // גיליון 4: הכנסות נוספות
+  if (additionalIncomes.length > 0) {
+    const additionalIncomesData = [
+      ['תיאור', 'סכום חודשי', 'תאריך התחלה', 'תאריך סיום'],
+      ...additionalIncomes.map(income => [
+        income.description || 'ללא תיאור',
+        (income.monthly_amount || 0).toString(),
+        income.start_date || 'לא צוין',
+        income.end_date || 'ללא הגבלה'
+      ])
+    ];
+    
+    const additionalIncomesSheet = XLSX.utils.aoa_to_sheet(additionalIncomesData);
+    XLSX.utils.book_append_sheet(workbook, additionalIncomesSheet, 'הכנסות נוספות');
+  }
+  
+  // שמירת הקובץ
+  const currentDate = new Date().toLocaleDateString('he-IL');
+  XLSX.writeFile(workbook, `דוח-פנסיוני-${currentDate}.xlsx`);
 }
 
 interface ReportData {
@@ -678,49 +928,9 @@ const SimpleReports: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Generate PDF report using the correct API endpoint
-      // First create a scenario if none exists
-      let scenarioId = 1; // Default scenario ID
-      try {
-        const scenarioResponse = await axios.get(`/api/v1/clients/${id}/scenarios`);
-        const scenarios = Array.isArray(scenarioResponse.data) ? scenarioResponse.data : (scenarioResponse.data?.scenarios || []);
-        if (scenarios.length === 0) {
-          // Create a default scenario
-          const newScenario = await axios.post(`/api/v1/clients/${id}/scenarios`, {
-            name: "דוח ברירת מחדל",
-            parameters: "{}",
-            description: "תרחיש ברירת מחדל ליצירת דוח"
-          });
-          scenarioId = newScenario.data.id;
-        } else {
-          scenarioId = scenarios[0].id;
-        }
-      } catch (e) {
-        console.warn('Could not get/create scenario, using default ID');
-      }
-      
-      // Use the correct API endpoint for PDF generation
-      const response = await axios.post(`/api/v1/reports/clients/${id}/reports/pdf`, {
-        scenario_id: scenarioId,
-        report_type: "comprehensive",
-        include_charts: true,
-        include_cashflow: true
-      }, {
-        responseType: 'blob'
-      });
-
-      // Create blob URL for PDF
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      setPdfUrl(url);
-
-      // Also trigger download
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `retirement_report_${id}_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // יצירת דוח PDF עם הנתונים הקיימים
+      const yearlyProjection = generateYearlyProjection();
+      generatePDFReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
 
       alert('דוח PDF נוצר בהצלחה');
     } catch (err: any) {
@@ -731,36 +941,13 @@ const SimpleReports: React.FC = () => {
   };
 
   const handleGenerateExcel = async () => {
-    if (!reportData) return;
-
     try {
       setLoading(true);
       setError(null);
 
-      // Generate Excel report - use same endpoint as PDF but request Excel format
-      const response = await axios.post(`/api/v1/reports/clients/${id}/reports/excel`, {
-        scenario_id: 1, // Default scenario
-        report_type: "excel",
-        include_charts: false,
-        include_cashflow: true
-      }, {
-        responseType: 'blob'
-      });
-
-      // Create blob URL for Excel
-      const blob = new Blob([response.data], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-      const url = window.URL.createObjectURL(blob);
-
-      // Trigger download
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `retirement_report_${id}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // יצירת דוח Excel עם הנתונים הקיימים
+      const yearlyProjection = generateYearlyProjection();
+      generateExcelReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
 
       alert('דוח Excel נוצר בהצלחה');
     } catch (err: any) {
@@ -770,7 +957,7 @@ const SimpleReports: React.FC = () => {
     }
   };
 
-  if (loading && !reportData) {
+  if (loading && (!pensionFunds || !additionalIncomes || !capitalAssets)) {
     return <div style={{ padding: '20px' }}>טוען נתוני דוח...</div>;
   }
 
@@ -809,7 +996,7 @@ const SimpleReports: React.FC = () => {
         <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
           <button
             onClick={handleGeneratePdf}
-            disabled={loading || !reportData}
+            disabled={loading}
             style={{
               backgroundColor: loading ? '#6c757d' : '#dc3545',
               color: 'white',
@@ -825,7 +1012,7 @@ const SimpleReports: React.FC = () => {
 
           <button
             onClick={handleGenerateExcel}
-            disabled={loading || !reportData}
+            disabled={loading}
             style={{
               backgroundColor: loading ? '#6c757d' : '#28a745',
               color: 'white',
@@ -840,24 +1027,11 @@ const SimpleReports: React.FC = () => {
           </button>
         </div>
 
-        {pdfUrl && (
-          <div style={{ marginTop: '15px' }}>
-            <a 
-              href={pdfUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              style={{ color: '#007bff', textDecoration: 'none' }}
-            >
-              📄 צפה בדוח PDF שנוצר
-            </a>
-          </div>
-        )}
       </div>
 
       {/* Report Preview */}
-      {reportData && (
-        <div>
-          <h3>תצוגה מקדימה של הדוח</h3>
+      <div>
+        <h3>תצוגה מקדימה של הדוח</h3>
           
           {/* Client Info */}
           <div style={{ 
@@ -869,8 +1043,8 @@ const SimpleReports: React.FC = () => {
           }}>
             <h4>פרטי לקוח</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div><strong>שם:</strong> {reportData.client_info.name}</div>
-              <div><strong>ת.ז.:</strong> {reportData.client_info.id_number}</div>
+              <div><strong>שם:</strong> {client?.name || 'לא צוין'}</div>
+              <div><strong>ת.ז.:</strong> {client?.id_number || 'לא צוין'}</div>
             </div>
           </div>
 
@@ -1376,7 +1550,7 @@ const SimpleReports: React.FC = () => {
         </div>
       )}
 
-      {!reportData && !loading && pensionFunds.length === 0 && additionalIncomes.length === 0 && capitalAssets.length === 0 && (
+      {!loading && pensionFunds.length === 0 && additionalIncomes.length === 0 && capitalAssets.length === 0 && (
         <div style={{ 
           padding: '20px', 
           backgroundColor: '#fff3cd', 
