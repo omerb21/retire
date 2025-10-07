@@ -410,8 +410,8 @@ export default function CapitalAssets() {
                       <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
                       <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
                       <div><strong>תשלום חודשי:</strong> ₪{(asset.monthly_income || asset.monthly_rental_income || asset.rental_income || 0).toLocaleString()}</div>
-                      {asset.current_value > 0 && <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString()}</div>}
-                      {asset.annual_return_rate > 0 && <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate}%</div>}
+                      <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString() || 0}</div>
+                      <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate || 0}%</div>
                     </div>
                     
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>

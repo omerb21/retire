@@ -933,12 +933,13 @@ const SimpleReports: React.FC = () => {
                       borderRadius: '4px',
                       border: '1px solid #ffeeba'
                     }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '5px', color: '#0056b3' }}>
                         {asset.asset_name || asset.description || 'נכס הון'}
                       </div>
                       <div>סוג: {ASSET_TYPES.find((t: any) => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</div>
                       <div>תשלום חודשי: ₪{(asset.monthly_income || asset.monthly_rental_income || asset.rental_income || 0).toLocaleString()}</div>
-                      {asset.current_value > 0 && <div>ערך נוכחי: ₪{asset.current_value.toLocaleString()}</div>}
+                      <div>ערך נוכחי: ₪{asset.current_value?.toLocaleString() || 0}</div>
+                      <div>תשואה שנתית: {asset.annual_return_rate || 0}%</div>
                       <div>תאריך התחלה: {asset.start_date || 'לא צוין'}</div>
                       <div>תאריך סיום: {asset.end_date || 'ללא הגבלה'}</div>
                     </div>
