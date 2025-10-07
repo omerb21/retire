@@ -4,22 +4,26 @@ import { apiFetch } from "../lib/api";
 
 type CapitalAsset = {
   id?: number;
-  asset_name?: string;
-  description?: string;
+  client_id?: number;
   asset_type: string;
+  description?: string;
   current_value: number;
-  monthly_income?: number;
-  rental_income?: number;
-  monthly_rental_income?: number;
+  purchase_value?: number;
+  purchase_date?: string;
+  annual_return?: number;
   annual_return_rate: number;
   payment_frequency: "monthly" | "quarterly" | "annual";
-  start_date: string;
+  liquidity?: string;
+  risk_level?: string;
+  // שדות נוספים לשימוש בפרונטאנד
+  asset_name?: string;
+  monthly_income?: number;
+  start_date?: string;
   end_date?: string;
-  indexation_method: "none" | "fixed" | "cpi";
+  indexation_method?: "none" | "fixed" | "cpi";
   fixed_rate?: number;
-  tax_treatment: "exempt" | "taxable" | "fixed_rate" | "capital_gains";
+  tax_treatment?: "exempt" | "taxable" | "fixed_rate" | "capital_gains";
   tax_rate?: number;
-  computed_monthly_amount?: number;
 };
 
 const ASSET_TYPES = [
@@ -141,23 +145,16 @@ export default function CapitalAssets() {
       console.log("FORM DATA BEFORE SUBMIT:", form);
       
       const payload = {
-        description: form.asset_name?.trim(), // השרת משתמש ב-description במקום asset_name
         asset_type: form.asset_type,
+        description: form.asset_name?.trim() || "נכס הון",
         current_value: Number(form.current_value) || 0,
-        annual_return_rate: Number(form.annual_return_rate) || 0,
+        purchase_value: 0, // ערך ברירת מחדל
+        purchase_date: alignedStartDate.toISOString().split('T')[0],
+        annual_return: 0, // ערך ברירת מחדל
+        annual_return_rate: Number(form.annual_return_rate) / 100 || 0, // המרה לעשרוני
         payment_frequency: form.payment_frequency,
-        start_date: alignedStartDate.toISOString().split('T')[0],
-        end_date: alignedEndDate?.toISOString().split('T')[0] || null,
-        indexation_method: form.indexation_method,
-        tax_treatment: form.tax_treatment,
-        fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
-        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
-        
-        // הוספת שדות נוספים לשימוש בפרונטאנד
-        asset_name: form.asset_name?.trim(),
-        monthly_income: Number(form.monthly_income),
-        rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0,
-        monthly_rental_income: form.asset_type === 'rental_property' ? Number(form.monthly_income) : 0,
+        liquidity: "medium", // ערך ברירת מחדל
+        risk_level: "medium" // ערך ברירת מחדל
       };
 
       console.log("SENDING PAYLOAD TO SERVER:", JSON.stringify(payload, null, 2));
@@ -409,24 +406,21 @@ export default function CapitalAssets() {
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
                       <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
                       <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
-                      <div><strong>תשלום חודשי:</strong> ₪{(asset.monthly_income || asset.monthly_rental_income || asset.rental_income || 0).toLocaleString()}</div>
                       <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString() || 0}</div>
-                      <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate || 0}%</div>
+                      <div><strong>ערך רכישה:</strong> ₪{asset.purchase_value?.toLocaleString() || 0}</div>
+                      <div><strong>תשואה שנתית:</strong> {(asset.annual_return_rate * 100) || asset.annual_return || 0}%</div>
+                      <div><strong>רמת נזילות:</strong> {asset.liquidity || "לא צוין"}</div>
                     </div>
                     
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
-                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>תאריכים והצמדה</div>
-                      <div><strong>תאריך התחלה:</strong> {asset.start_date || "לא צוין"}</div>
-                      <div><strong>תאריך סיום:</strong> {asset.end_date || "ללא הגבלה"}</div>
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטים נוספים</div>
+                      <div><strong>תאריך רכישה:</strong> {asset.purchase_date || "לא צוין"}</div>
                       <div><strong>תדירות תשלום:</strong> {
                         asset.payment_frequency === "monthly" ? "חודשי" :
                         asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"
                       }</div>
-                      <div><strong>הצמדה:</strong> {
-                        asset.indexation_method === "none" ? "ללא" :
-                        asset.indexation_method === "fixed" ? `קבועה ${asset.fixed_rate}%` :
-                        "למדד"
-                      }</div>
+                      <div><strong>רמת סיכון:</strong> {asset.risk_level || "לא צוין"}</div>
+                      <div><strong>תשואה שנתית:</strong> ₪{asset.annual_return?.toLocaleString() || 0}</div>
                     </div>
                   </div>
                   
@@ -439,12 +433,6 @@ export default function CapitalAssets() {
                       `שיעור קבוע ${asset.tax_rate}%`
                     }</div>
                   </div>
-                  
-                  {asset.computed_monthly_amount && (
-                    <div style={{ color: "green", fontWeight: "bold" }}>
-                      <strong>תשלום חודשי מחושב:</strong> ₪{asset.computed_monthly_amount.toLocaleString()}
-                    </div>
-                  )}
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     {asset.id && (
