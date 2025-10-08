@@ -470,7 +470,7 @@ const SimpleReports: React.FC = () => {
 
         setReportData({
           client_info: {
-            name: clientData && clientData.first_name && clientData.last_name ? `${clientData.first_name} ${clientData.last_name}` : 'לא צוין',
+            name: clientData ? `${clientData.first_name || ''} ${clientData.last_name || ''}`.trim() || 'לא צוין' : 'לא צוין',
             id_number: clientData?.id_number || 'לא צוין'
           },
           financial_summary: {
@@ -587,10 +587,9 @@ const SimpleReports: React.FC = () => {
         
         const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
         
-        // הצמדה שנתית רק אם מוגדרת במפורש
+        // Apply annual increase (2% by default)
         const yearsActive = year >= fundStartYear ? year - fundStartYear : 0;
-        // אם אין הצמדה מוגדרת, ברירת המחדל היא ללא הצמדה (0)
-        const indexationRate = fund.indexation_rate !== undefined ? fund.indexation_rate : 0;
+        const indexationRate = fund.indexation_rate || 0.02; // Default 2% annual increase
         
         // תיקון: גם כשהקרן מתחילה בשנה הנוכחית (yearsActive = 0), היא צריכה להניב הכנסה
         const adjustedAmount = year >= fundStartYear ? 
@@ -924,118 +923,6 @@ const SimpleReports: React.FC = () => {
 
   // הוסר calculateTaxImpact - המס מחושב ישירות בטבלה
 
-  // פונקציית עזר לחישוב NPV
-  const calculateNPV = (cashFlows: number[], discountRate: number): number => {
-    return cashFlows.reduce((sum, cashFlow, year) => {
-      return sum + (cashFlow / Math.pow(1 + discountRate, year));
-    }, 0);
-  };
-
-  // פונקציית יצירת דוח PDF
-  const createPDFReport = (yearlyProjection: any[]) => {
-    const doc = new jsPDF();
-    
-    let yPosition = 20;
-    
-    // כותרת הדוח
-    doc.setFontSize(20);
-    doc.text('דוח פנסיוני - תמונת מצב', 105, yPosition, { align: 'center' });
-    yPosition += 15;
-    
-    // תאריך יצירת הדוח
-    doc.setFontSize(12);
-    const currentDate = new Date().toLocaleDateString('he-IL');
-    doc.text(`תאריך יצירת הדוח: ${currentDate}`, 200, yPosition, { align: 'right' });
-    yPosition += 20;
-    
-    // חישוב NPV
-    const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
-    const npv = calculateNPV(annualNetCashFlows, 0.03);
-    
-    // הצגת NPV
-    doc.setFontSize(14);
-    doc.text('ערך נוכחי נקי (NPV) של התזרים:', 200, yPosition, { align: 'right' });
-    yPosition += 10;
-    doc.setFontSize(16);
-    doc.setTextColor(0, 128, 0);
-    doc.text(`₪${Math.round(npv).toLocaleString()}`, 200, yPosition, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    yPosition += 20;
-    
-    // טבלת תזרים מזומנים
-    doc.setFontSize(14);
-    doc.text('תחזית תזרים מזומנים שנתי:', 200, yPosition, { align: 'right' });
-    yPosition += 10;
-    
-    const tableData = yearlyProjection.map(year => [
-      year.year.toString(),
-      `₪${year.totalMonthlyIncome.toLocaleString()}`,
-      `₪${year.totalMonthlyTax.toLocaleString()}`,
-      `₪${year.netMonthlyIncome.toLocaleString()}`,
-      `₪${(year.netMonthlyIncome * 12).toLocaleString()}`
-    ]);
-    
-    autoTable(doc, {
-      head: [['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי']],
-      body: tableData,
-      startY: yPosition,
-      styles: {
-        font: 'helvetica',
-        fontSize: 10,
-        cellPadding: 3,
-        halign: 'center'
-      },
-      headStyles: {
-        fillColor: [233, 236, 239],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold'
-      },
-      columnStyles: {
-        0: { halign: 'center' },
-        1: { halign: 'right' },
-        2: { halign: 'right' },
-        3: { halign: 'right' },
-        4: { halign: 'right' }
-      },
-      margin: { right: 20, left: 20 }
-    });
-    
-    // שמירת הקובץ
-    doc.save(`דוח-פנסיוני-${currentDate}.pdf`);
-  };
-
-  // פונקציית יצירת דוח Excel
-  const createExcelReport = (yearlyProjection: any[]) => {
-    const workbook = XLSX.utils.book_new();
-    
-    // גיליון 1: תזרים מזומנים
-    const cashflowData = [
-      ['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי'],
-      ...yearlyProjection.map(year => [
-        year.year.toString(),
-        year.totalMonthlyIncome.toString(),
-        year.totalMonthlyTax.toString(),
-        year.netMonthlyIncome.toString(),
-        (year.netMonthlyIncome * 12).toString()
-      ])
-    ];
-    
-    // חישוב NPV
-    const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
-    const npv = calculateNPV(annualNetCashFlows, 0.03);
-    
-    // הוספת NPV לגיליון
-    cashflowData.push(['', '', '', '', '']);
-    cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', Math.round(npv).toString()]);
-    
-    const cashflowSheet = XLSX.utils.aoa_to_sheet(cashflowData);
-    XLSX.utils.book_append_sheet(workbook, cashflowSheet, 'תזרים מזומנים');
-    
-    // שמירת הקובץ
-    const currentDate = new Date().toLocaleDateString('he-IL');
-    XLSX.writeFile(workbook, `דוח-פנסיוני-${currentDate}.xlsx`);
-  };
-
   const handleGeneratePdf = async () => {
     try {
       setLoading(true);
@@ -1043,11 +930,10 @@ const SimpleReports: React.FC = () => {
       
       // יצירת דוח PDF עם הנתונים הקיימים
       const yearlyProjection = generateYearlyProjection();
-      createPDFReport(yearlyProjection);
-      
+      generatePDFReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
+
       alert('דוח PDF נוצר בהצלחה');
     } catch (err: any) {
-      console.error('שגיאה ביצירת דוח PDF:', err);
       setError('שגיאה ביצירת דוח PDF: ' + err.message);
     } finally {
       setLoading(false);
@@ -1055,24 +941,6 @@ const SimpleReports: React.FC = () => {
   };
 
   const handleGenerateExcel = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // יצירת דוח Excel עם הנתונים הקיימים
-      const yearlyProjection = generateYearlyProjection();
-      createExcelReport(yearlyProjection);
-      
-      alert('דוח Excel נוצר בהצלחה');
-    } catch (err: any) {
-      console.error('שגיאה ביצירת דוח Excel:', err);
-      setError('שגיאה ביצירת דוח Excel: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const oldHandleGenerateExcel = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -1175,7 +1043,7 @@ const SimpleReports: React.FC = () => {
           }}>
             <h4>פרטי לקוח</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div><strong>שם:</strong> {client?.first_name && client?.last_name ? `${client.first_name} ${client.last_name}` : 'לא צוין'}</div>
+              <div><strong>שם:</strong> {client?.name || 'לא צוין'}</div>
               <div><strong>ת.ז.:</strong> {client?.id_number || 'לא צוין'}</div>
             </div>
           </div>
@@ -1680,6 +1548,7 @@ const SimpleReports: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
 
       {!loading && pensionFunds.length === 0 && additionalIncomes.length === 0 && capitalAssets.length === 0 && (
         <div style={{ 

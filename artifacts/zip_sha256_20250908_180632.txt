@@ -1,4 +1,0 @@
-2b17f19de611d3be14e7d409e3447188f69102b0e44ee823dd45079184c8bbb7  yearly_totals_verification_20250908_180632.zip
-Size: 54967 bytes
-Created: 2025-09-08T18:06:32.875844
-Commit: sprint11-closure-20250908-164627
