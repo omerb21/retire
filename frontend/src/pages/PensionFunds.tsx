@@ -133,7 +133,9 @@ export default function PensionFunds() {
         throw new Error("חובה למלא שיעור הצמדה קבוע");
       }
 
-      // חישוב תאריך התחלת קצבה - מוקדם מכל הקצבאות הקיימות או גיל 67
+      // חישוב תאריך התחלת קצבה - לפי הכללים הבאים:
+      // 1. אם יש קצבאות קיימות - התאריך המוקדם ביותר מביניהן
+      // 2. אם אין קצבאות קיימות - גיל הפרישה של הלקוח (67 לגבר, 62 לאישה)
       let earliestStartDate: string;
       
       if (funds.length > 0) {
@@ -144,12 +146,18 @@ export default function PensionFunds() {
           return !earliest || fundDate < earliest ? fundDate : earliest;
         }, "") || new Date().toISOString().split('T')[0];
       } else if (clientData && clientData.birth_date) {
-        // אם אין קצבאות אבל יש תאריך לידה, חשב גיל 67
+        // אם אין קצבאות אבל יש תאריך לידה, חשב גיל פרישה לפי מגדר
         try {
           const birthDate = new Date(clientData.birth_date);
           const retirementDate = new Date(birthDate);
-          retirementDate.setFullYear(birthDate.getFullYear() + 67);
+          
+          // חישוב גיל פרישה לפי מגדר: 67 לגבר, 62 לאישה
+          const retirementAge = clientData.gender?.toLowerCase() === "female" ? 62 : 67;
+          
+          retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
           earliestStartDate = retirementDate.toISOString().split('T')[0];
+          
+          console.log(`חישוב תאריך פרישה לפי מגדר: ${clientData.gender}, גיל פרישה: ${retirementAge}`);
         } catch (error) {
           console.error("Error calculating retirement date:", error);
           earliestStartDate = new Date().toISOString().split('T')[0];
@@ -345,6 +353,12 @@ export default function PensionFunds() {
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
         <h3>הוסף קצבה</h3>
+        
+        {clientData && clientData.birth_date && (
+          <div style={{ marginBottom: 10, fontSize: "0.9em", color: "#666" }}>
+            <strong>מידע:</strong> תאריך התחלת קצבה יחושב אוטומטית לפי הקצבה המוקדמת ביותר או לפי גיל פרישה {clientData.gender?.toLowerCase() === "female" ? "62" : "67"}.
+          </div>
+        )}
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 400 }}>
           <input
             type="text"
