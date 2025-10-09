@@ -243,12 +243,14 @@ export default function PensionFunds() {
               }),
             });
             console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
-            window.location.reload();
           }
         }
       } catch (updateError) {
         console.error("שגיאה בעדכון תאריך הקצבה הראשונה:", updateError);
       }
+      
+      // הודעת הצלחה בקונסול
+      console.log("✅ הקצבה נשמרה בהצלחה ותאריך הקצבה הראשונה עודכן!");
     } catch (e: any) {
       setError(`שגיאה ביצירת קצבה: ${e?.message || e}`);
     }
@@ -328,7 +330,6 @@ export default function PensionFunds() {
               }),
             });
             console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
-            window.location.reload();
           } else {
             // אם אין תאריך, ננקה את תאריך הקצבה הראשונה
             console.error("לא נמצא תאריך קצבה תקין");
@@ -342,7 +343,6 @@ export default function PensionFunds() {
             }),
           });
           console.log("תאריך הקצבה הראשונה נוקה כי אין קצבאות");
-          window.location.reload();
         }
       } catch (updateError) {
         console.error("שגיאה בעדכון תאריך הקצבה הראשונה:", updateError);
