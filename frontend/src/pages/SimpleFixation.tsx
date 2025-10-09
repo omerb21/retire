@@ -530,10 +530,10 @@ const SimpleFixation: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
               <div>
                 <div style={{ marginBottom: '8px', fontSize: '14px' }}>
-                  <strong>שנת זכאות:</strong> {parseInt(id!) === 2 ? "2023" : fixationData.eligibility_year}
+                  <strong>שנת זכאות:</strong> {fixationData.eligibility_year}
                 </div>
                 <div style={{ marginBottom: '8px', fontSize: '14px' }}>
-                  <strong>תאריך זכאות:</strong> {parseInt(id!) === 2 ? "1.1.2023" : new Date(fixationData.eligibility_date).toLocaleDateString('he-IL')}
+                  <strong>תאריך זכאות:</strong> {new Date(fixationData.eligibility_date).toLocaleDateString('he-IL')}
                 </div>
               </div>
               
