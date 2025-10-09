@@ -2,6 +2,26 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listClients, createClient, ClientItem } from "../lib/api";
 
+// פונקציה לחישוב תאריך קצבה לפי תאריך לידה ומגדר
+function calculatePensionStartDate(client: ClientItem) {
+  if (!client.birth_date) return "";
+  
+  try {
+    const birthDate = new Date(client.birth_date);
+    const retirementAge = client.gender?.toLowerCase() === "female" ? 62 : 67;
+    
+    // חישוב תאריך הפרישה
+    const retirementDate = new Date(birthDate);
+    retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+    
+    // החזרת התאריך בפורמט YYYY-MM-DD
+    return retirementDate.toISOString().split('T')[0];
+  } catch (error) {
+    console.error("Error calculating pension start date:", error);
+    return "";
+  }
+}
+
 export default function Clients() {
   const [items, setItems] = useState<ClientItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -376,7 +396,7 @@ export default function Clients() {
                   <td style={td}>{c.birth_date ?? ""}</td>
                   <td style={td}>{c.gender === "male" ? "זכר" : "נקבה"}</td>
                   <td style={td}>{c.email ?? ""}</td>
-                  <td style={td}>{c.id === 2 ? "2024-01-01" : "2025-01-01"}</td>
+                  <td style={td}>{calculatePensionStartDate(c)}</td>
                   <td style={td}>
                     <Link 
                       to={`/clients/${c.id}`}
