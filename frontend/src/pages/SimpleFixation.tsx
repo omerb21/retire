@@ -539,7 +539,7 @@ const SimpleFixation: React.FC = () => {
               
               <div>
                 <div style={{ marginBottom: '8px', fontSize: '14px' }}>
-                  <strong>תאריך חישוב:</strong> {new Date().toLocaleDateString('he-IL')}
+                  <strong>תאריך חישוב:</strong> {"9.10.2025"}
                 </div>
               </div>
             </div>
