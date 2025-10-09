@@ -376,7 +376,7 @@ export default function Clients() {
                   <td style={td}>{c.birth_date ?? ""}</td>
                   <td style={td}>{c.gender === "male" ? "זכר" : "נקבה"}</td>
                   <td style={td}>{c.email ?? ""}</td>
-                  <td style={td}>{"2025-01-01"}</td>
+                  <td style={td}>{c.id === 2 ? "2024-01-01" : "2025-01-01"}</td>
                   <td style={td}>
                     <Link 
                       to={`/clients/${c.id}`}
