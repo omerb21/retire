@@ -220,8 +220,10 @@ export default function PensionFunds() {
       
       // עדכון תאריך הקצבה הראשונה של הלקוח
       try {
+        console.log("מתחיל עדכון תאריך הקצבה הראשונה...");
         // מציאת התאריך המוקדם ביותר מבין כל הקצבאות
         const updatedFunds = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
+        console.log("קצבאות שנמצאו:", updatedFunds);
         
         if (updatedFunds && updatedFunds.length > 0) {
           // מיון הקצבאות לפי תאריך התחלה
@@ -230,18 +232,22 @@ export default function PensionFunds() {
             const dateB = b.pension_start_date || b.start_date || '';
             return dateA.localeCompare(dateB);
           });
+          console.log("קצבאות ממוינות:", sortedFunds);
           
           // לקיחת התאריך המוקדם ביותר
           const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date;
+          console.log("התאריך המוקדם ביותר:", earliestDate);
           
           if (earliestDate) {
-            // עדכון תאריך הקצבה הראשונה של הלקוח
-            await apiFetch(`/clients/${clientId}`, {
-              method: "PATCH",
+            console.log(`מעדכן תאריך הקצבה הראשונה ללקוח ${clientId} ל-${earliestDate}`);
+            // עדכון תאריך הקצבה הראשונה של הלקוח - חייב להשתמש ב-PUT במקום PATCH
+            const updateResponse = await apiFetch(`/clients/${clientId}`, {
+              method: "PUT",
               body: JSON.stringify({
                 pension_start_date: earliestDate
               }),
             });
+            console.log("תגובת השרת לעדכון:", updateResponse);
             console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
           }
         }
@@ -322,9 +328,9 @@ export default function PensionFunds() {
           const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date;
           
           if (earliestDate) {
-            // עדכון תאריך הקצבה הראשונה של הלקוח
+            // עדכון תאריך הקצבה הראשונה של הלקוח - חייב להשתמש ב-PUT במקום PATCH
             await apiFetch(`/clients/${clientId}`, {
-              method: "PATCH",
+              method: "PUT",
               body: JSON.stringify({
                 pension_start_date: earliestDate
               }),
@@ -335,9 +341,9 @@ export default function PensionFunds() {
             console.error("לא נמצא תאריך קצבה תקין");
           }
         } else {
-          // אם אין קצבאות, ננקה את תאריך הקצבה הראשונה
+          // אם אין קצבאות, ננקה את תאריך הקצבה הראשונה - חייב להשתמש ב-PUT במקום PATCH
           await apiFetch(`/clients/${clientId}`, {
-            method: "PATCH",
+            method: "PUT",
             body: JSON.stringify({
               pension_start_date: null
             }),
