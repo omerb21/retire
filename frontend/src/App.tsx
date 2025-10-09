@@ -10,6 +10,7 @@ import SimpleFixation from "./pages/SimpleFixation";
 import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
 import SimpleGrants from "./pages/SimpleGrants";
 import SimpleReports from "./pages/SimpleReports";
+import SystemSettings from "./pages/SystemSettings";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
@@ -51,6 +52,7 @@ export default function App() {
           <nav style={{ display: "flex", gap: 16 }}>
             <NavLink to="/clients">לקוחות</NavLink>
             <NavLink to="/tools">כלי בדיקה</NavLink>
+            <NavLink to="/system-settings">הגדרות מערכת</NavLink>
           </nav>
         </header>
         <main style={{ padding: 16 }}>
@@ -66,6 +68,7 @@ export default function App() {
             <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
             <Route path="/clients/:id/reports" element={<SimpleReports />} />
             <Route path="/tools" element={<Tools />} />
+            <Route path="/system-settings" element={<SystemSettings />} />
             <Route path="/" element={<Clients />} />
             <Route path="*" element={<Clients />} />
           </Routes>

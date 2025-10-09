@@ -75,12 +75,9 @@ class CurrentEmployer(Base):
         onupdate=func.now()
     )
     
-    # Relationships - add back the client relationship that tests expect
-    @property
-    def client(self):
-        """Mock client property for testing compatibility"""
-        from app.models.client import Client
-        return Client(id=self.client_id, first_name="Test", last_name="Client")
+    # Relationships
+    client = relationship("Client", back_populates="current_employers")
+    grants = relationship("EmployerGrant", back_populates="employer", cascade="all, delete-orphan")
     
     def __init__(self, *args, **kwargs):
         # map older or alternate kwarg names to canonical field names

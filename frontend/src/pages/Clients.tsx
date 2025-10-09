@@ -42,9 +42,19 @@ export default function Clients() {
     setLoading(true);
     setMsg("");
     try {
+      // Test direct fetch first
+      console.log("Testing direct fetch...");
+      const testResponse = await fetch('/api/v1/clients');
+      console.log("Direct fetch status:", testResponse.status);
+      const testData = await testResponse.json();
+      console.log("Direct fetch data:", testData);
+      
       const data = await listClients();
+      console.log("Clients loaded successfully:", data);
       setItems(data || []);
+      setMsg(`✅ טעינה הצליחה! נמצאו ${data?.length || 0} לקוחות`);
     } catch (e: any) {
+      console.error("Error loading clients:", e);
       setMsg("שגיאה בטעינת לקוחות: " + (e?.message || e));
     } finally {
       setLoading(false);
@@ -60,7 +70,7 @@ export default function Clients() {
     
     try {
       setMsg("");
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}`, {
+      const response = await fetch(`/api/v1/clients/${clientId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +138,7 @@ export default function Clients() {
       if (!editForm.last_name) throw new Error('חובה למלא שם משפחה');
       if (!editForm.birth_date) throw new Error('חובה למלא תאריך לידה');
       
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${editingClient.id}`, {
+      const response = await fetch(`/api/v1/clients/${editingClient.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

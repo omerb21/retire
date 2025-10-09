@@ -27,6 +27,29 @@ class ClientBase(BaseModel):
     retirement_target_date: Optional[date] = Field(None, description="Target retirement date")
     is_active: bool = Field(True, description="Is client active")
     notes: Optional[str] = Field(None, description="Notes")
+    
+    # Tax-related fields
+    num_children: Optional[int] = Field(None, description="Number of children")
+    is_new_immigrant: Optional[bool] = Field(None, description="Is new immigrant")
+    is_veteran: Optional[bool] = Field(None, description="Is veteran")
+    is_disabled: Optional[bool] = Field(None, description="Is disabled")
+    disability_percentage: Optional[int] = Field(None, description="Disability percentage")
+    is_student: Optional[bool] = Field(None, description="Is student")
+    reserve_duty_days: Optional[int] = Field(None, description="Reserve duty days")
+    
+    # Income and deductions
+    annual_salary: Optional[float] = Field(None, description="Annual salary")
+    pension_contributions: Optional[float] = Field(None, description="Pension contributions")
+    study_fund_contributions: Optional[float] = Field(None, description="Study fund contributions")
+    insurance_premiums: Optional[float] = Field(None, description="Insurance premiums")
+    charitable_donations: Optional[float] = Field(None, description="Charitable donations")
+    
+    # Tax credit points and pension
+    tax_credit_points: Optional[float] = Field(None, description="Tax credit points")
+    pension_start_date: Optional[date] = Field(None, description="Pension start date")
+    spouse_income: Optional[float] = Field(None, description="Spouse income")
+    immigration_date: Optional[date] = Field(None, description="Immigration date")
+    military_discharge_date: Optional[date] = Field(None, description="Military discharge date")
 
 
 class ClientCreate(ClientBase):
@@ -85,6 +108,29 @@ class ClientUpdate(BaseModel):
     retirement_target_date: Optional[date] = Field(None, description="Target retirement date")
     is_active: Optional[bool] = Field(None, description="Is client active")
     notes: Optional[str] = Field(None, description="Notes")
+    
+    # Tax-related fields
+    num_children: Optional[int] = Field(None, description="Number of children")
+    is_new_immigrant: Optional[bool] = Field(None, description="Is new immigrant")
+    is_veteran: Optional[bool] = Field(None, description="Is veteran")
+    is_disabled: Optional[bool] = Field(None, description="Is disabled")
+    disability_percentage: Optional[int] = Field(None, description="Disability percentage")
+    is_student: Optional[bool] = Field(None, description="Is student")
+    reserve_duty_days: Optional[int] = Field(None, description="Reserve duty days")
+    
+    # Income and deductions
+    annual_salary: Optional[float] = Field(None, description="Annual salary")
+    pension_contributions: Optional[float] = Field(None, description="Pension contributions")
+    study_fund_contributions: Optional[float] = Field(None, description="Study fund contributions")
+    insurance_premiums: Optional[float] = Field(None, description="Insurance premiums")
+    charitable_donations: Optional[float] = Field(None, description="Charitable donations")
+    
+    # Tax credit points and pension
+    tax_credit_points: Optional[float] = Field(None, description="Tax credit points")
+    pension_start_date: Optional[date] = Field(None, description="Pension start date")
+    spouse_income: Optional[float] = Field(None, description="Spouse income")
+    immigration_date: Optional[date] = Field(None, description="Immigration date")
+    military_discharge_date: Optional[date] = Field(None, description="Military discharge date")
     
     @field_validator('id_number_raw')
     @classmethod

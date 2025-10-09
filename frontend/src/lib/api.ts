@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8005/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 function extractMessage(body: any): string | undefined {
   if (!body) return;
@@ -50,6 +50,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new Error(msg || `HTTP ${res.status}`);
   }
 
+  // Handle 204 No Content responses
+  if (res.status === 204) {
+    return null as T;
+  }
+  
   return (isJson ? await res.json() : await res.text()) as T;
 }
 
@@ -79,7 +84,7 @@ export type ClientCreate = {
   last_name: string;
   id_number: string;   // מחרוזת!
   birth_date: string;  // "YYYY-MM-DD"
-  gender: string;      // "male" or "female"
+  gender?: string;      // "male" or "female"
   email?: string | null;
   phone?: string | null;
   address_street?: string | null;
@@ -87,7 +92,28 @@ export type ClientCreate = {
   address_postal_code?: string | null;
   pension_start_date?: string | null;
   tax_credit_points?: number | null;
-  marital_status?: string | null;  // שדה חדש שהוספנו - מצב משפחתי
+  marital_status?: string | null;
+  
+  // Tax-related fields
+  num_children?: number | null;
+  is_new_immigrant?: boolean | null;
+  is_veteran?: boolean | null;
+  is_disabled?: boolean | null;
+  disability_percentage?: number | null;
+  is_student?: boolean | null;
+  reserve_duty_days?: number | null;
+  
+  // Income and deductions
+  annual_salary?: number | null;
+  pension_contributions?: number | null;
+  study_fund_contributions?: number | null;
+  insurance_premiums?: number | null;
+  charitable_donations?: number | null;
+  
+  // Additional fields
+  spouse_income?: number | null;
+  immigration_date?: string | null;
+  military_discharge_date?: string | null;
 };
 
 export async function listClients(params?: { limit?: number; offset?: number }) {
@@ -95,8 +121,8 @@ export async function listClients(params?: { limit?: number; offset?: number }) 
   if (params?.limit != null) q.set("limit", String(params.limit));
   if (params?.offset != null) q.set("offset", String(params.offset));
   const qs = q.toString();
-  const response = await apiFetch<{clients: ClientItem[], total: number}>(`/clients${qs ? `?${qs}` : ""}`);
-  return response.clients;
+  const response = await apiFetch<ClientItem[]>(`/clients${qs ? `?${qs}` : ""}`);
+  return response;
 }
 
 // Helper for valid Israeli ID - EXACT match to backend implementation

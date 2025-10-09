@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8005/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
 interface SimpleEmployer {
   id?: number;
   employer_name: string;
   start_date: string;
-  monthly_salary: number;
-  severance_balance: number;
+  last_salary: number;
+  severance_accrued: number;
 }
 
 const SimpleCurrentEmployer: React.FC = () => {
@@ -20,8 +20,8 @@ const SimpleCurrentEmployer: React.FC = () => {
   const [employer, setEmployer] = useState<SimpleEmployer>({
     employer_name: '',
     start_date: '',
-    monthly_salary: 0,
-    severance_balance: 0
+    last_salary: 0,
+    severance_accrued: 0
   });
 
   // Calculate grant details
@@ -49,8 +49,8 @@ const SimpleCurrentEmployer: React.FC = () => {
               id: response.data.id,
               employer_name: response.data.employer_name || '',
               start_date: response.data.start_date || '',
-              monthly_salary: Number(response.data.monthly_salary || response.data.last_salary || response.data.average_salary || 0),
-              severance_balance: Number(response.data.severance_balance || response.data.severance_accrued || 0)
+              last_salary: Number(response.data.monthly_salary || response.data.last_salary || response.data.average_salary || 0),
+              severance_accrued: Number(response.data.severance_balance || response.data.severance_accrued || 0)
             });
           }
         }
@@ -71,7 +71,7 @@ const SimpleCurrentEmployer: React.FC = () => {
   // Calculate grant details when employer data changes with debouncing
   useEffect(() => {
     const calculateGrantDetails = async () => {
-      if (employer.start_date && employer.monthly_salary > 0) {
+      if (employer.start_date && employer.last_salary > 0) {
         const startDate = new Date(employer.start_date);
         const currentDate = new Date();
         
@@ -79,13 +79,13 @@ const SimpleCurrentEmployer: React.FC = () => {
         const serviceYears = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
         
         // Basic severance calculation (1 month salary per year)
-        const expectedGrant = employer.monthly_salary * serviceYears;
+        const expectedGrant = employer.last_salary * serviceYears;
         
         try {
           // Call the new severance calculation API
           const response = await axios.post(`${API_BASE}/current-employer/calculate-severance`, {
             start_date: employer.start_date,
-            monthly_salary: employer.monthly_salary
+            last_salary: employer.last_salary
           });
 
           const calculation = response.data;
@@ -122,7 +122,7 @@ const SimpleCurrentEmployer: React.FC = () => {
     }, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [employer.start_date, employer.monthly_salary, id]);
+  }, [employer.start_date, employer.last_salary, id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,8 +179,8 @@ const SimpleCurrentEmployer: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
             <div><strong>שם מעסיק:</strong> {employer.employer_name}</div>
             <div><strong>תאריך התחלה:</strong> {employer.start_date}</div>
-            <div><strong>שכר חודשי:</strong> ₪{employer.monthly_salary.toLocaleString()}</div>
-            <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_balance.toLocaleString()}</div>
+            <div><strong>שכר חודשי:</strong> ₪{employer.last_salary.toLocaleString()}</div>
+            <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
           </div>
           
           {grantDetails.serviceYears > 0 && (
@@ -268,8 +268,8 @@ const SimpleCurrentEmployer: React.FC = () => {
           </label>
           <input
             type="number"
-            name="monthly_salary"
-            value={employer.monthly_salary}
+            name="last_salary"
+            value={employer.last_salary}
             onChange={handleInputChange}
             required
             min="0"
@@ -290,8 +290,8 @@ const SimpleCurrentEmployer: React.FC = () => {
           </label>
           <input
             type="number"
-            name="severance_balance"
-            value={employer.severance_balance}
+            name="severance_accrued"
+            value={employer.severance_accrued}
             onChange={handleInputChange}
             min="0"
             step="0.01"

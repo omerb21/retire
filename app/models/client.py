@@ -91,7 +91,7 @@ class Client(Base):
     fixation_results = relationship("FixationResult", back_populates="client")
     pension_funds = relationship("PensionFund", back_populates="client", cascade="all, delete-orphan")
     current_employers = relationship("CurrentEmployer", back_populates="client", cascade="all, delete-orphan")
-    grants = relationship("EmployerGrant", back_populates="client", cascade="all, delete-orphan")
+    # grants = relationship("EmployerGrant", back_populates="client", cascade="all, delete-orphan")  # Disabled - no direct FK
     additional_incomes = relationship("AdditionalIncome", back_populates="client", cascade="all, delete-orphan")
     capital_assets = relationship("CapitalAsset", back_populates="client", cascade="all, delete-orphan")
     scenarios = relationship("Scenario", back_populates="client", cascade="all, delete-orphan")

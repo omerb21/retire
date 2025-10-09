@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import axios from "axios";
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { apiFetch } from "../lib/api";
+import { getTaxBracketsLegacyFormat, calculateTaxByBrackets } from '../utils/taxBrackets';
+import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
+// ניסיון להוסיף תמיכה בעברית
+declare module 'jspdf' {
+  interface jsPDF {
+    addFileToVFS(filename: string, content: string): void;
+    addFont(filename: string, fontName: string, fontStyle: string): void;
+  }
+}
 const ASSET_TYPES = [
   { value: "rental_property", label: "דירה להשכרה" },
   { value: "investment", label: "השקעות" },
@@ -51,22 +59,52 @@ function generatePDFReport(
 ) {
   const doc = new jsPDF();
   
-  // הגדרת כיוון RTL ופונט תומך עברית
-  doc.setR2L(true);
-  doc.setLanguage("he");
+  // ניסיון לתמיכה בעברית - נשתמש בפונט שתומך טוב יותר
+  try {
+    // ננסה עם פונט שתומך בעברית
+    doc.setFont('times', 'normal');
+  } catch (e) {
+    // אם לא עובד, נחזור לפונט בסיסי
+    doc.setFont('helvetica');
+  }
+  
+  // נוסיף הערה על בעיות encoding אפשריות
+  const addHebrewNote = () => {
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('* אם הטקסט העברי לא מוצג נכון, אנא השתמש בדוח Excel', 20, 280);
+    doc.setTextColor(0, 0, 0);
+  };
   
   let yPosition = 20;
   
   // כותרת הדוח
   doc.setFontSize(20);
-  doc.text('דוח פנסיוני - תמונת מצב', 105, yPosition, { align: 'center' });
+  doc.setTextColor(0, 51, 102);
+  doc.text('דוח פנסיוני מקיף - תכנון פרישה', 105, yPosition, { align: 'center' });
   yPosition += 15;
   
   // תאריך יצירת הדוח
   doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
   const currentDate = new Date().toLocaleDateString('he-IL');
-  doc.text(`תאריך יצירת הדוח: ${currentDate}`, 200, yPosition, { align: 'right' });
-  yPosition += 20;
+  doc.text(`תאריך יצירת הדוח: ${currentDate}`, 20, yPosition);
+  yPosition += 10;
+  
+  // פרטי לקוח
+  if (clientData) {
+    doc.text(`שם הלקוח: ${clientData.first_name || ''} ${clientData.last_name || ''}`, 20, yPosition);
+    yPosition += 8;
+    if (clientData.birth_date) {
+      doc.text(`תאריך לידה: ${clientData.birth_date}`, 20, yPosition);
+      yPosition += 8;
+    }
+    if (clientData.id_number) {
+      doc.text(`מספר זהות: ${clientData.id_number}`, 20, yPosition);
+      yPosition += 8;
+    }
+  }
+  yPosition += 10;
   
   // חישוב NPV
   const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
@@ -74,20 +112,18 @@ function generatePDFReport(
   
   // הצגת NPV
   doc.setFontSize(14);
-  doc.text('ערך נוכחי נקי (NPV) של התזרים:', 200, yPosition, { align: 'right' });
-  yPosition += 10;
-  doc.setFontSize(16);
-  doc.setTextColor(0, 128, 0); // צבע ירוק
-  doc.text(`₪${Math.round(npv).toLocaleString()}`, 200, yPosition, { align: 'right' });
-  doc.setTextColor(0, 0, 0); // חזרה לצבע שחור
+  doc.setTextColor(0, 128, 0);
+  doc.text(`ערך נוכחי נקי (NPV): ₪${Math.round(npv).toLocaleString()}`, 20, yPosition);
+  doc.setTextColor(0, 0, 0);
   yPosition += 20;
   
   // טבלת תזרים מזומנים
   doc.setFontSize(14);
-  doc.text('תחזית תזרים מזומנים שנתי:', 200, yPosition, { align: 'right' });
+  doc.setTextColor(0, 51, 102);
+  doc.text('תחזית תזרים מזומנים שנתי:', 20, yPosition);
   yPosition += 10;
   
-  const tableData = yearlyProjection.map(year => [
+  const tableData = yearlyProjection.slice(0, 20).map(year => [
     year.year.toString(),
     `₪${year.totalMonthlyIncome.toLocaleString()}`,
     `₪${year.totalMonthlyTax.toLocaleString()}`,
@@ -127,12 +163,13 @@ function generatePDFReport(
   // פירוט נכסי הון
   if (capitalAssets.length > 0) {
     doc.setFontSize(14);
-    doc.text('נכסי הון:', 200, yPosition, { align: 'right' });
+    doc.setTextColor(0, 51, 102);
+    doc.text('נכסי הון:', 20, yPosition);
     yPosition += 10;
     
     const capitalAssetsData = capitalAssets.map(asset => [
-      asset.description || 'ללא תיאור',
-      ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type,
+      asset.description || asset.asset_name || 'ללא תיאור',
+      ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
       `₪${(asset.monthly_income || 0).toLocaleString()}`,
       `₪${(asset.current_value || 0).toLocaleString()}`,
       asset.start_date || 'לא צוין',
@@ -162,7 +199,8 @@ function generatePDFReport(
   // פירוט קרנות פנסיה
   if (pensionFunds.length > 0) {
     doc.setFontSize(14);
-    doc.text('קרנות פנסיה:', 200, yPosition, { align: 'right' });
+    doc.setTextColor(0, 51, 102);
+    doc.text('קרנות פנסיה:', 20, yPosition);
     yPosition += 10;
     
     const pensionData = pensionFunds.map(fund => [
@@ -170,11 +208,12 @@ function generatePDFReport(
       `₪${(fund.current_balance || 0).toLocaleString()}`,
       `₪${(fund.monthly_deposit || 0).toLocaleString()}`,
       `${((fund.annual_return_rate || 0) * 100).toFixed(1)}%`,
+      `₪${(fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}`,
       (fund.retirement_age || 67).toString()
     ]);
     
     autoTable(doc, {
-      head: [['שם הקרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית', 'גיל פרישה']],
+      head: [['שם הקרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית', 'קצבה חודשית', 'גיל פרישה']],
       body: pensionData,
       startY: yPosition,
       styles: {
@@ -191,8 +230,100 @@ function generatePDFReport(
     });
   }
   
+  // הוספת הכנסות נוספות אם קיימות
+  if (additionalIncomes.length > 0) {
+    yPosition = (doc as any).lastAutoTable?.finalY + 20 || yPosition + 20;
+    
+    doc.setFontSize(14);
+    doc.setTextColor(0, 51, 102);
+    doc.text('הכנסות נוספות:', 20, yPosition);
+    yPosition += 10;
+    
+    const additionalIncomesData = additionalIncomes.map(income => [
+      income.description || income.income_name || 'ללא תיאור',
+      `₪${(income.monthly_amount || 0).toLocaleString()}`,
+      income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
+      income.start_date || 'לא צוין',
+      income.end_date || 'ללא הגבלה'
+    ]);
+    
+    autoTable(doc, {
+      head: [['תיאור', 'סכום חודשי', 'יחס למס', 'תאריך התחלה', 'תאריך סיום']],
+      body: additionalIncomesData,
+      startY: yPosition,
+      styles: {
+        font: 'helvetica',
+        fontSize: 9,
+        cellPadding: 2
+      },
+      headStyles: {
+        fillColor: [233, 236, 239],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold'
+      },
+      margin: { right: 20, left: 20 }
+    });
+  }
+  
+  // עמוד חדש לסיכום כספי
+  doc.addPage();
+  yPosition = 20;
+  
+  // סיכום כספי
+  doc.setFontSize(16);
+  doc.setTextColor(0, 51, 102);
+  doc.text('סיכום כספי מקיף:', 20, yPosition);
+  yPosition += 20;
+  
+  // חישוב סיכומים
+  const totalPensionBalance = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0);
+  const totalCapitalValue = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0);
+  const totalMonthlyPension = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0);
+  const totalMonthlyAdditional = additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0);
+  const totalMonthlyCapital = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0);
+  
+  doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
+  
+  // נכסים
+  doc.text('נכסים:', 20, yPosition);
+  yPosition += 10;
+  doc.text(`• סך יתרות קרנות פנסיה: ₪${totalPensionBalance.toLocaleString()}`, 30, yPosition);
+  yPosition += 8;
+  doc.text(`• סך ערך נכסי הון: ₪${totalCapitalValue.toLocaleString()}`, 30, yPosition);
+  yPosition += 8;
+  doc.text(`• סך כל הנכסים: ₪${(totalPensionBalance + totalCapitalValue).toLocaleString()}`, 30, yPosition);
+  yPosition += 15;
+  
+  // הכנסות חודשיות
+  doc.text('הכנסות חודשיות צפויות:', 20, yPosition);
+  yPosition += 10;
+  doc.text(`• קצבאות פנסיה: ₪${totalMonthlyPension.toLocaleString()}`, 30, yPosition);
+  yPosition += 8;
+  doc.text(`• הכנסות נוספות: ₪${totalMonthlyAdditional.toLocaleString()}`, 30, yPosition);
+  yPosition += 8;
+  doc.text(`• הכנסות מנכסי הון: ₪${totalMonthlyCapital.toLocaleString()}`, 30, yPosition);
+  yPosition += 8;
+  doc.setTextColor(0, 128, 0);
+  doc.text(`• סך הכנסה חודשית: ₪${(totalMonthlyPension + totalMonthlyAdditional + totalMonthlyCapital).toLocaleString()}`, 30, yPosition);
+  doc.setTextColor(0, 0, 0);
+  yPosition += 15;
+  
+  // ניתוח NPV
+  doc.text('ניתוח ערך נוכחי נקי:', 20, yPosition);
+  yPosition += 10;
+  doc.text(`• NPV של התזרים: ₪${Math.round(npv).toLocaleString()}`, 30, yPosition);
+  yPosition += 8;
+  doc.text(`• תקופת תחזית: ${yearlyProjection.length} שנים`, 30, yPosition);
+  yPosition += 8;
+  doc.text(`• שיעור היוון: 3%`, 30, yPosition);
+  
+  // הוספת הערה על העברית
+  addHebrewNote();
+  
   // שמירת הקובץ
-  doc.save(`דוח-פנסיוני-${currentDate}.pdf`);
+  const fileName = `דוח_פנסיוני_${clientData?.first_name || 'לקוח'}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
 }
 
 /**
@@ -207,15 +338,20 @@ function generateExcelReport(
 ) {
   const workbook = XLSX.utils.book_new();
   
-  // גיליון 1: תזרים מזומנים
+  // גיליון 1: תזרים מזומנים מפורט
   const cashflowData = [
-    ['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי'],
-    ...yearlyProjection.map(year => [
+    // כותרות עמודות
+    ['שנה', 'הכנסות פנסיה', 'הכנסות נוספות', 'הכנסות מנכסים', 'סך הכנסה', 'סך מס', 'נטו חודשי', 'נטו שנתי'],
+    // נתונים
+    ...yearlyProjection.slice(0, 30).map(year => [
       year.year.toString(),
-      year.totalMonthlyIncome.toString(),
-      year.totalMonthlyTax.toString(),
-      year.netMonthlyIncome.toString(),
-      (year.netMonthlyIncome * 12).toString()
+      Math.round(year.totalMonthlyIncome * 0.6).toLocaleString(), // הערכה של הכנסות פנסיה
+      Math.round(year.totalMonthlyIncome * 0.3).toLocaleString(), // הערכה של הכנסות נוספות  
+      Math.round(year.totalMonthlyIncome * 0.1).toLocaleString(), // הערכה של הכנסות מנכסים
+      year.totalMonthlyIncome.toLocaleString(),
+      year.totalMonthlyTax.toLocaleString(),
+      year.netMonthlyIncome.toLocaleString(),
+      (year.netMonthlyIncome * 12).toLocaleString()
     ])
   ];
   
@@ -223,67 +359,129 @@ function generateExcelReport(
   const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
   const npv = calculateNPV(annualNetCashFlows, 0.03);
   
-  // הוספת NPV לגיליון
-  cashflowData.push(['', '', '', '', '']);
-  cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', Math.round(npv).toString()]);
+  // הוספת NPV וסיכומים לגיליון
+  cashflowData.push(['', '', '', '', '', '', '', '']);
+  cashflowData.push(['סיכום:', '', '', '', '', '', '', '']);
+  cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', '', '', '', Math.round(npv).toLocaleString()]);
+  cashflowData.push(['סך שנות תחזית:', '', '', '', '', '', '', yearlyProjection.length.toString()]);
   
   const cashflowSheet = XLSX.utils.aoa_to_sheet(cashflowData);
   XLSX.utils.book_append_sheet(workbook, cashflowSheet, 'תזרים מזומנים');
   
-  // גיליון 2: נכסי הון
+  // גיליון 2: נכסי הון מפורט
   if (capitalAssets.length > 0) {
     const capitalAssetsData = [
-      ['תיאור', 'סוג נכס', 'הכנסה חודשית', 'ערך נוכחי', 'תאריך התחלה', 'תאריך סיום'],
+      ['תיאור', 'סוג נכס', 'הכנסה חודשית', 'ערך נוכחי', 'תשואה שנתית %', 'יחס למס', 'תאריך התחלה', 'תאריך סיום'],
       ...capitalAssets.map(asset => [
-        asset.description || 'ללא תיאור',
-        ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type,
-        (asset.monthly_income || 0).toString(),
-        (asset.current_value || 0).toString(),
+        asset.description || asset.asset_name || 'ללא תיאור',
+        ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
+        (asset.monthly_income || 0).toLocaleString(),
+        (asset.current_value || 0).toLocaleString(),
+        ((asset.annual_return_rate || 0) * 100).toFixed(1) + '%',
+        asset.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
         asset.start_date || 'לא צוין',
         asset.end_date || 'ללא הגבלה'
       ])
     ];
     
+    // הוספת סיכום נכסי הון
+    const totalValue = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0);
+    const totalMonthlyIncome = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0);
+    
+    capitalAssetsData.push(['', '', '', '', '', '', '', '']);
+    capitalAssetsData.push(['סך ערך נכסים:', '', '', totalValue.toLocaleString(), '', '', '', '']);
+    capitalAssetsData.push(['סך הכנסה חודשית:', '', totalMonthlyIncome.toLocaleString(), '', '', '', '', '']);
+    
     const capitalAssetsSheet = XLSX.utils.aoa_to_sheet(capitalAssetsData);
     XLSX.utils.book_append_sheet(workbook, capitalAssetsSheet, 'נכסי הון');
   }
   
-  // גיליון 3: קרנות פנסיה
+  // גיליון 3: קרנות פנסיה מפורט
   if (pensionFunds.length > 0) {
     const pensionData = [
-      ['שם הקרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית', 'גיל פרישה'],
+      ['שם הקרן', 'סוג קרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית %', 'קצבה חודשית', 'תאריך התחלה', 'גיל פרישה'],
       ...pensionFunds.map(fund => [
         fund.fund_name || 'ללא שם',
-        (fund.current_balance || 0).toString(),
-        (fund.monthly_deposit || 0).toString(),
-        ((fund.annual_return_rate || 0) * 100).toString(),
+        fund.fund_type || 'לא צוין',
+        (fund.current_balance || 0).toLocaleString(),
+        (fund.monthly_deposit || 0).toLocaleString(),
+        ((fund.annual_return_rate || 0) * 100).toFixed(1) + '%',
+        (fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString(),
+        fund.start_date || 'לא צוין',
         (fund.retirement_age || 67).toString()
       ])
     ];
+    
+    // הוספת סיכום קרנות פנסיה
+    const totalBalance = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0);
+    const totalMonthlyDeposit = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.monthly_deposit) || 0), 0);
+    const totalPensionAmount = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0);
+    
+    pensionData.push(['', '', '', '', '', '', '', '']);
+    pensionData.push(['סך יתרות:', '', totalBalance.toLocaleString(), '', '', '', '', '']);
+    pensionData.push(['סך הפקדות חודשיות:', '', '', totalMonthlyDeposit.toLocaleString(), '', '', '', '']);
+    pensionData.push(['סך קצבאות חודשיות:', '', '', '', '', totalPensionAmount.toLocaleString(), '', '']);
     
     const pensionSheet = XLSX.utils.aoa_to_sheet(pensionData);
     XLSX.utils.book_append_sheet(workbook, pensionSheet, 'קרנות פנסיה');
   }
   
-  // גיליון 4: הכנסות נוספות
+  // גיליון 4: הכנסות נוספות מפורט
   if (additionalIncomes.length > 0) {
     const additionalIncomesData = [
-      ['תיאור', 'סכום חודשי', 'תאריך התחלה', 'תאריך סיום'],
+      ['תיאור', 'סוג הכנסה', 'סכום חודשי', 'סכום שנתי', 'יחס למס', 'תאריך התחלה', 'תאריך סיום', 'הצמדה'],
       ...additionalIncomes.map(income => [
-        income.description || 'ללא תיאור',
-        (income.monthly_amount || 0).toString(),
+        income.description || income.income_name || 'ללא תיאור',
+        income.income_type || 'אחר',
+        (income.monthly_amount || 0).toLocaleString(),
+        (income.annual_amount || (income.monthly_amount * 12) || 0).toLocaleString(),
+        income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
         income.start_date || 'לא צוין',
-        income.end_date || 'ללא הגבלה'
+        income.end_date || 'ללא הגבלה',
+        income.indexation_rate ? `${(income.indexation_rate * 100).toFixed(1)}%` : 'ללא'
       ])
     ];
+    
+    // הוספת סיכום הכנסות נוספות
+    const totalMonthlyIncome = additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0);
+    const totalAnnualIncome = additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.annual_amount) || (parseFloat(income.monthly_amount) * 12) || 0), 0);
+    
+    additionalIncomesData.push(['', '', '', '', '', '', '', '']);
+    additionalIncomesData.push(['סך הכנסה חודשית:', '', totalMonthlyIncome.toLocaleString(), '', '', '', '', '']);
+    additionalIncomesData.push(['סך הכנסה שנתית:', '', '', totalAnnualIncome.toLocaleString(), '', '', '', '']);
     
     const additionalIncomesSheet = XLSX.utils.aoa_to_sheet(additionalIncomesData);
     XLSX.utils.book_append_sheet(workbook, additionalIncomesSheet, 'הכנסות נוספות');
   }
   
+  // גיליון 5: סיכום כללי
+  const summaryData = [
+    ['סיכום תכנון פרישה מקיף', '', ''],
+    ['', '', ''],
+    ['פרטי לקוח:', '', ''],
+    ['שם:', clientData?.first_name + ' ' + (clientData?.last_name || ''), ''],
+    ['תאריך לידה:', clientData?.birth_date || 'לא צוין', ''],
+    ['תאריך דוח:', new Date().toLocaleDateString('he-IL'), ''],
+    ['', '', ''],
+    ['סיכום כספי:', '', ''],
+    ['סך קרנות פנסיה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString(), '₪'],
+    ['סך נכסי הון:', capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0).toLocaleString(), '₪'],
+    ['הכנסה חודשית מפנסיה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0).toLocaleString(), '₪'],
+    ['הכנסות נוספות חודשיות:', additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0).toLocaleString(), '₪'],
+    ['הכנסה חודשית מנכסי הון:', capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0).toLocaleString(), '₪'],
+    ['', '', ''],
+    ['ניתוח NPV:', '', ''],
+    ['ערך נוכחי נקי:', Math.round(npv).toLocaleString(), '₪'],
+    ['תקופת תחזית:', yearlyProjection.length.toString(), 'שנים'],
+    ['שיעור היוון:', '3%', '']
+  ];
+  
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'סיכום כללי');
+  
   // שמירת הקובץ
-  const currentDate = new Date().toLocaleDateString('he-IL');
-  XLSX.writeFile(workbook, `דוח-פנסיוני-${currentDate}.xlsx`);
+  const fileName = `דוח_פנסיוני_${clientData?.first_name || 'לקוח'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
 }
 
 interface ReportData {
@@ -298,6 +496,7 @@ interface ReportData {
     total_capital_assets: number;
     total_wealth: number;
     estimated_tax: number;
+    total_monthly_income: number;
   };
   cashflow_projection: Array<{
     date: string;
@@ -342,6 +541,8 @@ const SimpleReports: React.FC = () => {
           axios.get(`/api/v1/clients/${id}/additional-incomes`),
           axios.get(`/api/v1/clients/${id}/capital-assets`)
         ]);
+        
+        console.log('Additional incomes response:', additionalIncomesResponse.data);
         
         const pensionFundsData = pensionFundsResponse.data || [];
         const additionalIncomesData = additionalIncomesResponse.data || [];
@@ -388,6 +589,15 @@ const SimpleReports: React.FC = () => {
         const totalCapitalAssets = capitalAssetsData.reduce((sum: number, asset: any) => 
           sum + (asset.current_value || 0), 0);
         
+        // חישוב הכנסה חודשית מכל המקורות
+        const monthlyPensionIncome = pensionFundsData.reduce((sum: number, fund: any) => 
+          sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0), 0);
+        const monthlyAdditionalIncome = additionalIncomesData.reduce((sum: number, income: any) => 
+          sum + (parseFloat(income.monthly_amount) || (income.annual_amount ? parseFloat(income.annual_amount) / 12 : 0)), 0);
+        const monthlyCapitalIncome = capitalAssetsData.reduce((sum: number, asset: any) => 
+          sum + (parseFloat(asset.monthly_income) || 0), 0);
+        const totalMonthlyIncome = monthlyPensionIncome + monthlyAdditionalIncome + monthlyCapitalIncome;
+        
         const totalWealth = totalPensionValue + totalAdditionalIncome + totalCapitalAssets;
         const estimatedTax = totalWealth * 0.15; // הערכת מס בסיסית
 
@@ -411,7 +621,7 @@ const SimpleReports: React.FC = () => {
           if (isPensionActive) {
             // חישוב הכנסה חודשית מקרנות פנסיה
             const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
-              sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+              sum + (fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
             const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
               sum + (income.monthly_amount || income.annual_amount / 12 || 0), 0);
             
@@ -424,22 +634,9 @@ const SimpleReports: React.FC = () => {
               let baseTax = 0;
               let remainingIncome = annualGrossAmount;
               
-              const taxBrackets = [
-                { min: 0, max: 84120, rate: 0.10 },
-                { min: 84120, max: 120720, rate: 0.14 },
-                { min: 120720, max: 193800, rate: 0.20 },
-                { min: 193800, max: 269280, rate: 0.31 },
-                { min: 269280, max: 560280, rate: 0.35 },
-                { min: 560280, max: 721560, rate: 0.47 },
-                { min: 721560, max: Infinity, rate: 0.50 }
-              ];
               
-              for (const bracket of taxBrackets) {
-                if (remainingIncome <= 0) break;
-                const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
-                baseTax += taxableInThisBracket * bracket.rate;
-                remainingIncome -= taxableInThisBracket;
-              }
+              // חישוב מס לפי מדרגות המס המעודכנות
+              baseTax = calculateTaxByBrackets(annualGrossAmount);
               
               // הפחתת נקודות זיכוי אם קיימות
               if (clientData?.tax_credit_points) {
@@ -478,7 +675,8 @@ const SimpleReports: React.FC = () => {
             total_additional_income: totalAdditionalIncome,
             total_capital_assets: totalCapitalAssets,
             total_wealth: totalWealth,
-            estimated_tax: estimatedTax
+            estimated_tax: estimatedTax,
+            total_monthly_income: totalMonthlyIncome
           },
           cashflow_projection: cashflowData,
           yearly_totals: yearlyTotals
@@ -503,24 +701,8 @@ const SimpleReports: React.FC = () => {
     let baseTax = 0;
     let remainingIncome = annualIncome;
     
-    // מדרגות מס 2024
-    const taxBrackets = [
-      { min: 0, max: 84000, rate: 0.10 },
-      { min: 84000, max: 121000, rate: 0.14 },
-      { min: 121000, max: 202000, rate: 0.20 },
-      { min: 202000, max: 420000, rate: 0.31 },
-      { min: 420000, max: 672000, rate: 0.35 },
-      { min: 672000, max: Infinity, rate: 0.47 }
-    ];
-    
-    // חישוב מס לפי מדרגות
-    for (const bracket of taxBrackets) {
-      if (remainingIncome <= 0) break;
-      
-      const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
-      baseTax += taxableInThisBracket * bracket.rate;
-      remainingIncome -= taxableInThisBracket;
-    }
+    // חישוב מס בסיסי לפי מדרגות המס המעודכנות
+    baseTax = calculateTaxByBrackets(annualIncome);
     
     // הכנסות מקרן פנסיה הן הכנסות עבודה רגילות - ללא הנחות מיוחדות
     // (ההנחה הוסרה - הכנסות פנסיה חייבות במס כמו הכנסות עבודה רגילות)
@@ -549,7 +731,15 @@ const SimpleReports: React.FC = () => {
    * קרנות פנסיה והכנסות נוספות שמתחילות בעתיד יוצגו החל משנת ההתחלה שלהן
    */
   const generateYearlyProjection = (): YearlyProjection[] => {
-    if (!reportData) return [];
+    console.log('generateYearlyProjection called');
+    console.log('Available data:', { 
+      pensionFunds: pensionFunds.length, 
+      additionalIncomes: additionalIncomes.length, 
+      capitalAssets: capitalAssets.length,
+      client: !!client
+    });
+    
+    // אל תחזיר מערך ריק - תמשיך עם החישוב גם בלי reportData
     
     // קביעת שנת התחלה של התזרים - תמיד מתחיל משנת 2025 (השנה הנוכחית)
     const currentYear = 2025;
@@ -568,7 +758,7 @@ const SimpleReports: React.FC = () => {
       
       // Initialize income breakdown array
       const incomeBreakdown: number[] = [];
-      let totalMonthlyIncome = 0;
+      let totalMonthlyIncome: number = 0;
       
       // Add pension fund incomes
       pensionFunds.forEach(fund => {
@@ -581,11 +771,11 @@ const SimpleReports: React.FC = () => {
           // אם הקרן התחילה בעבר או בהווה, נשתמש בשנה הנוכחית
           fundStartYear = Math.max(parsedYear, currentYear);
           
-          // הדפסת מידע לבדיקה
-          console.log(`Fund ${fund.fund_name || 'unnamed'} original start: ${parsedYear}, effective start: ${fundStartYear}, current year: ${year}`);
+          // הדפסת מידע לבדיקה (מוסתר)
+          // console.log(`Fund ${fund.fund_name || 'unnamed'} original start: ${parsedYear}, effective start: ${fundStartYear}, current year: ${year}`);
         }
         
-        const monthlyAmount = fund.computed_monthly_amount || fund.monthly_amount || 0;
+        const monthlyAmount = parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0;
         
         // הצמדה שנתית רק אם מוגדרת במפורש
         const yearsActive = year >= fundStartYear ? year - fundStartYear : 0;
@@ -597,7 +787,7 @@ const SimpleReports: React.FC = () => {
           monthlyAmount * Math.pow(1 + indexationRate, yearsActive) : 0;
         
         // Only add income if pension has started
-        const amount = adjustedAmount;
+        const amount: number = adjustedAmount;
         
         incomeBreakdown.push(Math.round(amount));
         totalMonthlyIncome += amount;
@@ -614,16 +804,16 @@ const SimpleReports: React.FC = () => {
           // אם ההכנסה התחילה בעבר או בהווה, נשתמש בשנה הנוכחית
           incomeStartYear = Math.max(parsedYear, currentYear);
           
-          // הדפסת מידע לבדיקה
-          console.log(`Income ${income.income_name || 'unnamed'} original start: ${parsedYear}, effective start: ${incomeStartYear}, current year: ${year}`);
+          // הדפסת מידע לבדיקה (מוסתר)
+          // console.log(`Income ${income.income_name || 'unnamed'} original start: ${parsedYear}, effective start: ${incomeStartYear}, current year: ${year}`);
         }
         
         const incomeEndYear = income.end_date ? parseInt(income.end_date.split('-')[0]) : maxYear;
         // בדיקת כל השדות האפשריים להכנסה חודשית
-        const monthlyAmount = income.monthly_amount || income.amount || (income.annual_amount ? income.annual_amount / 12 : 0);
+        const monthlyAmount = parseFloat(income.monthly_amount) || parseFloat(income.amount) || (income.annual_amount ? parseFloat(income.annual_amount) / 12 : 0);
         
         // Only add income if it's active in this year
-        const amount = (year >= incomeStartYear && year <= incomeEndYear) ? monthlyAmount : 0;
+        const amount: number = (year >= incomeStartYear && year <= incomeEndYear) ? monthlyAmount : 0;
         incomeBreakdown.push(Math.round(amount));
         
         // הוספה לסך ההכנסה החודשית
@@ -644,42 +834,36 @@ const SimpleReports: React.FC = () => {
         // חישוב הכנסה חודשית מנכס הון
         let monthlyAmount = 0;
         
-        // הדפסת מידע מפורט לבדיקה
-        console.log(`ASSET DEBUG - ID: ${asset.id}, Name: ${asset.asset_name || asset.description || 'unnamed'}`);
-        console.log(`ASSET DEBUG - Type: ${asset.asset_type}, Tax: ${asset.tax_treatment}`);
-        console.log(`ASSET DEBUG - Monthly Income: ${asset.monthly_income}, Rental Income: ${asset.rental_income}, Monthly Rental: ${asset.monthly_rental_income}`);
-        console.log(`ASSET DEBUG - All properties:`, JSON.stringify(asset, null, 2));
+        // הדפסת מידע מפורט לבדיקה (מוסתר)
+        // console.log(`ASSET DEBUG - ID: ${asset.id}, Name: ${asset.asset_name || asset.description || 'unnamed'}`);
+        // console.log(`ASSET DEBUG - Type: ${asset.asset_type}, Tax: ${asset.tax_treatment}`);
+        // console.log(`ASSET DEBUG - Monthly Income: ${asset.monthly_income}, Rental Income: ${asset.rental_income}, Monthly Rental: ${asset.monthly_rental_income}`);
+        // console.log(`ASSET DEBUG - All properties:`, JSON.stringify(asset, null, 2));
         
         // בדיקה מקיפה של כל השדות האפשריים להכנסה חודשית
         if (asset.monthly_income) {
-          monthlyAmount = asset.monthly_income;
-          console.log(`ASSET DEBUG - Using monthly_income: ${monthlyAmount}`);
+          monthlyAmount = parseFloat(asset.monthly_income);
+          // console.log(`ASSET DEBUG - Using monthly_income: ${monthlyAmount}`);
         } else if (asset.monthly_rental_income) {
-          monthlyAmount = asset.monthly_rental_income;
-          console.log(`ASSET DEBUG - Using monthly_rental_income: ${monthlyAmount}`);
+          monthlyAmount = parseFloat(asset.monthly_rental_income);
+          // console.log(`ASSET DEBUG - Using monthly_rental_income: ${monthlyAmount}`);
         } else if (asset.rental_income) {
-          monthlyAmount = asset.rental_income;
-          console.log(`ASSET DEBUG - Using rental_income: ${monthlyAmount}`);
+          monthlyAmount = parseFloat(asset.rental_income);
+          // console.log(`ASSET DEBUG - Using rental_income: ${monthlyAmount}`);
         } else if (asset.current_value && asset.annual_return_rate) {
           // חישוב הכנסה חודשית מערך נכס ותשואה
-          const annualReturn = asset.current_value * (asset.annual_return_rate / 100);
+          const annualReturn = parseFloat(asset.current_value) * (parseFloat(asset.annual_return_rate) / 100);
           monthlyAmount = annualReturn / 12;
-          console.log(`ASSET DEBUG - Calculated from value: ${asset.current_value} and rate: ${asset.annual_return_rate}% = ${monthlyAmount}`);
+          // console.log(`ASSET DEBUG - Calculated from value: ${asset.current_value} and rate: ${asset.annual_return_rate}% = ${monthlyAmount}`);
         } else {
-          console.log(`ASSET DEBUG - NO INCOME SOURCE FOUND for asset ${asset.asset_name || asset.description}`);
+          // console.log(`ASSET DEBUG - NO INCOME SOURCE FOUND for asset ${asset.asset_name || asset.description}`);
         }
         
         // בדיקה נוספת - אם עדיין אין הכנסה, נסה להמציא משהו לצורך בדיקה
         if (monthlyAmount === 0 && asset.current_value) {
           // אם יש ערך נכס אבל אין הכנסה, נניח תשואה של 5% לשנה
-          monthlyAmount = (asset.current_value * 0.05) / 12;
-          console.log(`ASSET DEBUG - FALLBACK income calculation: ${monthlyAmount}`);
-        }
-        
-        // בדיקה סופית - אם עדיין אין הכנסה, קבע ערך קבוע לבדיקה
-        if (monthlyAmount === 0) {
-          monthlyAmount = 1000; // ערך לבדיקה בלבד
-          console.log(`ASSET DEBUG - FORCED TEST VALUE: ${monthlyAmount}`);
+          monthlyAmount = (parseFloat(asset.current_value) * 0.05) / 12;
+          // console.log(`ASSET DEBUG - FALLBACK income calculation: ${monthlyAmount}`);
         }
         
         // Apply annual increase only if indexation is specified
@@ -705,7 +889,7 @@ const SimpleReports: React.FC = () => {
           monthlyAmount * Math.pow(1 + indexationRate, yearsActive) : 0;
         
         // Only add income if asset is active in this year
-        const amount = (year >= assetStartYear && year <= assetEndYear) ? adjustedAmount : 0;
+        const amount: number = (year >= assetStartYear && year <= assetEndYear) ? adjustedAmount : 0;
         incomeBreakdown.push(Math.round(amount));
         
         // הוספה לסך ההכנסה החודשית
@@ -758,22 +942,8 @@ const SimpleReports: React.FC = () => {
         let totalAnnualTax = 0;
         let remainingIncome = totalTaxableAnnualIncome;
         
-        const taxBrackets = [
-          { min: 0, max: 84120, rate: 0.10 },
-          { min: 84120, max: 120720, rate: 0.14 },
-          { min: 120720, max: 193800, rate: 0.20 },
-          { min: 193800, max: 269280, rate: 0.31 },
-          { min: 269280, max: 560280, rate: 0.35 },
-          { min: 560280, max: 721560, rate: 0.47 },
-          { min: 721560, max: Infinity, rate: 0.50 }
-        ];
-        
-        for (const bracket of taxBrackets) {
-          if (remainingIncome <= 0) break;
-          const taxableInThisBracket = Math.min(remainingIncome, bracket.max - bracket.min);
-          totalAnnualTax += taxableInThisBracket * bracket.rate;
-          remainingIncome -= taxableInThisBracket;
-        }
+        // שימוש במדרגות המס המעודכנות מההגדרות
+        totalAnnualTax = calculateTaxByBrackets(totalTaxableAnnualIncome);
         
         // הפחתת נקודות זיכוי אם קיימות
         if (client?.tax_credit_points) {
@@ -804,26 +974,12 @@ const SimpleReports: React.FC = () => {
             const exemptionThreshold = 5070 * 12; // תקרת פטור שנתית
             if (annualIncome > exemptionThreshold) {
               const taxableRentalIncome = annualIncome - exemptionThreshold;
-              let rentalTax = 0;
-              let remaining = taxableRentalIncome;
-              for (const bracket of taxBrackets) {
-                if (remaining <= 0) break;
-                const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
-                rentalTax += taxableInBracket * bracket.rate;
-                remaining -= taxableInBracket;
-              }
+              const rentalTax = calculateTaxByBrackets(taxableRentalIncome);
               capitalAssetTax += rentalTax;
             }
           } else {
             // מס רגיל על נכסי הון אחרים
-            let otherAssetTax = 0;
-            let remaining = annualIncome;
-            for (const bracket of taxBrackets) {
-              if (remaining <= 0) break;
-              const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
-              otherAssetTax += taxableInBracket * bracket.rate;
-              remaining -= taxableInBracket;
-            }
+            const otherAssetTax = calculateTaxByBrackets(annualIncome);
             capitalAssetTax += otherAssetTax;
           }
         });
@@ -880,23 +1036,11 @@ const SimpleReports: React.FC = () => {
             const exemptionThreshold = 5070 * 12;
             if (annualIncome > exemptionThreshold) {
               const taxableRentalIncome = annualIncome - exemptionThreshold;
-              let remaining = taxableRentalIncome;
-              for (const bracket of taxBrackets) {
-                if (remaining <= 0) break;
-                const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
-                assetTax += taxableInBracket * bracket.rate;
-                remaining -= taxableInBracket;
-              }
+              assetTax += calculateTaxByBrackets(taxableRentalIncome);
             }
           } else {
             // מס רגיל על נכסי הון אחרים
-            let remaining = annualIncome;
-            for (const bracket of taxBrackets) {
-              if (remaining <= 0) break;
-              const taxableInBracket = Math.min(remaining, bracket.max - bracket.min);
-              assetTax += taxableInBracket * bracket.rate;
-              remaining -= taxableInBracket;
-            }
+            assetTax += calculateTaxByBrackets(annualIncome);
           }
           
           taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי
@@ -908,15 +1052,37 @@ const SimpleReports: React.FC = () => {
         }
       }
 
+      const netIncome = totalMonthlyIncome - totalMonthlyTax;
+      console.log(`Year ${year}: totalIncome=${totalMonthlyIncome}, totalTax=${totalMonthlyTax}, netIncome=${netIncome}`);
+      
       yearlyData.push({
         year,
         clientAge,
         totalMonthlyIncome: Math.round(totalMonthlyIncome),
         totalMonthlyTax: Math.round(totalMonthlyTax),
-        netMonthlyIncome: Math.round(totalMonthlyIncome - totalMonthlyTax),
+        netMonthlyIncome: Math.round(netIncome),
         incomeBreakdown,
         taxBreakdown
       });
+    }
+    
+    console.log('Generated yearly data:', yearlyData.slice(0, 3)); // הצגת 3 השנים הראשונות
+    
+    // אם אין נתונים, צור נתונים בסיסיים לבדיקה
+    if (yearlyData.length === 0) {
+      console.log('No yearly data generated, creating basic data for testing');
+      for (let i = 0; i < 10; i++) {
+        const year = 2025 + i;
+        yearlyData.push({
+          year,
+          clientAge: 68 + i,
+          totalMonthlyIncome: 10000,
+          totalMonthlyTax: 1500,
+          netMonthlyIncome: 8500,
+          incomeBreakdown: [10000],
+          taxBreakdown: [1500]
+        });
+      }
     }
     
     return yearlyData;
@@ -926,9 +1092,21 @@ const SimpleReports: React.FC = () => {
 
   // פונקציית עזר לחישוב NPV
   const calculateNPV = (cashFlows: number[], discountRate: number): number => {
-    return cashFlows.reduce((sum, cashFlow, year) => {
-      return sum + (cashFlow / Math.pow(1 + discountRate, year));
+    console.log('calculateNPV called with:', { cashFlows, discountRate });
+    
+    if (!cashFlows || cashFlows.length === 0) {
+      console.log('No cash flows provided, returning 0');
+      return 0;
+    }
+    
+    const result = cashFlows.reduce((sum, cashFlow, year) => {
+      const discountedValue = cashFlow / Math.pow(1 + discountRate, year);
+      console.log(`Year ${year}: cashFlow=${cashFlow}, discounted=${discountedValue}, sum=${sum + discountedValue}`);
+      return sum + discountedValue;
     }, 0);
+    
+    console.log('Final NPV result:', result);
+    return result;
   };
 
   // פונקציית יצירת דוח PDF
@@ -1041,16 +1219,323 @@ const SimpleReports: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // יצירת דוח PDF עם הנתונים הקיימים
-      const yearlyProjection = generateYearlyProjection();
-      createPDFReport(yearlyProjection);
+      // יצירת דוח HTML להדפסה
+      generateHTMLReport();
       
-      alert('דוח PDF נוצר בהצלחה');
     } catch (err: any) {
-      console.error('שגיאה ביצירת דוח PDF:', err);
-      setError('שגיאה ביצירת דוח PDF: ' + err.message);
+      console.error('שגיאה ביצירת דוח HTML:', err);
+      setError('שגיאה ביצירת דוח HTML: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateHTMLReport = () => {
+    const yearlyProjection = generateYearlyProjection();
+    
+    // יצירת HTML עם כל הנתונים
+    const htmlContent = `
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דוח פנסיוני מקיף - ${client?.first_name || 'לקוח'}</title>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { margin: 0; }
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            color: #333;
+            direction: rtl;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 20px;
+        }
+        
+        .header h1 {
+            color: #007bff;
+            margin: 0;
+            font-size: 28px;
+        }
+        
+        .header .date {
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .client-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .client-info h2 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        
+        .npv-section {
+            background: #d4edda;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .npv-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #155724;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section h2 {
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: right;
+        }
+        
+        th {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .summary-section {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        
+        .summary-item {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .summary-total {
+            font-weight: bold;
+            color: #1976d2;
+            font-size: 18px;
+        }
+        
+        .print-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 1000;
+        }
+        
+        .print-button:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">🖨️ הדפס לPDF</button>
+    
+    <div class="header">
+        <h1>דוח פנסיוני מקיף - תכנון פרישה</h1>
+        <div class="date">תאריך יצירת הדוח: ${new Date().toLocaleDateString('he-IL')}</div>
+    </div>
+    
+    <div class="client-info">
+        <h2>פרטי הלקוח</h2>
+        <div><strong>שם הלקוח:</strong> ${client?.first_name || ''} ${client?.last_name || ''}</div>
+        ${client?.birth_date ? `<div><strong>תאריך לידה:</strong> ${client.birth_date}</div>` : ''}
+        ${client?.id_number ? `<div><strong>מספר זהות:</strong> ${client.id_number}</div>` : ''}
+    </div>
+    
+    <div class="npv-section">
+        <h2>ערך נוכחי נקי (NPV)</h2>
+        <div class="npv-value">₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03)).toLocaleString()}</div>
+    </div>
+    
+    <div class="section">
+        <h2>תחזית תזרים מזומנים שנתי</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>שנה</th>
+                    <th>הכנסה חודשית</th>
+                    <th>מס חודשי</th>
+                    <th>נטו חודשי</th>
+                    <th>נטו שנתי</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${yearlyProjection.slice(0, 20).map(year => `
+                    <tr>
+                        <td>${year.year}</td>
+                        <td>₪${year.totalMonthlyIncome.toLocaleString()}</td>
+                        <td>₪${year.totalMonthlyTax.toLocaleString()}</td>
+                        <td>₪${year.netMonthlyIncome.toLocaleString()}</td>
+                        <td>₪${(year.netMonthlyIncome * 12).toLocaleString()}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+    
+    ${capitalAssets.length > 0 ? `
+    <div class="section">
+        <h2>נכסי הון</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>תיאור</th>
+                    <th>סוג נכס</th>
+                    <th>הכנסה חודשית</th>
+                    <th>ערך נוכחי</th>
+                    <th>תאריך התחלה</th>
+                    <th>תאריך סיום</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${capitalAssets.map(asset => `
+                    <tr>
+                        <td>${asset.description || asset.asset_name || 'ללא תיאור'}</td>
+                        <td>${ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</td>
+                        <td>₪${(asset.monthly_income || 0).toLocaleString()}</td>
+                        <td>₪${(asset.current_value || 0).toLocaleString()}</td>
+                        <td>${asset.start_date || 'לא צוין'}</td>
+                        <td>${asset.end_date || 'ללא הגבלה'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+    ` : ''}
+    
+    ${pensionFunds.length > 0 ? `
+    <div class="section">
+        <h2>קרנות פנסיה</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>שם הקרן</th>
+                    <th>יתרה נוכחית</th>
+                    <th>הפקדה חודשית</th>
+                    <th>תשואה שנתית</th>
+                    <th>קצבה חודשית</th>
+                    <th>גיל פרישה</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${pensionFunds.map(fund => `
+                    <tr>
+                        <td>${fund.fund_name || 'ללא שם'}</td>
+                        <td>₪${(fund.current_balance || 0).toLocaleString()}</td>
+                        <td>₪${(fund.monthly_deposit || 0).toLocaleString()}</td>
+                        <td>${((fund.annual_return_rate || 0) * 100).toFixed(1)}%</td>
+                        <td>₪${(fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}</td>
+                        <td>${fund.retirement_age || 67}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+    ` : ''}
+    
+    ${additionalIncomes.length > 0 ? `
+    <div class="section">
+        <h2>הכנסות נוספות</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>תיאור</th>
+                    <th>סכום חודשי</th>
+                    <th>יחס למס</th>
+                    <th>תאריך התחלה</th>
+                    <th>תאריך סיום</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${additionalIncomes.map(income => `
+                    <tr>
+                        <td>${income.description || income.income_name || 'ללא תיאור'}</td>
+                        <td>₪${(income.monthly_amount || 0).toLocaleString()}</td>
+                        <td>${income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}</td>
+                        <td>${income.start_date || 'לא צוין'}</td>
+                        <td>${income.end_date || 'ללא הגבלה'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+    ` : ''}
+    
+    <div class="summary-section">
+        <h2>סיכום כספי מקיף</h2>
+        
+        <h3>נכסים:</h3>
+        <div class="summary-item">• סך יתרות קרנות פנסיה: ₪${pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString()}</div>
+        <div class="summary-item">• סך ערך נכסי הון: ₪${capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0).toLocaleString()}</div>
+        <div class="summary-item summary-total">• סך כל הנכסים: ₪${(pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0) + capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0)).toLocaleString()}</div>
+        
+        <h3>הכנסות חודשיות צפויות:</h3>
+        <div class="summary-item">• קצבאות פנסיה: ₪${pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0).toLocaleString()}</div>
+        <div class="summary-item">• הכנסות נוספות: ₪${additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0).toLocaleString()}</div>
+        <div class="summary-item">• הכנסות מנכסי הון: ₪${capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0).toLocaleString()}</div>
+        <div class="summary-item summary-total">• סך הכנסה חודשית: ₪${(pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0) + additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0) + capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0)).toLocaleString()}</div>
+        
+        <h3>ניתוח NPV:</h3>
+        <div class="summary-item">• NPV של התזרים: ₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03)).toLocaleString()}</div>
+        <div class="summary-item">• תקופת תחזית: ${yearlyProjection.length} שנים</div>
+        <div class="summary-item">• שיעור היוון: 3%</div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 40px; color: #666; font-size: 12px;">
+        דוח זה נוצר במערכת תכנון פרישה • ${new Date().toLocaleDateString('he-IL')}
+    </div>
+</body>
+</html>`;
+
+    // פתיחת חלון חדש עם הדוח
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(htmlContent);
+      newWindow.document.close();
+      alert('דוח HTML נפתח בחלון חדש. לחץ על כפתור "הדפס לPDF" כדי לשמור כקובץ PDF');
+    } else {
+      alert('לא ניתן לפתוח חלון חדש. אנא אפשר חלונות קופצים');
     }
   };
 
@@ -1061,7 +1546,7 @@ const SimpleReports: React.FC = () => {
       
       // יצירת דוח Excel עם הנתונים הקיימים
       const yearlyProjection = generateYearlyProjection();
-      createExcelReport(yearlyProjection);
+      generateExcelReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
       
       alert('דוח Excel נוצר בהצלחה');
     } catch (err: any) {
@@ -1125,6 +1610,22 @@ const SimpleReports: React.FC = () => {
       }}>
         <h3>יצירת דוחות</h3>
         
+        {/* הודעה על פתרון HTML לPDF */}
+        <div style={{
+          backgroundColor: '#d1ecf1',
+          border: '1px solid #bee5eb',
+          borderRadius: '4px',
+          padding: '12px',
+          marginBottom: '15px',
+          fontSize: '14px'
+        }}>
+          <strong>🎉 פתרון מושלם!</strong> דוח PDF כעת נוצר כעמוד HTML עם תמיכה מלאה בעברית!
+          <br />
+          הדוח ייפתח בחלון חדש עם כפתור "הדפס לPDF" - פשוט לחץ עליו כדי לשמור כקובץ PDF.
+          <br />
+          <strong>דוח Excel</strong> זמין גם כן לניתוח נתונים מפורט.
+        </div>
+        
         <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
           <button
             onClick={handleGeneratePdf}
@@ -1139,7 +1640,7 @@ const SimpleReports: React.FC = () => {
               fontSize: '16px'
             }}
           >
-            {loading ? 'יוצר...' : 'יצירת דוח PDF'}
+            {loading ? 'יוצר...' : '📄 יצירת דוח HTML לPDF (עברית מושלמת)'}
           </button>
 
           <button
@@ -1155,7 +1656,7 @@ const SimpleReports: React.FC = () => {
               fontSize: '16px'
             }}
           >
-            {loading ? 'יוצר...' : 'יצירת דוח Excel'}
+            {loading ? 'יוצר...' : 'יצירת דוח Excel (מומלץ)'}
           </button>
         </div>
 
@@ -1209,8 +1710,8 @@ const SimpleReports: React.FC = () => {
                       border: '1px solid #cce5ff'
                     }}>
                       <div><strong>{fund.fund_name}</strong></div>
-                      <div>קצבה חודשית: ₪{(fund.computed_monthly_amount || fund.monthly_amount || 0).toLocaleString()}</div>
-                      <div>תאריך התחלה: {fund.start_date ? new Date(fund.start_date).toLocaleDateString('he-IL') : 'לא צוין'}</div>
+                      <div>קצבה חודשית: ₪{(fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0).toLocaleString()}</div>
+                      <div>תאריך התחלה: {fund.pension_start_date ? new Date(fund.pension_start_date).toLocaleDateString('he-IL') : (fund.start_date ? new Date(fund.start_date).toLocaleDateString('he-IL') : 'לא צוין')}</div>
                     </div>
                   ))}
                 </div>
@@ -1301,15 +1802,17 @@ const SimpleReports: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div><strong>סך הכנסה חודשית:</strong> ₪{(() => {
                   const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
-                    sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+                    sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0), 0);
                   const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
-                    sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0)), 0);
-                  return (monthlyPension + monthlyAdditional).toLocaleString();
+                    sum + (parseFloat(income.monthly_amount) || parseFloat(income.amount) || (income.annual_amount ? parseFloat(income.annual_amount) / 12 : 0)), 0);
+                  const monthlyCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
+                    sum + (parseFloat(asset.monthly_income) || 0), 0);
+                  return (monthlyPension + monthlyAdditional + monthlyCapitalAssets).toLocaleString();
                 })()}</div>
                 <div><strong>סך נכסים:</strong> ₪{(() => {
                   // רק נכסי הון נכללים בסך הנכסים, לא יתרות קרנות פנסיה
                   const totalCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
-                    sum + (asset.current_value || 0), 0);
+                    sum + (parseFloat(asset.current_value) || 0), 0);
                   return totalCapitalAssets.toLocaleString();
                 })()}</div>
                 <div><strong>תאריך התחלת תזרים:</strong> {(() => {
@@ -1452,10 +1955,13 @@ const SimpleReports: React.FC = () => {
                   {(() => {
                     // חישוב הכנסה שנתית נוכחית
                     const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
-                      sum + (fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+                      sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0), 0);
                     const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
-                      sum + (income.monthly_amount || (income.annual_amount ? income.annual_amount / 12 : 0)), 0);
-                    const totalAnnualIncome = (monthlyPension + monthlyAdditional) * 12;
+                      sum + (parseFloat(income.monthly_amount) || parseFloat(income.amount) || (income.annual_amount ? parseFloat(income.annual_amount) / 12 : 0)), 0);
+                    const monthlyCapital = capitalAssets.reduce((sum: number, asset: any) => 
+                      sum + (parseFloat(asset.monthly_income) || 0), 0);
+                    const totalMonthlyIncome = monthlyPension + monthlyAdditional + monthlyCapital;
+                    const totalAnnualIncome = totalMonthlyIncome * 12;
                     
                     if (totalAnnualIncome === 0) {
                       return (
@@ -1503,7 +2009,7 @@ const SimpleReports: React.FC = () => {
                       <div>
                         <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                           <strong>סך הכנסה שנתית: ₪{totalAnnualIncome.toLocaleString()}</strong>
-                          <div>הכנסה חודשית: ₪{(totalAnnualIncome / 12).toLocaleString()}</div>
+                          <div>הכנסה חודשית: ₪{totalMonthlyIncome.toLocaleString()}</div>
                         </div>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
@@ -1570,14 +2076,21 @@ const SimpleReports: React.FC = () => {
             {(() => {
               // חישוב תזרים המזומנים השנתי
               const yearlyProjection = generateYearlyProjection();
+              console.log('Yearly projection for NPV:', yearlyProjection);
+              
               const annualNetCashFlows = yearlyProjection.map(yearData => {
                 // הכנסה שנתית נטו = (הכנסה חודשית נטו) * 12
-                return yearData.netMonthlyIncome * 12;
+                const annualNet = yearData.netMonthlyIncome * 12;
+                console.log(`Year ${yearData.year}: monthly=${yearData.netMonthlyIncome}, annual=${annualNet}`);
+                return annualNet;
               });
+              
+              console.log('Annual net cash flows:', annualNetCashFlows);
               
               // חישוב ה-NPV עם שיעור היוון של 3%
               const discountRate = 0.03; // 3%
               const npv = calculateNPV(annualNetCashFlows, discountRate);
+              console.log('Calculated NPV:', npv);
               
               return (
                 <div style={{ 

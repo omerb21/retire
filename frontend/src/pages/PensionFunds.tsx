@@ -7,17 +7,20 @@ type PensionFund = {
   fund_name?: string;
   fund_number?: string;
   fund_type?: string;
-  calculation_mode: "calculated" | "manual";
+  calculation_mode?: "calculated" | "manual"; // לתאימות לאחור
+  input_mode?: "calculated" | "manual";
   current_balance?: number;
-  balance?: number; // לתאימות לאחור
+  balance?: number;
   annuity_factor?: number;
   monthly_amount?: number;
+  pension_amount?: number;
   computed_monthly_amount?: number;
   pension_start_date?: string;
   start_date?: string; // לתאימות לאחור
   end_date?: string;
   indexation_method?: "none" | "fixed" | "cpi";
   indexation_rate?: number;
+  fixed_index_rate?: number;
   employer_contributions?: number;
   employee_contributions?: number;
   annual_return_rate?: number;
@@ -109,7 +112,7 @@ export default function PensionFunds() {
         client_id: Number(clientId),
         fund_name: form.fund_name?.trim() || "קרן פנסיה",
         fund_type: "pension",
-        calculation_mode: form.calculation_mode,
+        input_mode: form.calculation_mode,
         start_date: alignedDate.toISOString().split('T')[0],
         pension_start_date: alignedDate.toISOString().split('T')[0],
         indexation_method: form.indexation_method || "none"
@@ -214,13 +217,13 @@ export default function PensionFunds() {
     // Populate form with fund data for editing
     setForm({
       fund_name: fund.fund_name || "",
-      calculation_mode: fund.calculation_mode,
+      calculation_mode: fund.input_mode || fund.calculation_mode || "calculated",
       balance: fund.balance || 0,
       annuity_factor: fund.annuity_factor || 0,
-      monthly_amount: fund.monthly_amount || 0,
+      monthly_amount: fund.pension_amount || fund.monthly_amount || 0,
       pension_start_date: fund.pension_start_date,
-      indexation_method: fund.indexation_method,
-      indexation_rate: fund.indexation_rate || 0,
+      indexation_method: fund.indexation_method || "none",
+      indexation_rate: fund.fixed_index_rate || fund.indexation_rate || 0,
     });
     
     // Scroll to form
@@ -349,17 +352,17 @@ export default function PensionFunds() {
               <div key={fund.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
                   <div><strong>שם הקרן:</strong> {fund.fund_name || "קרן פנסיה"}</div>
-                  <div><strong>מצב:</strong> {fund.calculation_mode === "calculated" ? "מחושב" : "ידני"}</div>
+                  <div><strong>מצב:</strong> {fund.input_mode === "calculated" ? "מחושב" : "ידני"}</div>
                   
-                  {fund.calculation_mode === "calculated" && (
+                  {fund.input_mode === "calculated" && (
                     <>
-                      <div><strong>יתרה:</strong> ₪{(fund.current_balance || fund.balance || 0).toLocaleString()}</div>
+                      <div><strong>יתרה:</strong> ₪{(fund.balance || 0).toLocaleString()}</div>
                       <div><strong>מקדם קצבה:</strong> {fund.annuity_factor}</div>
                     </>
                   )}
                   
-                  {fund.calculation_mode === "manual" && (
-                    <div><strong>סכום חודשי:</strong> ₪{fund.monthly_amount?.toLocaleString()}</div>
+                  {fund.input_mode === "manual" && (
+                    <div><strong>סכום חודשי:</strong> ₪{(fund.pension_amount || fund.monthly_amount || 0).toLocaleString()}</div>
                   )}
                   
                   <div><strong>תאריך תחילה:</strong> {fund.pension_start_date || fund.start_date || "לא צוין"}</div>
@@ -376,7 +379,7 @@ export default function PensionFunds() {
                   )}
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    {fund.id && fund.calculation_mode === "calculated" && (
+                    {fund.id && (fund.input_mode === "calculated" || fund.calculation_mode === "calculated") && (
                       <button
                         type="button"
                         onClick={() => handleCompute(fund.id!)}

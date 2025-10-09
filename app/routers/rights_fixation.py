@@ -72,11 +72,10 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                     "gender": client.gender,
                     "grants": [
                         {
-                            "grant_amount": grant.amount,
+                            "grant_amount": grant.grant_amount,
                             "work_start_date": grant.work_start_date.isoformat() if grant.work_start_date else None,
                             "work_end_date": grant.work_end_date.isoformat() if grant.work_end_date else None,
-                            "employer_name": grant.employer_name,
-                            "grant_type": grant.grant_type
+                            "employer_name": grant.employer_name
                         }
                         for grant in grants
                     ],

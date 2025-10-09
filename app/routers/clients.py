@@ -14,7 +14,7 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 
 # ייבוא סכמות המעסיק הנוכחי
 try:
-    from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerResponse
+    from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut
 except ImportError:
     # יצירת סכמות זמניות אם הקובץ לא קיים
     from pydantic import BaseModel
@@ -24,8 +24,8 @@ except ImportError:
     class CurrentEmployerBase(BaseModel):
         employer_name: str
         start_date: date
-        monthly_salary: float
-        position: Optional[str] = None
+        last_salary: Optional[float] = None
+        severance_accrued: Optional[float] = None
     
     class CurrentEmployerCreate(CurrentEmployerBase):
         pass
@@ -33,9 +33,10 @@ except ImportError:
     class CurrentEmployerUpdate(CurrentEmployerBase):
         employer_name: Optional[str] = None
         start_date: Optional[date] = None
-        monthly_salary: Optional[float] = None
+        last_salary: Optional[float] = None
+        severance_accrued: Optional[float] = None
     
-    class CurrentEmployerResponse(CurrentEmployerBase):
+    class CurrentEmployerOut(CurrentEmployerBase):
         id: int
         client_id: int
         created_at: date
@@ -151,7 +152,7 @@ def list_clients(
 
 
 # Current Employer CRUD operations
-@router.post("/{client_id}/current-employer", response_model=CurrentEmployerResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{client_id}/current-employer", response_model=CurrentEmployerOut, status_code=status.HTTP_201_CREATED)
 def create_current_employer(
     employer: CurrentEmployerCreate,
     client_id: int = Path(..., description="Client ID"),
@@ -178,7 +179,7 @@ def create_current_employer(
     return db_employer
 
 
-@router.get("/{client_id}/current-employer", response_model=List[CurrentEmployerResponse])
+@router.get("/{client_id}/current-employer", response_model=List[CurrentEmployerOut])
 def get_current_employers(
     client_id: int = Path(..., description="Client ID"),
     db: Session = Depends(get_db)
@@ -196,7 +197,7 @@ def get_current_employers(
     return employers
 
 
-@router.get("/{client_id}/current-employer/{employer_id}", response_model=CurrentEmployerResponse)
+@router.get("/{client_id}/current-employer/{employer_id}", response_model=CurrentEmployerOut)
 def get_current_employer(
     client_id: int = Path(..., description="Client ID"),
     employer_id: int = Path(..., description="Employer ID"),
@@ -217,7 +218,7 @@ def get_current_employer(
     return db_employer
 
 
-@router.put("/{client_id}/current-employer/{employer_id}", response_model=CurrentEmployerResponse)
+@router.put("/{client_id}/current-employer/{employer_id}", response_model=CurrentEmployerOut)
 def update_current_employer(
     employer: CurrentEmployerUpdate,
     client_id: int = Path(..., description="Client ID"),
