@@ -27,6 +27,7 @@ class PensionFund(Base):
     indexed_pension_amount = Column(Float, nullable=True)
 
     remarks = Column(String(500), nullable=True)
+    deduction_file = Column(String(200), nullable=True)  # תיק ניכויים
 
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

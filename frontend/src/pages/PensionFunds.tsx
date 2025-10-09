@@ -24,11 +24,21 @@ type PensionFund = {
   employer_contributions?: number;
   employee_contributions?: number;
   annual_return_rate?: number;
+  deduction_file?: string; // תיק ניכויים
+};
+
+type Commutation = {
+  id?: number;
+  pension_fund_id?: number;
+  exempt_amount?: number;
+  commutation_date?: string;
+  commutation_type?: "partial" | "full";
 };
 
 export default function PensionFunds() {
   const { id: clientId } = useParams<{ id: string }>();
   const [funds, setFunds] = useState<PensionFund[]>([]);
+  const [commutations, setCommutations] = useState<Commutation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [form, setForm] = useState<Partial<PensionFund>>({
@@ -36,9 +46,15 @@ export default function PensionFunds() {
     calculation_mode: "calculated",
     balance: 0,
     annuity_factor: 0,
-    pension_start_date: "",
     indexation_method: "none",
     indexation_rate: 0,
+    deduction_file: "",
+  });
+  const [commutationForm, setCommutationForm] = useState<Partial<Commutation>>({
+    pension_fund_id: undefined,
+    exempt_amount: 0,
+    commutation_date: "",
+    commutation_type: "partial",
   });
 
   async function loadFunds() {
@@ -59,8 +75,11 @@ export default function PensionFunds() {
       }));
       
       setFunds(mappedFunds);
+      
+      // טעינת היוונים (לעת עתה רשימה ריקה)
+      setCommutations([]);
     } catch (e: any) {
-      setError(`שגיאה בטעינת קרנות פנסיה: ${e?.message || e}`);
+      setError(`שגיאה בטעינת קצבאות: ${e?.message || e}`);
     } finally {
       setLoading(false);
     }
@@ -79,10 +98,7 @@ export default function PensionFunds() {
     try {
       // Basic validation
       if (!form.fund_name || form.fund_name.trim() === "") {
-        throw new Error("חובה למלא שם קרן");
-      }
-      if (!form.pension_start_date) {
-        throw new Error("חובה למלא תאריך תחילת פנסיה");
+        throw new Error("חובה למלא שם משלם");
       }
 
       if (form.calculation_mode === "calculated") {
@@ -102,20 +118,26 @@ export default function PensionFunds() {
         throw new Error("חובה למלא שיעור הצמדה קבוע");
       }
 
-      // Align date to first of month
-      const alignedDate = new Date(form.pension_start_date);
-      alignedDate.setDate(1);
+      // חישוב תאריך התחלה אוטומטי - מוקדם מכל הקצבאות הקיימות
+      const earliestStartDate = funds.length > 0 
+        ? funds.reduce((earliest, fund) => {
+            const fundDate = fund.pension_start_date || fund.start_date;
+            if (!fundDate) return earliest;
+            return !earliest || fundDate < earliest ? fundDate : earliest;
+          }, "")
+        : new Date().toISOString().split('T')[0]; // אם אין קצבאות, התאריך היום
       
       // Create payload with exact field names matching backend schema
       const payload: Record<string, any> = {
         // Required fields from schema
         client_id: Number(clientId),
-        fund_name: form.fund_name?.trim() || "קרן פנסיה",
+        fund_name: form.fund_name?.trim() || "קצבה",
         fund_type: "pension",
         input_mode: form.calculation_mode,
-        start_date: alignedDate.toISOString().split('T')[0],
-        pension_start_date: alignedDate.toISOString().split('T')[0],
-        indexation_method: form.indexation_method || "none"
+        start_date: earliestStartDate,
+        pension_start_date: earliestStartDate,
+        indexation_method: form.indexation_method || "none",
+        deduction_file: form.deduction_file || ""
       };
       
       // Add mode-specific fields
@@ -145,15 +167,15 @@ export default function PensionFunds() {
         calculation_mode: "calculated",
         balance: 0,
         annuity_factor: 0,
-        pension_start_date: "",
         indexation_method: "none",
         indexation_rate: 0,
+        deduction_file: "",
       });
 
       // Reload funds
       await loadFunds();
     } catch (e: any) {
-      setError(`שגיאה ביצירת קרן פנסיה: ${e?.message || e}`);
+      setError(`שגיאה ביצירת קצבה: ${e?.message || e}`);
     }
   }
 
@@ -177,19 +199,16 @@ export default function PensionFunds() {
       // חישוב נכון של הקצבה: יתרה חלקי מקדם קצבה
       const computed_monthly_amount = Math.round(balance / factor);
       
-      // עדכון הקרן עם הסכום המחושב
-      await apiFetch(`/clients/${clientId}/pension-funds/${fundId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          ...fund,
-          computed_monthly_amount: computed_monthly_amount,
-          monthly_amount: computed_monthly_amount
-        }),
+      // חישוב ושמירה דרך ה-API המתאים
+      await apiFetch(`/clients/${clientId}/pension-funds/${fundId}/compute`, {
+        method: "POST",
+        body: JSON.stringify({}),
       });
       
       // Reload to get updated computed amount
       await loadFunds();
     } catch (e: any) {
+      console.error('Compute error:', e);
       setError(`שגיאה בחישוב: ${e?.message || e}`);
     }
   }
@@ -197,7 +216,7 @@ export default function PensionFunds() {
   async function handleDelete(fundId: number) {
     if (!clientId) return;
     
-    if (!confirm("האם אתה בטוח שברצונך למחוק את קרן הפנסיה?")) {
+    if (!confirm("האם אתה בטוח שברצונך למחוק את הקצבה?")) {
       return;
     }
 
@@ -209,7 +228,7 @@ export default function PensionFunds() {
       // Reload funds after deletion
       await loadFunds();
     } catch (e: any) {
-      setError(`שגיאה במחיקת קרן פנסיה: ${e?.message || e}`);
+      setError(`שגיאה במחיקת קצבה: ${e?.message || e}`);
     }
   }
 
@@ -221,16 +240,61 @@ export default function PensionFunds() {
       balance: fund.balance || 0,
       annuity_factor: fund.annuity_factor || 0,
       monthly_amount: fund.pension_amount || fund.monthly_amount || 0,
-      pension_start_date: fund.pension_start_date,
       indexation_method: fund.indexation_method || "none",
       indexation_rate: fund.fixed_index_rate || fund.indexation_rate || 0,
+      deduction_file: fund.deduction_file || "",
     });
     
     // Scroll to form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  if (loading) return <div>טוען קרנות פנסיה...</div>;
+  async function handleCommutationSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!clientId) return;
+
+    setError("");
+    
+    try {
+      // Basic validation
+      if (!commutationForm.pension_fund_id) {
+        throw new Error("חובה לבחור קצבה");
+      }
+      if (!commutationForm.exempt_amount || commutationForm.exempt_amount <= 0) {
+        throw new Error("חובה למלא סכום פטור חיובי");
+      }
+      if (!commutationForm.commutation_date) {
+        throw new Error("חובה למלא תאריך היוון");
+      }
+
+      // לעת עתה רק שמירה מקומית
+      const newCommutation: Commutation = {
+        id: Date.now(), // temporary ID
+        pension_fund_id: commutationForm.pension_fund_id,
+        exempt_amount: commutationForm.exempt_amount,
+        commutation_date: commutationForm.commutation_date,
+        commutation_type: commutationForm.commutation_type,
+      };
+      
+      setCommutations([...commutations, newCommutation]);
+
+      // Reset form
+      setCommutationForm({
+        pension_fund_id: undefined,
+        exempt_amount: 0,
+        commutation_date: "",
+        commutation_type: "partial",
+      });
+    } catch (e: any) {
+      setError(`שגיאה ביצירת היוון: ${e?.message || e}`);
+    }
+  }
+
+  async function handleCommutationDelete(commutationId: number) {
+    setCommutations(commutations.filter(c => c.id !== commutationId));
+  }
+
+  if (loading) return <div>טוען קצבאות...</div>;
 
   return (
     <div style={{ maxWidth: 800 }}>
@@ -238,7 +302,7 @@ export default function PensionFunds() {
         <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
       </div>
       
-      <h2>קרנות פנסיה</h2>
+      <h2>קצבאות והיוונים</h2>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -248,11 +312,11 @@ export default function PensionFunds() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>הוסף קרן פנסיה</h3>
+        <h3>הוסף קצבה</h3>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 400 }}>
           <input
             type="text"
-            placeholder="שם הקרן"
+            placeholder="שם המשלם"
             value={form.fund_name || ""}
             onChange={(e) => setForm({ ...form, fund_name: e.target.value })}
             style={{ padding: 8 }}
@@ -302,10 +366,10 @@ export default function PensionFunds() {
           )}
 
           <input
-            type="date"
-            placeholder="תאריך תחילת פנסיה"
-            value={form.pension_start_date}
-            onChange={(e) => setForm({ ...form, pension_start_date: e.target.value })}
+            type="text"
+            placeholder="תיק ניכויים"
+            value={form.deduction_file || ""}
+            onChange={(e) => setForm({ ...form, deduction_file: e.target.value })}
             style={{ padding: 8 }}
           />
 
@@ -334,24 +398,27 @@ export default function PensionFunds() {
           )}
 
           <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
-            צור קרן פנסיה
+            צור קצבה
           </button>
         </form>
       </section>
 
-      {/* Funds List */}
-      <section>
-        <h3>רשימת קרנות פנסיה</h3>
+      {/* Main Content - Two Columns */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+        {/* Left Column - Pension Funds */}
+        <section>
+          <h3>רשימת קצבאות</h3>
         {funds.length === 0 ? (
           <div style={{ padding: 16, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
-            אין קרנות פנסיה
+            אין קצבאות
           </div>
         ) : (
           <div style={{ display: "grid", gap: 16 }}>
             {funds.map((fund, index) => (
               <div key={fund.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div><strong>שם הקרן:</strong> {fund.fund_name || "קרן פנסיה"}</div>
+                  <div><strong>שם המשלם:</strong> {fund.fund_name || "קצבה"}</div>
+                  {fund.deduction_file && <div><strong>תיק ניכויים:</strong> {fund.deduction_file}</div>}
                   <div><strong>מצב:</strong> {fund.input_mode === "calculated" ? "מחושב" : "ידני"}</div>
                   
                   {fund.input_mode === "calculated" && (
@@ -414,7 +481,101 @@ export default function PensionFunds() {
             ))}
           </div>
         )}
-      </section>
+        </section>
+
+        {/* Right Column - Commutations */}
+        <section>
+          <h3>נתוני היוון</h3>
+          
+          {/* Commutation Form */}
+          <div style={{ marginBottom: 20, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+            <h4>הוסף היוון</h4>
+            <form onSubmit={handleCommutationSubmit} style={{ display: "grid", gap: 12 }}>
+              <div>
+                <label>קצבה:</label>
+                <select
+                  value={commutationForm.pension_fund_id || ""}
+                  onChange={(e) => setCommutationForm({ ...commutationForm, pension_fund_id: parseInt(e.target.value) || undefined })}
+                  style={{ padding: 8, width: "100%" }}
+                  required
+                >
+                  <option value="">בחר קצבה</option>
+                  {funds.map((fund) => (
+                    <option key={fund.id} value={fund.id}>
+                      {fund.fund_name} - ₪{(fund.balance || 0).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <input
+                type="number"
+                placeholder="סכום היוון פטור"
+                value={commutationForm.exempt_amount || ""}
+                onChange={(e) => setCommutationForm({ ...commutationForm, exempt_amount: parseFloat(e.target.value) || 0 })}
+                style={{ padding: 8 }}
+                required
+              />
+              
+              <input
+                type="date"
+                placeholder="תאריך היוון"
+                value={commutationForm.commutation_date || ""}
+                onChange={(e) => setCommutationForm({ ...commutationForm, commutation_date: e.target.value })}
+                style={{ padding: 8 }}
+                required
+              />
+              
+              <div>
+                <label>סוג היוון:</label>
+                <select
+                  value={commutationForm.commutation_type}
+                  onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "partial" | "full" })}
+                  style={{ padding: 8, width: "100%" }}
+                >
+                  <option value="partial">חלקי</option>
+                  <option value="full">מלא</option>
+                </select>
+              </div>
+              
+              <button type="submit" style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}>
+                הוסף היוון
+              </button>
+            </form>
+          </div>
+          
+          {/* Commutations List */}
+          <div>
+            <h4>רשימת היוונים</h4>
+            {commutations.length === 0 ? (
+              <div style={{ padding: 16, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
+                אין היוונים
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                {commutations.map((commutation) => {
+                  const relatedFund = funds.find(f => f.id === commutation.pension_fund_id);
+                  return (
+                    <div key={commutation.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 4 }}>
+                      <div><strong>קצבה:</strong> {relatedFund?.fund_name || "לא נמצא"}</div>
+                      <div><strong>סכום פטור:</strong> ₪{(commutation.exempt_amount || 0).toLocaleString()}</div>
+                      <div><strong>תאריך:</strong> {commutation.commutation_date}</div>
+                      <div><strong>סוג:</strong> {commutation.commutation_type === "full" ? "מלא" : "חלקי"}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleCommutationDelete(commutation.id!)}
+                        style={{ padding: "4px 8px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: 4, marginTop: 8 }}
+                      >
+                        מחק
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

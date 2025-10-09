@@ -9,7 +9,7 @@ export default defineConfig({
     proxy: {
       // כל מה שמתחיל ב-/api יעבור ל-8000 (השרת הראשי)
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:8005",
         changeOrigin: true,
         secure: false,
         // אם ה-API שלכם כבר מתחיל ב-/api/v1 אין צורך ב-rewrite

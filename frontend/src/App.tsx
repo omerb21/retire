@@ -18,7 +18,7 @@ const ClientDetails = () => {
     <div>
       <h2>פרטי לקוח</h2>
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קרנות פנסיה</a>
+        <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
         <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
