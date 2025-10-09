@@ -423,8 +423,19 @@ export default function PensionFunds() {
                   
                   {fund.input_mode === "calculated" && (
                     <>
-                      <div><strong>יתרה:</strong> ₪{(fund.balance || 0).toLocaleString()}</div>
-                      <div><strong>מקדם קצבה:</strong> {fund.annuity_factor}</div>
+                      {((fund.balance || 0) > 0 || (fund.current_balance || 0) > 0) && (
+                        <>
+                          <div><strong>יתרה:</strong> ₪{(fund.balance || fund.current_balance || 0).toLocaleString()}</div>
+                          <div><strong>מקדם קצבה:</strong> {fund.annuity_factor}</div>
+                        </>
+                      )}
+                      {(fund.balance === 0 || fund.balance === undefined) && 
+                       (fund.current_balance === 0 || fund.current_balance === undefined) && 
+                       (fund.computed_monthly_amount || 0) > 0 && (
+                        <div style={{ color: "green", fontWeight: "bold" }}>
+                          <strong>היתרה הומרה לקצבה חודשית</strong>
+                        </div>
+                      )}
                     </>
                   )}
                   
@@ -439,14 +450,15 @@ export default function PensionFunds() {
                     "למדד"
                   }</div>
                   
-                  {fund.computed_monthly_amount && (
+                  {(fund.computed_monthly_amount || 0) > 0 && (
                     <div style={{ color: "green", fontWeight: "bold" }}>
-                      <strong>פנסיה חודשית מחושבת:</strong> ₪{fund.computed_monthly_amount.toLocaleString()}
+                      <strong>קצבה חודשית מחושבת:</strong> ₪{(fund.computed_monthly_amount || 0).toLocaleString()}
                     </div>
                   )}
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    {fund.id && (fund.input_mode === "calculated" || fund.calculation_mode === "calculated") && (
+                    {fund.id && (fund.input_mode === "calculated" || fund.calculation_mode === "calculated") && 
+                     ((fund.balance || 0) > 0 || (fund.current_balance || 0) > 0) && (
                       <button
                         type="button"
                         onClick={() => handleCompute(fund.id!)}
