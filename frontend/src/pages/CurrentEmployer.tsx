@@ -10,6 +10,7 @@ interface CurrentEmployer {
   severance_balance: number;
   service_years?: number;
   expected_grant_amount?: number;
+  employer_completion?: number; // השלמת המעסיק
   tax_exempt_amount?: number;
   taxable_amount?: number;
   reserved_exemption?: number;
@@ -40,6 +41,7 @@ const CurrentEmployer: React.FC = () => {
     monthly_salary: 0,
     severance_balance: 0,
     expected_grant_amount: 0,
+    employer_completion: 0,
     tax_exempt_amount: 0,
     taxable_amount: 0,
     reserved_exemption: 0
@@ -62,10 +64,14 @@ const CurrentEmployer: React.FC = () => {
 
       const calculation = response.data;
       
+      // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
+      const employerCompletion = Math.max(0, calculation.severance_amount - employer.severance_balance);
+      
       setEmployer(prev => ({
         ...prev,
         service_years: calculation.service_years,
         expected_grant_amount: calculation.severance_amount,
+        employer_completion: employerCompletion,
         tax_exempt_amount: calculation.final_exemption,
         taxable_amount: calculation.taxable_amount
       }));
@@ -79,11 +85,15 @@ const CurrentEmployer: React.FC = () => {
       const maxExemption = Math.min(375000, employer.monthly_salary * 9);
       const taxExemptAmount = Math.min(expectedGrant, maxExemption - (employer.reserved_exemption || 0));
       const taxableAmount = expectedGrant - taxExemptAmount;
+      
+      // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
+      const employerCompletion = Math.max(0, Math.round(expectedGrant) - employer.severance_balance);
 
       setEmployer(prev => ({
         ...prev,
         service_years: Math.round(serviceYears * 100) / 100,
         expected_grant_amount: Math.round(expectedGrant),
+        employer_completion: employerCompletion,
         tax_exempt_amount: Math.max(0, Math.round(taxExemptAmount)),
         taxable_amount: Math.max(0, Math.round(taxableAmount))
       }));
@@ -231,6 +241,12 @@ const CurrentEmployer: React.FC = () => {
               </div>
               <div>
                 <strong>סכום מענק צפוי:</strong> ₪{employer.expected_grant_amount?.toLocaleString()}
+              </div>
+              <div>
+                <strong>יתרת פיצויים נצברת:</strong> ₪{employer.severance_balance?.toLocaleString()}
+              </div>
+              <div style={{ color: '#0066cc', fontWeight: 'bold' }}>
+                <strong>השלמת המעסיק:</strong> ₪{employer.employer_completion?.toLocaleString()}
               </div>
               <div style={{ color: '#28a745' }}>
                 <strong>סכום פטור ממס:</strong> ₪{employer.tax_exempt_amount?.toLocaleString()}
