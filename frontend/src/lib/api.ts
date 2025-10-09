@@ -204,10 +204,15 @@ export async function getClient(id: number) {
   return apiFetch<ClientItem>(`/clients/${id}`);
 }
 
+export async function getClientPensionFunds(clientId: number) {
+  return apiFetch<any[]>(`/clients/${clientId}/pension-funds`);
+}
+
 export const clientApi = {
   create: createClient,
   get: getClient,
-  list: listClients
+  list: listClients,
+  getPensionFunds: getClientPensionFunds
 };
 
 export function handleApiError(error: any): string {
