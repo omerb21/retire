@@ -41,6 +41,7 @@ export default function PensionFunds() {
   const [commutations, setCommutations] = useState<Commutation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [clientData, setClientData] = useState<any>(null);
   const [form, setForm] = useState<Partial<PensionFund>>({
     fund_name: "",
     calculation_mode: "calculated",
@@ -85,8 +86,22 @@ export default function PensionFunds() {
     }
   }
 
+  // טעינת נתוני לקוח
   useEffect(() => {
-    loadFunds();
+    if (clientId) {
+      // טען נתוני לקוח לחישוב גיל פרישה
+      const fetchClientData = async () => {
+        try {
+          const data = await apiFetch<any>(`/clients/${clientId}`);
+          setClientData(data);
+        } catch (error) {
+          console.error("Error fetching client data:", error);
+        }
+      };
+      
+      fetchClientData();
+      loadFunds();
+    }
   }, [clientId]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -118,14 +133,31 @@ export default function PensionFunds() {
         throw new Error("חובה למלא שיעור הצמדה קבוע");
       }
 
-      // חישוב תאריך התחלה אוטומטי - מוקדם מכל הקצבאות הקיימות
-      const earliestStartDate = funds.length > 0 
-        ? funds.reduce((earliest, fund) => {
-            const fundDate = fund.pension_start_date || fund.start_date;
-            if (!fundDate) return earliest;
-            return !earliest || fundDate < earliest ? fundDate : earliest;
-          }, "")
-        : new Date().toISOString().split('T')[0]; // אם אין קצבאות, התאריך היום
+      // חישוב תאריך התחלת קצבה - מוקדם מכל הקצבאות הקיימות או גיל 67
+      let earliestStartDate: string;
+      
+      if (funds.length > 0) {
+        // אם יש קצבאות קיימות, קח את התאריך המוקדם ביותר
+        earliestStartDate = funds.reduce((earliest, fund) => {
+          const fundDate = fund.pension_start_date || fund.start_date;
+          if (!fundDate) return earliest;
+          return !earliest || fundDate < earliest ? fundDate : earliest;
+        }, "") || new Date().toISOString().split('T')[0];
+      } else if (clientData && clientData.birth_date) {
+        // אם אין קצבאות אבל יש תאריך לידה, חשב גיל 67
+        try {
+          const birthDate = new Date(clientData.birth_date);
+          const retirementDate = new Date(birthDate);
+          retirementDate.setFullYear(birthDate.getFullYear() + 67);
+          earliestStartDate = retirementDate.toISOString().split('T')[0];
+        } catch (error) {
+          console.error("Error calculating retirement date:", error);
+          earliestStartDate = new Date().toISOString().split('T')[0];
+        }
+      } else {
+        // אם אין קצבאות ואין תאריך לידה, השתמש בתאריך היום
+        earliestStartDate = new Date().toISOString().split('T')[0];
+      }
       
       // Create payload with exact field names matching backend schema
       const payload: Record<string, any> = {
