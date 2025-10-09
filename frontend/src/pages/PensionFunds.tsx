@@ -50,6 +50,7 @@ export default function PensionFunds() {
     indexation_method: "none",
     indexation_rate: 0,
     deduction_file: "",
+    pension_start_date: "",
   });
   const [commutationForm, setCommutationForm] = useState<Partial<Commutation>>({
     pension_fund_id: undefined,
@@ -133,12 +134,13 @@ export default function PensionFunds() {
         throw new Error("חובה למלא שיעור הצמדה קבוע");
       }
 
-      // חישוב תאריך התחלת קצבה - לפי הכללים הבאים:
-      // 1. אם יש קצבאות קיימות - התאריך המוקדם ביותר מביניהן
-      // 2. אם אין קצבאות קיימות - גיל הפרישה של הלקוח (67 לגבר, 62 לאישה)
+      // אם המשתמש הזין תאריך התחלת קצבה, השתמש בו
       let earliestStartDate: string;
       
-      if (funds.length > 0) {
+      if (form.pension_start_date) {
+        // אם המשתמש הזין תאריך, השתמש בו
+        earliestStartDate = form.pension_start_date;
+      } else if (funds.length > 0) {
         // אם יש קצבאות קיימות, קח את התאריך המוקדם ביותר
         earliestStartDate = funds.reduce((earliest, fund) => {
           const fundDate = fund.pension_start_date || fund.start_date;
@@ -210,6 +212,7 @@ export default function PensionFunds() {
         indexation_method: "none",
         indexation_rate: 0,
         deduction_file: "",
+        pension_start_date: "",
       });
 
       // Reload funds
@@ -356,7 +359,7 @@ export default function PensionFunds() {
         
         {clientData && clientData.birth_date && (
           <div style={{ marginBottom: 10, fontSize: "0.9em", color: "#666" }}>
-            <strong>מידע:</strong> תאריך התחלת קצבה יחושב אוטומטית לפי הקצבה המוקדמת ביותר או לפי גיל פרישה {clientData.gender?.toLowerCase() === "female" ? "62" : "67"}.
+            <strong>מידע:</strong> אם לא תזין תאריך התחלת קצבה, המערכת תשתמש בתאריך הקצבה המוקדמת ביותר או בגיל פרישה {clientData.gender?.toLowerCase() === "female" ? "62" : "67"}.
           </div>
         )}
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 400 }}>
@@ -416,6 +419,14 @@ export default function PensionFunds() {
             placeholder="תיק ניכויים"
             value={form.deduction_file || ""}
             onChange={(e) => setForm({ ...form, deduction_file: e.target.value })}
+            style={{ padding: 8 }}
+          />
+
+          <input
+            type="date"
+            placeholder="תאריך התחלת קצבה"
+            value={form.pension_start_date || ""}
+            onChange={(e) => setForm({ ...form, pension_start_date: e.target.value })}
             style={{ padding: 8 }}
           />
 
