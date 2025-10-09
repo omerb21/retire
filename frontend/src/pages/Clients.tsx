@@ -101,7 +101,7 @@ export default function Clients() {
       address_street: (client as any).address_street || "",
       address_city: (client as any).address_city || "",
       address_postal_code: (client as any).address_postal_code || "",
-      pension_start_date: (client as any).pension_start_date || "",
+      pension_start_date: "", // שדה לא בשימוש - יחושב אוטומטית לפי גיל פרישה
       tax_credit_points: (client as any).tax_credit_points || 0,
       marital_status: (client as any).marital_status || ""
     });
@@ -154,7 +154,7 @@ export default function Clients() {
           address_street: editForm.address_street || null,
           address_city: editForm.address_city || null,
           address_postal_code: editForm.address_postal_code || null,
-          pension_start_date: editForm.pension_start_date || null,
+          pension_start_date: null, // שדה לא בשימוש - יחושב אוטומטית לפי גיל פרישה
           tax_credit_points: editForm.tax_credit_points || 0,
           marital_status: editForm.marital_status || null
         })
@@ -217,7 +217,7 @@ export default function Clients() {
         address_street: form.address_street || null,
         address_city: form.address_city || null,
         address_postal_code: form.address_postal_code || null,
-        pension_start_date: form.pension_start_date || null,
+        pension_start_date: null, // שדה לא בשימוש - יחושב אוטומטית לפי גיל פרישה
         tax_credit_points: form.tax_credit_points || 0,
         marital_status: form.marital_status || null,
       });
@@ -318,14 +318,7 @@ export default function Clients() {
             </select>
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <label style={{ marginLeft: 8, minWidth: 100 }}>תאריך התחלת קצבה:</label>
-            <input type="date"
-                   placeholder="תאריך התחלת קצבה (אופציונלי)"
-                   value={form.pension_start_date}
-                   onChange={(e) => setForm({ ...form, pension_start_date: e.target.value })}
-                   style={{ padding: 8, flexGrow: 1 }} />
-          </div>
+          {/* שדה תאריך התחלת קצבה הוסר לפי דרישה */}
           
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
             <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
@@ -541,16 +534,7 @@ export default function Clients() {
                 </select>
               </div>
               
-              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                <label style={{ marginLeft: 8, minWidth: 100 }}>תאריך התחלת קצבה:</label>
-                <input 
-                  type="date"
-                  placeholder="תאריך תחילת קצבה (אופציונלי)"
-                  value={editForm.pension_start_date}
-                  onChange={(e) => setEditForm({ ...editForm, pension_start_date: e.target.value })}
-                  style={{ padding: 8, flexGrow: 1 }} 
-                />
-              </div>
+              {/* שדה תאריך התחלת קצבה הוסר לפי דרישה */}
               
               <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
                 <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
