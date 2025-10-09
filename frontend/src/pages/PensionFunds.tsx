@@ -217,6 +217,37 @@ export default function PensionFunds() {
 
       // Reload funds
       await loadFunds();
+      
+      // עדכון תאריך הקצבה הראשונה של הלקוח
+      try {
+        // מציאת התאריך המוקדם ביותר מבין כל הקצבאות
+        const updatedFunds = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
+        
+        if (updatedFunds && updatedFunds.length > 0) {
+          // מיון הקצבאות לפי תאריך התחלה
+          const sortedFunds = [...updatedFunds].sort((a, b) => {
+            const dateA = a.pension_start_date || a.start_date || '';
+            const dateB = b.pension_start_date || b.start_date || '';
+            return dateA.localeCompare(dateB);
+          });
+          
+          // לקיחת התאריך המוקדם ביותר
+          const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date;
+          
+          if (earliestDate) {
+            // עדכון תאריך הקצבה הראשונה של הלקוח
+            await apiFetch(`/clients/${clientId}`, {
+              method: "PATCH",
+              body: JSON.stringify({
+                pension_start_date: earliestDate
+              }),
+            });
+            console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
+          }
+        }
+      } catch (updateError) {
+        console.error("שגיאה בעדכון תאריך הקצבה הראשונה:", updateError);
+      }
     } catch (e: any) {
       setError(`שגיאה ביצירת קצבה: ${e?.message || e}`);
     }
@@ -270,6 +301,49 @@ export default function PensionFunds() {
       
       // Reload funds after deletion
       await loadFunds();
+      
+      // עדכון תאריך הקצבה הראשונה של הלקוח לאחר מחיקה
+      try {
+        // מציאת התאריך המוקדם ביותר מבין הקצבאות הנותרות
+        const updatedFunds = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
+        
+        if (updatedFunds && updatedFunds.length > 0) {
+          // מיון הקצבאות לפי תאריך התחלה
+          const sortedFunds = [...updatedFunds].sort((a, b) => {
+            const dateA = a.pension_start_date || a.start_date || '';
+            const dateB = b.pension_start_date || b.start_date || '';
+            return dateA.localeCompare(dateB);
+          });
+          
+          // לקיחת התאריך המוקדם ביותר
+          const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date;
+          
+          if (earliestDate) {
+            // עדכון תאריך הקצבה הראשונה של הלקוח
+            await apiFetch(`/clients/${clientId}`, {
+              method: "PATCH",
+              body: JSON.stringify({
+                pension_start_date: earliestDate
+              }),
+            });
+            console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
+          } else {
+            // אם אין תאריך, ננקה את תאריך הקצבה הראשונה
+            console.error("לא נמצא תאריך קצבה תקין");
+          }
+        } else {
+          // אם אין קצבאות, ננקה את תאריך הקצבה הראשונה
+          await apiFetch(`/clients/${clientId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              pension_start_date: null
+            }),
+          });
+          console.log("תאריך הקצבה הראשונה נוקה כי אין קצבאות");
+        }
+      } catch (updateError) {
+        console.error("שגיאה בעדכון תאריך הקצבה הראשונה:", updateError);
+      }
     } catch (e: any) {
       setError(`שגיאה במחיקת קצבה: ${e?.message || e}`);
     }
