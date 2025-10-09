@@ -67,6 +67,12 @@ const CurrentEmployer: React.FC = () => {
       // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
       const employerCompletion = Math.max(0, calculation.severance_amount - employer.severance_balance);
       
+      console.log('חישוב השלמת מעסיק:', {
+        'סכום מענק צפוי': calculation.severance_amount,
+        'יתרת פיצויים נצברת': employer.severance_balance,
+        'השלמת מעסיק מחושבת': employerCompletion
+      });
+      
       setEmployer(prev => ({
         ...prev,
         service_years: calculation.service_years,

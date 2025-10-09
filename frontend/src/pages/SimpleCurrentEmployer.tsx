@@ -10,6 +10,7 @@ interface SimpleEmployer {
   start_date: string;
   last_salary: number;
   severance_accrued: number;
+  employer_completion?: number; // השלמת המעסיק
 }
 
 const SimpleCurrentEmployer: React.FC = () => {
@@ -90,6 +91,15 @@ const SimpleCurrentEmployer: React.FC = () => {
 
           const calculation = response.data;
           
+          // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
+          const employerCompletion = Math.max(0, calculation.severance_amount - employer.severance_accrued);
+          
+          // עדכון השלמת המעסיק באובייקט המעסיק
+          setEmployer(prev => ({
+            ...prev,
+            employer_completion: employerCompletion
+          }));
+          
           setGrantDetails({
             serviceYears: calculation.service_years,
             expectedGrant: calculation.severance_amount,
@@ -105,6 +115,15 @@ const SimpleCurrentEmployer: React.FC = () => {
           const taxExemptAmount = Math.min(expectedGrant, severanceExemption);
           const taxableAmount = Math.max(0, expectedGrant - taxExemptAmount);
 
+          // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
+          const employerCompletion = Math.max(0, Math.round(expectedGrant) - employer.severance_accrued);
+          
+          // עדכון השלמת המעסיק באובייקט המעסיק
+          setEmployer(prev => ({
+            ...prev,
+            employer_completion: employerCompletion
+          }));
+          
           setGrantDetails({
             serviceYears: Math.round(serviceYears * 100) / 100,
             expectedGrant: Math.round(expectedGrant),
@@ -181,6 +200,11 @@ const SimpleCurrentEmployer: React.FC = () => {
             <div><strong>תאריך התחלה:</strong> {employer.start_date}</div>
             <div><strong>שכר חודשי:</strong> ₪{employer.last_salary.toLocaleString()}</div>
             <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
+            {employer.employer_completion !== undefined && (
+              <div style={{ color: '#0066cc', fontWeight: 'bold', gridColumn: '1 / -1' }}>
+                <strong>השלמת המעסיק:</strong> ₪{employer.employer_completion.toLocaleString()}
+              </div>
+            )}
           </div>
           
           {grantDetails.serviceYears > 0 && (
@@ -189,6 +213,8 @@ const SimpleCurrentEmployer: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                 <div><strong>שנות שירות:</strong> {grantDetails.serviceYears}</div>
                 <div><strong>מענק צפוי:</strong> ₪{grantDetails.expectedGrant.toLocaleString()}</div>
+                <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
+                <div style={{ color: '#0066cc', fontWeight: 'bold' }}><strong>השלמת המעסיק:</strong> ₪{employer.employer_completion?.toLocaleString() || '0'}</div>
                 <div style={{ color: '#28a745' }}><strong>פטור ממס:</strong> ₪{grantDetails.taxExemptAmount.toLocaleString()}</div>
                 <div style={{ color: '#dc3545' }}><strong>חייב במס:</strong> ₪{grantDetails.taxableAmount.toLocaleString()}</div>
               </div>
