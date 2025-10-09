@@ -439,9 +439,7 @@ export default function PensionFunds() {
                     </>
                   )}
                   
-                  {fund.input_mode === "manual" && (
-                    <div><strong>סכום חודשי:</strong> ₪{(fund.pension_amount || fund.monthly_amount || 0).toLocaleString()}</div>
-                  )}
+                  {/* במצב ידני אין צורך בהצגה נוספת של סכום חודשי */}
                   
                   <div><strong>תאריך תחילה:</strong> {fund.pension_start_date || fund.start_date || "לא צוין"}</div>
                   <div><strong>הצמדה:</strong> {
@@ -450,11 +448,20 @@ export default function PensionFunds() {
                     "למדד"
                   }</div>
                   
-                  {(fund.computed_monthly_amount || 0) > 0 && (
-                    <div style={{ color: "green", fontWeight: "bold" }}>
-                      <strong>קצבה חודשית מחושבת:</strong> ₪{(fund.computed_monthly_amount || 0).toLocaleString()}
-                    </div>
-                  )}
+                  {/* הצגת סכום חודשי בכל מקרה - מודגש ובולט */}
+                  <div style={{ 
+                    color: "green", 
+                    fontWeight: "bold", 
+                    backgroundColor: "#f0fff0", 
+                    padding: "8px", 
+                    borderRadius: "4px", 
+                    border: "1px solid #28a745",
+                    marginTop: "10px",
+                    marginBottom: "10px",
+                    fontSize: "1.1em"
+                  }}>
+                    <strong>סכום חודשי:</strong> ₪{(fund.computed_monthly_amount || fund.pension_amount || fund.monthly_amount || 0).toLocaleString()}
+                  </div>
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     {fund.id && (fund.input_mode === "calculated" || fund.calculation_mode === "calculated") && 
