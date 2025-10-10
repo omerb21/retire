@@ -43,6 +43,7 @@ export default function CapitalAssets() {
   const [assets, setAssets] = useState<CapitalAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [editingAssetId, setEditingAssetId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<CapitalAsset>>({
     asset_name: "",
     asset_type: "rental_property",
@@ -168,14 +169,25 @@ export default function CapitalAssets() {
 
       console.log("SENDING PAYLOAD TO SERVER:", JSON.stringify(payload, null, 2));
       
-      const response = await apiFetch(`/clients/${clientId}/capital-assets/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      
-      console.log("SERVER RESPONSE AFTER CREATE:", JSON.stringify(response, null, 2));
+      // בדיקה אם אנחנו במצב עריכה או יצירה חדשה
+      if (editingAssetId) {
+        // עדכון נכס קיים
+        console.log(`מעדכן נכס קיים עם מזהה: ${editingAssetId}`);
+        const response = await apiFetch(`/clients/${clientId}/capital-assets/${editingAssetId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        console.log("SERVER RESPONSE AFTER UPDATE:", JSON.stringify(response, null, 2));
+      } else {
+        // יצירת נכס חדש
+        const response = await apiFetch(`/clients/${clientId}/capital-assets/`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        console.log("SERVER RESPONSE AFTER CREATE:", JSON.stringify(response, null, 2));
+      }
 
-      // Reset form
+      // איפוס הטופס ומצב העריכה
       setForm({
         asset_name: "",
         asset_type: "rental_property",
@@ -189,6 +201,9 @@ export default function CapitalAssets() {
         fixed_rate: 0,
         tax_rate: 0,
       });
+      
+      // איפוס מצב העריכה
+      setEditingAssetId(null);
 
       // Reload assets
       await loadAssets();
@@ -217,6 +232,9 @@ export default function CapitalAssets() {
   }
 
   function handleEdit(asset: any) {
+    // שמירת מזהה הנכס שעורכים
+    setEditingAssetId(asset.id || null);
+    
     // Populate form with asset data for editing
     setForm({
       asset_name: asset.asset_name || "",
@@ -255,7 +273,7 @@ export default function CapitalAssets() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>הוסף נכס הון</h3>
+        <h3>{editingAssetId ? 'ערוך נכס הון' : 'הוסף נכס הון'}</h3>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 500 }}>
           <input
             type="text"
@@ -389,9 +407,52 @@ export default function CapitalAssets() {
             />
           )}
 
-          <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
-            צור נכס הון
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: "10px 16px", 
+                backgroundColor: "#007bff", 
+                color: "white", 
+                border: "none", 
+                borderRadius: 4,
+                flex: 1
+              }}
+            >
+              {editingAssetId ? 'שמור שינויים' : 'צור נכס הון'}
+            </button>
+            
+            {editingAssetId && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setEditingAssetId(null);
+                  setForm({
+                    asset_name: "",
+                    asset_type: "rental_property",
+                    current_value: 0,
+                    monthly_income: 0,
+                    annual_return_rate: 0,
+                    payment_frequency: "monthly",
+                    start_date: "",
+                    indexation_method: "none",
+                    tax_treatment: "taxable",
+                    fixed_rate: 0,
+                    tax_rate: 0,
+                  });
+                }}
+                style={{ 
+                  padding: "10px 16px", 
+                  backgroundColor: "#6c757d", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: 4 
+                }}
+              >
+                בטל עריכה
+              </button>
+            )}
+          </div>
         </form>
       </section>
 

@@ -26,6 +26,7 @@ export default function AdditionalIncome() {
   const [incomes, setIncomes] = useState<AdditionalIncome[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<AdditionalIncome>>({
     source_type: "rental",
     income_name: "", // הוספת שדה שם הכנסה
@@ -103,12 +104,23 @@ export default function AdditionalIncome() {
         end_date: alignedEndDate?.toISOString().split('T')[0] || null,
       };
 
-      await apiFetch(`/clients/${clientId}/additional-incomes/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      // בדיקה אם אנחנו במצב עריכה או יצירה חדשה
+      if (editingIncomeId) {
+        // עדכון הכנסה קיימת
+        console.log(`מעדכן הכנסה קיימת עם מזהה: ${editingIncomeId}`);
+        await apiFetch(`/clients/${clientId}/additional-incomes/${editingIncomeId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // יצירת הכנסה חדשה
+        await apiFetch(`/clients/${clientId}/additional-incomes/`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
 
-      // Reset form
+      // איפוס הטופס ומצב העריכה
       setForm({
         source_type: "rental",
         income_name: "", // הוספת שדה שם הכנסה
@@ -120,6 +132,9 @@ export default function AdditionalIncome() {
         fixed_rate: 0,
         tax_rate: 0,
       });
+      
+      // איפוס מצב העריכה
+      setEditingIncomeId(null);
 
       // Reload incomes
       await loadIncomes();
@@ -148,6 +163,9 @@ export default function AdditionalIncome() {
   }
 
   function handleEdit(income: any) {
+    // שמירת מזהה ההכנסה שעורכים
+    setEditingIncomeId(income.id || null);
+    
     // Populate form with income data for editing
     setForm({
       source_type: income.source_type,
@@ -184,7 +202,7 @@ export default function AdditionalIncome() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>הוסף הכנסה נוספת</h3>
+        <h3>{editingIncomeId ? 'ערוך הכנסה נוספת' : 'הוסף הכנסה נוספת'}</h3>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 500 }}>
           <div>
             <label>סוג הכנסה:</label>
@@ -296,9 +314,50 @@ export default function AdditionalIncome() {
             />
           )}
 
-          <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
-            צור הכנסה נוספת
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: "10px 16px", 
+                backgroundColor: "#007bff", 
+                color: "white", 
+                border: "none", 
+                borderRadius: 4,
+                flex: 1
+              }}
+            >
+              {editingIncomeId ? 'שמור שינויים' : 'צור הכנסה נוספת'}
+            </button>
+            
+            {editingIncomeId && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setEditingIncomeId(null);
+                  setForm({
+                    source_type: "rental",
+                    income_name: "",
+                    amount: 0,
+                    frequency: "monthly",
+                    start_date: "",
+                    indexation_method: "none",
+                    tax_treatment: "taxable",
+                    fixed_rate: 0,
+                    tax_rate: 0,
+                  });
+                }}
+                style={{ 
+                  padding: "10px 16px", 
+                  backgroundColor: "#6c757d", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: 4 
+                }}
+              >
+                בטל עריכה
+              </button>
+            )}
+          </div>
         </form>
       </section>
 
