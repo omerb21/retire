@@ -42,6 +42,7 @@ export default function PensionFunds() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [clientData, setClientData] = useState<any>(null);
+  const [editingFundId, setEditingFundId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<PensionFund>>({
     fund_name: "",
     calculation_mode: "calculated",
@@ -198,12 +199,24 @@ export default function PensionFunds() {
       
       console.log("Sending pension fund payload:", payload);
 
-      await apiFetch(`/clients/${clientId}/pension-funds`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      // בדיקה אם אנחנו במצב עריכה או יצירה חדשה
+      if (editingFundId) {
+        // עדכון קצבה קיימת
+        console.log(`מעדכן קצבה קיימת עם מזהה: ${editingFundId}`);
+        await apiFetch(`/pension-funds/${editingFundId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // יצירת קצבה חדשה
+        console.log("יוצר קצבה חדשה");
+        await apiFetch(`/clients/${clientId}/pension-funds`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
 
-      // Reset form
+      // איפוס הטופס ומצב העריכה
       setForm({
         fund_name: "",
         calculation_mode: "calculated",
@@ -214,6 +227,9 @@ export default function PensionFunds() {
         deduction_file: "",
         pension_start_date: "",
       });
+      
+      // איפוס מצב העריכה
+      setEditingFundId(null);
 
       // Reload funds
       await loadFunds();
@@ -359,6 +375,9 @@ export default function PensionFunds() {
   }
 
   function handleEdit(fund: PensionFund) {
+    // שמירת מזהה הקצבה שעורכים
+    setEditingFundId(fund.id || null);
+    
     // Populate form with fund data for editing
     setForm({
       fund_name: fund.fund_name || "",
@@ -369,6 +388,7 @@ export default function PensionFunds() {
       indexation_method: fund.indexation_method || "none",
       indexation_rate: fund.fixed_index_rate || fund.indexation_rate || 0,
       deduction_file: fund.deduction_file || "",
+      pension_start_date: fund.pension_start_date || fund.start_date || "",
     });
     
     // Scroll to form
@@ -438,7 +458,7 @@ export default function PensionFunds() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>הוסף קצבה</h3>
+        <h3>{editingFundId ? 'ערוך קצבה' : 'הוסף קצבה'}</h3>
         
         {clientData && clientData.birth_date && (
           <div style={{ marginBottom: 10, fontSize: "0.9em", color: "#666" }}>
@@ -537,9 +557,49 @@ export default function PensionFunds() {
             />
           )}
 
-          <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
-            צור קצבה
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: "10px 16px", 
+                backgroundColor: "#007bff", 
+                color: "white", 
+                border: "none", 
+                borderRadius: 4,
+                flex: 1
+              }}
+            >
+              {editingFundId ? 'שמור שינויים' : 'צור קצבה'}
+            </button>
+            
+            {editingFundId && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setEditingFundId(null);
+                  setForm({
+                    fund_name: "",
+                    calculation_mode: "calculated",
+                    balance: 0,
+                    annuity_factor: 0,
+                    indexation_method: "none",
+                    indexation_rate: 0,
+                    deduction_file: "",
+                    pension_start_date: "",
+                  });
+                }}
+                style={{ 
+                  padding: "10px 16px", 
+                  backgroundColor: "#6c757d", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: 4 
+                }}
+              >
+                בטל עריכה
+              </button>
+            )}
+          </div>
         </form>
       </section>
 
