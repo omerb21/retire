@@ -1350,7 +1350,18 @@ export default function PensionPortfolio() {
                     </td>
                     
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.סוג_מוצר}</td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.תאריך_התחלה ? new Date(account.תאריך_התחלה).toLocaleDateString('he-IL') : 'לא ידוע'}</td>
+                    <td style={{ border: "1px solid #ddd", padding: 6 }}>
+                      {(() => {
+                        if (!account.תאריך_התחלה) return 'לא ידוע';
+                        try {
+                          const date = new Date(account.תאריך_התחלה);
+                          if (isNaN(date.getTime())) return account.תאריך_התחלה; // אם לא תקין, הצג כמו שהוא
+                          return date.toLocaleDateString('he-IL');
+                        } catch {
+                          return account.תאריך_התחלה; // אם שגיאה, הצג כמו שהוא
+                        }
+                      })()} 
+                    </td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
                       {(account.selected || Object.values(account.selected_amounts || {}).some(Boolean)) && (
