@@ -1447,11 +1447,14 @@ export default function PensionPortfolio() {
                         try {
                           const date = new Date(account.תאריך_התחלה);
                           if (isNaN(date.getTime())) return account.תאריך_התחלה; // אם לא תקין, הצג כמו שהוא
-                          return date.toLocaleDateString('he-IL');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const year = date.getFullYear();
+                          return `${day}/${month}/${year}`;
                         } catch {
                           return account.תאריך_התחלה; // אם שגיאה, הצג כמו שהוא
                         }
-                      })()} 
+                      })()}
                     </td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
