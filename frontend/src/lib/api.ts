@@ -28,16 +28,13 @@ async function parseTextSafe(res: Response) {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   try {
-    console.log(`API Fetch: ${path}`);
     const res = await fetch(`${API_BASE}${path}`, {
       credentials: "omit",
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
       ...init,
     });
 
-    console.log(`API Response status: ${res.status} ${res.statusText}`);
     const ct = res.headers.get("content-type") ?? "";
-    console.log(`Content-Type: ${ct}`);
     const isJson = ct.includes("application/json");
 
     if (!res.ok) {
