@@ -334,6 +334,7 @@ export default function PensionPortfolio() {
     // תאריך התחלה
     const startDate = getElementText('TAARICH-TCHILAT-HAFRASHA') ||
                      getElementText('TAARICH-TCHILA') ||
+                     getElementText('TAARICH-HITZTARFUT-RISHON') ||
                      getElementText('TAARICH-HITZTARFUT');
 
     // סוג מוצר - לפי שם התכנית בלבד (כמו במערכת המקורית)
@@ -772,15 +773,18 @@ export default function PensionPortfolio() {
         for (const account of capitalAssetConversions) {
           // קביעת סוג הנכס לפי סוג המוצר
           let assetDescription = '';
+          let assetType = '';
           if (account.סוג_מוצר && account.סוג_מוצר.includes('קרן השתלמות')) {
             assetDescription = 'קרן השתלמות';
+            assetType = 'study_fund'; // קרן השתלמות
           } else {
             assetDescription = 'קופת גמל';
+            assetType = 'pension_fund'; // קופת גמל
           }
           
           const assetData = {
             client_id: parseInt(clientId),
-            asset_type: 'investment', // שימוש בערך מאושר מהרשימה
+            asset_type: assetType,
             description: `${assetDescription} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
             current_value: account.יתרה || 0,
             purchase_value: account.יתרה || 0,

@@ -151,6 +151,7 @@ class PensionPortfolioProcessor:
         # תאריך התחלה
         start_date = (get_text('TAARICH-TCHILAT-HAFRASHA') or
                      get_text('TAARICH-TCHILA') or
+                     get_text('TAARICH-HITZTARFUT-RISHON') or
                      get_text('TAARICH-HITZTARFUT'))
         
         # סוג מוצר
