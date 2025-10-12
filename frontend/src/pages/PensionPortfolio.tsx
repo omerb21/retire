@@ -772,17 +772,20 @@ export default function PensionPortfolio() {
       if (capitalAssetConversions.length > 0) {
         for (const account of capitalAssetConversions) {
           // קביעת סוג הנכס לפי סוג המוצר - לפי בקשת המשתמש
+          let assetDescription = '';
           let assetTypeValue = '';
           if (account.סוג_מוצר && account.סוג_מוצר.includes('קרן השתלמות')) {
-            assetTypeValue = 'קרן השתלמות';
+            assetDescription = 'קרן השתלמות';
+            assetTypeValue = 'mutual_funds'; // קרן השתלמות - ערך מותר
           } else {
-            assetTypeValue = 'קופת גמל';
+            assetDescription = 'קופת גמל';
+            assetTypeValue = 'deposits'; // קופת גמל - ערך מותר
           }
           
           const assetData = {
             client_id: parseInt(clientId),
-            asset_type: assetTypeValue, // השתמש בערך המבוקש של המשתמש
-            description: `${assetTypeValue} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
+            asset_type: assetTypeValue, // שימוש בערך מאושר מהרשימה
+            description: `${assetDescription} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
             current_value: account.יתרה || 0,
             purchase_value: account.יתרה || 0,
             purchase_date: account.תאריך_התחלה || new Date().toISOString().split('T')[0],
@@ -1347,7 +1350,7 @@ export default function PensionPortfolio() {
                     </td>
                     
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.סוג_מוצר}</td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.תאריך_התחלה || 'לא ידוע'}</td>
+                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.תאריך_התחלה ? new Date(account.תאריך_התחלה).toLocaleDateString('he-IL') : 'לא ידוע'}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
                       {(account.selected || Object.values(account.selected_amounts || {}).some(Boolean)) && (
