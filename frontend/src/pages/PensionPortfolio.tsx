@@ -772,20 +772,17 @@ export default function PensionPortfolio() {
       if (capitalAssetConversions.length > 0) {
         for (const account of capitalAssetConversions) {
           // קביעת סוג הנכס לפי סוג המוצר - לפי בקשת המשתמש
-          let assetDescription = '';
-          let assetType = '';
+          let assetTypeValue = '';
           if (account.סוג_מוצר && account.סוג_מוצר.includes('קרן השתלמות')) {
-            assetDescription = 'קרן השתלמות';
-            assetType = 'mutual_funds'; // קרן השתלמות
+            assetTypeValue = 'קרן השתלמות';
           } else {
-            assetDescription = 'קופת גמל';
-            assetType = 'deposits'; // קופת גמל
+            assetTypeValue = 'קופת גמל';
           }
           
           const assetData = {
             client_id: parseInt(clientId),
-            asset_type: assetType,
-            description: `${assetDescription} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
+            asset_type: assetTypeValue, // השתמש בערך המבוקש של המשתמש
+            description: `${assetTypeValue} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
             current_value: account.יתרה || 0,
             purchase_value: account.יתרה || 0,
             purchase_date: account.תאריך_התחלה || new Date().toISOString().split('T')[0],
@@ -1173,6 +1170,7 @@ export default function PensionPortfolio() {
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד אחרי 2000</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד אחרי 2008 (לא משלמת)</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>סוג מוצר</th>
+                  <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תאריך התחלה</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 150 }}>מעסיקים היסטוריים</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>המר ל...</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80 }}>פעולות</th>
@@ -1349,6 +1347,7 @@ export default function PensionPortfolio() {
                     </td>
                     
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.סוג_מוצר}</td>
+                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.תאריך_התחלה || 'לא ידוע'}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
                       {(account.selected || Object.values(account.selected_amounts || {}).some(Boolean)) && (
