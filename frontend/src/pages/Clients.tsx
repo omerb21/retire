@@ -139,6 +139,7 @@ export default function Clients() {
       refresh();
     } catch (e: any) {
       console.error("Delete error:", e);
+      setMsg(`❌ שגיאה במחיקת לקוח: ${e.message}`);
     }
   }
 

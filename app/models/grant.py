@@ -1,4 +1,4 @@
-﻿"""
+"""
 Grant entity model for SQLAlchemy ORM - compatible with rights fixation system
 """
 from sqlalchemy import Column, Integer, ForeignKey, String, Float, Date, DateTime, func
@@ -27,7 +27,7 @@ class Grant(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow, server_default=func.now())
 
-    client = relationship("Client", backref="grants")
+    client = relationship("Client", back_populates="grants")
     
     def to_dict(self):
         return {

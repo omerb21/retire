@@ -773,18 +773,15 @@ export default function PensionPortfolio() {
         for (const account of capitalAssetConversions) {
           // קביעת סוג הנכס לפי סוג המוצר
           let assetDescription = '';
-          let assetType = '';
           if (account.סוג_מוצר && account.סוג_מוצר.includes('קרן השתלמות')) {
             assetDescription = 'קרן השתלמות';
-            assetType = 'study_fund'; // קרן השתלמות
           } else {
             assetDescription = 'קופת גמל';
-            assetType = 'pension_fund'; // קופת גמל
           }
           
           const assetData = {
             client_id: parseInt(clientId),
-            asset_type: assetType,
+            asset_type: 'investment', // שימוש בערך מאושר מהרשימה
             description: `${assetDescription} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
             current_value: account.יתרה || 0,
             purchase_value: account.יתרה || 0,
