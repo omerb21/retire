@@ -670,6 +670,7 @@ export default function PensionFunds() {
                   </div>
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    {/* כפתור חישוב - רק למצב מחושב עם יתרה */}
                     {fund.id && (fund.input_mode === "calculated" || fund.calculation_mode === "calculated") && 
                      ((fund.balance || 0) > 0 || (fund.current_balance || 0) > 0) && (
                       <button
@@ -681,16 +682,16 @@ export default function PensionFunds() {
                       </button>
                     )}
                     
-                    {fund.id && (
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(fund)}
-                        style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
-                      >
-                        ערוך
-                      </button>
-                    )}
+                    {/* כפתור עריכה - תמיד מוצג */}
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(fund)}
+                      style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
+                    >
+                      ערוך
+                    </button>
                     
+                    {/* כפתור מחיקה - רק אם יש ID */}
                     {fund.id && (
                       <button
                         type="button"
