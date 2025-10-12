@@ -27,35 +27,73 @@ async function parseTextSafe(res: Response) {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    // ↓ שינוי קריטי שמפסיק הרבה "Failed to fetch"
-    credentials: "omit",
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    ...init,
-  });
+  try {
+    console.log(`API Fetch: ${path}`);
+    const res = await fetch(`${API_BASE}${path}`, {
+      credentials: "omit",
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      ...init,
+    });
 
-  const ct = res.headers.get("content-type") ?? "";
-  const isJson = ct.includes("application/json");
+    console.log(`API Response status: ${res.status} ${res.statusText}`);
+    const ct = res.headers.get("content-type") ?? "";
+    console.log(`Content-Type: ${ct}`);
+    const isJson = ct.includes("application/json");
 
-  if (!res.ok) {
-    const msg = isJson
-      ? await res.clone().json().then((b) =>
-          typeof b?.detail === "string"
-            ? b.detail
-            : Array.isArray(b?.detail)
-            ? b.detail.map((d: any) => d.msg || d?.loc?.join(".")).join("; ")
-            : JSON.stringify(b)
-        ).catch(() => "")
-      : await res.clone().text().catch(() => "");
-    throw new Error(msg || `HTTP ${res.status}`);
+    if (!res.ok) {
+      let errorMsg = "";
+      
+      try {
+        if (isJson) {
+          const errorBody = await res.clone().text();
+          console.log(`Error response body: ${errorBody}`);
+          
+          try {
+            const parsedBody = JSON.parse(errorBody);
+            errorMsg = typeof parsedBody?.detail === "string"
+              ? parsedBody.detail
+              : Array.isArray(parsedBody?.detail)
+              ? parsedBody.detail.map((d: any) => d.msg || d?.loc?.join(".")).join("; ")
+              : JSON.stringify(parsedBody);
+          } catch (jsonError) {
+            console.error("Error parsing JSON error response:", jsonError);
+            errorMsg = errorBody || `HTTP ${res.status} ${res.statusText}`;
+          }
+        } else {
+          errorMsg = await res.clone().text().catch(() => "") || `HTTP ${res.status} ${res.statusText}`;
+        }
+      } catch (parseError) {
+        console.error("Error parsing error response:", parseError);
+        errorMsg = `HTTP ${res.status} ${res.statusText}`;
+      }
+      
+      throw new Error(errorMsg || `HTTP ${res.status} ${res.statusText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (res.status === 204) {
+      return null as T;
+    }
+    
+    if (isJson) {
+      try {
+        // First get the raw text to debug any JSON parsing issues
+        const rawText = await res.clone().text();
+        console.log(`Raw response text (first 100 chars): ${rawText.substring(0, 100)}${rawText.length > 100 ? '...' : ''}`);
+        
+        // Then try to parse as JSON
+        return await res.json() as T;
+      } catch (jsonError) {
+        console.error("JSON parsing error:", jsonError);
+        throw new Error(`Failed to parse JSON response: ${jsonError}`);
+      }
+    } else {
+      return await res.text() as T;
+    }
+  } catch (fetchError) {
+    console.error(`API Fetch error for ${path}:`, fetchError);
+    throw fetchError;
   }
-
-  // Handle 204 No Content responses
-  if (res.status === 204) {
-    return null as T;
-  }
-  
-  return (isJson ? await res.json() : await res.text()) as T;
 }
 
 // Helper function to check if error is network-related

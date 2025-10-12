@@ -62,20 +62,54 @@ export default function Clients() {
     setLoading(true);
     setMsg("");
     try {
-      // Test direct fetch first
-      console.log("Testing direct fetch...");
-      const testResponse = await fetch('/api/v1/clients');
-      console.log("Direct fetch status:", testResponse.status);
-      const testData = await testResponse.json();
-      console.log("Direct fetch data:", testData);
-      
-      const data = await listClients();
-      console.log("Clients loaded successfully:", data);
-      setItems(data || []);
-      setMsg(`✅ טעינה הצליחה! נמצאו ${data?.length || 0} לקוחות`);
+      // נסיון לטעון את הלקוחות עם טיפול בשגיאות משופר
+      try {
+        const data = await listClients();
+        console.log("Clients loaded successfully:", data);
+        setItems(data || []);
+        setMsg(`✅ טעינה הצליחה! נמצאו ${data?.length || 0} לקוחות`);
+      } catch (apiError: any) {
+        console.error("Error with listClients API:", apiError);
+        
+        // נסיון ישיר לשרת עם טיפול בשגיאות מפורט יותר
+        try {
+          const testResponse = await fetch('/api/v1/clients');
+          console.log("Direct fetch status:", testResponse.status);
+          
+          if (!testResponse.ok) {
+            throw new Error(`שגיאת HTTP: ${testResponse.status} ${testResponse.statusText}`);
+          }
+          
+          // נסיון לקרוא את התגובה כ-JSON עם טיפול בשגיאות
+          try {
+            const testData = await testResponse.text();
+            console.log("Raw response:", testData);
+            
+            if (testData) {
+              try {
+                const jsonData = JSON.parse(testData);
+                console.log("Parsed JSON data:", jsonData);
+                setItems(jsonData || []);
+                setMsg(`✅ טעינה הצליחה! נמצאו ${jsonData?.length || 0} לקוחות`);
+              } catch (jsonError) {
+                console.error("JSON parsing error:", jsonError);
+                setMsg(`שגיאה בפענוח תגובת השרת: תגובה לא תקינה`);
+              }
+            } else {
+              setMsg("שגיאה: התקבלה תגובה ריקה מהשרת");
+            }
+          } catch (textError) {
+            console.error("Error reading response text:", textError);
+            setMsg("שגיאה בקריאת תגובת השרת");
+          }
+        } catch (fetchError: any) {
+          console.error("Direct fetch error:", fetchError);
+          setMsg("שגיאת חיבור לשרת: " + (fetchError?.message || fetchError));
+        }
+      }
     } catch (e: any) {
-      console.error("Error loading clients:", e);
-      setMsg("שגיאה בטעינת לקוחות: " + (e?.message || e));
+      console.error("Unhandled error in refresh:", e);
+      setMsg("שגיאה כללית בטעינת לקוחות: " + (e?.message || e));
     } finally {
       setLoading(false);
     }

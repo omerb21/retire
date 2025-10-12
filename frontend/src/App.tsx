@@ -11,6 +11,7 @@ import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
 import SimpleGrants from "./pages/SimpleGrants";
 import SimpleReports from "./pages/SimpleReports";
 import SystemSettings from "./pages/SystemSettings";
+import PensionPortfolio from "./pages/PensionPortfolio";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
@@ -18,6 +19,7 @@ const ClientDetails = () => {
     <div>
       <h2>פרטי לקוח</h2>
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        <a href={`/clients/${clientId}/pension-portfolio`} style={moduleButtonStyle}>תיק פנסיוני</a>
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
         <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
@@ -59,6 +61,7 @@ export default function App() {
           <Routes>
             <Route path="/clients" element={<Clients />} />
             <Route path="/clients/:id" element={<ClientDetails />} />
+            <Route path="/clients/:id/pension-portfolio" element={<PensionPortfolio />} />
             <Route path="/clients/:id/pension-funds" element={<PensionFunds />} />
             <Route path="/clients/:id/additional-incomes" element={<AdditionalIncome />} />
             <Route path="/clients/:id/capital-assets" element={<CapitalAssets />} />

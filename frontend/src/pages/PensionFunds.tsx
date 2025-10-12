@@ -189,7 +189,8 @@ export default function PensionFunds() {
         payload.balance = Number(form.balance);
         payload.annuity_factor = Number(form.annuity_factor);
       } else if (form.calculation_mode === "manual") {
-        payload.monthly_amount = Number(form.monthly_amount);
+        // במצב ידני, שמור את הסכום החודשי בשדה pension_amount
+        payload.pension_amount = Number(form.monthly_amount);
       }
       
       // Add indexation rate only if method is fixed
@@ -660,7 +661,12 @@ export default function PensionFunds() {
                     marginBottom: "10px",
                     fontSize: "1.1em"
                   }}>
-                    <strong>סכום חודשי:</strong> ₪{(fund.computed_monthly_amount || fund.pension_amount || fund.monthly_amount || 0).toLocaleString()}
+                    <strong>סכום חודשי:</strong> ₪{(
+                      // במצב ידני - השתמש ב-pension_amount בלבד
+                      fund.input_mode === "manual" ? 
+                        (fund.pension_amount || 0) : 
+                        (fund.computed_monthly_amount || fund.pension_amount || 0)
+                    ).toLocaleString()}
                   </div>
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

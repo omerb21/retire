@@ -14,8 +14,8 @@ if exist "venv\Scripts\activate.bat" (
 
 REM הפעלת השרת הראשי
 echo השרת עולה...
-echo האפליקציה תהיה זמינה בכתובת: http://localhost:8000
-echo תיעוד ה-API זמין בכתובת: http://localhost:8000/docs
+echo האפליקציה תהיה זמינה בכתובת: http://localhost:8005
+echo תיעוד ה-API זמין בכתובת: http://localhost:8005/docs
 echo.
 echo לחץ Ctrl+C לעצירת השרת.
 echo.
@@ -40,4 +40,4 @@ if %errorlevel% equ 0 (
     timeout /t 2 /nobreak > nul
 )
 
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload

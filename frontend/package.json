@@ -26,7 +26,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "proxy": "http://localhost:8006",
+    "proxy": "http://localhost:8005",
     "preview": "vite preview",
     "start": "vite",
     "test": "react-scripts test",

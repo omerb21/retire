@@ -17,6 +17,17 @@ type AdditionalIncome = {
   computed_monthly_amount?: number;
 };
 
+// מיפוי סוגי הכנסות באנגלית לעברית
+const INCOME_TYPE_MAP: Record<string, string> = {
+  "rental": "שכירות",
+  "dividends": "דיבידנדים",
+  "interest": "ריבית",
+  "business": "עסק",
+  "freelance": "עבודה עצמאית",
+  "other": "אחר"
+};
+
+// סוגי הכנסות באנגלית (לשימוש בצד השרת)
 const INCOME_TYPES = [
   "rental", "dividends", "interest", "business", "freelance", "other"
 ];
@@ -212,7 +223,7 @@ export default function AdditionalIncome() {
               style={{ padding: 8, width: "100%" }}
             >
               {INCOME_TYPES.map(type => (
-                <option key={type} value={type}>{type}</option>
+                <option key={type} value={type}>{INCOME_TYPE_MAP[type]}</option>
               ))}
             </select>
           </div>
@@ -373,7 +384,7 @@ export default function AdditionalIncome() {
             {incomes.map((income, index) => (
               <div key={income.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div><strong>סוג:</strong> {income.source_type}</div>
+                  <div><strong>סוג:</strong> {INCOME_TYPE_MAP[income.source_type] || income.source_type}</div>
                   <div><strong>שם הכנסה:</strong> {income.income_name || ""}</div>
                   <div><strong>סכום:</strong> ₪{income.amount?.toLocaleString()}</div>
                   <div><strong>תדירות:</strong> {

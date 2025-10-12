@@ -35,6 +35,8 @@ const ASSET_TYPES = [
   { value: "real_estate", label: "נדלן" },
   { value: "savings_account", label: "חשבון חיסכון" },
   { value: "deposits", label: "פקדונות" },
+  { value: "provident_fund", label: "קופת גמל" },
+  { value: "education_fund", label: "קרן השתלמות" },
   { value: "other", label: "אחר" }
 ];
 

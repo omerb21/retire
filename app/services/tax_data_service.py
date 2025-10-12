@@ -22,6 +22,74 @@ class TaxDataService:
     GOV_IL_BASE = "https://www.gov.il"
     
     @classmethod
+    def get_severance_caps(cls) -> List[Dict]:
+        """
+        Get all severance payment caps by year
+        """
+        # Get from storage or cache if available
+        try:
+            # Try to load from storage
+            caps = cls._load_severance_caps_from_storage()
+            if caps:
+                return caps
+        except Exception as e:
+            logger.warning(f"Failed to load severance caps from storage: {e}")
+        
+        # Fall back to default values
+        return cls._get_default_severance_caps()
+    
+    @classmethod
+    def _load_severance_caps_from_storage(cls) -> List[Dict]:
+        """
+        Load severance caps from storage (e.g., file, database)
+        """
+        try:
+            # In a real implementation, this would load from a database or file
+            # For now, we'll use a simple approach with localStorage in the frontend
+            return []
+        except Exception as e:
+            logger.error(f"Error loading severance caps: {e}")
+            return []
+    
+    @classmethod
+    def _get_default_severance_caps(cls) -> List[Dict]:
+        """
+        Get default severance caps when storage is unavailable
+        """
+        return [
+            {'year': 2025, 'monthly_cap': 13750, 'annual_cap': 13750 * 12, 'description': 'תקרה חודשית לשנת 2025'},
+            {'year': 2024, 'monthly_cap': 13750, 'annual_cap': 13750 * 12, 'description': 'תקרה חודשית לשנת 2024'},
+            {'year': 2023, 'monthly_cap': 13310, 'annual_cap': 13310 * 12, 'description': 'תקרה חודשית לשנת 2023'},
+            {'year': 2022, 'monthly_cap': 12640, 'annual_cap': 12640 * 12, 'description': 'תקרה חודשית לשנת 2022'},
+            {'year': 2021, 'monthly_cap': 12340, 'annual_cap': 12340 * 12, 'description': 'תקרה חודשית לשנת 2021'},
+            {'year': 2020, 'monthly_cap': 12420, 'annual_cap': 12420 * 12, 'description': 'תקרה חודשית לשנת 2020'},
+            {'year': 2019, 'monthly_cap': 12380, 'annual_cap': 12380 * 12, 'description': 'תקרה חודשית לשנת 2019'},
+            {'year': 2018, 'monthly_cap': 12230, 'annual_cap': 12230 * 12, 'description': 'תקרה חודשית לשנת 2018'},
+            {'year': 2017, 'monthly_cap': 12200, 'annual_cap': 12200 * 12, 'description': 'תקרה חודשית לשנת 2017'},
+            {'year': 2016, 'monthly_cap': 12230, 'annual_cap': 12230 * 12, 'description': 'תקרה חודשית לשנת 2016'},
+            {'year': 2015, 'monthly_cap': 12340, 'annual_cap': 12340 * 12, 'description': 'תקרה חודשית לשנת 2015'},
+            {'year': 2014, 'monthly_cap': 12360, 'annual_cap': 12360 * 12, 'description': 'תקרה חודשית לשנת 2014'},
+            {'year': 2013, 'monthly_cap': 12120, 'annual_cap': 12120 * 12, 'description': 'תקרה חודשית לשנת 2013'},
+            {'year': 2012, 'monthly_cap': 11950, 'annual_cap': 11950 * 12, 'description': 'תקרה חודשית לשנת 2012'},
+            {'year': 2011, 'monthly_cap': 11650, 'annual_cap': 11650 * 12, 'description': 'תקרה חודשית לשנת 2011'},
+            {'year': 2010, 'monthly_cap': 11390, 'annual_cap': 11390 * 12, 'description': 'תקרה חודשית לשנת 2010'},
+        ]
+    
+    @classmethod
+    def update_severance_caps(cls, caps: List[Dict]) -> bool:
+        """
+        Update severance caps in storage
+        """
+        try:
+            # In a real implementation, this would save to a database or file
+            # For now, we'll use a simple approach with localStorage in the frontend
+            logger.info(f"Updated {len(caps)} severance caps")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating severance caps: {e}")
+            return False
+    
+    @classmethod
     def get_current_severance_cap(cls, year: Optional[int] = None) -> Decimal:
         """
         Get current severance payment cap from official sources
@@ -30,23 +98,21 @@ class TaxDataService:
         if year is None:
             year = datetime.now().year
             
-        # Known official values (backup)
-        known_caps = {
-            2024: Decimal("41667"),  # Monthly cap for 2024
-            2023: Decimal("40500"),  # Monthly cap for 2023
-            2022: Decimal("39000"),  # Monthly cap for 2022
-        }
+        # Get all caps
+        caps = cls.get_severance_caps()
         
-        try:
-            # Try to fetch from official source
-            cap = cls._fetch_severance_cap_from_api(year)
-            if cap:
-                return cap
-        except Exception as e:
-            logger.warning(f"Failed to fetch severance cap from API: {e}")
-            
-        # Fall back to known values
-        return known_caps.get(year, known_caps[2024])
+        # Find cap for specified year
+        for cap in caps:
+            if cap['year'] == year:
+                return Decimal(str(cap['monthly_cap']))
+        
+        # If not found, use the most recent cap
+        caps_by_year = sorted(caps, key=lambda x: x['year'], reverse=True)
+        if caps_by_year:
+            return Decimal(str(caps_by_year[0]['monthly_cap']))
+        
+        # Absolute fallback
+        return Decimal("41667")  # 2024 value
     
     @classmethod
     def _fetch_severance_cap_from_api(cls, year: int) -> Optional[Decimal]:

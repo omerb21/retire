@@ -6,8 +6,9 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    strictPort: true,
     proxy: {
-      // כל מה שמתחיל ב-/api יעבור ל-8000 (השרת הראשי)
+      // כל מה שמתחיל ב-/api יעבור ל-8005 (השרת הראשי)
       "/api": {
         target: "http://localhost:8005",
         changeOrigin: true,
