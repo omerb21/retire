@@ -665,6 +665,77 @@ export default function PensionPortfolio() {
     }
   };
 
+  // פונקציה לעריכת תכנית
+  const editAccount = (accountIndex: number) => {
+    const account = pensionData[accountIndex];
+    
+    // הצגת דיאלוג עריכה פשוט
+    const newName = prompt('ערוך שם תכנית:', account.שם_תכנית || '');
+    if (newName === null) return; // ביטול
+    
+    const newBalance = prompt('ערוך יתרה:', account.יתרה?.toString() || '0');
+    if (newBalance === null) return; // ביטול
+    
+    const newStartDate = prompt('ערוך תאריך התחלה (YYYY-MM-DD):', account.תאריך_התחלה || '');
+    if (newStartDate === null) return; // ביטול
+    
+    // עדכון הנתונים
+    setPensionData(prev => prev.map((acc, i) => 
+      i === accountIndex ? {
+        ...acc,
+        שם_תכנית: newName,
+        יתרה: parseFloat(newBalance) || 0,
+        תאריך_התחלה: newStartDate
+      } : acc
+    ));
+    
+    setProcessingStatus(`תכנית "${newName}" עודכנה בהצלחה`);
+  };
+
+  // פונקציה להוספת תכנית ידנית
+  const addManualAccount = () => {
+    const name = prompt('שם התכנית:');
+    if (!name) return;
+    
+    const balance = prompt('יתרה:', '0');
+    if (balance === null) return;
+    
+    const startDate = prompt('תאריך התחלה (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    if (startDate === null) return;
+    
+    const productType = prompt('סוג מוצר (קרן השתלמות / קופת גמל):', 'קופת גמל');
+    if (productType === null) return;
+    
+    // יצירת חשבון חדש
+    const newAccount = {
+      מספר_חשבון: `MANUAL-${Date.now()}`,
+      שם_תכנית: name,
+      חברה_מנהלת: 'הוסף ידני',
+      קוד_חברה_מנהלת: '',
+      יתרה: parseFloat(balance) || 0,
+      תאריך_נכונות_יתרה: new Date().toISOString().split('T')[0],
+      תאריך_התחלה: startDate,
+      סוג_מוצר: productType,
+      מעסיקים_היסטוריים: '',
+      פיצויים_מעסיק_נוכחי: 0,
+      פיצויים_לאחר_התחשבנות: 0,
+      פיצויים_שלא_עברו_התחשבנות: 0,
+      פיצויים_מעסיקים_קודמים_זכויות: 0,
+      פיצויים_מעסיקים_קודמים_קצבה: 0,
+      תגמולי_עובד_עד_2000: 0,
+      תגמולי_עובד_אחרי_2000: 0,
+      תגמולי_עובד_אחרי_2008_לא_משלמת: 0,
+      תגמולי_מעביד_עד_2000: 0,
+      תגמולי_מעביד_אחרי_2000: 0,
+      תגמולי_מעביד_אחרי_2008_לא_משלמת: 0,
+      selected: false,
+      selected_amounts: {}
+    };
+    
+    setPensionData(prev => [...prev, newAccount]);
+    setProcessingStatus(`תכנית "${name}" נוספה בהצלחה`);
+  };
+
   // פונקציה לסימון/ביטול סימון סכום ספציפי
   const toggleAmountSelection = (index: number, amountKey: string, checked: boolean) => {
     setPensionData(prev => prev.map((account, i) => 
@@ -1087,6 +1158,26 @@ export default function PensionPortfolio() {
             </ol>
           </div>
           
+          {/* כפתור הוספה ידנית */}
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={addManualAccount}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "#28a745",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold"
+              }}
+              title="הוסף תכנית פנסיונית חדשה ידנית"
+            >
+              + הוסף תכנית חדשה
+            </button>
+          </div>
+          
           {/* כפתורי פעולה */}
           <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
@@ -1379,21 +1470,38 @@ export default function PensionPortfolio() {
                     
                     {/* עמודת פעולות */}
                     <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }}>
-                      <button
-                        onClick={() => deleteAccount(index)}
-                        style={{
-                          padding: "4px 8px",
-                          backgroundColor: "#dc3545",
-                          color: "white",
-                          border: "none",
-                          borderRadius: 3,
-                          cursor: "pointer",
-                          fontSize: "12px"
-                        }}
-                        title="מחק תכנית זו מהרשימה"
-                      >
-                        מחק
-                      </button>
+                      <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+                        <button
+                          onClick={() => editAccount(index)}
+                          style={{
+                            padding: "4px 8px",
+                            backgroundColor: "#007bff",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 3,
+                            cursor: "pointer",
+                            fontSize: "12px"
+                          }}
+                          title="ערוך תכנית זו"
+                        >
+                          ערוך
+                        </button>
+                        <button
+                          onClick={() => deleteAccount(index)}
+                          style={{
+                            padding: "4px 8px",
+                            backgroundColor: "#dc3545",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 3,
+                            cursor: "pointer",
+                            fontSize: "12px"
+                          }}
+                          title="מחק תכנית זו מהרשימה"
+                        >
+                          מחק
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
