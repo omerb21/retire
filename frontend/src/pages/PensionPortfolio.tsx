@@ -337,7 +337,8 @@ export default function PensionPortfolio() {
     const startDate = getElementText('TAARICH-TCHILAT-HAFRASHA') ||
                      getElementText('TAARICH-TCHILA') ||
                      getElementText('TAARICH-HITZTARFUT-RISHON') ||
-                     getElementText('TAARICH-HITZTARFUT');
+                     getElementText('TAARICH-HITZTARFUT') ||
+                     'לא ידוע';
 
     // סוג מוצר - לפי שם התכנית בלבד (כמו במערכת המקורית)
     let productType = 'קופת גמל'; // ברירת מחדל

@@ -187,18 +187,22 @@ const SimpleFixation: React.FC = () => {
             console.log('DEBUG: processedGrants:', processedGrants);
             console.log('DEBUG: exemptionData:', exemptionData);
             
-            const mappedGrants = processedGrants.map((grant: any) => ({
-              employer_name: grant.employer_name,
-              grant_amount: grant.grant_amount,
-              work_start_date: grant.work_start_date,
-              work_end_date: grant.work_end_date,
-              grant_date: grant.grant_date,
-              indexed_full: grant.indexed_full,
-              ratio_32y: grant.ratio_32y,
-              limited_indexed_amount: grant.limited_indexed_amount,
-              impact_on_exemption: grant.impact_on_exemption,
-              exclusion_reason: grant.exclusion_reason
-            }));
+            const mappedGrants = processedGrants.map((grant: any) => {
+              console.log('DEBUG: Processing grant:', grant);
+              console.log('DEBUG: grant.grant_date:', grant.grant_date);
+              return {
+                employer_name: grant.employer_name,
+                grant_amount: grant.grant_amount,
+                work_start_date: grant.work_start_date,
+                work_end_date: grant.work_end_date,
+                grant_date: grant.grant_date,
+                indexed_full: grant.indexed_full,
+                ratio_32y: grant.ratio_32y,
+                limited_indexed_amount: grant.limited_indexed_amount,
+                impact_on_exemption: grant.impact_on_exemption,
+                exclusion_reason: grant.exclusion_reason
+              };
+            });
             
             console.log('DEBUG: mappedGrants:', mappedGrants);
             setGrantsSummary(mappedGrants);
