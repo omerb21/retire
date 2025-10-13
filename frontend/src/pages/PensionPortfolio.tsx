@@ -788,17 +788,38 @@ export default function PensionPortfolio() {
     if (!clientId) return;
 
     // חיפוש תכניות שנבחרו עם conversion_type='pension'
-    const pensionConversions = pensionData.filter((account, index) => {
-      const isSelected = account.selected || Object.values(account.selected_amounts || {}).some(Boolean);
+    const pensionConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
+    const capitalAssetConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
+    
+    pensionData.forEach((account, index) => {
       const isPensionConversion = conversionTypes[index] === 'pension';
-      return isSelected && isPensionConversion;
-    });
-
-    // חיפוש תכניות שנבחרו עם conversion_type='capital_asset'
-    const capitalAssetConversions = pensionData.filter((account, index) => {
-      const isSelected = account.selected || Object.values(account.selected_amounts || {}).some(Boolean);
       const isCapitalAssetConversion = conversionTypes[index] === 'capital_asset';
-      return isSelected && isCapitalAssetConversion;
+      
+      // חישוב הסכום להמרה
+      let amountToConvert = 0;
+      let specificAmounts: any = {};
+      
+      if (account.selected) {
+        // אם כל התכנית נבחרה - המר את כל היתרה
+        amountToConvert = account.יתרה || 0;
+      } else {
+        // אם רק סכומים ספציפיים נבחרו - חשב את הסכום הכולל
+        const selectedAmounts = account.selected_amounts || {};
+        Object.entries(selectedAmounts).forEach(([key, isSelected]) => {
+          if (isSelected && (account as any)[key]) {
+            amountToConvert += parseFloat((account as any)[key]) || 0;
+            specificAmounts[key] = (account as any)[key];
+          }
+        });
+      }
+      
+      if (amountToConvert > 0) {
+        if (isPensionConversion) {
+          pensionConversions.push({account, index, amountToConvert, specificAmounts});
+        } else if (isCapitalAssetConversion) {
+          capitalAssetConversions.push({account, index, amountToConvert, specificAmounts});
+        }
+      }
     });
 
     // בדיקה שיש לפחות המרה אחת
@@ -815,18 +836,30 @@ export default function PensionPortfolio() {
       if (pensionConversions.length > 0) {
         const retirementDate = calculateRetirementDate();
         
-        for (const account of pensionConversions) {
+        for (const conversion of pensionConversions) {
+          const {account, amountToConvert, specificAmounts} = conversion;
+          
+          // יצירת תיאור מפורט של מה הומר
+          let conversionDetails = '';
+          if (Object.keys(specificAmounts).length > 0) {
+            conversionDetails = Object.entries(specificAmounts)
+              .map(([key, value]) => `${key}: ₪${parseFloat(value as string).toLocaleString()}`)
+              .join(', ');
+          } else {
+            conversionDetails = `כל היתרה: ₪${amountToConvert.toLocaleString()}`;
+          }
+          
           const pensionData = {
             client_id: parseInt(clientId),
             fund_name: account.שם_תכנית || 'קצבה מתיק פנסיוני',
             fund_type: 'מחושב',
             input_mode: "manual" as const,
-            balance: account.יתרה || 0,
-            pension_amount: Math.round((account.יתרה || 0) / 200), // מקדם קצבה 200
+            balance: amountToConvert,
+            pension_amount: Math.round(amountToConvert / 200), // מקדם קצבה 200
             pension_start_date: retirementDate,
             indexation_method: "none" as const, // ללא הצמדה
             fixed_index_rate: null,
-            remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})`,
+            remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}`,
             deduction_file: null
           };
 
@@ -841,7 +874,19 @@ export default function PensionPortfolio() {
 
       // טיפול בהמרות לנכס הון
       if (capitalAssetConversions.length > 0) {
-        for (const account of capitalAssetConversions) {
+        for (const conversion of capitalAssetConversions) {
+          const {account, amountToConvert, specificAmounts} = conversion;
+          
+          // יצירת תיאור מפורט של מה הומר
+          let conversionDetails = '';
+          if (Object.keys(specificAmounts).length > 0) {
+            conversionDetails = Object.entries(specificAmounts)
+              .map(([key, value]) => `${key}: ₪${parseFloat(value as string).toLocaleString()}`)
+              .join(', ');
+          } else {
+            conversionDetails = `כל היתרה: ₪${amountToConvert.toLocaleString()}`;
+          }
+          
           // קביעת סוג הנכס לפי סוג המוצר - לפי בקשת המשתמש
           let assetDescription = '';
           let assetTypeValue = '';
@@ -856,9 +901,9 @@ export default function PensionPortfolio() {
           const assetData = {
             client_id: parseInt(clientId),
             asset_type: assetTypeValue, // שימוש בערך מאושר מהרשימה
-            description: `${assetDescription} - ${account.שם_תכנית}` || 'נכס הון מתיק פנסיוני',
-            current_value: account.יתרה || 0,
-            purchase_value: account.יתרה || 0,
+            description: `${assetDescription} - ${account.שם_תכנית} (${conversionDetails})` || 'נכס הון מתיק פנסיוני',
+            current_value: amountToConvert,
+            purchase_value: amountToConvert,
             purchase_date: account.תאריך_התחלה || new Date().toISOString().split('T')[0],
             annual_return: 0,
             annual_return_rate: 0.03,
@@ -881,10 +926,45 @@ export default function PensionPortfolio() {
       }
 
       
-      // מחיקת התכניות שהומרו מהתיק הפנסיוני
+      // עדכון הנתונים בטבלה - הפחתת הסכומים שהומרו
+      setPensionData(prev => {
+        return prev.map((account, index) => {
+          const conversion = [...pensionConversions, ...capitalAssetConversions].find(c => c.index === index);
+          
+          if (!conversion) return account; // לא הומר כלום
+          
+          const {amountToConvert, specificAmounts} = conversion;
+          
+          // אם כל התכנית הומרה - הסר אותה לגמרי
+          if (account.selected) {
+            return null; // יוסר בסינון
+          }
+          
+          // אם רק סכומים ספציפיים הומרו - הפחת אותם
+          const updatedAccount = {...account};
+          
+          // הפחתת הסכומים הספציפיים שהומרו
+          Object.keys(specificAmounts).forEach(key => {
+            if ((updatedAccount as any)[key]) {
+              (updatedAccount as any)[key] = 0; // מאפס את השדה שהומר
+            }
+          });
+          
+          // הפחתת הסכום מהיתרה הכללית
+          updatedAccount.יתרה = (updatedAccount.יתרה || 0) - amountToConvert;
+          
+          // איפוס הסימונים
+          updatedAccount.selected = false;
+          updatedAccount.selected_amounts = {};
+          
+          return updatedAccount;
+        }).filter(account => account !== null); // הסרת התכניות שהומרו לגמרי
+      });
+      
+      // עדכון רשימת התכניות שהומרו
       const allConvertedAccounts = [...pensionConversions, ...capitalAssetConversions];
-      const convertedIds = allConvertedAccounts.map(account => 
-        `${account.מספר_חשבון}_${account.שם_תכנית}_${account.חברה_מנהלת}`
+      const convertedIds = allConvertedAccounts.map(conversion => 
+        `${conversion.account.מספר_חשבון}_${conversion.account.שם_תכנית}_${conversion.account.חברה_מנהלת}`
       );
       
       setConvertedAccounts(prev => {
@@ -892,43 +972,22 @@ export default function PensionPortfolio() {
         convertedIds.forEach((id: string) => newSet.add(id));
         return newSet;
       });
-
-      // הסרת התכניות שהומרו מהרשימה המקומית
-      setPensionData(prev => {
-        const convertedIndices: number[] = [];
-        
-        // מציאת התכניות שהומרו (קצבה או נכס הון)
-        for (let i = 0; i < prev.length; i++) {
-          const account = prev[i];
-          const isSelected = account.selected || Object.values(account.selected_amounts || {}).some(Boolean);
-          const hasConversionType = conversionTypes[i] === 'pension' || conversionTypes[i] === 'capital_asset';
-          
-          if (isSelected && hasConversionType) {
-            convertedIndices.push(i);
-          }
-        }
-        
-        // החזרת התכניות שלא הומרו
-        const remainingAccounts = prev.filter((_, index) => !convertedIndices.includes(index));
-        
-        // שמירה ל-localStorage
-        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(remainingAccounts));
-        localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(Array.from(convertedAccounts)));
-        
-        return remainingAccounts;
-      });
       
       // ניקוי סוגי ההמרה של התכניות שהומרו
       setConversionTypes({});
       
+      // שמירה ל-localStorage
+      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(pensionData));
+      localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(Array.from(convertedAccounts)));
+      
       // הודעות הצלחה
       let successMessage = "הומרה בהצלחה!\n";
       if (pensionConversions.length > 0) {
-        const totalBalance = pensionConversions.reduce((sum, account) => sum + (account.יתרה || 0), 0);
+        const totalBalance = pensionConversions.reduce((sum, conversion) => sum + conversion.amountToConvert, 0);
         successMessage += `נוצרו ${pensionConversions.length} קצבאות נפרדות בסכום כולל: ${totalBalance.toLocaleString()} ש"ח\n`;
       }
       if (capitalAssetConversions.length > 0) {
-        const totalAssets = capitalAssetConversions.reduce((sum, account) => sum + (account.יתרה || 0), 0);
+        const totalAssets = capitalAssetConversions.reduce((sum, conversion) => sum + conversion.amountToConvert, 0);
         successMessage += `נוצרו ${capitalAssetConversions.length} נכסי הון בסכום כולל: ${totalAssets.toLocaleString()} ש"ח`;
       }
       
@@ -1447,14 +1506,11 @@ export default function PensionPortfolio() {
                         try {
                           const date = new Date(account.תאריך_התחלה);
                           if (isNaN(date.getTime())) return account.תאריך_התחלה; // אם לא תקין, הצג כמו שהוא
-                          const day = String(date.getDate()).padStart(2, '0');
-                          const month = String(date.getMonth() + 1).padStart(2, '0');
-                          const year = date.getFullYear();
-                          return `${day}/${month}/${year}`;
+                          return date.toLocaleDateString('he-IL');
                         } catch {
                           return account.תאריך_התחלה; // אם שגיאה, הצג כמו שהוא
                         }
-                      })()}
+                      })()} 
                     </td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
