@@ -151,7 +151,7 @@ export default function Clients() {
       id_number: client.id_number || "",
       first_name: client.first_name || "",
       last_name: client.last_name || "",
-      birth_date: client.birth_date || "",
+      birth_date: client.birth_date ? convertISOToDDMMYY(client.birth_date) : "",
       gender: client.gender || "male",
       email: client.email || "",
       phone: client.phone || "",
@@ -195,6 +195,12 @@ export default function Clients() {
       if (!editForm.last_name) throw new Error('חובה למלא שם משפחה');
       if (!editForm.birth_date) throw new Error('חובה למלא תאריך לידה');
       
+      // Convert birth_date from DD/MM/YY to ISO format
+      const birthDateISO = convertDDMMYYToISO(editForm.birth_date);
+      if (!birthDateISO) {
+        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YY');
+      }
+      
       const response = await fetch(`/api/v1/clients/${editingClient.id}`, {
         method: 'PUT',
         headers: {
@@ -204,7 +210,7 @@ export default function Clients() {
           id_number: editForm.id_number.trim(),
           first_name: editForm.first_name.trim(),
           last_name: editForm.last_name.trim(),
-          birth_date: editForm.birth_date,
+          birth_date: birthDateISO,
           gender: editForm.gender,
           email: editForm.email || null,
           phone: editForm.phone || null,
@@ -240,8 +246,14 @@ export default function Clients() {
       if (!form.last_name) throw new Error('חובה למלא שם משפחה');
       if (!form.birth_date) throw new Error('חובה למלא תאריך לידה');
       
+      // Convert birth_date from DD/MM/YY to ISO format
+      const birthDateISO = convertDDMMYYToISO(form.birth_date);
+      if (!birthDateISO) {
+        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YY');
+      }
+      
       // Birth date validation (age between 18-120)
-      const birthDate = new Date(form.birth_date);
+      const birthDate = new Date(birthDateISO);
       const today = new Date();
       
       // Calculate min and max birth dates
@@ -267,7 +279,7 @@ export default function Clients() {
         id_number: form.id_number.trim(),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
-        birth_date: form.birth_date,
+        birth_date: birthDateISO,
         gender: form.gender,
         email: form.email || null,
         phone: form.phone || null,
@@ -326,11 +338,10 @@ export default function Clients() {
                  style={{ padding: 8 }} />
           <input type="text"
                  placeholder="DD/MM/YY"
-                 value={convertISOToDDMMYY(form.birth_date) || ''}
+                 value={form.birth_date}
                  onChange={(e) => {
                    const formatted = formatDateInput(e.target.value);
-                   const isoDate = convertDDMMYYToISO(formatted);
-                   setForm({ ...form, birth_date: isoDate });
+                   setForm({ ...form, birth_date: formatted });
                  }}
                  style={{ padding: 8 }}
                  maxLength={8} />
@@ -535,11 +546,10 @@ export default function Clients() {
               <input 
                 type="text"
                 placeholder="DD/MM/YY"
-                value={convertISOToDDMMYY(editForm.birth_date) || ''}
+                value={editForm.birth_date}
                 onChange={(e) => {
                   const formatted = formatDateInput(e.target.value);
-                  const isoDate = convertDDMMYYToISO(formatted);
-                  setEditForm({ ...editForm, birth_date: isoDate });
+                  setEditForm({ ...editForm, birth_date: formatted });
                 }}
                 style={{ padding: 8 }}
                 maxLength={8} 
