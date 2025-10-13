@@ -82,6 +82,7 @@ export default function CapitalAssets() {
           console.log(`  Current Value: ${asset.current_value || 0}`);
           console.log(`  Start Date: ${asset.start_date || 'Not set'}`);
           console.log(`  End Date: ${asset.end_date || 'Not set'}`);
+          console.log(`  conversion_source: ${(asset as any).conversion_source || 'NOT SET'}`);
           console.log(`  All Properties:`, asset);
         });
       } else {

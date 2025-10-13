@@ -879,7 +879,7 @@ export default function PensionPortfolio() {
           };
           
           console.log('DEBUG: retirementDate =', retirementDate);
-          console.log('DEBUG: pensionData before send =', pensionData);
+          console.log('DEBUG: pensionData before send =', JSON.stringify(pensionData, null, 2));
           
           // הוספת שדות אופציונליים רק אם יש להם ערך
           if (pensionData.fixed_index_rate !== undefined) {
@@ -889,10 +889,16 @@ export default function PensionPortfolio() {
             pensionData.deduction_file = null;
           }
 
-          await apiFetch(`/clients/${clientId}/pension-funds`, {
-            method: 'POST',
-            body: JSON.stringify(pensionData)
-          });
+          try {
+            await apiFetch(`/clients/${clientId}/pension-funds`, {
+              method: 'POST',
+              body: JSON.stringify(pensionData)
+            });
+            console.log('SUCCESS: Pension fund created');
+          } catch (error) {
+            console.error('ERROR creating pension fund:', error);
+            throw error;
+          }
         }
         
         console.log('Created', pensionConversions.length, 'separate pension funds');
