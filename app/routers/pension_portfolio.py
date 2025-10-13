@@ -344,6 +344,49 @@ async def convert_pension_accounts(
         'converted_accounts': converted_accounts
     }
 
+@router.post("/clients/{client_id}/pension-portfolio/restore")
+async def restore_pension_amounts(
+    client_id: int,
+    restore_data: dict
+):
+    """החזרת סכומים שהומרו חזרה לתיק הפנסיוני
+    
+    נקרא כאשר מוחקים קצבה או נכס הון שמקורם בהמרה מתיק פנסיוני.
+    הפונקציה מחזירה את הסכומים לשדות המקוריים בטבלה.
+    
+    בשלב זה, הפונקציה מחזירה הצלחה כיוון שהנתונים נשמרים ב-localStorage בצד הלקוח.
+    בעתיד ניתן להוסיף שמירה במסד נתונים.
+    """
+    
+    account_name = restore_data.get('account_name')
+    company = restore_data.get('company')
+    account_number = restore_data.get('account_number')
+    product_type = restore_data.get('product_type')
+    amount = restore_data.get('amount')
+    specific_amounts = restore_data.get('specific_amounts', {})
+    
+    if not account_name or not amount:
+        raise HTTPException(
+            status_code=400,
+            detail="חסרים פרטים נדרשים להחזרת הסכומים"
+        )
+    
+    # כאן ניתן להוסיף לוגיקה לעדכון מסד נתונים אם נשמור את נתוני התיק הפנסיוני
+    # לעת עתה, הנתונים מנוהלים ב-localStorage בצד הלקוח
+    
+    return {
+        'success': True,
+        'message': 'הסכומים הוחזרו בהצלחה לתיק הפנסיוני',
+        'restored_account': {
+            'account_name': account_name,
+            'company': company,
+            'account_number': account_number,
+            'product_type': product_type,
+            'amount': amount,
+            'specific_amounts': specific_amounts
+        }
+    }
+
 @router.post("/clients/{client_id}/pension-portfolio/process-directory")
 async def process_pension_directory(
     client_id: int,

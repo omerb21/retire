@@ -80,6 +80,9 @@ class CapitalAsset(Base):
     # Metadata
     remarks = Column(String(500), nullable=True)
     
+    # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
+    conversion_source = Column(String(1000), nullable=True)  # JSON עם פרטי המקור
+    
     # Relationships
     client = relationship("Client", back_populates="capital_assets")
     

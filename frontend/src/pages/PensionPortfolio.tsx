@@ -852,6 +852,18 @@ export default function PensionPortfolio() {
             conversionDetails = `כל היתרה: ₪${amountToConvert.toLocaleString()}`;
           }
           
+          // יצירת מידע מקור להחזרה במקרה של מחיקה
+          const conversionSourceData = {
+            type: 'pension_portfolio',
+            account_name: account.שם_תכנית,
+            company: account.חברה_מנהלת,
+            account_number: account.מספר_תכנית,
+            product_type: account.סוג_מוצר,
+            amount: amountToConvert,
+            specific_amounts: specificAmounts,
+            conversion_date: new Date().toISOString()
+          };
+          
           const pensionData = {
             client_id: parseInt(clientId),
             fund_name: account.שם_תכנית || 'קצבה מתיק פנסיוני',
@@ -863,7 +875,8 @@ export default function PensionPortfolio() {
             indexation_method: "none" as const, // ללא הצמדה
             fixed_index_rate: null,
             remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}`,
-            deduction_file: null
+            deduction_file: null,
+            conversion_source: JSON.stringify(conversionSourceData)
           };
 
           await apiFetch(`/clients/${clientId}/pension-funds`, {
@@ -901,6 +914,18 @@ export default function PensionPortfolio() {
             assetTypeValue = 'deposits'; // קופת גמל - ערך מותר
           }
           
+          // יצירת מידע מקור להחזרה במקרה של מחיקה
+          const conversionSourceData = {
+            type: 'pension_portfolio',
+            account_name: account.שם_תכנית,
+            company: account.חברה_מנהלת,
+            account_number: account.מספר_תכנית,
+            product_type: account.סוג_מוצר,
+            amount: amountToConvert,
+            specific_amounts: specificAmounts,
+            conversion_date: new Date().toISOString()
+          };
+          
           const assetData = {
             client_id: parseInt(clientId),
             asset_type: assetTypeValue, // שימוש בערך מאושר מהרשימה
@@ -916,7 +941,8 @@ export default function PensionPortfolio() {
             monthly_income: 0, // אין תשלום חודשי
             start_date: formatDateToDDMMYY(new Date()),
             indexation_method: 'none', // ללא הצמדה
-            tax_treatment: 'exempt' // פטור מס
+            tax_treatment: 'exempt', // פטור מס
+            conversion_source: JSON.stringify(conversionSourceData)
           };
 
           await apiFetch(`/clients/${clientId}/capital-assets`, {
