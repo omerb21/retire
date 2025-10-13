@@ -26,6 +26,7 @@ class CapitalAssetBase(BaseModel):
     tax_treatment: TaxTreatment = Field(TaxTreatment.TAXABLE, description="Tax treatment")
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=1, description="Tax rate for fixed rate tax")
     remarks: Optional[str] = Field(None, max_length=500, description="Additional remarks")
+    conversion_source: Optional[str] = Field(None, max_length=1000, description="JSON with conversion source details")
 
     @validator('end_date')
     def validate_end_date(cls, v, values):
@@ -70,6 +71,7 @@ class CapitalAssetUpdate(BaseModel):
     tax_treatment: Optional[TaxTreatment] = None
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=1)
     remarks: Optional[str] = Field(None, max_length=500)
+    conversion_source: Optional[str] = Field(None, max_length=1000)
 
 
 class CapitalAssetResponse(CapitalAssetBase):

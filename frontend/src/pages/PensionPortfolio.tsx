@@ -864,7 +864,7 @@ export default function PensionPortfolio() {
             conversion_date: new Date().toISOString()
           };
           
-          const pensionData = {
+          const pensionData: any = {
             client_id: parseInt(clientId),
             fund_name: account.שם_תכנית || 'קצבה מתיק פנסיוני',
             fund_type: 'מחושב',
@@ -873,11 +873,17 @@ export default function PensionPortfolio() {
             pension_amount: Math.round(amountToConvert / 200), // מקדם קצבה 200
             pension_start_date: retirementDate,
             indexation_method: "none" as const, // ללא הצמדה
-            fixed_index_rate: null,
             remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}`,
-            deduction_file: null,
             conversion_source: JSON.stringify(conversionSourceData)
           };
+          
+          // הוספת שדות אופציונליים רק אם יש להם ערך
+          if (pensionData.fixed_index_rate !== undefined) {
+            pensionData.fixed_index_rate = null;
+          }
+          if (pensionData.deduction_file !== undefined) {
+            pensionData.deduction_file = null;
+          }
 
           await apiFetch(`/clients/${clientId}/pension-funds`, {
             method: 'POST',
