@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 
 type CapitalAsset = {
   id?: number;
@@ -152,7 +153,7 @@ export default function CapitalAssets() {
         description: form.asset_name?.trim() || "נכס הון",
         current_value: Number(form.current_value) || 0,
         purchase_value: 0, // ערך ברירת מחדל
-        purchase_date: alignedStartDate.toISOString().split('T')[0],
+        purchase_date: formatDateToDDMMYY(alignedStartDate),
         annual_return: 0, // ערך ברירת מחדל
         annual_return_rate: Number(form.annual_return_rate) / 100 || 0, // המרה לעשרוני
         payment_frequency: form.payment_frequency,
@@ -161,8 +162,8 @@ export default function CapitalAssets() {
         
         // השדות הנדרשים לתצוגה
         monthly_income: Number(form.monthly_income) || 0,
-        start_date: alignedStartDate.toISOString().split('T')[0],
-        end_date: alignedEndDate?.toISOString().split('T')[0] || null,
+        start_date: formatDateToDDMMYY(alignedStartDate),
+        end_date: alignedEndDate ? formatDateToDDMMYY(alignedEndDate) : null,
         indexation_method: form.indexation_method || "none",
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : 0,
         tax_treatment: form.tax_treatment || "undefined",

@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import * as XLSX from 'xlsx';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 
 type PensionAccount = {
   id?: number;
@@ -700,7 +702,7 @@ export default function PensionPortfolio() {
     const balance = prompt('יתרה:', '0');
     if (balance === null) return;
     
-    const startDate = prompt('תאריך התחלה (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const startDate = prompt('תאריך התחלה (DD/MM/YY):', formatDateToDDMMYY(new Date()));
     if (startDate === null) return;
     
     const productType = prompt('סוג מוצר (קרן השתלמות / קופת גמל):', 'קופת גמל');
@@ -713,7 +715,7 @@ export default function PensionPortfolio() {
       חברה_מנהלת: 'הוסף ידני',
       קוד_חברה_מנהלת: '',
       יתרה: parseFloat(balance) || 0,
-      תאריך_נכונות_יתרה: new Date().toISOString().split('T')[0],
+      תאריך_נכונות_יתרה: formatDateToDDMMYY(new Date()),
       תאריך_התחלה: startDate,
       סוג_מוצר: productType,
       מעסיקים_היסטוריים: '',
@@ -776,7 +778,7 @@ export default function PensionPortfolio() {
       const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 62 : 67;
       const retirementDate = new Date(birthDate);
       retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-      return retirementDate.toISOString().split('T')[0];
+      return formatDateToDDMMYY(retirementDate);
     } catch (error) {
       console.error('Error calculating retirement date:', error);
       return null;
@@ -904,14 +906,14 @@ export default function PensionPortfolio() {
             description: `${assetDescription} - ${account.שם_תכנית} (${conversionDetails})` || 'נכס הון מתיק פנסיוני',
             current_value: amountToConvert,
             purchase_value: amountToConvert,
-            purchase_date: account.תאריך_התחלה || new Date().toISOString().split('T')[0],
+            purchase_date: account.תאריך_התחלה || formatDateToDDMMYY(new Date()),
             annual_return: 0,
             annual_return_rate: 0.03,
             payment_frequency: 'monthly',
             liquidity: 'medium',
             risk_level: 'medium',
             monthly_income: 0, // אין תשלום חודשי
-            start_date: new Date().toISOString().split('T')[0],
+            start_date: formatDateToDDMMYY(new Date()),
             indexation_method: 'none', // ללא הצמדה
             tax_treatment: 'exempt' // פטור מס
           };
@@ -1096,7 +1098,7 @@ export default function PensionPortfolio() {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `pension_portfolio_client_${clientId}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `pension_portfolio_client_${clientId}_${formatDateToDDMMYY(new Date()).replace(/\//g, '_')}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -1506,7 +1508,7 @@ export default function PensionPortfolio() {
                         try {
                           const date = new Date(account.תאריך_התחלה);
                           if (isNaN(date.getTime())) return account.תאריך_התחלה; // אם לא תקין, הצג כמו שהוא
-                          return date.toLocaleDateString('he-IL');
+                          return formatDateToDDMMYY(date);
                         } catch {
                           return account.תאריך_התחלה; // אם שגיאה, הצג כמו שהוא
                         }

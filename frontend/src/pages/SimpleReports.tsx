@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { apiFetch } from "../lib/api";
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 import { getTaxBracketsLegacyFormat, calculateTaxByBrackets } from '../utils/taxBrackets';
 import axios from 'axios';
-import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 
 // ניסיון להוסיף תמיכה בעברית
 declare module 'jspdf' {
@@ -322,7 +323,7 @@ function generatePDFReport(
   addHebrewNote();
   
   // שמירת הקובץ
-  const fileName = `דוח_פנסיוני_${clientData?.first_name || 'לקוח'}_${new Date().toISOString().split('T')[0]}.pdf`;
+  const fileName = `דוח_פנסיוני_${clientData?.first_name || 'לקוח'}_${formatDateToDDMMYY(new Date()).replace(/\//g, '_')}.pdf`;
   doc.save(fileName);
 }
 
@@ -461,7 +462,7 @@ function generateExcelReport(
     ['פרטי לקוח:', '', ''],
     ['שם:', clientData?.first_name + ' ' + (clientData?.last_name || ''), ''],
     ['תאריך לידה:', clientData?.birth_date || 'לא צוין', ''],
-    ['תאריך דוח:', new Date().toLocaleDateString('he-IL'), ''],
+    ['תאריך דוח:', formatDateToDDMMYY(new Date()), ''],
     ['', '', ''],
     ['סיכום כספי:', '', ''],
     ['סך קרנות פנסיה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString(), '₪'],
@@ -480,7 +481,7 @@ function generateExcelReport(
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'סיכום כללי');
   
   // שמירת הקובץ
-  const fileName = `דוח_פנסיוני_${clientData?.first_name || 'לקוח'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const fileName = `דוח_פנסיוני_${clientData?.first_name || 'לקוח'}_${formatDateToDDMMYY(new Date()).replace(/\//g, '_')}.xlsx`;
   XLSX.writeFile(workbook, fileName);
 }
 
@@ -651,7 +652,7 @@ const SimpleReports: React.FC = () => {
           }
           
           return {
-            date: monthDate.toISOString().split('T')[0],
+            date: formatDateToDDMMYY(monthDate),
             amount: Math.round(monthlyNetAmount), // הצגת הכנסה נטו אחרי מס
             grossAmount: Math.round(monthlyGrossAmount), // הכנסה גולמית
             tax: Math.round(monthlyTax), // מס חודשי
@@ -1373,7 +1374,7 @@ const SimpleReports: React.FC = () => {
     
     <div class="header">
         <h1>דוח פנסיוני מקיף - תכנון פרישה</h1>
-        <div class="date">תאריך יצירת הדוח: ${new Date().toLocaleDateString('he-IL')}</div>
+        <div class="date">תאריך יצירת הדוח: ${formatDateToDDMMYY(new Date())}</div>
     </div>
     
     <div class="client-info">
@@ -1523,7 +1524,7 @@ const SimpleReports: React.FC = () => {
     </div>
     
     <div style="text-align: center; margin-top: 40px; color: #666; font-size: 12px;">
-        דוח זה נוצר במערכת תכנון פרישה • ${new Date().toLocaleDateString('he-IL')}
+        דוח זה נוצר במערכת תכנון פרישה • ${formatDateToDDMMYY(new Date())}
     </div>
 </body>
 </html>`;
@@ -1711,7 +1712,7 @@ const SimpleReports: React.FC = () => {
                     }}>
                       <div><strong>{fund.fund_name}</strong></div>
                       <div>קצבה חודשית: ₪{(fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0).toLocaleString()}</div>
-                      <div>תאריך התחלה: {fund.pension_start_date ? new Date(fund.pension_start_date).toLocaleDateString('he-IL') : (fund.start_date ? new Date(fund.start_date).toLocaleDateString('he-IL') : 'לא צוין')}</div>
+                      <div>תאריך התחלה: {fund.pension_start_date ? formatDateToDDMMYY(new Date(fund.pension_start_date)) : (fund.start_date ? formatDateToDDMMYY(new Date(fund.start_date)) : 'לא צוין')}</div>
                     </div>
                   ))}
                 </div>

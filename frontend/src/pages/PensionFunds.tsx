@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 
 type PensionFund = {
   id?: number;
@@ -147,7 +148,7 @@ export default function PensionFunds() {
           const fundDate = fund.pension_start_date || fund.start_date;
           if (!fundDate) return earliest;
           return !earliest || fundDate < earliest ? fundDate : earliest;
-        }, "") || new Date().toISOString().split('T')[0];
+        }, "") || formatDateToDDMMYY(new Date());
       } else if (clientData && clientData.birth_date) {
         // אם אין קצבאות אבל יש תאריך לידה, חשב גיל פרישה לפי מגדר
         try {
@@ -158,16 +159,16 @@ export default function PensionFunds() {
           const retirementAge = clientData.gender?.toLowerCase() === "female" ? 62 : 67;
           
           retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-          earliestStartDate = retirementDate.toISOString().split('T')[0];
+          earliestStartDate = formatDateToDDMMYY(retirementDate);
           
           console.log(`חישוב תאריך פרישה לפי מגדר: ${clientData.gender}, גיל פרישה: ${retirementAge}`);
         } catch (error) {
           console.error("Error calculating retirement date:", error);
-          earliestStartDate = new Date().toISOString().split('T')[0];
+          earliestStartDate = formatDateToDDMMYY(new Date());
         }
       } else {
         // אם אין קצבאות ואין תאריך לידה, השתמש בתאריך היום
-        earliestStartDate = new Date().toISOString().split('T')[0];
+        earliestStartDate = formatDateToDDMMYY(new Date());
       }
       
       // Create payload with exact field names matching backend schema

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 import axios from 'axios';
 
 interface FixationData {
@@ -164,7 +166,7 @@ const SimpleFixation: React.FC = () => {
         }
         
         // Set default eligibility date to current date if not set
-        const currentEligibilityDate = eligibilityDate || new Date().toISOString().split('T')[0];
+        const currentEligibilityDate = eligibilityDate || formatDateToDDMMYY(new Date());
         setEligibilityDate(currentEligibilityDate);
         
         // Use the new rights fixation service
@@ -229,7 +231,7 @@ const SimpleFixation: React.FC = () => {
               }
               
               if (eligibilityDate) {
-                errorMessage += `\nתאריך זכאות צפוי: ${new Date(eligibilityDate).toLocaleDateString('he-IL')}`;
+                errorMessage += `\nתאריך זכאות צפוי: ${formatDateToDDMMYY(new Date(eligibilityDate))}`;
               }
               
               setError(errorMessage);

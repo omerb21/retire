@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 import { listClients, createClient, ClientItem } from "../lib/api";
 
 // פונקציה לחישוב תאריך קצבה לפי תאריך לידה ומגדר
@@ -15,7 +17,7 @@ function calculatePensionStartDate(client: ClientItem) {
     retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
     
     // החזרת התאריך בפורמט YYYY-MM-DD
-    return retirementDate.toISOString().split('T')[0];
+    return formatDateToDDMMYY(retirementDate);
   } catch (error) {
     console.error("Error calculating pension start date:", error);
     return "";
@@ -29,7 +31,7 @@ export default function Clients() {
     id_number: "",
     first_name: "",
     last_name: "",
-    birth_date: new Date().toISOString().split('T')[0], // Default to today
+    birth_date: formatDateToDDMMYY(new Date()), // Default to today
     gender: "male", // Default to male
     email: "",
     phone: "",
