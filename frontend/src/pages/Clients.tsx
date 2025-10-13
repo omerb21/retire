@@ -195,10 +195,10 @@ export default function Clients() {
       if (!editForm.last_name) throw new Error('חובה למלא שם משפחה');
       if (!editForm.birth_date) throw new Error('חובה למלא תאריך לידה');
       
-      // Convert birth_date from DD/MM/YY to ISO format
+      // Convert birth_date from DD/MM/YYYY to ISO format
       const birthDateISO = convertDDMMYYToISO(editForm.birth_date);
       if (!birthDateISO) {
-        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YY');
+        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YYYY');
       }
       
       const response = await fetch(`/api/v1/clients/${editingClient.id}`, {
@@ -246,10 +246,10 @@ export default function Clients() {
       if (!form.last_name) throw new Error('חובה למלא שם משפחה');
       if (!form.birth_date) throw new Error('חובה למלא תאריך לידה');
       
-      // Convert birth_date from DD/MM/YY to ISO format
+      // Convert birth_date from DD/MM/YYYY to ISO format
       const birthDateISO = convertDDMMYYToISO(form.birth_date);
       if (!birthDateISO) {
-        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YY');
+        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YYYY');
       }
       
       // Birth date validation (age between 18-120)
@@ -337,14 +337,14 @@ export default function Clients() {
                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                  style={{ padding: 8 }} />
           <input type="text"
-                 placeholder="DD/MM/YY"
+                 placeholder="DD/MM/YYYY"
                  value={form.birth_date}
                  onChange={(e) => {
                    const formatted = formatDateInput(e.target.value);
                    setForm({ ...form, birth_date: formatted });
                  }}
                  style={{ padding: 8 }}
-                 maxLength={8} />
+                 maxLength={10} />
           <select value={form.gender}
                   onChange={(e) => setForm({ ...form, gender: e.target.value })}
                   style={{ padding: 8 }}>
@@ -545,14 +545,14 @@ export default function Clients() {
               />
               <input 
                 type="text"
-                placeholder="DD/MM/YY"
+                placeholder="DD/MM/YYYY"
                 value={editForm.birth_date}
                 onChange={(e) => {
                   const formatted = formatDateInput(e.target.value);
                   setEditForm({ ...editForm, birth_date: formatted });
                 }}
                 style={{ padding: 8 }}
-                maxLength={8} 
+                maxLength={10} 
               />
               <select 
                 value={editForm.gender}

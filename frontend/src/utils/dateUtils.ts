@@ -17,30 +17,16 @@ export const formatDateToDDMMYY = (date: string | Date | null | undefined): stri
   }
 };
 
-// המרה מפורמט DD/MM/YY לפורמט YYYY-MM-DD עבור input date
-export const convertDDMMYYToISO = (ddmmyy: string): string => {
-  if (!ddmmyy) return '';
+// המרה מפורמט DD/MM/YYYY לפורמט YYYY-MM-DD עבור input date
+export const convertDDMMYYToISO = (ddmmyyyy: string): string => {
+  if (!ddmmyyyy) return '';
   
   try {
-    const parts = ddmmyy.split('/');
-    if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 2) {
+    const parts = ddmmyyyy.split('/');
+    if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
       const day = parts[0];
       const month = parts[1];
-      const yearShort = parseInt(parts[2]);
-      
-      // אם השנה היא 2 ספרות, צריך להחליט אם זה 19XX או 20XX
-      // השתמש בשנה הנוכחית כנקודת ייחוס
-      const currentYear = new Date().getFullYear();
-      const currentYearShort = currentYear % 100; // לדוגמה: 2025 -> 25
-      
-      let year: number;
-      // אם השנה קטנה או שווה לשנה הנוכחית, זה 20XX
-      // אחרת, זה 19XX
-      if (yearShort <= currentYearShort) {
-        year = 2000 + yearShort;
-      } else {
-        year = 1900 + yearShort;
-      }
+      const year = parts[2];
       
       return `${year}-${month}-${day}`;
     }
@@ -51,13 +37,13 @@ export const convertDDMMYYToISO = (ddmmyy: string): string => {
   return '';
 };
 
-// המרה מפורמט YYYY-MM-DD לפורמט DD/MM/YY
+// המרה מפורמט YYYY-MM-DD לפורמט DD/MM/YYYY
 export const convertISOToDDMMYY = (iso: string): string => {
   if (!iso) return '';
   
   try {
     const date = new Date(iso);
-    return formatDateToDDMMYY(date);
+    return formatDateToDDMMYYYY(date);
   } catch (error) {
     console.error('Error converting ISO date:', error);
     return '';
@@ -105,7 +91,7 @@ export const parseDate = (dateString: string): Date | null => {
   }
 };
 
-// פונקציה לעיצוב תאריך עם מסכה
+// פונקציה לעיצוב תאריך עם מסכה DD/MM/YYYY
 export const formatDateInput = (value: string): string => {
   if (!value) return '';
   
@@ -120,21 +106,21 @@ export const formatDateInput = (value: string): string => {
     inputValue = inputValue.substring(0, 5) + '/' + inputValue.substring(5);
   }
   
-  // הגבלה ל-8 תווים (DD/MM/YY)
-  return inputValue.substring(0, 8);
+  // הגבלה ל-10 תווים (DD/MM/YYYY)
+  return inputValue.substring(0, 10);
 };
 
-// וולידציה לתאריך בפורמט DD/MM/YY
+// וולידציה לתאריך בפורמט DD/MM/YYYY
 export const validateDDMMYY = (dateString: string): boolean => {
   if (!dateString) return false;
   
-  const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{2}$/;
+  const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{4}$/;
   if (!regex.test(dateString)) return false;
   
   const parts = dateString.split('/');
   const day = parseInt(parts[0]);
   const month = parseInt(parts[1]);
-  const year = parseInt('20' + parts[2]);
+  const year = parseInt(parts[2]);
   
   const date = new Date(year, month - 1, day);
   return date.getDate() === day && 
