@@ -770,7 +770,7 @@ export default function PensionPortfolio() {
     })));
   };
 
-  // פונקציה לחישוב תאריך פרישה
+  // פונקציה לחישוב תאריך פרישה - מחזיר פורמט ISO (YYYY-MM-DD)
   const calculateRetirementDate = () => {
     if (!clientData?.birth_date) return null;
     
@@ -779,7 +779,8 @@ export default function PensionPortfolio() {
       const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 62 : 67;
       const retirementDate = new Date(birthDate);
       retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-      return formatDateToDDMMYY(retirementDate);
+      // החזרת פורמט ISO לשרת
+      return retirementDate.toISOString().split('T')[0];
     } catch (error) {
       console.error('Error calculating retirement date:', error);
       return null;
