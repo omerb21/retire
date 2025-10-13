@@ -878,6 +878,9 @@ export default function PensionPortfolio() {
             conversion_source: JSON.stringify(conversionSourceData)
           };
           
+          console.log('DEBUG: retirementDate =', retirementDate);
+          console.log('DEBUG: pensionData before send =', pensionData);
+          
           // הוספת שדות אופציונליים רק אם יש להם ערך
           if (pensionData.fixed_index_rate !== undefined) {
             pensionData.fixed_index_rate = null;
@@ -933,20 +936,26 @@ export default function PensionPortfolio() {
             conversion_date: new Date().toISOString()
           };
           
+          // המרת תאריכים לפורמט ISO
+          const todayISO = new Date().toISOString().split('T')[0];
+          const purchaseDateISO = account.תאריך_התחלה 
+            ? (account.תאריך_התחלה.includes('-') ? account.תאריך_התחלה : todayISO)
+            : todayISO;
+          
           const assetData = {
             client_id: parseInt(clientId),
             asset_type: assetTypeValue, // שימוש בערך מאושר מהרשימה
             description: `${assetDescription} - ${account.שם_תכנית} (${conversionDetails})` || 'נכס הון מתיק פנסיוני',
             current_value: amountToConvert,
             purchase_value: amountToConvert,
-            purchase_date: account.תאריך_התחלה || formatDateToDDMMYY(new Date()),
+            purchase_date: purchaseDateISO,
             annual_return: 0,
             annual_return_rate: 0.03,
             payment_frequency: 'monthly',
             liquidity: 'medium',
             risk_level: 'medium',
             monthly_income: 0, // אין תשלום חודשי
-            start_date: formatDateToDDMMYY(new Date()),
+            start_date: todayISO,
             indexation_method: 'none', // ללא הצמדה
             tax_treatment: 'exempt', // פטור מס
             conversion_source: JSON.stringify(conversionSourceData)
