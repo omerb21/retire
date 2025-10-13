@@ -23,14 +23,23 @@ export const convertDDMMYYToISO = (ddmmyy: string): string => {
   
   try {
     const parts = ddmmyy.split('/');
-    if (parts.length === 3) {
-      const day = parts[0].padStart(2, '0');
-      const month = parts[1].padStart(2, '0');
-      let year = parts[2];
+    if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 2) {
+      const day = parts[0];
+      const month = parts[1];
+      const yearShort = parseInt(parts[2]);
       
-      // אם השנה היא 2 ספרות, הוסף 20
-      if (year.length === 2) {
-        year = '20' + year;
+      // אם השנה היא 2 ספרות, צריך להחליט אם זה 19XX או 20XX
+      // השתמש בשנה הנוכחית כנקודת ייחוס
+      const currentYear = new Date().getFullYear();
+      const currentYearShort = currentYear % 100; // לדוגמה: 2025 -> 25
+      
+      let year: number;
+      // אם השנה קטנה או שווה לשנה הנוכחית, זה 20XX
+      // אחרת, זה 19XX
+      if (yearShort <= currentYearShort) {
+        year = 2000 + yearShort;
+      } else {
+        year = 1900 + yearShort;
       }
       
       return `${year}-${month}-${day}`;
