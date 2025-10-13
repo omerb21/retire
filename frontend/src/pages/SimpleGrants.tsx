@@ -338,11 +338,17 @@ const SimpleGrants: React.FC = () => {
                 תאריך קבלת מענק:
               </label>
               <input
-                type="date"
+                type="text"
                 name="grant_date"
-                value={newGrant.grant_date}
-                onChange={handleInputChange}
+                placeholder="DD/MM/YY"
+                value={convertISOToDDMMYY(newGrant.grant_date) || ''}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  const isoDate = convertDDMMYYToISO(formatted);
+                  setNewGrant({ ...newGrant, grant_date: isoDate });
+                }}
                 required
+                maxLength={8}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 

@@ -98,14 +98,17 @@ export const parseDate = (dateString: string): Date | null => {
 
 // פונקציה לעיצוב תאריך עם מסכה
 export const formatDateInput = (value: string): string => {
-  let inputValue = value.replace(/[^0-9]/g, ''); // רק מספרים
+  if (!value) return '';
+  
+  // הסרת כל מה שלא מספרים
+  let inputValue = value.replace(/[^0-9]/g, '');
   
   // הוספת סלאשים אוטומטית
   if (inputValue.length >= 2) {
     inputValue = inputValue.substring(0, 2) + '/' + inputValue.substring(2);
   }
   if (inputValue.length >= 5) {
-    inputValue = inputValue.substring(0, 5) + '/' + inputValue.substring(5, 7);
+    inputValue = inputValue.substring(0, 5) + '/' + inputValue.substring(5);
   }
   
   // הגבלה ל-8 תווים (DD/MM/YY)

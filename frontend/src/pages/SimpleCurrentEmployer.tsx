@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
 import axios from 'axios';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
@@ -273,10 +275,16 @@ const SimpleCurrentEmployer: React.FC = () => {
             תאריך התחלת עבודה *
           </label>
           <input
-            type="date"
+            type="text"
             name="start_date"
-            value={employer.start_date}
-            onChange={handleInputChange}
+            placeholder="DD/MM/YY"
+            value={convertISOToDDMMYY(employer.start_date) || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              const isoDate = convertDDMMYYToISO(formatted);
+              setEmployer({ ...employer, start_date: isoDate });
+            }}
+            maxLength={8}
             required
             style={{
               width: '100%',

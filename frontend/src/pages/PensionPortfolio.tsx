@@ -678,7 +678,7 @@ export default function PensionPortfolio() {
     const newBalance = prompt('ערוך יתרה:', account.יתרה?.toString() || '0');
     if (newBalance === null) return; // ביטול
     
-    const newStartDate = prompt('ערוך תאריך התחלה (YYYY-MM-DD):', account.תאריך_התחלה || '');
+    const newStartDate = prompt('ערוך תאריך התחלה (DD/MM/YY):', account.תאריך_התחלה ? formatDateToDDMMYY(new Date(account.תאריך_התחלה)) : '');
     if (newStartDate === null) return; // ביטול
     
     // עדכון הנתונים
