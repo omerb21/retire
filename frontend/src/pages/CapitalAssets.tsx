@@ -135,15 +135,13 @@ export default function CapitalAssets() {
         throw new Error("חובה למלא שיעור מס בין 0-100");
       }
 
-      // Align date to first of month
-      const alignedStartDate = new Date(form.start_date);
-      alignedStartDate.setDate(1);
-      
-      let alignedEndDate;
-      if (form.end_date) {
-        alignedEndDate = new Date(form.end_date);
-        alignedEndDate.setDate(1);
+      // Convert dates to ISO format
+      const startDateISO = convertDDMMYYToISO(form.start_date);
+      if (!startDateISO) {
+        throw new Error("תאריך התחלה לא תקין - יש להזין בפורמט DD/MM/YYYY");
       }
+      
+      const endDateISO = form.end_date ? convertDDMMYYToISO(form.end_date) : null;
       
       // בדיקה מה השדות שהשרת מצפה לקבל
       console.log("FORM DATA BEFORE SUBMIT:", form);
@@ -153,7 +151,7 @@ export default function CapitalAssets() {
         description: form.asset_name?.trim() || "נכס הון",
         current_value: Number(form.current_value) || 0,
         purchase_value: 0, // ערך ברירת מחדל
-        purchase_date: formatDateToDDMMYY(alignedStartDate),
+        purchase_date: startDateISO,
         annual_return: 0, // ערך ברירת מחדל
         annual_return_rate: Number(form.annual_return_rate) / 100 || 0, // המרה לעשרוני
         payment_frequency: form.payment_frequency,
@@ -162,8 +160,8 @@ export default function CapitalAssets() {
         
         // השדות הנדרשים לתצוגה
         monthly_income: Number(form.monthly_income) || 0,
-        start_date: formatDateToDDMMYY(alignedStartDate),
-        end_date: alignedEndDate ? formatDateToDDMMYY(alignedEndDate) : null,
+        start_date: startDateISO,
+        end_date: endDateISO,
         indexation_method: form.indexation_method || "none",
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : 0,
         tax_treatment: form.tax_treatment || "undefined",
@@ -246,8 +244,8 @@ export default function CapitalAssets() {
       monthly_income: asset.monthly_income || 0,
       annual_return_rate: asset.annual_return_rate || 0,
       payment_frequency: asset.payment_frequency,
-      start_date: asset.start_date,
-      end_date: asset.end_date || "",
+      start_date: asset.start_date ? convertISOToDDMMYY(asset.start_date) : "",
+      end_date: asset.end_date ? convertISOToDDMMYY(asset.end_date) : "",
       indexation_method: asset.indexation_method,
       tax_treatment: asset.tax_treatment,
       fixed_rate: asset.fixed_rate || 0,
@@ -341,28 +339,26 @@ export default function CapitalAssets() {
 
           <input
             type="text"
-            placeholder="DD/MM/YY"
-            value={convertISOToDDMMYY(form.start_date || '') || ''}
+            placeholder="DD/MM/YYYY"
+            value={form.start_date || ''}
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
-              const isoDate = convertDDMMYYToISO(formatted);
-              setForm({ ...form, start_date: isoDate });
+              setForm({ ...form, start_date: formatted });
             }}
             style={{ padding: 8 }}
-            maxLength={8}
+            maxLength={10}
           />
 
           <input
             type="text"
-            placeholder="DD/MM/YY (אופציונלי)"
-            value={convertISOToDDMMYY(form.end_date || '') || ''}
+            placeholder="DD/MM/YYYY (אופציונלי)"
+            value={form.end_date || ''}
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
-              const isoDate = formatted ? convertDDMMYYToISO(formatted) : undefined;
-              setForm({ ...form, end_date: isoDate });
+              setForm({ ...form, end_date: formatted || undefined });
             }}
             style={{ padding: 8 }}
-            maxLength={8}
+            maxLength={10}
           />
 
           <div>

@@ -142,7 +142,21 @@ const SimpleGrants: React.FC = () => {
         throw new Error('יש למלא את כל השדות הנדרשים');
       }
 
-      await axios.post(`/api/v1/clients/${id}/grants`, newGrant);
+      // Convert dates to ISO format
+      const workStartDateISO = convertDDMMYYToISO(newGrant.work_start_date);
+      const workEndDateISO = convertDDMMYYToISO(newGrant.work_end_date);
+      const grantDateISO = convertDDMMYYToISO(newGrant.grant_date);
+      
+      if (!workStartDateISO || !workEndDateISO || !grantDateISO) {
+        throw new Error('תאריכים לא תקינים - יש להזין בפורמט DD/MM/YYYY');
+      }
+
+      await axios.post(`/api/v1/clients/${id}/grants`, {
+        ...newGrant,
+        work_start_date: workStartDateISO,
+        work_end_date: workEndDateISO,
+        grant_date: grantDateISO
+      });
 
       // Reset form
       setNewGrant({
@@ -288,15 +302,14 @@ const SimpleGrants: React.FC = () => {
               <input
                 type="text"
                 name="work_start_date"
-                placeholder="DD/MM/YY"
-                value={convertISOToDDMMYY(newGrant.work_start_date) || ''}
+                placeholder="DD/MM/YYYY"
+                value={newGrant.work_start_date || ''}
                 onChange={(e) => {
                   const formatted = formatDateInput(e.target.value);
-                  const isoDate = convertDDMMYYToISO(formatted);
-                  setNewGrant({ ...newGrant, work_start_date: isoDate });
+                  setNewGrant({ ...newGrant, work_start_date: formatted });
                 }}
                 required
-                maxLength={8}
+                maxLength={10}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 
@@ -313,15 +326,14 @@ const SimpleGrants: React.FC = () => {
               <input
                 type="text"
                 name="work_end_date"
-                placeholder="DD/MM/YY"
-                value={convertISOToDDMMYY(newGrant.work_end_date) || ''}
+                placeholder="DD/MM/YYYY"
+                value={newGrant.work_end_date || ''}
                 onChange={(e) => {
                   const formatted = formatDateInput(e.target.value);
-                  const isoDate = convertDDMMYYToISO(formatted);
-                  setNewGrant({ ...newGrant, work_end_date: isoDate });
+                  setNewGrant({ ...newGrant, work_end_date: formatted });
                 }}
                 required
-                maxLength={8}
+                maxLength={10}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 
@@ -340,15 +352,14 @@ const SimpleGrants: React.FC = () => {
               <input
                 type="text"
                 name="grant_date"
-                placeholder="DD/MM/YY"
-                value={convertISOToDDMMYY(newGrant.grant_date) || ''}
+                placeholder="DD/MM/YYYY"
+                value={newGrant.grant_date || ''}
                 onChange={(e) => {
                   const formatted = formatDateInput(e.target.value);
-                  const isoDate = convertDDMMYYToISO(formatted);
-                  setNewGrant({ ...newGrant, grant_date: isoDate });
+                  setNewGrant({ ...newGrant, grant_date: formatted });
                 }}
                 required
-                maxLength={8}
+                maxLength={10}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 

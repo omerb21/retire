@@ -171,6 +171,10 @@ export default function PensionFunds() {
         earliestStartDate = formatDateToDDMMYY(new Date());
       }
       
+      // Convert pension_start_date to ISO if provided
+      const pensionStartDateISO = form.pension_start_date ? convertDDMMYYToISO(form.pension_start_date) : '';
+      const finalStartDate = pensionStartDateISO || earliestStartDate;
+      
       // Create payload with exact field names matching backend schema
       const payload: Record<string, any> = {
         // Required fields from schema
@@ -178,8 +182,8 @@ export default function PensionFunds() {
         fund_name: form.fund_name?.trim() || "קצבה",
         fund_type: "pension",
         input_mode: form.calculation_mode,
-        start_date: earliestStartDate,
-        pension_start_date: earliestStartDate,
+        start_date: finalStartDate,
+        pension_start_date: finalStartDate,
         indexation_method: form.indexation_method || "none",
         deduction_file: form.deduction_file || ""
       };
@@ -529,15 +533,14 @@ export default function PensionFunds() {
 
           <input
             type="text"
-            placeholder="DD/MM/YY"
-            value={convertISOToDDMMYY(form.pension_start_date || '') || ""}
+            placeholder="DD/MM/YYYY"
+            value={form.pension_start_date || ""}
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
-              const isoDate = convertDDMMYYToISO(formatted);
-              setForm({ ...form, pension_start_date: isoDate });
+              setForm({ ...form, pension_start_date: formatted });
             }}
             style={{ padding: 8 }}
-            maxLength={8}
+            maxLength={10}
           />
 
           <div>

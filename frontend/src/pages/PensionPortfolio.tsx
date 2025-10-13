@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import * as XLSX from 'xlsx';
-import { formatDateToDDMMYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
 
 type PensionAccount = {
   id?: number;
@@ -1508,7 +1508,7 @@ export default function PensionPortfolio() {
                         try {
                           const date = new Date(account.תאריך_התחלה);
                           if (isNaN(date.getTime())) return account.תאריך_התחלה; // אם לא תקין, הצג כמו שהוא
-                          return formatDateToDDMMYY(date);
+                          return formatDateToDDMMYYYY(date);
                         } catch {
                           return account.תאריך_התחלה; // אם שגיאה, הצג כמו שהוא
                         }

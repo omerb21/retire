@@ -152,12 +152,23 @@ const SimpleCurrentEmployer: React.FC = () => {
       setLoading(true);
       setError(null);
 
+      // Convert start_date to ISO format
+      const startDateISO = convertDDMMYYToISO(employer.start_date);
+      if (!startDateISO) {
+        throw new Error('תאריך התחלת עבודה לא תקין - יש להזין בפורמט DD/MM/YYYY');
+      }
+
+      const employerData = {
+        ...employer,
+        start_date: startDateISO
+      };
+
       if (employer.id) {
-        const response = await axios.put(`/api/v1/clients/${id}/current-employer/${employer.id}`, employer);
-        setEmployer(response.data);
+        const response = await axios.put(`/api/v1/clients/${id}/current-employer/${employer.id}`, employerData);
+        setEmployer({ ...response.data, start_date: convertISOToDDMMYY(response.data.start_date) });
       } else {
-        const response = await axios.post(`/api/v1/clients/${id}/current-employer`, employer);
-        setEmployer(response.data);
+        const response = await axios.post(`/api/v1/clients/${id}/current-employer`, employerData);
+        setEmployer({ ...response.data, start_date: convertISOToDDMMYY(response.data.start_date) });
       }
 
       alert('נתוני מעסיק נשמרו בהצלחה');
@@ -277,14 +288,13 @@ const SimpleCurrentEmployer: React.FC = () => {
           <input
             type="text"
             name="start_date"
-            placeholder="DD/MM/YY"
-            value={convertISOToDDMMYY(employer.start_date) || ''}
+            placeholder="DD/MM/YYYY"
+            value={employer.start_date || ''}
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
-              const isoDate = convertDDMMYYToISO(formatted);
-              setEmployer({ ...employer, start_date: isoDate });
+              setEmployer({ ...employer, start_date: formatted });
             }}
-            maxLength={8}
+            maxLength={10}
             required
             style={{
               width: '100%',

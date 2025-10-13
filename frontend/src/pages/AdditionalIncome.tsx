@@ -97,23 +97,21 @@ export default function AdditionalIncome() {
         throw new Error("חובה למלא שיעור מס בין 0-100");
       }
 
-      // Align date to first of month
-      const alignedStartDate = new Date(form.start_date);
-      alignedStartDate.setDate(1);
-      
-      let alignedEndDate;
-      if (form.end_date) {
-        alignedEndDate = new Date(form.end_date);
-        alignedEndDate.setDate(1);
+      // Convert dates to ISO format
+      const startDateISO = convertDDMMYYToISO(form.start_date);
+      if (!startDateISO) {
+        throw new Error("תאריך התחלה לא תקין - יש להזין בפורמט DD/MM/YYYY");
       }
+      
+      const endDateISO = form.end_date ? convertDDMMYYToISO(form.end_date) : null;
       
       const payload = {
         ...form,
         amount: Number(form.amount),
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
         tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
-        start_date: formatDateToDDMMYY(alignedStartDate),
-        end_date: alignedEndDate ? formatDateToDDMMYY(alignedEndDate) : null,
+        start_date: startDateISO,
+        end_date: endDateISO,
       };
 
       // בדיקה אם אנחנו במצב עריכה או יצירה חדשה
@@ -184,8 +182,8 @@ export default function AdditionalIncome() {
       income_name: income.income_name || "", // הוספת שדה שם הכנסה
       amount: income.amount || 0,
       frequency: income.frequency,
-      start_date: income.start_date,
-      end_date: income.end_date || "",
+      start_date: income.start_date ? convertISOToDDMMYY(income.start_date) : "",
+      end_date: income.end_date ? convertISOToDDMMYY(income.end_date) : "",
       indexation_method: income.indexation_method,
       tax_treatment: income.tax_treatment,
       fixed_rate: income.fixed_rate || 0,
@@ -264,28 +262,26 @@ export default function AdditionalIncome() {
 
           <input
             type="text"
-            placeholder="DD/MM/YY"
-            value={convertISOToDDMMYY(form.start_date || '') || ''}
+            placeholder="DD/MM/YYYY"
+            value={form.start_date || ''}
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
-              const isoDate = convertDDMMYYToISO(formatted);
-              setForm({ ...form, start_date: isoDate });
+              setForm({ ...form, start_date: formatted });
             }}
             style={{ padding: 8 }}
-            maxLength={8}
+            maxLength={10}
           />
 
           <input
             type="text"
-            placeholder="DD/MM/YY (אופציונלי)"
-            value={convertISOToDDMMYY(form.end_date || '') || ''}
+            placeholder="DD/MM/YYYY (אופציונלי)"
+            value={form.end_date || ''}
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
-              const isoDate = formatted ? convertDDMMYYToISO(formatted) : undefined;
-              setForm({ ...form, end_date: isoDate });
+              setForm({ ...form, end_date: formatted || undefined });
             }}
             style={{ padding: 8 }}
-            maxLength={8}
+            maxLength={10}
           />
 
           <div>
