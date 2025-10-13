@@ -1503,16 +1503,7 @@ export default function PensionPortfolio() {
                     
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.סוג_מוצר}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
-                      {(() => {
-                        if (!account.תאריך_התחלה) return 'לא ידוע';
-                        try {
-                          const date = new Date(account.תאריך_התחלה);
-                          if (isNaN(date.getTime())) return account.תאריך_התחלה; // אם לא תקין, הצג כמו שהוא
-                          return formatDateToDDMMYYYY(date);
-                        } catch {
-                          return account.תאריך_התחלה; // אם שגיאה, הצג כמו שהוא
-                        }
-                      })()} 
+                      {account.תאריך_התחלה || 'לא ידוע'}
                     </td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { formatDateToDDMMYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
 import axios from 'axios';
 
 interface FixationData {
@@ -382,7 +382,13 @@ const SimpleFixation: React.FC = () => {
                 {grantsSummary.map((grant, index) => (
                   <tr key={index}>
                     <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.employer_name}</td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.grant_date}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {grant.grant_date ? (
+                        grant.grant_date.includes('-') 
+                          ? formatDateToDDMMYYYY(new Date(grant.grant_date))
+                          : grant.grant_date
+                      ) : ''}
+                    </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
                       ₪{grant.grant_amount.toLocaleString()}
                     </td>
