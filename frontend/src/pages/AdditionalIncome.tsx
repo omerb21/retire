@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { formatDateToDDMMYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type AdditionalIncome = {
   id?: number;
@@ -263,19 +263,29 @@ export default function AdditionalIncome() {
           </div>
 
           <input
-            type="date"
-            placeholder="תאריך התחלה"
-            value={form.start_date}
-            onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            type="text"
+            placeholder="DD/MM/YY"
+            value={convertISOToDDMMYY(form.start_date || '') || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              const isoDate = convertDDMMYYToISO(formatted);
+              setForm({ ...form, start_date: isoDate });
+            }}
             style={{ padding: 8 }}
+            maxLength={8}
           />
 
           <input
-            type="date"
-            placeholder="תאריך סיום (אופציונלי)"
-            value={form.end_date || ""}
-            onChange={(e) => setForm({ ...form, end_date: e.target.value || undefined })}
+            type="text"
+            placeholder="DD/MM/YY (אופציונלי)"
+            value={convertISOToDDMMYY(form.end_date || '') || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              const isoDate = formatted ? convertDDMMYYToISO(formatted) : undefined;
+              setForm({ ...form, end_date: isoDate });
+            }}
             style={{ padding: 8 }}
+            maxLength={8}
           />
 
           <div>
@@ -392,8 +402,8 @@ export default function AdditionalIncome() {
                     income.frequency === "monthly" ? "חודשי" :
                     income.frequency === "quarterly" ? "רבעוני" : "שנתי"
                   }</div>
-                  <div><strong>תאריך התחלה:</strong> {income.start_date}</div>
-                  {income.end_date && <div><strong>תאריך סיום:</strong> {income.end_date}</div>}
+                  <div><strong>תאריך התחלה:</strong> {formatDateToDDMMYY(new Date(income.start_date))}</div>
+                  {income.end_date && <div><strong>תאריך סיום:</strong> {formatDateToDDMMYY(new Date(income.end_date))}</div>}
                   <div><strong>הצמדה:</strong> {
                     income.indexation_method === "none" ? "ללא" :
                     income.indexation_method === "fixed" ? `קבועה ${income.fixed_rate}%` :

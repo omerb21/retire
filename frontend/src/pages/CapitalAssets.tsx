@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { formatDateToDDMMYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type CapitalAsset = {
   id?: number;
@@ -340,19 +340,29 @@ export default function CapitalAssets() {
           </div>
 
           <input
-            type="date"
-            placeholder="תאריך התחלה"
-            value={form.start_date}
-            onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            type="text"
+            placeholder="DD/MM/YY"
+            value={convertISOToDDMMYY(form.start_date || '') || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              const isoDate = convertDDMMYYToISO(formatted);
+              setForm({ ...form, start_date: isoDate });
+            }}
             style={{ padding: 8 }}
+            maxLength={8}
           />
 
           <input
-            type="date"
-            placeholder="תאריך סיום (אופציונלי)"
-            value={form.end_date || ""}
-            onChange={(e) => setForm({ ...form, end_date: e.target.value || undefined })}
+            type="text"
+            placeholder="DD/MM/YY (אופציונלי)"
+            value={convertISOToDDMMYY(form.end_date || '') || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              const isoDate = formatted ? convertDDMMYYToISO(formatted) : undefined;
+              setForm({ ...form, end_date: isoDate });
+            }}
             style={{ padding: 8 }}
+            maxLength={8}
           />
 
           <div>
@@ -490,8 +500,8 @@ export default function CapitalAssets() {
                     
                     <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
                       <div style={{ fontWeight: "bold", marginBottom: "4px" }}>תאריכים והצמדה</div>
-                      <div><strong>תאריך התחלה:</strong> {asset.start_date || "לא צוין"}</div>
-                      <div><strong>תאריך סיום:</strong> {asset.end_date || "ללא הגבלה"}</div>
+                      <div><strong>תאריך התחלה:</strong> {asset.start_date ? formatDateToDDMMYY(new Date(asset.start_date)) : "לא צוין"}</div>
+                      <div><strong>תאריך סיום:</strong> {asset.end_date ? formatDateToDDMMYY(new Date(asset.end_date)) : "ללא הגבלה"}</div>
                       <div><strong>תדירות תשלום:</strong> {
                         asset.payment_frequency === "monthly" ? "חודשי" :
                         asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"

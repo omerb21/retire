@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { formatDateToDDMMYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type PensionFund = {
   id?: number;
@@ -528,11 +528,16 @@ export default function PensionFunds() {
           />
 
           <input
-            type="date"
-            placeholder="תאריך התחלת קצבה"
-            value={form.pension_start_date || ""}
-            onChange={(e) => setForm({ ...form, pension_start_date: e.target.value })}
+            type="text"
+            placeholder="DD/MM/YY"
+            value={convertISOToDDMMYY(form.pension_start_date || '') || ""}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              const isoDate = convertDDMMYYToISO(formatted);
+              setForm({ ...form, pension_start_date: isoDate });
+            }}
             style={{ padding: 8 }}
+            maxLength={8}
           />
 
           <div>
@@ -643,7 +648,7 @@ export default function PensionFunds() {
                   
                   {/* במצב ידני אין צורך בהצגה נוספת של סכום חודשי */}
                   
-                  <div><strong>תאריך תחילה:</strong> {fund.pension_start_date || fund.start_date || "לא צוין"}</div>
+                  <div><strong>תאריך תחילה:</strong> {fund.pension_start_date ? formatDateToDDMMYY(new Date(fund.pension_start_date)) : (fund.start_date ? formatDateToDDMMYY(new Date(fund.start_date)) : "לא צוין")}</div>
                   <div><strong>הצמדה:</strong> {
                     fund.indexation_method === "none" ? "ללא" :
                     fund.indexation_method === "fixed" ? `קבועה ${fund.indexation_rate}%` :

@@ -17,6 +17,44 @@ export const formatDateToDDMMYY = (date: string | Date | null | undefined): stri
   }
 };
 
+// המרה מפורמט DD/MM/YY לפורמט YYYY-MM-DD עבור input date
+export const convertDDMMYYToISO = (ddmmyy: string): string => {
+  if (!ddmmyy) return '';
+  
+  try {
+    const parts = ddmmyy.split('/');
+    if (parts.length === 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      let year = parts[2];
+      
+      // אם השנה היא 2 ספרות, הוסף 20
+      if (year.length === 2) {
+        year = '20' + year;
+      }
+      
+      return `${year}-${month}-${day}`;
+    }
+  } catch (error) {
+    console.error('Error converting date:', error);
+  }
+  
+  return '';
+};
+
+// המרה מפורמט YYYY-MM-DD לפורמט DD/MM/YY
+export const convertISOToDDMMYY = (iso: string): string => {
+  if (!iso) return '';
+  
+  try {
+    const date = new Date(iso);
+    return formatDateToDDMMYY(date);
+  } catch (error) {
+    console.error('Error converting ISO date:', error);
+    return '';
+  }
+};
+
 export const formatDateToDDMMYYYY = (date: string | Date | null | undefined): string => {
   if (!date) return '';
   
@@ -56,4 +94,38 @@ export const parseDate = (dateString: string): Date | null => {
     console.error('Error parsing date:', error);
     return null;
   }
+};
+
+// פונקציה לעיצוב תאריך עם מסכה
+export const formatDateInput = (value: string): string => {
+  let inputValue = value.replace(/[^0-9]/g, ''); // רק מספרים
+  
+  // הוספת סלאשים אוטומטית
+  if (inputValue.length >= 2) {
+    inputValue = inputValue.substring(0, 2) + '/' + inputValue.substring(2);
+  }
+  if (inputValue.length >= 5) {
+    inputValue = inputValue.substring(0, 5) + '/' + inputValue.substring(5, 7);
+  }
+  
+  // הגבלה ל-8 תווים (DD/MM/YY)
+  return inputValue.substring(0, 8);
+};
+
+// וולידציה לתאריך בפורמט DD/MM/YY
+export const validateDDMMYY = (dateString: string): boolean => {
+  if (!dateString) return false;
+  
+  const regex = /^(0[1-9]|[12][0-9]|3[01])\/(0[1-9]|1[0-2])\/\d{2}$/;
+  if (!regex.test(dateString)) return false;
+  
+  const parts = dateString.split('/');
+  const day = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
+  const year = parseInt('20' + parts[2]);
+  
+  const date = new Date(year, month - 1, day);
+  return date.getDate() === day && 
+         date.getMonth() === month - 1 && 
+         date.getFullYear() === year;
 };

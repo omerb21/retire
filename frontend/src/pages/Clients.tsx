@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { formatDateToDDMMYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY, validateDDMMYY } from '../utils/dateUtils';
 import { listClients, createClient, ClientItem } from "../lib/api";
 
 // פונקציה לחישוב תאריך קצבה לפי תאריך לידה ומגדר
@@ -324,11 +324,16 @@ export default function Clients() {
                  value={form.last_name}
                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                  style={{ padding: 8 }} />
-          <input type="date"
-                 placeholder="תאריך לידה"
-                 value={form.birth_date}
-                 onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
-                 style={{ padding: 8 }} />
+          <input type="text"
+                 placeholder="DD/MM/YY"
+                 value={convertISOToDDMMYY(form.birth_date) || ''}
+                 onChange={(e) => {
+                   const formatted = formatDateInput(e.target.value);
+                   const isoDate = convertDDMMYYToISO(formatted);
+                   setForm({ ...form, birth_date: isoDate });
+                 }}
+                 style={{ padding: 8 }}
+                 maxLength={8} />
           <select value={form.gender}
                   onChange={(e) => setForm({ ...form, gender: e.target.value })}
                   style={{ padding: 8 }}>
@@ -430,7 +435,7 @@ export default function Clients() {
                       {c.last_name ?? ""}
                     </Link>
                   </td>
-                  <td style={td}>{c.birth_date ?? ""}</td>
+                  <td style={td}>{c.birth_date ? formatDateToDDMMYY(new Date(c.birth_date)) : ""}</td>
                   <td style={td}>{c.gender === "male" ? "זכר" : "נקבה"}</td>
                   <td style={td}>{c.email ?? ""}</td>
                   <td style={td}>{c.pension_start_date || calculatePensionStartDate(c)}</td>
@@ -528,11 +533,16 @@ export default function Clients() {
                 style={{ padding: 8 }} 
               />
               <input 
-                type="date"
-                placeholder="תאריך לידה"
-                value={editForm.birth_date}
-                onChange={(e) => setEditForm({ ...editForm, birth_date: e.target.value })}
-                style={{ padding: 8 }} 
+                type="text"
+                placeholder="DD/MM/YY"
+                value={convertISOToDDMMYY(editForm.birth_date) || ''}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  const isoDate = convertDDMMYYToISO(formatted);
+                  setEditForm({ ...editForm, birth_date: isoDate });
+                }}
+                style={{ padding: 8 }}
+                maxLength={8} 
               />
               <select 
                 value={editForm.gender}
