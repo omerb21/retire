@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 
 type AdditionalIncome = {
   id?: number;
@@ -111,8 +112,8 @@ export default function AdditionalIncome() {
         amount: Number(form.amount),
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
         tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
-        start_date: alignedStartDate.toISOString().split('T')[0],
-        end_date: alignedEndDate?.toISOString().split('T')[0] || null,
+        start_date: formatDateToDDMMYY(alignedStartDate),
+        end_date: alignedEndDate ? formatDateToDDMMYY(alignedEndDate) : null,
       };
 
       // בדיקה אם אנחנו במצב עריכה או יצירה חדשה

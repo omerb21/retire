@@ -1,16 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Alert,
-  CircularProgress,
-  Grid,
-} from '@mui/material';
-import FormField from '../components/forms/FormField';
+import { createClient } from '../lib/api';
+import { Button, TextField, Grid, Paper, Typography, FormControl, InputLabel, Select, MenuItem, FormHelperText } from '@mui/material';
+import { DateField } from '../components/forms/DateField';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 import DateField from '../components/forms/DateField';
 import { clientApi, handleApiError, ClientCreate } from '../lib/api';
 import { validateClientForm } from '../lib/validation';
@@ -190,8 +183,8 @@ const ClientNew: React.FC = () => {
               onChange={handleDateChange('birth_date')}
               error={errors.birth_date}
               required
-              minDate={minBirthDate.toISOString().split('T')[0]}
-              maxDate={maxBirthDate.toISOString().split('T')[0]}
+              minDate={formatDateToDDMMYY(minBirthDate)}
+              maxDate={formatDateToDDMMYY(maxBirthDate)}
               helperText="גיל חייב להיות בין 18 ל-120"
             />
           </Grid>
@@ -202,7 +195,7 @@ const ClientNew: React.FC = () => {
               value={formData.retirement_date}
               onChange={handleDateChange('retirement_date')}
               error={errors.retirement_date}
-              minDate={today.toISOString().split('T')[0]}
+              minDate={formatDateToDDMMYY(today)}
               helperText="תאריך פרישה מתוכנן (אופציונלי)"
             />
           </Grid>

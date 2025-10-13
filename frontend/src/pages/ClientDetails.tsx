@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { getClient, ClientItem } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 import axios from 'axios';
 
 export default function ClientDetails() {
@@ -158,7 +159,7 @@ export default function ClientDetails() {
           ) : (
             <div style={{ color: client.pension_start_date ? '#28a745' : '#dc3545' }}>
               {client.pension_start_date ? 
-                new Date(client.pension_start_date).toLocaleDateString('he-IL') : 
+                formatDateToDDMMYY(new Date(client.pension_start_date)) : 
                 'טרם הוזן תאריך קבלת קצבה'
               }
             </div>
