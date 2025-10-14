@@ -221,6 +221,13 @@ const SimpleCurrentEmployer: React.FC = () => {
         const startDate = new Date(startDateISO);
         const endDate = new Date(endDateISO);
         
+        console.log('Date parsing debug:', {
+          original_termination: terminationDecision.termination_date,
+          endDateISO,
+          endDate: endDate.toString(),
+          terminationYear: endDate.getFullYear()
+        });
+        
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
           console.error('Invalid dates:', { startDate: startDateISO, endDate: endDateISO });
           return;
@@ -239,6 +246,7 @@ const SimpleCurrentEmployer: React.FC = () => {
         
         // Get severance cap for termination year from API
         const terminationYear = endDate.getFullYear();
+        console.log('Fetching cap for year:', terminationYear);
         let monthlyCap = 13750; // Default for 2024-2025
         
         try {
