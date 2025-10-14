@@ -285,7 +285,8 @@ const SimpleCurrentEmployer: React.FC = () => {
           severance_amount: Math.round(severanceAmount),
           exempt_amount: Math.round(exemptAmount),
           taxable_amount: Math.round(taxableAmount),
-          max_spread_years: maxSpreadYears
+          max_spread_years: maxSpreadYears,
+          tax_spread_years: maxSpreadYears // Initialize to max allowed
         }));
       }
     };
@@ -738,7 +739,7 @@ const SimpleCurrentEmployer: React.FC = () => {
                     </label>
                   ))}
 
-                  {terminationDecision.taxable_choice === 'tax_spread' && terminationDecision.max_spread_years !== undefined && (
+                  {terminationDecision.taxable_choice === 'tax_spread' && (
                     <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
                       <h5>זכאות לפריסת פיצויים</h5>
                       
@@ -755,9 +756,9 @@ const SimpleCurrentEmployer: React.FC = () => {
                         </p>
                       </div>
                       
-                      <p><strong>זכאות מקסימלית:</strong> {terminationDecision.max_spread_years} שנים<br/>
+                      <p><strong>זכאות מקסימלית:</strong> {terminationDecision.max_spread_years || 0} שנים<br/>
                       <small style={{ color: '#666' }}>(שנת פריסה אחת לכל 4 שנות וותק מלאות)</small></p>
-                      {terminationDecision.max_spread_years > 0 ? (
+                      {(terminationDecision.max_spread_years || 0) > 0 ? (
                         <div>
                           <label>בחר מספר שנות פריסה:</label>
                           <input

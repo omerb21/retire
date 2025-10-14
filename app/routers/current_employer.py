@@ -241,7 +241,25 @@ def process_termination_decision(
         # Process exempt amount decision
         if decision.exempt_amount > 0:
             if decision.exempt_choice == 'redeem_with_exemption':
-                # Create Capital Asset for exempt redemption with exemption usage
+                # Create Grant entry in grants table
+                from app.models.grant import Grant
+                grant = Grant(
+                    client_id=client_id,
+                    employer_name=ce.employer_name,
+                    work_start_date=ce.start_date,
+                    work_end_date=decision.termination_date,
+                    grant_amount=decision.exempt_amount,
+                    grant_date=decision.termination_date,
+                    grant_indexed_amount=decision.exempt_amount,
+                    limited_indexed_amount=decision.exempt_amount,
+                    grant_ratio=1.0,
+                    impact_on_exemption=decision.exempt_amount
+                )
+                db.add(grant)
+                db.flush()
+                result["created_grant_id"] = grant.id
+                
+                # Also create Capital Asset for exempt redemption with exemption usage
                 capital_asset = CapitalAsset(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
