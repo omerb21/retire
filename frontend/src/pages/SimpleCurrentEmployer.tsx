@@ -264,8 +264,9 @@ const SimpleCurrentEmployer: React.FC = () => {
           console.warn('Failed to fetch severance cap, using default:', err);
         }
         
-        // תקרת פטור = תקרה חודשית × 12 × וותק
-        const exemptCap = monthlyCap * 12 * serviceYears;
+        // תקרת פטור = תקרה שנתית × וותק
+        // התקרה החודשית שמוחזרת מה-API היא למעשה תקרה שנתית!
+        const exemptCap = monthlyCap * serviceYears;
         const exemptAmount = Math.min(severanceAmount, exemptCap);
         const taxableAmount = Math.max(0, severanceAmount - exemptAmount);
         
