@@ -679,6 +679,18 @@ const SimpleCurrentEmployer: React.FC = () => {
 
               <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #17a2b8', borderRadius: '4px', backgroundColor: '#f0f9fc' }}>
                 <h4>שלב 4: חלוקה לפטור/חייב במס</h4>
+                
+                {/* Debug info */}
+                <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '12px', border: '1px solid #ffc107' }}>
+                  <strong>🔍 פרטי חישוב:</strong>
+                  <div>תאריך עזיבה מקורי: <strong>{terminationDecision.termination_date}</strong></div>
+                  <div>שנת עזיבה מחושבת: <strong>{(() => {
+                    let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
+                    return new Date(endISO).getFullYear();
+                  })()}</strong></div>
+                  <div>סכום פיצויים: <strong>₪{terminationDecision.severance_amount.toLocaleString()}</strong></div>
+                </div>
+                
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
                     <strong style={{ color: '#155724' }}>חלק פטור ממס:</strong>
