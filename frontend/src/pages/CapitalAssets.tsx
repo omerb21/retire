@@ -25,6 +25,7 @@ type CapitalAsset = {
   fixed_rate?: number;
   tax_treatment?: "exempt" | "taxable" | "fixed_rate" | "capital_gains" | "tax_spread";
   tax_rate?: number;
+  spread_years?: number;
 };
 
 const ASSET_TYPES = [
@@ -59,6 +60,7 @@ export default function CapitalAssets() {
     tax_treatment: "taxable",
     fixed_rate: 0,
     tax_rate: 0,
+    spread_years: 0,
   });
 
   async function loadAssets() {
@@ -166,7 +168,8 @@ export default function CapitalAssets() {
         indexation_method: form.indexation_method || "none",
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : 0,
         tax_treatment: form.tax_treatment || "undefined",
-        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : 0
+        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : 0,
+        spread_years: form.spread_years !== undefined ? Number(form.spread_years) : undefined
       };
 
       console.log("SENDING PAYLOAD TO SERVER:", JSON.stringify(payload, null, 2));
@@ -202,6 +205,7 @@ export default function CapitalAssets() {
         tax_treatment: "taxable",
         fixed_rate: 0,
         tax_rate: 0,
+        spread_years: 0,
       });
       
       // איפוס מצב העריכה
@@ -348,6 +352,7 @@ export default function CapitalAssets() {
       tax_treatment: asset.tax_treatment,
       fixed_rate: asset.fixed_rate || 0,
       tax_rate: asset.tax_rate || 0,
+      spread_years: asset.spread_years || 0,
     });
     
     // Scroll to form
@@ -515,6 +520,25 @@ export default function CapitalAssets() {
             />
           )}
 
+          {form.tax_treatment === "tax_spread" && (
+            <div style={{ padding: 15, backgroundColor: "#fff3cd", borderRadius: 4, border: "1px solid #ffc107" }}>
+              <strong>📋 פריסת מס על מספר שנים</strong>
+              <p style={{ fontSize: "14px", marginTop: "8px", color: "#666" }}>
+                הזן את מספר השנים שעליהן יש לפרוס את המס (בד"כ 1-6 שנים לפי וותק)
+              </p>
+              <label>מספר שנות פריסה:</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                placeholder="מספר שנות פריסה"
+                value={form.spread_years || ""}
+                onChange={(e) => setForm({ ...form, spread_years: parseInt(e.target.value) || 0 })}
+                style={{ padding: 8, width: "100%", marginTop: "5px" }}
+              />
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10 }}>
             <button 
               type="submit" 
@@ -547,6 +571,7 @@ export default function CapitalAssets() {
                     tax_treatment: "taxable",
                     fixed_rate: 0,
                     tax_rate: 0,
+                    spread_years: 0,
                   });
                 }}
                 style={{ 
@@ -615,7 +640,9 @@ export default function CapitalAssets() {
                       asset.tax_treatment === "exempt" ? "פטור ממס" :
                       asset.tax_treatment === "taxable" ? "חייב במס רגיל" :
                       asset.tax_treatment === "capital_gains" ? "מס רווח הון (25%)" :
-                      `שיעור קבוע ${asset.tax_rate}%`
+                      asset.tax_treatment === "tax_spread" ? `פריסת מס (${asset.spread_years || 0} שנים)` :
+                      asset.tax_treatment === "fixed_rate" ? `שיעור קבוע ${asset.tax_rate}%` :
+                      "לא מוגדר"
                     }</div>
                   </div>
                   
