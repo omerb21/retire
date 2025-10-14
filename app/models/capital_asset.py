@@ -21,6 +21,8 @@ class AssetType(str, Enum):
     REAL_ESTATE = "real_estate"
     SAVINGS_ACCOUNT = "savings_account"
     DEPOSITS = "deposits"
+    PROVIDENT_FUND = "provident_fund"  # קופת גמל
+    EDUCATION_FUND = "education_fund"  # קרן השתלמות
     OTHER = "other"
 
 

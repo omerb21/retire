@@ -946,14 +946,14 @@ export default function PensionPortfolio() {
           }
           
           // קביעת סוג הנכס לפי סוג המוצר - לפי בקשת המשתמש
-          let assetDescription = '';
           let assetTypeValue = '';
+          let assetDescription = '';
           if (account.סוג_מוצר && account.סוג_מוצר.includes('קרן השתלמות')) {
+            assetTypeValue = 'education_fund'; // קרן השתלמות
             assetDescription = 'קרן השתלמות';
-            assetTypeValue = 'mutual_funds'; // קרן השתלמות - ערך מותר
           } else {
+            assetTypeValue = 'provident_fund'; // קופת גמל
             assetDescription = 'קופת גמל';
-            assetTypeValue = 'deposits'; // קופת גמל - ערך מותר
           }
           
           // יצירת מידע מקור להחזרה במקרה של מחיקה
@@ -976,7 +976,7 @@ export default function PensionPortfolio() {
           
           const assetData = {
             client_id: parseInt(clientId),
-            asset_type: assetTypeValue, // שימוש בערך מאושר מהרשימה
+            asset_type: assetTypeValue, // ערך באנגלית לשרת: 'mutual_funds' או 'deposits'
             description: `${assetDescription} - ${account.שם_תכנית} (${conversionDetails})` || 'נכס הון מתיק פנסיוני',
             current_value: amountToConvert,
             purchase_value: amountToConvert,
