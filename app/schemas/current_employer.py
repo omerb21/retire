@@ -119,7 +119,7 @@ class TerminationDecisionBase(BaseModel):
     exempt_amount: float = Field(..., description="סכום פטור ממס")
     taxable_amount: float = Field(..., description="סכום חייב במס")
     exempt_choice: str = Field(..., description="בחירה לחלק הפטור: redeem_with_exemption/redeem_no_exemption/annuity")
-    taxable_choice: str = Field(..., description="בחירה לחלק החייב: redeem_no_exemption/annuity/tax_spread")
+    taxable_choice: str = Field(..., description="בחירה לחלק החייב: redeem_no_exemption/annuity (פריסת מס אוטומטית ב-redeem_no_exemption)")
     tax_spread_years: Optional[int] = Field(None, description="מספר שנות פריסת מס")
     max_spread_years: Optional[int] = Field(None, description="מקסימום שנות פריסה מותרות")
 

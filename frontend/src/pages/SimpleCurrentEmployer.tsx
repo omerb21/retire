@@ -27,7 +27,7 @@ interface TerminationDecision {
   exempt_amount: number;
   taxable_amount: number;
   exempt_choice: 'redeem_with_exemption' | 'redeem_no_exemption' | 'annuity';
-  taxable_choice: 'redeem_no_exemption' | 'annuity' | 'tax_spread';
+  taxable_choice: 'redeem_no_exemption' | 'annuity';
   tax_spread_years?: number;
   max_spread_years?: number;
 }
@@ -732,16 +732,25 @@ const SimpleCurrentEmployer: React.FC = () => {
                         style={{ marginLeft: '10px', width: '18px', height: '18px' }}
                       />
                       {choice === 'redeem_with_exemption' ? 'פדיון הסכום עם שימוש בפטור' :
-                       choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור' : 'סימון כקצבה'}
+                       choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור (עם פריסת מס)' : 'סימון כקצבה'}
                     </label>
                   ))}
+                  
+                  {terminationDecision.exempt_choice === 'redeem_no_exemption' && (terminationDecision.max_spread_years || 0) > 0 && (
+                    <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+                      <strong>📋 פריסת מס אוטומטית</strong>
+                      <p style={{ fontSize: '14px', margin: '8px 0' }}>
+                        הסכום יפרס על פני <strong>{terminationDecision.max_spread_years} שנים</strong> (שנה לכל 4 שנות וותק)
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
               {terminationDecision.taxable_amount > 0 && (
                 <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #dc3545', borderRadius: '4px', backgroundColor: '#fff5f5' }}>
                   <h4>שלב 5ב: בחירת אפשרות לחלק החייב במס</h4>
-                  {['redeem_no_exemption', 'annuity', 'tax_spread'].map(choice => (
+                  {['redeem_no_exemption', 'annuity'].map(choice => (
                     <label key={choice} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', cursor: 'pointer' }}>
                       <input
                         type="radio"
@@ -750,12 +759,11 @@ const SimpleCurrentEmployer: React.FC = () => {
                         onChange={(e) => setTerminationDecision(prev => ({ ...prev, taxable_choice: e.target.value as any }))}
                         style={{ marginLeft: '10px', width: '18px', height: '18px' }}
                       />
-                      {choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור' :
-                       choice === 'annuity' ? 'סימון כקצבה' : 'פריסת מס'}
+                      {choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור (עם פריסת מס)' : 'סימון כקצבה'}
                     </label>
                   ))}
 
-                  {terminationDecision.taxable_choice === 'tax_spread' && (
+                  {terminationDecision.taxable_choice === 'redeem_no_exemption' && (
                     <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
                       <h5>זכאות לפריסת פיצויים</h5>
                       

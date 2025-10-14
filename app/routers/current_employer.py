@@ -244,25 +244,28 @@ def process_termination_decision(
         # Process exempt amount decision
         if decision.exempt_amount > 0:
             if decision.exempt_choice == 'redeem_with_exemption':
-                # Create Grant entry in grants table
-                from app.models.grant import Grant
+                # Create Grant for exempt amount
                 grant = Grant(
                     client_id=client_id,
-                    employer_name=ce.employer_name,
-                    work_start_date=ce.start_date,
-                    work_end_date=decision.termination_date,
+                    grant_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    grant_type="severance_pay",
                     grant_amount=decision.exempt_amount,
                     grant_date=decision.termination_date,
-                    grant_indexed_amount=decision.exempt_amount,
-                    limited_indexed_amount=decision.exempt_amount,
-                    grant_ratio=1.0,
-                    impact_on_exemption=decision.exempt_amount
+                    payment_frequency="one_time",
+                    indexation_method="none",
+                    tax_treatment="exempt"
                 )
                 db.add(grant)
                 db.flush()
                 result["created_grant_id"] = grant.id
+            
+            elif decision.exempt_choice == 'redeem_no_exemption':
+                # Create Capital Asset for exempt amount WITH TAX SPREAD
+                spread_years = decision.max_spread_years or 1
                 
-                # Also create Capital Asset for exempt redemption with exemption usage
+                print(f"🟢 CREATING EXEMPT CAPITAL ASSET WITH TAX_SPREAD:")
+                print(f"  - spread_years: {spread_years}")
+                
                 capital_asset = CapitalAsset(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
@@ -273,33 +276,17 @@ def process_termination_decision(
                     payment_frequency="annually",
                     start_date=decision.termination_date,
                     indexation_method="none",
-                    tax_treatment="exempt",
-                    remarks="מענק פיצויים פטור ממס"
+                    tax_treatment="tax_spread",
+                    spread_years=spread_years,
+                    remarks=f"מענק פיצויים פטור ממס עם פריסת מס ל-{spread_years} שנים"
                 )
                 db.add(capital_asset)
                 db.flush()
+                
+                print(f"🟢 CREATED EXEMPT ASSET WITH ID: {capital_asset.id}, tax_treatment: {capital_asset.tax_treatment}")
+                
                 result["created_capital_asset_id"] = capital_asset.id
             
-            elif decision.exempt_choice == 'redeem_no_exemption':
-                # Create Capital Asset for exempt redemption without exemption usage
-                capital_asset = CapitalAsset(
-                    client_id=client_id,
-                    asset_name=f"מענק פיצויים ({ce.employer_name})",
-                    asset_type="other",
-                    current_value=decision.exempt_amount,
-                    monthly_income=decision.exempt_amount,
-                    annual_return_rate=0.0,
-                    payment_frequency="annually",
-                    start_date=decision.termination_date,
-                    indexation_method="none",
-                    tax_treatment="taxable",
-                    remarks="מענק פיצויים ללא שימוש בפטור"
-                )
-                db.add(capital_asset)
-                db.flush()
-                if not result.get("created_capital_asset_id"):
-                    result["created_capital_asset_id"] = capital_asset.id
-                
             elif decision.exempt_choice == 'annuity':
                 # Create Pension from exempt amount
                 # Calculate start date based on retirement age
@@ -325,8 +312,13 @@ def process_termination_decision(
             print(f"🔵 taxable_choice = '{decision.taxable_choice}'")
             
             if decision.taxable_choice == 'redeem_no_exemption':
-                print(f"🔴 CREATING TAXABLE (redeem_no_exemption) CAPITAL ASSET")
-                # Create Capital Asset for taxable redemption
+                # Create Capital Asset for taxable redemption WITH TAX SPREAD
+                spread_years = decision.max_spread_years or 1
+                
+                print(f"🟢 CREATING TAXABLE CAPITAL ASSET WITH TAX_SPREAD:")
+                print(f"  - max_spread_years: {decision.max_spread_years}")
+                print(f"  - spread_years: {spread_years}")
+                
                 capital_asset = CapitalAsset(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים חייב במס ({ce.employer_name})",
@@ -337,12 +329,15 @@ def process_termination_decision(
                     payment_frequency="annually",
                     start_date=decision.termination_date,
                     indexation_method="none",
-                    tax_treatment="taxable",
-                    remarks="מענק פיצויים חייב במס"
+                    tax_treatment="tax_spread",  # ← Changed from "taxable" to "tax_spread"
+                    spread_years=spread_years,
+                    remarks=f"מענק פיצויים חייב במס עם פריסת מס ל-{spread_years} שנים"
                 )
                 db.add(capital_asset)
                 db.flush()
-                print(f"🔴 CREATED TAXABLE ASSET ID: {capital_asset.id}, tax_treatment: {capital_asset.tax_treatment}")
+                
+                print(f"🟢 CREATED TAXABLE ASSET WITH ID: {capital_asset.id}, tax_treatment: {capital_asset.tax_treatment}")
+                
                 if not result.get("created_capital_asset_id"):
                     result["created_capital_asset_id"] = capital_asset.id
             
@@ -356,45 +351,6 @@ def process_termination_decision(
                 db.add(pension)
                 db.flush()
                 result["created_pension_id"] = pension.id
-                
-            elif decision.taxable_choice == 'tax_spread':
-                # Create Capital Asset for tax spread
-                # First year payment = taxable amount, subsequent years = 0
-                # Tax treatment is 'tax_spread' to indicate special handling
-                from datetime import timedelta
-                from dateutil.relativedelta import relativedelta
-                
-                spread_years = decision.tax_spread_years or decision.max_spread_years or 1
-                
-                print(f"🟢 CREATING TAX_SPREAD CAPITAL ASSET:")
-                print(f"  - tax_spread_years from request: {decision.tax_spread_years}")
-                print(f"  - max_spread_years from request: {decision.max_spread_years}")
-                print(f"  - calculated spread_years: {spread_years}")
-                print(f"  - tax_treatment: tax_spread")
-                
-                capital_asset = CapitalAsset(
-                    client_id=client_id,
-                    asset_name=f"פריסת מס מענק פיצויים ({ce.employer_name})",
-                    asset_type="other",
-                    current_value=decision.taxable_amount,
-                    monthly_income=decision.taxable_amount,  # First year only
-                    annual_return_rate=0.0,
-                    payment_frequency="annually",
-                    start_date=decision.termination_date,
-                    indexation_method="none",
-                    tax_treatment="tax_spread",
-                    spread_years=spread_years,
-                    remarks=f"פריסת מס ל-{spread_years} שנים. שנה ראשונה: {decision.taxable_amount:,.0f} ₪, שאר השנים: 0 ₪"
-                )
-                db.add(capital_asset)
-                db.flush()
-                
-                print(f"🟢 CAPITAL ASSET CREATED WITH ID: {capital_asset.id}")
-                print(f"  - tax_treatment: {capital_asset.tax_treatment}")
-                print(f"  - spread_years: {capital_asset.spread_years}")
-                
-                if not result.get("created_capital_asset_id"):
-                    result["created_capital_asset_id"] = capital_asset.id
         
         db.commit()
         
