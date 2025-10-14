@@ -205,49 +205,77 @@ const SimpleCurrentEmployer: React.FC = () => {
 
   // Calculate termination details when termination date is set
   useEffect(() => {
-    if (terminationDecision.termination_date && employer.start_date && employer.last_salary) {
-      // Parse dates properly - handle both DD/MM/YYYY and ISO formats
-      let startDateISO = employer.start_date;
-      if (employer.start_date.includes('/')) {
-        startDateISO = convertDDMMYYToISO(employer.start_date) || employer.start_date;
+    const calculateTermination = async () => {
+      if (terminationDecision.termination_date && employer.start_date && employer.last_salary) {
+        // Parse dates properly - handle both DD/MM/YYYY and ISO formats
+        let startDateISO = employer.start_date;
+        if (employer.start_date.includes('/')) {
+          startDateISO = convertDDMMYYToISO(employer.start_date) || employer.start_date;
+        }
+        
+        let endDateISO = terminationDecision.termination_date;
+        if (terminationDecision.termination_date.includes('/')) {
+          endDateISO = convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date;
+        }
+        
+        const startDate = new Date(startDateISO);
+        const endDate = new Date(endDateISO);
+        
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.error('Invalid dates:', { startDate: startDateISO, endDate: endDateISO });
+          return;
+        }
+        
+        const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        const expectedFromSalary = employer.last_salary * serviceYears;
+        // אם צבורים גבוה מצפויים, השתמש בצבורים כפיצויים צפויים
+        const expectedGrant = Math.max(expectedFromSalary, employer.severance_accrued);
+        
+        const maxSpreadYears = Math.floor(serviceYears / 4);
+        
+        const severanceAmount = terminationDecision.use_employer_completion 
+          ? expectedGrant 
+          : employer.severance_accrued;
+        
+        // Get severance cap for termination year from API
+        const terminationYear = endDate.getFullYear();
+        let monthlyCap = 13750; // Default for 2024-2025
+        
+        try {
+          const response = await axios.get(`/api/v1/tax-data/severance-cap?year=${terminationYear}`);
+          if (response.data && response.data.monthly_cap) {
+            monthlyCap = response.data.monthly_cap;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch severance cap, using default:', err);
+        }
+        
+        // תקרת פטור = תקרה חודשית × 12 × וותק
+        const exemptCap = monthlyCap * 12 * serviceYears;
+        const exemptAmount = Math.min(severanceAmount, exemptCap);
+        const taxableAmount = Math.max(0, severanceAmount - exemptAmount);
+        
+        console.log('Exemption calculation:', {
+          terminationYear,
+          monthlyCap,
+          serviceYears,
+          exemptCap,
+          severanceAmount,
+          exemptAmount,
+          taxableAmount
+        });
+        
+        setTerminationDecision(prev => ({
+          ...prev,
+          severance_amount: Math.round(severanceAmount),
+          exempt_amount: Math.round(exemptAmount),
+          taxable_amount: Math.round(taxableAmount),
+          max_spread_years: maxSpreadYears
+        }));
       }
-      
-      let endDateISO = terminationDecision.termination_date;
-      if (terminationDecision.termination_date.includes('/')) {
-        endDateISO = convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date;
-      }
-      
-      const startDate = new Date(startDateISO);
-      const endDate = new Date(endDateISO);
-      
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        console.error('Invalid dates:', { startDate: startDateISO, endDate: endDateISO });
-        return;
-      }
-      
-      const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-      const expectedFromSalary = employer.last_salary * serviceYears;
-      // אם צבורים גבוה מצפויים, השתמש בצבורים כפיצויים צפויים
-      const expectedGrant = Math.max(expectedFromSalary, employer.severance_accrued);
-      
-      const maxSpreadYears = Math.floor(serviceYears / 4);
-      
-      const severanceAmount = terminationDecision.use_employer_completion 
-        ? expectedGrant 
-        : employer.severance_accrued;
-      
-      const exemptCap = Math.min(375000, employer.last_salary * 9 * serviceYears);
-      const exemptAmount = Math.min(severanceAmount, exemptCap);
-      const taxableAmount = Math.max(0, severanceAmount - exemptAmount);
-      
-      setTerminationDecision(prev => ({
-        ...prev,
-        severance_amount: Math.round(severanceAmount),
-        exempt_amount: Math.round(exemptAmount),
-        taxable_amount: Math.round(taxableAmount),
-        max_spread_years: maxSpreadYears
-      }));
-    }
+    };
+    
+    calculateTermination();
   }, [terminationDecision.termination_date, terminationDecision.use_employer_completion, employer.start_date, employer.last_salary, employer.severance_accrued]);
 
   const handleTerminationSubmit = async () => {
