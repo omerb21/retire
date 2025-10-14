@@ -109,3 +109,28 @@ class GrantCalculationResult(BaseModel):
 class GrantWithCalculation(EmployerGrantOut):
     """Grant with calculation results"""
     calculation: GrantCalculationResult
+
+# Termination Decision schemas
+class TerminationDecisionBase(BaseModel):
+    """Base schema for termination decision"""
+    termination_date: date = Field(..., description="תאריך סיום עבודה")
+    use_employer_completion: bool = Field(False, description="האם תבוצע השלמת מעסיק")
+    severance_amount: float = Field(..., description="סכום הפיצויים")
+    exempt_amount: float = Field(..., description="סכום פטור ממס")
+    taxable_amount: float = Field(..., description="סכום חייב במס")
+    exempt_choice: str = Field(..., description="בחירה לחלק הפטור: redeem_with_exemption/redeem_no_exemption/annuity")
+    taxable_choice: str = Field(..., description="בחירה לחלק החייב: redeem_no_exemption/annuity/tax_spread")
+    tax_spread_years: Optional[int] = Field(None, description="מספר שנות פריסת מס")
+    max_spread_years: Optional[int] = Field(None, description="מקסימום שנות פריסה מותרות")
+
+class TerminationDecisionCreate(TerminationDecisionBase):
+    """Schema for creating termination decision"""
+    pass
+
+class TerminationDecisionOut(TerminationDecisionBase):
+    """Schema for returning termination decision with results"""
+    created_grant_id: Optional[int] = Field(None, description="ID של מענק שנוצר")
+    created_pension_id: Optional[int] = Field(None, description="ID של קצבה שנוצרה")
+    created_capital_asset_id: Optional[int] = Field(None, description="ID של נכס הון שנוצר")
+    
+    model_config = ConfigDict(from_attributes=True)

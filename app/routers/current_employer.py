@@ -5,15 +5,19 @@ Endpoints for managing current employer and grants
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from datetime import date
+from datetime import date, datetime
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employer import CurrentEmployer
 from app.services.current_employer_service import CurrentEmployerService
 from app.schemas.current_employer import (
     CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut,
-    EmployerGrantCreate, GrantWithCalculation
+    EmployerGrantCreate, GrantWithCalculation,
+    TerminationDecisionCreate, TerminationDecisionOut
 )
+from app.models.grant import Grant
+from app.models.pension import Pension
+from app.models.capital_asset import CapitalAsset
 
 router = APIRouter()
 
@@ -184,4 +188,144 @@ def add_grant_to_current_employer(
         raise HTTPException(
             status_code=400,
             detail={"error": str(e)}
+        )
+
+@router.post(
+    "/clients/{client_id}/current-employer/termination",
+    response_model=TerminationDecisionOut,
+    status_code=status.HTTP_201_CREATED
+)
+def process_termination_decision(
+    client_id: int,
+    decision: TerminationDecisionCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Process employee termination decision and create appropriate entities:
+    - Grant for exempt redemption with exemption usage
+    - Pension for annuity choice
+    - Capital Asset for tax spread choice
+    
+    Returns IDs of created entities
+    """
+    # Check if client exists
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "לקוח לא נמצא"}
+        )
+    
+    # Get current employer
+    ce = db.scalar(
+        select(CurrentEmployer)
+        .where(CurrentEmployer.client_id == client_id)
+        .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+    )
+    if not ce:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "אין מעסיק נוכחי רשום ללקוח"}
+        )
+    
+    try:
+        result = {
+            "created_grant_id": None,
+            "created_pension_id": None,
+            "created_capital_asset_id": None
+        }
+        
+        # Update current employer end_date
+        ce.end_date = decision.termination_date
+        
+        # Process exempt amount decision
+        if decision.exempt_amount > 0:
+            if decision.exempt_choice == 'redeem_with_exemption':
+                # Create Grant
+                grant = Grant(
+                    client_id=client_id,
+                    employer_name=ce.employer_name,
+                    work_start_date=ce.start_date,
+                    work_end_date=decision.termination_date,
+                    grant_amount=decision.exempt_amount,
+                    grant_date=decision.termination_date
+                )
+                db.add(grant)
+                db.flush()  # Get ID
+                result["created_grant_id"] = grant.id
+                
+            elif decision.exempt_choice == 'annuity':
+                # Create Pension from exempt amount
+                # Calculate start date based on retirement age
+                if client.birth_date:
+                    age = (datetime.now().date() - client.birth_date).days // 365
+                    retirement_age = 67 if client.gender == 'male' else 64
+                    # For now, use termination date as start - will be adjusted in calculation
+                else:
+                    retirement_age = 67
+                
+                pension = Pension(
+                    client_id=client_id,
+                    payer_name=f"קצבה ממענק פיצויים ({ce.employer_name})",
+                    start_date=decision.termination_date
+                )
+                db.add(pension)
+                db.flush()
+                result["created_pension_id"] = pension.id
+        
+        # Process taxable amount decision  
+        if decision.taxable_amount > 0:
+            if decision.taxable_choice == 'annuity':
+                # Create Pension from taxable amount
+                retirement_age = 67 if client.gender == 'male' else 64
+                
+                pension = Pension(
+                    client_id=client_id,
+                    payer_name=f"קצבה ממענק פיצויים ({ce.employer_name})",
+                    start_date=decision.termination_date
+                )
+                db.add(pension)
+                db.flush()
+                result["created_pension_id"] = pension.id
+                
+            elif decision.taxable_choice == 'tax_spread':
+                # Create Capital Asset for tax spread
+                # First year payment = taxable amount, subsequent years = 0
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"פריסת מס מענק פיצויים ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.taxable_amount,
+                    monthly_income=decision.taxable_amount,  # First year payment
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    end_date=None,  # Will calculate based on spread years
+                    indexation_method="none",
+                    tax_treatment="taxable",
+                    remarks=f"פריסת מס ל-{decision.tax_spread_years or decision.max_spread_years} שנים"
+                )
+                db.add(capital_asset)
+                db.flush()
+                result["created_capital_asset_id"] = capital_asset.id
+        
+        db.commit()
+        
+        # Return result with created IDs
+        return TerminationDecisionOut(
+            **decision.model_dump(),
+            **result
+        )
+        
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail={"error": str(e)}
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
         )
