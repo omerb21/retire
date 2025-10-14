@@ -229,6 +229,9 @@ def process_termination_decision(
         )
     
     try:
+        import json
+        print(f"🔵 TERMINATION DECISION RECEIVED: {json.dumps(decision.model_dump(), indent=2, default=str)}")
+        
         result = {
             "created_grant_id": None,
             "created_pension_id": None,
@@ -318,7 +321,11 @@ def process_termination_decision(
         
         # Process taxable amount decision  
         if decision.taxable_amount > 0:
+            print(f"🔵 PROCESSING TAXABLE AMOUNT: {decision.taxable_amount}")
+            print(f"🔵 taxable_choice = '{decision.taxable_choice}'")
+            
             if decision.taxable_choice == 'redeem_no_exemption':
+                print(f"🔴 CREATING TAXABLE (redeem_no_exemption) CAPITAL ASSET")
                 # Create Capital Asset for taxable redemption
                 capital_asset = CapitalAsset(
                     client_id=client_id,
@@ -335,6 +342,7 @@ def process_termination_decision(
                 )
                 db.add(capital_asset)
                 db.flush()
+                print(f"🔴 CREATED TAXABLE ASSET ID: {capital_asset.id}, tax_treatment: {capital_asset.tax_treatment}")
                 if not result.get("created_capital_asset_id"):
                     result["created_capital_asset_id"] = capital_asset.id
             
@@ -358,6 +366,12 @@ def process_termination_decision(
                 
                 spread_years = decision.tax_spread_years or decision.max_spread_years or 1
                 
+                print(f"🟢 CREATING TAX_SPREAD CAPITAL ASSET:")
+                print(f"  - tax_spread_years from request: {decision.tax_spread_years}")
+                print(f"  - max_spread_years from request: {decision.max_spread_years}")
+                print(f"  - calculated spread_years: {spread_years}")
+                print(f"  - tax_treatment: tax_spread")
+                
                 capital_asset = CapitalAsset(
                     client_id=client_id,
                     asset_name=f"פריסת מס מענק פיצויים ({ce.employer_name})",
@@ -374,10 +388,18 @@ def process_termination_decision(
                 )
                 db.add(capital_asset)
                 db.flush()
+                
+                print(f"🟢 CAPITAL ASSET CREATED WITH ID: {capital_asset.id}")
+                print(f"  - tax_treatment: {capital_asset.tax_treatment}")
+                print(f"  - spread_years: {capital_asset.spread_years}")
+                
                 if not result.get("created_capital_asset_id"):
                     result["created_capital_asset_id"] = capital_asset.id
         
         db.commit()
+        
+        print(f"✅ TRANSACTION COMMITTED")
+        print(f"✅ RESULT: {result}")
         
         # Return result with created IDs
         return TerminationDecisionOut(

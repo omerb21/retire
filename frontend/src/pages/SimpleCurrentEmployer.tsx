@@ -306,14 +306,21 @@ const SimpleCurrentEmployer: React.FC = () => {
 
       const terminationDateISO = convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date;
       
-      await axios.post(`/api/v1/clients/${id}/current-employer/termination`, {
+      const payload = {
         ...terminationDecision,
         termination_date: terminationDateISO
-      });
+      };
+      
+      console.log('🚀 SENDING TERMINATION PAYLOAD:', JSON.stringify(payload, null, 2));
+      
+      const response = await axios.post(`/api/v1/clients/${id}/current-employer/termination`, payload);
+      
+      console.log('✅ TERMINATION RESPONSE:', JSON.stringify(response.data, null, 2));
 
       alert('החלטות עזיבה נשמרו בהצלחה');
       navigate(`/clients/${id}`);
     } catch (err: any) {
+      console.error('❌ TERMINATION ERROR:', err);
       setError('שגיאה בשמירת החלטות עזיבה: ' + err.message);
     } finally {
       setLoading(false);
