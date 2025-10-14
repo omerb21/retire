@@ -80,15 +80,21 @@ const SimpleCurrentEmployer: React.FC = () => {
         if (storedPensionData) {
           try {
             const pensionData = JSON.parse(storedPensionData);
-            // Sum all severance amounts from "מעסיק נוכחי" column
+            // Sum all severance amounts from "פיצויים מעסיק נוכחי" column
             severanceFromPension = pensionData.reduce((sum: number, account: any) => {
-              const currentEmployerSeverance = Number(account['מעסיק_נוכחי'] || account.מעסיק_נוכחי || 0);
+              const currentEmployerSeverance = Number(account['פיצויים_מעסיק_נוכחי'] || account.פיצויים_מעסיק_נוכחי || 0);
               return sum + currentEmployerSeverance;
             }, 0);
             console.log('יתרת פיצויים מתיק פנסיוני:', severanceFromPension);
+            console.log('מספר חשבונות:', pensionData.length);
+            pensionData.forEach((acc: any, idx: number) => {
+              console.log(`חשבון ${idx + 1}: פיצויים מעסיק נוכחי = ${acc.פיצויים_מעסיק_נוכחי || 0}`);
+            });
           } catch (e) {
             console.error('שגיאה בטעינת נתוני תיק פנסיוני:', e);
           }
+        } else {
+          console.log('לא נמצא תיק פנסיוני ב-localStorage עבור לקוח:', id);
         }
         
         if (response.data) {
