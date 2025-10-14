@@ -58,29 +58,35 @@ export default function PensionPortfolio() {
   const [editingCell, setEditingCell] = useState<{row: number, field: string} | null>(null); // תא בעריכה
   const [showConversionRules, setShowConversionRules] = useState<boolean>(false); // הצגת חוקי המרה
 
-  // פונקציה לעיבוד קבצי XML של המסלקה
+  // פונקציה לעיבוד קבצי XML ו-DAT של המסלקה
   const processXMLFiles = async (files: FileList) => {
     setLoading(true);
     setError("");
-    setProcessingStatus("מוחק נתונים קיימים ומעבד קבצי XML...");
+    setProcessingStatus("מוחק נתונים קיימים ומעבד קבצים...");
     
     // מחיקת כל הנתונים הקיימים
     setPensionData([]);
 
     try {
       const processedAccounts: PensionAccount[] = [];
+      const supportedExtensions = ['.xml', '.dat'];
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.name.toLowerCase().endsWith('.xml')) {
+        const fileName = file.name.toLowerCase();
+        
+        // בדיקה אם הקובץ נתמך
+        if (!supportedExtensions.some(ext => fileName.endsWith(ext))) {
+          console.log(`דילוג על קובץ ${file.name} - סוג קובץ לא נתמך`);
           continue;
         }
 
-        setProcessingStatus(`מעבד קובץ ${i + 1} מתוך ${files.length}: ${file.name}`);
+        const fileType = fileName.endsWith('.dat') ? 'DAT' : 'XML';
+        setProcessingStatus(`מעבד קובץ ${fileType} ${i + 1} מתוך ${files.length}: ${file.name}`);
 
         const text = await file.text();
         const accounts = extractAccountsFromXML(text, file.name);
-        console.log(`File ${file.name} produced ${accounts.length} accounts`);
+        console.log(`File ${file.name} (${fileType}) produced ${accounts.length} accounts`);
         processedAccounts.push(...accounts);
       }
 
@@ -100,7 +106,7 @@ export default function PensionPortfolio() {
         setProcessingStatus("לא נמצאו חשבונות פנסיוניים בקבצים שנבחרו");
       }
     } catch (e: any) {
-      setError(`שגיאה בעיבוד קבצי XML: ${e?.message || e}`);
+      setError(`שגיאה בעיבוד קבצים: ${e?.message || e}`);
       setProcessingStatus("");
     } finally {
       setLoading(false);
@@ -1307,7 +1313,8 @@ export default function PensionPortfolio() {
         <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
           <h4 style={{ margin: "0 0 8px 0", color: "#495057" }}>אפשרויות עיבוד:</h4>
           <ul style={{ margin: 0, paddingRight: 20, fontSize: "14px", color: "#666" }}>
-            <li><strong>עיבוד ידני:</strong> בחר קבצי XML ולחץ "עבד קבצי מסלקה"</li>
+            <li><strong>עיבוד ידני:</strong> בחר קבצי XML או DAT ולחץ "עבד קבצי מסלקה"</li>
+            <li><strong>תמיכה בפורמטים:</strong> המערכת תומכת בקבצי XML ו-DAT (קבצי מסלקה לאחר מניפולציה)</li>
           </ul>
         </div>
 
@@ -1315,12 +1322,12 @@ export default function PensionPortfolio() {
           <input
             type="file"
             multiple
-            accept=".xml"
+            accept=".xml,.dat"
             onChange={(e) => setSelectedFiles(e.target.files)}
             style={{ marginBottom: 10 }}
           />
           <div style={{ fontSize: "14px", color: "#666" }}>
-            בחר קבצי XML של המסלקה לעיבוד ידני
+            בחר קבצי XML או DAT של המסלקה לעיבוד ידני (תמיכה בשני הפורמטים)
           </div>
         </div>
         

@@ -20,7 +20,7 @@ PRODUCT_TYPE_MAP = {
 }
 
 class PensionPortfolioProcessor:
-    """מעבד קבצי XML של המסלקה לחילוץ נתוני תיק פנסיוני"""
+    """מעבד קבצי XML ו-DAT של המסלקה לחילוץ נתוני תיק פנסיוני"""
     
     def __init__(self):
         # יתרה - לפי הקוד המקורי, TOTAL-CHISACHON-MTZBR הוא השדה העיקרי
@@ -36,12 +36,16 @@ class PensionPortfolioProcessor:
             'PensionAccount', 'PensionPolicy', 'KupatGemel', 'BituachMenahalim', 'KerenPensia'
         ]
     
-    def process_xml_content(self, xml_content: str, file_name: str) -> List[dict]:
-        """עיבוד תוכן XML לחילוץ נתוני חשבונות פנסיוניים"""
+    def process_file_content(self, content: str, file_name: str) -> List[dict]:
+        """עיבוד תוכן XML או DAT לחילוץ נתוני חשבונות פנסיוניים"""
         try:
-            # ניקוי תוכן XML
-            xml_content = xml_content.replace('\x1a', '')
-            root = ET.fromstring(xml_content)
+            # ניקוי תוכן - הסרת תווים מיוחדים שעלולים להפריע לפרסור
+            content = content.replace('\x1a', '')  # תו EOF
+            content = content.replace('\x00', '')  # תו NULL
+            content = content.strip()
+            
+            # ניסיון לפרסר כ-XML
+            root = ET.fromstring(content)
             
             accounts = []
             account_elements = self._find_account_elements(root)
@@ -54,7 +58,44 @@ class PensionPortfolioProcessor:
             return accounts
             
         except ET.ParseError as e:
-            raise HTTPException(status_code=400, detail=f"שגיאה בניתוח XML בקובץ {file_name}: {str(e)}")
+            # אם הפרסור נכשל, ננסה טיפול חלופי
+            print(f"נסיון פרסור ישיר נכשל עבור {file_name}, מנסה עיבוד מתקדם...")
+            try:
+                # שלב 1: ניסיון לתקן XML פגום
+                fixed_content = self._try_fix_xml(content)
+                root = ET.fromstring(fixed_content)
+                
+                accounts = []
+                account_elements = self._find_account_elements(root)
+                
+                for account_elem in account_elements:
+                    account_data = self._extract_account_data(account_elem, file_name)
+                    if account_data:
+                        accounts.append(account_data)
+                
+                print(f"תיקון XML הצליח עבור {file_name}, נמצאו {len(accounts)} חשבונות")
+                return accounts
+                
+            except Exception as xml_fix_error:
+                # שלב 2: אם גם תיקון XML נכשל, נסה regex fallback
+                print(f"תיקון XML נכשל עבור {file_name}, מנסה חילוץ regex...")
+                try:
+                    accounts = self._extract_with_regex_fallback(content, file_name)
+                    if accounts:
+                        print(f"חילוץ regex הצליח עבור {file_name}, נמצאו {len(accounts)} חשבונות")
+                        return accounts
+                    else:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"לא הצלחתי לחלץ נתונים מקובץ {file_name}. הקובץ עשוי להיות פגום או בפורמט לא נתמך."
+                        )
+                except HTTPException:
+                    raise
+                except Exception as regex_error:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"שגיאה בניתוח קובץ {file_name}. פרסור XML נכשל: {str(e)}. תיקון נכשל: {str(xml_fix_error)}. חילוץ regex נכשל: {str(regex_error)}"
+                    )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"שגיאה בעיבוד קובץ {file_name}: {str(e)}")
     
@@ -92,6 +133,73 @@ class PensionPortfolioProcessor:
         return (elem.find('.//MISPAR-POLISA-O-HESHBON') is not None or
                 elem.find('.//MISPAR-HESHBON') is not None or
                 elem.find('.//MISPAR-POLISA') is not None)
+    
+    def _try_fix_xml(self, content: str) -> str:
+        """ניסיון לתקן XML פגום - טיפול בבעיות נפוצות בקבצי DAT"""
+        import re
+        
+        # הסרת תווים לא חוקיים נוספים (שמירה על תווי עברית)
+        content = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', content)
+        
+        # הוספת XML declaration אם חסר
+        if not content.strip().startswith('<?xml'):
+            content = '<?xml version="1.0" encoding="UTF-8"?>\n' + content
+        
+        # תיקון רווחים בתגיות
+        content = re.sub(r'<\s+', '<', content)
+        content = re.sub(r'\s+>', '>', content)
+        
+        # תיקון תגיות לא מאוזנות - ניסיון בסיסי
+        # מחפש תגיות פתיחה ללא סגירה מתאימה
+        try:
+            # ספירת תגיות פתיחה וסגירה
+            open_tags = re.findall(r'<([A-Za-z0-9\-]+)[^>]*>', content)
+            close_tags = re.findall(r'</([A-Za-z0-9\-]+)>', content)
+            
+            # אם יש תגיות פתיחה שאין להן סגירה, נוסיף תגית root
+            if len(open_tags) > len(close_tags):
+                # עטוף בתגית root אם אין כזו
+                if not re.search(r'<root', content, re.IGNORECASE):
+                    # מצא את סוף ה-XML declaration
+                    xml_decl_end = content.find('?>') + 2 if '?>' in content else 0
+                    before = content[:xml_decl_end]
+                    after = content[xml_decl_end:]
+                    content = before + '\n<root>\n' + after.strip() + '\n</root>'
+        except Exception:
+            pass  # אם נכשל, נשאיר את התוכן כמו שהוא
+        
+        return content
+    
+    def _extract_with_regex_fallback(self, content: str, file_name: str) -> List[dict]:
+        """חילוץ נתונים באמצעות regex כ-fallback כשפרסור XML נכשל"""
+        import re
+        
+        print(f"מנסה חילוץ regex עבור {file_name}...")
+        accounts = []
+        
+        # חיפוש דפוסי חשבונות באמצעות regex
+        # דוגמה: מחפש תגיות חשבון עם נתונים בסיסיים
+        account_patterns = [
+            r'<HeshbonOPolisa[^>]*>.*?</HeshbonOPolisa>',
+            r'<Heshbon[^>]*>.*?</Heshbon>',
+            r'<Account[^>]*>.*?</Account>'
+        ]
+        
+        for pattern in account_patterns:
+            matches = re.finditer(pattern, content, re.DOTALL | re.IGNORECASE)
+            for match in matches:
+                try:
+                    account_text = match.group(0)
+                    
+                    # ניסיון לפרסר את הקטע הספציפי
+                    account_elem = ET.fromstring(account_text)
+                    account_data = self._extract_account_data(account_elem, file_name)
+                    if account_data:
+                        accounts.append(account_data)
+                except Exception:
+                    continue
+        
+        return accounts
     
     def _extract_account_data(self, account_elem: ET.Element, file_name: str) -> Optional[dict]:
         """חילוץ נתוני חשבון מאלמנט XML"""
@@ -221,7 +329,7 @@ async def process_pension_xml_files(
     client_id: int,
     files: List[UploadFile] = File(...)
 ):
-    """עיבוד קבצי XML של המסלקה"""
+    """עיבוד קבצי XML ו-DAT של המסלקה"""
     
     if not files:
         raise HTTPException(status_code=400, detail="לא נבחרו קבצים")
@@ -229,24 +337,50 @@ async def process_pension_xml_files(
     processor = PensionPortfolioProcessor()
     all_accounts = []
     processed_files = []
+    skipped_files = []
     
     for file in files:
-        if not file.filename.lower().endswith('.xml'):
+        filename_lower = file.filename.lower()
+        
+        # תמיכה בקבצי XML ו-DAT
+        if not (filename_lower.endswith('.xml') or filename_lower.endswith('.dat')):
+            skipped_files.append({
+                'file': file.filename,
+                'reason': 'סוג קובץ לא נתמך (נדרש XML או DAT)'
+            })
             continue
         
         try:
             content = await file.read()
-            xml_content = content.decode('utf-8')
             
-            accounts = processor.process_xml_content(xml_content, file.filename)
+            # ניסיון לפענח עם קידודים שונים
+            file_content = None
+            for encoding in ['utf-8', 'windows-1255', 'iso-8859-8', 'latin1']:
+                try:
+                    file_content = content.decode(encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if file_content is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"לא הצלחתי לפענח את הקובץ {file.filename}. קידוד לא נתמך"
+                )
+            
+            accounts = processor.process_file_content(file_content, file.filename)
             all_accounts.extend(accounts)
             
             processed_files.append({
                 'file': file.filename,
+                'file_type': 'DAT' if filename_lower.endswith('.dat') else 'XML',
+                'accounts_count': len(accounts),
                 'accounts': accounts,
                 'processed_at': datetime.now().isoformat()
             })
             
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500, 
@@ -255,7 +389,10 @@ async def process_pension_xml_files(
     
     return {
         'total_accounts': len(all_accounts),
+        'processed_files_count': len(processed_files),
+        'skipped_files_count': len(skipped_files),
         'processed_files': processed_files,
+        'skipped_files': skipped_files,
         'accounts': all_accounts
     }
 

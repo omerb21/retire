@@ -181,6 +181,87 @@ The Rights Fixation System is maintained as a separate submodule. Use the setup 
 3. Run the scenario
    - Expected: HTTP 200 with scenario results including cashflow projection
 
+## Pension Portfolio Processing
+
+### File Format Support
+
+The system supports processing pension portfolio data files in two formats:
+- **XML files** - Standard XML format from clearing house (מסלקה)
+- **DAT files** - Manipulated XML files with DAT extension
+
+### Processing Features
+
+1. **Multi-encoding Support**: Automatically detects and handles various text encodings:
+   - UTF-8
+   - Windows-1255 (Hebrew)
+   - ISO-8859-8
+   - Latin1
+
+2. **Robust XML Parsing**: Three-tier parsing strategy:
+   - **Tier 1**: Direct XML parsing
+   - **Tier 2**: XML repair and retry (handles common DAT file issues)
+   - **Tier 3**: Regex fallback extraction for severely malformed files
+
+3. **Data Extraction**: Automatically extracts:
+   - Account numbers and plan names
+   - Managing companies
+   - Balances and dates
+   - Product types (pension fund, insurance policy, provident fund, education fund)
+   - Compensation components (current employer, after settlement, etc.)
+   - Benefits by period (pre-2000, post-2000, post-2008)
+
+### API Endpoint
+
+```bash
+# Process XML/DAT files
+POST /api/v1/clients/{client_id}/pension-portfolio/process-xml
+
+# Upload multiple files
+curl -X POST "http://localhost:8000/api/v1/clients/1/pension-portfolio/process-xml" \
+     -F "files=@file1.xml" \
+     -F "files=@file2.dat"
+```
+
+**Response:**
+```json
+{
+  "total_accounts": 15,
+  "processed_files_count": 2,
+  "skipped_files_count": 0,
+  "processed_files": [
+    {
+      "file": "pension_data.xml",
+      "file_type": "XML",
+      "accounts_count": 8,
+      "processed_at": "2025-01-14T15:30:00"
+    },
+    {
+      "file": "pension_data.dat",
+      "file_type": "DAT",
+      "accounts_count": 7,
+      "processed_at": "2025-01-14T15:30:01"
+    }
+  ],
+  "accounts": [...]
+}
+```
+
+### Frontend Usage
+
+In the Pension Portfolio page (`/clients/{id}/pension-portfolio`):
+1. Click "בחר קבצים" to select XML or DAT files
+2. System accepts both `.xml` and `.dat` extensions
+3. Processing status shown in real-time
+4. Results displayed in interactive table
+
+### Error Handling
+
+The system provides detailed error messages for:
+- **Unsupported file types**: Clear message about accepted formats
+- **Encoding issues**: Tries multiple encodings before failing
+- **Parse errors**: Attempts repair and fallback extraction
+- **Malformed files**: Specific error details for debugging
+
 ## Fixation API
 
 The Fixation API provides rights fixation calculations for clients.
