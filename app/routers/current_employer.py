@@ -243,6 +243,9 @@ def process_termination_decision(
         
         # Process exempt amount decision
         if decision.exempt_amount > 0:
+            print(f"🟡 PROCESSING EXEMPT AMOUNT: {decision.exempt_amount}")
+            print(f"🟡 exempt_choice = '{decision.exempt_choice}'")
+            
             if decision.exempt_choice == 'redeem_with_exemption':
                 # Create Grant for exempt amount
                 grant = Grant(
@@ -309,22 +312,20 @@ def process_termination_decision(
             
             elif decision.exempt_choice == 'annuity':
                 # Create Pension from exempt amount
-                # Calculate start date based on retirement age
-                if client.birth_date:
-                    age = (datetime.now().date() - client.birth_date).days // 365
-                    retirement_age = 67 if client.gender == 'male' else 64
-                    # For now, use termination date as start - will be adjusted in calculation
-                else:
-                    retirement_age = 67
+                print(f"🟡 CREATING PENSION FROM EXEMPT AMOUNT: {decision.exempt_amount}")
                 
                 pension = Pension(
                     client_id=client_id,
-                    payer_name=f"קצבה ממענק פיצויים ({ce.employer_name})",
+                    payer_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
                     start_date=decision.termination_date
                 )
                 db.add(pension)
                 db.flush()
-                result["created_pension_id"] = pension.id
+                
+                print(f"🟢 CREATED EXEMPT PENSION ID: {pension.id}")
+                
+                if not result.get("created_pension_id"):
+                    result["created_pension_id"] = pension.id
         
         # Process taxable amount decision  
         if decision.taxable_amount > 0:
@@ -363,14 +364,20 @@ def process_termination_decision(
             
             elif decision.taxable_choice == 'annuity':
                 # Create Pension from taxable amount
+                print(f"🔵 CREATING PENSION FROM TAXABLE AMOUNT: {decision.taxable_amount}")
+                
                 pension = Pension(
                     client_id=client_id,
-                    payer_name=f"קצבה ממענק פיצויים ({ce.employer_name})",
+                    payer_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
                     start_date=decision.termination_date
                 )
                 db.add(pension)
                 db.flush()
-                result["created_pension_id"] = pension.id
+                
+                print(f"🟢 CREATED TAXABLE PENSION ID: {pension.id}")
+                
+                if not result.get("created_pension_id"):
+                    result["created_pension_id"] = pension.id
         
         db.commit()
         
