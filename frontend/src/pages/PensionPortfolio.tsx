@@ -884,7 +884,7 @@ export default function PensionPortfolio() {
             type: 'pension_portfolio',
             account_name: account.שם_תכנית,
             company: account.חברה_מנהלת,
-            account_number: account.מספר_תכנית,
+            account_number: account.מספר_חשבון,
             product_type: account.סוג_מוצר,
             amount: amountToConvert,
             specific_amounts: specificAmounts,
@@ -961,7 +961,7 @@ export default function PensionPortfolio() {
             type: 'pension_portfolio',
             account_name: account.שם_תכנית,
             company: account.חברה_מנהלת,
-            account_number: account.מספר_תכנית,
+            account_number: account.מספר_חשבון,
             product_type: account.סוג_מוצר,
             amount: amountToConvert,
             specific_amounts: specificAmounts,
@@ -1004,39 +1004,35 @@ export default function PensionPortfolio() {
 
       
       // עדכון הנתונים בטבלה - הפחתת הסכומים שהומרו
-      setPensionData(prev => {
-        return prev.map((account, index) => {
-          const conversion = [...pensionConversions, ...capitalAssetConversions].find(c => c.index === index);
-          
-          if (!conversion) return account; // לא הומר כלום
-          
-          const {amountToConvert, specificAmounts} = conversion;
-          
-          // אם כל התכנית הומרה - הסר אותה לגמרי
-          if (account.selected) {
-            return null; // יוסר בסינון
+      const updatedPensionData = pensionData.map((account, index) => {
+        const conversion = [...pensionConversions, ...capitalAssetConversions].find(c => c.index === index);
+        
+        if (!conversion) return account; // לא הומר כלום
+        
+        const {amountToConvert, specificAmounts} = conversion;
+        
+        // יצירת עותק מעודכן של החשבון
+        const updatedAccount = {...account};
+        
+        // הפחתת הסכומים הספציפיים שהומרו
+        Object.keys(specificAmounts).forEach(key => {
+          if ((updatedAccount as any)[key]) {
+            (updatedAccount as any)[key] = 0; // מאפס את השדה שהומר
           }
-          
-          // אם רק סכומים ספציפיים הומרו - הפחת אותם
-          const updatedAccount = {...account};
-          
-          // הפחתת הסכומים הספציפיים שהומרו
-          Object.keys(specificAmounts).forEach(key => {
-            if ((updatedAccount as any)[key]) {
-              (updatedAccount as any)[key] = 0; // מאפס את השדה שהומר
-            }
-          });
-          
-          // הפחתת הסכום מהיתרה הכללית
-          updatedAccount.יתרה = (updatedAccount.יתרה || 0) - amountToConvert;
-          
-          // איפוס הסימונים
-          updatedAccount.selected = false;
-          updatedAccount.selected_amounts = {};
-          
-          return updatedAccount;
-        }).filter(account => account !== null); // הסרת התכניות שהומרו לגמרי
-      });
+        });
+        
+        // הפחתת הסכום מהיתרה הכללית
+        updatedAccount.יתרה = (updatedAccount.יתרה || 0) - amountToConvert;
+        
+        // איפוס הסימונים
+        updatedAccount.selected = false;
+        updatedAccount.selected_amounts = {};
+        
+        return updatedAccount;
+      }); // לא מסננים - שומרים את כל החשבונות גם עם יתרה 0
+      
+      // עדכון ה-state
+      setPensionData(updatedPensionData);
       
       // עדכון רשימת התכניות שהומרו
       const allConvertedAccounts = [...pensionConversions, ...capitalAssetConversions];
@@ -1044,18 +1040,16 @@ export default function PensionPortfolio() {
         `${conversion.account.מספר_חשבון}_${conversion.account.שם_תכנית}_${conversion.account.חברה_מנהלת}`
       );
       
-      setConvertedAccounts(prev => {
-        const newSet = new Set(prev);
-        convertedIds.forEach((id: string) => newSet.add(id));
-        return newSet;
-      });
+      const updatedConvertedAccounts = new Set(convertedAccounts);
+      convertedIds.forEach((id: string) => updatedConvertedAccounts.add(id));
+      setConvertedAccounts(updatedConvertedAccounts);
       
       // ניקוי סוגי ההמרה של התכניות שהומרו
       setConversionTypes({});
       
-      // שמירה ל-localStorage
-      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(pensionData));
-      localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(Array.from(convertedAccounts)));
+      // שמירה ל-localStorage עם הנתונים המעודכנים
+      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(updatedPensionData));
+      localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(Array.from(updatedConvertedAccounts)));
       
       // הודעות הצלחה
       let successMessage = "הומרה בהצלחה!\n";
@@ -1086,8 +1080,14 @@ export default function PensionPortfolio() {
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
-        setPensionData(parsedData);
-        setProcessingStatus(`נטענו ${parsedData.length} תכניות פנסיוניות שמורות`);
+        // עדכון רק אם יש שינוי בנתונים
+        const currentDataStr = JSON.stringify(pensionData);
+        const newDataStr = JSON.stringify(parsedData);
+        if (currentDataStr !== newDataStr) {
+          console.log('Pension data changed in localStorage, reloading...');
+          setPensionData(parsedData);
+          setProcessingStatus(`נטענו ${parsedData.length} תכניות פנסיוניות שמורות`);
+        }
       }
       
       if (savedConvertedAccounts) {
@@ -1095,12 +1095,14 @@ export default function PensionPortfolio() {
         setConvertedAccounts(new Set(parsedConverted));
       }
       
-      if (!savedData) {
+      if (!savedData && pensionData.length === 0) {
         setProcessingStatus("טען קבצי XML כדי לראות את התיק הפנסיוני");
       }
     } catch (e) {
       console.log("No existing data found in localStorage");
-      setProcessingStatus("טען קבצי XML כדי לראות את התיק הפנסיוני");
+      if (pensionData.length === 0) {
+        setProcessingStatus("טען קבצי XML כדי לראות את התיק הפנסיוני");
+      }
     }
   };
 
@@ -1198,6 +1200,38 @@ export default function PensionPortfolio() {
   useEffect(() => {
     loadExistingData();
     loadClientData();
+  }, [clientId]);
+
+  // טעינה מחדש כשחוזרים לדף (למשל אחרי מחיקת נכס)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('Window focused, checking for updates...');
+      const savedData = localStorage.getItem(`pensionData_${clientId}`);
+      if (savedData) {
+        const parsedData = JSON.parse(savedData);
+        setPensionData(parsedData);
+      }
+    };
+    
+    // טעינה מחדש כשהדף הופך לגלוי
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Page became visible, checking for updates...');
+        const savedData = localStorage.getItem(`pensionData_${clientId}`);
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          setPensionData(parsedData);
+        }
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [clientId]);
 
   return (

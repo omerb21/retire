@@ -215,24 +215,36 @@ export default function CapitalAssets() {
   }
 
   async function handleDelete(assetId: number) {
-    if (!clientId) return;
+    console.log('🔴 handleDelete called with assetId:', assetId);
+    if (!clientId) {
+      console.log('❌ No clientId, returning');
+      return;
+    }
     
     if (!confirm("האם אתה בטוח שברצונך למחוק את נכס ההון?")) {
+      console.log('❌ User cancelled deletion');
       return;
     }
 
+    console.log('✅ Starting deletion process...');
     try {
       // קבלת פרטי הנכס לפני המחיקה
       const asset = assets.find(a => a.id === assetId);
+      console.log('=== DELETE ASSET DEBUG ===');
+      console.log('Asset found:', asset);
+      console.log('Has conversion_source?', !!(asset as any)?.conversion_source);
+      console.log('conversion_source value:', (asset as any)?.conversion_source);
       
       // בדיקה אם יש מידע על מקור המרה
       if (asset && (asset as any).conversion_source) {
         try {
           const conversionSource = JSON.parse((asset as any).conversion_source);
+          console.log('Parsed conversion_source:', conversionSource);
+          console.log('Type:', conversionSource.type);
           
           // אם זו המרה מתיק פנסיוני - נחזיר את הסכומים למקור
           if (conversionSource.type === 'pension_portfolio') {
-            console.log('Restoring amounts to pension portfolio:', conversionSource);
+            console.log('✅ Restoring amounts to pension portfolio:', conversionSource);
             
             // קריאה ל-API להחזרת הסכומים
             await apiFetch(`/clients/${clientId}/pension-portfolio/restore`, {
@@ -254,15 +266,26 @@ export default function CapitalAssets() {
             if (storedData) {
               try {
                 const pensionData = JSON.parse(storedData);
+                console.log('Looking for account:', {
+                  name: conversionSource.account_name,
+                  company: conversionSource.company,
+                  number: conversionSource.account_number
+                });
+                console.log('Available accounts:', pensionData.map((acc: any) => ({
+                  name: acc.שם_תכנית,
+                  company: acc.חברה_מנהלת,
+                  number: acc.מספר_חשבון
+                })));
                 
                 // חיפוש החשבון המתאים
                 const accountIndex = pensionData.findIndex((acc: any) => 
                   acc.שם_תכנית === conversionSource.account_name &&
                   acc.חברה_מנהלת === conversionSource.company &&
-                  acc.מספר_תכנית === conversionSource.account_number
+                  acc.מספר_חשבון === conversionSource.account_number
                 );
                 
                 if (accountIndex !== -1) {
+                  console.log('Found account at index:', accountIndex);
                   // החזרת הסכומים לשדות הספציפיים
                   if (conversionSource.specific_amounts && Object.keys(conversionSource.specific_amounts).length > 0) {
                     Object.entries(conversionSource.specific_amounts).forEach(([key, value]) => {
@@ -277,11 +300,14 @@ export default function CapitalAssets() {
                   localStorage.setItem(storageKey, JSON.stringify(pensionData));
                   console.log('Successfully restored amounts to pension portfolio in localStorage');
                 } else {
-                  console.warn('Account not found in localStorage, amounts not restored to table');
+                  console.error('Account NOT found in localStorage!');
+                  console.error('Searching for:', conversionSource);
                 }
               } catch (storageError) {
                 console.error('Error updating localStorage:', storageError);
               }
+            } else {
+              console.error('No pension data found in localStorage!');
             }
             
             console.log('Successfully restored amounts to pension portfolio');

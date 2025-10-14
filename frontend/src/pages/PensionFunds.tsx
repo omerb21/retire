@@ -363,7 +363,7 @@ export default function PensionFunds() {
                 const accountIndex = pensionData.findIndex((acc: any) => 
                   acc.שם_תכנית === conversionSource.account_name &&
                   acc.חברה_מנהלת === conversionSource.company &&
-                  acc.מספר_תכנית === conversionSource.account_number
+                  acc.מספר_חשבון === conversionSource.account_number
                 );
                 
                 if (accountIndex !== -1) {
