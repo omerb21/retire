@@ -206,6 +206,14 @@ const SimpleCurrentEmployer: React.FC = () => {
   // Calculate termination details when termination date is set
   useEffect(() => {
     const calculateTermination = async () => {
+      // Validate that date is complete (DD/MM/YYYY = 10 characters)
+      if (!terminationDecision.termination_date || 
+          terminationDecision.termination_date.length < 10 ||
+          !employer.start_date || 
+          !employer.last_salary) {
+        return;
+      }
+      
       if (terminationDecision.termination_date && employer.start_date && employer.last_salary) {
         // Parse dates properly - handle both DD/MM/YYYY and ISO formats
         let startDateISO = employer.start_date;
@@ -283,7 +291,12 @@ const SimpleCurrentEmployer: React.FC = () => {
       }
     };
     
-    calculateTermination();
+    // Add debouncing to avoid excessive API calls while user is typing
+    const timeoutId = setTimeout(() => {
+      calculateTermination();
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
   }, [terminationDecision.termination_date, terminationDecision.use_employer_completion, employer.start_date, employer.last_salary, employer.severance_accrued]);
 
   const handleTerminationSubmit = async () => {
