@@ -16,7 +16,7 @@ from app.schemas.current_employer import (
     TerminationDecisionCreate, TerminationDecisionOut
 )
 from app.models.grant import Grant
-from app.models.pension import Pension
+from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 
 router = APIRouter()
@@ -311,21 +311,28 @@ def process_termination_decision(
                 result["created_capital_asset_id"] = capital_asset.id
             
             elif decision.exempt_choice == 'annuity':
-                # Create Pension from exempt amount
-                print(f"🟡 CREATING PENSION FROM EXEMPT AMOUNT: {decision.exempt_amount}")
+                # Create PensionFund from exempt amount (regular pension fund, not special)
+                print(f"🟡 CREATING PENSION FUND FROM EXEMPT AMOUNT: {decision.exempt_amount}")
                 
-                pension = Pension(
+                # Convert annual amount to monthly
+                monthly_amount = decision.exempt_amount / 12
+                
+                pension_fund = PensionFund(
                     client_id=client_id,
-                    payer_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
-                    start_date=decision.termination_date
+                    fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
+                    fund_type="monthly_pension",
+                    input_mode="manual",
+                    monthly_amount=monthly_amount,
+                    pension_start_date=decision.termination_date,
+                    indexation_method="none"
                 )
-                db.add(pension)
+                db.add(pension_fund)
                 db.flush()
                 
-                print(f"🟢 CREATED EXEMPT PENSION ID: {pension.id}")
+                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, monthly: {monthly_amount}")
                 
                 if not result.get("created_pension_id"):
-                    result["created_pension_id"] = pension.id
+                    result["created_pension_id"] = pension_fund.id
         
         # Process taxable amount decision  
         if decision.taxable_amount > 0:
@@ -363,21 +370,28 @@ def process_termination_decision(
                     result["created_capital_asset_id"] = capital_asset.id
             
             elif decision.taxable_choice == 'annuity':
-                # Create Pension from taxable amount
-                print(f"🔵 CREATING PENSION FROM TAXABLE AMOUNT: {decision.taxable_amount}")
+                # Create PensionFund from taxable amount (regular pension fund, not special)
+                print(f"🔵 CREATING PENSION FUND FROM TAXABLE AMOUNT: {decision.taxable_amount}")
                 
-                pension = Pension(
+                # Convert annual amount to monthly
+                monthly_amount = decision.taxable_amount / 12
+                
+                pension_fund = PensionFund(
                     client_id=client_id,
-                    payer_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
-                    start_date=decision.termination_date
+                    fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
+                    fund_type="monthly_pension",
+                    input_mode="manual",
+                    monthly_amount=monthly_amount,
+                    pension_start_date=decision.termination_date,
+                    indexation_method="none"
                 )
-                db.add(pension)
+                db.add(pension_fund)
                 db.flush()
                 
-                print(f"🟢 CREATED TAXABLE PENSION ID: {pension.id}")
+                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, monthly: {monthly_amount}")
                 
                 if not result.get("created_pension_id"):
-                    result["created_pension_id"] = pension.id
+                    result["created_pension_id"] = pension_fund.id
         
         db.commit()
         

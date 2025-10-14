@@ -68,6 +68,7 @@ export default function PensionFunds() {
     setError("");
     
     try {
+      // Load pension funds (includes all pensions from termination decisions)
       const data = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
       console.log("Loaded pension funds:", data);
       
@@ -535,7 +536,7 @@ export default function PensionFunds() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>{editingFundId ? 'ערוך קצבה' : 'הוסף קצבה'}</h3>
+        <h3>{editingFundId ? 'ערוך תיק פנסיוני' : 'הוסף תיק פנסיוני'}</h3>
         
         {clientData && clientData.birth_date && (
           <div style={{ marginBottom: 10, fontSize: "0.9em", color: "#666" }}>
