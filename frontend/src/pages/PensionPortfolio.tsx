@@ -49,6 +49,7 @@ export default function PensionPortfolio() {
   const [convertedAccounts, setConvertedAccounts] = useState<Set<string>>(new Set()); // זיכרון תכניות שהומרו
   const [conversionTypes, setConversionTypes] = useState<Record<number, 'pension' | 'capital_asset'>>({}); // סוגי המרה לפי אינדקס
   const [clientData, setClientData] = useState<any>(null); // נתוני הלקוח
+  const [xmlClientData, setXmlClientData] = useState<{firstName?: string, lastName?: string, idNumber?: string} | null>(null); // נתוני לקוח מ-XML
   const [editingCell, setEditingCell] = useState<{row: number, field: string} | null>(null); // תא בעריכה
 
   // פונקציה לעיבוד קבצי XML של המסלקה
@@ -62,6 +63,7 @@ export default function PensionPortfolio() {
 
     try {
       const processedAccounts: PensionAccount[] = [];
+      let extractedClientData: {firstName?: string, lastName?: string, idNumber?: string} | null = null;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -72,6 +74,16 @@ export default function PensionPortfolio() {
         setProcessingStatus(`מעבד קובץ ${i + 1} מתוך ${files.length}: ${file.name}`);
 
         const text = await file.text();
+        
+        // חילוץ נתוני לקוח מהקובץ הראשון
+        if (i === 0) {
+          extractedClientData = extractClientDataFromXML(text);
+          if (extractedClientData) {
+            setXmlClientData(extractedClientData);
+            localStorage.setItem(`xmlClientData_${clientId}`, JSON.stringify(extractedClientData));
+          }
+        }
+        
         const accounts = extractAccountsFromXML(text, file.name);
         console.log(`File ${file.name} produced ${accounts.length} accounts`);
         processedAccounts.push(...accounts);
@@ -97,6 +109,67 @@ export default function PensionPortfolio() {
       setProcessingStatus("");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // פונקציה לחילוץ נתוני לקוח מ-XML
+  const extractClientDataFromXML = (xmlContent: string): {firstName?: string, lastName?: string, idNumber?: string} | null => {
+    try {
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+      
+      // Debug: הדפסת כל התגיות שמתחילות ב-SHEM
+      const allElements = xmlDoc.getElementsByTagName('*');
+      const shemTags: string[] = [];
+      for (let i = 0; i < Math.min(allElements.length, 100); i++) {
+        const tagName = allElements[i].tagName;
+        if (tagName.includes('SHEM') || tagName.includes('NAME') || tagName.includes('LAKOACH')) {
+          const content = allElements[i].textContent?.trim().substring(0, 50);
+          shemTags.push(`${tagName}: "${content}"`);
+        }
+      }
+      console.log('🔍 Tags containing SHEM/NAME/LAKOACH:', shemTags);
+      
+      // ניסיון למצוא שם פרטי בתגיות שונות
+      let firstName = xmlDoc.getElementsByTagName('SHEM-PRATI')[0]?.textContent?.trim() ||
+                      xmlDoc.getElementsByTagName('SHEM_PRATI')[0]?.textContent?.trim() ||
+                      xmlDoc.getElementsByTagName('FirstName')[0]?.textContent?.trim() ||
+                      xmlDoc.getElementsByTagName('FIRST-NAME')[0]?.textContent?.trim();
+      
+      // ניסיון למצוא שם משפחה בתגיות שונות
+      let lastName = xmlDoc.getElementsByTagName('SHEM-MISHPACHA')[0]?.textContent?.trim() ||
+                     xmlDoc.getElementsByTagName('SHEM_MISHPACHA')[0]?.textContent?.trim() ||
+                     xmlDoc.getElementsByTagName('LastName')[0]?.textContent?.trim() ||
+                     xmlDoc.getElementsByTagName('LAST-NAME')[0]?.textContent?.trim();
+      
+      // אם לא נמצא שם, ננסה לחלץ מתגית SHEM-LAKOACH (שם מלא)
+      if (!firstName && !lastName) {
+        const fullName = xmlDoc.getElementsByTagName('SHEM-LAKOACH')[0]?.textContent?.trim() ||
+                        xmlDoc.getElementsByTagName('SHEM_LAKOACH')[0]?.textContent?.trim();
+        if (fullName) {
+          const parts = fullName.split(' ');
+          if (parts.length >= 2) {
+            firstName = parts[0];
+            lastName = parts.slice(1).join(' ');
+          }
+        }
+      }
+      
+      const idNumber = xmlDoc.getElementsByTagName('MISPAR-ZIHUY-LAKOACH')[0]?.textContent?.trim() ||
+                      xmlDoc.getElementsByTagName('MISPAR_ZIHUY_LAKOACH')[0]?.textContent?.trim() ||
+                      xmlDoc.getElementsByTagName('ID-NUMBER')[0]?.textContent?.trim();
+      
+      console.log('Extracted client data from XML:', JSON.stringify({ firstName, lastName, idNumber }));
+      
+      if (firstName || lastName || idNumber) {
+        return { firstName, lastName, idNumber };
+      }
+      
+      console.warn('No client data found in XML. Checked multiple tag variations.');
+      return null;
+    } catch (e) {
+      console.warn('Failed to extract client data from XML:', e);
+      return null;
     }
   };
 
@@ -1202,6 +1275,12 @@ export default function PensionPortfolio() {
   useEffect(() => {
     loadExistingData();
     loadClientData();
+    
+    // טעינת נתוני לקוח מ-XML מ-localStorage
+    const savedXmlClientData = localStorage.getItem(`xmlClientData_${clientId}`);
+    if (savedXmlClientData) {
+      setXmlClientData(JSON.parse(savedXmlClientData));
+    }
   }, [clientId]);
 
   // טעינה מחדש כשחוזרים לדף (למשל אחרי מחיקת נכס)
@@ -1242,7 +1321,7 @@ export default function PensionPortfolio() {
         <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
       </div>
       
-      <h2>תיק פנסיוני{clientData && ` - ${clientData.first_name} ${clientData.last_name} (ת.ז: ${clientData.id_number})`}</h2>
+      <h2>תיק פנסיוני{xmlClientData?.idNumber && ` - ת.ז: ${xmlClientData.idNumber}`}{xmlClientData?.firstName && xmlClientData?.lastName && ` (${xmlClientData.firstName} ${xmlClientData.lastName})`}</h2>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
