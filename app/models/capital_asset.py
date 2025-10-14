@@ -13,12 +13,16 @@ from app.database import Base
 
 class AssetType(str, Enum):
     """Types of capital assets."""
+    RENTAL_PROPERTY = "rental_property"
+    INVESTMENT = "investment"
     STOCKS = "stocks"
     BONDS = "bonds"
     MUTUAL_FUNDS = "mutual_funds"
     REAL_ESTATE = "real_estate"
     SAVINGS_ACCOUNT = "savings_account"
     DEPOSITS = "deposits"
+    PROVIDENT_FUND = "provident_fund"  # קופת גמל
+    EDUCATION_FUND = "education_fund"  # קרן השתלמות
     OTHER = "other"
 
 
@@ -41,6 +45,8 @@ class TaxTreatment(str, Enum):
     EXEMPT = "exempt"
     TAXABLE = "taxable"
     FIXED_RATE = "fixed_rate"
+    CAPITAL_GAINS = "capital_gains"
+    TAX_SPREAD = "tax_spread"  # פריסת מס
 
 
 class CapitalAsset(Base):
@@ -52,9 +58,13 @@ class CapitalAsset(Base):
     client_id = Column(Integer, ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True)
     
     # Asset details
+    asset_name = Column(String(255), nullable=True)  # שם הנכס
     asset_type = Column(String(50), nullable=False)
     description = Column(String(255), nullable=True)
     current_value = Column(Numeric(15, 2), nullable=False)
+    monthly_income = Column(Numeric(15, 2), nullable=True)  # תשלום חודשי
+    rental_income = Column(Numeric(15, 2), nullable=True)  # הכנסה משכירות (לתאימות לאחור)
+    monthly_rental_income = Column(Numeric(15, 2), nullable=True)  # הכנסה חודשית משכירות (לתאימות לאחור)
     annual_return_rate = Column(Numeric(5, 4), nullable=False)
     payment_frequency = Column(String(20), nullable=False)
     
@@ -69,9 +79,13 @@ class CapitalAsset(Base):
     # Tax treatment
     tax_treatment = Column(String(20), nullable=False, default="taxable", server_default="taxable")
     tax_rate = Column(Numeric(5, 4), nullable=True)  # For fixed rate tax
+    spread_years = Column(Integer, nullable=True)  # Number of years for tax spread
     
     # Metadata
     remarks = Column(String(500), nullable=True)
+    
+    # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
+    conversion_source = Column(String(1000), nullable=True)  # JSON עם פרטי המקור
     
     # Relationships
     client = relationship("Client", back_populates="capital_assets")

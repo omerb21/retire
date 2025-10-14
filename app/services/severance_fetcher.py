@@ -146,7 +146,7 @@ def get_current_severance_cap_real():
     """
     try:
         # Try to fetch from our tax data API
-        url = "http://localhost:8000/api/v1/tax-data/severance-cap"
+        url = "http://localhost:8005/api/v1/tax-data/severance-cap"
         row = fetch_and_normalize_severance(
             url, 
             prefer_keys=["monthly_cap", "severance_cap", "cap"]

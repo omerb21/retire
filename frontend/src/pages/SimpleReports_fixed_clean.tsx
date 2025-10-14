@@ -60,7 +60,7 @@ const SimpleReportsFixed: React.FC = () => {
       
       try {
         setLoading(true);
-        const response = await axios.get(`http://localhost:8005/api/v1/clients/${id}`);
+        const response = await axios.get(`/api/v1/clients/${id}`);
         setClient(response.data);
       } catch (err: any) {
         setError('שגיאה בטעינת נתוני לקוח: ' + err.message);

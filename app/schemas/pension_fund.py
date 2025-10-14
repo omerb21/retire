@@ -13,6 +13,8 @@ class PensionFundBase(BaseModel):
     indexation_method: Literal["none", "cpi", "fixed"]
     fixed_index_rate: Optional[float] = None
     remarks: Optional[str] = None
+    deduction_file: Optional[str] = None
+    conversion_source: Optional[str] = None  # JSON עם פרטי מקור ההמרה
 
 class PensionFundCreate(PensionFundBase):
     client_id: int

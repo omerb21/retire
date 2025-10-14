@@ -10,6 +10,9 @@ import SimpleFixation from "./pages/SimpleFixation";
 import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
 import SimpleGrants from "./pages/SimpleGrants";
 import SimpleReports from "./pages/SimpleReports";
+import SystemSettings from "./pages/SystemSettings";
+import PensionPortfolio from "./pages/PensionPortfolio";
+import ConversionRulesSettings from "./pages/ConversionRulesSettings";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
@@ -17,8 +20,9 @@ const ClientDetails = () => {
     <div>
       <h2>פרטי לקוח</h2>
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קרנות פנסיה</a>
-        <a href={`/clients/${clientId}/additional-income`} style={moduleButtonStyle}>הכנסות נוספות</a>
+        <a href={`/clients/${clientId}/pension-portfolio`} style={moduleButtonStyle}>תיק פנסיוני</a>
+        <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
+        <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
         <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
@@ -51,14 +55,17 @@ export default function App() {
           <nav style={{ display: "flex", gap: 16 }}>
             <NavLink to="/clients">לקוחות</NavLink>
             <NavLink to="/tools">כלי בדיקה</NavLink>
+            <NavLink to="/system-settings">הגדרות מערכת</NavLink>
+            <NavLink to="/conversion-rules">חוקי המרה</NavLink>
           </nav>
         </header>
         <main style={{ padding: 16 }}>
           <Routes>
             <Route path="/clients" element={<Clients />} />
             <Route path="/clients/:id" element={<ClientDetails />} />
+            <Route path="/clients/:id/pension-portfolio" element={<PensionPortfolio />} />
             <Route path="/clients/:id/pension-funds" element={<PensionFunds />} />
-            <Route path="/clients/:id/additional-income" element={<AdditionalIncome />} />
+            <Route path="/clients/:id/additional-incomes" element={<AdditionalIncome />} />
             <Route path="/clients/:id/capital-assets" element={<CapitalAssets />} />
             <Route path="/clients/:id/current-employer" element={<SimpleCurrentEmployer />} />
             <Route path="/clients/:id/grants" element={<SimpleGrants />} />
@@ -66,6 +73,8 @@ export default function App() {
             <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
             <Route path="/clients/:id/reports" element={<SimpleReports />} />
             <Route path="/tools" element={<Tools />} />
+            <Route path="/system-settings" element={<SystemSettings />} />
+            <Route path="/conversion-rules" element={<ConversionRulesSettings />} />
             <Route path="/" element={<Clients />} />
             <Route path="*" element={<Clients />} />
           </Routes>

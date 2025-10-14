@@ -1,6 +1,28 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY, validateDDMMYY } from '../utils/dateUtils';
 import { listClients, createClient, ClientItem } from "../lib/api";
+
+// פונקציה לחישוב תאריך קצבה לפי תאריך לידה ומגדר
+function calculatePensionStartDate(client: ClientItem) {
+  if (!client.birth_date) return "";
+  
+  try {
+    const birthDate = new Date(client.birth_date);
+    const retirementAge = client.gender?.toLowerCase() === "female" ? 62 : 67;
+    
+    // חישוב תאריך הפרישה
+    const retirementDate = new Date(birthDate);
+    retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+    
+    // החזרת התאריך בפורמט YYYY-MM-DD
+    return formatDateToDDMMYY(retirementDate);
+  } catch (error) {
+    console.error("Error calculating pension start date:", error);
+    return "";
+  }
+}
 
 export default function Clients() {
   const [items, setItems] = useState<ClientItem[]>([]);
@@ -9,7 +31,7 @@ export default function Clients() {
     id_number: "",
     first_name: "",
     last_name: "",
-    birth_date: new Date().toISOString().split('T')[0], // Default to today
+    birth_date: formatDateToDDMMYY(new Date()), // Default to today
     gender: "male", // Default to male
     email: "",
     phone: "",
@@ -18,6 +40,7 @@ export default function Clients() {
     address_postal_code: "",
     pension_start_date: "",
     tax_credit_points: 0,
+    marital_status: "", // שדה חדש - מצב משפחתי
   });
   const [msg, setMsg] = useState<string>("");
   const [editingClient, setEditingClient] = useState<ClientItem | null>(null);
@@ -33,17 +56,62 @@ export default function Clients() {
     address_city: "",
     address_postal_code: "",
     pension_start_date: "",
-    tax_credit_points: 0
+    tax_credit_points: 0,
+    marital_status: "" // שדה חדש - מצב משפחתי
   });
 
   async function refresh() {
     setLoading(true);
     setMsg("");
     try {
-      const data = await listClients();
-      setItems(data || []);
+      // נסיון לטעון את הלקוחות עם טיפול בשגיאות משופר
+      try {
+        const data = await listClients();
+        console.log("Clients loaded successfully:", data);
+        setItems(data || []);
+        setMsg(`✅ טעינה הצליחה! נמצאו ${data?.length || 0} לקוחות`);
+      } catch (apiError: any) {
+        console.error("Error with listClients API:", apiError);
+        
+        // נסיון ישיר לשרת עם טיפול בשגיאות מפורט יותר
+        try {
+          const testResponse = await fetch('/api/v1/clients');
+          console.log("Direct fetch status:", testResponse.status);
+          
+          if (!testResponse.ok) {
+            throw new Error(`שגיאת HTTP: ${testResponse.status} ${testResponse.statusText}`);
+          }
+          
+          // נסיון לקרוא את התגובה כ-JSON עם טיפול בשגיאות
+          try {
+            const testData = await testResponse.text();
+            console.log("Raw response:", testData);
+            
+            if (testData) {
+              try {
+                const jsonData = JSON.parse(testData);
+                console.log("Parsed JSON data:", jsonData);
+                setItems(jsonData || []);
+                setMsg(`✅ טעינה הצליחה! נמצאו ${jsonData?.length || 0} לקוחות`);
+              } catch (jsonError) {
+                console.error("JSON parsing error:", jsonError);
+                setMsg(`שגיאה בפענוח תגובת השרת: תגובה לא תקינה`);
+              }
+            } else {
+              setMsg("שגיאה: התקבלה תגובה ריקה מהשרת");
+            }
+          } catch (textError) {
+            console.error("Error reading response text:", textError);
+            setMsg("שגיאה בקריאת תגובת השרת");
+          }
+        } catch (fetchError: any) {
+          console.error("Direct fetch error:", fetchError);
+          setMsg("שגיאת חיבור לשרת: " + (fetchError?.message || fetchError));
+        }
+      }
     } catch (e: any) {
-      setMsg("שגיאה בטעינת לקוחות: " + (e?.message || e));
+      console.error("Unhandled error in refresh:", e);
+      setMsg("שגיאה כללית בטעינת לקוחות: " + (e?.message || e));
     } finally {
       setLoading(false);
     }
@@ -58,7 +126,7 @@ export default function Clients() {
     
     try {
       setMsg("");
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}`, {
+      const response = await fetch(`/api/v1/clients/${clientId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +141,7 @@ export default function Clients() {
       refresh();
     } catch (e: any) {
       console.error("Delete error:", e);
-      setMsg("❌ כשל במחיקת לקוח: " + (e?.message || e));
+      setMsg(`❌ שגיאה במחיקת לקוח: ${e.message}`);
     }
   }
 
@@ -83,15 +151,16 @@ export default function Clients() {
       id_number: client.id_number || "",
       first_name: client.first_name || "",
       last_name: client.last_name || "",
-      birth_date: client.birth_date || "",
+      birth_date: client.birth_date ? convertISOToDDMMYY(client.birth_date) : "",
       gender: client.gender || "male",
       email: client.email || "",
       phone: client.phone || "",
       address_street: (client as any).address_street || "",
       address_city: (client as any).address_city || "",
       address_postal_code: (client as any).address_postal_code || "",
-      pension_start_date: (client as any).pension_start_date || "",
-      tax_credit_points: (client as any).tax_credit_points || 0
+      pension_start_date: "", // שדה לא בשימוש - יחושב אוטומטית לפי גיל פרישה
+      tax_credit_points: (client as any).tax_credit_points || 0,
+      marital_status: (client as any).marital_status || ""
     });
   }
 
@@ -109,7 +178,8 @@ export default function Clients() {
       address_city: "",
       address_postal_code: "",
       pension_start_date: "",
-      tax_credit_points: 0
+      tax_credit_points: 0,
+      marital_status: ""
     });
   }
 
@@ -125,7 +195,13 @@ export default function Clients() {
       if (!editForm.last_name) throw new Error('חובה למלא שם משפחה');
       if (!editForm.birth_date) throw new Error('חובה למלא תאריך לידה');
       
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${editingClient.id}`, {
+      // Convert birth_date from DD/MM/YYYY to ISO format
+      const birthDateISO = convertDDMMYYToISO(editForm.birth_date);
+      if (!birthDateISO) {
+        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YYYY');
+      }
+      
+      const response = await fetch(`/api/v1/clients/${editingClient.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -134,15 +210,16 @@ export default function Clients() {
           id_number: editForm.id_number.trim(),
           first_name: editForm.first_name.trim(),
           last_name: editForm.last_name.trim(),
-          birth_date: editForm.birth_date,
+          birth_date: birthDateISO,
           gender: editForm.gender,
           email: editForm.email || null,
           phone: editForm.phone || null,
           address_street: editForm.address_street || null,
           address_city: editForm.address_city || null,
           address_postal_code: editForm.address_postal_code || null,
-          pension_start_date: editForm.pension_start_date || null,
-          tax_credit_points: editForm.tax_credit_points || 0
+          pension_start_date: null, // שדה לא בשימוש - יחושב אוטומטית לפי גיל פרישה
+          tax_credit_points: editForm.tax_credit_points || 0,
+          marital_status: editForm.marital_status || null
         })
       });
       
@@ -169,8 +246,14 @@ export default function Clients() {
       if (!form.last_name) throw new Error('חובה למלא שם משפחה');
       if (!form.birth_date) throw new Error('חובה למלא תאריך לידה');
       
+      // Convert birth_date from DD/MM/YYYY to ISO format
+      const birthDateISO = convertDDMMYYToISO(form.birth_date);
+      if (!birthDateISO) {
+        throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YYYY');
+      }
+      
       // Birth date validation (age between 18-120)
-      const birthDate = new Date(form.birth_date);
+      const birthDate = new Date(birthDateISO);
       const today = new Date();
       
       // Calculate min and max birth dates
@@ -196,15 +279,16 @@ export default function Clients() {
         id_number: form.id_number.trim(),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
-        birth_date: form.birth_date,
+        birth_date: birthDateISO,
         gender: form.gender,
         email: form.email || null,
         phone: form.phone || null,
         address_street: form.address_street || null,
         address_city: form.address_city || null,
         address_postal_code: form.address_postal_code || null,
-        pension_start_date: form.pension_start_date || null,
+        pension_start_date: null, // שדה לא בשימוש - יחושב אוטומטית לפי גיל פרישה
         tax_credit_points: form.tax_credit_points || 0,
+        marital_status: form.marital_status || null,
       });
       
       // Reset form after successful submission
@@ -221,6 +305,7 @@ export default function Clients() {
         address_postal_code: "",
         pension_start_date: "",
         tax_credit_points: 0,
+        marital_status: "", // איפוס מצב משפחתי
       });
       
       setMsg("✅ לקוח נשמר");
@@ -251,11 +336,15 @@ export default function Clients() {
                  value={form.last_name}
                  onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                  style={{ padding: 8 }} />
-          <input type="date"
-                 placeholder="תאריך לידה"
+          <input type="text"
+                 placeholder="DD/MM/YYYY"
                  value={form.birth_date}
-                 onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
-                 style={{ padding: 8 }} />
+                 onChange={(e) => {
+                   const formatted = formatDateInput(e.target.value);
+                   setForm({ ...form, birth_date: formatted });
+                 }}
+                 style={{ padding: 8 }}
+                 maxLength={10} />
           <select value={form.gender}
                   onChange={(e) => setForm({ ...form, gender: e.target.value })}
                   style={{ padding: 8 }}>
@@ -286,14 +375,23 @@ export default function Clients() {
                  style={{ padding: 8 }} />
           
           <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+          
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <label style={{ marginLeft: 8 }}>תאריך התחלת קצבה:</label>
-            <input type="date"
-                   placeholder="תאריך התחלת קצבה (אופציונלי)"
-                   value={form.pension_start_date}
-                   onChange={(e) => setForm({ ...form, pension_start_date: e.target.value })}
-                   style={{ padding: 8, flexGrow: 1 }} />
+            <label style={{ marginLeft: 8, minWidth: 100 }}>מצב משפחתי:</label>
+            <select
+              value={form.marital_status}
+              onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
+              style={{ padding: 8, flexGrow: 1 }}
+            >
+              <option value="">בחר מצב משפחתי</option>
+              <option value="single">רווק/ה</option>
+              <option value="married">נשוי/ה</option>
+              <option value="divorced">גרוש/ה</option>
+              <option value="widowed">אלמן/ה</option>
+            </select>
           </div>
+          
+          {/* שדה תאריך התחלת קצבה הוסר לפי דרישה */}
           
           <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
             <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
@@ -302,7 +400,7 @@ export default function Clients() {
                    value={form.tax_credit_points}
                    onChange={(e) => setForm({ ...form, tax_credit_points: parseFloat(e.target.value) || 0 })}
                    min="0"
-                   step="0.1"
+                   step="0.01"
                    style={{ padding: 8, flexGrow: 1 }} />
           </div>
           
@@ -348,10 +446,10 @@ export default function Clients() {
                       {c.last_name ?? ""}
                     </Link>
                   </td>
-                  <td style={td}>{c.birth_date ?? ""}</td>
+                  <td style={td}>{c.birth_date ? formatDateToDDMMYY(new Date(c.birth_date)) : ""}</td>
                   <td style={td}>{c.gender === "male" ? "זכר" : "נקבה"}</td>
                   <td style={td}>{c.email ?? ""}</td>
-                  <td style={td}>{(c as any).pension_start_date ?? ""}</td>
+                  <td style={td}>{c.pension_start_date || calculatePensionStartDate(c)}</td>
                   <td style={td}>
                     <Link 
                       to={`/clients/${c.id}`}
@@ -446,11 +544,15 @@ export default function Clients() {
                 style={{ padding: 8 }} 
               />
               <input 
-                type="date"
-                placeholder="תאריך לידה"
+                type="text"
+                placeholder="DD/MM/YYYY"
                 value={editForm.birth_date}
-                onChange={(e) => setEditForm({ ...editForm, birth_date: e.target.value })}
-                style={{ padding: 8 }} 
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setEditForm({ ...editForm, birth_date: formatted });
+                }}
+                style={{ padding: 8 }}
+                maxLength={10} 
               />
               <select 
                 value={editForm.gender}
@@ -493,16 +595,23 @@ export default function Clients() {
               />
               
               <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+              
               <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-                <label style={{ marginLeft: 8 }}>תאריך התחלת קצבה:</label>
-                <input 
-                  type="date"
-                  placeholder="תאריך תחילת קצבה (אופציונלי)"
-                  value={editForm.pension_start_date}
-                  onChange={(e) => setEditForm({ ...editForm, pension_start_date: e.target.value })}
-                  style={{ padding: 8, flexGrow: 1 }} 
-                />
+                <label style={{ marginLeft: 8, minWidth: 100 }}>מצב משפחתי:</label>
+                <select
+                  value={editForm.marital_status}
+                  onChange={(e) => setEditForm({ ...editForm, marital_status: e.target.value })}
+                  style={{ padding: 8, flexGrow: 1 }}
+                >
+                  <option value="">בחר מצב משפחתי</option>
+                  <option value="single">רווק/ה</option>
+                  <option value="married">נשוי/ה</option>
+                  <option value="divorced">גרוש/ה</option>
+                  <option value="widowed">אלמן/ה</option>
+                </select>
               </div>
+              
+              {/* שדה תאריך התחלת קצבה הוסר לפי דרישה */}
               
               <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
                 <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
@@ -512,7 +621,7 @@ export default function Clients() {
                   value={editForm.tax_credit_points}
                   onChange={(e) => setEditForm({ ...editForm, tax_credit_points: parseFloat(e.target.value) || 0 })}
                   min="0"
-                  step="0.1"
+                  step="0.01"
                   style={{ padding: 8, flexGrow: 1 }} 
                 />
               </div>

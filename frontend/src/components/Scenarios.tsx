@@ -75,7 +75,7 @@ const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
     other_parameters: {}
   });
 
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
   useEffect(() => {
     loadScenarios();
@@ -84,7 +84,7 @@ const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
   const loadScenarios = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${apiBaseUrl}/api/v1/clients/${clientId}/scenarios`);
+      const response = await fetch(`${apiBaseUrl}/clients/${clientId}/scenarios`);
       if (response.ok) {
         const data = await response.json();
         setScenarios(data.scenarios || []);
@@ -103,7 +103,7 @@ const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${apiBaseUrl}/api/v1/clients/${clientId}/scenarios`, {
+      const response = await fetch(`${apiBaseUrl}/clients/${clientId}/scenarios`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

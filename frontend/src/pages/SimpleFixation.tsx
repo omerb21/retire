@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
 import axios from 'axios';
 
 interface FixationData {
@@ -164,7 +166,7 @@ const SimpleFixation: React.FC = () => {
         }
         
         // Set default eligibility date to current date if not set
-        const currentEligibilityDate = eligibilityDate || new Date().toISOString().split('T')[0];
+        const currentEligibilityDate = eligibilityDate || formatDateToDDMMYY(new Date());
         setEligibilityDate(currentEligibilityDate);
         
         // Use the new rights fixation service
@@ -185,18 +187,22 @@ const SimpleFixation: React.FC = () => {
             console.log('DEBUG: processedGrants:', processedGrants);
             console.log('DEBUG: exemptionData:', exemptionData);
             
-            const mappedGrants = processedGrants.map((grant: any) => ({
-              employer_name: grant.employer_name,
-              grant_amount: grant.grant_amount,
-              work_start_date: grant.work_start_date,
-              work_end_date: grant.work_end_date,
-              grant_date: grant.grant_date,
-              indexed_full: grant.indexed_full,
-              ratio_32y: grant.ratio_32y,
-              limited_indexed_amount: grant.limited_indexed_amount,
-              impact_on_exemption: grant.impact_on_exemption,
-              exclusion_reason: grant.exclusion_reason
-            }));
+            const mappedGrants = processedGrants.map((grant: any) => {
+              console.log('DEBUG: Processing grant:', grant);
+              console.log('DEBUG: grant.grant_date:', grant.grant_date);
+              return {
+                employer_name: grant.employer_name,
+                grant_amount: grant.grant_amount,
+                work_start_date: grant.work_start_date,
+                work_end_date: grant.work_end_date,
+                grant_date: grant.grant_date,
+                indexed_full: grant.indexed_full,
+                ratio_32y: grant.ratio_32y,
+                limited_indexed_amount: grant.limited_indexed_amount,
+                impact_on_exemption: grant.impact_on_exemption,
+                exclusion_reason: grant.exclusion_reason
+              };
+            });
             
             console.log('DEBUG: mappedGrants:', mappedGrants);
             setGrantsSummary(mappedGrants);
@@ -229,7 +235,7 @@ const SimpleFixation: React.FC = () => {
               }
               
               if (eligibilityDate) {
-                errorMessage += `\nתאריך זכאות צפוי: ${new Date(eligibilityDate).toLocaleDateString('he-IL')}`;
+                errorMessage += `\nתאריך זכאות צפוי: ${formatDateToDDMMYY(new Date(eligibilityDate))}`;
               }
               
               setError(errorMessage);
@@ -380,7 +386,13 @@ const SimpleFixation: React.FC = () => {
                 {grantsSummary.map((grant, index) => (
                   <tr key={index}>
                     <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.employer_name}</td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.grant_date}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {grant.grant_date ? (
+                        grant.grant_date.includes('-') 
+                          ? formatDateToDDMMYYYY(new Date(grant.grant_date))
+                          : grant.grant_date
+                      ) : ''}
+                    </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
                       ₪{grant.grant_amount.toLocaleString()}
                     </td>
@@ -539,7 +551,7 @@ const SimpleFixation: React.FC = () => {
               
               <div>
                 <div style={{ marginBottom: '8px', fontSize: '14px' }}>
-                  <strong>תאריך חישוב:</strong> {new Date().toLocaleDateString('he-IL')}
+                  <strong>תאריך חישוב:</strong> {"9.10.2025"}
                 </div>
               </div>
             </div>

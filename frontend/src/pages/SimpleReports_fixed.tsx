@@ -57,15 +57,15 @@ const SimpleReports: React.FC = () => {
         setError(null);
 
         // Get client info with full URL
-        const clientResponse = await axios.get(`http://localhost:8005/api/v1/clients/${id}`);
+        const clientResponse = await axios.get(`/api/v1/clients/${id}`);
         const clientData = clientResponse.data;
         setClient(clientData);
 
         // Get financial data - pension funds, additional incomes, capital assets
         const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse] = await Promise.all([
-          axios.get(`http://localhost:8005/api/v1/clients/${id}/pension-funds`),
-          axios.get(`http://localhost:8005/api/v1/clients/${id}/additional-incomes`),
-          axios.get(`http://localhost:8005/api/v1/clients/${id}/capital-assets`)
+          axios.get(`/api/v1/clients/${id}/pension-funds`),
+          axios.get(`/api/v1/clients/${id}/additional-incomes`),
+          axios.get(`/api/v1/clients/${id}/capital-assets`)
         ]);
         
         const pensionFundsData = pensionFundsResponse.data || [];
@@ -101,7 +101,7 @@ const SimpleReports: React.FC = () => {
         // Get integrated cashflow data from the new API
         let cashflowData = [];
         try {
-          const cashflowResponse = await axios.post(`http://localhost:8005/api/v1/clients/${id}/cashflow/integrate-all`, []);
+          const cashflowResponse = await axios.post(`/api/v1/clients/${id}/cashflow/integrate-all`, []);
           cashflowData = cashflowResponse.data || [];
         } catch (cashflowError) {
           console.warn('Could not get integrated cashflow, using fallback');

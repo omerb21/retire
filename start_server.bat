@@ -6,11 +6,11 @@ REM הפעלת הסביבה הוירטואלית
 call venv\Scripts\activate
 
 REM הפעלת השרת
-echo השרת יהיה זמין בכתובת: http://127.0.0.1:8000
-echo תיעוד ה-API זמין בכתובת: http://127.0.0.1:8000/docs
-echo בדיקת בריאות המערכת: http://127.0.0.1:8000/health
+echo השרת יהיה זמין בכתובת: http://localhost:8005
+echo תיעוד ה-API זמין בכתובת: http://localhost:8005/docs
+echo בדיקת בריאות המערכת: http://localhost:8005/health
 echo.
 echo לחץ Ctrl+C לעצירת השרת.
 echo.
 
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload

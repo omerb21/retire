@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type AdditionalIncome = {
   id?: number;
@@ -17,6 +18,17 @@ type AdditionalIncome = {
   computed_monthly_amount?: number;
 };
 
+// מיפוי סוגי הכנסות באנגלית לעברית
+const INCOME_TYPE_MAP: Record<string, string> = {
+  "rental": "שכירות",
+  "dividends": "דיבידנדים",
+  "interest": "ריבית",
+  "business": "עסק",
+  "freelance": "עבודה עצמאית",
+  "other": "אחר"
+};
+
+// סוגי הכנסות באנגלית (לשימוש בצד השרת)
 const INCOME_TYPES = [
   "rental", "dividends", "interest", "business", "freelance", "other"
 ];
@@ -26,6 +38,7 @@ export default function AdditionalIncome() {
   const [incomes, setIncomes] = useState<AdditionalIncome[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<AdditionalIncome>>({
     source_type: "rental",
     income_name: "", // הוספת שדה שם הכנסה
@@ -84,31 +97,40 @@ export default function AdditionalIncome() {
         throw new Error("חובה למלא שיעור מס בין 0-100");
       }
 
-      // Align date to first of month
-      const alignedStartDate = new Date(form.start_date);
-      alignedStartDate.setDate(1);
-      
-      let alignedEndDate;
-      if (form.end_date) {
-        alignedEndDate = new Date(form.end_date);
-        alignedEndDate.setDate(1);
+      // Convert dates to ISO format
+      const startDateISO = convertDDMMYYToISO(form.start_date);
+      if (!startDateISO) {
+        throw new Error("תאריך התחלה לא תקין - יש להזין בפורמט DD/MM/YYYY");
       }
+      
+      const endDateISO = form.end_date ? convertDDMMYYToISO(form.end_date) : null;
       
       const payload = {
         ...form,
         amount: Number(form.amount),
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
         tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
-        start_date: alignedStartDate.toISOString().split('T')[0],
-        end_date: alignedEndDate?.toISOString().split('T')[0] || null,
+        start_date: startDateISO,
+        end_date: endDateISO,
       };
 
-      await apiFetch(`/clients/${clientId}/additional-incomes/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      // בדיקה אם אנחנו במצב עריכה או יצירה חדשה
+      if (editingIncomeId) {
+        // עדכון הכנסה קיימת
+        console.log(`מעדכן הכנסה קיימת עם מזהה: ${editingIncomeId}`);
+        await apiFetch(`/clients/${clientId}/additional-incomes/${editingIncomeId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // יצירת הכנסה חדשה
+        await apiFetch(`/clients/${clientId}/additional-incomes/`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
 
-      // Reset form
+      // איפוס הטופס ומצב העריכה
       setForm({
         source_type: "rental",
         income_name: "", // הוספת שדה שם הכנסה
@@ -120,6 +142,9 @@ export default function AdditionalIncome() {
         fixed_rate: 0,
         tax_rate: 0,
       });
+      
+      // איפוס מצב העריכה
+      setEditingIncomeId(null);
 
       // Reload incomes
       await loadIncomes();
@@ -148,14 +173,17 @@ export default function AdditionalIncome() {
   }
 
   function handleEdit(income: any) {
+    // שמירת מזהה ההכנסה שעורכים
+    setEditingIncomeId(income.id || null);
+    
     // Populate form with income data for editing
     setForm({
       source_type: income.source_type,
       income_name: income.income_name || "", // הוספת שדה שם הכנסה
       amount: income.amount || 0,
       frequency: income.frequency,
-      start_date: income.start_date,
-      end_date: income.end_date || "",
+      start_date: income.start_date ? convertISOToDDMMYY(income.start_date) : "",
+      end_date: income.end_date ? convertISOToDDMMYY(income.end_date) : "",
       indexation_method: income.indexation_method,
       tax_treatment: income.tax_treatment,
       fixed_rate: income.fixed_rate || 0,
@@ -184,7 +212,7 @@ export default function AdditionalIncome() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>הוסף הכנסה נוספת</h3>
+        <h3>{editingIncomeId ? 'ערוך הכנסה נוספת' : 'הוסף הכנסה נוספת'}</h3>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 500 }}>
           <div>
             <label>סוג הכנסה:</label>
@@ -194,7 +222,7 @@ export default function AdditionalIncome() {
               style={{ padding: 8, width: "100%" }}
             >
               {INCOME_TYPES.map(type => (
-                <option key={type} value={type}>{type}</option>
+                <option key={type} value={type}>{INCOME_TYPE_MAP[type]}</option>
               ))}
             </select>
           </div>
@@ -233,19 +261,27 @@ export default function AdditionalIncome() {
           </div>
 
           <input
-            type="date"
-            placeholder="תאריך התחלה"
-            value={form.start_date}
-            onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            type="text"
+            placeholder="DD/MM/YYYY"
+            value={form.start_date || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              setForm({ ...form, start_date: formatted });
+            }}
             style={{ padding: 8 }}
+            maxLength={10}
           />
 
           <input
-            type="date"
-            placeholder="תאריך סיום (אופציונלי)"
-            value={form.end_date || ""}
-            onChange={(e) => setForm({ ...form, end_date: e.target.value || undefined })}
+            type="text"
+            placeholder="DD/MM/YYYY (אופציונלי)"
+            value={form.end_date || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              setForm({ ...form, end_date: formatted || undefined });
+            }}
             style={{ padding: 8 }}
+            maxLength={10}
           />
 
           <div>
@@ -296,9 +332,50 @@ export default function AdditionalIncome() {
             />
           )}
 
-          <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
-            צור הכנסה נוספת
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: "10px 16px", 
+                backgroundColor: "#007bff", 
+                color: "white", 
+                border: "none", 
+                borderRadius: 4,
+                flex: 1
+              }}
+            >
+              {editingIncomeId ? 'שמור שינויים' : 'צור הכנסה נוספת'}
+            </button>
+            
+            {editingIncomeId && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setEditingIncomeId(null);
+                  setForm({
+                    source_type: "rental",
+                    income_name: "",
+                    amount: 0,
+                    frequency: "monthly",
+                    start_date: "",
+                    indexation_method: "none",
+                    tax_treatment: "taxable",
+                    fixed_rate: 0,
+                    tax_rate: 0,
+                  });
+                }}
+                style={{ 
+                  padding: "10px 16px", 
+                  backgroundColor: "#6c757d", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: 4 
+                }}
+              >
+                בטל עריכה
+              </button>
+            )}
+          </div>
         </form>
       </section>
 
@@ -314,15 +391,15 @@ export default function AdditionalIncome() {
             {incomes.map((income, index) => (
               <div key={income.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div><strong>סוג:</strong> {income.source_type}</div>
+                  <div><strong>סוג:</strong> {INCOME_TYPE_MAP[income.source_type] || income.source_type}</div>
                   <div><strong>שם הכנסה:</strong> {income.income_name || ""}</div>
                   <div><strong>סכום:</strong> ₪{income.amount?.toLocaleString()}</div>
                   <div><strong>תדירות:</strong> {
                     income.frequency === "monthly" ? "חודשי" :
                     income.frequency === "quarterly" ? "רבעוני" : "שנתי"
                   }</div>
-                  <div><strong>תאריך התחלה:</strong> {income.start_date}</div>
-                  {income.end_date && <div><strong>תאריך סיום:</strong> {income.end_date}</div>}
+                  <div><strong>תאריך התחלה:</strong> {formatDateToDDMMYY(new Date(income.start_date))}</div>
+                  {income.end_date && <div><strong>תאריך סיום:</strong> {formatDateToDDMMYY(new Date(income.end_date))}</div>}
                   <div><strong>הצמדה:</strong> {
                     income.indexation_method === "none" ? "ללא" :
                     income.indexation_method === "fixed" ? `קבועה ${income.fixed_rate}%` :

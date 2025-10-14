@@ -1,18 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Alert,
-  CircularProgress,
-  Grid,
-} from '@mui/material';
-import FormField from '../components/forms/FormField';
+import { createClient } from '../lib/api';
+import { Button, TextField, Grid, Paper, Typography, FormControl, InputLabel, Select, MenuItem, FormHelperText } from '@mui/material';
+import { DateField } from '../components/forms/DateField';
+import { formatDateToDDMMYY } from '../utils/dateUtils';
 import DateField from '../components/forms/DateField';
-import { clientApi, handleApiError } from '../lib/api';
+import { clientApi, handleApiError, ClientCreate } from '../lib/api';
 import { validateClientForm } from '../lib/validation';
 import { useCaseDetection } from '../lib/case-detection';
 
@@ -23,6 +16,7 @@ interface ClientFormData {
   email: string;
   phone: string;
   retirement_date: string;
+  marital_status: string;
 }
 
 const ClientNew: React.FC = () => {
@@ -37,6 +31,7 @@ const ClientNew: React.FC = () => {
     email: '',
     phone: '',
     retirement_date: '',
+    marital_status: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -102,19 +97,27 @@ const ClientNew: React.FC = () => {
       const first_name = nameParts[0] || '';
       const last_name = nameParts.slice(1).join(' ') || '';
       
-      const clientData = {
+      // הכנת נתוני הלקוח לשליחה ל-API
+      const clientData: ClientCreate = {
         first_name,
         last_name,
         id_number: formData.id_number_raw,
         birth_date: formData.birth_date,
-        email: formData.email || null,
-        phone: formData.phone || null
+        email: formData.email || "",
+        phone: formData.phone || "",
+        marital_status: formData.marital_status || "",
+        gender: "" // שדה נדרש ע"י ה-API
       };
       
       const response = await clientApi.create(clientData);
       
       // Update case detection with new client data
-      updateClientData(response);
+      // המרה לפורמט הנדרש על ידי updateClientData
+      updateClientData({
+        id: response.id,
+        full_name: `${response.first_name} ${response.last_name}`.trim(),
+        id_number: response.id_number
+      });
       
       setSuccess('פרטי הלקוח נשמרו בהצלחה');
       
@@ -180,8 +183,8 @@ const ClientNew: React.FC = () => {
               onChange={handleDateChange('birth_date')}
               error={errors.birth_date}
               required
-              minDate={minBirthDate.toISOString().split('T')[0]}
-              maxDate={maxBirthDate.toISOString().split('T')[0]}
+              minDate={formatDateToDDMMYY(minBirthDate)}
+              maxDate={formatDateToDDMMYY(maxBirthDate)}
               helperText="גיל חייב להיות בין 18 ל-120"
             />
           </Grid>
@@ -192,7 +195,7 @@ const ClientNew: React.FC = () => {
               value={formData.retirement_date}
               onChange={handleDateChange('retirement_date')}
               error={errors.retirement_date}
-              minDate={today.toISOString().split('T')[0]}
+              minDate={formatDateToDDMMYY(today)}
               helperText="תאריך פרישה מתוכנן (אופציונלי)"
             />
           </Grid>
@@ -219,6 +222,31 @@ const ClientNew: React.FC = () => {
               placeholder="050-1234567"
               helperText="מספר טלפון (אופציונלי)"
             />
+          </Grid>
+
+          <Grid item xs={12} md={6}>
+            <Box sx={{ width: '100%' }}>
+              <Typography variant="subtitle2" gutterBottom>
+                מצב משפחתי
+              </Typography>
+              <select
+                value={formData.marital_status}
+                onChange={(e) => handleFieldChange('marital_status')(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '4px',
+                  border: '1px solid #ccc',
+                  fontSize: '16px'
+                }}
+              >
+                <option value="">בחר מצב משפחתי</option>
+                <option value="single">רווק/ה</option>
+                <option value="married">נשוי/ה</option>
+                <option value="divorced">גרוש/ה</option>
+                <option value="widowed">אלמן/ה</option>
+              </select>
+            </Box>
           </Grid>
         </Grid>
 

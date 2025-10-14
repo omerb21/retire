@@ -10,9 +10,13 @@ from app.models.capital_asset import AssetType, PaymentFrequency, IndexationMeth
 
 class CapitalAssetBase(BaseModel):
     """Base schema for Capital Asset."""
+    asset_name: Optional[str] = Field(None, max_length=255, description="Asset name")
     asset_type: AssetType = Field(..., description="Type of capital asset")
     description: Optional[str] = Field(None, max_length=255, description="Description of the asset")
     current_value: Decimal = Field(..., gt=0, description="Current asset value")
+    monthly_income: Optional[Decimal] = Field(None, ge=0, description="Monthly income from asset")
+    rental_income: Optional[Decimal] = Field(None, ge=0, description="Rental income (legacy)")
+    monthly_rental_income: Optional[Decimal] = Field(None, ge=0, description="Monthly rental income (legacy)")
     annual_return_rate: Decimal = Field(..., ge=0, description="Annual return rate")
     payment_frequency: PaymentFrequency = Field(..., description="Payment frequency")
     start_date: date = Field(..., description="Asset start date")
@@ -21,7 +25,9 @@ class CapitalAssetBase(BaseModel):
     fixed_rate: Optional[Decimal] = Field(None, ge=0, description="Fixed indexation rate")
     tax_treatment: TaxTreatment = Field(TaxTreatment.TAXABLE, description="Tax treatment")
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=1, description="Tax rate for fixed rate tax")
+    spread_years: Optional[int] = Field(None, ge=1, description="Number of years for tax spread")
     remarks: Optional[str] = Field(None, max_length=500, description="Additional remarks")
+    conversion_source: Optional[str] = Field(None, max_length=1000, description="JSON with conversion source details")
 
     @validator('end_date')
     def validate_end_date(cls, v, values):
@@ -65,7 +71,9 @@ class CapitalAssetUpdate(BaseModel):
     fixed_rate: Optional[Decimal] = Field(None, ge=0)
     tax_treatment: Optional[TaxTreatment] = None
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=1)
+    spread_years: Optional[int] = Field(None, ge=1)
     remarks: Optional[str] = Field(None, max_length=500)
+    conversion_source: Optional[str] = Field(None, max_length=1000)
 
 
 class CapitalAssetResponse(CapitalAssetBase):

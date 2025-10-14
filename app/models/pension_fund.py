@@ -27,6 +27,10 @@ class PensionFund(Base):
     indexed_pension_amount = Column(Float, nullable=True)
 
     remarks = Column(String(500), nullable=True)
+    deduction_file = Column(String(200), nullable=True)  # תיק ניכויים
+    
+    # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
+    conversion_source = Column(String(1000), nullable=True)  # JSON עם פרטי המקור
 
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

@@ -38,7 +38,7 @@ export default function Scenarios() {
     
     try {
       // שימוש בפנייה ישירה לשרת במקום apiFetch
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/scenarios`);
+      const response = await fetch(`/api/v1/clients/${clientId}/scenarios`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -98,7 +98,7 @@ export default function Scenarios() {
       };
 
       // שימוש בפנייה ישירה לשרת במקום apiFetch
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/scenarios`, {
+      const response = await fetch(`/api/v1/clients/${clientId}/scenarios`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -146,14 +146,14 @@ export default function Scenarios() {
     
     try {
       // First get the scenario cashflow
-      const scenarioResponse = await fetch(`http://localhost:8005/api/v1/scenarios/${selectedScenarioId}/cashflow`);
+      const scenarioResponse = await fetch(`/api/v1/scenarios/${selectedScenarioId}/cashflow`);
       if (!scenarioResponse.ok) {
         throw new Error(`שגיאה בקבלת תזרים: ${scenarioResponse.status}`);
       }
       const scenarioData = await scenarioResponse.json();
       
       // Then integrate incomes with the cashflow
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/cashflow/integrate-incomes`, {
+      const response = await fetch(`/api/v1/clients/${clientId}/cashflow/integrate-incomes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -187,14 +187,14 @@ export default function Scenarios() {
     
     try {
       // First get the scenario cashflow
-      const scenarioResponse = await fetch(`http://localhost:8005/api/v1/scenarios/${selectedScenarioId}/cashflow`);
+      const scenarioResponse = await fetch(`/api/v1/scenarios/${selectedScenarioId}/cashflow`);
       if (!scenarioResponse.ok) {
         throw new Error(`שגיאה בקבלת תזרים: ${scenarioResponse.status}`);
       }
       const scenarioData = await scenarioResponse.json();
       
       // Then integrate assets with the cashflow
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/cashflow/integrate-assets`, {
+      const response = await fetch(`/api/v1/clients/${clientId}/cashflow/integrate-assets`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -228,14 +228,14 @@ export default function Scenarios() {
     
     try {
       // First get the scenario cashflow
-      const scenarioResponse = await fetch(`http://localhost:8005/api/v1/scenarios/${selectedScenarioId}/cashflow`);
+      const scenarioResponse = await fetch(`/api/v1/scenarios/${selectedScenarioId}/cashflow`);
       if (!scenarioResponse.ok) {
         throw new Error(`שגיאה בקבלת תזרים: ${scenarioResponse.status}`);
       }
       const scenarioData = await scenarioResponse.json();
       
       // Then integrate all with the cashflow
-      const response = await fetch(`http://localhost:8005/api/v1/clients/${clientId}/cashflow/integrate-all`, {
+      const response = await fetch(`/api/v1/clients/${clientId}/cashflow/integrate-all`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

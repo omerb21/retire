@@ -1,24 +1,45 @@
-import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type CapitalAsset = {
   id?: number;
+  client_id?: number;
   asset_type: string;
+  description?: string;
   current_value: number;
+  purchase_value?: number;
+  purchase_date?: string;
+  annual_return?: number;
   annual_return_rate: number;
   payment_frequency: "monthly" | "quarterly" | "annual";
-  start_date: string;
+  liquidity?: string;
+  risk_level?: string;
+  // שדות נוספים לשימוש בפרונטאנד
+  asset_name?: string;
+  monthly_income?: number;
+  start_date?: string;
   end_date?: string;
-  indexation_method: "none" | "fixed" | "cpi";
+  indexation_method?: "none" | "fixed" | "cpi";
   fixed_rate?: number;
-  tax_treatment: "exempt" | "taxable" | "fixed_rate";
+  tax_treatment?: "exempt" | "taxable" | "fixed_rate" | "capital_gains" | "tax_spread";
   tax_rate?: number;
-  computed_monthly_amount?: number;
+  spread_years?: number;
 };
 
 const ASSET_TYPES = [
-  "stocks", "bonds", "mutual_funds", "real_estate", "savings_account", "deposits", "other"
+  { value: "rental_property", label: "דירה להשכרה" },
+  { value: "investment", label: "השקעות" },
+  { value: "stocks", label: "מניות" },
+  { value: "bonds", label: "אגרות חוב" },
+  { value: "mutual_funds", label: "קרנות נאמנות" },
+  { value: "real_estate", label: "נדלן" },
+  { value: "savings_account", label: "חשבון חיסכון" },
+  { value: "deposits", label: "פקדונות" },
+  { value: "provident_fund", label: "קופת גמל" },
+  { value: "education_fund", label: "קרן השתלמות" },
+  { value: "other", label: "אחר" }
 ];
 
 export default function CapitalAssets() {
@@ -26,9 +47,12 @@ export default function CapitalAssets() {
   const [assets, setAssets] = useState<CapitalAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [editingAssetId, setEditingAssetId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<CapitalAsset>>({
-    asset_type: "stocks",
+    asset_name: "",
+    asset_type: "rental_property",
     current_value: 0,
+    monthly_income: 0,
     annual_return_rate: 0,
     payment_frequency: "monthly",
     start_date: "",
@@ -36,6 +60,7 @@ export default function CapitalAssets() {
     tax_treatment: "taxable",
     fixed_rate: 0,
     tax_rate: 0,
+    spread_years: 0,
   });
 
   async function loadAssets() {
@@ -46,8 +71,29 @@ export default function CapitalAssets() {
     
     try {
       const data = await apiFetch<CapitalAsset[]>(`/clients/${clientId}/capital-assets/`);
+      console.log("SERVER RESPONSE - Capital Assets:", JSON.stringify(data, null, 2));
+      
+      // בדיקה מפורטת של כל נכס
+      if (data && data.length > 0) {
+        data.forEach((asset, index) => {
+          console.log(`ASSET ${index + 1} DETAILS:`);
+          console.log(`  ID: ${asset.id}`);
+          console.log(`  Name: ${asset.asset_name || asset.description || 'No name'}`);
+          console.log(`  Type: ${asset.asset_type}`);
+          console.log(`  Monthly Income: ${asset.monthly_income || 0}`);
+          console.log(`  Current Value: ${asset.current_value || 0}`);
+          console.log(`  Start Date: ${asset.start_date || 'Not set'}`);
+          console.log(`  End Date: ${asset.end_date || 'Not set'}`);
+          console.log(`  conversion_source: ${(asset as any).conversion_source || 'NOT SET'}`);
+          console.log(`  All Properties:`, asset);
+        });
+      } else {
+        console.log("No assets returned from server");
+      }
+      
       setAssets(data || []);
     } catch (e: any) {
+      console.error("Error loading assets:", e);
       setError(`שגיאה בטעינת נכסי הון: ${e?.message || e}`);
     } finally {
       setLoading(false);
@@ -66,17 +112,22 @@ export default function CapitalAssets() {
     
     try {
       // Basic validation
+      if (!form.asset_name || form.asset_name.trim() === "") {
+        throw new Error("חובה למלא שם הנכס");
+      }
       if (!form.asset_type) {
         throw new Error("חובה לבחור סוג נכס");
       }
-      if (!form.current_value || form.current_value <= 0) {
-        throw new Error("חובה למלא ערך נוכחי חיובי");
-      }
-      if (form.annual_return_rate === undefined || form.annual_return_rate < 0) {
-        throw new Error("חובה למלא שיעור תשואה שנתי");
+      if (!form.monthly_income || form.monthly_income <= 0) {
+        throw new Error("חובה למלא תשלום חודשי חיובי");
       }
       if (!form.start_date) {
         throw new Error("חובה למלא תאריך התחלה");
+      }
+      
+      // Validation for capital gains tax
+      if (form.tax_treatment === "capital_gains" && (form.annual_return_rate === undefined || form.annual_return_rate < 2)) {
+        throw new Error("עבור מס רווח הון, חובה למלא שיעור תשואה שנתי של לפחות 2%");
       }
 
       if (form.indexation_method === "fixed" && (!form.fixed_rate || form.fixed_rate < 0)) {
@@ -87,35 +138,66 @@ export default function CapitalAssets() {
         throw new Error("חובה למלא שיעור מס בין 0-100");
       }
 
-      // Align date to first of month
-      const alignedStartDate = new Date(form.start_date);
-      alignedStartDate.setDate(1);
-      
-      let alignedEndDate;
-      if (form.end_date) {
-        alignedEndDate = new Date(form.end_date);
-        alignedEndDate.setDate(1);
+      // Convert dates to ISO format
+      const startDateISO = convertDDMMYYToISO(form.start_date);
+      if (!startDateISO) {
+        throw new Error("תאריך התחלה לא תקין - יש להזין בפורמט DD/MM/YYYY");
       }
       
+      const endDateISO = form.end_date ? convertDDMMYYToISO(form.end_date) : null;
+      
+      // בדיקה מה השדות שהשרת מצפה לקבל
+      console.log("FORM DATA BEFORE SUBMIT:", form);
+      
       const payload = {
-        ...form,
-        current_value: Number(form.current_value),
-        annual_return_rate: Number(form.annual_return_rate),
-        fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : undefined,
-        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : undefined,
-        start_date: alignedStartDate.toISOString().split('T')[0],
-        end_date: alignedEndDate?.toISOString().split('T')[0] || null,
+        asset_type: form.asset_type,
+        description: form.asset_name?.trim() || "נכס הון",
+        current_value: Number(form.current_value) || 0,
+        purchase_value: 0, // ערך ברירת מחדל
+        purchase_date: startDateISO,
+        annual_return: 0, // ערך ברירת מחדל
+        annual_return_rate: Number(form.annual_return_rate) / 100 || 0, // המרה לעשרוני
+        payment_frequency: form.payment_frequency,
+        liquidity: "medium", // ערך ברירת מחדל
+        risk_level: "medium", // ערך ברירת מחדל
+        
+        // השדות הנדרשים לתצוגה
+        monthly_income: Number(form.monthly_income) || 0,
+        start_date: startDateISO,
+        end_date: endDateISO,
+        indexation_method: form.indexation_method || "none",
+        fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : 0,
+        tax_treatment: form.tax_treatment || "undefined",
+        tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : 0,
+        spread_years: form.spread_years !== undefined ? Number(form.spread_years) : undefined
       };
 
-      await apiFetch(`/clients/${clientId}/capital-assets/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      console.log("SENDING PAYLOAD TO SERVER:", JSON.stringify(payload, null, 2));
+      
+      // בדיקה אם אנחנו במצב עריכה או יצירה חדשה
+      if (editingAssetId) {
+        // עדכון נכס קיים
+        console.log(`מעדכן נכס קיים עם מזהה: ${editingAssetId}`);
+        const response = await apiFetch(`/clients/${clientId}/capital-assets/${editingAssetId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        console.log("SERVER RESPONSE AFTER UPDATE:", JSON.stringify(response, null, 2));
+      } else {
+        // יצירת נכס חדש
+        const response = await apiFetch(`/clients/${clientId}/capital-assets/`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        console.log("SERVER RESPONSE AFTER CREATE:", JSON.stringify(response, null, 2));
+      }
 
-      // Reset form
+      // איפוס הטופס ומצב העריכה
       setForm({
-        asset_type: "stocks",
+        asset_name: "",
+        asset_type: "rental_property",
         current_value: 0,
+        monthly_income: 0,
         annual_return_rate: 0,
         payment_frequency: "monthly",
         start_date: "",
@@ -123,7 +205,11 @@ export default function CapitalAssets() {
         tax_treatment: "taxable",
         fixed_rate: 0,
         tax_rate: 0,
+        spread_years: 0,
       });
+      
+      // איפוס מצב העריכה
+      setEditingAssetId(null);
 
       // Reload assets
       await loadAssets();
@@ -133,13 +219,110 @@ export default function CapitalAssets() {
   }
 
   async function handleDelete(assetId: number) {
-    if (!clientId) return;
+    console.log('🔴 handleDelete called with assetId:', assetId);
+    if (!clientId) {
+      console.log('❌ No clientId, returning');
+      return;
+    }
     
     if (!confirm("האם אתה בטוח שברצונך למחוק את נכס ההון?")) {
+      console.log('❌ User cancelled deletion');
       return;
     }
 
+    console.log('✅ Starting deletion process...');
     try {
+      // קבלת פרטי הנכס לפני המחיקה
+      const asset = assets.find(a => a.id === assetId);
+      console.log('=== DELETE ASSET DEBUG ===');
+      console.log('Asset found:', asset);
+      console.log('Has conversion_source?', !!(asset as any)?.conversion_source);
+      console.log('conversion_source value:', (asset as any)?.conversion_source);
+      
+      // בדיקה אם יש מידע על מקור המרה
+      if (asset && (asset as any).conversion_source) {
+        try {
+          const conversionSource = JSON.parse((asset as any).conversion_source);
+          console.log('Parsed conversion_source:', conversionSource);
+          console.log('Type:', conversionSource.type);
+          
+          // אם זו המרה מתיק פנסיוני - נחזיר את הסכומים למקור
+          if (conversionSource.type === 'pension_portfolio') {
+            console.log('✅ Restoring amounts to pension portfolio:', conversionSource);
+            
+            // קריאה ל-API להחזרת הסכומים
+            await apiFetch(`/clients/${clientId}/pension-portfolio/restore`, {
+              method: 'POST',
+              body: JSON.stringify({
+                account_name: conversionSource.account_name,
+                company: conversionSource.company,
+                account_number: conversionSource.account_number,
+                product_type: conversionSource.product_type,
+                amount: conversionSource.amount,
+                specific_amounts: conversionSource.specific_amounts
+              })
+            });
+            
+            // עדכון localStorage - החזרת הסכומים לטבלה
+            const storageKey = `pensionData_${clientId}`;
+            const storedData = localStorage.getItem(storageKey);
+            
+            if (storedData) {
+              try {
+                const pensionData = JSON.parse(storedData);
+                console.log('Looking for account:', {
+                  name: conversionSource.account_name,
+                  company: conversionSource.company,
+                  number: conversionSource.account_number
+                });
+                console.log('Available accounts:', pensionData.map((acc: any) => ({
+                  name: acc.שם_תכנית,
+                  company: acc.חברה_מנהלת,
+                  number: acc.מספר_חשבון
+                })));
+                
+                // חיפוש החשבון המתאים
+                const accountIndex = pensionData.findIndex((acc: any) => 
+                  acc.שם_תכנית === conversionSource.account_name &&
+                  acc.חברה_מנהלת === conversionSource.company &&
+                  acc.מספר_חשבון === conversionSource.account_number
+                );
+                
+                if (accountIndex !== -1) {
+                  console.log('Found account at index:', accountIndex);
+                  // החזרת הסכומים לשדות הספציפיים
+                  if (conversionSource.specific_amounts && Object.keys(conversionSource.specific_amounts).length > 0) {
+                    Object.entries(conversionSource.specific_amounts).forEach(([key, value]) => {
+                      pensionData[accountIndex][key] = (pensionData[accountIndex][key] || 0) + parseFloat(value as string);
+                    });
+                  }
+                  
+                  // החזרת הסכום ליתרה הכללית
+                  pensionData[accountIndex].יתרה = (pensionData[accountIndex].יתרה || 0) + conversionSource.amount;
+                  
+                  // שמירה חזרה ל-localStorage
+                  localStorage.setItem(storageKey, JSON.stringify(pensionData));
+                  console.log('Successfully restored amounts to pension portfolio in localStorage');
+                } else {
+                  console.error('Account NOT found in localStorage!');
+                  console.error('Searching for:', conversionSource);
+                }
+              } catch (storageError) {
+                console.error('Error updating localStorage:', storageError);
+              }
+            } else {
+              console.error('No pension data found in localStorage!');
+            }
+            
+            console.log('Successfully restored amounts to pension portfolio');
+          }
+        } catch (parseError) {
+          console.warn('Could not parse conversion_source:', parseError);
+          // ממשיכים עם המחיקה גם אם יש שגיאה בפרסור
+        }
+      }
+      
+      // מחיקת הנכס
       await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
         method: "DELETE",
       });
@@ -152,18 +335,24 @@ export default function CapitalAssets() {
   }
 
   function handleEdit(asset: any) {
+    // שמירת מזהה הנכס שעורכים
+    setEditingAssetId(asset.id || null);
+    
     // Populate form with asset data for editing
     setForm({
+      asset_name: asset.asset_name || "",
       asset_type: asset.asset_type,
       current_value: asset.current_value || 0,
+      monthly_income: asset.monthly_income || 0,
       annual_return_rate: asset.annual_return_rate || 0,
       payment_frequency: asset.payment_frequency,
-      start_date: asset.start_date,
-      end_date: asset.end_date || "",
+      start_date: asset.start_date ? convertISOToDDMMYY(asset.start_date) : "",
+      end_date: asset.end_date ? convertISOToDDMMYY(asset.end_date) : "",
       indexation_method: asset.indexation_method,
       tax_treatment: asset.tax_treatment,
       fixed_rate: asset.fixed_rate || 0,
       tax_rate: asset.tax_rate || 0,
+      spread_years: asset.spread_years || 0,
     });
     
     // Scroll to form
@@ -188,8 +377,17 @@ export default function CapitalAssets() {
 
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>הוסף נכס הון</h3>
+        <h3>{editingAssetId ? 'ערוך נכס הון' : 'הוסף נכס הון'}</h3>
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 500 }}>
+          <input
+            type="text"
+            placeholder="שם הנכס"
+            value={form.asset_name || ""}
+            onChange={(e) => setForm({ ...form, asset_name: e.target.value })}
+            style={{ padding: 8 }}
+            required
+          />
+
           <div>
             <label>סוג נכס:</label>
             <select
@@ -198,14 +396,23 @@ export default function CapitalAssets() {
               style={{ padding: 8, width: "100%" }}
             >
               {ASSET_TYPES.map(type => (
-                <option key={type} value={type}>{type}</option>
+                <option key={type.value} value={type.value}>{type.label}</option>
               ))}
             </select>
           </div>
 
           <input
             type="number"
-            placeholder="ערך נוכחי"
+            placeholder="תשלום חודשי (₪)"
+            value={form.monthly_income || ""}
+            onChange={(e) => setForm({ ...form, monthly_income: parseFloat(e.target.value) || 0 })}
+            style={{ padding: 8 }}
+            required
+          />
+
+          <input
+            type="number"
+            placeholder="ערך נוכחי (₪) - אופציונלי"
             value={form.current_value || ""}
             onChange={(e) => setForm({ ...form, current_value: parseFloat(e.target.value) || 0 })}
             style={{ padding: 8 }}
@@ -214,7 +421,7 @@ export default function CapitalAssets() {
           <input
             type="number"
             step="0.01"
-            placeholder="שיעור תשואה שנתי (%)"
+            placeholder="שיעור תשואה שנתי (%) - לחישוב מס רווח הון"
             value={form.annual_return_rate || ""}
             onChange={(e) => setForm({ ...form, annual_return_rate: parseFloat(e.target.value) || 0 })}
             style={{ padding: 8 }}
@@ -234,19 +441,27 @@ export default function CapitalAssets() {
           </div>
 
           <input
-            type="date"
-            placeholder="תאריך התחלה"
-            value={form.start_date}
-            onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            type="text"
+            placeholder="DD/MM/YYYY"
+            value={form.start_date || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              setForm({ ...form, start_date: formatted });
+            }}
             style={{ padding: 8 }}
+            maxLength={10}
           />
 
           <input
-            type="date"
-            placeholder="תאריך סיום (אופציונלי)"
-            value={form.end_date || ""}
-            onChange={(e) => setForm({ ...form, end_date: e.target.value || undefined })}
+            type="text"
+            placeholder="DD/MM/YYYY (אופציונלי)"
+            value={form.end_date || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              setForm({ ...form, end_date: formatted || undefined });
+            }}
             style={{ padding: 8 }}
+            maxLength={10}
           />
 
           <div>
@@ -277,14 +492,22 @@ export default function CapitalAssets() {
             <label>יחס מס:</label>
             <select
               value={form.tax_treatment}
-              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "exempt" | "taxable" | "fixed_rate" })}
+              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "exempt" | "taxable" | "fixed_rate" | "capital_gains" | "tax_spread" })}
               style={{ padding: 8, width: "100%" }}
             >
               <option value="exempt">פטור ממס</option>
-              <option value="taxable">חייב במס</option>
+              <option value="taxable">חייב במס רגיל</option>
+              <option value="capital_gains">מס רווח הון (25% מהרווח הריאלי)</option>
               <option value="fixed_rate">שיעור מס קבוע</option>
+              <option value="tax_spread">פריסת מס</option>
             </select>
           </div>
+
+          {form.tax_treatment === "capital_gains" && (
+            <div style={{ padding: 8, backgroundColor: "#e7f3ff", borderRadius: 4, fontSize: "14px" }}>
+              <strong>מס רווח הון:</strong> יחושב כ-25% מהרווח הריאלי (שיעור התשואה פחות 2% מדד)
+            </div>
+          )}
 
           {form.tax_treatment === "fixed_rate" && (
             <input
@@ -297,9 +520,72 @@ export default function CapitalAssets() {
             />
           )}
 
-          <button type="submit" style={{ padding: "10px 16px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}>
-            צור נכס הון
-          </button>
+          {form.tax_treatment === "tax_spread" && (
+            <div style={{ padding: 15, backgroundColor: "#fff3cd", borderRadius: 4, border: "1px solid #ffc107" }}>
+              <strong>📋 פריסת מס על מספר שנים</strong>
+              <p style={{ fontSize: "14px", marginTop: "8px", color: "#666" }}>
+                הזן את מספר השנים שעליהן יש לפרוס את המס (בד"כ 1-6 שנים לפי וותק)
+              </p>
+              <label>מספר שנות פריסה:</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                placeholder="מספר שנות פריסה"
+                value={form.spread_years || ""}
+                onChange={(e) => setForm({ ...form, spread_years: parseInt(e.target.value) || 0 })}
+                style={{ padding: 8, width: "100%", marginTop: "5px" }}
+              />
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: "10px 16px", 
+                backgroundColor: "#007bff", 
+                color: "white", 
+                border: "none", 
+                borderRadius: 4,
+                flex: 1
+              }}
+            >
+              {editingAssetId ? 'שמור שינויים' : 'צור נכס הון'}
+            </button>
+            
+            {editingAssetId && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setEditingAssetId(null);
+                  setForm({
+                    asset_name: "",
+                    asset_type: "rental_property",
+                    current_value: 0,
+                    monthly_income: 0,
+                    annual_return_rate: 0,
+                    payment_frequency: "monthly",
+                    start_date: "",
+                    indexation_method: "none",
+                    tax_treatment: "taxable",
+                    fixed_rate: 0,
+                    tax_rate: 0,
+                    spread_years: 0,
+                  });
+                }}
+                style={{ 
+                  padding: "10px 16px", 
+                  backgroundColor: "#6c757d", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: 4 
+                }}
+              >
+                בטל עריכה
+              </button>
+            )}
+          </div>
         </form>
       </section>
 
@@ -313,33 +599,52 @@ export default function CapitalAssets() {
         ) : (
           <div style={{ display: "grid", gap: 16 }}>
             {assets.map((asset, index) => (
-              <div key={asset.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+              <div key={asset.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4, backgroundColor: "#f9f9f9" }}>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div><strong>סוג נכס:</strong> {asset.asset_type}</div>
-                  <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString()}</div>
-                  <div><strong>תשואה שנתית:</strong> {asset.annual_return_rate}%</div>
-                  <div><strong>תדירות תשלום:</strong> {
-                    asset.payment_frequency === "monthly" ? "חודשי" :
-                    asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"
-                  }</div>
-                  <div><strong>תאריך התחלה:</strong> {asset.start_date}</div>
-                  {asset.end_date && <div><strong>תאריך סיום:</strong> {asset.end_date}</div>}
-                  <div><strong>הצמדה:</strong> {
-                    asset.indexation_method === "none" ? "ללא" :
-                    asset.indexation_method === "fixed" ? `קבועה ${asset.fixed_rate}%` :
-                    "למדד"
-                  }</div>
-                  <div><strong>יחס מס:</strong> {
-                    asset.tax_treatment === "exempt" ? "פטור ממס" :
-                    asset.tax_treatment === "taxable" ? "חייב במס" :
-                    `שיעור קבוע ${asset.tax_rate}%`
-                  }</div>
+                  <div style={{ fontSize: "18px", fontWeight: "bold", color: "#0056b3", marginBottom: "8px" }}>
+                    {asset.asset_name || asset.description || "נכס ללא שם"}
+                  </div>
                   
-                  {asset.computed_monthly_amount && (
-                    <div style={{ color: "green", fontWeight: "bold" }}>
-                      <strong>תשלום חודשי מחושב:</strong> ₪{asset.computed_monthly_amount.toLocaleString()}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
+                      <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
+                      <div><strong>תשלום חודשי:</strong> ₪{(asset.monthly_income || 0).toLocaleString()}</div>
+                      <div><strong>ערך נוכחי:</strong> ₪{asset.current_value?.toLocaleString() || 0}</div>
+                      <div><strong>תשואה שנתית:</strong> {
+                        asset.annual_return_rate > 1 ? asset.annual_return_rate : 
+                        asset.annual_return_rate ? (asset.annual_return_rate * 100) : 
+                        asset.annual_return || 0
+                      }%</div>
                     </div>
-                  )}
+                    
+                    <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
+                      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>תאריכים והצמדה</div>
+                      <div><strong>תאריך התחלה:</strong> {asset.start_date ? formatDateToDDMMYY(new Date(asset.start_date)) : "לא צוין"}</div>
+                      <div><strong>תאריך סיום:</strong> {asset.end_date ? formatDateToDDMMYY(new Date(asset.end_date)) : "ללא הגבלה"}</div>
+                      <div><strong>תדירות תשלום:</strong> {
+                        asset.payment_frequency === "monthly" ? "חודשי" :
+                        asset.payment_frequency === "quarterly" ? "רבעוני" : "שנתי"
+                      }</div>
+                      <div><strong>הצמדה:</strong> {
+                        asset.indexation_method === "none" ? "ללא" :
+                        asset.indexation_method === "fixed" ? `קבועה ${asset.fixed_rate}%` :
+                        "למדד"
+                      }</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ backgroundColor: "#f0f8ff", padding: "8px", borderRadius: "4px", border: "1px solid #d1e7ff" }}>
+                    <div style={{ fontWeight: "bold", marginBottom: "4px" }}>מיסוי</div>
+                    <div><strong>יחס מס:</strong> {
+                      asset.tax_treatment === "exempt" ? "פטור ממס" :
+                      asset.tax_treatment === "taxable" ? "חייב במס רגיל" :
+                      asset.tax_treatment === "capital_gains" ? "מס רווח הון (25%)" :
+                      asset.tax_treatment === "tax_spread" ? `פריסת מס (${asset.spread_years || 0} שנים)` :
+                      asset.tax_treatment === "fixed_rate" ? `שיעור קבוע ${asset.tax_rate}%` :
+                      "לא מוגדר"
+                    }</div>
+                  </div>
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                     {asset.id && (

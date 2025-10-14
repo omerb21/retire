@@ -87,6 +87,11 @@ def compute_and_persist_fund(db: Session, fund_id: int) -> PensionFund:
 
     fund.pension_amount = round(base, 2)
     fund.indexed_pension_amount = round(indexed, 2)
+    
+    # Reset balance to zero after computation for calculated mode
+    if fund.input_mode == "calculated":
+        fund.balance = 0.0
+        fund.current_balance = 0.0
 
     db.add(fund)
     db.commit()
@@ -121,6 +126,11 @@ def compute_and_persist(db: Session, fund: PensionFund, reference_date: Optional
     # Update fund with calculated values
     fund.pension_amount = base
     fund.indexed_pension_amount = indexed
+    
+    # Reset balance to zero after computation for calculated mode
+    if fund.input_mode == "calculated":
+        fund.balance = 0.0
+        fund.current_balance = 0.0
     
     # Persist changes to database
     db.add(fund)

@@ -5,15 +5,19 @@ Endpoints for managing current employer and grants
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from datetime import date
+from datetime import date, datetime
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employer import CurrentEmployer
 from app.services.current_employer_service import CurrentEmployerService
 from app.schemas.current_employer import (
     CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut,
-    EmployerGrantCreate, GrantWithCalculation
+    EmployerGrantCreate, GrantWithCalculation,
+    TerminationDecisionCreate, TerminationDecisionOut
 )
+from app.models.grant import Grant
+from app.models.pension_fund import PensionFund
+from app.models.capital_asset import CapitalAsset
 
 router = APIRouter()
 
@@ -184,4 +188,238 @@ def add_grant_to_current_employer(
         raise HTTPException(
             status_code=400,
             detail={"error": str(e)}
+        )
+
+@router.post(
+    "/clients/{client_id}/current-employer/termination",
+    response_model=TerminationDecisionOut,
+    status_code=status.HTTP_201_CREATED
+)
+def process_termination_decision(
+    client_id: int,
+    decision: TerminationDecisionCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Process employee termination decision and create appropriate entities:
+    - Grant for exempt redemption with exemption usage
+    - Pension for annuity choice
+    - Capital Asset for tax spread choice
+    
+    Returns IDs of created entities
+    """
+    # Check if client exists
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "לקוח לא נמצא"}
+        )
+    
+    # Get current employer
+    ce = db.scalar(
+        select(CurrentEmployer)
+        .where(CurrentEmployer.client_id == client_id)
+        .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+    )
+    if not ce:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "אין מעסיק נוכחי רשום ללקוח"}
+        )
+    
+    try:
+        import json
+        print(f"🔵 TERMINATION DECISION RECEIVED: {json.dumps(decision.model_dump(), indent=2, default=str)}")
+        
+        result = {
+            "created_grant_id": None,
+            "created_pension_id": None,
+            "created_capital_asset_id": None
+        }
+        
+        # Update current employer end_date
+        ce.end_date = decision.termination_date
+        
+        # Process exempt amount decision
+        if decision.exempt_amount > 0:
+            print(f"🟡 PROCESSING EXEMPT AMOUNT: {decision.exempt_amount}")
+            print(f"🟡 exempt_choice = '{decision.exempt_choice}'")
+            
+            if decision.exempt_choice == 'redeem_with_exemption':
+                # Create Grant for exempt amount
+                grant = Grant(
+                    client_id=client_id,
+                    employer_name=f"מענק פיצויים פטור - {ce.employer_name}",
+                    work_start_date=ce.start_date,
+                    work_end_date=decision.termination_date,
+                    grant_amount=decision.exempt_amount,
+                    grant_date=decision.termination_date,
+                    grant_indexed_amount=decision.exempt_amount,
+                    limited_indexed_amount=decision.exempt_amount
+                )
+                db.add(grant)
+                db.flush()
+                result["created_grant_id"] = grant.id
+                
+                # Also create Capital Asset for exempt amount (no tax spread - it's exempt!)
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.exempt_amount,
+                    monthly_income=decision.exempt_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="exempt",
+                    remarks=f"מענק פיצויים פטור ממס - {decision.exempt_amount:,.0f} ₪"
+                )
+                db.add(capital_asset)
+                db.flush()
+                result["created_capital_asset_id"] = capital_asset.id
+                
+                print(f"🟢 CREATED EXEMPT GRANT ID: {grant.id} + CAPITAL ASSET ID: {capital_asset.id}")
+            
+            elif decision.exempt_choice == 'redeem_no_exemption':
+                # Create Capital Asset for exempt amount WITH TAX SPREAD
+                spread_years = decision.max_spread_years or 1
+                
+                print(f"🟢 CREATING EXEMPT CAPITAL ASSET WITH TAX_SPREAD:")
+                print(f"  - spread_years: {spread_years}")
+                
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.exempt_amount,
+                    monthly_income=decision.exempt_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="tax_spread",
+                    spread_years=spread_years,
+                    remarks=f"מענק פיצויים פטור ממס עם פריסת מס ל-{spread_years} שנים"
+                )
+                db.add(capital_asset)
+                db.flush()
+                
+                print(f"🟢 CREATED EXEMPT ASSET WITH ID: {capital_asset.id}, tax_treatment: {capital_asset.tax_treatment}")
+                
+                result["created_capital_asset_id"] = capital_asset.id
+            
+            elif decision.exempt_choice == 'annuity':
+                # Create PensionFund from exempt amount (regular pension fund, not special)
+                print(f"🟡 CREATING PENSION FUND FROM EXEMPT AMOUNT: {decision.exempt_amount}")
+                
+                # Convert annual amount to monthly
+                monthly_amount = decision.exempt_amount / 12
+                
+                pension_fund = PensionFund(
+                    client_id=client_id,
+                    fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
+                    fund_type="monthly_pension",
+                    input_mode="manual",
+                    pension_amount=monthly_amount,
+                    pension_start_date=decision.termination_date,
+                    indexation_method="none"
+                )
+                db.add(pension_fund)
+                db.flush()
+                
+                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, monthly: {monthly_amount}")
+                
+                if not result.get("created_pension_id"):
+                    result["created_pension_id"] = pension_fund.id
+        
+        # Process taxable amount decision  
+        if decision.taxable_amount > 0:
+            print(f"🔵 PROCESSING TAXABLE AMOUNT: {decision.taxable_amount}")
+            print(f"🔵 taxable_choice = '{decision.taxable_choice}'")
+            
+            if decision.taxable_choice == 'redeem_no_exemption':
+                # Create Capital Asset for taxable redemption WITH TAX SPREAD
+                spread_years = decision.max_spread_years or 1
+                
+                print(f"🟢 CREATING TAXABLE CAPITAL ASSET WITH TAX_SPREAD:")
+                print(f"  - max_spread_years: {decision.max_spread_years}")
+                print(f"  - spread_years: {spread_years}")
+                
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"מענק פיצויים חייב במס ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.taxable_amount,
+                    monthly_income=decision.taxable_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="tax_spread",  # ← Changed from "taxable" to "tax_spread"
+                    spread_years=spread_years,
+                    remarks=f"מענק פיצויים חייב במס עם פריסת מס ל-{spread_years} שנים"
+                )
+                db.add(capital_asset)
+                db.flush()
+                
+                print(f"🟢 CREATED TAXABLE ASSET WITH ID: {capital_asset.id}, tax_treatment: {capital_asset.tax_treatment}")
+                
+                if not result.get("created_capital_asset_id"):
+                    result["created_capital_asset_id"] = capital_asset.id
+            
+            elif decision.taxable_choice == 'annuity':
+                # Create PensionFund from taxable amount (regular pension fund, not special)
+                print(f"🔵 CREATING PENSION FUND FROM TAXABLE AMOUNT: {decision.taxable_amount}")
+                
+                # Convert annual amount to monthly
+                monthly_amount = decision.taxable_amount / 12
+                
+                pension_fund = PensionFund(
+                    client_id=client_id,
+                    fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
+                    fund_type="monthly_pension",
+                    input_mode="manual",
+                    pension_amount=monthly_amount,
+                    pension_start_date=decision.termination_date,
+                    indexation_method="none"
+                )
+                db.add(pension_fund)
+                db.flush()
+                
+                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, monthly: {monthly_amount}")
+                
+                if not result.get("created_pension_id"):
+                    result["created_pension_id"] = pension_fund.id
+        
+        db.commit()
+        
+        print(f"✅ TRANSACTION COMMITTED")
+        print(f"✅ RESULT: {result}")
+        
+        # Return result with created IDs
+        return TerminationDecisionOut(
+            **decision.model_dump(),
+            **result
+        )
+        
+    except ValueError as e:
+        db.rollback()
+        print(f"❌ ValueError: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
+        )
+    except Exception as e:
+        db.rollback()
+        print(f"❌ EXCEPTION: {e}")
+        print(f"❌ Exception type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
         )

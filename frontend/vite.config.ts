@@ -5,11 +5,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    host: '0.0.0.0',
+    strictPort: true,
     proxy: {
-      // כל מה שמתחיל ב-/api יעבור ל-8005
+      // כל מה שמתחיל ב-/api יעבור ל-8005 (השרת הראשי)
       "/api": {
-        target: "http://127.0.0.1:8005",
+        target: "http://localhost:8005",
         changeOrigin: true,
+        secure: false,
         // אם ה-API שלכם כבר מתחיל ב-/api/v1 אין צורך ב-rewrite
         // rewrite: (path) => path,
       },

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { apiFetch } from '../lib/api';
 import axios from 'axios';
+import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 interface Grant {
   id?: number;
@@ -140,7 +142,21 @@ const SimpleGrants: React.FC = () => {
         throw new Error('יש למלא את כל השדות הנדרשים');
       }
 
-      await axios.post(`/api/v1/clients/${id}/grants`, newGrant);
+      // Convert dates to ISO format
+      const workStartDateISO = convertDDMMYYToISO(newGrant.work_start_date);
+      const workEndDateISO = convertDDMMYYToISO(newGrant.work_end_date);
+      const grantDateISO = convertDDMMYYToISO(newGrant.grant_date);
+      
+      if (!workStartDateISO || !workEndDateISO || !grantDateISO) {
+        throw new Error('תאריכים לא תקינים - יש להזין בפורמט DD/MM/YYYY');
+      }
+
+      await axios.post(`/api/v1/clients/${id}/grants`, {
+        ...newGrant,
+        work_start_date: workStartDateISO,
+        work_end_date: workEndDateISO,
+        grant_date: grantDateISO
+      });
 
       // Reset form
       setNewGrant({
@@ -284,11 +300,16 @@ const SimpleGrants: React.FC = () => {
                 תאריך התחלת עבודה:
               </label>
               <input
-                type="date"
+                type="text"
                 name="work_start_date"
-                value={newGrant.work_start_date}
-                onChange={handleInputChange}
+                placeholder="DD/MM/YYYY"
+                value={newGrant.work_start_date || ''}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setNewGrant({ ...newGrant, work_start_date: formatted });
+                }}
                 required
+                maxLength={10}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 
@@ -303,11 +324,16 @@ const SimpleGrants: React.FC = () => {
                 תאריך סיום עבודה:
               </label>
               <input
-                type="date"
+                type="text"
                 name="work_end_date"
-                value={newGrant.work_end_date}
-                onChange={handleInputChange}
+                placeholder="DD/MM/YYYY"
+                value={newGrant.work_end_date || ''}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setNewGrant({ ...newGrant, work_end_date: formatted });
+                }}
                 required
+                maxLength={10}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 
@@ -324,11 +350,16 @@ const SimpleGrants: React.FC = () => {
                 תאריך קבלת מענק:
               </label>
               <input
-                type="date"
+                type="text"
                 name="grant_date"
-                value={newGrant.grant_date}
-                onChange={handleInputChange}
+                placeholder="DD/MM/YYYY"
+                value={newGrant.grant_date || ''}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setNewGrant({ ...newGrant, grant_date: formatted });
+                }}
                 required
+                maxLength={10}
                 style={{ 
                   width: '100%', 
                   padding: '8px', 
@@ -430,8 +461,8 @@ const SimpleGrants: React.FC = () => {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                         <div><strong>מעסיק:</strong> {grant.employer_name}</div>
                         <div><strong>סוג מענק:</strong> {grant.grant_type}</div>
-                        <div><strong>תקופת עבודה:</strong> {grant.work_start_date} - {grant.work_end_date}</div>
-                        <div><strong>תאריך מענק:</strong> {grant.grant_date}</div>
+                        <div><strong>תקופת עבודה:</strong> {formatDateToDDMMYY(new Date(grant.work_start_date))} - {formatDateToDDMMYY(new Date(grant.work_end_date))}</div>
+                        <div><strong>תאריך מענק:</strong> {formatDateToDDMMYY(new Date(grant.grant_date))}</div>
                       </div>
                       
                       <div style={{ marginBottom: '10px' }}>

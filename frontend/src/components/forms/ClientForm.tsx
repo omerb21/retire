@@ -40,7 +40,7 @@ interface ClientFormData {
   
   // Tax credit points
   tax_credit_points: number;
-  pension_start_date?: string | null;
+  // pension_start_date נמחק לפי דרישה
   spouse_income?: number | null;
   immigration_date?: string | null;
   military_discharge_date?: string | null;
@@ -79,7 +79,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
     
     // Tax credit points
     tax_credit_points: 0,
-    pension_start_date: null,
+    // pension_start_date נמחק לפי דרישה
     spouse_income: null,
     immigration_date: null,
     military_discharge_date: null,
@@ -143,7 +143,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
         
         // Tax credit points
         tax_credit_points: formData.tax_credit_points,
-        pension_start_date: formData.pension_start_date,
+        // pension_start_date נמחק לפי דרישה
         spouse_income: formData.spouse_income,
         immigration_date: formData.immigration_date,
         military_discharge_date: formData.military_discharge_date,
@@ -552,18 +552,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
         <h3 className="text-lg font-medium mb-4">תאריכים חשובים</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              תאריך תחילת קבלת פנסיה
-              <input
-                type="date"
-                name="pension_start_date"
-                value={formData.pension_start_date || ''}
-                onChange={handleChange}
-                className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
-              />
-            </label>
-          </div>
+          {/* שדה תאריך תחילת קבלת פנסיה הוסר לפי דרישה */}
 
           <div>
             <label className="block text-sm font-medium mb-1">

@@ -1,29 +1,10 @@
-# Main project dependencies
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
-SQLAlchemy==2.0.9
-psycopg2-binary==2.9.7
-requests>=2.31
-python-dotenv==1.0.0
-alembic==1.10.3
-pydantic==2.4.2
+uvicorn==0.24.0
+sqlalchemy==2.0.23
+alembic==1.12.1
+pydantic==2.5.0
 python-multipart==0.0.6
-
-# PDF and reporting dependencies
-reportlab==4.0.4
-matplotlib==3.7.1
-numpy<2
-Pillow==10.0.1
-openpyxl==3.1.2
-
-# Testing dependencies
-pytest==7.3.1
-pytest-cov==4.1.0
-pytest-asyncio==0.21.1
-httpx==0.25.0
-
-# Development dependencies
-black==23.3.0
-isort==5.12.0
-pre-commit==3.3.1
-ipython==8.12.0
+jinja2==3.1.2
+requests==2.31.0
+python-dateutil==2.8.2
+reportlab==4.0.7

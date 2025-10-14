@@ -118,6 +118,10 @@ def compute_all_client_pension_funds(
 
 @router.get("/clients/{client_id}/pension-funds", response_model=List[PensionFundOut])
 def get_client_pension_funds(client_id: int, db: Session = Depends(get_db)):
-    """Get all pension funds for a client"""
-    funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
-    return funds
+    """Get all pension funds for a client - FAST VERSION"""
+    try:
+        funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        return funds
+    except Exception as e:
+        print(f"Error getting pension funds: {e}")
+        return []

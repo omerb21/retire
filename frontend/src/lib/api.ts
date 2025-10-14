@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8005/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 function extractMessage(body: any): string | undefined {
   if (!body) return;
@@ -27,30 +27,70 @@ async function parseTextSafe(res: Response) {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    // ↓ שינוי קריטי שמפסיק הרבה "Failed to fetch"
-    credentials: "omit",
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    ...init,
-  });
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      credentials: "omit",
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      ...init,
+    });
 
-  const ct = res.headers.get("content-type") ?? "";
-  const isJson = ct.includes("application/json");
+    const ct = res.headers.get("content-type") ?? "";
+    const isJson = ct.includes("application/json");
 
-  if (!res.ok) {
-    const msg = isJson
-      ? await res.clone().json().then((b) =>
-          typeof b?.detail === "string"
-            ? b.detail
-            : Array.isArray(b?.detail)
-            ? b.detail.map((d: any) => d.msg || d?.loc?.join(".")).join("; ")
-            : JSON.stringify(b)
-        ).catch(() => "")
-      : await res.clone().text().catch(() => "");
-    throw new Error(msg || `HTTP ${res.status}`);
+    if (!res.ok) {
+      let errorMsg = "";
+      
+      try {
+        if (isJson) {
+          const errorBody = await res.clone().text();
+          console.log(`Error response body: ${errorBody}`);
+          
+          try {
+            const parsedBody = JSON.parse(errorBody);
+            errorMsg = typeof parsedBody?.detail === "string"
+              ? parsedBody.detail
+              : Array.isArray(parsedBody?.detail)
+              ? parsedBody.detail.map((d: any) => d.msg || d?.loc?.join(".")).join("; ")
+              : JSON.stringify(parsedBody);
+          } catch (jsonError) {
+            console.error("Error parsing JSON error response:", jsonError);
+            errorMsg = errorBody || `HTTP ${res.status} ${res.statusText}`;
+          }
+        } else {
+          errorMsg = await res.clone().text().catch(() => "") || `HTTP ${res.status} ${res.statusText}`;
+        }
+      } catch (parseError) {
+        console.error("Error parsing error response:", parseError);
+        errorMsg = `HTTP ${res.status} ${res.statusText}`;
+      }
+      
+      throw new Error(errorMsg || `HTTP ${res.status} ${res.statusText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (res.status === 204) {
+      return null as T;
+    }
+    
+    if (isJson) {
+      try {
+        // First get the raw text to debug any JSON parsing issues
+        const rawText = await res.clone().text();
+        console.log(`Raw response text (first 100 chars): ${rawText.substring(0, 100)}${rawText.length > 100 ? '...' : ''}`);
+        
+        // Then try to parse as JSON
+        return await res.json() as T;
+      } catch (jsonError) {
+        console.error("JSON parsing error:", jsonError);
+        throw new Error(`Failed to parse JSON response: ${jsonError}`);
+      }
+    } else {
+      return await res.text() as T;
+    }
+  } catch (fetchError) {
+    console.error(`API Fetch error for ${path}:`, fetchError);
+    throw fetchError;
   }
-
-  return (isJson ? await res.json() : await res.text()) as T;
 }
 
 // Helper function to check if error is network-related
@@ -79,7 +119,7 @@ export type ClientCreate = {
   last_name: string;
   id_number: string;   // מחרוזת!
   birth_date: string;  // "YYYY-MM-DD"
-  gender: string;      // "male" or "female"
+  gender?: string;      // "male" or "female"
   email?: string | null;
   phone?: string | null;
   address_street?: string | null;
@@ -87,6 +127,28 @@ export type ClientCreate = {
   address_postal_code?: string | null;
   pension_start_date?: string | null;
   tax_credit_points?: number | null;
+  marital_status?: string | null;
+  
+  // Tax-related fields
+  num_children?: number | null;
+  is_new_immigrant?: boolean | null;
+  is_veteran?: boolean | null;
+  is_disabled?: boolean | null;
+  disability_percentage?: number | null;
+  is_student?: boolean | null;
+  reserve_duty_days?: number | null;
+  
+  // Income and deductions
+  annual_salary?: number | null;
+  pension_contributions?: number | null;
+  study_fund_contributions?: number | null;
+  insurance_premiums?: number | null;
+  charitable_donations?: number | null;
+  
+  // Additional fields
+  spouse_income?: number | null;
+  immigration_date?: string | null;
+  military_discharge_date?: string | null;
 };
 
 export async function listClients(params?: { limit?: number; offset?: number }) {
@@ -94,8 +156,8 @@ export async function listClients(params?: { limit?: number; offset?: number }) 
   if (params?.limit != null) q.set("limit", String(params.limit));
   if (params?.offset != null) q.set("offset", String(params.offset));
   const qs = q.toString();
-  const response = await apiFetch<{clients: ClientItem[], total: number}>(`/clients${qs ? `?${qs}` : ""}`);
-  return response.clients;
+  const response = await apiFetch<ClientItem[]>(`/clients${qs ? `?${qs}` : ""}`);
+  return response;
 }
 
 // Helper for valid Israeli ID - EXACT match to backend implementation
@@ -177,10 +239,15 @@ export async function getClient(id: number) {
   return apiFetch<ClientItem>(`/clients/${id}`);
 }
 
+export async function getClientPensionFunds(clientId: number) {
+  return apiFetch<any[]>(`/clients/${clientId}/pension-funds`);
+}
+
 export const clientApi = {
   create: createClient,
   get: getClient,
-  list: listClients
+  list: listClients,
+  getPensionFunds: getClientPensionFunds
 };
 
 export function handleApiError(error: any): string {
