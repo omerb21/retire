@@ -12,6 +12,7 @@ import SimpleGrants from "./pages/SimpleGrants";
 import SimpleReports from "./pages/SimpleReports";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
+import ConversionRulesSettings from "./pages/ConversionRulesSettings";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
@@ -55,6 +56,7 @@ export default function App() {
             <NavLink to="/clients">לקוחות</NavLink>
             <NavLink to="/tools">כלי בדיקה</NavLink>
             <NavLink to="/system-settings">הגדרות מערכת</NavLink>
+            <NavLink to="/conversion-rules">חוקי המרה</NavLink>
           </nav>
         </header>
         <main style={{ padding: 16 }}>
@@ -72,6 +74,7 @@ export default function App() {
             <Route path="/clients/:id/reports" element={<SimpleReports />} />
             <Route path="/tools" element={<Tools />} />
             <Route path="/system-settings" element={<SystemSettings />} />
+            <Route path="/conversion-rules" element={<ConversionRulesSettings />} />
             <Route path="/" element={<Clients />} />
             <Route path="*" element={<Clients />} />
           </Routes>

@@ -3,6 +3,12 @@ import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import * as XLSX from 'xlsx';
 import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
+import { 
+  validateAccountConversion, 
+  calculateTaxTreatment, 
+  getConversionRulesExplanation,
+  isEducationFund
+} from '../config/conversionRules';
 
 type PensionAccount = {
   id?: number;
@@ -49,8 +55,8 @@ export default function PensionPortfolio() {
   const [convertedAccounts, setConvertedAccounts] = useState<Set<string>>(new Set()); // זיכרון תכניות שהומרו
   const [conversionTypes, setConversionTypes] = useState<Record<number, 'pension' | 'capital_asset'>>({}); // סוגי המרה לפי אינדקס
   const [clientData, setClientData] = useState<any>(null); // נתוני הלקוח
-  const [xmlClientData, setXmlClientData] = useState<{firstName?: string, lastName?: string, idNumber?: string} | null>(null); // נתוני לקוח מ-XML
   const [editingCell, setEditingCell] = useState<{row: number, field: string} | null>(null); // תא בעריכה
+  const [showConversionRules, setShowConversionRules] = useState<boolean>(false); // הצגת חוקי המרה
 
   // פונקציה לעיבוד קבצי XML של המסלקה
   const processXMLFiles = async (files: FileList) => {
@@ -63,7 +69,6 @@ export default function PensionPortfolio() {
 
     try {
       const processedAccounts: PensionAccount[] = [];
-      let extractedClientData: {firstName?: string, lastName?: string, idNumber?: string} | null = null;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -74,16 +79,6 @@ export default function PensionPortfolio() {
         setProcessingStatus(`מעבד קובץ ${i + 1} מתוך ${files.length}: ${file.name}`);
 
         const text = await file.text();
-        
-        // חילוץ נתוני לקוח מהקובץ הראשון
-        if (i === 0) {
-          extractedClientData = extractClientDataFromXML(text);
-          if (extractedClientData) {
-            setXmlClientData(extractedClientData);
-            localStorage.setItem(`xmlClientData_${clientId}`, JSON.stringify(extractedClientData));
-          }
-        }
-        
         const accounts = extractAccountsFromXML(text, file.name);
         console.log(`File ${file.name} produced ${accounts.length} accounts`);
         processedAccounts.push(...accounts);
@@ -109,67 +104,6 @@ export default function PensionPortfolio() {
       setProcessingStatus("");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // פונקציה לחילוץ נתוני לקוח מ-XML
-  const extractClientDataFromXML = (xmlContent: string): {firstName?: string, lastName?: string, idNumber?: string} | null => {
-    try {
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
-      
-      // Debug: הדפסת כל התגיות שמתחילות ב-SHEM
-      const allElements = xmlDoc.getElementsByTagName('*');
-      const shemTags: string[] = [];
-      for (let i = 0; i < Math.min(allElements.length, 100); i++) {
-        const tagName = allElements[i].tagName;
-        if (tagName.includes('SHEM') || tagName.includes('NAME') || tagName.includes('LAKOACH')) {
-          const content = allElements[i].textContent?.trim().substring(0, 50);
-          shemTags.push(`${tagName}: "${content}"`);
-        }
-      }
-      console.log('🔍 Tags containing SHEM/NAME/LAKOACH:', shemTags);
-      
-      // ניסיון למצוא שם פרטי בתגיות שונות
-      let firstName = xmlDoc.getElementsByTagName('SHEM-PRATI')[0]?.textContent?.trim() ||
-                      xmlDoc.getElementsByTagName('SHEM_PRATI')[0]?.textContent?.trim() ||
-                      xmlDoc.getElementsByTagName('FirstName')[0]?.textContent?.trim() ||
-                      xmlDoc.getElementsByTagName('FIRST-NAME')[0]?.textContent?.trim();
-      
-      // ניסיון למצוא שם משפחה בתגיות שונות
-      let lastName = xmlDoc.getElementsByTagName('SHEM-MISHPACHA')[0]?.textContent?.trim() ||
-                     xmlDoc.getElementsByTagName('SHEM_MISHPACHA')[0]?.textContent?.trim() ||
-                     xmlDoc.getElementsByTagName('LastName')[0]?.textContent?.trim() ||
-                     xmlDoc.getElementsByTagName('LAST-NAME')[0]?.textContent?.trim();
-      
-      // אם לא נמצא שם, ננסה לחלץ מתגית SHEM-LAKOACH (שם מלא)
-      if (!firstName && !lastName) {
-        const fullName = xmlDoc.getElementsByTagName('SHEM-LAKOACH')[0]?.textContent?.trim() ||
-                        xmlDoc.getElementsByTagName('SHEM_LAKOACH')[0]?.textContent?.trim();
-        if (fullName) {
-          const parts = fullName.split(' ');
-          if (parts.length >= 2) {
-            firstName = parts[0];
-            lastName = parts.slice(1).join(' ');
-          }
-        }
-      }
-      
-      const idNumber = xmlDoc.getElementsByTagName('MISPAR-ZIHUY-LAKOACH')[0]?.textContent?.trim() ||
-                      xmlDoc.getElementsByTagName('MISPAR_ZIHUY_LAKOACH')[0]?.textContent?.trim() ||
-                      xmlDoc.getElementsByTagName('ID-NUMBER')[0]?.textContent?.trim();
-      
-      console.log('Extracted client data from XML:', JSON.stringify({ firstName, lastName, idNumber }));
-      
-      if (firstName || lastName || idNumber) {
-        return { firstName, lastName, idNumber };
-      }
-      
-      console.warn('No client data found in XML. Checked multiple tag variations.');
-      return null;
-    } catch (e) {
-      console.warn('Failed to extract client data from XML:', e);
-      return null;
     }
   };
 
@@ -893,10 +827,13 @@ export default function PensionPortfolio() {
     // חיפוש תכניות שנבחרו עם conversion_type='pension'
     const pensionConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
     const capitalAssetConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
+    const validationErrors: string[] = [];
     
     pensionData.forEach((account, index) => {
       const isPensionConversion = conversionTypes[index] === 'pension';
       const isCapitalAssetConversion = conversionTypes[index] === 'capital_asset';
+      
+      if (!isPensionConversion && !isCapitalAssetConversion) return;
       
       // חישוב הסכום להמרה
       let amountToConvert = 0;
@@ -905,25 +842,49 @@ export default function PensionPortfolio() {
       if (account.selected) {
         // אם כל התכנית נבחרה - המר את כל היתרה
         amountToConvert = account.יתרה || 0;
+        // צור selected_amounts עבור כל השדות הקיימים
+        specificAmounts = {};
+        Object.keys(account).forEach(key => {
+          if (key.startsWith('פיצויים_') || key.startsWith('תגמולי_')) {
+            if ((account as any)[key] && (account as any)[key] > 0) {
+              specificAmounts[key] = true;
+            }
+          }
+        });
       } else {
         // אם רק סכומים ספציפיים נבחרו - חשב את הסכום הכולל
         const selectedAmounts = account.selected_amounts || {};
         Object.entries(selectedAmounts).forEach(([key, isSelected]) => {
           if (isSelected && (account as any)[key]) {
             amountToConvert += parseFloat((account as any)[key]) || 0;
-            specificAmounts[key] = (account as any)[key];
+            specificAmounts[key] = true;
           }
         });
       }
       
       if (amountToConvert > 0) {
-        if (isPensionConversion) {
-          pensionConversions.push({account, index, amountToConvert, specificAmounts});
-        } else if (isCapitalAssetConversion) {
-          capitalAssetConversions.push({account, index, amountToConvert, specificAmounts});
+        // ולידציה לפי חוקי ההמרה
+        const conversionType = isPensionConversion ? 'pension' : 'capital_asset';
+        const validation = validateAccountConversion(account, specificAmounts, conversionType);
+        
+        if (!validation.valid) {
+          validationErrors.push(`${account.שם_תכנית}: ${validation.errors.join(', ')}`);
+        } else {
+          // המרה תקינה - הוסף לרשימה
+          if (isPensionConversion) {
+            pensionConversions.push({account, index, amountToConvert, specificAmounts});
+          } else if (isCapitalAssetConversion) {
+            capitalAssetConversions.push({account, index, amountToConvert, specificAmounts});
+          }
         }
       }
     });
+
+    // בדיקה שיש שגיאות ולידציה
+    if (validationErrors.length > 0) {
+      setError("שגיאות ולידציה:\n" + validationErrors.join('\n'));
+      return;
+    }
 
     // בדיקה שיש לפחות המרה אחת
     if (pensionConversions.length === 0 && capitalAssetConversions.length === 0) {
@@ -952,6 +913,9 @@ export default function PensionPortfolio() {
             conversionDetails = `כל היתרה: ₪${amountToConvert.toLocaleString()}`;
           }
           
+          // חישוב יחס מס לפי חוקי ההמרה
+          const taxTreatment = calculateTaxTreatment(account, specificAmounts, 'pension');
+          
           // יצירת מידע מקור להחזרה במקרה של מחיקה
           const conversionSourceData = {
             type: 'pension_portfolio',
@@ -961,7 +925,8 @@ export default function PensionPortfolio() {
             product_type: account.סוג_מוצר,
             amount: amountToConvert,
             specific_amounts: specificAmounts,
-            conversion_date: new Date().toISOString()
+            conversion_date: new Date().toISOString(),
+            tax_treatment: taxTreatment
           };
           
           const pensionData: any = {
@@ -973,7 +938,8 @@ export default function PensionPortfolio() {
             pension_amount: Math.round(amountToConvert / 200), // מקדם קצבה 200
             pension_start_date: retirementDate,
             indexation_method: "none" as const, // ללא הצמדה
-            remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}`,
+            tax_treatment: taxTreatment, // יחס מס מחושב לפי חוקי המערכת
+            remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}\nיחס מס: ${taxTreatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}`,
             conversion_source: JSON.stringify(conversionSourceData)
           };
           
@@ -1029,6 +995,9 @@ export default function PensionPortfolio() {
             assetDescription = 'קופת גמל';
           }
           
+          // חישוב יחס מס לפי חוקי ההמרה - להון תמיד מס רווח הון
+          const taxTreatment = 'capital_gain';
+          
           // יצירת מידע מקור להחזרה במקרה של מחיקה
           const conversionSourceData = {
             type: 'pension_portfolio',
@@ -1038,7 +1007,8 @@ export default function PensionPortfolio() {
             product_type: account.סוג_מוצר,
             amount: amountToConvert,
             specific_amounts: specificAmounts,
-            conversion_date: new Date().toISOString()
+            conversion_date: new Date().toISOString(),
+            tax_treatment: taxTreatment
           };
           
           // המרת תאריכים לפורמט ISO
@@ -1062,7 +1032,7 @@ export default function PensionPortfolio() {
             monthly_income: 0, // אין תשלום חודשי
             start_date: todayISO,
             indexation_method: 'none', // ללא הצמדה
-            tax_treatment: 'exempt', // פטור מס
+            tax_treatment: taxTreatment, // מס רווח הון - מחושב לפי חוקי המערכת
             conversion_source: JSON.stringify(conversionSourceData)
           };
 
@@ -1275,12 +1245,6 @@ export default function PensionPortfolio() {
   useEffect(() => {
     loadExistingData();
     loadClientData();
-    
-    // טעינת נתוני לקוח מ-XML מ-localStorage
-    const savedXmlClientData = localStorage.getItem(`xmlClientData_${clientId}`);
-    if (savedXmlClientData) {
-      setXmlClientData(JSON.parse(savedXmlClientData));
-    }
   }, [clientId]);
 
   // טעינה מחדש כשחוזרים לדף (למשל אחרי מחיקת נכס)
@@ -1321,7 +1285,7 @@ export default function PensionPortfolio() {
         <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
       </div>
       
-      <h2>תיק פנסיוני{xmlClientData?.idNumber && ` - ת.ז: ${xmlClientData.idNumber}`}{xmlClientData?.firstName && xmlClientData?.lastName && ` (${xmlClientData.firstName} ${xmlClientData.lastName})`}</h2>
+      <h2>תיק פנסיוני{clientData && ` - ${clientData.first_name} ${clientData.last_name} (ת.ז: ${clientData.id_number})`}</h2>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -1405,8 +1369,46 @@ export default function PensionPortfolio() {
               <li><strong>שמירת תכניות:</strong> סמן תכניות בעמודה "בחר" ולחץ "שמור תכניות נבחרות" לשמירה בטבלת התכניות הפנסיוניות</li>
               <li><strong>מחיקת תכנית:</strong> לחץ "מחק" בעמודת הפעולות להסרת תכנית מהרשימה</li>
               <li><strong>המרה לקצבאות/נכסים:</strong> סמן חשבונות או סכומים ספציפיים, בחר סוג המרה ולחץ "המר חשבונות/סכומים נבחרים"</li>
+              <li><strong>חוקי המרה:</strong> לחץ על הכפתור "חוקי המרה לפי חוק" כדי לצפות במגבלות המרת יתרות</li>
             </ol>
           </div>
+          
+          {/* כפתור חוקי המרה */}
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={() => setShowConversionRules(!showConversionRules)}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "#17a2b8",
+                color: "white",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "bold"
+              }}
+              title="הצג/הסתר חוקי המרה לפי חוק"
+            >
+              📋 {showConversionRules ? 'הסתר חוקי המרה' : 'חוקי המרה לפי חוק'}
+            </button>
+          </div>
+          
+          {/* הצגת חוקי המרה */}
+          {showConversionRules && (
+            <div style={{ 
+              marginBottom: 16, 
+              padding: 16, 
+              backgroundColor: "#e7f3ff", 
+              borderRadius: 4, 
+              border: "2px solid #007bff",
+              whiteSpace: "pre-wrap",
+              fontSize: "13px",
+              lineHeight: "1.6"
+            }}>
+              <h4 style={{ marginTop: 0, color: "#007bff" }}>חוקי המרת יתרות מתיק פנסיוני</h4>
+              {getConversionRulesExplanation()}
+            </div>
+          )}
           
           {/* כפתור הוספה ידנית */}
           <div style={{ marginBottom: 16 }}>
