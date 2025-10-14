@@ -351,6 +351,7 @@ def process_termination_decision(
                     start_date=decision.termination_date,
                     indexation_method="none",
                     tax_treatment="tax_spread",
+                    spread_years=spread_years,
                     remarks=f"פריסת מס ל-{spread_years} שנים. שנה ראשונה: {decision.taxable_amount:,.0f} ₪, שאר השנים: 0 ₪"
                 )
                 db.add(capital_asset)

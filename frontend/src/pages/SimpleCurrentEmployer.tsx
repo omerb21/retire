@@ -669,6 +669,20 @@ const SimpleCurrentEmployer: React.FC = () => {
                   {terminationDecision.taxable_choice === 'tax_spread' && terminationDecision.max_spread_years !== undefined && (
                     <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
                       <h5>זכאות לפריסת פיצויים</h5>
+                      
+                      <div style={{ marginBottom: '15px', padding: '12px', backgroundColor: '#e7f3ff', borderRadius: '4px', fontSize: '14px' }}>
+                        <strong>📘 מה זה פריסת פיצויים?</strong>
+                        <p style={{ margin: '8px 0 0 0' }}>
+                          פריסת פיצויים מאפשרת לפרוס את החלק החייב במס של המענק על פני מספר שנות מס.
+                          הזכאות נקבעת לפי <strong>שנת פריסה אחת לכל 4 שנות וותק מלאות</strong>.
+                          פריסה עשויה להקטין את המס הכולל על המענק בזכות מדרגות המס השנתיות.
+                        </p>
+                        <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#555' }}>
+                          <strong>תשלום המס:</strong> בשנה הראשונה משולם כל סכום המענק, אך המס מחושב בהתחשב 
+                          בפריסה על פני כל השנים. בשאר השנים, המס מוצג רק ויזואלית ולא משולם בפועל.
+                        </p>
+                      </div>
+                      
                       <p><strong>זכאות מקסימלית:</strong> {terminationDecision.max_spread_years} שנים<br/>
                       <small style={{ color: '#666' }}>(שנת פריסה אחת לכל 4 שנות וותק מלאות)</small></p>
                       {terminationDecision.max_spread_years > 0 ? (
