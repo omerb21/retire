@@ -322,7 +322,7 @@ def process_termination_decision(
                     fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
                     fund_type="monthly_pension",
                     input_mode="manual",
-                    monthly_amount=monthly_amount,
+                    pension_amount=monthly_amount,
                     pension_start_date=decision.termination_date,
                     indexation_method="none"
                 )
@@ -381,7 +381,7 @@ def process_termination_decision(
                     fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
                     fund_type="monthly_pension",
                     input_mode="manual",
-                    monthly_amount=monthly_amount,
+                    pension_amount=monthly_amount,
                     pension_start_date=decision.termination_date,
                     indexation_method="none"
                 )
