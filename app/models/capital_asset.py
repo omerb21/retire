@@ -46,6 +46,7 @@ class TaxTreatment(str, Enum):
     TAXABLE = "taxable"
     FIXED_RATE = "fixed_rate"
     CAPITAL_GAINS = "capital_gains"
+    TAX_SPREAD = "tax_spread"  # פריסת מס
 
 
 class CapitalAsset(Base):

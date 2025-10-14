@@ -10,9 +10,26 @@ interface SimpleEmployer {
   id?: number;
   employer_name: string;
   start_date: string;
+  end_date?: string;
   last_salary: number;
   severance_accrued: number;
-  employer_completion?: number; // השלמת המעסיק
+  employer_completion?: number;
+  service_years?: number;
+  expected_grant_amount?: number;
+  tax_exempt_amount?: number;
+  taxable_amount?: number;
+}
+
+interface TerminationDecision {
+  termination_date: string;
+  use_employer_completion: boolean;
+  severance_amount: number;
+  exempt_amount: number;
+  taxable_amount: number;
+  exempt_choice: 'redeem_with_exemption' | 'redeem_no_exemption' | 'annuity';
+  taxable_choice: 'redeem_no_exemption' | 'annuity' | 'tax_spread';
+  tax_spread_years?: number;
+  max_spread_years?: number;
 }
 
 const SimpleCurrentEmployer: React.FC = () => {
@@ -20,11 +37,23 @@ const SimpleCurrentEmployer: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'termination'>('details');
   const [employer, setEmployer] = useState<SimpleEmployer>({
     employer_name: '',
     start_date: '',
     last_salary: 0,
     severance_accrued: 0
+  });
+  const [terminationDecision, setTerminationDecision] = useState<TerminationDecision>({
+    termination_date: '',
+    use_employer_completion: false,
+    severance_amount: 0,
+    exempt_amount: 0,
+    taxable_amount: 0,
+    exempt_choice: 'redeem_with_exemption',
+    taxable_choice: 'redeem_no_exemption',
+    tax_spread_years: 0,
+    max_spread_years: 0
   });
 
   // Calculate grant details
@@ -143,7 +172,56 @@ const SimpleCurrentEmployer: React.FC = () => {
     }, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [employer.start_date, employer.last_salary, id]);
+  }, [employer.start_date, employer.last_salary, employer.severance_accrued, id]);
+
+  // Calculate termination details when termination date is set
+  useEffect(() => {
+    if (terminationDecision.termination_date && employer.start_date && employer.last_salary) {
+      const startDate = new Date(convertDDMMYYToISO(employer.start_date) || employer.start_date);
+      const endDate = new Date(convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date);
+      const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      const expectedGrant = employer.last_salary * serviceYears;
+      
+      const maxSpreadYears = Math.floor(serviceYears / 4);
+      
+      const severanceAmount = terminationDecision.use_employer_completion 
+        ? expectedGrant 
+        : employer.severance_accrued;
+      
+      const exemptCap = Math.min(375000, employer.last_salary * 9 * serviceYears);
+      const exemptAmount = Math.min(severanceAmount, exemptCap);
+      const taxableAmount = Math.max(0, severanceAmount - exemptAmount);
+      
+      setTerminationDecision(prev => ({
+        ...prev,
+        severance_amount: severanceAmount,
+        exempt_amount: exemptAmount,
+        taxable_amount: taxableAmount,
+        max_spread_years: maxSpreadYears
+      }));
+    }
+  }, [terminationDecision.termination_date, terminationDecision.use_employer_completion, employer.start_date, employer.last_salary, employer.severance_accrued]);
+
+  const handleTerminationSubmit = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const terminationDateISO = convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date;
+      
+      await axios.post(`/api/v1/clients/${id}/current-employer/termination`, {
+        ...terminationDecision,
+        termination_date: terminationDateISO
+      });
+
+      alert('החלטות עזיבה נשמרו בהצלחה');
+      navigate(`/clients/${id}`);
+    } catch (err: any) {
+      setError('שגיאה בשמירת החלטות עזיבה: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +267,7 @@ const SimpleCurrentEmployer: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
+    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
       <div style={{ marginBottom: '20px' }}>
         <a href={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
           ← חזרה לפרטי לקוח
@@ -197,6 +275,47 @@ const SimpleCurrentEmployer: React.FC = () => {
       </div>
 
       <h2>מעסיק נוכחי</h2>
+
+      {error && (
+        <div style={{ color: 'red', marginBottom: '20px', padding: '10px', backgroundColor: '#fee', borderRadius: '4px' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ marginBottom: '20px', borderBottom: '2px solid #ddd' }}>
+        <button
+          onClick={() => setActiveTab('details')}
+          style={{
+            padding: '10px 20px',
+            marginLeft: '5px',
+            border: 'none',
+            borderBottom: activeTab === 'details' ? '3px solid #007bff' : 'none',
+            backgroundColor: activeTab === 'details' ? '#f8f9fa' : 'transparent',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'details' ? 'bold' : 'normal'
+          }}
+        >
+          פרטי מעסיק
+        </button>
+        <button
+          onClick={() => setActiveTab('termination')}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            borderBottom: activeTab === 'termination' ? '3px solid #007bff' : 'none',
+            backgroundColor: activeTab === 'termination' ? '#f8f9fa' : 'transparent',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'termination' ? 'bold' : 'normal'
+          }}
+        >
+          עזיבת עבודה
+        </button>
+      </div>
+
+      {/* Employer Details Tab */}
+      {activeTab === 'details' && (
+      <div>
 
       {/* Display existing employer data if loaded */}
       {employer.id && (
@@ -332,21 +451,20 @@ const SimpleCurrentEmployer: React.FC = () => {
           <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
             יתרת פיצויים נצברת (₪)
           </label>
-          <input
-            type="number"
-            name="severance_accrued"
-            value={employer.severance_accrued}
-            onChange={handleInputChange}
-            min="0"
-            step="0.01"
-            style={{
-              width: '100%',
-              padding: '10px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              fontSize: '16px'
-            }}
-          />
+          <div style={{ 
+            padding: '12px', 
+            backgroundColor: '#f8f9fa',
+            border: '2px solid #e9ecef',
+            borderRadius: '4px',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            color: '#495057'
+          }}>
+            ₪{employer.severance_accrued.toLocaleString()}
+          </div>
+          <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+            שדה מחושב: סה"כ יתרות פיצויים מתיק פנסיוני של מעסיק נוכחי
+          </small>
         </div>
 
 
@@ -385,6 +503,206 @@ const SimpleCurrentEmployer: React.FC = () => {
           </button>
         </div>
       </form>
+      </div>
+      )}
+
+      {/* Termination Tab */}
+      {activeTab === 'termination' && (
+        <div>
+          <h3>מסך עזיבת עבודה</h3>
+          
+          <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px' }}>
+            <h4>שלב 1: קביעת תאריך סיום עבודה</h4>
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>תאריך סיום עבודה:</label>
+              <input
+                type="text"
+                placeholder="DD/MM/YYYY"
+                value={terminationDecision.termination_date}
+                onChange={(e) => {
+                  const formatted = formatDateInput(e.target.value);
+                  setTerminationDecision(prev => ({ ...prev, termination_date: formatted }));
+                }}
+                maxLength={10}
+                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+              />
+            </div>
+          </div>
+
+          {terminationDecision.termination_date && employer.start_date && (
+            <>
+              <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
+                <h4>שלב 2: סיכום זכויות</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div><strong>שנות וותק:</strong> {(
+                    (new Date(convertDDMMYYToISO(terminationDecision.termination_date) || '').getTime() - 
+                     new Date(convertDDMMYYToISO(employer.start_date) || '').getTime()) / 
+                    (1000 * 60 * 60 * 24 * 365.25)
+                  ).toFixed(2)} שנים</div>
+                  <div><strong>פיצויים צבורים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
+                  <div><strong>פיצויים צפויים:</strong> ₪{
+                    Math.round(
+                      employer.last_salary * 
+                      ((new Date(convertDDMMYYToISO(terminationDecision.termination_date) || '').getTime() - 
+                        new Date(convertDDMMYYToISO(employer.start_date) || '').getTime()) / 
+                      (1000 * 60 * 60 * 24 * 365.25))
+                    ).toLocaleString()
+                  }</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ffc107', borderRadius: '4px', backgroundColor: '#fffdf5' }}>
+                <h4>שלב 3: השלמת מעסיק</h4>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={terminationDecision.use_employer_completion}
+                    onChange={(e) => setTerminationDecision(prev => ({ ...prev, use_employer_completion: e.target.checked }))}
+                    style={{ marginLeft: '10px', width: '20px', height: '20px' }}
+                  />
+                  תבוצע השלמת מעסיק
+                </label>
+                {terminationDecision.use_employer_completion && (
+                  <div style={{ padding: '10px', backgroundColor: '#e8f4f8', borderRadius: '4px', marginTop: '10px' }}>
+                    <p><strong>גובה השלמת המעסיק:</strong> ₪{
+                      Math.max(0, 
+                        Math.round(employer.last_salary * 
+                          ((new Date(convertDDMMYYToISO(terminationDecision.termination_date) || '').getTime() - 
+                            new Date(convertDDMMYYToISO(employer.start_date) || '').getTime()) / 
+                          (1000 * 60 * 60 * 24 * 365.25))
+                        ) - employer.severance_accrued
+                      ).toLocaleString()
+                    }</p>
+                    <small>ההפרש בין המענק הצפוי ליתרת הפיצויים הנצברת</small>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #17a2b8', borderRadius: '4px', backgroundColor: '#f0f9fc' }}>
+                <h4>שלב 4: חלוקה לפטור/חייב במס</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
+                    <strong style={{ color: '#155724' }}>חלק פטור ממס:</strong>
+                    <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{terminationDecision.exempt_amount.toLocaleString()}</p>
+                  </div>
+                  <div style={{ padding: '15px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
+                    <strong style={{ color: '#721c24' }}>חלק חייב במס:</strong>
+                    <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{terminationDecision.taxable_amount.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              {terminationDecision.exempt_amount > 0 && (
+                <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
+                  <h4>שלב 5א: בחירת אפשרות לחלק הפטור ממס</h4>
+                  {['redeem_with_exemption', 'redeem_no_exemption', 'annuity'].map(choice => (
+                    <label key={choice} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        value={choice}
+                        checked={terminationDecision.exempt_choice === choice}
+                        onChange={(e) => setTerminationDecision(prev => ({ ...prev, exempt_choice: e.target.value as any }))}
+                        style={{ marginLeft: '10px', width: '18px', height: '18px' }}
+                      />
+                      {choice === 'redeem_with_exemption' ? 'פדיון הסכום עם שימוש בפטור' :
+                       choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור' : 'סימון כקצבה'}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {terminationDecision.taxable_amount > 0 && (
+                <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #dc3545', borderRadius: '4px', backgroundColor: '#fff5f5' }}>
+                  <h4>שלב 5ב: בחירת אפשרות לחלק החייב במס</h4>
+                  {['redeem_no_exemption', 'annuity', 'tax_spread'].map(choice => (
+                    <label key={choice} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        value={choice}
+                        checked={terminationDecision.taxable_choice === choice}
+                        onChange={(e) => setTerminationDecision(prev => ({ ...prev, taxable_choice: e.target.value as any }))}
+                        style={{ marginLeft: '10px', width: '18px', height: '18px' }}
+                      />
+                      {choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור' :
+                       choice === 'annuity' ? 'סימון כקצבה' : 'פריסת מס'}
+                    </label>
+                  ))}
+
+                  {terminationDecision.taxable_choice === 'tax_spread' && terminationDecision.max_spread_years !== undefined && (
+                    <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+                      <h5>זכאות לפריסת פיצויים</h5>
+                      <p><strong>זכאות מקסימלית:</strong> {terminationDecision.max_spread_years} שנים<br/>
+                      <small style={{ color: '#666' }}>(שנת פריסה אחת לכל 4 שנות וותק מלאות)</small></p>
+                      {terminationDecision.max_spread_years > 0 ? (
+                        <div>
+                          <label>בחר מספר שנות פריסה:</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={terminationDecision.max_spread_years}
+                            value={terminationDecision.tax_spread_years || terminationDecision.max_spread_years}
+                            onChange={(e) => setTerminationDecision(prev => ({
+                              ...prev,
+                              tax_spread_years: Math.min(parseInt(e.target.value) || 0, terminationDecision.max_spread_years || 0)
+                            }))}
+                            style={{ width: '100%', padding: '8px', marginTop: '5px', border: '1px solid #ddd', borderRadius: '4px' }}
+                          />
+                          <small style={{ display: 'block', marginTop: '5px', color: '#666' }}>
+                            המערכת ממליצה על פריסה מלאה של {terminationDecision.max_spread_years} שנים לחיסכון מרבי במס
+                          </small>
+                        </div>
+                      ) : (
+                        <div style={{ padding: '10px', backgroundColor: '#f8d7da', borderRadius: '4px', color: '#721c24' }}>
+                          <strong>אין זכאות לפריסה</strong>
+                          <p style={{ marginTop: '5px', fontSize: '14px' }}>נדרשות לפחות 4 שנות וותק מלאות לזכאות לפריסת מס</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {terminationDecision.termination_date && (
+                <div style={{ marginTop: '30px', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleTerminationSubmit}
+                    disabled={loading}
+                    style={{
+                      backgroundColor: loading ? '#6c757d' : '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      padding: '15px 40px',
+                      borderRadius: '4px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      marginLeft: '10px'
+                    }}
+                  >
+                    {loading ? 'שומר...' : 'שמור החלטות ועדכן מערכת'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('details')}
+                    style={{
+                      backgroundColor: '#6c757d',
+                      color: 'white',
+                      border: 'none',
+                      padding: '15px 40px',
+                      borderRadius: '4px',
+                      fontSize: '16px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ביטול
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
