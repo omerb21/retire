@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Clients from "./pages/Clients";
 import Tools from "./pages/Tools";
 import PensionFunds from "./pages/PensionFunds";
+import Pensions from "./pages/Pensions";
 import AdditionalIncome from "./pages/AdditionalIncome";
 import CapitalAssets from "./pages/CapitalAssets";
 import Scenarios from "./pages/Scenarios";
@@ -22,6 +23,7 @@ const ClientDetails = () => {
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         <a href={`/clients/${clientId}/pension-portfolio`} style={moduleButtonStyle}>תיק פנסיוני</a>
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
+        <a href={`/clients/${clientId}/pensions`} style={moduleButtonStyle}>קצבאות</a>
         <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
@@ -65,6 +67,7 @@ export default function App() {
             <Route path="/clients/:id" element={<ClientDetails />} />
             <Route path="/clients/:id/pension-portfolio" element={<PensionPortfolio />} />
             <Route path="/clients/:id/pension-funds" element={<PensionFunds />} />
+            <Route path="/clients/:id/pensions" element={<Pensions />} />
             <Route path="/clients/:id/additional-incomes" element={<AdditionalIncome />} />
             <Route path="/clients/:id/capital-assets" element={<CapitalAssets />} />
             <Route path="/clients/:id/current-employer" element={<SimpleCurrentEmployer />} />
