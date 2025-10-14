@@ -400,7 +400,7 @@ export default function Clients() {
                    value={form.tax_credit_points}
                    onChange={(e) => setForm({ ...form, tax_credit_points: parseFloat(e.target.value) || 0 })}
                    min="0"
-                   step="0.1"
+                   step="0.01"
                    style={{ padding: 8, flexGrow: 1 }} />
           </div>
           
@@ -621,7 +621,7 @@ export default function Clients() {
                   value={editForm.tax_credit_points}
                   onChange={(e) => setEditForm({ ...editForm, tax_credit_points: parseFloat(e.target.value) || 0 })}
                   min="0"
-                  step="0.1"
+                  step="0.01"
                   style={{ padding: 8, flexGrow: 1 }} 
                 />
               </div>

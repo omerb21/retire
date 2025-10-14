@@ -1128,6 +1128,7 @@ export default function PensionPortfolio() {
         'חברה מנהלת',
         'יתרה',
         'תאריך נכונות יתרה',
+        'תאריך התחלה',
         'סוג מוצר',
         'מעסיקים היסטוריים',
         'פיצויים מעסיק נוכחי',
@@ -1151,6 +1152,7 @@ export default function PensionPortfolio() {
           `"${account.חברה_מנהלת}"`,
           account.יתרה || 0,
           `"${account.תאריך_נכונות_יתרה}"`,
+          `"${account.תאריך_התחלה || ''}"`,
           `"${account.סוג_מוצר}"`,
           `"${account.מעסיקים_היסטוריים || ''}"`,
           account.פיצויים_מעסיק_נוכחי || 0,
@@ -1240,7 +1242,7 @@ export default function PensionPortfolio() {
         <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
       </div>
       
-      <h2>תיק פנסיוני</h2>
+      <h2>תיק פנסיוני{clientData && ` - ${clientData.first_name} ${clientData.last_name} (ת.ז: ${clientData.id_number})`}</h2>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -1263,7 +1265,6 @@ export default function PensionPortfolio() {
           <h4 style={{ margin: "0 0 8px 0", color: "#495057" }}>אפשרויות עיבוד:</h4>
           <ul style={{ margin: 0, paddingRight: 20, fontSize: "14px", color: "#666" }}>
             <li><strong>עיבוד ידני:</strong> בחר קבצי XML ולחץ "עבד קבצי מסלקה"</li>
-            <li><strong>עיבוד אוטומטי:</strong> לחץ "השתמש בסקריפט NESS" לעיבוד קבצים מתיקיית DATA</li>
           </ul>
         </div>
 
