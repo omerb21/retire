@@ -1696,6 +1696,53 @@ export default function PensionPortfolio() {
                     </td>
                   </tr>
                 ))}
+                
+                {/* שורת סה"כ */}
+                {pensionData.length > 0 && (
+                  <tr style={{ backgroundColor: "#fff8e1", fontWeight: "bold", borderTop: "3px solid #ff9800" }}>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }} colSpan={3}>
+                      סה"כ
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6 }}></td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.יתרה) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_מעסיק_נוכחי) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_לאחר_התחשבנות) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_שלא_עברו_התחשבנות) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_זכויות) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_קצבה) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_עד_2000) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2000) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2008_לא_משלמת) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_עד_2000) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2000) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2008_לא_משלמת) || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ border: "1px solid #ddd", padding: 6 }} colSpan={4}></td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
