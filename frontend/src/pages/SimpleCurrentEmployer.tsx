@@ -286,7 +286,8 @@ const SimpleCurrentEmployer: React.FC = () => {
           exempt_amount: Math.round(exemptAmount),
           taxable_amount: Math.round(taxableAmount),
           max_spread_years: maxSpreadYears,
-          tax_spread_years: maxSpreadYears // Initialize to max allowed
+          // Only initialize tax_spread_years if not already set
+          tax_spread_years: prev.tax_spread_years || maxSpreadYears
         }));
       }
     };
@@ -297,7 +298,15 @@ const SimpleCurrentEmployer: React.FC = () => {
     }, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [terminationDecision.termination_date, terminationDecision.use_employer_completion, employer.start_date, employer.last_salary, employer.severance_accrued]);
+  }, [
+    terminationDecision.termination_date, 
+    terminationDecision.use_employer_completion, 
+    employer.start_date, 
+    employer.last_salary, 
+    employer.severance_accrued
+    // Note: NOT including terminationDecision.exempt_choice or taxable_choice
+    // to avoid resetting user selections when they change
+  ]);
 
   const handleTerminationSubmit = async () => {
     try {
