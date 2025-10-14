@@ -49,6 +49,7 @@ export default function PensionPortfolio() {
   const [convertedAccounts, setConvertedAccounts] = useState<Set<string>>(new Set()); // זיכרון תכניות שהומרו
   const [conversionTypes, setConversionTypes] = useState<Record<number, 'pension' | 'capital_asset'>>({}); // סוגי המרה לפי אינדקס
   const [clientData, setClientData] = useState<any>(null); // נתוני הלקוח
+  const [editingCell, setEditingCell] = useState<{row: number, field: string} | null>(null); // תא בעריכה
 
   // פונקציה לעיבוד קבצי XML של המסלקה
   const processXMLFiles = async (files: FileList) => {
@@ -668,31 +669,56 @@ export default function PensionPortfolio() {
     }
   };
 
-  // פונקציה לעריכת תכנית
-  const editAccount = (accountIndex: number) => {
-    const account = pensionData[accountIndex];
-    
-    // הצגת דיאלוג עריכה פשוט
-    const newName = prompt('ערוך שם תכנית:', account.שם_תכנית || '');
-    if (newName === null) return; // ביטול
-    
-    const newBalance = prompt('ערוך יתרה:', account.יתרה?.toString() || '0');
-    if (newBalance === null) return; // ביטול
-    
-    const newStartDate = prompt('ערוך תאריך התחלה (DD/MM/YY):', account.תאריך_התחלה ? formatDateToDDMMYY(new Date(account.תאריך_התחלה)) : '');
-    if (newStartDate === null) return; // ביטול
-    
-    // עדכון הנתונים
-    setPensionData(prev => prev.map((acc, i) => 
-      i === accountIndex ? {
-        ...acc,
-        שם_תכנית: newName,
-        יתרה: parseFloat(newBalance) || 0,
-        תאריך_התחלה: newStartDate
-      } : acc
-    ));
-    
-    setProcessingStatus(`תכנית "${newName}" עודכנה בהצלחה`);
+  // פונקציה לעדכון ערך בתא
+  const updateCellValue = (accountIndex: number, field: string, value: any) => {
+    setPensionData(prev => {
+      const updated = prev.map((acc, i) => {
+        if (i === accountIndex) {
+          // המרת ערכים מספריים
+          if (['יתרה', 'פיצויים_מעסיק_נוכחי', 'פיצויים_לאחר_התחשבנות', 'פיצויים_שלא_עברו_התחשבנות',
+               'פיצויים_ממעסיקים_קודמים_רצף_זכויות', 'פיצויים_ממעסיקים_קודמים_רצף_קצבה',
+               'תגמולי_עובד_עד_2000', 'תגמולי_עובד_אחרי_2000', 'תגמולי_עובד_אחרי_2008_לא_משלמת',
+               'תגמולי_מעביד_עד_2000', 'תגמולי_מעביד_אחרי_2000', 'תגמולי_מעביד_אחרי_2008_לא_משלמת'].includes(field)) {
+            return { ...acc, [field]: parseFloat(value) || 0 };
+          }
+          return { ...acc, [field]: value };
+        }
+        return acc;
+      });
+      // שמירה ל-localStorage
+      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(updated));
+      return updated;
+    });
+    setEditingCell(null);
+  };
+
+  // קומפוננטת עזר לתא מספרי עם checkbox
+  const EditableNumberCell = ({ account, index, field, label }: { account: PensionAccount, index: number, field: string, label?: string }) => {
+    const value = (account as any)[field] || 0;
+    return (
+      <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="checkbox"
+            checked={(account.selected_amounts as any)?.[field] || false}
+            onChange={(e) => toggleAmountSelection(index, field, e.target.checked)}
+            style={{ transform: "scale(0.8)" }}
+          />
+          <div style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); setEditingCell({row: index, field}); }}>
+            {editingCell?.row === index && editingCell?.field === field ? (
+              <input
+                type="number"
+                defaultValue={value}
+                onBlur={(e) => updateCellValue(index, field, e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, field, e.currentTarget.value)}
+                autoFocus
+                style={{ width: '100%', padding: 2, fontSize: '12px', textAlign: 'right' }}
+              />
+            ) : (value > 0 ? value.toLocaleString() : '-')}
+          </div>
+        </div>
+      </td>
+    );
   };
 
   // פונקציה להוספת תכנית ידנית
@@ -1343,6 +1369,9 @@ export default function PensionPortfolio() {
           </div>
 
           {/* טבלה מורחבת */}
+          <div style={{ marginBottom: 8, padding: 8, backgroundColor: "#e7f3ff", borderRadius: 4, fontSize: "13px" }}>
+            💡 <strong>טיפ:</strong> לחץ על כל תא בטבלה כדי לערוך את הערך ישירות. לחץ Enter או לחץ מחוץ לתא לשמור.
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
               <thead>
@@ -1390,12 +1419,50 @@ export default function PensionPortfolio() {
                         onChange={() => toggleAccountSelection(index)}
                       />
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מספר_חשבון}</td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.שם_תכנית}</td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.חברה_מנהלת}</td>
+                    {/* מספר חשבון - עריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4 }} onClick={() => setEditingCell({row: index, field: 'מספר_חשבון'})}>
+                      {editingCell?.row === index && editingCell?.field === 'מספר_חשבון' ? (
+                        <input
+                          type="text"
+                          defaultValue={account.מספר_חשבון}
+                          onBlur={(e) => updateCellValue(index, 'מספר_חשבון', e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'מספר_חשבון', e.currentTarget.value)}
+                          autoFocus
+                          style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                        />
+                      ) : account.מספר_חשבון}
+                    </td>
                     
-                    {/* יתרה כללית עם אפשרות סימון */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                    {/* שם תכנית - עריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4 }} onClick={() => setEditingCell({row: index, field: 'שם_תכנית'})}>
+                      {editingCell?.row === index && editingCell?.field === 'שם_תכנית' ? (
+                        <input
+                          type="text"
+                          defaultValue={account.שם_תכנית}
+                          onBlur={(e) => updateCellValue(index, 'שם_תכנית', e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'שם_תכנית', e.currentTarget.value)}
+                          autoFocus
+                          style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                        />
+                      ) : account.שם_תכנית}
+                    </td>
+                    
+                    {/* חברה מנהלת - עריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4 }} onClick={() => setEditingCell({row: index, field: 'חברה_מנהלת'})}>
+                      {editingCell?.row === index && editingCell?.field === 'חברה_מנהלת' ? (
+                        <input
+                          type="text"
+                          defaultValue={account.חברה_מנהלת}
+                          onBlur={(e) => updateCellValue(index, 'חברה_מנהלת', e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'חברה_מנהלת', e.currentTarget.value)}
+                          autoFocus
+                          style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                        />
+                      ) : account.חברה_מנהלת}
+                    </td>
+                    
+                    {/* יתרה כללית עם אפשרות סימון ועריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <input
                           type="checkbox"
@@ -1403,158 +1470,75 @@ export default function PensionPortfolio() {
                           onChange={(e) => toggleAmountSelection(index, 'יתרה', e.target.checked)}
                           style={{ transform: "scale(0.8)" }}
                         />
-                        <span>{account.יתרה > 0 ? account.יתרה.toLocaleString() : '-'}</span>
+                        <div style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); setEditingCell({row: index, field: 'יתרה'}); }}>
+                          {editingCell?.row === index && editingCell?.field === 'יתרה' ? (
+                            <input
+                              type="number"
+                              defaultValue={account.יתרה}
+                              onBlur={(e) => updateCellValue(index, 'יתרה', e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'יתרה', e.currentTarget.value)}
+                              autoFocus
+                              style={{ width: '100%', padding: 2, fontSize: '12px', textAlign: 'right' }}
+                            />
+                          ) : (account.יתרה > 0 ? account.יתרה.toLocaleString() : '-')}
+                        </div>
                       </div>
                     </td>
                     
-                    {/* פיצויים מעסיק נוכחי */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <EditableNumberCell account={account} index={index} field="פיצויים_מעסיק_נוכחי" />
+                    <EditableNumberCell account={account} index={index} field="פיצויים_לאחר_התחשבנות" />
+                    <EditableNumberCell account={account} index={index} field="פיצויים_שלא_עברו_התחשבנות" />
+                    <EditableNumberCell account={account} index={index} field="פיצויים_ממעסיקים_קודמים_רצף_זכויות" />
+                    <EditableNumberCell account={account} index={index} field="פיצויים_ממעסיקים_קודמים_רצף_קצבה" />
+                    <EditableNumberCell account={account} index={index} field="תגמולי_עובד_עד_2000" />
+                    <EditableNumberCell account={account} index={index} field="תגמולי_עובד_אחרי_2000" />
+                    <EditableNumberCell account={account} index={index} field="תגמולי_עובד_אחרי_2008_לא_משלמת" />
+                    <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_עד_2000" />
+                    <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2000" />
+                    <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2008_לא_משלמת" />
+                    
+                    {/* סוג מוצר - עריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4 }} onClick={() => setEditingCell({row: index, field: 'סוג_מוצר'})}>
+                      {editingCell?.row === index && editingCell?.field === 'סוג_מוצר' ? (
                         <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.פיצויים_מעסיק_נוכחי || false}
-                          onChange={(e) => toggleAmountSelection(index, 'פיצויים_מעסיק_נוכחי', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
+                          type="text"
+                          defaultValue={account.סוג_מוצר}
+                          onBlur={(e) => updateCellValue(index, 'סוג_מוצר', e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'סוג_מוצר', e.currentTarget.value)}
+                          autoFocus
+                          style={{ width: '100%', padding: 2, fontSize: '12px' }}
                         />
-                        <span>{(account.פיצויים_מעסיק_נוכחי || 0) > 0 ? (account.פיצויים_מעסיק_נוכחי || 0).toLocaleString() : '-'}</span>
-                      </div>
+                      ) : account.סוג_מוצר}
                     </td>
                     
-                    {/* פיצויים לאחר התחשבנות */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {/* תאריך התחלה - עריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4 }} onClick={() => setEditingCell({row: index, field: 'תאריך_התחלה'})}>
+                      {editingCell?.row === index && editingCell?.field === 'תאריך_התחלה' ? (
                         <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.פיצויים_לאחר_התחשבנות || false}
-                          onChange={(e) => toggleAmountSelection(index, 'פיצויים_לאחר_התחשבנות', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
+                          type="text"
+                          defaultValue={account.תאריך_התחלה || ''}
+                          onBlur={(e) => updateCellValue(index, 'תאריך_התחלה', e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'תאריך_התחלה', e.currentTarget.value)}
+                          autoFocus
+                          style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                          placeholder="DD/MM/YY"
                         />
-                        <span>{(account.פיצויים_לאחר_התחשבנות || 0) > 0 ? (account.פיצויים_לאחר_התחשבנות || 0).toLocaleString() : '-'}</span>
-                      </div>
+                      ) : (account.תאריך_התחלה || 'לא ידוע')}
                     </td>
                     
-                    {/* פיצויים שלא עברו התחשבנות */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {/* מעסיקים היסטוריים - עריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4 }} onClick={() => setEditingCell({row: index, field: 'מעסיקים_היסטוריים'})}>
+                      {editingCell?.row === index && editingCell?.field === 'מעסיקים_היסטוריים' ? (
                         <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.פיצויים_שלא_עברו_התחשבנות || false}
-                          onChange={(e) => toggleAmountSelection(index, 'פיצויים_שלא_עברו_התחשבנות', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
+                          type="text"
+                          defaultValue={account.מעסיקים_היסטוריים || ''}
+                          onBlur={(e) => updateCellValue(index, 'מעסיקים_היסטוריים', e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'מעסיקים_היסטוריים', e.currentTarget.value)}
+                          autoFocus
+                          style={{ width: '100%', padding: 2, fontSize: '12px' }}
                         />
-                        <span>{(account.פיצויים_שלא_עברו_התחשבנות || 0) > 0 ? (account.פיצויים_שלא_עברו_התחשבנות || 0).toLocaleString() : '-'}</span>
-                      </div>
+                      ) : account.מעסיקים_היסטוריים}
                     </td>
-                    
-                    {/* פיצויים מעסיקים קודמים רצף זכויות */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.פיצויים_ממעסיקים_קודמים_רצף_זכויות || false}
-                          onChange={(e) => toggleAmountSelection(index, 'פיצויים_ממעסיקים_קודמים_רצף_זכויות', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.פיצויים_ממעסיקים_קודמים_רצף_זכויות || 0) > 0 ? (account.פיצויים_ממעסיקים_קודמים_רצף_זכויות || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* פיצויים מעסיקים קודמים רצף קצבה */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.פיצויים_ממעסיקים_קודמים_רצף_קצבה || false}
-                          onChange={(e) => toggleAmountSelection(index, 'פיצויים_ממעסיקים_קודמים_רצף_קצבה', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.פיצויים_ממעסיקים_קודמים_רצף_קצבה || 0) > 0 ? (account.פיצויים_ממעסיקים_קודמים_רצף_קצבה || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* תגמולי עובד עד 2000 */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.תגמולי_עובד_עד_2000 || false}
-                          onChange={(e) => toggleAmountSelection(index, 'תגמולי_עובד_עד_2000', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.תגמולי_עובד_עד_2000 || 0) > 0 ? (account.תגמולי_עובד_עד_2000 || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* תגמולי עובד אחרי 2000 */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.תגמולי_עובד_אחרי_2000 || false}
-                          onChange={(e) => toggleAmountSelection(index, 'תגמולי_עובד_אחרי_2000', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.תגמולי_עובד_אחרי_2000 || 0) > 0 ? (account.תגמולי_עובד_אחרי_2000 || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* תגמולי עובד אחרי 2008 לא משלמת */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.תגמולי_עובד_אחרי_2008_לא_משלמת || false}
-                          onChange={(e) => toggleAmountSelection(index, 'תגמולי_עובד_אחרי_2008_לא_משלמת', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.תגמולי_עובד_אחרי_2008_לא_משלמת || 0) > 0 ? (account.תגמולי_עובד_אחרי_2008_לא_משלמת || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* תגמולי מעביד עד 2000 */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.תגמולי_מעביד_עד_2000 || false}
-                          onChange={(e) => toggleAmountSelection(index, 'תגמולי_מעביד_עד_2000', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.תגמולי_מעביד_עד_2000 || 0) > 0 ? (account.תגמולי_מעביד_עד_2000 || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* תגמולי מעביד אחרי 2000 */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.תגמולי_מעביד_אחרי_2000 || false}
-                          onChange={(e) => toggleAmountSelection(index, 'תגמולי_מעביד_אחרי_2000', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.תגמולי_מעביד_אחרי_2000 || 0) > 0 ? (account.תגמולי_מעביד_אחרי_2000 || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    {/* תגמולי מעביד אחרי 2008 לא משלמת */}
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.תגמולי_מעביד_אחרי_2008_לא_משלמת || false}
-                          onChange={(e) => toggleAmountSelection(index, 'תגמולי_מעביד_אחרי_2008_לא_משלמת', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <span>{(account.תגמולי_מעביד_אחרי_2008_לא_משלמת || 0) > 0 ? (account.תגמולי_מעביד_אחרי_2008_לא_משלמת || 0).toLocaleString() : '-'}</span>
-                      </div>
-                    </td>
-                    
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.סוג_מוצר}</td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>
-                      {account.תאריך_התחלה || 'לא ידוע'}
-                    </td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}>{account.מעסיקים_היסטוריים}</td>
                     <td style={{ border: "1px solid #ddd", padding: 6 }}>
                       {(account.selected || Object.values(account.selected_amounts || {}).some(Boolean)) && (
                         <select
@@ -1571,38 +1555,21 @@ export default function PensionPortfolio() {
                     
                     {/* עמודת פעולות */}
                     <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }}>
-                      <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
-                        <button
-                          onClick={() => editAccount(index)}
-                          style={{
-                            padding: "4px 8px",
-                            backgroundColor: "#007bff",
-                            color: "white",
-                            border: "none",
-                            borderRadius: 3,
-                            cursor: "pointer",
-                            fontSize: "12px"
-                          }}
-                          title="ערוך תכנית זו"
-                        >
-                          ערוך
-                        </button>
-                        <button
-                          onClick={() => deleteAccount(index)}
-                          style={{
-                            padding: "4px 8px",
-                            backgroundColor: "#dc3545",
-                            color: "white",
-                            border: "none",
-                            borderRadius: 3,
-                            cursor: "pointer",
-                            fontSize: "12px"
-                          }}
-                          title="מחק תכנית זו מהרשימה"
-                        >
-                          מחק
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => deleteAccount(index)}
+                        style={{
+                          padding: "4px 8px",
+                          backgroundColor: "#dc3545",
+                          color: "white",
+                          border: "none",
+                          borderRadius: 3,
+                          cursor: "pointer",
+                          fontSize: "12px"
+                        }}
+                        title="מחק תכנית זו מהרשימה"
+                      >
+                        מחק
+                      </button>
                     </td>
                   </tr>
                 ))}
