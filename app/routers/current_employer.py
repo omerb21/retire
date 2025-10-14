@@ -258,6 +258,26 @@ def process_termination_decision(
                 db.add(grant)
                 db.flush()
                 result["created_grant_id"] = grant.id
+                
+                # Also create Capital Asset for exempt amount (no tax spread - it's exempt!)
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.exempt_amount,
+                    monthly_income=decision.exempt_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="exempt",
+                    remarks=f"מענק פיצויים פטור ממס - {decision.exempt_amount:,.0f} ₪"
+                )
+                db.add(capital_asset)
+                db.flush()
+                result["created_capital_asset_id"] = capital_asset.id
+                
+                print(f"🟢 CREATED EXEMPT GRANT ID: {grant.id} + CAPITAL ASSET ID: {capital_asset.id}")
             
             elif decision.exempt_choice == 'redeem_no_exemption':
                 # Create Capital Asset for exempt amount WITH TAX SPREAD
@@ -365,12 +385,19 @@ def process_termination_decision(
         
     except ValueError as e:
         db.rollback()
+        print(f"❌ ValueError: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=400,
-            detail={"error": str(e)}
+            detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
         )
     except Exception as e:
         db.rollback()
+        print(f"❌ EXCEPTION: {e}")
+        print(f"❌ Exception type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
