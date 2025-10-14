@@ -242,15 +242,13 @@ const SimpleCurrentEmployer: React.FC = () => {
         }
         
         const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-        const expectedFromSalary = employer.last_salary * serviceYears;
-        // אם צבורים גבוה מצפויים, השתמש בצבורים כפיצויים צפויים
-        const expectedGrant = Math.max(expectedFromSalary, employer.severance_accrued);
+        // מענק פיצויים צפוי = שכר אחרון × וותק
+        const expectedGrant = employer.last_salary * serviceYears;
         
         const maxSpreadYears = Math.floor(serviceYears / 4);
         
-        const severanceAmount = terminationDecision.use_employer_completion 
-          ? expectedGrant 
-          : employer.severance_accrued;
+        // חישוב החלק הפטור והחייב לפי המענק הצפוי (לא לפי הצבור!)
+        const severanceAmount = expectedGrant;
         
         // Get severance cap for termination year from API
         const terminationYear = endDate.getFullYear();
@@ -643,10 +641,9 @@ const SimpleCurrentEmployer: React.FC = () => {
                     let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
                     const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
                     if (isNaN(years)) return '0';
-                    const expectedFromSalary = Math.round(employer.last_salary * years);
-                    const accrued = employer.severance_accrued || 0;
-                    // אם צבורים גבוה מצפויים, השתמש בצבורים
-                    return Math.max(expectedFromSalary, accrued).toLocaleString();
+                    // פיצויים צפויים = שכר × וותק (לא מקסימום מהצבור!)
+                    const expectedGrant = Math.round(employer.last_salary * years);
+                    return expectedGrant.toLocaleString();
                   })()}</div>
                 </div>
               </div>
