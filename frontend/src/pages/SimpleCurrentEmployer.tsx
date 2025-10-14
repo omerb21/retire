@@ -641,9 +641,10 @@ const SimpleCurrentEmployer: React.FC = () => {
                     let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
                     const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
                     if (isNaN(years)) return '0';
-                    // פיצויים צפויים = שכר × וותק (לא מקסימום מהצבור!)
-                    const expectedGrant = Math.round(employer.last_salary * years);
-                    return expectedGrant.toLocaleString();
+                    const expectedFromSalary = Math.round(employer.last_salary * years);
+                    const accrued = employer.severance_accrued || 0;
+                    // לתצוגה: אם צבורים גבוהים יותר, הראה אותם
+                    return Math.max(expectedFromSalary, accrued).toLocaleString();
                   })()}</div>
                 </div>
               </div>
