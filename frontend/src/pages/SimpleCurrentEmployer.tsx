@@ -71,10 +71,33 @@ const SimpleCurrentEmployer: React.FC = () => {
       try {
         setLoading(true);
         const response = await axios.get(`/api/v1/clients/${id}/current-employer`);
+        
+        // Load severance balance from pension portfolio (localStorage)
+        let severanceFromPension = 0;
+        const pensionStorageKey = `pensionData_${id}`;
+        const storedPensionData = localStorage.getItem(pensionStorageKey);
+        
+        if (storedPensionData) {
+          try {
+            const pensionData = JSON.parse(storedPensionData);
+            // Sum all severance amounts from "מעסיק נוכחי" column
+            severanceFromPension = pensionData.reduce((sum: number, account: any) => {
+              const currentEmployerSeverance = Number(account['מעסיק_נוכחי'] || account.מעסיק_נוכחי || 0);
+              return sum + currentEmployerSeverance;
+            }, 0);
+            console.log('יתרת פיצויים מתיק פנסיוני:', severanceFromPension);
+          } catch (e) {
+            console.error('שגיאה בטעינת נתוני תיק פנסיוני:', e);
+          }
+        }
+        
         if (response.data) {
           // Handle both array and single object responses
           if (Array.isArray(response.data) && response.data.length > 0) {
-            setEmployer(response.data[0]);
+            setEmployer({
+              ...response.data[0],
+              severance_accrued: severanceFromPension
+            });
           } else if (typeof response.data === 'object' && response.data.employer_name) {
             // Single employer object - map fields correctly
             setEmployer({
@@ -82,7 +105,7 @@ const SimpleCurrentEmployer: React.FC = () => {
               employer_name: response.data.employer_name || '',
               start_date: response.data.start_date || '',
               last_salary: Number(response.data.monthly_salary || response.data.last_salary || response.data.average_salary || 0),
-              severance_accrued: Number(response.data.severance_balance || response.data.severance_accrued || 0)
+              severance_accrued: severanceFromPension
             });
           }
         }
@@ -177,8 +200,25 @@ const SimpleCurrentEmployer: React.FC = () => {
   // Calculate termination details when termination date is set
   useEffect(() => {
     if (terminationDecision.termination_date && employer.start_date && employer.last_salary) {
-      const startDate = new Date(convertDDMMYYToISO(employer.start_date) || employer.start_date);
-      const endDate = new Date(convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date);
+      // Parse dates properly - handle both DD/MM/YYYY and ISO formats
+      let startDateISO = employer.start_date;
+      if (employer.start_date.includes('/')) {
+        startDateISO = convertDDMMYYToISO(employer.start_date) || employer.start_date;
+      }
+      
+      let endDateISO = terminationDecision.termination_date;
+      if (terminationDecision.termination_date.includes('/')) {
+        endDateISO = convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date;
+      }
+      
+      const startDate = new Date(startDateISO);
+      const endDate = new Date(endDateISO);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.error('Invalid dates:', { startDate: startDateISO, endDate: endDateISO });
+        return;
+      }
+      
       const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
       const expectedGrant = employer.last_salary * serviceYears;
       
@@ -194,9 +234,9 @@ const SimpleCurrentEmployer: React.FC = () => {
       
       setTerminationDecision(prev => ({
         ...prev,
-        severance_amount: severanceAmount,
-        exempt_amount: exemptAmount,
-        taxable_amount: taxableAmount,
+        severance_amount: Math.round(severanceAmount),
+        exempt_amount: Math.round(exemptAmount),
+        taxable_amount: Math.round(taxableAmount),
         max_spread_years: maxSpreadYears
       }));
     }
@@ -534,20 +574,19 @@ const SimpleCurrentEmployer: React.FC = () => {
               <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
                 <h4>שלב 2: סיכום זכויות</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div><strong>שנות וותק:</strong> {(
-                    (new Date(convertDDMMYYToISO(terminationDecision.termination_date) || '').getTime() - 
-                     new Date(convertDDMMYYToISO(employer.start_date) || '').getTime()) / 
-                    (1000 * 60 * 60 * 24 * 365.25)
-                  ).toFixed(2)} שנים</div>
+                  <div><strong>שנות וותק:</strong> {(() => {
+                    let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
+                    let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
+                    const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                    return isNaN(years) ? '0' : years.toFixed(2);
+                  })()} שנים</div>
                   <div><strong>פיצויים צבורים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
-                  <div><strong>פיצויים צפויים:</strong> ₪{
-                    Math.round(
-                      employer.last_salary * 
-                      ((new Date(convertDDMMYYToISO(terminationDecision.termination_date) || '').getTime() - 
-                        new Date(convertDDMMYYToISO(employer.start_date) || '').getTime()) / 
-                      (1000 * 60 * 60 * 24 * 365.25))
-                    ).toLocaleString()
-                  }</div>
+                  <div><strong>פיצויים צפויים:</strong> ₪{(() => {
+                    let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
+                    let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
+                    const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                    return isNaN(years) ? '0' : Math.round(employer.last_salary * years).toLocaleString();
+                  })()}</div>
                 </div>
               </div>
 
@@ -564,15 +603,14 @@ const SimpleCurrentEmployer: React.FC = () => {
                 </label>
                 {terminationDecision.use_employer_completion && (
                   <div style={{ padding: '10px', backgroundColor: '#e8f4f8', borderRadius: '4px', marginTop: '10px' }}>
-                    <p><strong>גובה השלמת המעסיק:</strong> ₪{
-                      Math.max(0, 
-                        Math.round(employer.last_salary * 
-                          ((new Date(convertDDMMYYToISO(terminationDecision.termination_date) || '').getTime() - 
-                            new Date(convertDDMMYYToISO(employer.start_date) || '').getTime()) / 
-                          (1000 * 60 * 60 * 24 * 365.25))
-                        ) - employer.severance_accrued
-                      ).toLocaleString()
-                    }</p>
+                    <p><strong>גובה השלמת המעסיק:</strong> ₪{(() => {
+                      let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
+                      let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
+                      const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                      const expectedGrant = Math.round(employer.last_salary * years);
+                      const completion = Math.max(0, expectedGrant - employer.severance_accrued);
+                      return isNaN(completion) ? '0' : completion.toLocaleString();
+                    })()}</p>
                     <small>ההפרש בין המענק הצפוי ליתרת הפיצויים הנצברת</small>
                   </div>
                 )}

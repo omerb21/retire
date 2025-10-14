@@ -241,18 +241,43 @@ def process_termination_decision(
         # Process exempt amount decision
         if decision.exempt_amount > 0:
             if decision.exempt_choice == 'redeem_with_exemption':
-                # Create Grant
-                grant = Grant(
+                # Create Capital Asset for exempt redemption with exemption usage
+                capital_asset = CapitalAsset(
                     client_id=client_id,
-                    employer_name=ce.employer_name,
-                    work_start_date=ce.start_date,
-                    work_end_date=decision.termination_date,
-                    grant_amount=decision.exempt_amount,
-                    grant_date=decision.termination_date
+                    asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.exempt_amount,
+                    monthly_income=decision.exempt_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="exempt",
+                    remarks="מענק פיצויים פטור ממס"
                 )
-                db.add(grant)
-                db.flush()  # Get ID
-                result["created_grant_id"] = grant.id
+                db.add(capital_asset)
+                db.flush()
+                result["created_capital_asset_id"] = capital_asset.id
+            
+            elif decision.exempt_choice == 'redeem_no_exemption':
+                # Create Capital Asset for exempt redemption without exemption usage
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"מענק פיצויים ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.exempt_amount,
+                    monthly_income=decision.exempt_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="taxable",
+                    remarks="מענק פיצויים ללא שימוש בפטור"
+                )
+                db.add(capital_asset)
+                db.flush()
+                if not result.get("created_capital_asset_id"):
+                    result["created_capital_asset_id"] = capital_asset.id
                 
             elif decision.exempt_choice == 'annuity':
                 # Create Pension from exempt amount
@@ -275,10 +300,28 @@ def process_termination_decision(
         
         # Process taxable amount decision  
         if decision.taxable_amount > 0:
-            if decision.taxable_choice == 'annuity':
+            if decision.taxable_choice == 'redeem_no_exemption':
+                # Create Capital Asset for taxable redemption
+                capital_asset = CapitalAsset(
+                    client_id=client_id,
+                    asset_name=f"מענק פיצויים חייב במס ({ce.employer_name})",
+                    asset_type="other",
+                    current_value=decision.taxable_amount,
+                    monthly_income=decision.taxable_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="taxable",
+                    remarks="מענק פיצויים חייב במס"
+                )
+                db.add(capital_asset)
+                db.flush()
+                if not result.get("created_capital_asset_id"):
+                    result["created_capital_asset_id"] = capital_asset.id
+            
+            elif decision.taxable_choice == 'annuity':
                 # Create Pension from taxable amount
-                retirement_age = 67 if client.gender == 'male' else 64
-                
                 pension = Pension(
                     client_id=client_id,
                     payer_name=f"קצבה ממענק פיצויים ({ce.employer_name})",
@@ -291,23 +334,29 @@ def process_termination_decision(
             elif decision.taxable_choice == 'tax_spread':
                 # Create Capital Asset for tax spread
                 # First year payment = taxable amount, subsequent years = 0
+                # Tax treatment is 'tax_spread' to indicate special handling
+                from datetime import timedelta
+                from dateutil.relativedelta import relativedelta
+                
+                spread_years = decision.tax_spread_years or decision.max_spread_years or 1
+                
                 capital_asset = CapitalAsset(
                     client_id=client_id,
                     asset_name=f"פריסת מס מענק פיצויים ({ce.employer_name})",
                     asset_type="other",
                     current_value=decision.taxable_amount,
-                    monthly_income=decision.taxable_amount,  # First year payment
+                    monthly_income=decision.taxable_amount,  # First year only
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
-                    end_date=None,  # Will calculate based on spread years
                     indexation_method="none",
-                    tax_treatment="taxable",
-                    remarks=f"פריסת מס ל-{decision.tax_spread_years or decision.max_spread_years} שנים"
+                    tax_treatment="tax_spread",
+                    remarks=f"פריסת מס ל-{spread_years} שנים. שנה ראשונה: {decision.taxable_amount:,.0f} ₪, שאר השנים: 0 ₪"
                 )
                 db.add(capital_asset)
                 db.flush()
-                result["created_capital_asset_id"] = capital_asset.id
+                if not result.get("created_capital_asset_id"):
+                    result["created_capital_asset_id"] = capital_asset.id
         
         db.commit()
         
