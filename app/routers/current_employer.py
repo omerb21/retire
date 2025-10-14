@@ -247,13 +247,13 @@ def process_termination_decision(
                 # Create Grant for exempt amount
                 grant = Grant(
                     client_id=client_id,
-                    grant_name=f"מענק פיצויים פטור ({ce.employer_name})",
-                    grant_type="severance_pay",
+                    employer_name=f"מענק פיצויים פטור - {ce.employer_name}",
+                    work_start_date=ce.start_date,
+                    work_end_date=decision.termination_date,
                     grant_amount=decision.exempt_amount,
                     grant_date=decision.termination_date,
-                    payment_frequency="one_time",
-                    indexation_method="none",
-                    tax_treatment="exempt"
+                    grant_indexed_amount=decision.exempt_amount,
+                    limited_indexed_amount=decision.exempt_amount
                 )
                 db.add(grant)
                 db.flush()
