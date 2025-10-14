@@ -247,8 +247,8 @@ const SimpleCurrentEmployer: React.FC = () => {
         
         const maxSpreadYears = Math.floor(serviceYears / 4);
         
-        // חישוב החלק הפטור והחייב לפי המענק הצפוי (לא לפי הצבור!)
-        const severanceAmount = expectedGrant;
+        // אם הצבורים גבוהים יותר, משתמשים בהם לחישוב
+        const severanceAmount = Math.max(expectedGrant, employer.severance_accrued);
         
         // Get severance cap for termination year from API
         const terminationYear = endDate.getFullYear();
