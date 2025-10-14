@@ -226,7 +226,9 @@ const SimpleCurrentEmployer: React.FC = () => {
       }
       
       const serviceYears = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-      const expectedGrant = employer.last_salary * serviceYears;
+      const expectedFromSalary = employer.last_salary * serviceYears;
+      // אם צבורים גבוה מצפויים, השתמש בצבורים כפיצויים צפויים
+      const expectedGrant = Math.max(expectedFromSalary, employer.severance_accrued);
       
       const maxSpreadYears = Math.floor(serviceYears / 4);
       
@@ -591,7 +593,11 @@ const SimpleCurrentEmployer: React.FC = () => {
                     let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
                     let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
                     const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-                    return isNaN(years) ? '0' : Math.round(employer.last_salary * years).toLocaleString();
+                    if (isNaN(years)) return '0';
+                    const expectedFromSalary = Math.round(employer.last_salary * years);
+                    const accrued = employer.severance_accrued || 0;
+                    // אם צבורים גבוה מצפויים, השתמש בצבורים
+                    return Math.max(expectedFromSalary, accrued).toLocaleString();
                   })()}</div>
                 </div>
               </div>
