@@ -1,5 +1,40 @@
 # Retirement Benefits Calculator
 
+## 🚀 Quick Start - READ THIS FIRST!
+
+### Standard Ports (DO NOT CHANGE!)
+- **Backend (FastAPI)**: Port **8005**
+- **Frontend (Vite)**: Port **3000**
+
+### How to Start the System
+
+**IMPORTANT**: Always use the provided scripts to avoid duplicate servers!
+
+1. **Start Backend:**
+   ```bash
+   # Run from project root
+   start_backend.bat
+   ```
+   Wait for: `Application startup complete.`
+
+2. **Start Frontend:**
+   ```bash
+   # Run from project root or frontend folder
+   cd frontend
+   start_frontend.bat
+   ```
+   Wait for: `VITE v5.x.x ready`
+
+3. **Check for Issues:**
+   ```bash
+   # Run from project root
+   check_servers.bat
+   ```
+
+📖 **For detailed instructions, see [START_HERE.md](START_HERE.md)**
+
+---
+
 ## Repository Structure
 
 This repository contains the following main components:

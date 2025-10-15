@@ -14,10 +14,18 @@ def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session 
     if payload.client_id != client_id:
         raise HTTPException(status_code=422, detail={"error": "client_id mismatch"})
 
+    print(f"🟡🟡🟡 CREATE PENSION - NEW CODE LOADED! payload: {payload.model_dump()}")
     fund = PensionFund(**payload.model_dump())
+    print(f"🟡 BEFORE COMMIT - balance={fund.balance}, input_mode={fund.input_mode}")
+    
+    # אל תאפס את ה-balance! זה קריטי להיוון!
+    if fund.input_mode == "calculated" and fund.balance:
+        print(f"🟢🟢🟢 CALCULATED MODE - Preserving balance={fund.balance}")
+    
     db.add(fund)
     db.commit()
     db.refresh(fund)
+    print(f"🟡 AFTER REFRESH - balance={fund.balance}, id={fund.id}")
     return fund
 
 @router.get("/pension-funds/{fund_id}", response_model=PensionFundOut)
@@ -121,6 +129,9 @@ def get_client_pension_funds(client_id: int, db: Session = Depends(get_db)):
     """Get all pension funds for a client - FAST VERSION"""
     try:
         funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        print(f"🔵 GET PENSION FUNDS - client_id={client_id}, count={len(funds)}")
+        for fund in funds:
+            print(f"   Fund ID={fund.id}, balance={fund.balance}, input_mode={fund.input_mode}")
         return funds
     except Exception as e:
         print(f"Error getting pension funds: {e}")

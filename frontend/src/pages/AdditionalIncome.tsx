@@ -6,9 +6,9 @@ import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDD
 type AdditionalIncome = {
   id?: number;
   source_type: string;
-  income_name: string; // הוספת שדה שם הכנסה
+  description?: string; // שם/תיאור ההכנסה
   amount: number;
-  frequency: "monthly" | "quarterly" | "annual";
+  frequency: "monthly" | "annually";
   start_date: string;
   end_date?: string;
   indexation_method: "none" | "fixed" | "cpi";
@@ -41,7 +41,7 @@ export default function AdditionalIncome() {
   const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<AdditionalIncome>>({
     source_type: "rental",
-    income_name: "", // הוספת שדה שם הכנסה
+    description: "", // שם/תיאור ההכנסה
     amount: 0,
     frequency: "monthly",
     start_date: "",
@@ -133,7 +133,7 @@ export default function AdditionalIncome() {
       // איפוס הטופס ומצב העריכה
       setForm({
         source_type: "rental",
-        income_name: "", // הוספת שדה שם הכנסה
+        description: "", // שם/תיאור ההכנסה
         amount: 0,
         frequency: "monthly",
         start_date: "",
@@ -179,7 +179,7 @@ export default function AdditionalIncome() {
     // Populate form with income data for editing
     setForm({
       source_type: income.source_type,
-      income_name: income.income_name || "", // הוספת שדה שם הכנסה
+      description: income.description || "", // שם/תיאור ההכנסה
       amount: income.amount || 0,
       frequency: income.frequency,
       start_date: income.start_date ? convertISOToDDMMYY(income.start_date) : "",
@@ -231,9 +231,9 @@ export default function AdditionalIncome() {
             <label>שם הכנסה:</label>
             <input
               type="text"
-              placeholder="שם הכנסה"
-              value={form.income_name || ""}
-              onChange={(e) => setForm({ ...form, income_name: e.target.value })}
+              placeholder="שם ההכנסה"
+              value={form.description || ""}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
               style={{ padding: 8, width: "100%" }}
               required
             />
@@ -251,38 +251,43 @@ export default function AdditionalIncome() {
             <label>תדירות:</label>
             <select
               value={form.frequency}
-              onChange={(e) => setForm({ ...form, frequency: e.target.value as "monthly" | "quarterly" | "annual" })}
+              onChange={(e) => setForm({ ...form, frequency: e.target.value as "monthly" | "annually" })}
               style={{ padding: 8, width: "100%" }}
             >
               <option value="monthly">חודשי</option>
-              <option value="quarterly">רבעוני</option>
-              <option value="annual">שנתי</option>
+              <option value="annually">שנתי</option>
             </select>
           </div>
 
-          <input
-            type="text"
-            placeholder="DD/MM/YYYY"
-            value={form.start_date || ''}
-            onChange={(e) => {
-              const formatted = formatDateInput(e.target.value);
-              setForm({ ...form, start_date: formatted });
-            }}
-            style={{ padding: 8 }}
-            maxLength={10}
-          />
+          <div>
+            <label>תאריך התחלה:</label>
+            <input
+              type="text"
+              placeholder="DD/MM/YYYY"
+              value={form.start_date || ''}
+              onChange={(e) => {
+                const formatted = formatDateInput(e.target.value);
+                setForm({ ...form, start_date: formatted });
+              }}
+              style={{ padding: 8, width: "100%" }}
+              maxLength={10}
+            />
+          </div>
 
-          <input
-            type="text"
-            placeholder="DD/MM/YYYY (אופציונלי)"
-            value={form.end_date || ''}
-            onChange={(e) => {
-              const formatted = formatDateInput(e.target.value);
-              setForm({ ...form, end_date: formatted || undefined });
-            }}
-            style={{ padding: 8 }}
-            maxLength={10}
-          />
+          <div>
+            <label>תאריך סיום (אופציונלי):</label>
+            <input
+              type="text"
+              placeholder="DD/MM/YYYY"
+              value={form.end_date || ''}
+              onChange={(e) => {
+                const formatted = formatDateInput(e.target.value);
+                setForm({ ...form, end_date: formatted || undefined });
+              }}
+              style={{ padding: 8, width: "100%" }}
+              maxLength={10}
+            />
+          </div>
 
           <div>
             <label>שיטת הצמדה:</label>
@@ -354,7 +359,7 @@ export default function AdditionalIncome() {
                   setEditingIncomeId(null);
                   setForm({
                     source_type: "rental",
-                    income_name: "",
+                    description: "",
                     amount: 0,
                     frequency: "monthly",
                     start_date: "",
@@ -392,11 +397,11 @@ export default function AdditionalIncome() {
               <div key={income.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
                 <div style={{ display: "grid", gap: 8 }}>
                   <div><strong>סוג:</strong> {INCOME_TYPE_MAP[income.source_type] || income.source_type}</div>
-                  <div><strong>שם הכנסה:</strong> {income.income_name || ""}</div>
+                  <div><strong>שם הכנסה:</strong> {income.description || ""}</div>
                   <div><strong>סכום:</strong> ₪{income.amount?.toLocaleString()}</div>
                   <div><strong>תדירות:</strong> {
                     income.frequency === "monthly" ? "חודשי" :
-                    income.frequency === "quarterly" ? "רבעוני" : "שנתי"
+                    income.frequency === "annually" ? "שנתי" : "לא ידוע"
                   }</div>
                   <div><strong>תאריך התחלה:</strong> {formatDateToDDMMYY(new Date(income.start_date))}</div>
                   {income.end_date && <div><strong>תאריך סיום:</strong> {formatDateToDDMMYY(new Date(income.end_date))}</div>}

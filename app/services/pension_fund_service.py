@@ -72,6 +72,8 @@ def compute_and_persist_fund(db: Session, fund_id: int) -> PensionFund:
     if not fund:
         raise ValueError(f"PensionFund {fund_id} not found")
 
+    print(f"🔵 BEFORE COMPUTE: fund_id={fund_id}, balance={fund.balance}, input_mode={fund.input_mode}")
+
     # Calculate base pension amount
     base = _compute_base_pension(fund)
     
@@ -88,14 +90,15 @@ def compute_and_persist_fund(db: Session, fund_id: int) -> PensionFund:
     fund.pension_amount = round(base, 2)
     fund.indexed_pension_amount = round(indexed, 2)
     
-    # Reset balance to zero after computation for calculated mode
-    if fund.input_mode == "calculated":
-        fund.balance = 0.0
-        fund.current_balance = 0.0
+    # אל תאפס את ה-balance! אנחנו צריכים אותו להיוון
+    # ה-balance מייצג את היתרה המקורית שעליה מבוססת הקצבה
+    print(f"🟢 AFTER COMPUTE: fund_id={fund_id}, balance={fund.balance}, pension_amount={fund.pension_amount}")
 
     db.add(fund)
     db.commit()
     db.refresh(fund)
+    
+    print(f"🟣 AFTER REFRESH: fund_id={fund_id}, balance={fund.balance}")
     
     return fund
 
@@ -127,10 +130,8 @@ def compute_and_persist(db: Session, fund: PensionFund, reference_date: Optional
     fund.pension_amount = base
     fund.indexed_pension_amount = indexed
     
-    # Reset balance to zero after computation for calculated mode
-    if fund.input_mode == "calculated":
-        fund.balance = 0.0
-        fund.current_balance = 0.0
+    # אל תאפס את ה-balance! אנחנו צריכים אותו להיוון
+    # ה-balance מייצג את היתרה המקורית שעליה מבוססת הקצבה
     
     # Persist changes to database
     db.add(fund)

@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func
+from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event
 from sqlalchemy.orm import relationship
 from app.database import Base
+import traceback
 
 InputMode = Enum("calculated", "manual", name="pension_input_mode")
 IndexationMethod = Enum("none", "cpi", "fixed", name="pension_indexation_method")
@@ -44,3 +45,23 @@ class PensionFund(Base):
         CheckConstraint("(pension_amount IS NULL OR pension_amount >= 0)", name="pf_pension_nonneg"),
         CheckConstraint("(fixed_index_rate IS NULL OR fixed_index_rate >= 0)", name="pf_fixed_rate_nonneg"),
     )
+
+
+# Event listener to track balance changes
+@event.listens_for(PensionFund, "before_update")
+def log_balance_change(mapper, connection, target):
+    """Log when balance is being changed"""
+    if hasattr(target, '_sa_instance_state'):
+        history = target._sa_instance_state.get_history('balance', True)
+        if history.has_changes():
+            old_balance = history.deleted[0] if history.deleted else None
+            new_balance = target.balance
+            print(f"🔴🔴🔴 BALANCE CHANGE DETECTED!")
+            print(f"  Fund ID: {target.id}")
+            print(f"  Old Balance: {old_balance}")
+            print(f"  New Balance: {new_balance}")
+            print(f"  Input Mode: {target.input_mode}")
+            print(f"  Stack trace:")
+            for line in traceback.format_stack()[-5:]:
+                print(f"    {line.strip()}")
+            print()

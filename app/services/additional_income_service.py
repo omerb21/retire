@@ -105,20 +105,42 @@ class AdditionalIncomeService:
         if income.end_date:
             actual_end_date = min(end_date, income.end_date)
 
-        # Calculate base monthly amount
-        base_monthly_amount = self.calculate_monthly_amount(income)
+        # Determine payment interval based on frequency
+        if income.frequency == PaymentFrequency.MONTHLY:
+            payment_interval = 1  # Every month
+            payment_amount = income.amount
+        elif income.frequency == PaymentFrequency.QUARTERLY:
+            payment_interval = 3  # Every 3 months
+            payment_amount = income.amount
+        elif income.frequency == PaymentFrequency.ANNUALLY:
+            payment_interval = 12  # Every 12 months
+            payment_amount = income.amount
+        else:
+            raise ValueError(f"Unsupported frequency: {income.frequency}")
         
+        logger.info(f"🔵 Income frequency={income.frequency}, interval={payment_interval}, amount={payment_amount}")
+        
+        month_counter = 0
         while current_date <= actual_end_date:
-            # Apply indexation
-            indexed_amount = self.apply_indexation(
-                base_monthly_amount, income, current_date, reference_date
-            )
+            # Check if this month should have a payment
+            should_pay = (month_counter % payment_interval) == 0
             
-            # Calculate tax
-            tax_amount = self.calculate_tax(indexed_amount, income)
-            net_amount = indexed_amount - tax_amount
+            if should_pay:
+                # Apply indexation
+                indexed_amount = self.apply_indexation(
+                    payment_amount, income, current_date, reference_date
+                )
+                
+                # Calculate tax
+                tax_amount = self.calculate_tax(indexed_amount, income)
+                net_amount = indexed_amount - tax_amount
+            else:
+                # No payment this month
+                indexed_amount = Decimal('0')
+                tax_amount = Decimal('0')
+                net_amount = Decimal('0')
             
-            # Create cashflow item
+            # Create cashflow item (even for zero months, for consistency)
             cashflow_item = AdditionalIncomeCashflowItem(
                 date=current_date,
                 gross_amount=indexed_amount,
@@ -131,6 +153,7 @@ class AdditionalIncomeService:
             
             # Move to next month
             current_date = self._add_months(current_date, 1)
+            month_counter += 1
         
         logger.debug(f"Generated {len(cashflow_items)} cashflow items")
         return cashflow_items

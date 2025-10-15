@@ -35,7 +35,7 @@ type Commutation = {
   pension_fund_id?: number;
   exempt_amount?: number;
   commutation_date?: string;
-  commutation_type?: "partial" | "full";
+  commutation_type?: "exempt" | "taxable"; // פטור ממס או חייב במס
 };
 
 export default function PensionFunds() {
@@ -56,11 +56,11 @@ export default function PensionFunds() {
     deduction_file: "",
     pension_start_date: "",
   });
-  const [commutationForm, setCommutationForm] = useState<Partial<Commutation>>({
+  const [commutationForm, setCommutationForm] = useState<Commutation>({
     pension_fund_id: undefined,
     exempt_amount: 0,
     commutation_date: "",
-    commutation_type: "partial",
+    commutation_type: "taxable",
   });
 
   // פונקציה מרכזית לחישוב היתרה המקורית של קצבה
@@ -103,8 +103,42 @@ export default function PensionFunds() {
       
       setFunds(mappedFunds);
       
-      // טעינת היוונים (לעת עתה רשימה ריקה)
-      setCommutations([]);
+      // טעינת היוונים מנכסים הוניים
+      try {
+        const capitalAssets = await apiFetch<any[]>(`/clients/${clientId}/capital-assets`);
+        console.log("Loaded capital assets:", capitalAssets);
+        
+        // סינון נכסים שהם היוונים (יש להם COMMUTATION ב-remarks)
+        const commutationAssets = (capitalAssets || []).filter(asset => 
+          asset.remarks && asset.remarks.includes('COMMUTATION:')
+        );
+        
+        // המרה לפורמט Commutation
+        const loadedCommutations: Commutation[] = commutationAssets.map(asset => {
+          // חילוץ pension_fund_id מה-remarks
+          const match = asset.remarks.match(/pension_fund_id=(\d+)/);
+          const pensionFundId = match ? parseInt(match[1]) : undefined;
+          
+          // חילוץ amount מה-remarks
+          const amountMatch = asset.remarks.match(/amount=([\d.]+)/);
+          const amount = amountMatch ? parseFloat(amountMatch[1]) : asset.current_value;
+          
+          return {
+            id: asset.id,
+            pension_fund_id: pensionFundId,
+            exempt_amount: amount,
+            commutation_date: asset.start_date || asset.purchase_date,
+            commutation_type: asset.tax_treatment === "exempt" ? "exempt" : "taxable"
+          };
+        });
+        
+        console.log("Loaded commutations:", loadedCommutations);
+        setCommutations(loadedCommutations);
+      } catch (commutationError) {
+        console.error("Error loading commutations:", commutationError);
+        // לא נכשל את כל הטעינה אם יש בעיה בטעינת היוונים
+        setCommutations([]);
+      }
     } catch (e: any) {
       setError(`שגיאה בטעינת קצבאות: ${e?.message || e}`);
     } finally {
@@ -219,6 +253,15 @@ export default function PensionFunds() {
       } else if (form.calculation_mode === "manual") {
         // במצב ידני, שמור את הסכום החודשי בשדה pension_amount
         payload.pension_amount = Number(form.monthly_amount);
+        
+        // חישוב היתרה המקורית לפי מקדם קצבה בסיסי (200)
+        // כדי לאפשר היוון בעתיד
+        const defaultAnnuityFactor = 200;
+        const calculatedBalance = Number(form.monthly_amount) * defaultAnnuityFactor;
+        payload.balance = calculatedBalance;
+        payload.annuity_factor = defaultAnnuityFactor;
+        
+        console.log(`📊 Manual mode: monthly=${form.monthly_amount}, calculated balance=${calculatedBalance}, factor=${defaultAnnuityFactor}`);
       }
       
       // Add indexation rate only if method is fixed
@@ -528,12 +571,12 @@ export default function PensionFunds() {
       }
 
       // קביעת יחס מס לפי סוג ההיוון
-      const taxTreatment = commutationForm.commutation_type === "full" ? "exempt" : "taxable";
+      const taxTreatment = commutationForm.commutation_type; // כבר exempt או taxable
       
       // יצירת נכס הוני
       const capitalAssetData = {
         client_id: parseInt(clientId),
-        asset_type: "other", // Backend לא מכיר ב-"commutation"
+        asset_type: "deposits", // מוצג כ"היוון" בפרונטאנד
         description: `היוון של ${selectedFund.fund_name || 'קצבה'}`,
         remarks: `COMMUTATION:pension_fund_id=${selectedFund.id}&amount=${commutationForm.exempt_amount}`, // קישור לקצבה (& ולא ,)
         current_value: commutationForm.exempt_amount, // חייב להיות > 0
@@ -599,10 +642,9 @@ export default function PensionFunds() {
         ));
       }
 
-      // שמירת ההיוון ב-DB (אם יש endpoint)
-      // TODO: להוסיף endpoint להיוונים ב-backend
+      // יצירת אובייקט ההיוון עם ה-ID של ה-capital asset שנוצר
       const newCommutation: Commutation = {
-        id: Date.now(),
+        id: (createdAsset as any).id, // השתמש ב-ID האמיתי מה-capital asset
         pension_fund_id: commutationForm.pension_fund_id,
         exempt_amount: commutationForm.exempt_amount,
         commutation_date: commutationForm.commutation_date,
@@ -619,7 +661,7 @@ export default function PensionFunds() {
         pension_fund_id: undefined,
         exempt_amount: 0,
         commutation_date: "",
-        commutation_type: "partial",
+        commutation_type: "taxable",
       });
 
       alert(`היוון נוצר בהצלחה!\n${shouldDeleteFund ? 'הקצבה נמחקה כולה' : `נותרה יתרה של ₪${(fundBalance - commutationForm.exempt_amount).toLocaleString()}`}`);
@@ -629,7 +671,74 @@ export default function PensionFunds() {
   }
 
   async function handleCommutationDelete(commutationId: number) {
-    setCommutations(commutations.filter(c => c.id !== commutationId));
+    if (!clientId) return;
+    
+    if (!confirm("האם אתה בטוח שברצונך למחוק את ההיוון? היתרה תוחזר לקצבה.")) {
+      return;
+    }
+    
+    try {
+      // מציאת ההיוון שנמחק
+      const commutationToDelete = commutations.find(c => c.id === commutationId);
+      if (!commutationToDelete) {
+        throw new Error("היוון לא נמצא");
+      }
+      
+      // מציאת הקצבה המקורית
+      const relatedFund = funds.find(f => f.id === commutationToDelete.pension_fund_id);
+      if (!relatedFund) {
+        throw new Error("הקצבה המקורית לא נמצאה");
+      }
+      
+      // חישוב היתרה החדשה (החזרת סכום ההיוון)
+      const currentBalance = relatedFund.balance || 0;
+      const commutationAmount = commutationToDelete.exempt_amount || 0;
+      const newBalance = currentBalance + commutationAmount;
+      
+      // חישוב הקצבה החודשית החדשה
+      const annuityFactor = relatedFund.annuity_factor || 200;
+      const newMonthlyAmount = Math.round(newBalance / annuityFactor);
+      
+      // עדכון הקצבה בשרת
+      await apiFetch(`/pension-funds/${relatedFund.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          fund_name: relatedFund.fund_name,
+          fund_type: relatedFund.fund_type,
+          input_mode: relatedFund.input_mode,
+          balance: newBalance,  // החזרת היתרה
+          pension_amount: newMonthlyAmount,
+          annuity_factor: annuityFactor,
+          pension_start_date: relatedFund.pension_start_date,
+          indexation_method: relatedFund.indexation_method || "none"
+        })
+      });
+      
+      // מחיקת ה-capital asset שמייצג את ההיוון
+      await apiFetch(`/clients/${clientId}/capital-assets/${commutationId}`, {
+        method: 'DELETE'
+      });
+      
+      // עדכון ה-state המקומי של ההיוונים
+      setCommutations(commutations.filter(c => c.id !== commutationId));
+      
+      // עדכון ה-state המקומי של הקצבה
+      setFunds(funds.map(f => 
+        f.id === relatedFund.id 
+          ? { 
+              ...f, 
+              balance: newBalance,
+              commutable_balance: newBalance,
+              pension_amount: newMonthlyAmount,
+              monthly: newMonthlyAmount 
+            }
+          : f
+      ));
+      
+      alert(`ההיוון נמחק בהצלחה!\nהיתרה הוחזרה לקצבה: ₪${newBalance.toLocaleString()}\nקצבה חודשית חדשה: ₪${newMonthlyAmount.toLocaleString()}`);
+    } catch (e: any) {
+      setError(`שגיאה במחיקת היוון: ${e?.message || e}`);
+    }
   }
 
   if (loading) return <div>טוען קצבאות...</div>;
@@ -841,14 +950,14 @@ export default function PensionFunds() {
             />
             
             <div>
-              <label>סוג היוון:</label>
+              <label>יחס מס:</label>
               <select
                 value={commutationForm.commutation_type}
-                onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "partial" | "full" })}
+                onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "exempt" | "taxable" })}
                 style={{ padding: 8, width: "100%" }}
               >
-                <option value="partial">היוון חייב במס</option>
-                <option value="full">היוון פטור ממס</option>
+                <option value="taxable">חייב במס</option>
+                <option value="exempt">פטור ממס</option>
               </select>
             </div>
             
@@ -984,9 +1093,9 @@ export default function PensionFunds() {
                   return (
                     <div key={commutation.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 4 }}>
                       <div><strong>קצבה:</strong> {relatedFund?.fund_name || "לא נמצא"}</div>
-                      <div><strong>סכום פטור:</strong> ₪{(commutation.exempt_amount || 0).toLocaleString()}</div>
+                      <div><strong>סכום היוון:</strong> ₪{(commutation.exempt_amount || 0).toLocaleString()}</div>
                       <div><strong>תאריך:</strong> {commutation.commutation_date}</div>
-                      <div><strong>סוג:</strong> {commutation.commutation_type === "full" ? "מלא" : "חלקי"}</div>
+                      <div><strong>יחס מס:</strong> {commutation.commutation_type === "exempt" ? "פטור ממס" : "חייב במס"}</div>
                       <button
                         type="button"
                         onClick={() => handleCommutationDelete(commutation.id!)}

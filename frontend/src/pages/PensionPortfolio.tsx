@@ -675,7 +675,13 @@ export default function PensionPortfolio() {
       }
 
       // מחיקה מהרשימה המוצגת
-      setPensionData(prev => prev.filter((_, i) => i !== accountIndex));
+      const updatedData = pensionData.filter((_, i) => i !== accountIndex);
+      setPensionData(updatedData);
+      
+      // שמירה ל-localStorage כדי שהמחיקה תישמר
+      if (clientId) {
+        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(updatedData));
+      }
       
     } catch (error: any) {
       setError(`שגיאה במחיקת התכנית: ${error.message}`);
