@@ -314,14 +314,18 @@ def process_termination_decision(
                 # Create PensionFund from exempt amount (regular pension fund, not special)
                 print(f"🟡 CREATING PENSION FUND FROM EXEMPT AMOUNT: {decision.exempt_amount}")
                 
-                # Convert annual amount to monthly
-                monthly_amount = decision.exempt_amount / 12
+                # Calculate monthly pension: original_balance / annuity_factor
+                # מקדם קצבה בסיסי: 200 (לגיל פרישה 67 לגבר, 64 לאישה)
+                annuity_factor = 200
+                monthly_amount = decision.exempt_amount / annuity_factor
                 
                 pension_fund = PensionFund(
                     client_id=client_id,
                     fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
                     fund_type="monthly_pension",
                     input_mode="manual",
+                    balance=decision.exempt_amount,  # שמירת היתרה המקורית
+                    annuity_factor=annuity_factor,
                     pension_amount=monthly_amount,
                     pension_start_date=decision.termination_date,
                     indexation_method="none"
@@ -329,7 +333,7 @@ def process_termination_decision(
                 db.add(pension_fund)
                 db.flush()
                 
-                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, monthly: {monthly_amount}")
+                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, balance: {decision.exempt_amount}, monthly: {monthly_amount}")
                 
                 if not result.get("created_pension_id"):
                     result["created_pension_id"] = pension_fund.id
@@ -373,14 +377,18 @@ def process_termination_decision(
                 # Create PensionFund from taxable amount (regular pension fund, not special)
                 print(f"🔵 CREATING PENSION FUND FROM TAXABLE AMOUNT: {decision.taxable_amount}")
                 
-                # Convert annual amount to monthly
-                monthly_amount = decision.taxable_amount / 12
+                # Calculate monthly pension: original_balance / annuity_factor
+                # מקדם קצבה בסיסי: 200 (לגיל פרישה 67 לגבר, 64 לאישה)
+                annuity_factor = 200
+                monthly_amount = decision.taxable_amount / annuity_factor
                 
                 pension_fund = PensionFund(
                     client_id=client_id,
                     fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
                     fund_type="monthly_pension",
                     input_mode="manual",
+                    balance=decision.taxable_amount,  # שמירת היתרה המקורית
+                    annuity_factor=annuity_factor,
                     pension_amount=monthly_amount,
                     pension_start_date=decision.termination_date,
                     indexation_method="none"
@@ -388,7 +396,7 @@ def process_termination_decision(
                 db.add(pension_fund)
                 db.flush()
                 
-                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, monthly: {monthly_amount}")
+                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, balance: {decision.taxable_amount}, monthly: {monthly_amount}")
                 
                 if not result.get("created_pension_id"):
                     result["created_pension_id"] = pension_fund.id

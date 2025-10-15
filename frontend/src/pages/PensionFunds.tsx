@@ -12,8 +12,10 @@ type PensionFund = {
   input_mode?: "calculated" | "manual";
   current_balance?: number;
   balance?: number;
+  commutable_balance?: number; // יתרה להיוון - השדה החשוב!
   annuity_factor?: number;
   monthly_amount?: number;
+  monthly?: number; // שדה נוסף מהשרת
   pension_amount?: number;
   computed_monthly_amount?: number;
   pension_start_date?: string;
@@ -61,6 +63,24 @@ export default function PensionFunds() {
     commutation_type: "partial",
   });
 
+  // פונקציה מרכזית לחישוב היתרה המקורית של קצבה
+  function calculateOriginalBalance(fund: PensionFund): number {
+    // אם יש שדה commutable_balance (יתרה להיוון) - זה השדה המדויק!
+    if (fund.commutable_balance && fund.commutable_balance > 0) {
+      return fund.commutable_balance;
+    }
+    
+    // אם יש יתרה בפועל - השתמש בה
+    let balance = fund.balance || fund.current_balance || 0;
+    
+    if (balance > 0) {
+      return balance;
+    }
+    
+    // אם אין שום יתרה - החזר 0
+    return 0;
+  }
+
   async function loadFunds() {
     if (!clientId) return;
     
@@ -72,12 +92,14 @@ export default function PensionFunds() {
       const data = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
       console.log("Loaded pension funds:", data);
       
-      // מיפוי שדות לפורמט אחיד
-      const mappedFunds = (data || []).map(fund => ({
-        ...fund,
-        balance: fund.current_balance || fund.balance,
-        pension_start_date: fund.pension_start_date || fund.start_date
-      }));
+      // מיפוי שדות לפורמט אחיד - השרת מחזיר את balance המקורי!
+      const mappedFunds = (data || []).map(fund => {
+        return {
+          ...fund,
+          pension_start_date: fund.pension_start_date || fund.start_date,
+          commutable_balance: fund.balance || fund.current_balance || 0 // יתרה להיוון מהשרת
+        };
+      });
       
       setFunds(mappedFunds);
       
@@ -485,15 +507,102 @@ export default function PensionFunds() {
         throw new Error("חובה לבחור קצבה");
       }
       if (!commutationForm.exempt_amount || commutationForm.exempt_amount <= 0) {
-        throw new Error("חובה למלא סכום פטור חיובי");
+        throw new Error("חובה למלא סכום חיובי");
       }
       if (!commutationForm.commutation_date) {
         throw new Error("חובה למלא תאריך היוון");
       }
 
-      // לעת עתה רק שמירה מקומית
+      // מציאת הקצבה
+      const selectedFund = funds.find(f => f.id === commutationForm.pension_fund_id);
+      if (!selectedFund) {
+        throw new Error("קצבה לא נמצאה");
+      }
+
+      // חישוב היתרה המקורית באמצעות הפונקציה המרכזית
+      const fundBalance = calculateOriginalBalance(selectedFund);
+      
+      // בדיקה שהסכום אינו עולה על היתרה המקורית
+      if (commutationForm.exempt_amount > fundBalance) {
+        throw new Error(`סכום ההיוון (${commutationForm.exempt_amount.toLocaleString()}) גדול מהיתרה המקורית של הקצבה (${fundBalance.toLocaleString()})`);
+      }
+
+      // קביעת יחס מס לפי סוג ההיוון
+      const taxTreatment = commutationForm.commutation_type === "full" ? "exempt" : "taxable";
+      
+      // יצירת נכס הוני
+      const capitalAssetData = {
+        client_id: parseInt(clientId),
+        asset_type: "other", // Backend לא מכיר ב-"commutation"
+        description: `היוון של ${selectedFund.fund_name || 'קצבה'}`,
+        remarks: `COMMUTATION:pension_fund_id=${selectedFund.id}&amount=${commutationForm.exempt_amount}`, // קישור לקצבה (& ולא ,)
+        current_value: commutationForm.exempt_amount, // חייב להיות > 0
+        purchase_value: commutationForm.exempt_amount,
+        purchase_date: commutationForm.commutation_date,
+        monthly_income: commutationForm.exempt_amount,
+        annual_return: commutationForm.exempt_amount,
+        annual_return_rate: 0,
+        payment_frequency: "annually" as const, // צריך "annually" ולא "annual"
+        start_date: commutationForm.commutation_date,
+        indexation_method: "none" as const,
+        tax_treatment: taxTreatment
+      };
+
+      // שמירת הנכס ההוני ב-DB
+      console.log('🟢 Creating capital asset with data:', capitalAssetData);
+      const createdAsset = await apiFetch(`/clients/${clientId}/capital-assets/`, {
+        method: 'POST',
+        body: JSON.stringify(capitalAssetData)
+      });
+      console.log('🟢 Capital asset created:', createdAsset);
+
+      // קיזוז הסכום מהקצבה או מחיקתה אם זה כל היתרה
+      const shouldDeleteFund = commutationForm.exempt_amount >= fundBalance;
+      
+      if (shouldDeleteFund) {
+        // מחיקת הקצבה כולה
+        await apiFetch(`/clients/${clientId}/pension-funds/${selectedFund.id}`, {
+          method: 'DELETE'
+        });
+      } else {
+        // קיזוז סכום חלקי - חישוב היתרה והקצבה החודשית החדשה
+        const newCommutableBalance = fundBalance - commutationForm.exempt_amount;
+        const annuityFactor = selectedFund.annuity_factor || 200;
+        const newMonthlyAmount = Math.round(newCommutableBalance / annuityFactor);
+        
+        // עדכון הקצבה עם היתרה והסכום החודשי החדשים
+        await apiFetch(`/pension-funds/${selectedFund.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            fund_name: selectedFund.fund_name,
+            fund_type: selectedFund.fund_type,
+            input_mode: selectedFund.input_mode,
+            balance: newCommutableBalance,  // עדכון היתרה המקורית
+            pension_amount: newMonthlyAmount,
+            annuity_factor: annuityFactor,
+            pension_start_date: selectedFund.pension_start_date,
+            indexation_method: selectedFund.indexation_method || "none"
+          })
+        });
+        
+        // עדכון מקומי של הקצבה
+        setFunds(funds.map(f => 
+          f.id === selectedFund.id 
+            ? { 
+                ...f, 
+                balance: newCommutableBalance,  // עדכון היתרה
+                commutable_balance: newCommutableBalance,  // עדכון יתרה להיוון
+                pension_amount: newMonthlyAmount,
+                monthly: newMonthlyAmount 
+              }
+            : f
+        ));
+      }
+
+      // שמירת ההיוון ב-DB (אם יש endpoint)
+      // TODO: להוסיף endpoint להיוונים ב-backend
       const newCommutation: Commutation = {
-        id: Date.now(), // temporary ID
+        id: Date.now(),
         pension_fund_id: commutationForm.pension_fund_id,
         exempt_amount: commutationForm.exempt_amount,
         commutation_date: commutationForm.commutation_date,
@@ -502,6 +611,9 @@ export default function PensionFunds() {
       
       setCommutations([...commutations, newCommutation]);
 
+      // רענון רשימת הקצבאות
+      await loadFunds();
+
       // Reset form
       setCommutationForm({
         pension_fund_id: undefined,
@@ -509,6 +621,8 @@ export default function PensionFunds() {
         commutation_date: "",
         commutation_type: "partial",
       });
+
+      alert(`היוון נוצר בהצלחה!\n${shouldDeleteFund ? 'הקצבה נמחקה כולה' : `נותרה יתרה של ₪${(fundBalance - commutationForm.exempt_amount).toLocaleString()}`}`);
     } catch (e: any) {
       setError(`שגיאה ביצירת היוון: ${e?.message || e}`);
     }
@@ -534,9 +648,11 @@ export default function PensionFunds() {
         </div>
       )}
 
-      {/* Create Form */}
-      <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-        <h3>{editingFundId ? 'ערוך תיק פנסיוני' : 'הוסף תיק פנסיוני'}</h3>
+      {/* Create Forms - Side by Side */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: 32 }}>
+        {/* הוסף קצבה */}
+        <section style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+          <h3>{editingFundId ? 'ערוך קצבה' : 'הוסף קצבה'}</h3>
         
         {clientData && clientData.birth_date && (
           <div style={{ marginBottom: 10, fontSize: "0.9em", color: "#666" }}>
@@ -683,7 +799,65 @@ export default function PensionFunds() {
             )}
           </div>
         </form>
-      </section>
+        </section>
+
+        {/* הוסף היוון */}
+        <section style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+          <h3>הוסף היוון</h3>
+          <form onSubmit={handleCommutationSubmit} style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label>קצבה:</label>
+              <select
+                value={commutationForm.pension_fund_id || ""}
+                onChange={(e) => setCommutationForm({ ...commutationForm, pension_fund_id: parseInt(e.target.value) })}
+                style={{ padding: 8, width: "100%" }}
+                required
+              >
+                <option value="">בחר קצבה</option>
+                {funds.map((fund) => (
+                  <option key={fund.id} value={fund.id}>
+                    {fund.fund_name} - יתרה מקורית: ₪{calculateOriginalBalance(fund).toLocaleString()}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <input
+              type="number"
+              placeholder="סכום היוון"
+              value={commutationForm.exempt_amount || ""}
+              onChange={(e) => setCommutationForm({ ...commutationForm, exempt_amount: parseFloat(e.target.value) || 0 })}
+              style={{ padding: 8 }}
+              required
+            />
+            
+            <input
+              type="date"
+              placeholder="תאריך היוון"
+              value={commutationForm.commutation_date || ""}
+              onChange={(e) => setCommutationForm({ ...commutationForm, commutation_date: e.target.value })}
+              style={{ padding: 8 }}
+              required
+            />
+            
+            <div>
+              <label>סוג היוון:</label>
+              <select
+                value={commutationForm.commutation_type}
+                onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "partial" | "full" })}
+                style={{ padding: 8, width: "100%" }}
+              >
+                <option value="partial">היוון חייב במס</option>
+                <option value="full">היוון פטור ממס</option>
+              </select>
+            </div>
+            
+            <button type="submit" style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}>
+              הוסף היוון
+            </button>
+          </form>
+        </section>
+      </div>
 
       {/* Main Content - Two Columns */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
@@ -703,13 +877,23 @@ export default function PensionFunds() {
                   {fund.deduction_file && <div><strong>תיק ניכויים:</strong> {fund.deduction_file}</div>}
                   <div><strong>מצב:</strong> {fund.input_mode === "calculated" ? "מחושב" : "ידני"}</div>
                   
+                  {/* הצגת יתרה שעליה מבוססת הקצבה - תמיד */}
+                  <div style={{ 
+                    backgroundColor: "#fff3cd", 
+                    padding: "8px", 
+                    borderRadius: "4px", 
+                    border: "1px solid #ffc107",
+                    marginTop: "8px",
+                    marginBottom: "8px",
+                    fontSize: "1.05em"
+                  }}>
+                    <strong>יתרה שעליה מבוססת הקצבה:</strong> ₪{calculateOriginalBalance(fund).toLocaleString()}
+                  </div>
+                  
                   {fund.input_mode === "calculated" && (
                     <>
                       {((fund.balance || 0) > 0 || (fund.current_balance || 0) > 0) && (
-                        <>
-                          <div><strong>יתרה:</strong> ₪{(fund.balance || fund.current_balance || 0).toLocaleString()}</div>
-                          <div><strong>מקדם קצבה:</strong> {fund.annuity_factor}</div>
-                        </>
+                        <div><strong>מקדם קצבה:</strong> {fund.annuity_factor}</div>
                       )}
                       {(fund.balance === 0 || fund.balance === undefined) && 
                        (fund.current_balance === 0 || fund.current_balance === undefined) && 
@@ -720,8 +904,6 @@ export default function PensionFunds() {
                       )}
                     </>
                   )}
-                  
-                  {/* במצב ידני אין צורך בהצגה נוספת של סכום חודשי */}
                   
                   <div><strong>תאריך תחילה:</strong> {fund.pension_start_date ? formatDateToDDMMYY(new Date(fund.pension_start_date)) : (fund.start_date ? formatDateToDDMMYY(new Date(fund.start_date)) : "לא צוין")}</div>
                   <div><strong>הצמדה:</strong> {
@@ -743,10 +925,8 @@ export default function PensionFunds() {
                     fontSize: "1.1em"
                   }}>
                     <strong>סכום חודשי:</strong> ₪{(
-                      // במצב ידני - השתמש ב-pension_amount בלבד
-                      fund.input_mode === "manual" ? 
-                        (fund.pension_amount || 0) : 
-                        (fund.computed_monthly_amount || fund.pension_amount || 0)
+                      // השרת מחזיר את הסכום החודשי הנכון
+                      fund.monthly || fund.computed_monthly_amount || fund.pension_amount || fund.monthly_amount || 0
                     ).toLocaleString()}
                   </div>
                   
@@ -790,70 +970,9 @@ export default function PensionFunds() {
         )}
         </section>
 
-        {/* Right Column - Commutations */}
+        {/* Right Column - Commutations List */}
         <section>
-          <h3>נתוני היוון</h3>
-          
-          {/* Commutation Form */}
-          <div style={{ marginBottom: 20, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-            <h4>הוסף היוון</h4>
-            <form onSubmit={handleCommutationSubmit} style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label>קצבה:</label>
-                <select
-                  value={commutationForm.pension_fund_id || ""}
-                  onChange={(e) => setCommutationForm({ ...commutationForm, pension_fund_id: parseInt(e.target.value) || undefined })}
-                  style={{ padding: 8, width: "100%" }}
-                  required
-                >
-                  <option value="">בחר קצבה</option>
-                  {funds.map((fund) => (
-                    <option key={fund.id} value={fund.id}>
-                      {fund.fund_name} - ₪{(fund.balance || 0).toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <input
-                type="number"
-                placeholder="סכום היוון פטור"
-                value={commutationForm.exempt_amount || ""}
-                onChange={(e) => setCommutationForm({ ...commutationForm, exempt_amount: parseFloat(e.target.value) || 0 })}
-                style={{ padding: 8 }}
-                required
-              />
-              
-              <input
-                type="date"
-                placeholder="תאריך היוון"
-                value={commutationForm.commutation_date || ""}
-                onChange={(e) => setCommutationForm({ ...commutationForm, commutation_date: e.target.value })}
-                style={{ padding: 8 }}
-                required
-              />
-              
-              <div>
-                <label>סוג היוון:</label>
-                <select
-                  value={commutationForm.commutation_type}
-                  onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "partial" | "full" })}
-                  style={{ padding: 8, width: "100%" }}
-                >
-                  <option value="partial">חלקי</option>
-                  <option value="full">מלא</option>
-                </select>
-              </div>
-              
-              <button type="submit" style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}>
-                הוסף היוון
-              </button>
-            </form>
-          </div>
-          
-          {/* Commutations List */}
-          <div>
-            <h4>רשימת היוונים</h4>
+          <h3>רשימת היוונים</h3>
             {commutations.length === 0 ? (
               <div style={{ padding: 16, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
                 אין היוונים
@@ -880,7 +999,6 @@ export default function PensionFunds() {
                 })}
               </div>
             )}
-          </div>
         </section>
       </div>
     </div>

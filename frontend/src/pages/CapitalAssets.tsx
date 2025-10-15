@@ -8,6 +8,8 @@ type CapitalAsset = {
   client_id?: number;
   asset_type: string;
   description?: string;
+  remarks?: string;  // הערות - משמש לקישור להיוון
+  conversion_source?: string;  // מקור המרה (JSON)
   current_value: number;
   purchase_value?: number;
   purchase_date?: string;
@@ -39,6 +41,7 @@ const ASSET_TYPES = [
   { value: "deposits", label: "פקדונות" },
   { value: "provident_fund", label: "קופת גמל" },
   { value: "education_fund", label: "קרן השתלמות" },
+  { value: "commutation", label: "היוון" },
   { value: "other", label: "אחר" }
 ];
 
@@ -232,12 +235,17 @@ export default function CapitalAssets() {
 
     console.log('✅ Starting deletion process...');
     try {
-      // קבלת פרטי הנכס לפני המחיקה
+      // קבלת פרטי הנכס מהרשימה המקומית
       const asset = assets.find(a => a.id === assetId);
+      
       console.log('=== DELETE ASSET DEBUG ===');
+      console.log('All assets:', assets);
+      console.log('Looking for assetId:', assetId);
       console.log('Asset found:', asset);
-      console.log('Has conversion_source?', !!(asset as any)?.conversion_source);
-      console.log('conversion_source value:', (asset as any)?.conversion_source);
+      console.log('Asset remarks:', asset?.remarks);
+      console.log('Is commutation?', asset?.remarks?.startsWith('COMMUTATION:'));
+      console.log('Has conversion_source?', !!asset?.conversion_source);
+      console.log('conversion_source value:', asset?.conversion_source);
       
       // בדיקה אם יש מידע על מקור המרה
       if (asset && (asset as any).conversion_source) {
@@ -319,6 +327,60 @@ export default function CapitalAssets() {
         } catch (parseError) {
           console.warn('Could not parse conversion_source:', parseError);
           // ממשיכים עם המחיקה גם אם יש שגיאה בפרסור
+        }
+      }
+      
+      // בדיקה אם זה נכס הוני מהיוון
+      if (asset && asset.remarks && asset.remarks.startsWith('COMMUTATION:')) {
+        try {
+          console.log('✅ Detected commutation asset, restoring to pension fund');
+          
+          // פרסור המידע מה-remarks
+          const remarksData = asset.remarks.replace('COMMUTATION:', '');
+          console.log('📝 Remarks data:', remarksData);
+          
+          const params = new URLSearchParams(remarksData);
+          const pensionFundId = parseInt(params.get('pension_fund_id') || '0');
+          const amount = parseFloat(params.get('amount') || '0');
+          
+          console.log('📝 Parsed pension_fund_id:', pensionFundId);
+          console.log('📝 Parsed amount:', amount);
+          
+          if (pensionFundId > 0 && amount > 0) {
+            console.log('📞 Fetching pension fund...');
+            // קריאה לקצבה הנוכחית
+            const currentFund = await apiFetch<any>(`/pension-funds/${pensionFundId}`);
+            console.log('📋 Current fund:', currentFund);
+            
+            if (currentFund) {
+              // החזרת הסכום לקצבה
+              const oldBalance = currentFund.balance || 0;
+              const newBalance = oldBalance + amount;
+              const annuityFactor = currentFund.annuity_factor || 200;
+              const newMonthlyAmount = Math.round(newBalance / annuityFactor);
+              
+              console.log(`📊 Old balance: ${oldBalance}, New balance: ${newBalance}`);
+              console.log(`📊 New monthly amount: ${newMonthlyAmount}`);
+              
+              await apiFetch(`/pension-funds/${pensionFundId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                  ...currentFund,
+                  balance: newBalance,
+                  pension_amount: newMonthlyAmount
+                })
+              });
+              
+              console.log(`✅ Successfully restored ${amount} to pension fund ${pensionFundId}`);
+            } else {
+              console.warn('❌ Pension fund not found');
+            }
+          } else {
+            console.warn('❌ Invalid pension_fund_id or amount');
+          }
+        } catch (commutationError) {
+          console.error('❌ Error restoring commutation to pension fund:', commutationError);
+          // ממשיכים עם המחיקה גם אם יש שגיאה
         }
       }
       
