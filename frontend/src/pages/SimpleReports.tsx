@@ -1754,7 +1754,13 @@ const SimpleReports: React.FC = () => {
     
     <div class="npv-section">
         <h2>ערך נוכחי נקי (NPV)</h2>
-        <div class="npv-value">₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03)).toLocaleString()}</div>
+        <div class="npv-value">
+            <div>NPV תזרים: ₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03)).toLocaleString()}</div>
+            <div>NPV נכסי הון: ₪${Math.round(calculateCapitalAssetsNPV(0.03, yearlyProjection.length)).toLocaleString()}</div>
+            <div style="border-top: 2px solid #155724; margin-top: 10px; padding-top: 10px;">
+                סה"כ NPV: ₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03) + calculateCapitalAssetsNPV(0.03, yearlyProjection.length)).toLocaleString()}
+            </div>
+        </div>
     </div>
     
     <div class="section">
@@ -1815,31 +1821,35 @@ const SimpleReports: React.FC = () => {
     
     ${pensionFunds.length > 0 ? `
     <div class="section">
-        <h2>קרנות פנסיה</h2>
+        <h2>📊 טבלת מוצרים פנסיונים</h2>
         <table>
             <thead>
                 <tr>
-                    <th>שם הקרן</th>
+                    <th>שם תכנית</th>
+                    <th>סוג מוצר</th>
+                    <th>חברה מנהלת</th>
                     <th>יתרה נוכחית</th>
-                    <th>הפקדה חודשית</th>
-                    <th>תשואה שנתית</th>
                     <th>קצבה חודשית</th>
-                    <th>גיל פרישה</th>
+                    <th>תאריך התחלה</th>
                 </tr>
             </thead>
             <tbody>
                 ${pensionFunds.map(fund => `
                     <tr>
                         <td>${fund.fund_name || 'ללא שם'}</td>
+                        <td>${PENSION_PRODUCT_TYPES[fund.product_type] || fund.product_type || 'לא צוין'}</td>
+                        <td>${fund.company || 'לא צוין'}</td>
                         <td>₪${(fund.current_balance || 0).toLocaleString()}</td>
-                        <td>₪${(fund.monthly_deposit || 0).toLocaleString()}</td>
-                        <td>${((fund.annual_return_rate || 0) * 100).toFixed(1)}%</td>
-                        <td>₪${(fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}</td>
-                        <td>${fund.retirement_age || 67}</td>
+                        <td>₪${(fund.monthly_pension || fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}</td>
+                        <td>${fund.start_date || 'לא צוין'}</td>
                     </tr>
                 `).join('')}
             </tbody>
         </table>
+        <div style="margin-top: 10px; font-weight: bold;">
+            סה"כ יתרה: ₪${pensionFunds.reduce((sum, f) => sum + (parseFloat(f.current_balance) || 0), 0).toLocaleString()} | 
+            סה"כ קצבה חודשית: ₪${pensionFunds.reduce((sum, f) => sum + (parseFloat(f.monthly_pension) || parseFloat(f.pension_amount) || parseFloat(f.computed_monthly_amount) || 0), 0).toLocaleString()}
+        </div>
     </div>
     ` : ''}
     
@@ -1868,6 +1878,41 @@ const SimpleReports: React.FC = () => {
                 `).join('')}
             </tbody>
         </table>
+    </div>
+    ` : ''}
+    
+    <div class="section">
+        <h2>📋 פרוט פעולות תזרים</h2>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; line-height: 2;">
+            ${(() => {
+                const operations = generateCashflowOperationsDetails(
+                    pensionFunds,
+                    additionalIncomes,
+                    capitalAssets,
+                    fixationData,
+                    new Date().getFullYear()
+                );
+                return operations.map(line => `<div>${line.replace(/\n/g, '<br>')}</div>`).join('');
+            })()}
+        </div>
+    </div>
+    
+    ${fixationData ? `
+    <div class="section">
+        <h2>🛡️ פרוט פטורים ממס</h2>
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px;">
+            <div><strong>שנת קיבוע:</strong> ${fixationData.fixation_year || new Date().getFullYear()}</div>
+            <div><strong>יתרת הון פטורה ראשונית:</strong> ₪${(fixationData.exempt_capital_initial || 0).toLocaleString()}</div>
+            <div><strong>יתרה אחרי קיזוזים:</strong> ₪${(fixationData.remaining_exempt_capital || 0).toLocaleString()}</div>
+            <div><strong>קצבה פטורה חודשית (שנת קיבוע):</strong> ₪${((fixationData.remaining_exempt_capital || 0) / 180).toLocaleString()}</div>
+            <div><strong>אחוז פטור:</strong> ${((fixationData.exemption_percentage || 0) * 100).toFixed(2)}%</div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #856404;">
+                <strong>השוואת NPV:</strong><br>
+                NPV עם פטור: ₪${Math.round(calculateNPVComparison(yearlyProjection, 0.03).withExemption).toLocaleString()}<br>
+                NPV ללא פטור: ₪${Math.round(calculateNPVComparison(yearlyProjection, 0.03).withoutExemption).toLocaleString()}<br>
+                <strong style="color: #155724;">חיסכון ממס (NPV): ₪${Math.round(calculateNPVComparison(yearlyProjection, 0.03).savings).toLocaleString()}</strong>
+            </div>
+        </div>
     </div>
     ` : ''}
     
@@ -2011,31 +2056,6 @@ const SimpleReports: React.FC = () => {
         
         <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => {
-              try {
-                const yearlyProjection = generateYearlyProjection();
-                createPDFReport(yearlyProjection);
-                alert('דוח PDF מקיף נוצר בהצלחה!');
-              } catch (err: any) {
-                alert('שגיאה ביצירת PDF: ' + err.message);
-              }
-            }}
-            disabled={loading}
-            style={{
-              backgroundColor: loading ? '#6c757d' : '#007bff',
-              color: 'white',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '16px',
-              fontWeight: 'bold'
-            }}
-          >
-            {loading ? 'יוצר...' : '📊 דוח PDF מקיף (חדש!)'}
-          </button>
-          
-          <button
             onClick={handleGeneratePdf}
             disabled={loading}
             style={{
@@ -2045,10 +2065,11 @@ const SimpleReports: React.FC = () => {
               padding: '12px 24px',
               borderRadius: '4px',
               cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '16px'
+              fontSize: '16px',
+              fontWeight: 'bold'
             }}
           >
-            {loading ? 'יוצר...' : '📄 דוח HTML לPDF (עברית מושלמת)'}
+            {loading ? 'יוצר...' : '📄 הורד דוח PDF מקיף'}
           </button>
 
           <button
@@ -2065,7 +2086,7 @@ const SimpleReports: React.FC = () => {
               fontWeight: 'bold'
             }}
           >
-            {loading ? 'יוצר...' : '📗 דוח Excel מקיף (חדש!)'}
+            {loading ? 'יוצר...' : '📗 הורד דוח Excel מקיף'}
           </button>
         </div>
 
