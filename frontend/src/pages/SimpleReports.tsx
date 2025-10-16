@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -549,6 +549,27 @@ interface ReportData {
 const SimpleReports: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // פונקציות עזר לחישובי קצבה פטורה
+  const getPensionCeiling = (year: number): number => {
+    const ceilings: { [key: number]: number } = {
+      2025: 9430, 2024: 9430, 2023: 9120, 2022: 8660,
+      2021: 8460, 2020: 8510, 2019: 8480, 2018: 8380
+    };
+    return ceilings[year] || 9430;
+  };
+  
+  const getExemptCapitalPercentage = (year: number): number => {
+    const percentages: { [key: number]: number } = {
+      2028: 0.67, 2027: 0.625, 2026: 0.575, 2025: 0.57,
+      2024: 0.52, 2023: 0.52, 2022: 0.52, 2021: 0.52, 2020: 0.52,
+      2019: 0.49, 2018: 0.49, 2017: 0.49, 2016: 0.49,
+      2015: 0.435, 2014: 0.435, 2013: 0.435, 2012: 0.435
+    };
+    return percentages[year] || 0.67;
+  };
+  
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -678,10 +699,18 @@ const SimpleReports: React.FC = () => {
                 
                 if (currentYear >= eligibilityYear) {
                   const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
-                  const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
-                  // הנוסחה הנכונה: אחוז פטור × יתרת הון פטורה ÷ 180
-                  // (יתרת ההון כרגע קבועה, בעתיד אפשר להוסיף הצמדה למדד)
-                  monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
+                  const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+                  
+                  if (currentYear === eligibilityYear) {
+                    // שנת הקיבוע: יתרה נותרת (אחרי קיזוזים) ÷ 180
+                    monthlyExemptPension = remainingExemptCapital / 180;
+                  } else {
+                    // שנים אחרי הקיבוע: אחוז פטור × יתרת הון תיאורטית ÷ 180
+                    const pensionCeiling = getPensionCeiling(currentYear);
+                    const capitalPercentage = getExemptCapitalPercentage(currentYear);
+                    const theoreticalCapital = pensionCeiling * 180 * capitalPercentage;
+                    monthlyExemptPension = (exemptionPercentage * theoreticalCapital) / 180;
+                  }
                 }
               }
               
@@ -939,23 +968,28 @@ const SimpleReports: React.FC = () => {
         // הפטור חל רק משנת הזכאות ואילך
         if (year >= eligibilityYear) {
           const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
-          const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
           const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
           
-          console.log(`📊 Year ${year} calculation:`, {
-            exemptionPercentage: (exemptionPercentage * 100).toFixed(1) + '%',
-            exemptCapitalInitial,
-            remainingExemptCapital,
-            eligibilityYear
-          });
-          
-          // חישוב הקצבה הפטורה: אחוז פטור × יתרת הון פטורה ÷ 180
-          // כרגע משתמשים ביתרת הון ראשונית (קבועה)
-          // TODO: להוסיף הצמדה למדד לפי שנים אם נדרש
-          monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
-          
-          console.log(`💰 Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)}`);
-          console.log(`   Formula: ${(exemptionPercentage * 100).toFixed(1)}% × ${exemptCapitalInitial.toLocaleString()} ÷ 180 = ${monthlyExemptPension.toFixed(2)}`);
+          if (year === eligibilityYear) {
+            // שנת הקיבוע: יתרה נותרת (אחרי קיזוזים) ÷ 180
+            monthlyExemptPension = remainingExemptCapital / 180;
+            console.log(`📊 Year ${year} (ELIGIBILITY YEAR):`);
+            console.log(`   Remaining exempt capital: ${remainingExemptCapital.toLocaleString()}`);
+            console.log(`   💰 Exempt pension = ${remainingExemptCapital.toLocaleString()} ÷ 180 = ${monthlyExemptPension.toFixed(2)}`);
+          } else {
+            // שנים אחרי הקיבוע: אחוז פטור × יתרת הון תיאורטית ÷ 180
+            const pensionCeiling = getPensionCeiling(year);
+            const capitalPercentage = getExemptCapitalPercentage(year);
+            const theoreticalCapital = pensionCeiling * 180 * capitalPercentage;
+            monthlyExemptPension = (exemptionPercentage * theoreticalCapital) / 180;
+            
+            console.log(`📊 Year ${year} (POST-ELIGIBILITY):`);
+            console.log(`   Pension ceiling: ${pensionCeiling.toLocaleString()}`);
+            console.log(`   Capital percentage: ${(capitalPercentage * 100).toFixed(1)}%`);
+            console.log(`   Theoretical capital: ${pensionCeiling} × 180 × ${(capitalPercentage * 100).toFixed(1)}% = ${theoreticalCapital.toLocaleString()}`);
+            console.log(`   Exemption percentage: ${(exemptionPercentage * 100).toFixed(1)}%`);
+            console.log(`   💰 Exempt pension = ${(exemptionPercentage * 100).toFixed(1)}% × ${theoreticalCapital.toLocaleString()} ÷ 180 = ${monthlyExemptPension.toFixed(2)}`);
+          }
         } else {
           console.log(`⏰ Year ${year} < eligibility year ${eligibilityYear} - no exemption yet`);
         }
@@ -2147,9 +2181,18 @@ const SimpleReports: React.FC = () => {
                       const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
                       if (currentYear >= eligibilityYear) {
                         const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
-                        const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
-                        // נוסחה: אחוז פטור × יתרת הון פטורה ÷ 180
-                        currentExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
+                        const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+                        
+                        if (currentYear === eligibilityYear) {
+                          // שנת הקיבוע
+                          currentExemptPension = remainingExemptCapital / 180;
+                        } else {
+                          // שנים אחרי הקיבוע
+                          const pensionCeiling = getPensionCeiling(currentYear);
+                          const capitalPercentage = getExemptCapitalPercentage(currentYear);
+                          const theoreticalCapital = pensionCeiling * 180 * capitalPercentage;
+                          currentExemptPension = (exemptionPercentage * theoreticalCapital) / 180;
+                        }
                       }
                     }
                     

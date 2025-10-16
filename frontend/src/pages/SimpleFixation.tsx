@@ -126,15 +126,16 @@ const SimpleFixation: React.FC = () => {
     const totalDiscounts = commutations.reduce((sum, commutation) => sum + (commutation.exempt_amount || 0), 0);
     console.log('DEBUG: totalDiscounts from commutations:', totalDiscounts);
     
-    // יתרת פטור נותרת - זו יתרת ההון לשימוש בחישובי התזרים
+    // יתרת פטור נותרת אחרי כל הקיזוזים
     const remainingExemption = remainingExemptCapital;
     
     // תקרת קצבה מזכה
     const eligibilityYear = fixationData?.eligibility_year || new Date().getFullYear();
     const pensionCeiling = getPensionCeiling(eligibilityYear);
     
-    // קצבה פטורה מחושבת: אחוז פטור × יתרת הון פטורה ÷ 180
-    const baseAmount = (exemptionPercentage * remainingExemption) / 180;
+    // קצבה פטורה מחושבת לשנת הקיבוע: יתרה נותרת ÷ 180
+    // זה החישוב הנכון לקיבוע זכויות!
+    const baseAmount = remainingExemption / 180;
     const percentage = pensionCeiling > 0 ? (baseAmount / pensionCeiling) * 100 : 0;
 
     return {
