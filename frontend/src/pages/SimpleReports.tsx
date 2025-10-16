@@ -668,16 +668,27 @@ const SimpleReports: React.FC = () => {
             
             monthlyGrossAmount = monthlyPension + monthlyAdditional;
             
-            // חישוב מס על ההכנסה החודשית עם נקודות זיכוי
+            // חישוב מס על ההכנסה החודשית עם קיזוז פטור ונקודות זיכוי
             if (monthlyGrossAmount > 0) {
-              const annualGrossAmount = monthlyGrossAmount * 12;
-              // חישוב מס בסיסי לפי מדרגות
-              let baseTax = 0;
-              let remainingIncome = annualGrossAmount;
+              // קיזוז קצבה פטורה אם קיימת
+              let monthlyExemptPension = 0;
+              if (fixationData && fixationData.exemption_summary) {
+                const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
+                const currentYear = monthDate.getFullYear();
+                
+                if (currentYear >= eligibilityYear) {
+                  const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
+                  const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
+                  monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
+                }
+              }
               
+              // הכנסה חייבת במס אחרי קיזוז הפטור
+              const monthlyTaxableIncome = Math.max(0, monthlyPension - monthlyExemptPension) + monthlyAdditional;
+              const annualTaxableIncome = monthlyTaxableIncome * 12;
               
               // חישוב מס לפי מדרגות המס המעודכנות
-              baseTax = calculateTaxByBrackets(annualGrossAmount);
+              let baseTax = calculateTaxByBrackets(annualTaxableIncome);
               
               // הפחתת נקודות זיכוי אם קיימות
               if (clientData?.tax_credit_points) {
@@ -919,18 +930,30 @@ const SimpleReports: React.FC = () => {
       // חישוב קצבה פטורה מקיבוע זכויות (רק משנת הזכאות ואילך)
       let monthlyExemptPension = 0;
       if (fixationData && fixationData.exemption_summary) {
+        console.log(`🔍 Fixation Data for year ${year}:`, JSON.stringify(fixationData.exemption_summary, null, 2));
+        
         const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
         
         // הפטור חל רק משנת הזכאות ואילך
         if (year >= eligibilityYear) {
           const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
-          const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+          const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
           
-          // חישוב הקצבה הפטורה: אחוז הפטור × יתרת הון פטורה ÷ 180
-          monthlyExemptPension = (exemptionPercentage * remainingExemptCapital) / 180;
+          console.log(`📊 Year ${year} calculation:`, {
+            exemptionPercentage,
+            exemptCapitalInitial,
+            eligibilityYear
+          });
           
-          console.log(`Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)} (${(exemptionPercentage * 100).toFixed(1)}% × ${remainingExemptCapital.toLocaleString()} ÷ 180)`);
+          // חישוב הקצבה הפטורה: אחוז הפטור × יתרת הון פטורה ראשונית ÷ 180
+          monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
+          
+          console.log(`💰 Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)} (${(exemptionPercentage * 100).toFixed(1)}% × ${exemptCapitalInitial.toLocaleString()} ÷ 180)`);
+        } else {
+          console.log(`⏰ Year ${year} < eligibility year ${eligibilityYear} - no exemption yet`);
         }
+      } else {
+        console.log(`❌ No fixation data available for year ${year}`);
       }
       
       // חישוב הכנסה חייבת במס מקרנות פנסיה לאחר קיזוז פטור קיבוע זכויות
@@ -944,6 +967,10 @@ const SimpleReports: React.FC = () => {
         .sort((a, b) => b.income - a.income);
       
       // קיזוז הפטור מהקצבאות הגבוהות ביותר
+      console.log(`\n🎯 Starting exemption offset for year ${year}:`);
+      console.log(`  Monthly exempt pension: ${monthlyExemptPension.toFixed(2)}`);
+      console.log(`  Pension incomes BEFORE offset:`, pensionIncomes.map(p => p.toFixed(2)));
+      
       let remainingExemption = monthlyExemptPension;
       const pensionAfterExemption = [...pensionIncomes]; // העתקה
       
@@ -954,13 +981,17 @@ const SimpleReports: React.FC = () => {
         pensionAfterExemption[pension.index] -= exemptionToApply;
         remainingExemption -= exemptionToApply;
         
-        console.log(`  Applying exemption ${exemptionToApply.toFixed(2)} to pension #${pension.index + 1}, remaining: ${pensionAfterExemption[pension.index].toFixed(2)}`);
+        console.log(`  ✅ Applying exemption ${exemptionToApply.toFixed(2)} to pension #${pension.index + 1}, after offset: ${pensionAfterExemption[pension.index].toFixed(2)}`);
       }
+      
+      console.log(`  Pension incomes AFTER offset:`, pensionAfterExemption.map(p => p.toFixed(2)));
       
       // סיכום הכנסה חייבת אחרי קיזוז הפטור
       pensionAfterExemption.forEach(income => {
         monthlyTaxableIncome += Math.max(0, income);
       });
+      
+      console.log(`  💵 Total monthly taxable income after exemption: ${monthlyTaxableIncome.toFixed(2)}`);
       
       // חישוב הכנסה פטורה וחייבת במס מהכנסות נוספות (בהתבסס על ההכנסות הדינמיות)
       let monthlyExemptIncome = 0;
@@ -989,6 +1020,12 @@ const SimpleReports: React.FC = () => {
       totalExemptIncome = monthlyExemptIncome * 12;
       const totalAnnualIncome = totalTaxableAnnualIncome + totalExemptIncome;
       
+      console.log(`\n💰 Tax calculation summary for year ${year}:`);
+      console.log(`  Monthly taxable income (pensions after exemption): ${monthlyTaxableIncome.toFixed(2)}`);
+      console.log(`  Monthly taxable additional income: ${monthlyTaxableAdditionalIncome.toFixed(2)}`);
+      console.log(`  Total annual taxable income: ${totalTaxableAnnualIncome.toLocaleString()}`);
+      console.log(`  Total annual exempt income: ${totalExemptIncome.toLocaleString()}`);
+      
       if (totalTaxableAnnualIncome > 0) {
         // חישוב מס כולל על סך ההכנסות החייבות במס
         let totalAnnualTax = 0;
@@ -997,23 +1034,34 @@ const SimpleReports: React.FC = () => {
         // שימוש במדרגות המס המעודכנות מההגדרות
         totalAnnualTax = calculateTaxByBrackets(totalTaxableAnnualIncome);
         
+        console.log(`  Tax before credit: ${totalAnnualTax.toLocaleString()}`);
+        
         // הפחתת נקודות זיכוי אם קיימות
         if (client?.tax_credit_points) {
-          totalAnnualTax = Math.max(0, totalAnnualTax - (client.tax_credit_points * 2640));
+          const creditAmount = client.tax_credit_points * 2640;
+          totalAnnualTax = Math.max(0, totalAnnualTax - creditAmount);
+          console.log(`  Tax credit applied (${client.tax_credit_points} points × 2640): ${creditAmount.toLocaleString()}`);
         }
+        
+        console.log(`  Final annual tax: ${totalAnnualTax.toLocaleString()}`);
 
         // מס חודשי מהכנסות רגילות בלבד (ללא נכסי הון)
         const regularMonthlyTax = totalAnnualTax / 12;
+        console.log(`  Monthly tax: ${regularMonthlyTax.toFixed(2)}`);
         
-        // חלוקת המס באופן יחסי לפי ההכנסות
+        // חלוקת המס באופן יחסי לפי ההכנסות אחרי קיזוז הפטור
         // חישוב סך ההכנסה החייבת במס
         const taxableTotalMonthlyIncome = monthlyTaxableIncome + monthlyTaxableAdditionalIncome;
         
+        console.log(`\n📊 Distributing tax among income sources:`);
+        
         pensionFunds.forEach((fund, index) => {
-          const incomeAmount = incomeBreakdown[index] || 0;
-          // חלוקת המס באופן יחסי - רק מהכנסות רגילות
-          const taxPortion = taxableTotalMonthlyIncome > 0 ? (incomeAmount / taxableTotalMonthlyIncome) * regularMonthlyTax : 0;
+          // שימוש בהכנסה אחרי קיזוז הפטור!
+          const taxableIncomeAmount = pensionAfterExemption[index] || 0;
+          // חלוקת המס באופן יחסי - רק מהכנסות חייבות במס
+          const taxPortion = taxableTotalMonthlyIncome > 0 ? (taxableIncomeAmount / taxableTotalMonthlyIncome) * regularMonthlyTax : 0;
           taxBreakdown.push(Math.round(taxPortion));
+          console.log(`  Pension #${index + 1}: taxable=${taxableIncomeAmount.toFixed(2)}, tax=${taxPortion.toFixed(2)}`);
         });
         
         additionalIncomes.forEach((income, index) => {
