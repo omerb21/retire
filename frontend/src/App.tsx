@@ -26,8 +26,8 @@ const ClientDetails = () => {
         <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
         <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
+        <a href={`/clients/${clientId}/fixation`} style={moduleButtonStyle}>קיבוע זכויות</a>
         <a href={`/clients/${clientId}/scenarios`} style={moduleButtonStyle}>תרחישים</a>
-        <a href={`/clients/${clientId}/fixation`} style={moduleButtonStyle}>קיבוע מס</a>
         <a href={`/clients/${clientId}/reports`} style={moduleButtonStyle}>דוחות PDF</a>
       </div>
       <a href="/clients">חזרה לרשימת לקוחות</a>

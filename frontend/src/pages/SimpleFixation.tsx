@@ -51,6 +51,16 @@ interface PensionSummary {
   };
 }
 
+interface Commutation {
+  id: number;
+  pension_fund_id?: number;
+  fund_name?: string;
+  deduction_file?: string;
+  exempt_amount: number;
+  commutation_date: string;
+  commutation_type: string;
+}
+
 const SimpleFixation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -63,6 +73,8 @@ const SimpleFixation: React.FC = () => {
   const [fixationAmount, setFixationAmount] = useState<number>(0);
   const [hasGrants, setHasGrants] = useState<boolean>(false);
   const [clientData, setClientData] = useState<any>(null);
+  const [commutations, setCommutations] = useState<Commutation[]>([]);
+  const [futureGrantReserved, setFutureGrantReserved] = useState<number>(0);
 
   // Get pension ceiling for eligibility year
   const getPensionCeiling = (year: number): number => {
@@ -102,10 +114,12 @@ const SimpleFixation: React.FC = () => {
     // פטור מנוצל = סך הפגיעה בפטור מהשרת
     const usedExemption = totalImpact;
     
-    // שדות עתידיים (כרגע אפס)
-    const futureGrantReserved = 0;
-    const futureGrantImpact = 0; // futureGrantReserved * 1.35
-    const totalDiscounts = 0;
+    // שדות עתידיים - מענק עתידי משוריין
+    const futureGrantImpact = futureGrantReserved * 1.35;
+    
+    // חישוב סך היוונים פטורים מהטבלה
+    const totalDiscounts = commutations.reduce((sum, commutation) => sum + (commutation.exempt_amount || 0), 0);
+    console.log('DEBUG: totalDiscounts from commutations:', totalDiscounts);
     
     // יתרת פטור = סכום פטור ממס - פטור מנוצל - השפעת מענק עתידי - סך היוונים
     const remainingExemption = Math.max(0, exemptAmount - usedExemption - futureGrantImpact - totalDiscounts);
@@ -148,6 +162,39 @@ const SimpleFixation: React.FC = () => {
           setClientData(clientResponse.data);
         } catch (err) {
           console.error('Error fetching client data:', err);
+        }
+
+        // Load commutations (היוונים פטורים)
+        try {
+          const capitalAssets = await axios.get(`/api/v1/clients/${id}/capital-assets`);
+          const commutationAssets = (capitalAssets.data || []).filter((asset: any) => 
+            asset.remarks && asset.remarks.includes('COMMUTATION:') && asset.tax_treatment === 'exempt'
+          );
+          
+          // Get pension funds to match fund names
+          const pensionFunds = await axios.get(`/api/v1/clients/${id}/pension-funds`);
+          const fundsMap = new Map(pensionFunds.data.map((f: any) => [f.id, f]));
+          
+          const loadedCommutations: Commutation[] = commutationAssets.map((asset: any) => {
+            const match = asset.remarks.match(/pension_fund_id=(\d+)/);
+            const pensionFundId = match ? parseInt(match[1]) : undefined;
+            const fund: any = pensionFundId ? fundsMap.get(pensionFundId) : undefined;
+            
+            return {
+              id: asset.id,
+              pension_fund_id: pensionFundId,
+              fund_name: fund?.fund_name || 'לא ידוע',
+              deduction_file: fund?.deduction_file || '',
+              exempt_amount: asset.current_value,
+              commutation_date: asset.start_date || asset.purchase_date,
+              commutation_type: asset.tax_treatment
+            };
+          });
+          
+          setCommutations(loadedCommutations);
+        } catch (err) {
+          console.error('Error loading commutations:', err);
+          setCommutations([]);
         }
 
         // Get grants summary
@@ -320,7 +367,7 @@ const SimpleFixation: React.FC = () => {
 
 
   if (loading && !fixationData) {
-    return <div style={{ padding: '20px' }}>טוען נתוני קיבוע מס...</div>;
+    return <div style={{ padding: '20px' }}>טוען נתוני קיבוע זכויות...</div>;
   }
 
   return (
@@ -345,79 +392,7 @@ const SimpleFixation: React.FC = () => {
         </div>
       )}
 
-      {/* Debug info */}
-      <div style={{ padding: '10px', backgroundColor: '#f0f0f0', marginBottom: '10px' }}>
-        DEBUG: grantsSummary.length = {grantsSummary.length}
-        {grantsSummary.length > 0 && (
-          <div>
-            <div>First grant indexed_full: {grantsSummary[0]?.indexed_full}</div>
-            <div>First grant ratio_32y: {grantsSummary[0]?.ratio_32y}</div>
-            <div>First grant impact_on_exemption: {grantsSummary[0]?.impact_on_exemption}</div>
-            <div>First grant employer_name: {grantsSummary[0]?.employer_name}</div>
-          </div>
-        )}
-      </div>
-
-      {/* Grants Summary */}
-      {grantsSummary.length > 0 && (
-        <div style={{ 
-          marginBottom: '30px', 
-          padding: '20px', 
-          border: '1px solid #ddd', 
-          borderRadius: '4px',
-          backgroundColor: '#f9f9f9'
-        }}>
-          <h3>סיכום מענקים</h3>
-          
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#e9ecef' }}>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>שם מעסיק</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>תאריך קבלת המענק</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>מענק נומינאלי ששולם</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סכום רלוונטי לקיזוז פטור</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סכום רלוונטי לאחר הצמדה</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>פגיעה בפטור</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סטטוס</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grantsSummary.map((grant, index) => (
-                  <tr key={index}>
-                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.employer_name}</td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                      {grant.grant_date ? (
-                        grant.grant_date.includes('-') 
-                          ? formatDateToDDMMYYYY(new Date(grant.grant_date))
-                          : grant.grant_date
-                      ) : ''}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
-                      ₪{grant.grant_amount.toLocaleString()}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.grant_amount * (grant.ratio_32y || 0)).toLocaleString(undefined, {maximumFractionDigits: 2})}`}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#007bff' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.indexed_full || 0).toLocaleString()}`}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#dc3545' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.impact_on_exemption || 0).toLocaleString()}`}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#dc3545' : '#28a745' }}>
-                      {grant.exclusion_reason ? grant.exclusion_reason : 
-                       (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג - חוק 15 השנים' : 'נכלל בחישוב'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Pension Summary Table */}
+      {/* 1. Pension Summary Table - ראשון */}
       {fixationData && (
         <div style={{ 
           marginBottom: '30px', 
@@ -435,6 +410,47 @@ const SimpleFixation: React.FC = () => {
                 <strong> תאריך לידה:</strong> {clientData.birth_date ? new Date(clientData.birth_date).toLocaleDateString('he-IL') : 'לא צוין'}
               </div>
             )}
+          </div>
+          
+          {/* Input field for future grant */}
+          <div style={{ 
+            marginBottom: '20px', 
+            padding: '15px', 
+            backgroundColor: '#fff3cd', 
+            borderRadius: '4px',
+            border: '1px solid #ffc107'
+          }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '8px', 
+              fontWeight: 'bold',
+              color: '#856404'
+            }}>
+              מענק עתידי משוריין (נומינלי):
+            </label>
+            <input
+              type="number"
+              value={futureGrantReserved || ''}
+              onChange={(e) => setFutureGrantReserved(parseFloat(e.target.value) || 0)}
+              placeholder="הזן סכום מענק עתידי"
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '16px',
+                border: '2px solid #ffc107',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                fontFamily: 'monospace'
+              }}
+            />
+            <div style={{ 
+              marginTop: '8px', 
+              fontSize: '13px', 
+              color: '#856404',
+              fontStyle: 'italic'
+            }}>
+              הערך יוכפל ב-1.35 ויופחת מיתרת ההון הפטורה
+            </div>
           </div>
           
           {/* Summary Table */}
@@ -581,6 +597,109 @@ const SimpleFixation: React.FC = () => {
             >
               {loading ? 'מחשב מחדש...' : 'חשב קיבוע זכויות'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Grants Summary - שני */}
+      {grantsSummary.length > 0 && (
+        <div style={{ 
+          marginBottom: '30px', 
+          padding: '20px', 
+          border: '1px solid #ddd', 
+          borderRadius: '4px',
+          backgroundColor: '#f9f9f9'
+        }}>
+          <h3>טבלת מענקים</h3>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#e9ecef' }}>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>שם מעסיק</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>תאריך קבלת המענק</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>מענק נומינאלי ששולם</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סכום רלוונטי לקיזוז פטור</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סכום רלוונטי לאחר הצמדה</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>פגיעה בפטור</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סטטוס</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grantsSummary.map((grant, index) => (
+                  <tr key={index}>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.employer_name}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {grant.grant_date ? (
+                        grant.grant_date.includes('-') 
+                          ? formatDateToDDMMYYYY(new Date(grant.grant_date))
+                          : grant.grant_date
+                      ) : ''}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
+                      ₪{grant.grant_amount.toLocaleString()}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.grant_amount * (grant.ratio_32y || 0)).toLocaleString(undefined, {maximumFractionDigits: 2})}`}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#007bff' }}>
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.indexed_full || 0).toLocaleString()}`}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#dc3545' }}>
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.impact_on_exemption || 0).toLocaleString()}`}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#dc3545' : '#28a745' }}>
+                      {grant.exclusion_reason ? grant.exclusion_reason : 
+                       (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג - חוק 15 השנים' : 'נכלל בחישוב'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Exempt Commutations Table - שלישי */}
+      {commutations.length > 0 && (
+        <div style={{ 
+          marginBottom: '30px', 
+          padding: '20px', 
+          border: '1px solid #28a745', 
+          borderRadius: '4px',
+          backgroundColor: '#f0fff4'
+        }}>
+          <h3>טבלת היוונים פטורים</h3>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#d4edda' }}>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>שם המשלם</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>תיק ניכויים</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>תאריך היוון</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סכום היוון</th>
+                  <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>סוג ההיוון</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commutations.map((commutation) => (
+                  <tr key={commutation.id}>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{commutation.fund_name}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>{commutation.deduction_file || '-'}</td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {commutation.commutation_date ? formatDateToDDMMYYYY(new Date(commutation.commutation_date)) : '-'}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
+                      ₪{commutation.exempt_amount.toLocaleString()}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {commutation.commutation_type === 'exempt' ? 'פטור ממס' : 'חייב במס'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

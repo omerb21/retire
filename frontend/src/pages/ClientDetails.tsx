@@ -204,8 +204,8 @@ export default function ClientDetails() {
         <ModuleLink to={`/clients/${id}/pension-funds`} label="קרנות פנסיה" />
         <ModuleLink to={`/clients/${id}/additional-incomes`} label="הכנסות נוספות" />
         <ModuleLink to={`/clients/${id}/capital-assets`} label="נכסי הון" />
+        <ModuleLink to={`/clients/${id}/fixation`} label="קיבוע זכויות" />
         <ModuleLink to={`/clients/${id}/scenarios`} label="תרחישים" />
-        <ModuleLink to={`/clients/${id}/fixation`} label="קיבוע מס" />
       </div>
       
       <Link to="/clients" style={{ display: 'inline-block', marginTop: '20px' }}>
