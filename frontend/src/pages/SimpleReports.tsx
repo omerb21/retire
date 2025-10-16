@@ -1218,29 +1218,22 @@ const SimpleReports: React.FC = () => {
 
   // פונקציית עזר לחישוב NPV
   const calculateNPV = (cashFlows: number[], discountRate: number): number => {
-    console.log('calculateNPV called with:', { cashFlows, discountRate });
-    
     if (!cashFlows || cashFlows.length === 0) {
-      console.log('No cash flows provided, returning 0');
       return 0;
     }
     
+    // חישוב NPV: סכום של [תזרים ÷ (1 + היוון)^שנה] לכל השנים
     const result = cashFlows.reduce((sum, cashFlow, year) => {
       const discountedValue = cashFlow / Math.pow(1 + discountRate, year);
-      console.log(`Year ${year}: cashFlow=${cashFlow}, discounted=${discountedValue}, sum=${sum + discountedValue}`);
       return sum + discountedValue;
     }, 0);
     
-    console.log('Final NPV result:', result);
     return result;
   };
   
   // פונקציה לחישוב NPV של נכסי הון (שלא בתזרים)
   const calculateCapitalAssetsNPV = (discountRate: number, numYears: number): number => {
-    console.log('\n🏦 Calculating Capital Assets NPV:');
-    
     if (!capitalAssets || capitalAssets.length === 0) {
-      console.log('No capital assets, returning 0');
       return 0;
     }
     
@@ -1251,35 +1244,24 @@ const SimpleReports: React.FC = () => {
       const annualReturnRate = (parseFloat(asset.annual_return_rate) || 0) / 100;
       const assetType = asset.asset_type;
       
-      console.log(`\nAsset #${index + 1} (${asset.asset_name || assetType}):`);
-      console.log(`  Current value: ${currentValue.toLocaleString()}`);
-      console.log(`  Annual return rate: ${(annualReturnRate * 100).toFixed(2)}%`);
-      
       // נכסים שמופיעים בתזרים (deposits, savings, bonds) - לא נכללים כאן
       if (assetType === 'deposits' || assetType === 'savings' || assetType === 'bonds') {
-        console.log(`  ⚠️ Asset appears in cashflow, skipping from capital NPV`);
         return;
       }
       
-      // חישוב ערך עתידי של הנכס עם תשואה מצטברת
-      const futureValues: number[] = [];
+      // חישוב NPV של הנכס:
+      // לכל שנה: ערך עתידי = ערך נוכחי × (1 + תשואה)^שנה
+      // NPV = סכום של [ערך עתידי ÷ (1 + היוון)^שנה] לכל השנים
+      let assetNPV = 0;
       for (let year = 0; year < numYears; year++) {
         const futureValue = currentValue * Math.pow(1 + annualReturnRate, year);
-        futureValues.push(futureValue);
-        console.log(`  Year ${year}: Future value = ${futureValue.toFixed(0)}`);
+        const discountedValue = futureValue / Math.pow(1 + discountRate, year);
+        assetNPV += discountedValue;
       }
       
-      // חישוב NPV של הערכים העתידיים
-      const assetNPV = futureValues.reduce((sum, futureValue, year) => {
-        const discountedValue = futureValue / Math.pow(1 + discountRate, year);
-        return sum + discountedValue;
-      }, 0);
-      
-      console.log(`  📊 Asset NPV: ${assetNPV.toFixed(0)}`);
       totalCapitalNPV += assetNPV;
     });
     
-    console.log(`\n💰 Total Capital Assets NPV: ${totalCapitalNPV.toFixed(0)}`);
     return totalCapitalNPV;
   };
 
@@ -2323,25 +2305,16 @@ const SimpleReports: React.FC = () => {
             {(() => {
               // חישוב תזרים המזומנים השנתי
               const yearlyProjection = generateYearlyProjection();
-              console.log('Yearly projection for NPV:', yearlyProjection);
               
-              const annualNetCashFlows = yearlyProjection.map(yearData => {
-                // הכנסה שנתית נטו = (הכנסה חודשית נטו) * 12
-                const annualNet = yearData.netMonthlyIncome * 12;
-                console.log(`Year ${yearData.year}: monthly=${yearData.netMonthlyIncome}, annual=${annualNet}`);
-                return annualNet;
-              });
-              
-              console.log('Annual net cash flows:', annualNetCashFlows);
+              // המרת תזרים חודשי לתזרים שנתי
+              const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
               
               // חישוב ה-NPV עם שיעור היוון של 3%
               const discountRate = 0.03; // 3%
               const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
-              console.log('Calculated Cashflow NPV:', cashflowNPV);
               
               // חישוב NPV של נכסי הון
               const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
-              console.log('Calculated Capital Assets NPV:', capitalNPV);
               
               return (
                 <div style={{ marginBottom: '20px' }}>
