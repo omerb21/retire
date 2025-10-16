@@ -1611,6 +1611,15 @@ const SimpleReports: React.FC = () => {
     console.log('  Client:', client);
     console.log('  Yearly Projection:', yearlyProjection);
     
+    // אזהרה אם אין נתונים
+    if (!pensionFunds || pensionFunds.length === 0) {
+      console.warn('⚠️ WARNING: No pension funds data! Report will be incomplete.');
+      alert('אזהרה: לא נמצאו נתוני קרנות פנסיה. הדוח עלול להיות חלקי. אנא וודא שהנתונים נטענו במסך התוצאות.');
+    }
+    if (!client) {
+      console.warn('⚠️ WARNING: No client data!');
+    }
+    
     // יצירת HTML עם כל הנתונים
     const htmlContent = `
 <!DOCTYPE html>
