@@ -1924,11 +1924,11 @@ const SimpleReports: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // יצירת דוח Excel עם הנתונים הקיימים
+      // יצירת דוח Excel מקיף עם הנתונים הקיימים
       const yearlyProjection = generateYearlyProjection();
-      generateExcelReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
+      createExcelReport(yearlyProjection);
       
-      alert('דוח Excel נוצר בהצלחה');
+      alert('דוח Excel מקיף נוצר בהצלחה!');
     } catch (err: any) {
       console.error('שגיאה ביצירת דוח Excel:', err);
       setError('שגיאה ביצירת דוח Excel: ' + err.message);
@@ -2009,7 +2009,32 @@ const SimpleReports: React.FC = () => {
           <strong>דוח Excel</strong> זמין גם כן לניתוח נתונים מפורט.
         </div>
         
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => {
+              try {
+                const yearlyProjection = generateYearlyProjection();
+                createPDFReport(yearlyProjection);
+                alert('דוח PDF מקיף נוצר בהצלחה!');
+              } catch (err: any) {
+                alert('שגיאה ביצירת PDF: ' + err.message);
+              }
+            }}
+            disabled={loading}
+            style={{
+              backgroundColor: loading ? '#6c757d' : '#007bff',
+              color: 'white',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}
+          >
+            {loading ? 'יוצר...' : '📊 דוח PDF מקיף (חדש!)'}
+          </button>
+          
           <button
             onClick={handleGeneratePdf}
             disabled={loading}
@@ -2023,7 +2048,7 @@ const SimpleReports: React.FC = () => {
               fontSize: '16px'
             }}
           >
-            {loading ? 'יוצר...' : '📄 יצירת דוח HTML לPDF (עברית מושלמת)'}
+            {loading ? 'יוצר...' : '📄 דוח HTML לPDF (עברית מושלמת)'}
           </button>
 
           <button
@@ -2036,10 +2061,11 @@ const SimpleReports: React.FC = () => {
               padding: '12px 24px',
               borderRadius: '4px',
               cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '16px'
+              fontSize: '16px',
+              fontWeight: 'bold'
             }}
           >
-            {loading ? 'יוצר...' : 'יצירת דוח Excel (מומלץ)'}
+            {loading ? 'יוצר...' : '📗 דוח Excel מקיף (חדש!)'}
           </button>
         </div>
 
