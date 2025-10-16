@@ -7,6 +7,14 @@ import { formatDateToDDMMYY } from '../utils/dateUtils';
 import { getTaxBracketsLegacyFormat, calculateTaxByBrackets } from '../utils/taxBrackets';
 import axios from 'axios';
 import autoTable from 'jspdf-autotable';
+import { 
+  ASSET_TYPES_MAP, 
+  PENSION_PRODUCT_TYPES, 
+  generateCashflowOperationsDetails,
+  calculateNPVComparison,
+  generatePieChartData,
+  drawPieChart
+} from '../utils/reportGenerator';
 
 // ניסיון להוסיף תמיכה בעברית
 declare module 'jspdf' {
@@ -1265,41 +1273,158 @@ const SimpleReports: React.FC = () => {
     return totalCapitalNPV;
   };
 
-  // פונקציית יצירת דוח PDF
+  // פונקציית יצירת דוח PDF מקיף
   const createPDFReport = (yearlyProjection: any[]) => {
     const doc = new jsPDF();
-    
+    const currentDate = new Date().toLocaleDateString('he-IL');
+    const discountRate = 0.03;
     let yPosition = 20;
     
-    // כותרת הדוח
-    doc.setFontSize(20);
-    doc.text('דוח פנסיוני - תמונת מצב', 105, yPosition, { align: 'center' });
+    // ==== עמוד 1: כותרת ומידע כללי ====
+    doc.setFontSize(22);
+    doc.setTextColor(0, 51, 102);
+    doc.text('דוח פנסיוני מקיף', 105, yPosition, { align: 'center' });
+    yPosition += 10;
+    doc.setFontSize(14);
+    doc.setTextColor(100, 100, 100);
+    doc.text('תכנון פרישה ואופטימיזציה פנסיונית', 105, yPosition, { align: 'center' });
     yPosition += 15;
     
-    // תאריך יצירת הדוח
-    doc.setFontSize(12);
-    const currentDate = new Date().toLocaleDateString('he-IL');
-    doc.text(`תאריך יצירת הדוח: ${currentDate}`, 200, yPosition, { align: 'right' });
-    yPosition += 20;
-    
-    // חישוב NPV
-    const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
-    const npv = calculateNPV(annualNetCashFlows, 0.03);
-    
-    // הצגת NPV
-    doc.setFontSize(14);
-    doc.text('ערך נוכחי נקי (NPV) של התזרים:', 200, yPosition, { align: 'right' });
-    yPosition += 10;
-    doc.setFontSize(16);
-    doc.setTextColor(0, 128, 0);
-    doc.text(`₪${Math.round(npv).toLocaleString()}`, 200, yPosition, { align: 'right' });
+    // תאריך ופרטי לקוח
+    doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
-    yPosition += 20;
+    doc.text(`תאריך יצירת הדוח: ${currentDate}`, 20, yPosition);
+    yPosition += 7;
     
-    // טבלת תזרים מזומנים
-    doc.setFontSize(14);
-    doc.text('תחזית תזרים מזומנים שנתי:', 200, yPosition, { align: 'right' });
+    if (client) {
+      doc.text(`שם הלקוח: ${client.first_name || ''} ${client.last_name || ''}`, 20, yPosition);
+      yPosition += 7;
+      if (client.birth_date) {
+        doc.text(`תאריך לידה: ${client.birth_date}`, 20, yPosition);
+        yPosition += 7;
+      }
+    }
     yPosition += 10;
+    
+    // ==== חלק 1: NPV ופטורים ====
+    doc.setFillColor(240, 248, 255);
+    doc.rect(15, yPosition, 180, 50, 'F');
+    yPosition += 10;
+    
+    doc.setFontSize(14);
+    doc.setTextColor(0, 51, 102);
+    doc.text('ערך נוכחי נקי (NPV)', 20, yPosition);
+    yPosition += 10;
+    
+    // חישוב NPV עם ובלי פטורים
+    const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
+    const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
+    const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
+    const npvComparison = calculateNPVComparison(yearlyProjection, discountRate);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`NPV תזרים: ₪${Math.round(cashflowNPV).toLocaleString()}`, 25, yPosition);
+    yPosition += 6;
+    doc.text(`NPV נכסי הון: ₪${Math.round(capitalNPV).toLocaleString()}`, 25, yPosition);
+    yPosition += 6;
+    doc.setFontSize(12);
+    doc.setTextColor(0, 128, 0);
+    doc.text(`סה"כ NPV: ₪${Math.round(cashflowNPV + capitalNPV).toLocaleString()}`, 25, yPosition);
+    yPosition += 10;
+    
+    // פרוט פטורים
+    if (fixationData) {
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      const monthlyExemption = (fixationData.remaining_exempt_capital || 0) / 180;
+      doc.text(`קצבה פטורה חודשית: ₪${monthlyExemption.toLocaleString()}`, 25, yPosition);
+      yPosition += 6;
+      doc.text(`חיסכון ממס (NPV): ₪${Math.round(npvComparison.savings).toLocaleString()}`, 25, yPosition);
+    }
+    
+    yPosition += 15;
+    
+    // ==== עמוד חדש: טבלת מוצרים פנסיונים ====
+    doc.addPage();
+    yPosition = 20;
+    
+    doc.setFontSize(16);
+    doc.setTextColor(0, 51, 102);
+    doc.text('טבלת מוצרים פנסיונים', 105, yPosition, { align: 'center' });
+    yPosition += 15;
+    
+    if (pensionFunds && pensionFunds.length > 0) {
+      const pensionData = pensionFunds.map(p => [
+        p.fund_name || 'לא צוין',
+        PENSION_PRODUCT_TYPES[p.product_type] || p.product_type,
+        p.company || 'לא צוין',
+        `₪${(p.current_balance || 0).toLocaleString()}`,
+        `₪${(p.monthly_pension || 0).toLocaleString()}`
+      ]);
+      
+      autoTable(doc, {
+        head: [['שם תכנית', 'סוג מוצר', 'חברה', 'יתרה', 'קצבה חודשית']],
+        body: pensionData,
+        startY: yPosition,
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255] },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+        margin: { right: 15, left: 15 }
+      });
+      
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    }
+    
+    // גרף עוגה של פילוח מוצרים
+    if (pensionFunds && pensionFunds.length > 0) {
+      const pieData = generatePieChartData(pensionFunds);
+      if (pieData.values.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(0, 51, 102);
+        doc.text('פילוח מוצרים פנסיונים', 105, yPosition, { align: 'center' });
+        yPosition += 10;
+        
+        drawPieChart(doc, 105, yPosition + 30, 30, pieData);
+      }
+    }
+    
+    // ==== עמוד חדש: פרוט פעולות תזרים ====
+    doc.addPage();
+    yPosition = 20;
+    
+    doc.setFontSize(16);
+    doc.setTextColor(0, 51, 102);
+    doc.text('פרוט פעולות תזרים', 105, yPosition, { align: 'center' });
+    yPosition += 15;
+    
+    const operations = generateCashflowOperationsDetails(
+      pensionFunds,
+      additionalIncomes,
+      capitalAssets,
+      fixationData,
+      new Date().getFullYear()
+    );
+    
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    operations.forEach(line => {
+      if (yPosition > 270) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(line, 20, yPosition);
+      yPosition += 5;
+    });
+    
+    // ==== עמוד חדש: טבלת תזרים מזומנים ====
+    doc.addPage();
+    yPosition = 20;
+    
+    doc.setFontSize(16);
+    doc.setTextColor(0, 51, 102);
+    doc.text('תחזית תזרים מזומנים', 105, yPosition, { align: 'center' });
+    yPosition += 15;
     
     const tableData = yearlyProjection.map(year => [
       year.year.toString(),
@@ -1313,61 +1438,149 @@ const SimpleReports: React.FC = () => {
       head: [['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי']],
       body: tableData,
       startY: yPosition,
-      styles: {
-        font: 'helvetica',
-        fontSize: 10,
-        cellPadding: 3,
-        halign: 'center'
-      },
-      headStyles: {
-        fillColor: [233, 236, 239],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold'
-      },
+      styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
       columnStyles: {
-        0: { halign: 'center' },
         1: { halign: 'right' },
-        2: { halign: 'right' },
+        2: { halign: 'right', textColor: [220, 53, 69] },
         3: { halign: 'right' },
         4: { halign: 'right' }
       },
-      margin: { right: 20, left: 20 }
+      margin: { right: 15, left: 15 }
     });
     
     // שמירת הקובץ
-    doc.save(`דוח-פנסיוני-${currentDate}.pdf`);
+    doc.save(`דוח-פנסיוני-מקיף-${currentDate}.pdf`);
   };
 
-  // פונקציית יצירת דוח Excel
+  // פונקציית יצירת דוח Excel מקיף
   const createExcelReport = (yearlyProjection: any[]) => {
     const workbook = XLSX.utils.book_new();
+    const currentDate = new Date().toLocaleDateString('he-IL');
+    const discountRate = 0.03;
     
-    // גיליון 1: תזרים מזומנים
+    // ==== גיליון 1: תזרים מזומנים ====
     const cashflowData = [
       ['שנה', 'הכנסה חודשית', 'מס חודשי', 'נטו חודשי', 'נטו שנתי'],
       ...yearlyProjection.map(year => [
-        year.year.toString(),
-        year.totalMonthlyIncome.toString(),
-        year.totalMonthlyTax.toString(),
-        year.netMonthlyIncome.toString(),
-        (year.netMonthlyIncome * 12).toString()
+        year.year,
+        year.totalMonthlyIncome,
+        year.totalMonthlyTax,
+        year.netMonthlyIncome,
+        year.netMonthlyIncome * 12
       ])
     ];
     
     // חישוב NPV
     const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
-    const npv = calculateNPV(annualNetCashFlows, 0.03);
+    const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
+    const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
+    const npvComparison = calculateNPVComparison(yearlyProjection, discountRate);
     
-    // הוספת NPV לגיליון
+    // הוספת NPV
     cashflowData.push(['', '', '', '', '']);
-    cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', Math.round(npv).toString()]);
+    cashflowData.push(['NPV תזרים:', '', '', '', Math.round(cashflowNPV)]);
+    cashflowData.push(['NPV נכסי הון:', '', '', '', Math.round(capitalNPV)]);
+    cashflowData.push(['סה"כ NPV:', '', '', '', Math.round(cashflowNPV + capitalNPV)]);
+    cashflowData.push(['חיסכון ממס (NPV):', '', '', '', Math.round(npvComparison.savings)]);
     
     const cashflowSheet = XLSX.utils.aoa_to_sheet(cashflowData);
     XLSX.utils.book_append_sheet(workbook, cashflowSheet, 'תזרים מזומנים');
     
+    // ==== גיליון 2: מוצרים פנסיונים ====
+    if (pensionFunds && pensionFunds.length > 0) {
+      const pensionData = [
+        ['שם תכנית', 'סוג מוצר', 'חברה', 'יתרה', 'קצבה חודשית', 'תאריך התחלה'],
+        ...pensionFunds.map(p => [
+          p.fund_name || '',
+          PENSION_PRODUCT_TYPES[p.product_type] || p.product_type || '',
+          p.company || '',
+          p.current_balance || 0,
+          p.monthly_pension || 0,
+          p.start_date || ''
+        ])
+      ];
+      
+      // סיכום
+      const totalBalance = pensionFunds.reduce((sum, p) => sum + (p.current_balance || 0), 0);
+      const totalMonthly = pensionFunds.reduce((sum, p) => sum + (p.monthly_pension || 0), 0);
+      
+      pensionData.push(['', '', '', '', '', '']);
+      pensionData.push(['סה"כ', '', '', totalBalance, totalMonthly, '']);
+      
+      const pensionSheet = XLSX.utils.aoa_to_sheet(pensionData);
+      XLSX.utils.book_append_sheet(workbook, pensionSheet, 'מוצרים פנסיונים');
+    }
+    
+    // ==== גיליון 3: נכסי הון ====
+    if (capitalAssets && capitalAssets.length > 0) {
+      const assetsData = [
+        ['שם נכס', 'סוג', 'ערך נוכחי', 'הכנסה חודשית', 'תשואה שנתית', 'תאריך התחלה', 'תאריך סיום'],
+        ...capitalAssets.map(asset => [
+          asset.asset_name || asset.description || '',
+          ASSET_TYPES_MAP[asset.asset_type] || asset.asset_type || '',
+          asset.current_value || 0,
+          asset.monthly_income || 0,
+          asset.annual_return_rate || 0,
+          asset.start_date || '',
+          asset.end_date || ''
+        ])
+      ];
+      
+      const totalValue = capitalAssets.reduce((sum, a) => sum + (a.current_value || 0), 0);
+      const totalIncome = capitalAssets.reduce((sum, a) => sum + (a.monthly_income || 0), 0);
+      
+      assetsData.push(['', '', '', '', '', '', '']);
+      assetsData.push(['סה"כ', '', totalValue, totalIncome, '', '', '']);
+      
+      const assetsSheet = XLSX.utils.aoa_to_sheet(assetsData);
+      XLSX.utils.book_append_sheet(workbook, assetsSheet, 'נכסי הון');
+    }
+    
+    // ==== גיליון 4: פרוט פעולות תזרים ====
+    const operations = generateCashflowOperationsDetails(
+      pensionFunds,
+      additionalIncomes,
+      capitalAssets,
+      fixationData,
+      new Date().getFullYear()
+    );
+    
+    const operationsData = [
+      ['פרוט פעולות תזרים'],
+      [''],
+      ...operations.map(line => [line])
+    ];
+    
+    const operationsSheet = XLSX.utils.aoa_to_sheet(operationsData);
+    XLSX.utils.book_append_sheet(workbook, operationsSheet, 'פרוט פעולות');
+    
+    // ==== גיליון 5: פטורים ממס ====
+    if (fixationData) {
+      const monthlyExemption = (fixationData.remaining_exempt_capital || 0) / 180;
+      const exemptionPercentage = (fixationData.exemption_percentage || 0) * 100;
+      
+      const exemptionsData = [
+        ['פרט', 'ערך'],
+        ['שנת קיבוע', fixationData.fixation_year || ''],
+        ['יתרת הון פטורה ראשונית', fixationData.exempt_capital_initial || 0],
+        ['יתרה אחרי קיזוזים', fixationData.remaining_exempt_capital || 0],
+        ['קצבה פטורה חודשית', monthlyExemption],
+        ['אחוז פטור', exemptionPercentage],
+        [''],
+        ['השוואת NPV'],
+        ['NPV עם פטור', Math.round(npvComparison.withExemption)],
+        ['NPV ללא פטור', Math.round(npvComparison.withoutExemption)],
+        ['חיסכון ממס', Math.round(npvComparison.savings)]
+      ];
+      
+      const exemptionsSheet = XLSX.utils.aoa_to_sheet(exemptionsData);
+      XLSX.utils.book_append_sheet(workbook, exemptionsSheet, 'פטורים ממס');
+    }
+    
     // שמירת הקובץ
-    const currentDate = new Date().toLocaleDateString('he-IL');
-    XLSX.writeFile(workbook, `דוח-פנסיוני-${currentDate}.xlsx`);
+    XLSX.writeFile(workbook, `דוח-פנסיוני-מקיף-${currentDate}.xlsx`);
   };
 
   const handleGeneratePdf = async () => {
