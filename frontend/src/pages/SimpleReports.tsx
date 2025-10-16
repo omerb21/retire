@@ -1602,6 +1602,15 @@ const SimpleReports: React.FC = () => {
   const generateHTMLReport = () => {
     const yearlyProjection = generateYearlyProjection();
     
+    // Debug: בדיקת נתונים
+    console.log('📊 Generating HTML Report with data:');
+    console.log('  Pension Funds:', pensionFunds);
+    console.log('  Capital Assets:', capitalAssets);
+    console.log('  Additional Incomes:', additionalIncomes);
+    console.log('  Fixation Data:', fixationData);
+    console.log('  Client:', client);
+    console.log('  Yearly Projection:', yearlyProjection);
+    
     // יצירת HTML עם כל הנתונים
     const htmlContent = `
 <!DOCTYPE html>
@@ -1860,7 +1869,7 @@ const SimpleReports: React.FC = () => {
         <script>
             // נתוני גרף העוגה
             const pieData = ${JSON.stringify((() => {
-                const dataByType = {};
+                const dataByType: Record<string, number> = {};
                 pensionFunds.forEach(fund => {
                     const productType = PENSION_PRODUCT_TYPES[fund.product_type] || fund.product_type || 'לא צוין';
                     const value = parseFloat(fund.current_balance) || 0;
@@ -2038,6 +2047,53 @@ const SimpleReports: React.FC = () => {
         })()}</div>
         <div class="summary-item">• תקופת תחזית: ${yearlyProjection.length} שנים</div>
         <div class="summary-item">• שיעור היוון: 3%</div>
+    </div>
+    
+    <!-- תזרים מזומנים מפורט -->
+    <div class="section" style="page-break-before: always;">
+        <h2>תזרים מזומנים מפורט - פירוט מלא</h2>
+        <div style="overflow-x: auto;">
+            <table style="font-size: 10px;">
+                <thead>
+                    <tr>
+                        <th rowspan="2">שנה</th>
+                        <th colspan="${pensionFunds.length}">הכנסות מקצבאות (חודשי)</th>
+                        <th colspan="${additionalIncomes.length > 0 ? additionalIncomes.length : 1}">הכנסות נוספות</th>
+                        <th rowspan="2">סה"כ הכנסה</th>
+                        <th colspan="${pensionFunds.length}">מס על קצבאות</th>
+                        <th rowspan="2">סה"כ מס</th>
+                        <th rowspan="2">נטו חודשי</th>
+                    </tr>
+                    <tr>
+                        ${pensionFunds.map(f => `<th style="font-size: 9px;">${(f.fund_name || 'קצבה').substring(0, 15)}</th>`).join('')}
+                        ${additionalIncomes.length > 0 ? additionalIncomes.map(i => `<th style="font-size: 9px;">${(i.description || 'הכנסה').substring(0, 15)}</th>`).join('') : '<th>-</th>'}
+                        ${pensionFunds.map(f => `<th style="font-size: 9px;">מס ${(f.fund_name || 'קצבה').substring(0, 10)}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${yearlyProjection.map(year => `
+                        <tr>
+                            <td style="font-weight: bold;">${year.year}</td>
+                            ${year.incomeBreakdown.map(income => `<td>₪${income.toLocaleString()}</td>`).join('')}
+                            ${additionalIncomes.length > 0 ? year.incomeBreakdown.slice(pensionFunds.length).map(income => `<td>₪${income.toLocaleString()}</td>`).join('') : '<td>-</td>'}
+                            <td style="font-weight: bold; background: #e8f5e9;">₪${year.totalMonthlyIncome.toLocaleString()}</td>
+                            ${year.taxBreakdown.map(tax => `<td style="color: #d32f2f;">₪${tax.toLocaleString()}</td>`).join('')}
+                            <td style="font-weight: bold; background: #ffebee; color: #d32f2f;">₪${year.totalMonthlyTax.toLocaleString()}</td>
+                            <td style="font-weight: bold; background: #e3f2fd;">₪${year.netMonthlyIncome.toLocaleString()}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+            <strong>הערות:</strong>
+            <ul style="margin: 10px 0;">
+                <li>הטבלה מציגה פירוט מלא של כל מקורות ההכנסה והמס החל עליהם</li>
+                <li>המס מחושב לפי מדרגות המס הרלוונטיות לכל שנה</li>
+                <li>הפטור ממס מופעל אוטומטית על הקצבאות הפנסיוניות</li>
+                <li>הערכים מוצגים בשקלים חדשים ללא הצמדה</li>
+            </ul>
+        </div>
     </div>
     
     <div style="text-align: center; margin-top: 40px; color: #666; font-size: 12px;">
