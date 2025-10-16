@@ -1,4 +1,4 @@
-﻿"""
+"""
 Employment entity model for SQLAlchemy ORM
 """
 from sqlalchemy import Column, Integer, ForeignKey, Date, Boolean, Numeric, DateTime, func, Index
@@ -21,6 +21,7 @@ class Employment(Base):
     is_current = Column(Boolean, nullable=False, default=False, server_default="0")
 
     monthly_salary_nominal = Column(Numeric(12,2), nullable=True)
+    # severance_before_termination = Column(Numeric(12,2), nullable=True)  # סכום פיצויים מקורי לפני עזיבה - מושבת עד הרצת migration
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow, server_default=func.now())

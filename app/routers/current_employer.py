@@ -240,6 +240,13 @@ def process_termination_decision(
         
         # Update current employer end_date
         ce.end_date = decision.termination_date
+        # TODO: Save severance_before_termination after running migration
+        # if decision.severance_before_termination:
+        #     ce.severance_before_termination = decision.severance_before_termination
+        #     print(f"💾 Saved severance_before_termination: {decision.severance_before_termination}")
+        db.add(ce)  # Mark for update
+        db.flush()  # Ensure end_date is saved
+        print(f"✅ Updated CurrentEmployer end_date to: {decision.termination_date}")
         
         # Process exempt amount decision
         if decision.exempt_amount > 0:
@@ -430,4 +437,119 @@ def process_termination_decision(
         raise HTTPException(
             status_code=500,
             detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
+        )
+
+@router.delete(
+    "/clients/{client_id}/delete-termination",
+    status_code=status.HTTP_200_OK
+)
+def delete_termination_decision(
+    client_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete all entities created by termination decision:
+    - Grants
+    - Pension Funds 
+    - Capital Assets
+    
+    Also restores severance balance in pension portfolio (client-side)
+    Returns the severance amount that should be restored
+    """
+    # Check if client exists
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "לקוח לא נמצא"}
+        )
+    
+    # Get current employer
+    ce = db.scalar(
+        select(CurrentEmployer)
+        .where(CurrentEmployer.client_id == client_id)
+        .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+    )
+    if not ce:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "אין מעסיק נוכחי רשום ללקוח"}
+        )
+    
+    try:
+        deleted_count = 0
+        # TODO: Use severance_before_termination after running migration
+        # severance_to_restore = ce.severance_before_termination or ce.severance_accrued or 0
+        severance_to_restore = ce.severance_accrued or 0
+        
+        print(f"🔵 DELETE TERMINATION: client_id={client_id}, employer_name={ce.employer_name}")
+        print(f"💾 severance_to_restore: {severance_to_restore}")
+        
+        # אם אין שם מעסיק, לא נוכל למחוק לפי שם
+        if not ce.employer_name:
+            print(f"⚠️ אין שם מעסיק, מדלג על מחיקת מענקים/נכסים/קצבאות")
+        else:
+            # Delete all grants related to this employer
+            # מענקים שנוצרו מעזיבה מכילים את שם המעסיק
+            grants = db.query(Grant).filter(
+                Grant.client_id == client_id,
+                Grant.employer_name.like(f"%{ce.employer_name}%")
+            ).all()
+            
+            print(f"  Found {len(grants)} grants to delete")
+            for grant in grants:
+                print(f"    - Deleting grant: {grant.employer_name}")
+                db.delete(grant)
+                deleted_count += 1
+            
+            # Delete all capital assets related to this employer
+            capital_assets = db.query(CapitalAsset).filter(
+                CapitalAsset.client_id == client_id,
+                CapitalAsset.asset_name.like(f"%{ce.employer_name}%")
+            ).all()
+            
+            print(f"  Found {len(capital_assets)} capital assets to delete")
+            for asset in capital_assets:
+                print(f"    - Deleting asset: {asset.asset_name}")
+                db.delete(asset)
+                deleted_count += 1
+            
+            # Delete all pension funds related to this employer
+            pension_funds = db.query(PensionFund).filter(
+                PensionFund.client_id == client_id,
+                PensionFund.fund_name.like(f"%{ce.employer_name}%")
+            ).all()
+            
+            print(f"  Found {len(pension_funds)} pension funds to delete")
+            for pension in pension_funds:
+                print(f"    - Deleting pension: {pension.fund_name}")
+                db.delete(pension)
+                deleted_count += 1
+        
+        # Clear end_date from current employer (unmark termination)
+        ce.end_date = None
+        # TODO: Clear severance_before_termination after running migration
+        # ce.severance_before_termination = None
+        db.add(ce)
+        
+        db.commit()
+        
+        print(f"✅ DELETED {deleted_count} entities related to termination")
+        print(f"✅ Severance to restore: {severance_to_restore}")
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "severance_to_restore": severance_to_restore,
+            "message": f"נמחקו {deleted_count} אלמנטים הקשורים לעזיבה"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ EXCEPTION: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail={"error": f"שגיאה במחיקת החלטות עזיבה: {str(e)}"}
         )

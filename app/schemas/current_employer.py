@@ -116,12 +116,15 @@ class TerminationDecisionBase(BaseModel):
     termination_date: date = Field(..., description="תאריך סיום עבודה")
     use_employer_completion: bool = Field(False, description="האם תבוצע השלמת מעסיק")
     severance_amount: float = Field(..., description="סכום הפיצויים")
+    # TODO: הפעל מחדש לאחר הרצת migration
+    # severance_before_termination: Optional[float] = Field(None, description="סכום הפיצויים המקורי לפני עזיבה (כולל התפלגות)")
     exempt_amount: float = Field(..., description="סכום פטור ממס")
     taxable_amount: float = Field(..., description="סכום חייב במס")
     exempt_choice: str = Field(..., description="בחירה לחלק הפטור: redeem_with_exemption/redeem_no_exemption/annuity")
     taxable_choice: str = Field(..., description="בחירה לחלק החייב: redeem_no_exemption/annuity (פריסת מס אוטומטית ב-redeem_no_exemption)")
     tax_spread_years: Optional[int] = Field(None, description="מספר שנות פריסת מס")
     max_spread_years: Optional[int] = Field(None, description="מקסימום שנות פריסה מותרות")
+    confirmed: Optional[bool] = Field(False, description="האם העזיבה אושרה והנתונים הוקפאו")
 
 class TerminationDecisionCreate(TerminationDecisionBase):
     """Schema for creating termination decision"""

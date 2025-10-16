@@ -40,6 +40,7 @@ class CurrentEmployer(Base):
     
     # Grant and severance information
     severance_accrued = Column(Float, nullable=True)
+    # severance_before_termination = Column(Float, nullable=True)  # סכום פיצויים לפני עזיבה (לשחזור במחיקה) - מושבת עד הרצת migration
     other_grants = Column(JSON, nullable=True, default=dict)  # JSON object for various grants
     tax_withheld = Column(Float, nullable=True)
     grant_installments = Column(JSON, nullable=True, default=list)  # JSON array of installment details
