@@ -1234,6 +1234,54 @@ const SimpleReports: React.FC = () => {
     console.log('Final NPV result:', result);
     return result;
   };
+  
+  // פונקציה לחישוב NPV של נכסי הון (שלא בתזרים)
+  const calculateCapitalAssetsNPV = (discountRate: number, numYears: number): number => {
+    console.log('\n🏦 Calculating Capital Assets NPV:');
+    
+    if (!capitalAssets || capitalAssets.length === 0) {
+      console.log('No capital assets, returning 0');
+      return 0;
+    }
+    
+    let totalCapitalNPV = 0;
+    
+    capitalAssets.forEach((asset, index) => {
+      const currentValue = parseFloat(asset.current_value) || 0;
+      const annualReturnRate = (parseFloat(asset.annual_return_rate) || 0) / 100;
+      const assetType = asset.asset_type;
+      
+      console.log(`\nAsset #${index + 1} (${asset.asset_name || assetType}):`);
+      console.log(`  Current value: ${currentValue.toLocaleString()}`);
+      console.log(`  Annual return rate: ${(annualReturnRate * 100).toFixed(2)}%`);
+      
+      // נכסים שמופיעים בתזרים (deposits, savings, bonds) - לא נכללים כאן
+      if (assetType === 'deposits' || assetType === 'savings' || assetType === 'bonds') {
+        console.log(`  ⚠️ Asset appears in cashflow, skipping from capital NPV`);
+        return;
+      }
+      
+      // חישוב ערך עתידי של הנכס עם תשואה מצטברת
+      const futureValues: number[] = [];
+      for (let year = 0; year < numYears; year++) {
+        const futureValue = currentValue * Math.pow(1 + annualReturnRate, year);
+        futureValues.push(futureValue);
+        console.log(`  Year ${year}: Future value = ${futureValue.toFixed(0)}`);
+      }
+      
+      // חישוב NPV של הערכים העתידיים
+      const assetNPV = futureValues.reduce((sum, futureValue, year) => {
+        const discountedValue = futureValue / Math.pow(1 + discountRate, year);
+        return sum + discountedValue;
+      }, 0);
+      
+      console.log(`  📊 Asset NPV: ${assetNPV.toFixed(0)}`);
+      totalCapitalNPV += assetNPV;
+    });
+    
+    console.log(`\n💰 Total Capital Assets NPV: ${totalCapitalNPV.toFixed(0)}`);
+    return totalCapitalNPV;
+  };
 
   // פונקציית יצירת דוח PDF
   const createPDFReport = (yearlyProjection: any[]) => {
@@ -2288,34 +2336,98 @@ const SimpleReports: React.FC = () => {
               
               // חישוב ה-NPV עם שיעור היוון של 3%
               const discountRate = 0.03; // 3%
-              const npv = calculateNPV(annualNetCashFlows, discountRate);
-              console.log('Calculated NPV:', npv);
+              const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
+              console.log('Calculated Cashflow NPV:', cashflowNPV);
+              
+              // חישוב NPV של נכסי הון
+              const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
+              console.log('Calculated Capital Assets NPV:', capitalNPV);
               
               return (
-                <div style={{ 
-                  marginBottom: '20px', 
-                  padding: '15px', 
-                  backgroundColor: '#e8f5e9', 
-                  borderRadius: '4px',
-                  border: '1px solid #c8e6c9'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong>ערך נוכחי נקי (NPV) של התזרים:</strong>
-                      <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-                        מהוון בשיעור של {(discountRate * 100).toFixed(1)}% לשנה
+                <div style={{ marginBottom: '20px' }}>
+                  {/* NPV של נכסי הון */}
+                  {capitalNPV > 0 && (
+                    <div style={{ 
+                      marginBottom: '10px',
+                      padding: '15px', 
+                      backgroundColor: '#fff3cd', 
+                      borderRadius: '4px',
+                      border: '1px solid #ffc107'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong>ערך נוכחי נקי (NPV) של נכסי הון:</strong>
+                          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                            נכסים שאינם מופיעים בתזרים החודשי (מהוון ב-{(discountRate * 100).toFixed(1)}%)
+                          </div>
+                        </div>
+                        <div style={{ 
+                          fontSize: '24px', 
+                          fontWeight: 'bold', 
+                          color: '#856404',
+                          direction: 'ltr',
+                          textAlign: 'left'
+                        }}>
+                          ₪{Math.round(capitalNPV).toLocaleString()}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ 
-                      fontSize: '24px', 
-                      fontWeight: 'bold', 
-                      color: '#2e7d32',
-                      direction: 'ltr',
-                      textAlign: 'left'
-                    }}>
-                      ₪{Math.round(npv).toLocaleString()}
+                  )}
+                  
+                  {/* NPV של התזרים */}
+                  <div style={{ 
+                    padding: '15px', 
+                    backgroundColor: '#e8f5e9', 
+                    borderRadius: '4px',
+                    border: '1px solid #c8e6c9'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong>ערך נוכחי נקי (NPV) של התזרים:</strong>
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                          הכנסות חודשיות נטו מהוונות בשיעור של {(discountRate * 100).toFixed(1)}% לשנה
+                        </div>
+                      </div>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: 'bold', 
+                        color: '#2e7d32',
+                        direction: 'ltr',
+                        textAlign: 'left'
+                      }}>
+                        ₪{Math.round(cashflowNPV).toLocaleString()}
+                      </div>
                     </div>
                   </div>
+                  
+                  {/* סה"כ NPV */}
+                  {capitalNPV > 0 && (
+                    <div style={{ 
+                      marginTop: '10px',
+                      padding: '15px', 
+                      backgroundColor: '#d1ecf1', 
+                      borderRadius: '4px',
+                      border: '2px solid #17a2b8'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong>סך הכל NPV:</strong>
+                          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                            סכום של תזרים + נכסי הון
+                          </div>
+                        </div>
+                        <div style={{ 
+                          fontSize: '28px', 
+                          fontWeight: 'bold', 
+                          color: '#0c5460',
+                          direction: 'ltr',
+                          textAlign: 'left'
+                        }}>
+                          ₪{Math.round(cashflowNPV + capitalNPV).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
