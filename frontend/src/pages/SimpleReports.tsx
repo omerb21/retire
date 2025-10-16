@@ -677,9 +677,9 @@ const SimpleReports: React.FC = () => {
                 const currentYear = monthDate.getFullYear();
                 
                 if (currentYear >= eligibilityYear) {
-                  const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
-                  const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
-                  monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
+                  const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+                  // הנוסחה הנכונה: יתרה נותרת ÷ 180 (ללא אחוז פטור כי הוא כבר מחושב ביתרה)
+                  monthlyExemptPension = remainingExemptCapital / 180;
                 }
               }
               
@@ -936,19 +936,23 @@ const SimpleReports: React.FC = () => {
         
         // הפטור חל רק משנת הזכאות ואילך
         if (year >= eligibilityYear) {
-          const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
+          const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
           const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
+          const totalImpact = fixationData.exemption_summary.total_impact || 0;
           
           console.log(`📊 Year ${year} calculation:`, {
-            exemptionPercentage,
+            remainingExemptCapital,
             exemptCapitalInitial,
+            totalImpact,
             eligibilityYear
           });
           
-          // חישוב הקצבה הפטורה: אחוז הפטור × יתרת הון פטורה ראשונית ÷ 180
-          monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
+          // חישוב הקצבה הפטורה: יתרת הון פטורה נותרת ÷ 180
+          // (היתרה כבר כוללת את כל הפגיעות והאחוזים)
+          monthlyExemptPension = remainingExemptCapital / 180;
           
-          console.log(`💰 Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)} (${(exemptionPercentage * 100).toFixed(1)}% × ${exemptCapitalInitial.toLocaleString()} ÷ 180)`);
+          console.log(`💰 Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)} (${remainingExemptCapital.toLocaleString()} ÷ 180)`);
+          console.log(`   Initial capital: ${exemptCapitalInitial.toLocaleString()}, Impact: ${totalImpact.toLocaleString()}, Remaining: ${remainingExemptCapital.toLocaleString()}`);
         } else {
           console.log(`⏰ Year ${year} < eligibility year ${eligibilityYear} - no exemption yet`);
         }
@@ -2139,9 +2143,8 @@ const SimpleReports: React.FC = () => {
                     if (fixationData && fixationData.exemption_summary) {
                       const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
                       if (currentYear >= eligibilityYear) {
-                        const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
                         const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
-                        currentExemptPension = (exemptionPercentage * remainingExemptCapital) / 180;
+                        currentExemptPension = remainingExemptCapital / 180;
                       }
                     }
                     

@@ -93,6 +93,9 @@ const SimpleFixation: React.FC = () => {
     console.log('DEBUG: exemptionSummary:', exemptionSummary);
     
     const exemptAmount = exemptionSummary?.exempt_capital_initial || 0;
+    // שימוש ביתרה הנותרת מהשרת (כבר כוללת את כל הפגיעות)
+    const remainingExemptionFromServer = exemptionSummary?.remaining_exempt_capital || 0;
+    
     // סינון מענקים שלא הוחרגו לפי חוק "15 השנים"
     const includedGrants = grantsSummary.filter(grant => 
       !(grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) && !grant.exclusion_reason
@@ -107,6 +110,7 @@ const SimpleFixation: React.FC = () => {
     const totalImpact = includedGrants.reduce((sum, grant) => sum + (grant.impact_on_exemption || 0), 0);
     
     console.log('DEBUG: exemptAmount:', exemptAmount);
+    console.log('DEBUG: remainingExemptionFromServer:', remainingExemptionFromServer);
     console.log('DEBUG: totalGrants:', totalGrants);
     console.log('DEBUG: totalIndexed:', totalIndexed);
     console.log('DEBUG: totalImpact:', totalImpact);
@@ -121,8 +125,8 @@ const SimpleFixation: React.FC = () => {
     const totalDiscounts = commutations.reduce((sum, commutation) => sum + (commutation.exempt_amount || 0), 0);
     console.log('DEBUG: totalDiscounts from commutations:', totalDiscounts);
     
-    // יתרת פטור = סכום פטור ממס - פטור מנוצל - השפעת מענק עתידי - סך היוונים
-    const remainingExemption = Math.max(0, exemptAmount - usedExemption - futureGrantImpact - totalDiscounts);
+    // שימוש ביתרה מהשרת - היא כבר כוללת את כל הפגיעות
+    const remainingExemption = remainingExemptionFromServer;
     
     // תקרת קצבה מזכה
     const eligibilityYear = fixationData?.eligibility_year || new Date().getFullYear();
