@@ -2316,36 +2316,49 @@ const SimpleReports: React.FC = () => {
               // חישוב NPV של נכסי הון
               const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
               
+              // Debug: הצגת מידע על נכסי הון
+              console.log('🏦 Capital Assets Info:');
+              console.log('  Number of assets:', capitalAssets?.length || 0);
+              if (capitalAssets && capitalAssets.length > 0) {
+                capitalAssets.forEach((asset, i) => {
+                  console.log(`  Asset ${i + 1}:`, {
+                    name: asset.asset_name,
+                    type: asset.asset_type,
+                    value: asset.current_value,
+                    return: asset.annual_return_rate
+                  });
+                });
+              }
+              console.log('  Calculated Capital NPV:', capitalNPV);
+              
               return (
                 <div style={{ marginBottom: '20px' }}>
-                  {/* NPV של נכסי הון */}
-                  {capitalNPV > 0 && (
-                    <div style={{ 
-                      marginBottom: '10px',
-                      padding: '15px', 
-                      backgroundColor: '#fff3cd', 
-                      borderRadius: '4px',
-                      border: '1px solid #ffc107'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <strong>ערך נוכחי נקי (NPV) של נכסי הון:</strong>
-                          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-                            נכסים שאינם מופיעים בתזרים החודשי (מהוון ב-{(discountRate * 100).toFixed(1)}%)
-                          </div>
-                        </div>
-                        <div style={{ 
-                          fontSize: '24px', 
-                          fontWeight: 'bold', 
-                          color: '#856404',
-                          direction: 'ltr',
-                          textAlign: 'left'
-                        }}>
-                          ₪{Math.round(capitalNPV).toLocaleString()}
+                  {/* NPV של נכסי הון - מוצג תמיד */}
+                  <div style={{ 
+                    marginBottom: '10px',
+                    padding: '15px', 
+                    backgroundColor: '#fff3cd', 
+                    borderRadius: '4px',
+                    border: '1px solid #ffc107'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong>ערך נוכחי נקי (NPV) של נכסי הון:</strong>
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                          נכסים שאינם מופיעים בתזרים החודשי (מהוון ב-{(discountRate * 100).toFixed(1)}%)
                         </div>
                       </div>
+                      <div style={{ 
+                        fontSize: '24px', 
+                        fontWeight: 'bold', 
+                        color: '#856404',
+                        direction: 'ltr',
+                        textAlign: 'left'
+                      }}>
+                        ₪{Math.round(capitalNPV).toLocaleString()}
+                      </div>
                     </div>
-                  )}
+                  </div>
                   
                   {/* NPV של התזרים */}
                   <div style={{ 
@@ -2373,34 +2386,32 @@ const SimpleReports: React.FC = () => {
                     </div>
                   </div>
                   
-                  {/* סה"כ NPV */}
-                  {capitalNPV > 0 && (
-                    <div style={{ 
-                      marginTop: '10px',
-                      padding: '15px', 
-                      backgroundColor: '#d1ecf1', 
-                      borderRadius: '4px',
-                      border: '2px solid #17a2b8'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <strong>סך הכל NPV:</strong>
-                          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-                            סכום של תזרים + נכסי הון
-                          </div>
-                        </div>
-                        <div style={{ 
-                          fontSize: '28px', 
-                          fontWeight: 'bold', 
-                          color: '#0c5460',
-                          direction: 'ltr',
-                          textAlign: 'left'
-                        }}>
-                          ₪{Math.round(cashflowNPV + capitalNPV).toLocaleString()}
+                  {/* סה"כ NPV - מוצג תמיד */}
+                  <div style={{ 
+                    marginTop: '10px',
+                    padding: '15px', 
+                    backgroundColor: '#d1ecf1', 
+                    borderRadius: '4px',
+                    border: '2px solid #17a2b8'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong>סך הכל NPV:</strong>
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                          סכום של תזרים + נכסי הון
                         </div>
                       </div>
+                      <div style={{ 
+                        fontSize: '28px', 
+                        fontWeight: 'bold', 
+                        color: '#0c5460',
+                        direction: 'ltr',
+                        textAlign: 'left'
+                      }}>
+                        ₪{Math.round(cashflowNPV + capitalNPV).toLocaleString()}
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               );
             })()}
