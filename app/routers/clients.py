@@ -273,7 +273,7 @@ def delete_current_employer(
 # FIXATION ENDPOINTS
 # ==========================================
 
-@router.get("/clients/{client_id}/fixation", tags=["fixation"])
+@router.get("/{client_id}/fixation", tags=["fixation"])
 async def get_client_fixation(
     client_id: int = Path(..., description="Client ID"),
     db: Session = Depends(get_db)
