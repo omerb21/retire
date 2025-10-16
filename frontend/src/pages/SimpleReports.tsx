@@ -677,9 +677,11 @@ const SimpleReports: React.FC = () => {
                 const currentYear = monthDate.getFullYear();
                 
                 if (currentYear >= eligibilityYear) {
-                  const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
-                  // הנוסחה הנכונה: יתרה נותרת ÷ 180 (ללא אחוז פטור כי הוא כבר מחושב ביתרה)
-                  monthlyExemptPension = remainingExemptCapital / 180;
+                  const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
+                  const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
+                  // הנוסחה הנכונה: אחוז פטור × יתרת הון פטורה ÷ 180
+                  // (יתרת ההון כרגע קבועה, בעתיד אפשר להוסיף הצמדה למדד)
+                  monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
                 }
               }
               
@@ -936,23 +938,24 @@ const SimpleReports: React.FC = () => {
         
         // הפטור חל רק משנת הזכאות ואילך
         if (year >= eligibilityYear) {
-          const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+          const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
           const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
-          const totalImpact = fixationData.exemption_summary.total_impact || 0;
+          const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
           
           console.log(`📊 Year ${year} calculation:`, {
-            remainingExemptCapital,
+            exemptionPercentage: (exemptionPercentage * 100).toFixed(1) + '%',
             exemptCapitalInitial,
-            totalImpact,
+            remainingExemptCapital,
             eligibilityYear
           });
           
-          // חישוב הקצבה הפטורה: יתרת הון פטורה נותרת ÷ 180
-          // (היתרה כבר כוללת את כל הפגיעות והאחוזים)
-          monthlyExemptPension = remainingExemptCapital / 180;
+          // חישוב הקצבה הפטורה: אחוז פטור × יתרת הון פטורה ÷ 180
+          // כרגע משתמשים ביתרת הון ראשונית (קבועה)
+          // TODO: להוסיף הצמדה למדד לפי שנים אם נדרש
+          monthlyExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
           
-          console.log(`💰 Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)} (${remainingExemptCapital.toLocaleString()} ÷ 180)`);
-          console.log(`   Initial capital: ${exemptCapitalInitial.toLocaleString()}, Impact: ${totalImpact.toLocaleString()}, Remaining: ${remainingExemptCapital.toLocaleString()}`);
+          console.log(`💰 Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)}`);
+          console.log(`   Formula: ${(exemptionPercentage * 100).toFixed(1)}% × ${exemptCapitalInitial.toLocaleString()} ÷ 180 = ${monthlyExemptPension.toFixed(2)}`);
         } else {
           console.log(`⏰ Year ${year} < eligibility year ${eligibilityYear} - no exemption yet`);
         }
@@ -2143,8 +2146,10 @@ const SimpleReports: React.FC = () => {
                     if (fixationData && fixationData.exemption_summary) {
                       const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
                       if (currentYear >= eligibilityYear) {
-                        const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
-                        currentExemptPension = remainingExemptCapital / 180;
+                        const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
+                        const exemptCapitalInitial = fixationData.exemption_summary.exempt_capital_initial || 0;
+                        // נוסחה: אחוז פטור × יתרת הון פטורה ÷ 180
+                        currentExemptPension = (exemptionPercentage * exemptCapitalInitial) / 180;
                       }
                     }
                     
