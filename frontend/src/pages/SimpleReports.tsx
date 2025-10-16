@@ -1850,6 +1850,99 @@ const SimpleReports: React.FC = () => {
             סה"כ יתרה: ₪${pensionFunds.reduce((sum, f) => sum + (parseFloat(f.current_balance) || 0), 0).toLocaleString()} | 
             סה"כ קצבה חודשית: ₪${pensionFunds.reduce((sum, f) => sum + (parseFloat(f.monthly_pension) || parseFloat(f.pension_amount) || parseFloat(f.computed_monthly_amount) || 0), 0).toLocaleString()}
         </div>
+        
+        <!-- גרף עוגה של פילוח מוצרים פנסיונים -->
+        <div style="margin-top: 30px; text-align: center;">
+            <h3>פילוח מוצרים פנסיונים לפי סוג</h3>
+            <canvas id="pensionPieChart" width="400" height="400" style="max-width: 500px; margin: 0 auto;"></canvas>
+        </div>
+        
+        <script>
+            // נתוני גרף העוגה
+            const pieData = ${JSON.stringify((() => {
+                const dataByType = {};
+                pensionFunds.forEach(fund => {
+                    const productType = PENSION_PRODUCT_TYPES[fund.product_type] || fund.product_type || 'לא צוין';
+                    const value = parseFloat(fund.current_balance) || 0;
+                    if (value > 0) {
+                        dataByType[productType] = (dataByType[productType] || 0) + value;
+                    }
+                });
+                return {
+                    labels: Object.keys(dataByType),
+                    values: Object.values(dataByType)
+                };
+            })())};
+            
+            // ציור גרף העוגה
+            const canvas = document.getElementById('pensionPieChart');
+            const ctx = canvas.getContext('2d');
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 50;
+            
+            const colors = [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                '#9966FF', '#FF9F40', '#C9CBCF'
+            ];
+            
+            const total = pieData.values.reduce((sum, val) => sum + val, 0);
+            let currentAngle = -Math.PI / 2;
+            
+            // ציור הפלחים
+            pieData.values.forEach((value, index) => {
+                const sliceAngle = (value / total) * 2 * Math.PI;
+                
+                // ציור הפלח
+                ctx.fillStyle = colors[index % colors.length];
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+                ctx.closePath();
+                ctx.fill();
+                
+                // קו הפרדה
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // טקסט אחוזים על הפלח
+                const percentage = ((value / total) * 100).toFixed(1);
+                if (percentage > 5) {
+                    const textAngle = currentAngle + sliceAngle / 2;
+                    const textX = centerX + Math.cos(textAngle) * (radius * 0.7);
+                    const textY = centerY + Math.sin(textAngle) * (radius * 0.7);
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(percentage + '%', textX, textY);
+                }
+                
+                currentAngle += sliceAngle;
+            });
+            
+            // לגנדה
+            const legendY = canvas.height - 100;
+            let legendX = 50;
+            
+            pieData.labels.forEach((label, index) => {
+                const percentage = ((pieData.values[index] / total) * 100).toFixed(1);
+                const value = pieData.values[index];
+                
+                // ריבוע צבע
+                ctx.fillStyle = colors[index % colors.length];
+                ctx.fillRect(legendX, legendY + (index * 25), 15, 15);
+                
+                // טקסט
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'right';
+                ctx.fillText(label + ': ' + percentage + '% (₪' + value.toLocaleString() + ')', 
+                    legendX + 350, legendY + (index * 25) + 12);
+            });
+        </script>
     </div>
     ` : ''}
     
