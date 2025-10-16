@@ -1,7 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Clients from "./pages/Clients";
-import Tools from "./pages/Tools";
 import PensionFunds from "./pages/PensionFunds";
 import AdditionalIncome from "./pages/AdditionalIncome";
 import CapitalAssets from "./pages/CapitalAssets";
@@ -12,7 +11,7 @@ import SimpleGrants from "./pages/SimpleGrants";
 import SimpleReports from "./pages/SimpleReports";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
-import ConversionRulesSettings from "./pages/ConversionRulesSettings";
+import "./styles/modern-theme.css";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
@@ -50,16 +49,34 @@ const moduleButtonStyle = {
 export default function App() {
   return (
     <BrowserRouter>
-      <div style={{ fontFamily: "system-ui, Arial", direction: "rtl" }}>
-        <header style={{ padding: 16, borderBottom: "1px solid #ddd" }}>
-          <nav style={{ display: "flex", gap: 16 }}>
-            <NavLink to="/clients">לקוחות</NavLink>
-            <NavLink to="/tools">כלי בדיקה</NavLink>
-            <NavLink to="/system-settings">הגדרות מערכת</NavLink>
-            <NavLink to="/conversion-rules">חוקי המרה</NavLink>
-          </nav>
+      <div>
+        <header className="modern-header">
+          <div className="header-container">
+            <div className="logo-section">
+              <img 
+                src="/LOGO.png" 
+                alt="Logo" 
+                className="logo-image"
+              />
+              <h1 className="system-title">מערכת תכנון פרישה</h1>
+            </div>
+            <nav className="modern-nav">
+              <NavLink 
+                to="/clients" 
+                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+              >
+                לקוחות
+              </NavLink>
+              <NavLink 
+                to="/system-settings"
+                className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
+              >
+                הגדרות מערכת
+              </NavLink>
+            </nav>
+          </div>
         </header>
-        <main style={{ padding: 16 }}>
+        <main className="main-content">
           <Routes>
             <Route path="/clients" element={<Clients />} />
             <Route path="/clients/:id" element={<ClientDetails />} />
@@ -72,9 +89,7 @@ export default function App() {
             <Route path="/clients/:id/scenarios" element={<Scenarios />} />
             <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
             <Route path="/clients/:id/reports" element={<SimpleReports />} />
-            <Route path="/tools" element={<Tools />} />
             <Route path="/system-settings" element={<SystemSettings />} />
-            <Route path="/conversion-rules" element={<ConversionRulesSettings />} />
             <Route path="/" element={<Clients />} />
             <Route path="*" element={<Clients />} />
           </Routes>

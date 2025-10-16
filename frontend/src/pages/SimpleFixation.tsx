@@ -371,14 +371,17 @@ const SimpleFixation: React.FC = () => {
   }
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <a href={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
-          ← חזרה לפרטי לקוח
-        </a>
-      </div>
-
-      <h2>קיבוע זכויות</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">📊 קיבוע זכויות</h1>
+            <p className="card-subtitle">חישוב וקיבוע זכויות פנסיוניות למס הכנסה</p>
+          </div>
+          <button onClick={() => navigate(`/clients/${id}`)} className="btn btn-secondary">
+            ← חזרה
+          </button>
+        </div>
 
       {error && (
         <div style={{ 
@@ -745,6 +748,7 @@ const SimpleFixation: React.FC = () => {
         <div style={{ marginTop: '10px', fontSize: '12px', color: '#6c757d' }}>
           * החישוב מבוסס על כלל 32 השנים האחרונות לפני גיל הזכאות והצמדה למדד המחירים לצרכן
         </div>
+      </div>
       </div>
     </div>
   );

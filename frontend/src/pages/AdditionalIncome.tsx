@@ -197,12 +197,17 @@ export default function AdditionalIncome() {
   if (loading) return <div>טוען הכנסות נוספות...</div>;
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
-      </div>
-      
-      <h2>הכנסות נוספות</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">💵 הכנסות נוספות</h1>
+            <p className="card-subtitle">ניהול הכנסות נוספות מעבודה, השכרה ועוד</p>
+          </div>
+          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+            ← חזרה
+          </Link>
+        </div>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -449,6 +454,7 @@ export default function AdditionalIncome() {
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

@@ -260,12 +260,17 @@ export default function Scenarios() {
   if (loading) return <div>טוען תרחישים...</div>;
 
   return (
-    <div style={{ maxWidth: 1000 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
-      </div>
-      
-      <h2>תרחישים ואינטגרציה</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">🎯 תרחישים ואינטגרציה</h1>
+            <p className="card-subtitle">יצירת תרחישי פרישה והשוואת אפשרויות</p>
+          </div>
+          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+            ← חזרה
+          </Link>
+        </div>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -425,6 +430,7 @@ export default function Scenarios() {
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

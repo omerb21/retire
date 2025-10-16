@@ -219,36 +219,27 @@ const SimpleGrants: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <a href={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
-          ← חזרה לפרטי לקוח
-        </a>
-      </div>
-
-      <h2>מענקים ממעסיקים קודמים</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">💰 מענקים ממעסיקים קודמים</h1>
+            <p className="card-subtitle">ניהול מענקי פיצויים מכל מעסיקי העבר</p>
+          </div>
+          <button onClick={() => navigate(`/clients/${id}`)} className="btn btn-secondary">
+            ← חזרה
+          </button>
+        </div>
 
       {error && (
-        <div style={{ 
-          color: 'red', 
-          marginBottom: '20px', 
-          padding: '10px', 
-          backgroundColor: '#fee', 
-          borderRadius: '4px' 
-        }}>
+        <div className="alert alert-error">
           {error}
         </div>
       )}
 
       {/* Add new grant form */}
-      <div style={{ 
-        marginBottom: '30px', 
-        padding: '20px', 
-        border: '1px solid #ddd', 
-        borderRadius: '4px',
-        backgroundColor: '#f9f9f9'
-      }}>
-        <h3>הוספת מענק חדש</h3>
+      <div style={{ marginTop: '2rem', padding: '1.5rem', backgroundColor: 'var(--gray-50)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--gray-200)' }}>
+        <h3 style={{ marginBottom: '1.5rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>➕ הוספת מענק חדש</h3>
         
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
@@ -262,12 +253,7 @@ const SimpleGrants: React.FC = () => {
                 value={newGrant.employer_name}
                 onChange={handleInputChange}
                 required
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
+                className="form-input"
               />
             </div>
 
@@ -279,12 +265,7 @@ const SimpleGrants: React.FC = () => {
                 name="grant_type"
                 value={newGrant.grant_type}
                 onChange={handleInputChange}
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
+                className="form-select"
               >
                 <option value="severance">פיצויים</option>
                 <option value="bonus">בונוס</option>
@@ -310,12 +291,7 @@ const SimpleGrants: React.FC = () => {
                 }}
                 required
                 maxLength={10}
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
+                className="form-input"
               />
             </div>
 
@@ -334,12 +310,7 @@ const SimpleGrants: React.FC = () => {
                 }}
                 required
                 maxLength={10}
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
+                className="form-input"
               />
             </div>
           </div>
@@ -360,12 +331,7 @@ const SimpleGrants: React.FC = () => {
                 }}
                 required
                 maxLength={10}
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
+                className="form-input"
               />
             </div>
 
@@ -380,12 +346,7 @@ const SimpleGrants: React.FC = () => {
                 onChange={handleInputChange}
                 required
                 min="0"
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
+                className="form-input"
               />
             </div>
           </div>
@@ -399,30 +360,16 @@ const SimpleGrants: React.FC = () => {
               value={newGrant.reason}
               onChange={handleInputChange}
               rows={3}
-              style={{ 
-                width: '100%', 
-                padding: '8px', 
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                resize: 'vertical'
-              }}
+              className="form-textarea"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              backgroundColor: loading ? '#6c757d' : '#28a745',
-              color: 'white',
-              border: 'none',
-              padding: '12px 24px',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '16px'
-            }}
+            className="btn btn-success"
           >
-            {loading ? 'מוסיף...' : 'הוסף מענק'}
+            {loading ? 'מוסיף...' : '➕ הוסף מענק'}
           </button>
         </form>
       </div>
@@ -528,6 +475,7 @@ const SimpleGrants: React.FC = () => {
         <strong>הסבר:</strong> המערכת מחשבת את הפטור ממס בהתאם לחוק (עד 375,000 ₪). 
         חשוב לוודא שתאריכי העבודה נכונים לחישוב מדויק של שנות השירות.
         הסכומים הפטורים ממס נלקחים בחשבון בחישוב קיבוע המס הכללי.
+      </div>
       </div>
     </div>
   );

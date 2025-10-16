@@ -1582,14 +1582,17 @@ const SimpleReports: React.FC = () => {
   }
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <a href={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
-          ← חזרה לפרטי לקוח
-        </a>
-      </div>
-
-      <h2>דוחות</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">📄 דוחות</h1>
+            <p className="card-subtitle">דוח מפורט של כל נתוני הלקוח והתכנון הפנסיוני</p>
+          </div>
+          <button onClick={() => navigate(`/clients/${id}`)} className="btn btn-secondary">
+            ← חזרה
+          </button>
+        </div>
 
       {error && (
         <div style={{ 
@@ -2259,6 +2262,7 @@ const SimpleReports: React.FC = () => {
         <strong>הסבר:</strong> הדוחות מבוססים על כלל הנתונים שהוזנו במערכת - מענקים, תרחישים, וחישובי מס. 
         דוח ה-PDF מכיל את כל הפרטים כולל גרפים וטבלאות מפורטות. 
         דוח ה-Excel מאפשר עיבוד נוסף של הנתונים.
+      </div>
       </div>
     </div>
   );

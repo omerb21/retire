@@ -159,6 +159,9 @@ def ratio_last_32y(start_date: Union[str, date], end_date: Union[str, date], eli
 
 # מיפוי שנה → תקרה שנתית פיצויים
 ANNUAL_CAPS = {
+    2028: 9430,  # ברירת מחדל לשנים עתידיות
+    2027: 9430,
+    2026: 9430,
     2025: 9430,
     2024: 9430,
     2023: 9120,
@@ -176,7 +179,17 @@ ANNUAL_CAPS = {
 }
 
 # מיפוי שנה → אחוז פטור
+# 2012-2015: 43.5%
+# 2016-2019: 49%
+# 2020-2024: 52%
+# 2025: 57%
+# 2026: 57.5%
+# 2027: 62.5%
+# 2028+: 67%
 EXEMPTION_PERCENTAGES = {
+    2028: 0.67,  # 67% - החל משנת 2028 ואילך
+    2027: 0.625, # 62.5%
+    2026: 0.575, # 57.5%
     2025: 0.57,  # 57%
     2024: 0.52,  # 52%
     2023: 0.52,
@@ -197,11 +210,15 @@ EXEMPTION_PERCENTAGES = {
 MULTIPLIER = 180
 
 def get_monthly_cap(year: int) -> float:
-    """החזר תקרה שנתית פיצויים; ברירת-מחדל: 2025."""
+    """החזר תקרה שנתית פיצויים; ברירת-מחדל: 9430 לשנים עתידיות."""
+    if year >= 2028:
+        return ANNUAL_CAPS.get(2028, 9430)
     return ANNUAL_CAPS.get(year, ANNUAL_CAPS[2025])
 
 def get_exemption_percentage(year: int) -> float:
-    """החזר את אחוז הפטור לפי שנת הזכאות"""
+    """החזר את אחוז הפטור לפי שנת הזכאות; ברירת-מחדל: 67% לשנת 2028 ואילך."""
+    if year >= 2028:
+        return EXEMPTION_PERCENTAGES.get(2028, 0.67)
     return EXEMPTION_PERCENTAGES.get(year, EXEMPTION_PERCENTAGES[2025])
 
 def calc_exempt_capital(year: int) -> float:

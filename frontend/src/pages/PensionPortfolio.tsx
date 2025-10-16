@@ -1303,12 +1303,17 @@ export default function PensionPortfolio() {
   }, [clientId]);
 
   return (
-    <div style={{ maxWidth: 1200 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
-      </div>
-      
-      <h2>תיק פנסיוני{clientData && ` - ${clientData.first_name} ${clientData.last_name} (ת.ז: ${clientData.id_number})`}</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">💼 תיק פנסיוני</h1>
+            <p className="card-subtitle">ניהול יתרות קרנות פנסיה וקופות גמל{clientData && ` - ${clientData.first_name} ${clientData.last_name}`}</p>
+          </div>
+          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+            ← חזרה
+          </Link>
+        </div>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -1771,6 +1776,7 @@ export default function PensionPortfolio() {
           אין נתוני תיק פנסיוני. אנא טען קבצי מסלקה לעיבוד.
         </div>
       )}
+      </div>
     </div>
   );
 }

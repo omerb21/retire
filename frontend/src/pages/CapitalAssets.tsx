@@ -423,12 +423,17 @@ export default function CapitalAssets() {
   if (loading) return <div>טוען נכסי הון...</div>;
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
-      </div>
-      
-      <h2>נכסי הון</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">🏠 נכסי הון</h1>
+            <p className="card-subtitle">ניהול נכסים עם תזרים חודשי ופריסת מס</p>
+          </div>
+          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+            ← חזרה
+          </Link>
+        </div>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -721,6 +726,7 @@ export default function CapitalAssets() {
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

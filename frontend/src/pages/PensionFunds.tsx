@@ -744,12 +744,17 @@ export default function PensionFunds() {
   if (loading) return <div>טוען קצבאות...</div>;
 
   return (
-    <div style={{ maxWidth: 800 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
-      </div>
-      
-      <h2>קצבאות והיוונים</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h1 className="card-title">💰 קצבאות והיוונים</h1>
+            <p className="card-subtitle">ניהול קצבאות פנסיוניות והיוונים פטורים ממס</p>
+          </div>
+          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+            ← חזרה
+          </Link>
+        </div>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
@@ -1109,6 +1114,7 @@ export default function PensionFunds() {
               </div>
             )}
         </section>
+      </div>
       </div>
     </div>
   );

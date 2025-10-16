@@ -31,7 +31,7 @@ export default function Clients() {
     id_number: "",
     first_name: "",
     last_name: "",
-    birth_date: formatDateToDDMMYY(new Date()), // Default to today
+    birth_date: "", // שדה ריק - המשתמש ימלא
     gender: "male", // Default to male
     email: "",
     phone: "",
@@ -318,117 +318,166 @@ export default function Clients() {
   // Removed handleClientClick function - using React Router Link instead
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <h2>לקוחות</h2>
+    <div>
+      <div className="modern-card">
+        <div className="card-header">
+          <div>
+            <h2 className="card-title">ניהול לקוחות</h2>
+            <p className="card-subtitle">צפייה וניהול של כל הלקוחות במערכת</p>
+          </div>
+        </div>
 
-      <section style={{ display: "grid", gap: 8, maxWidth: 520 }}>
-        <h3>פתיחת לקוח חדש</h3>
-        <form onSubmit={onCreate} style={{ display: "grid", gap: 8 }}>
-          <input placeholder='ת"ז (למשל 123456782)'
-                 value={form.id_number}
-                 onChange={(e) => setForm({ ...form, id_number: e.target.value })}
-                 style={{ padding: 8 }} />
-          <input placeholder="שם פרטי"
-                 value={form.first_name}
-                 onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-                 style={{ padding: 8 }} />
-          <input placeholder="שם משפחה"
-                 value={form.last_name}
-                 onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-                 style={{ padding: 8 }} />
-          <input type="text"
-                 placeholder="DD/MM/YYYY"
-                 value={form.birth_date}
-                 onChange={(e) => {
-                   const formatted = formatDateInput(e.target.value);
-                   setForm({ ...form, birth_date: formatted });
-                 }}
-                 style={{ padding: 8 }}
-                 maxLength={10} />
-          <select value={form.gender}
-                  onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                  style={{ padding: 8 }}>
-            <option value="male">זכר</option>
-            <option value="female">נקבה</option>
-          </select>
-          <input placeholder="Email (אופציונלי)"
-                 value={form.email}
-                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                 style={{ padding: 8 }} />
-          <input placeholder="טלפון (אופציונלי)"
-                 value={form.phone}
-                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                 style={{ padding: 8 }} />
-          
-          <h4 style={{ marginTop: 16, marginBottom: 8 }}>כתובת</h4>
-          <input placeholder="רחוב (אופציונלי)"
-                 value={form.address_street}
-                 onChange={(e) => setForm({ ...form, address_street: e.target.value })}
-                 style={{ padding: 8 }} />
-          <input placeholder="עיר (אופציונלי)"
-                 value={form.address_city}
-                 onChange={(e) => setForm({ ...form, address_city: e.target.value })}
-                 style={{ padding: 8 }} />
-          <input placeholder="מיקוד (אופציונלי)"
-                 value={form.address_postal_code}
-                 onChange={(e) => setForm({ ...form, address_postal_code: e.target.value })}
-                 style={{ padding: 8 }} />
-          
-          <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
-          
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <label style={{ marginLeft: 8, minWidth: 100 }}>מצב משפחתי:</label>
-            <select
-              value={form.marital_status}
-              onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
-              style={{ padding: 8, flexGrow: 1 }}
+      {/* Container for three columns */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, alignItems: "start" }}>
+        
+        {/* Column 1: פתיחת לקוח חדש */}
+        <section>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>פתיחת לקוח חדש</h3>
+          <form onSubmit={onCreate} className="grid" style={{ gap: '1rem' }}>
+            <input 
+              placeholder='ת"ז (למשל 123456782)'
+              value={form.id_number}
+              onChange={(e) => setForm({ ...form, id_number: e.target.value })}
+              className="form-input" 
+            />
+            <input 
+              placeholder="שם פרטי"
+              value={form.first_name}
+              onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+              className="form-input" 
+            />
+            <input 
+              placeholder="שם משפחה"
+              value={form.last_name}
+              onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+              className="form-input" 
+            />
+            <input 
+              type="text"
+              placeholder="תאריך לידה (DD/MM/YYYY)"
+              value={form.birth_date}
+              onChange={(e) => {
+                const formatted = formatDateInput(e.target.value);
+                setForm({ ...form, birth_date: formatted });
+              }}
+              className="form-input"
+              maxLength={10} 
+            />
+            <select 
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value })}
+              className="form-select"
             >
-              <option value="">בחר מצב משפחתי</option>
-              <option value="single">רווק/ה</option>
-              <option value="married">נשוי/ה</option>
-              <option value="divorced">גרוש/ה</option>
-              <option value="widowed">אלמן/ה</option>
+              <option value="male">זכר</option>
+              <option value="female">נקבה</option>
             </select>
-          </div>
-          
-          {/* שדה תאריך התחלת קצבה הוסר לפי דרישה */}
-          
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-            <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
-            <input type="number"
-                   placeholder="נקודות זיכוי"
-                   value={form.tax_credit_points}
-                   onChange={(e) => setForm({ ...form, tax_credit_points: parseFloat(e.target.value) || 0 })}
-                   min="0"
-                   step="0.01"
-                   style={{ padding: 8, flexGrow: 1 }} />
-          </div>
-          
-          <button type="submit" style={{ padding: "10px 14px", marginTop: 16 }}>שמור</button>
-        </form>
-      </section>
+            <input 
+              placeholder="Email (אופציונלי)"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="form-input" 
+            />
+            <input 
+              placeholder="טלפון (אופציונלי)"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="form-input" 
+            />
+            
+            <button type="submit" className="btn btn-success" style={{ marginTop: '0.5rem' }}>
+              שמור לקוח
+            </button>
+          </form>
+        </section>
 
-      {msg && <div>{msg}</div>}
+        {/* Column 2: כתובת */}
+        <section>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>כתובת</h3>
+          <div className="grid" style={{ gap: '1rem' }}>
+            <input 
+              placeholder="רחוב (אופציונלי)"
+              value={form.address_street}
+              onChange={(e) => setForm({ ...form, address_street: e.target.value })}
+              className="form-input" 
+            />
+            <input 
+              placeholder="עיר (אופציונלי)"
+              value={form.address_city}
+              onChange={(e) => setForm({ ...form, address_city: e.target.value })}
+              className="form-input" 
+            />
+            <input 
+              placeholder="מיקוד (אופציונלי)"
+              value={form.address_postal_code}
+              onChange={(e) => setForm({ ...form, address_postal_code: e.target.value })}
+              className="form-input" 
+            />
+          </div>
+        </section>
 
-      <section style={{ marginTop: 8 }}>
-        <h3>רשימת לקוחות</h3>
+        {/* Column 3: נתונים נוספים */}
+        <section>
+          <h3 style={{ marginBottom: '1rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>נתונים נוספים</h3>
+          <div className="grid" style={{ gap: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">מצב משפחתי:</label>
+              <select
+                value={form.marital_status}
+                onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
+                className="form-select"
+              >
+                <option value="">בחר מצב משפחתי</option>
+                <option value="single">רווק/ה</option>
+                <option value="married">נשוי/ה</option>
+                <option value="divorced">גרוש/ה</option>
+                <option value="widowed">אלמן/ה</option>
+              </select>
+            </div>
+            
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">נקודות זיכוי:</label>
+              <input 
+                type="number"
+                placeholder="נקודות זיכוי"
+                value={form.tax_credit_points}
+                onChange={(e) => setForm({ ...form, tax_credit_points: parseFloat(e.target.value) || 0 })}
+                min="0"
+                step="0.01"
+                className="form-input" 
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {msg && (
+        <div className={msg.includes('✅') ? 'alert alert-success' : 'alert alert-error'}>
+          {msg}
+        </div>
+      )}
+
+      <div className="modern-card" style={{ marginTop: '2rem' }}>
+        <div className="card-header">
+          <h3 className="card-title">רשימת לקוחות</h3>
+        </div>
         {loading ? (
-          <div>טוען…</div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <div className="spinner"></div>
+          </div>
         ) : items.length === 0 ? (
-          <div>אין לקוחות</div>
+          <div className="alert alert-info">אין לקוחות במערכת</div>
         ) : (
-          <table style={{ borderCollapse: "collapse", minWidth: 600, direction: "rtl" }}>
+          <table className="modern-table">
             <thead>
               <tr>
-                <th style={th}>#</th>
-                <th style={th}>ת"ז</th>
-                <th style={th}>שם פרטי</th>
-                <th style={th}>שם משפחה</th>
-                <th style={th}>תאריך לידה</th>
-                <th style={th}>מין</th>
-                <th style={th}>Email</th>
-                <th style={th}>תאריך קצבה</th>
-                <th style={th}>פעולות</th>
+                <th>#</th>
+                <th>ת"ז</th>
+                <th>שם פרטי</th>
+                <th>שם משפחה</th>
+                <th>תאריך לידה</th>
+                <th>מין</th>
+                <th>Email</th>
+                <th>פעולות</th>
               </tr>
             </thead>
             <tbody>
@@ -449,58 +498,37 @@ export default function Clients() {
                   <td style={td}>{c.birth_date ? formatDateToDDMMYY(new Date(c.birth_date)) : ""}</td>
                   <td style={td}>{c.gender === "male" ? "זכר" : "נקבה"}</td>
                   <td style={td}>{c.email ?? ""}</td>
-                  <td style={td}>{c.pension_start_date || calculatePensionStartDate(c)}</td>
-                  <td style={td}>
-                    <Link 
-                      to={`/clients/${c.id}`}
-                      style={{
-                        padding: "4px 8px",
-                        backgroundColor: "#f0f0f0",
-                        borderRadius: "4px",
-                        textDecoration: "none",
-                        color: "#333",
-                        fontSize: "0.9em",
-                        marginLeft: "4px"
-                      }}
-                    >
-                      פתח
-                    </Link>
-                    <button
-                      onClick={() => startEdit(c)}
-                      style={{
-                        padding: "4px 8px",
-                        backgroundColor: "#007bff",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        fontSize: "0.9em",
-                        cursor: "pointer",
-                        marginLeft: "4px"
-                      }}
-                    >
-                      ערוך
-                    </button>
-                    <button
-                      onClick={() => deleteClient(c.id!)}
-                      style={{
-                        padding: "4px 8px",
-                        backgroundColor: "#ff4444",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        fontSize: "0.9em",
-                        cursor: "pointer"
-                      }}
-                    >
-                      מחק
-                    </button>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                      <Link 
+                        to={`/clients/${c.id}`}
+                        className="btn btn-primary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                      >
+                        פתח
+                      </Link>
+                      <button
+                        onClick={() => startEdit(c)}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                      >
+                        ערוך
+                      </button>
+                      <button
+                        onClick={() => deleteClient(c.id!)}
+                        className="btn btn-danger"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                      >
+                        מחק
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-      </section>
+      </div>
 
       {editingClient && (
         <div style={{
@@ -658,6 +686,7 @@ export default function Clients() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
