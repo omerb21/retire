@@ -558,6 +558,7 @@ const SimpleReports: React.FC = () => {
   const [capitalAssets, setCapitalAssets] = useState<any[]>([]);
   const [taxCalculation, setTaxCalculation] = useState<any>(null);
   const [client, setClient] = useState<any>(null);
+  const [fixationData, setFixationData] = useState<any>(null);
 
   // Load report data
   useEffect(() => {
@@ -571,11 +572,12 @@ const SimpleReports: React.FC = () => {
         const clientData = clientResponse.data;
         setClient(clientData);
 
-        // Get financial data - pension funds, additional incomes, capital assets
-        const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse] = await Promise.all([
+        // Get financial data - pension funds, additional incomes, capital assets, fixation data
+        const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse, fixationResponse] = await Promise.all([
           axios.get(`/api/v1/clients/${id}/pension-funds`),
           axios.get(`/api/v1/clients/${id}/additional-incomes`),
-          axios.get(`/api/v1/clients/${id}/capital-assets`)
+          axios.get(`/api/v1/clients/${id}/capital-assets`),
+          axios.get(`/api/v1/clients/${id}/fixation`).catch(() => ({ data: null })) // Optional: fixation may not exist
         ]);
         
         console.log('Additional incomes response:', additionalIncomesResponse.data);
@@ -583,9 +585,11 @@ const SimpleReports: React.FC = () => {
         const pensionFundsData = pensionFundsResponse.data || [];
         const additionalIncomesData = additionalIncomesResponse.data || [];
         const capitalAssetsData = capitalAssetsResponse.data || [];
+        const fixationDataResponse = fixationResponse?.data || null;
         
         // לוג לבדיקת מבנה הנתונים
         console.log('Additional Incomes Data:', JSON.stringify(additionalIncomesData, null, 2));
+        console.log('Fixation Data:', fixationDataResponse);
         console.log('Capital Assets Data:', JSON.stringify(capitalAssetsData, null, 2));
         console.log('First Additional Income:', additionalIncomesData[0]);
         
@@ -617,6 +621,7 @@ const SimpleReports: React.FC = () => {
         setPensionFunds(pensionFundsData);
         setAdditionalIncomes(additionalIncomesData);
         setCapitalAssets(capitalAssetsData);
+        setFixationData(fixationDataResponse);
         
         // Calculate financial summary - pension funds only contribute monthly income, not balance
         const totalPensionValue = 0; // קרנות פנסיה לא נכללות בסך הנכסים
@@ -911,10 +916,50 @@ const SimpleReports: React.FC = () => {
       let totalTaxableAnnualIncome = 0;
       let totalExemptIncome = 0;
       
-      // חישוב הכנסה חייבת במס מקרנות פנסיה (בהתבסס על ההכנסות הדינמיות)
+      // חישוב קצבה פטורה מקיבוע זכויות (רק משנת הזכאות ואילך)
+      let monthlyExemptPension = 0;
+      if (fixationData && fixationData.exemption_summary) {
+        const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
+        
+        // הפטור חל רק משנת הזכאות ואילך
+        if (year >= eligibilityYear) {
+          const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
+          const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+          
+          // חישוב הקצבה הפטורה: אחוז הפטור × יתרת הון פטורה ÷ 180
+          monthlyExemptPension = (exemptionPercentage * remainingExemptCapital) / 180;
+          
+          console.log(`Year ${year}: Exempt pension = ${monthlyExemptPension.toFixed(2)} (${(exemptionPercentage * 100).toFixed(1)}% × ${remainingExemptCapital.toLocaleString()} ÷ 180)`);
+        }
+      }
+      
+      // חישוב הכנסה חייבת במס מקרנות פנסיה לאחר קיזוז פטור קיבוע זכויות
       let monthlyTaxableIncome = 0;
-      incomeBreakdown.slice(0, pensionFunds.length).forEach(income => {
-        monthlyTaxableIncome += income;
+      const pensionIncomes = incomeBreakdown.slice(0, pensionFunds.length);
+      
+      // יצירת מערך זוגות (סכום, אינדקס) וסידור לפי סכום יורד
+      const sortedPensions = pensionIncomes
+        .map((income, index) => ({ income, index }))
+        .filter(item => item.income > 0)
+        .sort((a, b) => b.income - a.income);
+      
+      // קיזוז הפטור מהקצבאות הגבוהות ביותר
+      let remainingExemption = monthlyExemptPension;
+      const pensionAfterExemption = [...pensionIncomes]; // העתקה
+      
+      for (const pension of sortedPensions) {
+        if (remainingExemption <= 0) break;
+        
+        const exemptionToApply = Math.min(pension.income, remainingExemption);
+        pensionAfterExemption[pension.index] -= exemptionToApply;
+        remainingExemption -= exemptionToApply;
+        
+        console.log(`  Applying exemption ${exemptionToApply.toFixed(2)} to pension #${pension.index + 1}, remaining: ${pensionAfterExemption[pension.index].toFixed(2)}`);
+      }
+      
+      // סיכום הכנסה חייבת אחרי קיזוז הפטור
+      pensionAfterExemption.forEach(income => {
+        monthlyTaxableIncome += Math.max(0, income);
       });
       
       // חישוב הכנסה פטורה וחייבת במס מהכנסות נוספות (בהתבסס על ההכנסות הדינמיות)
@@ -1586,8 +1631,8 @@ const SimpleReports: React.FC = () => {
       <div className="modern-card">
         <div className="card-header">
           <div>
-            <h1 className="card-title">📄 דוחות</h1>
-            <p className="card-subtitle">דוח מפורט של כל נתוני הלקוח והתכנון הפנסיוני</p>
+            <h1 className="card-title">📊 תוצאות</h1>
+            <p className="card-subtitle">תזרים מזומנים, חישוב מס ותוצאות פנסיוניות</p>
           </div>
           <button onClick={() => navigate(`/clients/${id}`)} className="btn btn-secondary">
             ← חזרה
@@ -2040,11 +2085,31 @@ const SimpleReports: React.FC = () => {
                     const taxCredits = client?.tax_credit_points ? client.tax_credit_points * 2640 : 0;
                     const finalTax = Math.max(0, baseTax - taxCredits);
                     
+                    // חישוב קצבה פטורה מקיבוע זכויות לשנה הנוכחית
+                    const currentYear = new Date().getFullYear();
+                    let currentExemptPension = 0;
+                    if (fixationData && fixationData.exemption_summary) {
+                      const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
+                      if (currentYear >= eligibilityYear) {
+                        const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
+                        const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+                        currentExemptPension = (exemptionPercentage * remainingExemptCapital) / 180;
+                      }
+                    }
+                    
                     return (
                       <div>
                         <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                           <strong>סך הכנסה שנתית: ₪{totalAnnualIncome.toLocaleString()}</strong>
                           <div>הכנסה חודשית: ₪{totalMonthlyIncome.toLocaleString()}</div>
+                          {currentExemptPension > 0 && (
+                            <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#d4edda', borderRadius: '4px', border: '1px solid #c3e6cb' }}>
+                              <strong style={{ color: '#155724' }}>קצבה פטורה (קיבוע זכויות): ₪{currentExemptPension.toLocaleString()}</strong>
+                              <div style={{ fontSize: '12px', color: '#155724', marginTop: '4px' }}>
+                                פטור חודשי המופחת מההכנסה החייבת מקצבאות
+                              </div>
+                            </div>
+                          )}
                         </div>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
