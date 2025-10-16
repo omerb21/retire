@@ -268,3 +268,59 @@ def delete_current_employer(
     
     db.delete(db_employer)
     db.commit()
+
+# ==========================================
+# FIXATION ENDPOINTS
+# ==========================================
+
+@router.get("/clients/{client_id}/fixation", tags=["fixation"])
+async def get_client_fixation(
+    client_id: int = Path(..., description="Client ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get fixation of rights data for a client
+    Returns the most recent fixation calculation results
+    """
+    from app.models.fixation_result import FixationResult
+    from sqlalchemy import desc
+    
+    # Check if client exists
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found"
+        )
+    
+    # Get the most recent fixation result
+    fixation = db.query(FixationResult).filter(
+        FixationResult.client_id == client_id
+    ).order_by(desc(FixationResult.created_at)).first()
+    
+    if not fixation or not fixation.raw_result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No fixation data found for this client"
+        )
+    
+    # Extract data from raw_result
+    raw_result = fixation.raw_result
+    
+    # Build response in the format expected by SimpleReports
+    response = {
+        "id": fixation.id,
+        "client_id": client_id,
+        "created_at": fixation.created_at.isoformat() if fixation.created_at else None,
+        "eligibility_year": raw_result.get("eligibility_year"),
+        "exemption_summary": {
+            "exemption_percentage": raw_result.get("exemption_summary", {}).get("exemption_percentage", 0),
+            "remaining_exempt_capital": raw_result.get("exemption_summary", {}).get("remaining_exempt_capital", 0),
+            "exempt_capital_initial": raw_result.get("exemption_summary", {}).get("exempt_capital_initial", 0),
+            "total_impact": raw_result.get("exemption_summary", {}).get("total_impact", 0)
+        },
+        "grants": raw_result.get("grants", []),
+        "calculation_details": raw_result.get("calculation_details", {})
+    }
+    
+    return response

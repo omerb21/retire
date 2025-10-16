@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, List, Any, Optional
-from datetime import date
+from datetime import date, datetime
 import logging
 
 from app.services.rights_fixation import (
@@ -87,6 +87,37 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                 print(f"DEBUG: Formatted data for service: {formatted_data}")
                 result = calculate_full_fixation(formatted_data)
                 print(f"DEBUG: Service result: {result}")
+                
+                # Save the result to database
+                from app.models.fixation_result import FixationResult
+                
+                # Check if there's an existing result and update, or create new
+                existing = db.query(FixationResult).filter(
+                    FixationResult.client_id == client_id
+                ).order_by(FixationResult.created_at.desc()).first()
+                
+                if existing:
+                    # Update existing record
+                    existing.raw_result = result
+                    existing.raw_payload = formatted_data
+                    existing.exempt_capital_remaining = result.get("exemption_summary", {}).get("remaining_exempt_capital", 0)
+                    existing.created_at = datetime.now()
+                else:
+                    # Create new record
+                    fixation_record = FixationResult(
+                        client_id=client_id,
+                        created_at=datetime.now(),
+                        exempt_capital_remaining=result.get("exemption_summary", {}).get("remaining_exempt_capital", 0),
+                        used_commutation=0.0,
+                        raw_payload=formatted_data,
+                        raw_result=result,
+                        notes="Calculated via rights_fixation service"
+                    )
+                    db.add(fixation_record)
+                
+                db.commit()
+                print(f"DEBUG: Fixation result saved to database for client {client_id}")
+                
                 return result
         else:
             # פורמט מפורט - שימוש ישיר

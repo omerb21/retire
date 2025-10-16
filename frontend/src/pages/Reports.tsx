@@ -113,7 +113,7 @@ const Reports: React.FC = () => {
 
   return (
     <div>
-      <h2>דוחות PDF</h2>
+      <h2>📊 תוצאות</h2>
       <div style={{ marginBottom: '20px' }}>
         <a href={`/clients/${id}`}>חזרה לפרטי לקוח</a>
       </div>
