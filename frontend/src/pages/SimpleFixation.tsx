@@ -272,7 +272,7 @@ const SimpleFixation: React.FC = () => {
             });
             
           } catch (error: any) {
-            if (error.response?.status === 409) {
+            if (error.response?.status === 400 || error.response?.status === 409) {
               // טיפול בשגיאת זכאות
               const errorData = error.response.data.detail || error.response.data;
               const reasons = errorData.reasons || [];
@@ -292,11 +292,33 @@ const SimpleFixation: React.FC = () => {
               }
               
               setError(errorMessage);
+              setHasGrants(false);
             } else {
               console.error('Error using rights fixation service:', error);
-              // Fallback to empty data
+              console.error('Full error object:', JSON.stringify(error, null, 2));
+              
+              const errorDetail = error.response?.data?.detail;
+              let errorMsg = 'שגיאה בחישוב קיבוע זכויות';
+              
+              if (typeof errorDetail === 'string' && errorDetail.trim()) {
+                errorMsg += ':\n' + errorDetail;
+              } else if (errorDetail && typeof errorDetail === 'object') {
+                if (errorDetail.error) {
+                  errorMsg += ':\n' + errorDetail.error;
+                }
+                if (errorDetail.message) {
+                  errorMsg += '\n' + errorDetail.message;
+                }
+              } else if (error.message && error.message.trim()) {
+                errorMsg += ':\n' + error.message;
+              } else {
+                errorMsg += '\nשגיאה לא ידועה. אנא בדוק את הקונסול לפרטים נוספים.';
+              }
+              
+              setError(errorMsg);
               setGrantsSummary([]);
               setExemptionSummary(null);
+              setHasGrants(false);
             }
           }
         } else {
@@ -320,52 +342,37 @@ const SimpleFixation: React.FC = () => {
   }, [id]);
 
   const handleCalculateFixation = async () => {
-    if (!fixationData) return;
+    if (!fixationData) {
+      alert('אין נתוני חישוב לשמירה');
+      return;
+    }
 
     try {
       setLoading(true);
       setError(null);
 
-      // Recalculate rights fixation
-      const fixationResponse = await axios.post('/api/v1/rights-fixation/calculate', {
-        client_id: parseInt(id!)
-      });
-      
-      console.log('DEBUG: Recalculate API response:', fixationResponse.data);
-      
-      const processedGrants = fixationResponse.data.grants || [];
-      const exemptionData = fixationResponse.data.exemption_summary || {};
-      
-      console.log('DEBUG: Recalculate processedGrants:', processedGrants);
-      console.log('DEBUG: Recalculate exemptionData:', exemptionData);
-      
-      setGrantsSummary(processedGrants.map((grant: any) => ({
-        employer_name: grant.employer_name,
-        grant_amount: grant.grant_amount,
-        work_start_date: grant.work_start_date,
-        work_end_date: grant.work_end_date,
-        grant_date: grant.grant_date,
-        indexed_full: grant.indexed_full,
-        ratio_32y: grant.ratio_32y,
-        limited_indexed_amount: grant.limited_indexed_amount,
-        impact_on_exemption: grant.impact_on_exemption,
-        exclusion_reason: grant.exclusion_reason
-      })));
-      
-      setExemptionSummary(exemptionData);
-      
-      setFixationData({
+      // שמירת תוצאות קיבוע זכויות ב-DB
+      const saveResponse = await axios.post('/api/v1/rights-fixation/save', {
         client_id: parseInt(id!),
-        grants: processedGrants,
-        exemption_summary: exemptionData,
-        eligibility_date: fixationResponse.data.eligibility_date,
-        eligibility_year: fixationResponse.data.eligibility_year,
-        status: 'calculated'
+        calculation_result: {
+          grants: fixationData.grants,
+          exemption_summary: fixationData.exemption_summary,
+          eligibility_date: fixationData.eligibility_date,
+          eligibility_year: fixationData.eligibility_year
+        },
+        formatted_data: {
+          id: parseInt(id!),
+          eligibility_date: fixationData.eligibility_date,
+          eligibility_year: fixationData.eligibility_year
+        }
       });
 
-      alert('חישוב קיבוע זכויות עודכן בהצלחה');
+      alert(`קיבוע זכויות נשמר בהצלחה!\nתאריך חישוב: ${new Date(saveResponse.data.calculation_date).toLocaleDateString('he-IL')}\n\nהנתונים הועברו למסך התוצאות`);
+      
+      // רענון הדף כדי לטעון את הנתונים השמורים
+      window.location.reload();
     } catch (err: any) {
-      setError('שגיאה בעדכון חישוב קיבוע זכויות: ' + err.message);
+      setError('שגיאה בשמירת קיבוע זכויות: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -604,7 +611,7 @@ const SimpleFixation: React.FC = () => {
                 if (!loading) e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              {loading ? 'מחשב מחדש...' : 'חשב קיבוע זכויות'}
+              {loading ? 'שומר...' : '💾 שמור קיבוע זכויות'}
             </button>
           </div>
         </div>

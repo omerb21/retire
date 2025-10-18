@@ -367,35 +367,33 @@ const SimpleCurrentEmployer: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // 💾 שמירת התפלגות הפיצויים המקורית לפני שליחת הבקשה לשרת
-      // זה חשוב כי השרת עשוי להוסיף השלמת מעסיק שתשנה את הסכומים
       const pensionStorageKey = `pensionData_${id}`;
       const storedPensionData = localStorage.getItem(pensionStorageKey);
-      const severanceStorageKey = `originalSeverance_${id}`;
       
+      // שמירת ההתפלגות המדויקת של פיצויים מעסיק נוכחי לפני העזיבה
       if (storedPensionData) {
         try {
           const pensionData = JSON.parse(storedPensionData);
           
-          // שמירת ההתפלגות המקורית לפני כל שינוי
-          const originalDistribution: { [key: string]: number } = {};
+          // שמירת ההתפלגות המדויקת - איזה חשבון קיבל כמה
+          const distribution: { [key: string]: number } = {};
           let totalSeverance = 0;
           
           pensionData.forEach((account: any, idx: number) => {
-            const currentEmployerSeverance = Number(account.פיצויים_מעסיק_נוכחי || 0);
-            const accountKey = account.שם_תכנית || account.מספר_תכנית || `account_${idx}`;
-            originalDistribution[accountKey] = currentEmployerSeverance;
-            totalSeverance += currentEmployerSeverance;
+            const amount = Number(account.פיצויים_מעסיק_נוכחי) || 0;
+            // משתמשים במספר חשבון כמפתח ייחודי
+            const accountKey = account.מספר_חשבון || `account_${idx}`;
+            distribution[accountKey] = amount;
+            totalSeverance += amount;
           });
           
-          // שמירה ב-localStorage - זה יידרס את השמירה הישנה אם קיימת
-          localStorage.setItem(severanceStorageKey, JSON.stringify(originalDistribution));
-          console.log('💾 שמירת התפלגות מקורית לפני שליחה לשרת:', originalDistribution);
+          console.log('💾 שמירת התפלגות מדויקת לפני עזיבה:', distribution);
           console.log('💾 סכום כולל:', totalSeverance);
           
-          setOriginalSeveranceAmount(totalSeverance);
+          // שמירה ב-localStorage
+          localStorage.setItem(`severanceDistribution_${id}`, JSON.stringify(distribution));
         } catch (e) {
-          console.error('שגיאה בשמירת התפלגות מקורית:', e);
+          console.error('שגיאה בשמירת התפלגות פיצויים:', e);
         }
       }
 
@@ -466,33 +464,29 @@ const SimpleCurrentEmployer: React.FC = () => {
       
       console.log('✅ DELETE RESPONSE:', response.data);
       
-      // החזרת הסכום המקורי של פיצויים לתיק הפנסיוני
-      // טוענים את התפלגות המקורית מ-localStorage
-      const severanceStorageKey = `originalSeverance_${id}`;
-      const storedDistribution = localStorage.getItem(severanceStorageKey);
-      
+      // החזרת הפיצויים לתיק הפנסיוני לפי ההתפלגות המקורית
       const pensionStorageKey = `pensionData_${id}`;
       const storedPensionData = localStorage.getItem(pensionStorageKey);
+      const savedDistribution = localStorage.getItem(`severanceDistribution_${id}`);
       
       console.log('🔄 מחזיר פיצויים לתיק פנסיוני');
-      console.log('  התפלגות שמורה:', storedDistribution);
       
       let severanceToRestore = 0;
       
-      if (storedPensionData && storedDistribution) {
+      if (storedPensionData && savedDistribution) {
         try {
           const pensionData = JSON.parse(storedPensionData);
-          const originalDistribution = JSON.parse(storedDistribution);
+          const distribution = JSON.parse(savedDistribution);
           
-          let totalRestored = 0;
+          console.log('📦 התפלגות מקורית:', distribution);
           
-          // החזרת הסכום המקורי לכל חשבון
+          // החזרת הסכום המדויק לכל חשבון
           const updatedPensionData = pensionData.map((account: any, idx: number) => {
-            const accountKey = account.שם_תכנית || account.מספר_תכנית || `account_${idx}`;
-            const originalAmount = originalDistribution[accountKey] || 0;
+            const accountKey = account.מספר_חשבון || `account_${idx}`;
+            const originalAmount = distribution[accountKey] || 0;
             
-            console.log(`  חשבון ${accountKey}: ${account.פיצויים_מעסיק_נוכחי || 0} → ${originalAmount}`);
-            totalRestored += originalAmount;
+            console.log(`  חשבון ${account.שם_תכנית} (${accountKey}): ${account.פיצויים_מעסיק_נוכחי || 0} → ${originalAmount}`);
+            severanceToRestore += originalAmount;
             
             return {
               ...account,
@@ -501,9 +495,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           });
           
           localStorage.setItem(pensionStorageKey, JSON.stringify(updatedPensionData));
-          console.log('✅ פיצויים מעסיק נוכחי הוחזרו לתיק הפנסיוני:', totalRestored);
-          
-          severanceToRestore = totalRestored;
+          console.log('✅ פיצויים מעסיק נוכחי הוחזרו לתיק הפנסיוני:', severanceToRestore);
         } catch (e) {
           console.error('שגיאה בהחזרת פיצויים לתיק פנסיוני:', e);
           severanceToRestore = response.data.severance_to_restore || 0;
@@ -529,10 +521,10 @@ const SimpleCurrentEmployer: React.FC = () => {
       
       setOriginalSeveranceAmount(0);
 
-      // מחיקת המצב המאושר והסכום השמור מ-localStorage
+      // מחיקת המצב המאושר וההתפלגות השמורה מ-localStorage
       const terminationStorageKey = `terminationConfirmed_${id}`;
       localStorage.removeItem(terminationStorageKey);
-      localStorage.removeItem(severanceStorageKey);
+      localStorage.removeItem(`severanceDistribution_${id}`);
 
       alert(`החלטות העזיבה נמחקו בהצלחה!\n- נמחקו ${response.data.deleted_count} אלמנטים\n- הוחזרו ${severanceToRestore.toLocaleString()} ₪ לתיק הפנסיוני`);
       

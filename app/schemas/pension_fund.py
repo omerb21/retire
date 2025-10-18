@@ -12,6 +12,7 @@ class PensionFundBase(BaseModel):
     pension_start_date: Optional[date] = None
     indexation_method: Literal["none", "cpi", "fixed"]
     fixed_index_rate: Optional[float] = None
+    tax_treatment: Optional[Literal["taxable", "exempt", "capital_gains"]] = "taxable"  # יחס למס
     remarks: Optional[str] = None
     deduction_file: Optional[str] = None
     conversion_source: Optional[str] = None  # JSON עם פרטי מקור ההמרה

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { apiFetch } from '../lib/api';
+import { apiFetch, ClientItem, getClient } from '../lib/api';
 import { formatDateToDDMMYY } from '../utils/dateUtils';
 import axios from 'axios';
+import SystemSnapshot from '../components/SystemSnapshot';
 
 export default function ClientDetails() {
   const { id } = useParams<{ id: string }>();
@@ -80,7 +81,7 @@ export default function ClientDetails() {
 
   return (
     <div className="client-details">
-      <h2>פרטי לקוח: {client.first_name} {client.last_name}</h2>
+      <h2>תהליך פרישה - {client.first_name} {client.last_name} (ת"ז: {client.id_number})</h2>
       
       <div className="client-info" style={{ marginBottom: '20px' }}>
         <p><strong>ת"ז:</strong> {client.id_number}</p>
@@ -208,9 +209,27 @@ export default function ClientDetails() {
         <ModuleLink to={`/clients/${id}/scenarios`} label="תרחישים" />
       </div>
       
-      <Link to="/clients" style={{ display: 'inline-block', marginTop: '20px' }}>
+      <Link to="/clients" style={{ display: 'inline-block', marginTop: '20px', marginBottom: '20px' }}>
         חזרה לרשימת לקוחות
       </Link>
+      
+      {/* System Snapshot - שמירה ושחזור מצב */}
+      <div style={{ 
+        marginTop: '30px',
+        marginBottom: '20px', 
+        padding: '20px', 
+        backgroundColor: '#f8f9fa', 
+        borderRadius: '8px',
+        border: '2px solid #dee2e6'
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#495057' }}>
+          🔄 שמירה ושחזור מצב מערכת
+        </h3>
+        <SystemSnapshot 
+          clientId={parseInt(id!)} 
+          onSnapshotRestored={() => window.location.reload()}
+        />
+      </div>
     </div>
   );
 }

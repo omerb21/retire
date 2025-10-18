@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from typing import List, Optional
+from sqlalchemy.orm import Session
 import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -7,6 +8,8 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+
+from app.database import get_db
 
 router = APIRouter()
 
@@ -420,65 +423,77 @@ async def save_pension_portfolio(
 @router.post("/clients/{client_id}/pension-portfolio/convert")
 async def convert_pension_accounts(
     client_id: int,
-    conversion_data: dict
+    conversion_data: dict,
+    db: Session = Depends(get_db)
 ):
-    """המרת חשבונות פנסיוניים לקצבאות או נכסי הון"""
+    """המרת חשבונות פנסיוניים לקצבאות או נכסי הון - מיידי ישירות ל-DB"""
     
     accounts = conversion_data.get('accounts', [])
     if not accounts:
         raise HTTPException(status_code=400, detail="לא נבחרו חשבונות להמרה")
     
-    converted_accounts = []
+    from app.models.pension_fund import PensionFund
+    from app.models.capital_asset import CapitalAsset
+    from datetime import date
+    from decimal import Decimal
+    
+    converted_count = 0
     
     for account in accounts:
-        conversion_type = account.get('conversion_type')
+        conversion_type = account.get('conversion_type', 'pension')  # ברירת מחדל: קצבה
+        balance = float(account.get('יתרה', 0))
+        
+        if balance <= 0:
+            continue
         
         if conversion_type == 'pension':
-            # המרה לקצבה
-            pension_data = {
-                'fund_name': account.get('שם_תכנית'),
-                'managing_company': account.get('חברה_מנהלת'),
-                'deduction_file': account.get('מספר_חשבון'),
-                'calculation_mode': 'manual',
-                'pension_amount': round(account.get('יתרה', 0) * 0.04 / 12),  # 4% שנתי
-                'pension_start_date': '2025-01-01',
-                'indexation_method': 'cpi'
-            }
-            converted_accounts.append({
-                'type': 'pension',
-                'original_account': account.get('מספר_חשבון'),
-                'data': pension_data
-            })
+            # המרה לקצבה - שמירה ישירה ל-DB
+            pension_amount = balance / 200  # מקדם המרה
+            
+            # קביעת יחס מס לפי סוג המוצר
+            product_type = account.get('סוג_מוצר', '')
+            tax_treatment = "exempt" if 'השתלמות' in product_type else "taxable"
+            
+            pf = PensionFund(
+                client_id=client_id,
+                fund_name=account.get('שם_תכנית', 'תכנית ללא שם'),
+                fund_type=account.get('סוג_מוצר', 'קופת גמל'),
+                input_mode='manual',
+                balance=balance,
+                annuity_factor=200,
+                pension_amount=pension_amount,
+                pension_start_date=date(2025, 1, 1),
+                indexation_method='none',
+                tax_treatment=tax_treatment,
+                deduction_file=account.get('מספר_חשבון', ''),
+                remarks=f"הומר מתיק פנסיוני - {account.get('חברה_מנהלת', '')}"
+            )
+            db.add(pf)
+            converted_count += 1
             
         elif conversion_type == 'capital_asset':
-            # המרה לנכס הון
-            asset_type = 'provident_fund' if 'קופת גמל' in account.get('סוג_מוצר', '') else 'education_fund'
-            
-            asset_data = {
-                'asset_type': asset_type,
-                'description': account.get('שם_תכנית'),
-                'current_value': account.get('יתרה', 0),
-                'purchase_value': account.get('יתרה', 0),
-                'purchase_date': account.get('תאריך_התחלה', '2020-01-01'),
-                'annual_return': 0,
-                'annual_return_rate': 0.03,
-                'payment_frequency': 'monthly',
-                'liquidity': 'medium',
-                'risk_level': 'medium',
-                'monthly_income': round(account.get('יתרה', 0) * 0.03 / 12),
-                'start_date': '2025-01-01',
-                'indexation_method': 'cpi',
-                'tax_treatment': 'capital_gains'
-            }
-            converted_accounts.append({
-                'type': 'capital_asset',
-                'original_account': account.get('מספר_חשבון'),
-                'data': asset_data
-            })
+            # המרה לנכס הון - שמירה ישירה ל-DB
+            ca = CapitalAsset(
+                client_id=client_id,
+                asset_name=account.get('שם_תכנית', 'נכס ללא שם'),
+                asset_type='provident_fund',
+                current_value=Decimal(str(balance)),
+                annual_return_rate=Decimal('0.03'),
+                payment_frequency='monthly',
+                start_date=date(2025, 1, 1),
+                indexation_method='none',
+                tax_treatment='taxable',
+                description=f"הומר מתיק פנסיוני - {account.get('חברה_מנהלת', '')}"
+            )
+            db.add(ca)
+            converted_count += 1
+    
+    db.commit()
     
     return {
-        'message': f'הומרו בהצלחה {len(converted_accounts)} חשבונות',
-        'converted_accounts': converted_accounts
+        'success': True,
+        'message': f'✅ הומרו ונשמרו בהצלחה {converted_count} חשבונות!',
+        'converted_count': converted_count
     }
 
 @router.post("/clients/{client_id}/pension-portfolio/restore")

@@ -28,6 +28,7 @@ type PensionFund = {
   employee_contributions?: number;
   annual_return_rate?: number;
   deduction_file?: string; // תיק ניכויים
+  tax_treatment?: "taxable" | "exempt" | "capital_gains"; // יחס למס
 };
 
 type Commutation = {
@@ -55,6 +56,7 @@ export default function PensionFunds() {
     indexation_rate: 0,
     deduction_file: "",
     pension_start_date: "",
+    tax_treatment: "taxable", // ברירת מחדל: חייב במס
   });
   const [commutationForm, setCommutationForm] = useState<Commutation>({
     pension_fund_id: undefined,
@@ -242,6 +244,7 @@ export default function PensionFunds() {
         start_date: finalStartDate,
         pension_start_date: finalStartDate,
         indexation_method: form.indexation_method || "none",
+        tax_treatment: form.tax_treatment || "taxable", // יחס למס
         deduction_file: form.deduction_file || ""
       };
       
@@ -381,6 +384,38 @@ export default function PensionFunds() {
     } catch (e: any) {
       console.error('Compute error:', e);
       setError(`שגיאה בחישוב: ${e?.message || e}`);
+    }
+  }
+
+  async function handleDeleteAll() {
+    if (!clientId) return;
+    
+    if (funds.length === 0) {
+      alert("אין קצבאות למחיקה");
+      return;
+    }
+    
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את כל ${funds.length} הקצבאות? פעולה זו בלתי הפיכה!`)) {
+      return;
+    }
+
+    try {
+      setError("");
+      
+      // מחיקת כל הקצבאות אחת אחת
+      for (const fund of funds) {
+        if (fund.id) {
+          await apiFetch(`/clients/${clientId}/pension-funds/${fund.id}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+      
+      // רענון הרשימה
+      await loadFunds();
+      alert(`נמחקו ${funds.length} קצבאות בהצלחה`);
+    } catch (e: any) {
+      setError(`שגיאה במחיקת קצבאות: ${e?.message || e}`);
     }
   }
 
@@ -532,6 +567,7 @@ export default function PensionFunds() {
       indexation_rate: fund.fixed_index_rate || fund.indexation_rate || 0,
       deduction_file: fund.deduction_file || "",
       pension_start_date: fund.pension_start_date || fund.start_date || "",
+      tax_treatment: fund.tax_treatment || "taxable", // יחס למס
     });
     
     // Scroll to form
@@ -570,8 +606,10 @@ export default function PensionFunds() {
         throw new Error(`סכום ההיוון (${commutationForm.exempt_amount.toLocaleString()}) גדול מהיתרה המקורית של הקצבה (${fundBalance.toLocaleString()})`);
       }
 
-      // קביעת יחס מס לפי סוג ההיוון
-      const taxTreatment = commutationForm.commutation_type; // כבר exempt או taxable
+      // קביעת יחס מס - יורש מהקצבה המקורית!
+      // אם הקצבה פטורה ממס, גם ההיוון יהיה פטור ממס
+      const taxTreatment = selectedFund.tax_treatment || "taxable";
+      console.log(`🔍 Pension tax_treatment: ${selectedFund.tax_treatment} → Capital asset will be: ${taxTreatment}`);
       
       // יצירת נכס הוני
       const capitalAssetData = {
@@ -751,9 +789,27 @@ export default function PensionFunds() {
             <h1 className="card-title">💰 קצבאות והיוונים</h1>
             <p className="card-subtitle">ניהול קצבאות פנסיוניות והיוונים פטורים ממס</p>
           </div>
-          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
-            ← חזרה
-          </Link>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={handleDeleteAll}
+              className="btn"
+              style={{ 
+                backgroundColor: '#dc3545', 
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              disabled={funds.length === 0}
+            >
+              🗑️ מחק הכל
+            </button>
+            <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+              ← חזרה
+            </Link>
+          </div>
         </div>
 
       {error && (
@@ -869,6 +925,19 @@ export default function PensionFunds() {
             />
           )}
 
+          <div>
+            <label>יחס למס:</label>
+            <select
+              value={form.tax_treatment || "taxable"}
+              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "taxable" | "exempt" | "capital_gains" })}
+              style={{ padding: 8, width: "100%" }}
+            >
+              <option value="taxable">חייב במס</option>
+              <option value="exempt">פטור ממס</option>
+              <option value="capital_gains">מס רווח הון</option>
+            </select>
+          </div>
+
           <div style={{ display: "flex", gap: 10 }}>
             <button 
               type="submit" 
@@ -898,6 +967,7 @@ export default function PensionFunds() {
                     indexation_rate: 0,
                     deduction_file: "",
                     pension_start_date: "",
+                    tax_treatment: "taxable",
                   });
                 }}
                 style={{ 
@@ -1024,6 +1094,11 @@ export default function PensionFunds() {
                     fund.indexation_method === "none" ? "ללא" :
                     fund.indexation_method === "fixed" ? `קבועה ${fund.indexation_rate}%` :
                     "למדד"
+                  }</div>
+                  <div><strong>יחס למס:</strong> {
+                    fund.tax_treatment === "exempt" ? "פטור ממס" :
+                    fund.tax_treatment === "capital_gains" ? "מס רווח הון" :
+                    "חייב במס"
                   }</div>
                   
                   {/* הצגת סכום חודשי בכל מקרה - מודגש ובולט */}

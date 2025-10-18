@@ -25,14 +25,27 @@ def has_started_pension(pension_start_date: date | None, today: date | None = No
     return pension_start_date <= today
 
 def is_eligible_for_fixation(birthdate: date, gender: str, pension_start_date: date | None, today: date | None = None):
-    """בדיקת זכאות מלאה לקיבוע זכויות"""
+    """בדיקת זכאות מלאה לקיבוע זכויות
+    
+    שנת הזכאות היא המאוחר מבין:
+    1. תאריך הגעה לגיל פרישה
+    2. תאריך תחילת קצבה ראשונה
+    """
     today = today or date.today()
-    elig_date = calc_eligibility_date(birthdate, gender)
-    cond_age = today >= elig_date
+    age_eligibility_date = calc_eligibility_date(birthdate, gender)
+    
+    # שנת הזכאות האמיתית היא המאוחר מבין גיל הפרישה לתחילת הקצבה
+    if pension_start_date and pension_start_date > age_eligibility_date:
+        actual_eligibility_date = pension_start_date
+    else:
+        actual_eligibility_date = age_eligibility_date
+    
+    cond_age = today >= age_eligibility_date
     cond_pension = has_started_pension(pension_start_date, today)
+    
     return {
         "eligible": bool(cond_age and cond_pension),
-        "eligibility_date": elig_date,
+        "eligibility_date": actual_eligibility_date,  # תאריך הזכאות האמיתי
         "age_condition_ok": bool(cond_age),
         "pension_condition_ok": bool(cond_pension)
     }

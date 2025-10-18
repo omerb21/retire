@@ -153,6 +153,38 @@ export default function AdditionalIncome() {
     }
   }
 
+  async function handleDeleteAll() {
+    if (!clientId) return;
+    
+    if (incomes.length === 0) {
+      alert("אין הכנסות נוספות למחיקה");
+      return;
+    }
+    
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את כל ${incomes.length} ההכנסות הנוספות? פעולה זו בלתי הפיכה!`)) {
+      return;
+    }
+
+    try {
+      setError("");
+      
+      // מחיקת כל ההכנסות אחת אחת
+      for (const income of incomes) {
+        if (income.id) {
+          await apiFetch(`/clients/${clientId}/additional-incomes/${income.id}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+      
+      // רענון הרשימה
+      await loadIncomes();
+      alert(`נמחקו ${incomes.length} הכנסות נוספות בהצלחה`);
+    } catch (e: any) {
+      setError(`שגיאה במחיקת הכנסות נוספות: ${e?.message || e}`);
+    }
+  }
+
   async function handleDelete(incomeId: number) {
     if (!clientId) return;
     
@@ -204,9 +236,27 @@ export default function AdditionalIncome() {
             <h1 className="card-title">💵 הכנסות נוספות</h1>
             <p className="card-subtitle">ניהול הכנסות נוספות מעבודה, השכרה ועוד</p>
           </div>
-          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
-            ← חזרה
-          </Link>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={handleDeleteAll}
+              className="btn"
+              style={{ 
+                backgroundColor: '#dc3545', 
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              disabled={incomes.length === 0}
+            >
+              🗑️ מחק הכל
+            </button>
+            <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+              ← חזרה
+            </Link>
+          </div>
         </div>
 
       {error && (

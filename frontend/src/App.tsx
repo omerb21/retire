@@ -4,20 +4,35 @@ import Clients from "./pages/Clients";
 import PensionFunds from "./pages/PensionFunds";
 import AdditionalIncome from "./pages/AdditionalIncome";
 import CapitalAssets from "./pages/CapitalAssets";
-import Scenarios from "./pages/Scenarios";
+import RetirementScenarios from "./pages/RetirementScenarios";
 import SimpleFixation from "./pages/SimpleFixation";
 import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
 import SimpleGrants from "./pages/SimpleGrants";
 import SimpleReports from "./pages/SimpleReports";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
+import SystemSnapshot from "./components/SystemSnapshot";
 import "./styles/modern-theme.css";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
   const clientId = window.location.pathname.split('/')[2];
+  const [client, setClient] = React.useState<any>(null);
+  
+  React.useEffect(() => {
+    // טעינת נתוני הלקוח
+    fetch(`/api/v1/clients/${clientId}`)
+      .then(res => res.json())
+      .then(data => setClient(data))
+      .catch(err => console.error('Error loading client:', err));
+  }, [clientId]);
+  
   return (
     <div>
-      <h2>פרטי לקוח</h2>
+      <h2 style={{ marginBottom: '30px' }}>
+        תהליך פרישה - {client ? `${client.first_name} ${client.last_name}` : '...'} 
+        {client && ` (ת"ז: ${client.id_number})`}
+      </h2>
+      
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         <a href={`/clients/${clientId}/pension-portfolio`} style={moduleButtonStyle}>תיק פנסיוני</a>
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
@@ -26,10 +41,29 @@ const ClientDetails = () => {
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
         <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
         <a href={`/clients/${clientId}/fixation`} style={moduleButtonStyle}>קיבוע זכויות</a>
-        <a href={`/clients/${clientId}/scenarios`} style={moduleButtonStyle}>תרחישים</a>
+        <a href={`/clients/${clientId}/retirement-scenarios`} style={moduleButtonStyle}>🎯 תרחישי פרישה</a>
         <a href={`/clients/${clientId}/reports`} style={moduleButtonStyle}>📊 תוצאות</a>
       </div>
-      <a href="/clients">חזרה לרשימת לקוחות</a>
+      
+      <a href="/clients" style={{ display: 'inline-block', marginBottom: '20px' }}>חזרה לרשימת לקוחות</a>
+      
+      {/* System Snapshot - שמירה ושחזור מצב */}
+      <div style={{ 
+        marginTop: '550px',
+        marginBottom: '20px', 
+        padding: '20px', 
+        backgroundColor: '#f8f9fa', 
+        borderRadius: '8px',
+        border: '2px solid #dee2e6'
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#495057' }}>
+          🔄 שמירה ושחזור מצב מערכת
+        </h3>
+        <SystemSnapshot 
+          clientId={parseInt(clientId)} 
+          onSnapshotRestored={() => window.location.reload()}
+        />
+      </div>
     </div>
   );
 };
@@ -86,7 +120,7 @@ export default function App() {
             <Route path="/clients/:id/capital-assets" element={<CapitalAssets />} />
             <Route path="/clients/:id/current-employer" element={<SimpleCurrentEmployer />} />
             <Route path="/clients/:id/grants" element={<SimpleGrants />} />
-            <Route path="/clients/:id/scenarios" element={<Scenarios />} />
+            <Route path="/clients/:id/retirement-scenarios" element={<RetirementScenarios />} />
             <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
             <Route path="/clients/:id/reports" element={<SimpleReports />} />
             <Route path="/system-settings" element={<SystemSettings />} />

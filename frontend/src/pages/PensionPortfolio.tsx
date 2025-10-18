@@ -16,7 +16,7 @@ type PensionAccount = {
   שם_תכנית: string;
   חברה_מנהלת: string;
   קוד_חברה_מנהלת?: string;
-  יתרה: number;
+  יתרה: number; // יתרה מקורית - לא מוצגת, רק לחישובים
   תאריך_נכונות_יתרה: string;
   תאריך_התחלה?: string;
   סוג_מוצר: string;
@@ -32,6 +32,7 @@ type PensionAccount = {
   תגמולי_מעביד_עד_2000?: number;
   תגמולי_מעביד_אחרי_2000?: number;
   תגמולי_מעביד_אחרי_2008_לא_משלמת?: number;
+  תגמולים?: number; // טור מחושב: יתרה פחות כל הטורים האחרים
   selected?: boolean;
   conversion_type?: 'pension' | 'capital_asset';
   selected_amounts?: {[key: string]: boolean}; // לסימון סכומים ספציפיים
@@ -43,6 +44,71 @@ type ProcessedFile = {
   accounts: PensionAccount[];
   processed_at: string;
 };
+
+/**
+ * מחשב את טור התגמולים פעם אחת בלבד (בטעינה ראשונית)
+ * תגמולים = יתרה מקורית - סכום כל הטורים האחרים
+ * אחרי החישוב הראשוני, התגמולים הופכים לערך קבוע (ניתן לעריכה והמרה)
+ */
+function calculateInitialTagmulim(account: PensionAccount): PensionAccount {
+  // אם כבר יש ערך תגמולים, לא נחשב מחדש
+  if (account.תגמולים !== undefined && account.תגמולים !== null) {
+    return account;
+  }
+  
+  const componentFields = [
+    'פיצויים_מעסיק_נוכחי',
+    'פיצויים_לאחר_התחשבנות',
+    'פיצויים_שלא_עברו_התחשבנות',
+    'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
+    'פיצויים_ממעסיקים_קודמים_רצף_קצבה',
+    'תגמולי_עובד_עד_2000',
+    'תגמולי_עובד_אחרי_2000',
+    'תגמולי_עובד_אחרי_2008_לא_משלמת',
+    'תגמולי_מעביד_עד_2000',
+    'תגמולי_מעביד_אחרי_2000',
+    'תגמולי_מעביד_אחרי_2008_לא_משלמת'
+  ];
+  
+  // חישוב סכום כל הטורים (לא כולל תגמולים)
+  const componentsSum = componentFields.reduce((sum, field) => {
+    const value = (account as any)[field];
+    return sum + (typeof value === 'number' ? value : 0);
+  }, 0);
+  
+  // חישוב תגמולים = יתרה מקורית - סכום הטורים
+  const תגמולים = Math.max(0, (account.יתרה || 0) - componentsSum);
+  
+  return {
+    ...account,
+    תגמולים
+  };
+}
+
+/**
+ * מחשב יתרה כללית מחדש (סכום כל הטורים כולל תגמולים)
+ */
+function calculateTotalBalance(account: PensionAccount): number {
+  const allFields = [
+    'פיצויים_מעסיק_נוכחי',
+    'פיצויים_לאחר_התחשבנות',
+    'פיצויים_שלא_עברו_התחשבנות',
+    'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
+    'פיצויים_ממעסיקים_קודמים_רצף_קצבה',
+    'תגמולי_עובד_עד_2000',
+    'תגמולי_עובד_אחרי_2000',
+    'תגמולי_עובד_אחרי_2008_לא_משלמת',
+    'תגמולי_מעביד_עד_2000',
+    'תגמולי_מעביד_אחרי_2000',
+    'תגמולי_מעביד_אחרי_2008_לא_משלמת',
+    'תגמולים'
+  ];
+  
+  return allFields.reduce((sum, field) => {
+    const value = (account as any)[field];
+    return sum + (typeof value === 'number' ? value : 0);
+  }, 0);
+}
 
 export default function PensionPortfolio() {
   const { id: clientId } = useParams<{ id: string }>();
@@ -550,7 +616,7 @@ export default function PensionPortfolio() {
       return null;
     }
 
-    const result = {
+    const baseAccount = {
       מספר_חשבון: accountNumber,
       שם_תכנית: planName,
       debug_plan_name: planName, // לצורך debug
@@ -575,6 +641,9 @@ export default function PensionPortfolio() {
       selected: false,
       selected_amounts: {}
     };
+    
+    // חישוב תגמולים (פעם אחת בלבד)
+    const result = calculateInitialTagmulim(baseAccount);
     
     // Debug: הדפסת התוצאה
     console.log('Extracted account data:', result);
@@ -623,7 +692,7 @@ export default function PensionPortfolio() {
     ));
   };
 
-  // פונקציה לשמירת כל התכניות הנבחרות - כעת רק שמירה מקומית
+  // פונקציה לשמירת כל התכניות הנבחרות (רק שמירה, ללא המרה)
   const saveSelectedAccounts = async () => {
     if (!clientId) return;
     
@@ -637,10 +706,10 @@ export default function PensionPortfolio() {
     setError("");
 
     try {
-      // שמירה מקומית בלבד - לא יוצרים קצבאות בשרת
+      // שמירה ב-localStorage בלבד - ללא המרה
       localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(pensionData));
       
-      setProcessingStatus(`נשמרו מקומית ${selectedAccounts.length} תכניות פנסיה`);
+      setProcessingStatus(`✅ נשמרו בהצלחה ${selectedAccounts.length} תכניות בתיק הפנסיוני!`);
       
       // סימון התכניות שנשמרו כלא נבחרות
       setPensionData(prev => prev.map(account => ({
@@ -693,14 +762,18 @@ export default function PensionPortfolio() {
     setPensionData(prev => {
       const updated = prev.map((acc, i) => {
         if (i === accountIndex) {
+          let updatedAcc;
           // המרת ערכים מספריים
-          if (['יתרה', 'פיצויים_מעסיק_נוכחי', 'פיצויים_לאחר_התחשבנות', 'פיצויים_שלא_עברו_התחשבנות',
+          if (['יתרה', 'תגמולים', 'פיצויים_מעסיק_נוכחי', 'פיצויים_לאחר_התחשבנות', 'פיצויים_שלא_עברו_התחשבנות',
                'פיצויים_ממעסיקים_קודמים_רצף_זכויות', 'פיצויים_ממעסיקים_קודמים_רצף_קצבה',
                'תגמולי_עובד_עד_2000', 'תגמולי_עובד_אחרי_2000', 'תגמולי_עובד_אחרי_2008_לא_משלמת',
                'תגמולי_מעביד_עד_2000', 'תגמולי_מעביד_אחרי_2000', 'תגמולי_מעביד_אחרי_2008_לא_משלמת'].includes(field)) {
-            return { ...acc, [field]: parseFloat(value) || 0 };
+            updatedAcc = { ...acc, [field]: parseFloat(value) || 0 };
+          } else {
+            updatedAcc = { ...acc, [field]: value };
           }
-          return { ...acc, [field]: value };
+          // לא מחשבים תגמולים מחדש - הם ערך קבוע
+          return updatedAcc;
         }
         return acc;
       });
@@ -755,7 +828,7 @@ export default function PensionPortfolio() {
     if (productType === null) return;
     
     // יצירת חשבון חדש
-    const newAccount = {
+    const baseAccount = {
       מספר_חשבון: `MANUAL-${Date.now()}`,
       שם_תכנית: name,
       חברה_מנהלת: 'הוסף ידני',
@@ -768,8 +841,8 @@ export default function PensionPortfolio() {
       פיצויים_מעסיק_נוכחי: 0,
       פיצויים_לאחר_התחשבנות: 0,
       פיצויים_שלא_עברו_התחשבנות: 0,
-      פיצויים_מעסיקים_קודמים_זכויות: 0,
-      פיצויים_מעסיקים_קודמים_קצבה: 0,
+      פיצויים_ממעסיקים_קודמים_רצף_זכויות: 0,
+      פיצויים_ממעסיקים_קודמים_רצף_קצבה: 0,
       תגמולי_עובד_עד_2000: 0,
       תגמולי_עובד_אחרי_2000: 0,
       תגמולי_עובד_אחרי_2008_לא_משלמת: 0,
@@ -779,6 +852,9 @@ export default function PensionPortfolio() {
       selected: false,
       selected_amounts: {}
     };
+    
+    // חישוב תגמולים (פעם אחת בלבד)
+    const newAccount = calculateInitialTagmulim(baseAccount);
     
     setPensionData(prev => [...prev, newAccount]);
     setProcessingStatus(`תכנית "${name}" נוספה בהצלחה`);
@@ -1078,17 +1154,17 @@ export default function PensionPortfolio() {
         const {amountToConvert, specificAmounts} = conversion;
         
         // יצירת עותק מעודכן של החשבון
-        const updatedAccount = {...account};
+        let updatedAccount = {...account};
         
-        // הפחתת הסכומים הספציפיים שהומרו
+        // מחיקת הסכומים הספציפיים שהומרו (מאפס את השדות)
         Object.keys(specificAmounts).forEach(key => {
           if ((updatedAccount as any)[key]) {
             (updatedAccount as any)[key] = 0; // מאפס את השדה שהומר
           }
         });
         
-        // הפחתת הסכום מהיתרה הכללית
-        updatedAccount.יתרה = (updatedAccount.יתרה || 0) - amountToConvert;
+        // לא מחשבים תגמולים מחדש - הם נשארים כערך קבוע
+        // רק היתרה הכללית מחושבת דינמית בתצוגה
         
         // איפוס הסימונים
         updatedAccount.selected = false;
@@ -1146,13 +1222,15 @@ export default function PensionPortfolio() {
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
+        // חישוב תגמולים רק אם חסר (פעם אחת בלבד)
+        const dataWithComputed = parsedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
         // עדכון רק אם יש שינוי בנתונים
         const currentDataStr = JSON.stringify(pensionData);
-        const newDataStr = JSON.stringify(parsedData);
+        const newDataStr = JSON.stringify(dataWithComputed);
         if (currentDataStr !== newDataStr) {
           console.log('Pension data changed in localStorage, reloading...');
-          setPensionData(parsedData);
-          setProcessingStatus(`נטענו ${parsedData.length} תכניות פנסיוניות שמורות`);
+          setPensionData(dataWithComputed);
+          setProcessingStatus(`נטענו ${dataWithComputed.length} תכניות פנסיוניות שמורות`);
         }
       }
       
@@ -1277,7 +1355,9 @@ export default function PensionPortfolio() {
       const savedData = localStorage.getItem(`pensionData_${clientId}`);
       if (savedData) {
         const parsedData = JSON.parse(savedData);
-        setPensionData(parsedData);
+        // חישוב תגמולים רק אם חסר (פעם אחת בלבד)
+        const dataWithComputed = parsedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
+        setPensionData(dataWithComputed);
       }
     };
     
@@ -1288,7 +1368,9 @@ export default function PensionPortfolio() {
         const savedData = localStorage.getItem(`pensionData_${clientId}`);
         if (savedData) {
           const parsedData = JSON.parse(savedData);
-          setPensionData(parsedData);
+          // חישוב תגמולים רק אם חסר (פעם אחת בלבד)
+          const dataWithComputed = parsedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
+          setPensionData(dataWithComputed);
         }
       }
     };
@@ -1535,7 +1617,8 @@ export default function PensionPortfolio() {
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>מספר חשבון</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 150 }}>שם תכנית</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>חברה מנהלת</th>
-                  <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80 }}>יתרה כללית</th>
+                  <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80, backgroundColor: "#f0f8ff" }}>יתרה כללית (מחושב)</th>
+                  <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולים</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים מעסיק נוכחי</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים לאחר התחשבנות</th>
                   <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים שלא עברו התחשבנות</th>
@@ -1606,29 +1689,13 @@ export default function PensionPortfolio() {
                       ) : account.חברה_מנהלת}
                     </td>
                     
-                    {/* יתרה כללית עם אפשרות סימון ועריכה */}
-                    <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <input
-                          type="checkbox"
-                          checked={account.selected_amounts?.יתרה || false}
-                          onChange={(e) => toggleAmountSelection(index, 'יתרה', e.target.checked)}
-                          style={{ transform: "scale(0.8)" }}
-                        />
-                        <div style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); setEditingCell({row: index, field: 'יתרה'}); }}>
-                          {editingCell?.row === index && editingCell?.field === 'יתרה' ? (
-                            <input
-                              type="number"
-                              defaultValue={account.יתרה}
-                              onBlur={(e) => updateCellValue(index, 'יתרה', e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'יתרה', e.currentTarget.value)}
-                              autoFocus
-                              style={{ width: '100%', padding: 2, fontSize: '12px', textAlign: 'right' }}
-                            />
-                          ) : (account.יתרה > 0 ? account.יתרה.toLocaleString() : '-')}
-                        </div>
-                      </div>
+                    {/* יתרה כללית - מחושבת (סכום כל הטורים) - לא ניתנת לעריכה */}
+                    <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f0f8ff", fontWeight: "bold" }}>
+                      {calculateTotalBalance(account).toLocaleString()}
                     </td>
+                    
+                    {/* תגמולים - טור רגיל (ניתן לעריכה והמרה) */}
+                    <EditableNumberCell account={account} index={index} field="תגמולים" />
                     
                     <EditableNumberCell account={account} index={index} field="פיצויים_מעסיק_נוכחי" />
                     <EditableNumberCell account={account} index={index} field="פיצויים_לאחר_התחשבנות" />
@@ -1722,13 +1789,21 @@ export default function PensionPortfolio() {
                 {/* שורת סה"כ */}
                 {pensionData.length > 0 && (
                   <tr style={{ backgroundColor: "#fff8e1", fontWeight: "bold", borderTop: "3px solid #ff9800" }}>
+                    {/* Checkbox column */}
+                    <td style={{ border: "1px solid #ddd", padding: 6 }}></td>
+                    {/* מספר חשבון, שם תכנית, חברה מנהלת */}
                     <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }} colSpan={3}>
                       סה"כ
                     </td>
-                    <td style={{ border: "1px solid #ddd", padding: 6 }}></td>
-                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                      {pensionData.reduce((sum, acc) => sum + (Number(acc.יתרה) || 0), 0).toLocaleString()}
+                    {/* יתרה כללית מחושבת */}
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right", backgroundColor: "#f0f8ff" }}>
+                      {pensionData.reduce((sum, acc) => sum + calculateTotalBalance(acc), 0).toLocaleString()}
                     </td>
+                    {/* תגמולים */}
+                    <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+                      {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולים) || 0), 0).toLocaleString()}
+                    </td>
+                    {/* פיצויים מעסיק נוכחי */}
                     <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
                       {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_מעסיק_נוכחי) || 0), 0).toLocaleString()}
                     </td>

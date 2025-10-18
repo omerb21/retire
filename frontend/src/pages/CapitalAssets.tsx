@@ -221,6 +221,38 @@ export default function CapitalAssets() {
     }
   }
 
+  async function handleDeleteAll() {
+    if (!clientId) return;
+    
+    if (assets.length === 0) {
+      alert("אין נכסי הון למחיקה");
+      return;
+    }
+    
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את כל ${assets.length} נכסי ההון? פעולה זו בלתי הפיכה!`)) {
+      return;
+    }
+
+    try {
+      setError("");
+      
+      // מחיקת כל הנכסים אחד אחד
+      for (const asset of assets) {
+        if (asset.id) {
+          await apiFetch(`/clients/${clientId}/capital-assets/${asset.id}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+      
+      // רענון הרשימה
+      await loadAssets();
+      alert(`נמחקו ${assets.length} נכסי הון בהצלחה`);
+    } catch (e: any) {
+      setError(`שגיאה במחיקת נכסי הון: ${e?.message || e}`);
+    }
+  }
+
   async function handleDelete(assetId: number) {
     console.log('🔴 handleDelete called with assetId:', assetId);
     if (!clientId) {
@@ -430,9 +462,27 @@ export default function CapitalAssets() {
             <h1 className="card-title">🏠 נכסי הון</h1>
             <p className="card-subtitle">ניהול נכסים עם תזרים חודשי ופריסת מס</p>
           </div>
-          <Link to={`/clients/${clientId}`} className="btn btn-secondary">
-            ← חזרה
-          </Link>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={handleDeleteAll}
+              className="btn"
+              style={{ 
+                backgroundColor: '#dc3545', 
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+              disabled={assets.length === 0}
+            >
+              🗑️ מחק הכל
+            </button>
+            <Link to={`/clients/${clientId}`} className="btn btn-secondary">
+              ← חזרה
+            </Link>
+          </div>
         </div>
 
       {error && (

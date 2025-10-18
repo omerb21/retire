@@ -110,6 +110,23 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: false,
     taxTreatmentWhenPension: 'taxable' // סכום קצבתי -> חייב במס
+  },
+  {
+    field: 'קרן_השתלמות',
+    displayName: 'קרן השתלמות',
+    canConvertToPension: true,
+    canConvertToCapital: true,
+    taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס
+    taxTreatmentWhenCapital: 'exempt', // פטור ממס גם בהמרה להון
+    capitalAssetType: 'education_fund'
+  },
+  {
+    field: 'תגמולים',
+    displayName: 'תגמולים',
+    canConvertToPension: true,
+    canConvertToCapital: false,
+    taxTreatmentWhenPension: 'taxable', // חייב במס
+    errorMessage: 'תגמולים ניתנים להמרה לקצבה בלבד'
   }
 ];
 
@@ -141,12 +158,27 @@ export function isEducationFund(productType: string): boolean {
 
 /**
  * טעינת חוקי המרה מ-localStorage או ברירת מחדל
+ * אם יש חוקים חדשים ב-DEFAULT_RULES שלא קיימים ב-localStorage, מוסיף אותם
  */
 export function loadConversionRules(): ComponentConversionRule[] {
   try {
     const savedRules = localStorage.getItem('conversion_rules');
     if (savedRules) {
-      return JSON.parse(savedRules);
+      const parsed = JSON.parse(savedRules);
+      
+      // בדוק אם יש חוקים חדשים ב-DEFAULT_RULES שלא קיימים ב-parsed
+      const existingFields = new Set(parsed.map((r: ComponentConversionRule) => r.field));
+      const newRules = DEFAULT_COMPONENT_CONVERSION_RULES.filter(
+        defaultRule => !existingFields.has(defaultRule.field)
+      );
+      
+      // אם יש חוקים חדשים, הוסף אותם
+      if (newRules.length > 0) {
+        console.log(`Adding ${newRules.length} new conversion rules:`, newRules.map(r => r.displayName));
+        return [...parsed, ...newRules];
+      }
+      
+      return parsed;
     }
   } catch (error) {
     console.warn('Failed to load conversion rules from localStorage:', error);

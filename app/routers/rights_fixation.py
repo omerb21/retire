@@ -53,6 +53,7 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
             from app.models.client import Client
             from app.models.grant import Grant
             from datetime import date
+            from services.eligibility import calc_eligibility_date, is_eligible_for_fixation
             
             client_id = client_data["client_id"]
             
@@ -64,6 +65,53 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                 
                 # טעינת מענקים
                 grants = db.query(Grant).filter(Grant.client_id == client_id).all()
+                
+                # קביעת תאריך תחילת קצבה
+                pension_start_date = client.pension_start_date
+                
+                # אם אין תאריך בטבלת Client, נחפש את התאריך המוקדם ביותר מהקצבאות
+                if not pension_start_date:
+                    from app.models.pension_fund import PensionFund
+                    pension_funds = db.query(PensionFund).filter(
+                        PensionFund.client_id == client_id,
+                        PensionFund.pension_start_date.isnot(None)
+                    ).all()
+                    
+                    if pension_funds:
+                        # מציאת התאריך המוקדם ביותר
+                        pension_start_date = min(fund.pension_start_date for fund in pension_funds)
+                        print(f"DEBUG: Found earliest pension start date from funds: {pension_start_date}")
+                
+                # בדיקת זכאות מלאה - גיל + תחילת קצבה
+                eligibility_check = is_eligible_for_fixation(
+                    client.birth_date, 
+                    client.gender, 
+                    pension_start_date
+                )
+                
+                eligibility_date = eligibility_check["eligibility_date"]
+                
+                # אם הלקוח לא זכאי, נחזיר שגיאה מפורטת
+                if not eligibility_check["eligible"]:
+                    reasons = []
+                    if not eligibility_check["age_condition_ok"]:
+                        reasons.append(f"טרם הגיע לגיל פרישה ({eligibility_date.strftime('%d/%m/%Y')})")
+                    if not eligibility_check["pension_condition_ok"]:
+                        if not client.pension_start_date:
+                            reasons.append("לא הוגדר תאריך תחילת קצבה")
+                        else:
+                            reasons.append(f"טרם התחיל לקבל קצבה ({client.pension_start_date.strftime('%d/%m/%Y')})")
+                    
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "הלקוח אינו זכאי לקיבוע זכויות",
+                            "reasons": reasons,
+                            "eligibility_date": eligibility_date.isoformat(),
+                            "age_condition_ok": eligibility_check["age_condition_ok"],
+                            "pension_condition_ok": eligibility_check["pension_condition_ok"]
+                        }
+                    )
                 
                 # הכנת נתונים לשירות
                 formatted_data = {
@@ -80,43 +128,17 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                         }
                         for grant in grants
                     ],
-                    "eligibility_date": date.today().isoformat(),
-                    "eligibility_year": date.today().year
+                    "eligibility_date": eligibility_date.isoformat(),
+                    "eligibility_year": eligibility_date.year
                 }
                 
                 print(f"DEBUG: Formatted data for service: {formatted_data}")
                 result = calculate_full_fixation(formatted_data)
                 print(f"DEBUG: Service result: {result}")
                 
-                # Save the result to database
-                from app.models.fixation_result import FixationResult
-                
-                # Check if there's an existing result and update, or create new
-                existing = db.query(FixationResult).filter(
-                    FixationResult.client_id == client_id
-                ).order_by(FixationResult.created_at.desc()).first()
-                
-                if existing:
-                    # Update existing record
-                    existing.raw_result = result
-                    existing.raw_payload = formatted_data
-                    existing.exempt_capital_remaining = result.get("exemption_summary", {}).get("remaining_exempt_capital", 0)
-                    existing.created_at = datetime.now()
-                else:
-                    # Create new record
-                    fixation_record = FixationResult(
-                        client_id=client_id,
-                        created_at=datetime.now(),
-                        exempt_capital_remaining=result.get("exemption_summary", {}).get("remaining_exempt_capital", 0),
-                        used_commutation=0.0,
-                        raw_payload=formatted_data,
-                        raw_result=result,
-                        notes="Calculated via rights_fixation service"
-                    )
-                    db.add(fixation_record)
-                
-                db.commit()
-                print(f"DEBUG: Fixation result saved to database for client {client_id}")
+                # לא שומרים אוטומטית - רק מחזירים את התוצאות
+                # השמירה תתבצע רק כאשר המשתמש לוחץ על "שמור"
+                print(f"DEBUG: Calculation completed for client {client_id} - NOT saved to DB")
                 
                 return result
         else:
@@ -127,6 +149,67 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
     except Exception as e:
         logger.error(f"שגיאה בחישוב קיבוע זכויות: {e}")
         raise HTTPException(status_code=500, detail=f"שגיאה בחישוב: {str(e)}")
+
+@router.post("/save")
+async def save_rights_fixation(data: Dict[str, Any]):
+    """
+    שמירת תוצאות קיבוע זכויות ב-DB
+    
+    Body:
+    {
+        "client_id": 1,
+        "calculation_result": { ... },
+        "formatted_data": { ... }
+    }
+    """
+    try:
+        from app.database import SessionLocal
+        from app.models.fixation_result import FixationResult
+        from datetime import datetime
+        
+        client_id = data.get("client_id")
+        result = data.get("calculation_result")
+        formatted_data = data.get("formatted_data")
+        
+        if not client_id or not result:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        with SessionLocal() as db:
+            # Check if there's an existing result and update, or create new
+            existing = db.query(FixationResult).filter(
+                FixationResult.client_id == client_id
+            ).order_by(FixationResult.created_at.desc()).first()
+            
+            if existing:
+                # Update existing record
+                existing.raw_result = result
+                existing.raw_payload = formatted_data
+                existing.exempt_capital_remaining = result.get("exemption_summary", {}).get("remaining_exempt_capital", 0)
+                existing.created_at = datetime.now()
+            else:
+                # Create new record
+                fixation_record = FixationResult(
+                    client_id=client_id,
+                    created_at=datetime.now(),
+                    exempt_capital_remaining=result.get("exemption_summary", {}).get("remaining_exempt_capital", 0),
+                    used_commutation=0.0,
+                    raw_payload=formatted_data,
+                    raw_result=result,
+                    notes="Saved via rights_fixation service"
+                )
+                db.add(fixation_record)
+            
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": "תוצאות קיבוע הזכויות נשמרו בהצלחה",
+                "calculation_date": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"שגיאה בשמירת קיבוע זכויות: {e}")
+        raise HTTPException(status_code=500, detail=f"שגיאה בשמירה: {str(e)}")
 
 @router.post("/grant/effect")
 async def calculate_grant_effect(grant_data: Dict[str, Any]):

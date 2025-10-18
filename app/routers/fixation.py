@@ -96,19 +96,43 @@ def commutations_appendix(client_id: int, db: Session = Depends(get_db)):
 
 @router.post("/fixation/{client_id}/package")
 def package(client_id: int, db: Session = Depends(get_db)):
+    """
+    מייצר חבילת מסמכים מלאה ללקוח
+    כולל: טופס 161ד, נספח מענקים, נספח קצבאות
+    """
+    print(f"🔵🔵🔵 PACKAGE ENDPOINT CALLED FOR CLIENT {client_id} 🔵🔵🔵")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔵 Package endpoint called for client {client_id}")
+    
     client = db.get(Client, client_id)
     if not client:
+        logger.error(f"❌ Client {client_id} not found")
         raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+    
+    if client.is_active is False:
+        logger.error(f"❌ Client {client_id} is not active")
+        raise HTTPException(status_code=400, detail={"error": "לקוח אינו פעיל"})
+    
+    logger.info(f"✅ Client {client_id} found: {client.first_name} {client.last_name}")
+    
+    # ייצור החבילה
+    from app.services.document_generator import generate_document_package
+    logger.info(f"📋 Starting document generation for client {client_id}")
+    result = generate_document_package(db, client_id)
+    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail={"error": f"שגיאה בייצור המסמכים: {result.get('error', 'לא ידוע')}"}
+        )
+    
     return {
         "client_id": client_id,
         "client_name": client.full_name,
         "success": True,
         "status": "ok",
-        "message": "Complete fixation package generated",
-        "files": [
-            f"/tmp/annex_161d_{client_id}.pdf",
-            f"/tmp/grants_appendix_{client_id}.pdf",
-            f"/tmp/commutations_appendix_{client_id}.pdf"
-        ],
-        "endpoint": "package-stub",
+        "message": "חבילת מסמכי קיבוע זכויות נוצרה בהצלחה",
+        "folder": result.get("folder"),
+        "files": result.get("files", [])
     }

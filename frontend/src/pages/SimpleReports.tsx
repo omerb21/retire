@@ -205,11 +205,11 @@ function generatePDFReport(
     yPosition = (doc as any).lastAutoTable.finalY + 20;
   }
   
-  // פירוט קרנות פנסיה
+  // פירוט קצבאות
   if (pensionFunds.length > 0) {
     doc.setFontSize(14);
     doc.setTextColor(0, 51, 102);
-    doc.text('קרנות פנסיה:', 20, yPosition);
+    doc.text('קצבאות:', 20, yPosition);
     yPosition += 10;
     
     const pensionData = pensionFunds.map(fund => [
@@ -303,7 +303,7 @@ function generatePDFReport(
   // נכסים
   doc.text('נכסים:', 20, yPosition);
   yPosition += 10;
-  doc.text(`• סך יתרות קרנות פנסיה: ₪${totalPensionBalance.toLocaleString()}`, 30, yPosition);
+  doc.text(`• סך יתרות קצבאות: ₪${totalPensionBalance.toLocaleString()}`, 30, yPosition);
   yPosition += 8;
   doc.text(`• סך ערך נכסי הון: ₪${totalCapitalValue.toLocaleString()}`, 30, yPosition);
   yPosition += 8;
@@ -411,7 +411,7 @@ function generateExcelReport(
     XLSX.utils.book_append_sheet(workbook, capitalAssetsSheet, 'נכסי הון');
   }
   
-  // גיליון 3: קרנות פנסיה מפורט
+  // גיליון 3: קצבאות מפורט
   if (pensionFunds.length > 0) {
     const pensionData = [
       ['שם הקרן', 'סוג קרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית %', 'קצבה חודשית', 'תאריך התחלה', 'גיל פרישה'],
@@ -427,7 +427,7 @@ function generateExcelReport(
       ])
     ];
     
-    // הוספת סיכום קרנות פנסיה
+    // הוספת סיכום קצבאות
     const totalBalance = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0);
     const totalMonthlyDeposit = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.monthly_deposit) || 0), 0);
     const totalPensionAmount = pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0);
@@ -438,7 +438,7 @@ function generateExcelReport(
     pensionData.push(['סך קצבאות חודשיות:', '', '', '', '', totalPensionAmount.toLocaleString(), '', '']);
     
     const pensionSheet = XLSX.utils.aoa_to_sheet(pensionData);
-    XLSX.utils.book_append_sheet(workbook, pensionSheet, 'קרנות פנסיה');
+    XLSX.utils.book_append_sheet(workbook, pensionSheet, 'קצבאות');
   }
   
   // גיליון 4: הכנסות נוספות מפורט
@@ -508,7 +508,7 @@ function generateExcelReport(
     ['תאריך דוח:', formatDateToDDMMYY(new Date()), ''],
     ['', '', ''],
     ['סיכום כספי:', '', ''],
-    ['סך קרנות פנסיה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString(), '₪'],
+    ['סך קצבאות:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString(), '₪'],
     ['סך נכסי הון:', capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0).toLocaleString(), '₪'],
     ['הכנסה חודשית מפנסיה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0).toLocaleString(), '₪'],
     ['הכנסות נוספות חודשיות:', additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0).toLocaleString(), '₪'],
@@ -622,7 +622,7 @@ const SimpleReports: React.FC = () => {
         console.log('Capital Assets Data:', JSON.stringify(capitalAssetsData, null, 2));
         console.log('First Additional Income:', additionalIncomesData[0]);
         
-        // לוג לבדיקת קרנות פנסיה
+        // לוג לבדיקת קצבאות
         console.log('Pension Funds Data:', JSON.stringify(pensionFundsData, null, 2));
         pensionFundsData.forEach((fund: any, index: number) => {
           console.log(`Pension Fund ${index + 1} - start_date:`, fund.start_date);
@@ -653,7 +653,7 @@ const SimpleReports: React.FC = () => {
         setFixationData(fixationDataResponse);
         
         // Calculate financial summary - pension funds only contribute monthly income, not balance
-        const totalPensionValue = 0; // קרנות פנסיה לא נכללות בסך הנכסים
+        const totalPensionValue = 0; // קצבאות לא נכללות בסך הנכסים
         const totalAdditionalIncome = additionalIncomesData.reduce((sum: number, income: any) => 
           sum + (income.annual_amount || income.monthly_amount * 12 || 0), 0);
         const totalCapitalAssets = capitalAssetsData.reduce((sum: number, asset: any) => 
@@ -689,18 +689,29 @@ const SimpleReports: React.FC = () => {
           let source = 'ללא הכנסה';
           
           if (isPensionActive) {
-            // חישוב הכנסה חודשית מקרנות פנסיה
-            const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
-              sum + (fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0), 0);
+            // חישוב הכנסה חודשית מקצבאות - מופרדות לחייבות ופטורות
+            const monthlyPensionTaxable = pensionFunds.reduce((sum: number, fund: any) => {
+              // רק קצבאות חייבות במס
+              if (fund.tax_treatment === 'exempt') return sum;
+              return sum + (fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0);
+            }, 0);
+            
+            const monthlyPensionExempt = pensionFunds.reduce((sum: number, fund: any) => {
+              // רק קצבאות פטורות ממס
+              if (fund.tax_treatment !== 'exempt') return sum;
+              return sum + (fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0);
+            }, 0);
+            
             const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => 
               sum + (income.monthly_amount || income.annual_amount / 12 || 0), 0);
             
+            const monthlyPension = monthlyPensionTaxable + monthlyPensionExempt;
             monthlyGrossAmount = monthlyPension + monthlyAdditional;
             
             // חישוב מס על ההכנסה החודשית עם קיזוז פטור ונקודות זיכוי
             if (monthlyGrossAmount > 0) {
-              // קיזוז קצבה פטורה אם קיימת
-              let monthlyExemptPension = 0;
+              // קיזוז קצבה פטורה מקיבוע זכויות (נוסף על קצבאות פטורות ממס)
+              let monthlyExemptPension = monthlyPensionExempt; // קצבאות שמוגדרות כפטורות ממס
               if (fixationData && fixationData.exemption_summary) {
                 const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
                 const currentYear = monthDate.getFullYear();
@@ -711,19 +722,19 @@ const SimpleReports: React.FC = () => {
                   
                   if (currentYear === eligibilityYear) {
                     // שנת הקיבוע: יתרה נותרת (אחרי קיזוזים) ÷ 180
-                    monthlyExemptPension = remainingExemptCapital / 180;
+                    monthlyExemptPension += remainingExemptCapital / 180;
                   } else {
                     // שנים אחרי הקיבוע: אחוז פטור × יתרת הון תיאורטית ÷ 180
                     const pensionCeiling = getPensionCeiling(currentYear);
                     const capitalPercentage = getExemptCapitalPercentage(currentYear);
                     const theoreticalCapital = pensionCeiling * 180 * capitalPercentage;
-                    monthlyExemptPension = (exemptionPercentage * theoreticalCapital) / 180;
+                    monthlyExemptPension += (exemptionPercentage * theoreticalCapital) / 180;
                   }
                 }
               }
               
-              // הכנסה חייבת במס אחרי קיזוז הפטור
-              const monthlyTaxableIncome = Math.max(0, monthlyPension - monthlyExemptPension) + monthlyAdditional;
+              // הכנסה חייבת במס = קצבאות חייבות במס + הכנסות נוספות (קצבאות פטורות כבר הוחרגו)
+              const monthlyTaxableIncome = monthlyPensionTaxable + monthlyAdditional;
               const annualTaxableIncome = monthlyTaxableIncome * 12;
               
               // חישוב מס לפי מדרגות המס המעודכנות
@@ -818,8 +829,8 @@ const SimpleReports: React.FC = () => {
   /**
    * מייצר תחזית שנתית של תזרים מזומנים
    * הפונקציה מציגה רק שנים עתידיות בתזרים, החל מהשנה הנוכחית
-   * קרנות פנסיה והכנסות נוספות שהתחילו בעבר יוצגו החל מהשנה הנוכחית
-   * קרנות פנסיה והכנסות נוספות שמתחילות בעתיד יוצגו החל משנת ההתחלה שלהן
+   * קצבאות והכנסות נוספות שהתחילו בעבר יוצגו החל מהשנה הנוכחית
+   * קצבאות והכנסות נוספות שמתחילות בעתיד יוצגו החל משנת ההתחלה שלהן
    */
   const generateYearlyProjection = (): YearlyProjection[] => {
     console.log('generateYearlyProjection called');
@@ -1005,7 +1016,7 @@ const SimpleReports: React.FC = () => {
         console.log(`❌ No fixation data available for year ${year}`);
       }
       
-      // חישוב הכנסה חייבת במס מקרנות פנסיה לאחר קיזוז פטור קיבוע זכויות
+      // חישוב הכנסה חייבת במס מקצבאות לאחר קיזוז פטור קיבוע זכויות
       let monthlyTaxableIncome = 0;
       const pensionIncomes = incomeBreakdown.slice(0, pensionFunds.length);
       
@@ -1600,25 +1611,21 @@ const SimpleReports: React.FC = () => {
   };
 
   const generateHTMLReport = () => {
-    const yearlyProjection = generateYearlyProjection();
-    
-    // Debug: בדיקת נתונים
-    console.log('📊 Generating HTML Report with data:');
+    console.log('📊 Generating HTML Report with current state data:');
     console.log('  Pension Funds:', pensionFunds);
     console.log('  Capital Assets:', capitalAssets);
     console.log('  Additional Incomes:', additionalIncomes);
     console.log('  Fixation Data:', fixationData);
     console.log('  Client:', client);
-    console.log('  Yearly Projection:', yearlyProjection);
     
-    // אזהרה אם אין נתונים
+    // בדיקת נתונים
     if (!pensionFunds || pensionFunds.length === 0) {
-      console.warn('⚠️ WARNING: No pension funds data! Report will be incomplete.');
-      alert('אזהרה: לא נמצאו נתוני קרנות פנסיה. הדוח עלול להיות חלקי. אנא וודא שהנתונים נטענו במסך התוצאות.');
+      console.warn('⚠️ WARNING: No pension funds data!');
+      alert('אזהרה: לא נמצאו נתוני קצבאות. אנא וודא שהנתונים נטענו במסך התוצאות.');
+      return;
     }
-    if (!client) {
-      console.warn('⚠️ WARNING: No client data!');
-    }
+    
+    const yearlyProjection = generateYearlyProjection();
     
     // יצירת HTML עם כל הנתונים
     const htmlContent = `
@@ -2031,7 +2038,7 @@ const SimpleReports: React.FC = () => {
         <h2>סיכום כספי מקיף</h2>
         
         <h3>נכסים:</h3>
-        <div class="summary-item">• סך יתרות קרנות פנסיה: ₪${pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString()}</div>
+        <div class="summary-item">• סך יתרות קצבאות: ₪${pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString()}</div>
         <div class="summary-item">• סך ערך נכסי הון: ₪${capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0).toLocaleString()}</div>
         <div class="summary-item summary-total">• סך כל הנכסים: ₪${(pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0) + capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0)).toLocaleString()}</div>
         
@@ -2157,6 +2164,41 @@ const SimpleReports: React.FC = () => {
     }
   };
 
+  const handleGenerateFixationPackage = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log(`🔵 Generating fixation package for client ${id}`);
+      
+      // קריאה ל-API endpoint ליצירת חבילת מסמכים
+      const response = await axios.post(`/api/v1/fixation/${id}/package`);
+      
+      if (response.data.success) {
+        const folder = response.data.folder;
+        const files = response.data.files || [];
+        
+        let message = 'חבילת מסמכי קיבוע זכויות נוצרה בהצלחה!\n\n';
+        message += `התיקייה: ${folder}\n\n`;
+        message += 'קבצים שנוצרו:\n';
+        files.forEach((file: string) => {
+          message += `• ${file}\n`;
+        });
+        
+        alert(message);
+      } else {
+        throw new Error('שגיאה ביצירת המסמכים');
+      }
+    } catch (err: any) {
+      console.error('שגיאה ביצירת מסמכי קיבוע זכויות:', err);
+      const errorMsg = err.response?.data?.detail?.error || err.message || 'שגיאה לא ידועה';
+      setError('שגיאה ביצירת מסמכי קיבוע זכויות: ' + errorMsg);
+      alert('שגיאה ביצירת מסמכי קיבוע זכויות: ' + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading && (!pensionFunds || !additionalIncomes || !capitalAssets)) {
     return <div style={{ padding: '20px' }}>טוען נתוני דוח...</div>;
   }
@@ -2210,6 +2252,8 @@ const SimpleReports: React.FC = () => {
           הדוח ייפתח בחלון חדש עם כפתור "הדפס לPDF" - פשוט לחץ עליו כדי לשמור כקובץ PDF.
           <br />
           <strong>דוח Excel</strong> זמין גם כן לניתוח נתונים מפורט.
+          <br />
+          <strong>📋 מסמכי קיבוע זכויות</strong> - מפיק טופס 161ד רשמי + נספחי מענקים וקצבאות מקצועיים!
         </div>
         
         <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
@@ -2245,6 +2289,26 @@ const SimpleReports: React.FC = () => {
             }}
           >
             {loading ? 'יוצר...' : '📗 הורד דוח Excel מקיף'}
+          </button>
+
+          <button
+            onClick={() => {
+              console.log('🔴🔴🔴 BUTTON CLICKED! 🔴🔴🔴');
+              handleGenerateFixationPackage();
+            }}
+            disabled={loading}
+            style={{
+              backgroundColor: loading ? '#6c757d' : '#007bff',
+              color: 'white',
+              border: 'none',
+              padding: '12px 24px',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}
+          >
+            {loading ? 'מפיק...' : '📋 הפק מסמכי קיבוע זכויות (טופס 161ד)'}
           </button>
         </div>
 
@@ -2286,7 +2350,7 @@ const SimpleReports: React.FC = () => {
                 paddingBottom: '5px', 
                 marginBottom: '10px',
                 color: '#0056b3'
-              }}>קרנות פנסיה</h5>
+              }}>קצבאות</h5>
               
               {pensionFunds && pensionFunds.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
@@ -2304,7 +2368,7 @@ const SimpleReports: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div style={{ color: '#6c757d' }}>אין קרנות פנסיה</div>
+                <div style={{ color: '#6c757d' }}>אין קצבאות</div>
               )}
             </div>
             
@@ -2415,7 +2479,7 @@ const SimpleReports: React.FC = () => {
                   return (monthlyPension + monthlyAdditional + monthlyCapitalAssets).toLocaleString();
                 })()}</div>
                 <div><strong>סך נכסים:</strong> ₪{(() => {
-                  // רק נכסי הון נכללים בסך הנכסים, לא יתרות קרנות פנסיה
+                  // רק נכסי הון נכללים בסך הנכסים, לא יתרות קצבאות
                   const totalCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
                     sum + (parseFloat(asset.current_value) || 0), 0);
                   return totalCapitalAssets.toLocaleString();
@@ -2915,10 +2979,10 @@ const SimpleReports: React.FC = () => {
           textAlign: 'center',
           color: '#856404'
         }}>
-          אין מספיק נתונים ליצירת דוח. יש להוסיף קרנות פנסיה, הכנסות נוספות או נכסי הון תחילה.
+          אין מספיק נתונים ליצירת דוח. יש להוסיף קצבאות, הכנסות נוספות או נכסי הון תחילה.
           <div style={{ marginTop: '10px' }}>
             <a href={`/clients/${id}/pension-funds`} style={{ color: '#007bff', textDecoration: 'none', marginRight: '15px' }}>
-              הוסף קרנות פנסיה ←
+              הוסף קצבאות ←
             </a>
             <a href={`/clients/${id}/additional-incomes`} style={{ color: '#007bff', textDecoration: 'none', marginRight: '15px' }}>
               הוסף הכנסות נוספות ←

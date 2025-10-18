@@ -5,6 +5,8 @@ import traceback
 
 InputMode = Enum("calculated", "manual", name="pension_input_mode")
 IndexationMethod = Enum("none", "cpi", "fixed", name="pension_indexation_method")
+# For SQLite compatibility, use String instead of Enum for tax_treatment
+# TaxTreatment = Enum("taxable", "exempt", "capital_gains", name="pension_tax_treatment")
 
 class PensionFund(Base):
     __tablename__ = "pension_funds"
@@ -26,6 +28,9 @@ class PensionFund(Base):
     fixed_index_rate = Column(Float, nullable=True)            # שיעור שנתי לדוגמה 0.02
 
     indexed_pension_amount = Column(Float, nullable=True)
+    
+    # Tax treatment - יחס למס (String for SQLite compatibility)
+    tax_treatment = Column(String(20), nullable=False, default="taxable")  # taxable/exempt/capital_gains
 
     remarks = Column(String(500), nullable=True)
     deduction_file = Column(String(200), nullable=True)  # תיק ניכויים
