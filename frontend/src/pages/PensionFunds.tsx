@@ -401,12 +401,14 @@ export default function PensionFunds() {
   async function handleDeleteAll() {
     if (!clientId) return;
     
-    if (funds.length === 0) {
-      alert("אין קצבאות למחיקה");
+    const totalItems = funds.length + commutations.length;
+    
+    if (totalItems === 0) {
+      alert("אין קצבאות או היוונים למחיקה");
       return;
     }
     
-    if (!confirm(`האם אתה בטוח שברצונך למחוק את כל ${funds.length} הקצבאות? פעולה זו בלתי הפיכה!`)) {
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את כל ${funds.length} הקצבאות ו-${commutations.length} ההיוונים? פעולה זו בלתי הפיכה!`)) {
       return;
     }
 
@@ -422,11 +424,20 @@ export default function PensionFunds() {
         }
       }
       
+      // מחיקת כל ההיוונים (נכסי הון עם COMMUTATION)
+      for (const commutation of commutations) {
+        if (commutation.id) {
+          await apiFetch(`/clients/${clientId}/capital-assets/${commutation.id}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+      
       // רענון הרשימה
       await loadFunds();
-      alert(`נמחקו ${funds.length} קצבאות בהצלחה`);
+      alert(`נמחקו ${funds.length} קצבאות ו-${commutations.length} היוונים בהצלחה`);
     } catch (e: any) {
-      setError(`שגיאה במחיקת קצבאות: ${e?.message || e}`);
+      setError(`שגיאה במחיקה: ${e?.message || e}`);
     }
   }
 
@@ -441,6 +452,20 @@ export default function PensionFunds() {
       // קבלת פרטי הקצבה לפני המחיקה
       const fund = funds.find(f => f.id === fundId);
       
+      // 🔴 מחיקת כל ההיוונים המקושרים לקצבה זו
+      const relatedCommutations = commutations.filter(c => c.pension_fund_id === fundId);
+      if (relatedCommutations.length > 0) {
+        console.log(`🗑️ Deleting ${relatedCommutations.length} commutations linked to pension fund ${fundId}`);
+        for (const commutation of relatedCommutations) {
+          if (commutation.id) {
+            await apiFetch(`/clients/${clientId}/capital-assets/${commutation.id}`, {
+              method: 'DELETE'
+            });
+            console.log(`✅ Deleted commutation ${commutation.id}`);
+          }
+        }
+      }
+      
       // בדיקה אם יש מידע על מקור המרה
       if (fund && (fund as any).conversion_source) {
         try {
@@ -450,6 +475,18 @@ export default function PensionFunds() {
           if (conversionSource.type === 'pension_portfolio') {
             console.log('Restoring amounts to pension portfolio:', conversionSource);
             
+            // ✅ מחזירים את הסכום המקורי המלא!
+            // כי אנחנו מוחקים גם את הקצבה וגם את כל ההיוונים שלה
+            // אז הכסף צריך לחזור במלואו לטבלה
+            const currentBalance = parseFloat(fund.balance as any) || 0;
+            const totalCommutations = relatedCommutations.reduce((sum, c) => sum + (c.exempt_amount || 0), 0);
+            const actualAmountToRestore = conversionSource.amount; // ✅ הסכום המקורי המלא!
+            
+            console.log(`📊 Original amount: ${conversionSource.amount}`);
+            console.log(`📊 Current balance: ${currentBalance}`);
+            console.log(`📊 Total commutations deleted: ${totalCommutations}`);
+            console.log(`📊 Amount to restore: ${actualAmountToRestore} (full original amount)`);
+            
             // קריאה ל-API להחזרת הסכומים
             await apiFetch(`/clients/${clientId}/pension-portfolio/restore`, {
               method: 'POST',
@@ -458,7 +495,7 @@ export default function PensionFunds() {
                 company: conversionSource.company,
                 account_number: conversionSource.account_number,
                 product_type: conversionSource.product_type,
-                amount: conversionSource.amount,
+                amount: actualAmountToRestore, // ✅ הסכום המקורי המלא!
                 specific_amounts: conversionSource.specific_amounts
               })
             });
@@ -481,13 +518,17 @@ export default function PensionFunds() {
                 if (accountIndex !== -1) {
                   // החזרת הסכומים לשדות הספציפיים
                   if (conversionSource.specific_amounts && Object.keys(conversionSource.specific_amounts).length > 0) {
+                    // ✅ מחזירים את הסכומים המקוריים המלאים (ללא יחס)
+                    // כי מחקנו גם את הקצבה וגם את ההיוונים
                     Object.entries(conversionSource.specific_amounts).forEach(([key, value]) => {
                       pensionData[accountIndex][key] = (pensionData[accountIndex][key] || 0) + parseFloat(value as string);
                     });
+                    console.log('Restored full original specific amounts:', conversionSource.specific_amounts);
+                  } else {
+                    // אם אין סכומים ספציפיים, מחזירים את הסכום המקורי המלא
+                    pensionData[accountIndex].יתרה = (pensionData[accountIndex].יתרה || 0) + conversionSource.amount;
+                    console.log('Restored full original amount to יתרה:', conversionSource.amount);
                   }
-                  
-                  // החזרת הסכום ליתרה הכללית
-                  pensionData[accountIndex].יתרה = (pensionData[accountIndex].יתרה || 0) + conversionSource.amount;
                   
                   // שמירה חזרה ל-localStorage
                   localStorage.setItem(storageKey, JSON.stringify(pensionData));
@@ -637,7 +678,7 @@ export default function PensionFunds() {
         asset_type: "deposits", // מוצג כ"היוון" בפרונטאנד
         description: `היוון של ${selectedFund.fund_name || 'קצבה'}`,
         remarks: `COMMUTATION:pension_fund_id=${selectedFund.id}&amount=${commutationForm.exempt_amount}`, // קישור לקצבה (& ולא ,)
-        current_value: commutationForm.exempt_amount, // חייב להיות > 0
+        current_value: 0, // ✅ היוון = ערך נוכחי 0 (כבר שולם)
         purchase_value: commutationForm.exempt_amount,
         purchase_date: commutationForm.commutation_date,
         monthly_income: commutationForm.exempt_amount,
@@ -822,7 +863,7 @@ export default function PensionFunds() {
                 cursor: 'pointer',
                 fontWeight: 'bold'
               }}
-              disabled={funds.length === 0}
+              disabled={funds.length === 0 && commutations.length === 0}
             >
               🗑️ מחק הכל
             </button>

@@ -656,8 +656,14 @@ const SimpleReports: React.FC = () => {
         const totalPensionValue = 0; // קצבאות לא נכללות בסך הנכסים
         const totalAdditionalIncome = additionalIncomesData.reduce((sum: number, income: any) => 
           sum + (income.annual_amount || income.monthly_amount * 12 || 0), 0);
-        const totalCapitalAssets = capitalAssetsData.reduce((sum: number, asset: any) => 
-          sum + (asset.current_value || 0), 0);
+        
+        // ✅ סך נכסים = סכום current_value של כל הנכסים
+        const totalCapitalAssetsValue = capitalAssetsData.reduce((sum: number, asset: any) => 
+          sum + (parseFloat(asset.current_value) || 0), 0);
+        
+        // ✅ סך הכנסות חד פעמיות = סכום כל התשלומים (monthly_income), לא current_value!
+        const totalCapitalAssetsPayments = capitalAssetsData.reduce((sum: number, asset: any) => 
+          sum + (parseFloat(asset.monthly_income) || 0), 0);
         
         // חישוב הכנסה חודשית מכל המקורות
         const monthlyPensionIncome = pensionFundsData.reduce((sum: number, fund: any) => 
@@ -668,7 +674,7 @@ const SimpleReports: React.FC = () => {
           sum + (parseFloat(asset.monthly_income) || 0), 0);
         const totalMonthlyIncome = monthlyPensionIncome + monthlyAdditionalIncome + monthlyCapitalIncome;
         
-        const totalWealth = totalPensionValue + totalAdditionalIncome + totalCapitalAssets;
+        const totalWealth = totalPensionValue + totalAdditionalIncome + totalCapitalAssetsValue;
         const estimatedTax = totalWealth * 0.15; // הערכת מס בסיסית
 
         // Get scenarios for cashflow
@@ -775,7 +781,8 @@ const SimpleReports: React.FC = () => {
           financial_summary: {
             total_pension_value: totalPensionValue,
             total_additional_income: totalAdditionalIncome,
-            total_capital_assets: totalCapitalAssets,
+            total_capital_assets: totalCapitalAssetsValue,
+            total_capital_payments: totalCapitalAssetsPayments,
             total_wealth: totalWealth,
             estimated_tax: estimatedTax,
             total_monthly_income: totalMonthlyIncome
@@ -939,34 +946,31 @@ const SimpleReports: React.FC = () => {
         totalMonthlyIncome += amount;
       });
 
-      // Add capital assets income - נכסי הון הם תשלום חד פעמי!
+      // Add capital assets income - רק נכסים עם תשלום חד פעמי (monthly_income > 0)
       capitalAssets.forEach(asset => {
-        let assetStartYear = currentYear;
+        const paymentAmount = parseFloat(asset.monthly_income) || 0;
         
-        if (asset.start_date) {
-          const parsedYear = parseInt(asset.start_date.split('-')[0]);
-          assetStartYear = Math.max(parsedYear, currentYear);
+        // ✅ נכס הון מתבטא בתזרים רק אם monthly_income > 0
+        if (paymentAmount > 0) {
+          let amount = 0;
+          let assetStartYear = currentYear;
+          
+          if (asset.start_date) {
+            const parsedYear = parseInt(asset.start_date.split('-')[0]);
+            assetStartYear = Math.max(parsedYear, currentYear);
+          }
+          
+          // תשלום חד פעמי רק בשנת start_date
+          if (year === assetStartYear) {
+            amount = paymentAmount;
+            console.log(`💰 CAPITAL ASSET ONE-TIME PAYMENT: ${asset.asset_name || asset.description || 'unnamed'} in year ${year}, amount=${amount}`);
+          }
+          
+          // ✅ רק נכסים עם תשלום נכנסים ל-incomeBreakdown!
+          incomeBreakdown.push(Math.round(amount));
+          totalMonthlyIncome += amount;
         }
-        
-        // ⚠️ נכס הון = תשלום חד פעמי בשנת התחלה בלבד!
-        let amount = 0;
-        
-        if (year === assetStartYear) {
-          // רק בשנת התשלום - הוסף את הסכום החד פעמי
-          // current_value הוא הסכום החד פעמי
-          amount = parseFloat(asset.current_value) || 0;
-          console.log(`⚠️ CAPITAL ASSET ONE-TIME PAYMENT: ${asset.description || 'unnamed'} in year ${year}, amount=${amount}`);
-        } else if (asset.tax_treatment === 'tax_spread' && asset.spread_years) {
-          // שנים נוספות בפריסה - 0 בפועל (כבר שולם הכל בשנה הראשונה)
-          amount = 0;
-          // אפשר להוסיף הצגה ויזואלית אם נדרש
-        } else {
-          // שנים אחרות - אין תשלום
-          amount = 0;
-        }
-        
-        incomeBreakdown.push(Math.round(amount));
-        totalMonthlyIncome += amount;
+        // אם monthly_income = 0, הנכס לא מוצג בתזרים בכלל (לא נוסף ל-incomeBreakdown)
       });
       
       // חישוב מס על סך כל ההכנסות הדינמיות של השנה הנוכחית
@@ -1138,13 +1142,19 @@ const SimpleReports: React.FC = () => {
           }
         });
 
-        // חישוב מס עבור נכסי הון - בנפרד!
+        // חישוב מס עבור נכסי הון - בנפרד! רק לנכסים עם תשלום
         let totalCapitalAssetTax = 0;
-        capitalAssets.forEach((asset, index) => {
-          const assetIncomeIndex = pensionFunds.length + additionalIncomes.length + index;
-          const monthlyIncome = incomeBreakdown[assetIncomeIndex] || 0;
-          const annualIncome = monthlyIncome;  // כבר הסכום השנתי (תשלום חד פעמי)
-          let assetTax = 0;
+        let capitalAssetIncomeIndex = pensionFunds.length + additionalIncomes.length;
+        
+        capitalAssets.forEach((asset) => {
+          const paymentAmount = parseFloat(asset.monthly_income) || 0;
+          
+          // ✅ רק נכסים עם תשלום חד פעמי
+          if (paymentAmount > 0) {
+            const monthlyIncome = incomeBreakdown[capitalAssetIncomeIndex] || 0;
+            const annualIncome = monthlyIncome;  // כבר הסכום השנתי (תשלום חד פעמי)
+            let assetTax = 0;
+            capitalAssetIncomeIndex++; // מתקדם רק אם יש תשלום!
           
           // חישוב מס לפי סוג המיסוי
           if (asset.tax_treatment === 'exempt') {
@@ -1185,15 +1195,18 @@ const SimpleReports: React.FC = () => {
             assetTax += calculateTaxByBrackets(annualIncome);
           }
           
-          totalCapitalAssetTax += assetTax;
-          taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי - המס הספציפי של הנכס!
+            totalCapitalAssetTax += assetTax;
+            taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי - המס הספציפי של הנכס!
+          }
+          // נכס ללא תשלום - לא נכנס לתזרים ולא ל-taxBreakdown
         });
         
         // עדכון סך המס הכולל
         totalMonthlyTax = regularMonthlyTax + (totalCapitalAssetTax / 12);
       } else {
         // אין הכנסה - אין מס
-        for (let i = 0; i < pensionFunds.length + additionalIncomes.length + capitalAssets.length; i++) {
+        // מוסיפים 0 לכל פריט ב-incomeBreakdown (שכבר מכיל רק נכסים עם תשלום)
+        for (let i = 0; i < incomeBreakdown.length; i++) {
           taxBreakdown.push(0);
         }
       }
@@ -1249,39 +1262,78 @@ const SimpleReports: React.FC = () => {
     
     return result;
   };
-  
-  // פונקציה לחישוב NPV של נכסי הון (שלא בתזרים)
-  const calculateCapitalAssetsNPV = (discountRate: number, numYears: number): number => {
-    if (!capitalAssets || capitalAssets.length === 0) {
-      return 0;
-    }
+
+  /**
+   * חישוב NPV של נכסי הון שלא מוצגים בתזרים (monthly_income = 0)
+   * נכסים אלו מחושבים לפי: ערך נוכחי, תשואה שנתית, הצמדה ויחס מס
+   */
+  const calculateCapitalAssetsNPV = (): { asset: any; npv: number; npvAfterTax: number }[] => {
+    const results: { asset: any; npv: number; npvAfterTax: number }[] = [];
     
-    let totalCapitalNPV = 0;
-    
-    capitalAssets.forEach((asset, index) => {
-      const currentValue = parseFloat(asset.current_value) || 0;
-      const annualReturnRate = (parseFloat(asset.annual_return_rate) || 0) / 100;
-      const assetType = asset.asset_type;
+    capitalAssets.forEach(asset => {
+      const paymentAmount = parseFloat(asset.monthly_income) || 0;
       
-      // נכסים שמופיעים בתזרים (deposits, savings, bonds) - לא נכללים כאן
-      if (assetType === 'deposits' || assetType === 'savings' || assetType === 'bonds') {
-        return;
+      // רק נכסים ללא תשלום חד פעמי
+      if (paymentAmount === 0) {
+        const currentValue = parseFloat(asset.current_value) || 0;
+        const annualReturnRate = parseFloat(asset.annual_return_rate) || 0;
+        const indexationMethod = asset.indexation_method || 'none';
+        const fixedRate = parseFloat(asset.fixed_rate) || 0;
+        const taxTreatment = asset.tax_treatment || 'taxable';
+        const taxRate = parseFloat(asset.tax_rate) || 0;
+        
+        // חישוב שיעור תשואה כולל (תשואה + הצמדה)
+        let totalReturnRate = annualReturnRate;
+        if (indexationMethod === 'fixed') {
+          totalReturnRate += fixedRate;
+        } else if (indexationMethod === 'cpi') {
+          totalReturnRate += 0.02; // הנחה: אינפלציה ממוצעת 2%
+        }
+        
+        // חישוב ערך עתידי (לדוגמה: 10 שנים)
+        const years = 10;
+        const futureValue = currentValue * Math.pow(1 + totalReturnRate, years);
+        
+        // חישוב NPV (ערך נוכחי של הערך העתידי)
+        const discountRate = 0.03; // שיעור היוון 3%
+        const npv = futureValue / Math.pow(1 + discountRate, years);
+        
+        // חישוב מס
+        let tax = 0;
+        const gain = futureValue - currentValue;
+        
+        if (taxTreatment === 'exempt') {
+          tax = 0;
+        } else if (taxTreatment === 'capital_gains') {
+          // מס רווח הון - 25% על הרווח הריאלי
+          const realGain = gain - (currentValue * 0.02 * years); // ניכוי אינפלציה
+          tax = Math.max(0, realGain) * 0.25;
+        } else if (taxTreatment === 'fixed_rate') {
+          tax = gain * (taxRate / 100);
+        } else {
+          // מס רגיל לפי מדרגות
+          tax = calculateTaxByBrackets(gain);
+        }
+        
+        const npvAfterTax = (futureValue - tax) / Math.pow(1 + discountRate, years);
+        
+        results.push({
+          asset,
+          npv: Math.round(npv),
+          npvAfterTax: Math.round(npvAfterTax)
+        });
+        
+        console.log(`📊 NPV Calculation for ${asset.asset_name || asset.description}:`);
+        console.log(`   Current value: ${currentValue.toLocaleString()}`);
+        console.log(`   Return rate: ${(totalReturnRate * 100).toFixed(2)}%`);
+        console.log(`   Future value (${years} years): ${futureValue.toLocaleString()}`);
+        console.log(`   NPV: ${npv.toLocaleString()}`);
+        console.log(`   Tax: ${tax.toLocaleString()}`);
+        console.log(`   NPV after tax: ${npvAfterTax.toLocaleString()}`);
       }
-      
-      // חישוב NPV של הנכס:
-      // לכל שנה: ערך עתידי = ערך נוכחי × (1 + תשואה)^שנה
-      // NPV = סכום של [ערך עתידי ÷ (1 + היוון)^שנה] לכל השנים
-      let assetNPV = 0;
-      for (let year = 0; year < numYears; year++) {
-        const futureValue = currentValue * Math.pow(1 + annualReturnRate, year);
-        const discountedValue = futureValue / Math.pow(1 + discountRate, year);
-        assetNPV += discountedValue;
-      }
-      
-      totalCapitalNPV += assetNPV;
     });
     
-    return totalCapitalNPV;
+    return results;
   };
 
   // פונקציית יצירת דוח PDF מקיף
@@ -1330,7 +1382,8 @@ const SimpleReports: React.FC = () => {
     // חישוב NPV עם ובלי פטורים
     const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
     const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
-    const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
+    const capitalAssetsNPVResults = calculateCapitalAssetsNPV();
+    const capitalNPV = capitalAssetsNPVResults.reduce((sum, item) => sum + item.npvAfterTax, 0);
     const npvComparison = calculateNPVComparison(yearlyProjection, discountRate);
     
     doc.setFontSize(10);
@@ -1486,7 +1539,8 @@ const SimpleReports: React.FC = () => {
     // חישוב NPV
     const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
     const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
-    const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
+    const capitalAssetsNPVResults = calculateCapitalAssetsNPV();
+    const capitalNPV = capitalAssetsNPVResults.reduce((sum, item) => sum + item.npvAfterTax, 0);
     const npvComparison = calculateNPVComparison(yearlyProjection, discountRate);
     
     // הוספת NPV
@@ -1781,9 +1835,9 @@ const SimpleReports: React.FC = () => {
         <h2>ערך נוכחי נקי (NPV)</h2>
         <div class="npv-value">
             <div>NPV תזרים: ₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03)).toLocaleString()}</div>
-            <div>NPV נכסי הון: ₪${Math.round(calculateCapitalAssetsNPV(0.03, yearlyProjection.length)).toLocaleString()}</div>
+            <div>NPV נכסי הון: ₪${Math.round(calculateCapitalAssetsNPV().reduce((sum, item) => sum + item.npvAfterTax, 0)).toLocaleString()}</div>
             <div style="border-top: 2px solid #155724; margin-top: 10px; padding-top: 10px;">
-                סה"כ NPV: ₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03) + calculateCapitalAssetsNPV(0.03, yearlyProjection.length)).toLocaleString()}
+                סה"כ NPV: ₪${Math.round(calculateNPV(yearlyProjection.map(y => y.netMonthlyIncome * 12), 0.03) + calculateCapitalAssetsNPV().reduce((sum, item) => sum + item.npvAfterTax, 0)).toLocaleString()}
             </div>
         </div>
     </div>
@@ -2465,36 +2519,48 @@ const SimpleReports: React.FC = () => {
               <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>סיכום</h5>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div><strong>סך הכנסה חודשית:</strong> ₪{(() => {
+                  // רק קצבאות + הכנסות נוספות חודשיות (ללא נכסי הון)
                   const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
                     sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0), 0);
                   const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => {
                     const amount = parseFloat(income.amount) || 0;
+                    // רק הכנסות חודשיות
                     if (income.frequency === 'monthly') return sum + amount;
-                    if (income.frequency === 'quarterly') return sum + (amount / 3);
-                    if (income.frequency === 'annually') return sum + (amount / 12);
-                    return sum + amount;
+                    return sum;
                   }, 0);
-                  const monthlyCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
-                    sum + (parseFloat(asset.monthly_income) || 0), 0);
-                  return (monthlyPension + monthlyAdditional + monthlyCapitalAssets).toLocaleString();
+                  return (monthlyPension + monthlyAdditional).toLocaleString();
                 })()}</div>
-                <div><strong>סך נכסים:</strong> ₪{(() => {
-                  // רק נכסי הון נכללים בסך הנכסים, לא יתרות קצבאות
+                <div><strong>סך הנכסים:</strong> ₪{(() => {
+                  // רק נכסי הון (ללא יתרות קצבאות)
                   const totalCapitalAssets = capitalAssets.reduce((sum: number, asset: any) => 
                     sum + (parseFloat(asset.current_value) || 0), 0);
                   return totalCapitalAssets.toLocaleString();
                 })()}</div>
                 <div><strong>תאריך התחלת תזרים:</strong> {(() => {
-                  // מציאת השנה הראשונה עם הכנסה
-                  const firstIncomeYear = Math.min(
+                  // המאוחר מבין 01/01/השנה הנוכחית או 01/01/שנת הקצבה הראשונה
+                  const currentYear = new Date().getFullYear();
+                  const firstPensionYear = pensionFunds.length > 0 ? Math.min(
                     ...pensionFunds.map((fund: any) => 
-                      fund.start_date ? parseInt(fund.start_date.split('-')[0]) : new Date().getFullYear() + 10
-                    ),
-                    ...additionalIncomes.map((income: any) => 
-                      income.start_date ? parseInt(income.start_date.split('-')[0]) : new Date().getFullYear() + 10
+                      fund.start_date ? parseInt(fund.start_date.split('-')[0]) : currentYear + 100
                     )
-                  );
-                  return firstIncomeYear < new Date().getFullYear() + 10 ? `01/01/${firstIncomeYear}` : 'לא צוין';
+                  ) : currentYear + 100;
+                  const startYear = Math.max(currentYear, firstPensionYear < currentYear + 100 ? firstPensionYear : currentYear);
+                  return `01/01/${startYear}`;
+                })()}</div>
+                <div><strong>סך הכנסות חד פעמיות:</strong> ₪{(() => {
+                  // ✅ סך תשלומי נכסי הון (monthly_income), לא current_value!
+                  const totalOneTime = capitalAssets.reduce((sum: number, asset: any) => 
+                    sum + (parseFloat(asset.monthly_income) || 0), 0);
+                  return totalOneTime.toLocaleString();
+                })()}</div>
+                <div><strong>סך הכנסות בתדירות שנתית:</strong> ₪{(() => {
+                  // רק הכנסות נוספות שנתיות
+                  const annualIncomes = additionalIncomes.reduce((sum: number, income: any) => {
+                    const amount = parseFloat(income.amount) || 0;
+                    if (income.frequency === 'annually') return sum + amount;
+                    return sum;
+                  }, 0);
+                  return annualIncomes.toLocaleString();
                 })()}</div>
               </div>
             </div>
@@ -2622,26 +2688,18 @@ const SimpleReports: React.FC = () => {
                 <h5 style={{ color: '#0056b3', marginBottom: '10px' }}>חישוב מס למקרה הנוכחי</h5>
                 <div style={{ backgroundColor: 'white', padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}>
                   {(() => {
-                    // חישוב הכנסה שנתית נוכחית
+                    // חישוב הכנסה שנתית נוכחית - רק הכנסות חודשיות כפול 12
                     const monthlyPension = pensionFunds.reduce((sum: number, fund: any) => 
                       sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0), 0);
                     const monthlyAdditional = additionalIncomes.reduce((sum: number, income: any) => {
                       const amount = parseFloat(income.amount) || 0;
-                      let monthlyAmount = 0;
+                      // רק הכנסות חודשיות
                       if (income.frequency === 'monthly') {
-                        monthlyAmount = amount;
-                      } else if (income.frequency === 'quarterly') {
-                        monthlyAmount = amount / 3;
-                      } else if (income.frequency === 'annually') {
-                        monthlyAmount = amount / 12;
-                      } else {
-                        monthlyAmount = amount; // ברירת מחדל
+                        return sum + amount;
                       }
-                      return sum + monthlyAmount;
+                      return sum;
                     }, 0);
-                    const monthlyCapital = capitalAssets.reduce((sum: number, asset: any) => 
-                      sum + (parseFloat(asset.monthly_income) || 0), 0);
-                    const totalMonthlyIncome = monthlyPension + monthlyAdditional + monthlyCapital;
+                    const totalMonthlyIncome = monthlyPension + monthlyAdditional;
                     const totalAnnualIncome = totalMonthlyIncome * 12;
                     
                     if (totalAnnualIncome === 0) {
@@ -2796,7 +2854,8 @@ const SimpleReports: React.FC = () => {
               const cashflowNPV = calculateNPV(annualNetCashFlows, discountRate);
               
               // חישוב NPV של נכסי הון
-              const capitalNPV = calculateCapitalAssetsNPV(discountRate, yearlyProjection.length);
+              const capitalAssetsNPVResults = calculateCapitalAssetsNPV();
+              const capitalNPV = capitalAssetsNPVResults.reduce((sum, item) => sum + item.npvAfterTax, 0);
               
               // Debug: הצגת מידע על נכסי הון
               console.log('🏦 Capital Assets Info:');
@@ -2894,6 +2953,97 @@ const SimpleReports: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* טבלת פירוט נכסי הון שלא בתזרים */}
+                  {(() => {
+                    const capitalAssetsNPVResults = calculateCapitalAssetsNPV();
+                    if (capitalAssetsNPVResults.length > 0) {
+                      return (
+                        <div style={{ 
+                          marginTop: '20px',
+                          padding: '15px', 
+                          backgroundColor: '#f8f9fa', 
+                          borderRadius: '4px',
+                          border: '1px solid #dee2e6'
+                        }}>
+                          <h3 style={{ marginBottom: '15px', color: '#495057' }}>
+                            📊 פירוט נכסי הון (לא מוצגים בתזרים)
+                          </h3>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#e9ecef' }}>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>שם הנכס</th>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>ערך נוכחי</th>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>תשואה שנתית</th>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>הצמדה</th>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>יחס מס</th>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#d4edda' }}>NPV לפני מס</th>
+                                <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#c3e6cb' }}>NPV אחרי מס</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {capitalAssetsNPVResults.map((result, index) => {
+                                const asset = result.asset;
+                                const indexationLabel = asset.indexation_method === 'fixed' 
+                                  ? `קבוע ${(asset.fixed_rate * 100).toFixed(2)}%`
+                                  : asset.indexation_method === 'cpi' 
+                                  ? 'מדד'
+                                  : 'ללא';
+                                const taxLabel = asset.tax_treatment === 'exempt' 
+                                  ? 'פטור'
+                                  : asset.tax_treatment === 'capital_gains'
+                                  ? 'רווח הון'
+                                  : asset.tax_treatment === 'fixed_rate'
+                                  ? `${(asset.tax_rate || 0).toFixed(1)}%`
+                                  : 'רגיל';
+                                
+                                return (
+                                  <tr key={index} style={{ backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                                      {asset.asset_name || asset.description || 'ללא שם'}
+                                    </td>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
+                                      ₪{parseFloat(asset.current_value || 0).toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>
+                                      {((asset.annual_return_rate || 0) * 100).toFixed(2)}%
+                                    </td>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>
+                                      {indexationLabel}
+                                    </td>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>
+                                      {taxLabel}
+                                    </td>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', backgroundColor: '#d4edda', fontWeight: 'bold' }}>
+                                      ₪{result.npv.toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', backgroundColor: '#c3e6cb', fontWeight: 'bold' }}>
+                                      ₪{result.npvAfterTax.toLocaleString()}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              <tr style={{ backgroundColor: '#e9ecef', fontWeight: 'bold' }}>
+                                <td colSpan={5} style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+                                  סה"כ:
+                                </td>
+                                <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', backgroundColor: '#d4edda' }}>
+                                  ₪{capitalAssetsNPVResults.reduce((sum, r) => sum + r.npv, 0).toLocaleString()}
+                                </td>
+                                <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', backgroundColor: '#c3e6cb' }}>
+                                  ₪{capitalAssetsNPVResults.reduce((sum, r) => sum + r.npvAfterTax, 0).toLocaleString()}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                            * חישוב NPV מבוסס על תחזית 10 שנים עם שיעור היוון של 3%
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               );
             })()}
@@ -2926,13 +3076,13 @@ const SimpleReports: React.FC = () => {
                         </th>
                       </React.Fragment>
                     ))}
-                    {capitalAssets.map(asset => (
+                    {capitalAssets.filter(asset => (parseFloat(asset.monthly_income) || 0) > 0).map(asset => (
                       <React.Fragment key={`asset-${asset.id}`}>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#ffe4e1', fontSize: '12px' }}>
-                          מס {asset.description || 'נכס הון'}
+                          מס {asset.description || asset.asset_name || 'נכס הון'}
                         </th>
                         <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', backgroundColor: '#fff8f0' }}>
-                          {asset.description || 'נכס הון'}
+                          {asset.description || asset.asset_name || 'נכס הון'} (תשלום חד פעמי)
                         </th>
                       </React.Fragment>
                     ))}

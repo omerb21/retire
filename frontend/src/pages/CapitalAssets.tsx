@@ -147,9 +147,12 @@ export default function CapitalAssets() {
       // בדיקה מה השדות שהשרת מצפה לקבל
       console.log("FORM DATA BEFORE SUBMIT:", form);
       
-      // Validation
-      if (!form.current_value || Number(form.current_value) <= 0) {
-        throw new Error("ערך נכס חייב להיות גדול מ-0");
+      // Validation - ערך נוכחי יכול להיות 0 (למשל להיוונים)
+      if (form.current_value === undefined || form.current_value === null) {
+        throw new Error("יש להזין ערך נכס");
+      }
+      if (Number(form.current_value) < 0) {
+        throw new Error("ערך נכס לא יכול להיות שלילי");
       }
       
       const payload = {
@@ -332,13 +335,16 @@ export default function CapitalAssets() {
                   console.log('Found account at index:', accountIndex);
                   // החזרת הסכומים לשדות הספציפיים
                   if (conversionSource.specific_amounts && Object.keys(conversionSource.specific_amounts).length > 0) {
+                    // מחזירים רק את הסכומים הספציפיים - הם כבר כוללים את הכל
                     Object.entries(conversionSource.specific_amounts).forEach(([key, value]) => {
                       pensionData[accountIndex][key] = (pensionData[accountIndex][key] || 0) + parseFloat(value as string);
                     });
+                    console.log('Restored specific amounts:', conversionSource.specific_amounts);
+                  } else {
+                    // אם אין סכומים ספציפיים, מחזירים את הסכום הכולל ליתרה
+                    pensionData[accountIndex].יתרה = (pensionData[accountIndex].יתרה || 0) + conversionSource.amount;
+                    console.log('Restored total amount to balance:', conversionSource.amount);
                   }
-                  
-                  // החזרת הסכום ליתרה הכללית
-                  pensionData[accountIndex].יתרה = (pensionData[accountIndex].יתרה || 0) + conversionSource.amount;
                   
                   // שמירה חזרה ל-localStorage
                   localStorage.setItem(storageKey, JSON.stringify(pensionData));
@@ -460,7 +466,7 @@ export default function CapitalAssets() {
         <div className="card-header">
           <div>
             <h1 className="card-title">🏠 נכסי הון</h1>
-            <p className="card-subtitle">ניהול נכסים עם תזרים חודשי ופריסת מס</p>
+            <p className="card-subtitle">ניהול נכסים - תשלום חד פעמי או חישוב NPV</p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button 
@@ -494,6 +500,23 @@ export default function CapitalAssets() {
       {/* Create Form */}
       <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
         <h3>{editingAssetId ? 'ערוך נכס הון' : 'הוסף נכס הון'}</h3>
+        
+        {/* הסבר על לוגיקת נכסי הון */}
+        <div style={{ 
+          marginBottom: 16, 
+          padding: 12, 
+          backgroundColor: '#e7f3ff', 
+          borderRadius: 4,
+          border: '1px solid #b3d9ff',
+          fontSize: '14px'
+        }}>
+          <strong>💡 איך נכסי הון מוצגים במערכת:</strong>
+          <ul style={{ marginTop: 8, marginBottom: 0, paddingRight: 20 }}>
+            <li><strong>תשלום חד פעמי:</strong> אם שדה "תשלום" {'>'} 0, הנכס יוצג בתזרים בתאריך התשלום החד פעמי</li>
+            <li><strong>חישוב NPV:</strong> אם שדה "תשלום" = 0, הנכס לא יוצג בתזרים אלא יחושב NPV שלו לפי ערך נוכחי, תשואה, הצמדה ויחס מס</li>
+          </ul>
+        </div>
+        
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 500 }}>
           <input
             type="text"

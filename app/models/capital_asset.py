@@ -92,7 +92,7 @@ class CapitalAsset(Base):
     
     # Constraints
     __table_args__ = (
-        CheckConstraint("current_value > 0", name="check_positive_value"),
+        CheckConstraint("current_value >= 0", name="check_positive_value"),  # ✅ מאפשר 0 להיוונים
         CheckConstraint("annual_return_rate >= 0", name="check_non_negative_return"),
         CheckConstraint("end_date IS NULL OR end_date >= start_date", name="check_valid_date_range"),
         CheckConstraint(

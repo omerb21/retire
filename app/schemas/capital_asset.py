@@ -13,7 +13,7 @@ class CapitalAssetBase(BaseModel):
     asset_name: Optional[str] = Field(None, max_length=255, description="Asset name")
     asset_type: AssetType = Field(..., description="Type of capital asset")
     description: Optional[str] = Field(None, max_length=255, description="Description of the asset")
-    current_value: Decimal = Field(..., gt=0, description="Current asset value")
+    current_value: Decimal = Field(..., ge=0, description="Current asset value (can be 0 for commutations)")
     monthly_income: Optional[Decimal] = Field(None, ge=0, description="Monthly income from asset")
     rental_income: Optional[Decimal] = Field(None, ge=0, description="Rental income (legacy)")
     monthly_rental_income: Optional[Decimal] = Field(None, ge=0, description="Monthly rental income (legacy)")
@@ -62,7 +62,7 @@ class CapitalAssetUpdate(BaseModel):
     """Schema for updating Capital Asset."""
     asset_type: Optional[AssetType] = None
     description: Optional[str] = Field(None, max_length=255)
-    current_value: Optional[Decimal] = Field(None, gt=0)
+    current_value: Optional[Decimal] = Field(None, ge=0)
     annual_return_rate: Optional[Decimal] = Field(None, ge=0)
     payment_frequency: Optional[PaymentFrequency] = None
     start_date: Optional[date] = None

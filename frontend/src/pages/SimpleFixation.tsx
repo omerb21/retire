@@ -380,6 +380,7 @@ const SimpleFixation: React.FC = () => {
             future_grant_impact: futureGrantReserved * 1.35,
             total_commutations: pensionSummary.total_discounts,
             final_remaining_exemption: pensionSummary.remaining_exemption,
+            remaining_exempt_capital: pensionSummary.remaining_exemption, // ✅ זה הערך שמסך התוצאות מחפש!
             exempt_pension: pensionSummary.exempt_pension_calculated.base_amount
           },
           eligibility_date: fixationData.eligibility_date,
