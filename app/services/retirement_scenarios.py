@@ -70,7 +70,7 @@ class RetirementScenariosBuilder:
             asset_type=asset_type,
             current_value=Decimal(str(value)),
             annual_return_rate=Decimal("0.04"),
-            payment_frequency="one_time",
+            payment_frequency="monthly",  # ✅ תוקן: one_time → monthly (נכסי הון מהיוון)
             start_date=date(retirement_year, 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
@@ -274,11 +274,14 @@ class RetirementScenariosBuilder:
         # 1. Convert all pension funds to pensions
         self._convert_all_pension_funds_to_pension()
         
+        # 1.5. Convert education funds to exempt pensions
+        self._convert_education_fund_to_pension()
+        
         # 2. Convert taxable capital assets to pensions
         self._convert_taxable_capital_to_pension()
         
-        # 3. Convert tax-exempt capital to exempt income
-        self._convert_exempt_capital_to_income()
+        # 3. Convert tax-exempt capital to exempt pension (NOT income!)
+        self._convert_exempt_capital_to_pension()
         
         # 4. Handle termination event
         self._handle_termination_for_pension()
@@ -290,9 +293,11 @@ class RetirementScenariosBuilder:
         return self._calculate_scenario_results("מקסימום קצבה")
     
     def _convert_all_pension_funds_to_pension(self):
-        """המרת כל המוצרים הפנסיוניים לקצבה"""
+        """המרת כל המוצרים הפנסיוניים לקצבה (למעט קרנות השתלמות)"""
+        # קרנות השתלמות יטופלו בנפרד
         pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
+            PensionFund.client_id == self.client_id,
+            ~PensionFund.fund_type.like('%השתלמות%')  # לא קרנות השתלמות
         ).all()
         
         for pf in pension_funds:
@@ -311,6 +316,9 @@ class RetirementScenariosBuilder:
                                 from_asset=f"יתרה: {original_balance:,.0f} ₪",
                                 to_asset=f"קצבה: {pf.pension_amount:,.0f} ₪/חודש ({tax_status})",
                                 amount=float(original_balance or 0))
+                
+                # ✅ איפוס balance אחרי המרה לקצבה!
+                pf.balance = None
             elif pf.pension_amount:
                 # קצבה שכבר הוגדרה
                 self._add_action("use_existing", f"שימוש בקצבה קיימת: {pf.fund_name} ({tax_status})",
@@ -365,8 +373,88 @@ class RetirementScenariosBuilder:
         
         self.db.flush()
     
-    def _convert_exempt_capital_to_income(self):
-        """המרת נכסים הוניים פטורים להכנסה נוספת פטורה"""
+    def _convert_education_fund_to_pension(self):
+        """המרת קרן השתלמות (education fund) לקצבה פטורה"""
+        # מחפש את כל קרנות ההשתלמות שיובאו מהתיק הפנסיוני
+        education_funds = self.db.query(PensionFund).filter(
+            PensionFund.client_id == self.client_id,
+            PensionFund.tax_treatment == "exempt",
+            PensionFund.fund_type.like('%השתלמות%')
+        ).all()
+        
+        retirement_year = self._get_retirement_year()
+        
+        for ef in education_funds:
+            # קרן השתלמות - כל היתרה פטורה ממס
+            original_balance = ef.balance
+            
+            if not original_balance or original_balance <= 0:
+                logger.warning(f"  ⚠️ Education fund {ef.fund_name} has no balance, skipping")
+                continue
+            
+            # המרה לקצבה פטורה
+            pension_amount = float(original_balance) / PENSION_COEFFICIENT
+            
+            # עדכון הקרן הקיימת במקום יצירת חדשה (כדי לא לאבד מידע)
+            ef.pension_amount = pension_amount
+            ef.pension_start_date = date(retirement_year, 1, 1)
+            ef.annuity_factor = PENSION_COEFFICIENT
+            ef.fund_type = "education_fund_pension"  # סימון שעברה המרה
+            
+            logger.info(f"  🎁 Converted education fund '{ef.fund_name}': {original_balance} → Exempt PENSION {pension_amount} ₪/month")
+            self._add_action("conversion", f"המרת קרן השתלמות לקצבה פטורה: {ef.fund_name}",
+                            from_asset=f"קרן השתלמות: {ef.fund_name} ({original_balance:,.0f} ₪)",
+                            to_asset=f"קצבה פטורה: {pension_amount:,.0f} ₪/חודש",
+                            amount=float(original_balance))
+        
+        self.db.flush()
+    
+    def _convert_education_fund_to_capital(self):
+        """המרת קרן השתלמות להון פטור (אופציה 2)"""
+        education_funds = self.db.query(PensionFund).filter(
+            PensionFund.client_id == self.client_id,
+            PensionFund.tax_treatment == "exempt",
+            PensionFund.fund_type.like('%השתלמות%')
+        ).all()
+        
+        retirement_year = self._get_retirement_year()
+        
+        for ef in education_funds:
+            original_balance = ef.balance
+            
+            if not original_balance or original_balance <= 0:
+                logger.warning(f"  ⚠️ Education fund {ef.fund_name} has no balance, skipping")
+                continue
+            
+            # יצירת נכס הוני פטור
+            ca = self._create_scenario_capital_asset(
+                asset_name=f"הון פטור מ{ef.fund_name}",
+                asset_type="education_fund",
+                value=float(original_balance),
+                tax_treatment="exempt",
+                source_info={
+                    "source_type": "education_fund",
+                    "source_id": getattr(ef, 'id', None),
+                    "source_name": ef.fund_name,
+                    "original_balance": float(original_balance),
+                    "tax_treatment": "exempt"
+                }
+            )
+            self.db.add(ca)
+            
+            logger.info(f"  🎁 Converted education fund '{ef.fund_name}': {original_balance} → Exempt CAPITAL {original_balance} ₪")
+            self._add_action("conversion", f"המרת קרן השתלמות להון פטור: {ef.fund_name}",
+                            from_asset=f"קרן השתלמות: {ef.fund_name} ({original_balance:,.0f} ₪)",
+                            to_asset=f"הון פטור: {original_balance:,.0f} ₪",
+                            amount=float(original_balance))
+            
+            # מחיקת הקרן המקורית
+            self.db.delete(ef)
+        
+        self.db.flush()
+    
+    def _convert_exempt_capital_to_pension(self):
+        """המרת נכסים הוניים פטורים לקצבה פטורה (לא להכנסה נוספת!)"""
         capital_assets = self.db.query(CapitalAsset).filter(
             CapitalAsset.client_id == self.client_id,
             CapitalAsset.tax_treatment == "exempt"
@@ -375,25 +463,32 @@ class RetirementScenariosBuilder:
         retirement_year = self._get_retirement_year()
         
         for ca in capital_assets:
-            # Create additional income (tax-exempt)
-            monthly_amount = float(ca.current_value) / PENSION_COEFFICIENT
+            # Create PENSION FUND (tax-exempt) - NOT additional income!
+            pension_amount = float(ca.current_value) / PENSION_COEFFICIENT
             
-            ai = AdditionalIncome(
+            pf = PensionFund(
                 client_id=self.client_id,
-                source_type="other",
-                description=f"קצבה פטורה מ{ca.asset_name or 'נכס הוני'}",
-                amount=Decimal(str(monthly_amount)),
-                frequency="monthly",
-                start_date=date(retirement_year, 1, 1),
+                fund_name=f"קצבה פטורה מ{ca.asset_name or 'נכס הוני'}",
+                fund_type="converted_from_capital",
+                input_mode="manual",
+                pension_amount=pension_amount,
+                pension_start_date=date(retirement_year, 1, 1),
+                annuity_factor=PENSION_COEFFICIENT,
                 indexation_method="none",
-                tax_treatment="exempt",
-                remarks=json.dumps({"source": "scenario_conversion", "original_asset": ca.asset_name})
+                tax_treatment="exempt",  # פטור ממס!
+                conversion_source=json.dumps({
+                    "source_type": "capital_asset",
+                    "source_id": getattr(ca, 'id', None),
+                    "source_name": ca.asset_name,
+                    "original_value": float(ca.current_value),
+                    "tax_treatment": "exempt"
+                })
             )
-            self.db.add(ai)
-            logger.info(f"  🎁 Converted exempt capital '{ca.asset_name}': {ca.current_value} → Exempt income {monthly_amount}")
-            self._add_action("conversion", f"המרת נכס פטור להכנסה פטורה: {ca.asset_name}",
+            self.db.add(pf)
+            logger.info(f"  🎁 Converted exempt capital '{ca.asset_name}': {ca.current_value} → Exempt PENSION {pension_amount} ₪/month")
+            self._add_action("conversion", f"המרת נכס פטור לקצבה פטורה: {ca.asset_name}",
                             from_asset=f"נכס פטור: {ca.asset_name} ({ca.current_value:,.0f} ₪)",
-                            to_asset=f"הכנסה פטורה: {monthly_amount:,.0f} ₪/חודש",
+                            to_asset=f"קצבה פטורה: {pension_amount:,.0f} ₪/חודש",
                             amount=float(ca.current_value))
             
             # Delete capital asset
@@ -589,9 +684,10 @@ class RetirementScenariosBuilder:
         # Step 0.5: Handle termination event - convert to capital
         self._handle_termination_for_capital()
         
-        # Step 1: Convert all pension funds to pensions first
+        # Step 1: Convert all pension funds to pensions first (excluding education funds)
         pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
+            PensionFund.client_id == self.client_id,
+            ~PensionFund.fund_type.like('%השתלמות%')  # לא קרנות השתלמות
         ).all()
         
         for pf in pension_funds:
@@ -604,8 +700,13 @@ class RetirementScenariosBuilder:
                                 from_asset=f"יתרה: {original_balance:,.0f} ₪",
                                 to_asset=f"קצבה: {pf.pension_amount:,.0f} ₪/חודש ({tax_status})",
                                 amount=float(original_balance))
+                # ✅ איפוס balance אחרי המרה!
+                pf.balance = None
         
         self.db.flush()
+        
+        # Step 1.5: Convert education funds to capital (keep as exempt capital)
+        self._convert_education_fund_to_capital()
         
         # Step 2: Calculate total pension available
         total_pension_available = sum(pf.pension_amount or 0 for pf in pension_funds)
@@ -616,7 +717,7 @@ class RetirementScenariosBuilder:
             # Convert everything to pension (can't capitalize at all)
             self._convert_all_pension_funds_to_pension()
             self._convert_taxable_capital_to_pension()
-            self._convert_exempt_capital_to_income()
+            self._convert_exempt_capital_to_pension()
             return self._calculate_scenario_results("מקסימום הון (לא ניתן להיוון)")
         
         # Step 3: Sort by annuity factor - capitalize worst quality first
@@ -682,7 +783,7 @@ class RetirementScenariosBuilder:
                     
                     # Update pension to keep minimum
                     pf.pension_amount = keep_amount
-                    pf.balance = keep_amount * pf.annuity_factor
+                    # ✅ לא להחזיר balance! המוצר כבר במצב pension
                     remaining_pension = MINIMUM_PENSION
                     logger.info(f"  ⚖️ Partial capitalization: {pf.fund_name} - {capitalize_amount} ₪ → capital ({tax_status}), {keep_amount} ₪ remains pension")
                     self._add_action("capitalization", f"היוון חלקי של {pf.fund_name} ({tax_status})",
@@ -692,16 +793,17 @@ class RetirementScenariosBuilder:
         
         self.db.flush()
         
-        # Step 5: Convert capital assets to capital (keep as is)
+        # Step 5: Keep capital assets as is (DON'T convert to pension!)
+        capital_assets = self.db.query(CapitalAsset).filter(
+            CapitalAsset.client_id == self.client_id
+        ).all()
         logger.info(f"  ✅ Final pension amount: {remaining_pension} ₪ (minimum: {MINIMUM_PENSION})")
+        logger.info(f"  ✅ Keeping {len(capital_assets)} capital assets as is")
         
-        # Step 6: Convert exempt capital to income
-        self._convert_exempt_capital_to_income()
-        
-        # Step 7: Verify
+        # Step 6: Verify
         self._verify_fixation_and_exempt_pension()
         
-        # Step 8: Calculate and return
+        # Step 7: Calculate and return
         return self._calculate_scenario_results("מקסימום הון (קצבת מינימום: 5,500)")
     
     def _convert_pension_funds_to_capital(self):
@@ -858,23 +960,15 @@ class RetirementScenariosBuilder:
         # For balanced scenario, convert severance to capital first, then will be partially converted
         self._handle_termination_for_capital()
         
-        # Step 1: Calculate total asset value
+        # Step 1: Convert education funds to capital (keep as exempt capital)
+        self._convert_education_fund_to_capital()
+        
+        # Step 2: Convert pension funds to pensions (excluding education funds)
         pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
+            PensionFund.client_id == self.client_id,
+            ~PensionFund.fund_type.like('%השתלמות%')
         ).all()
         
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id,
-            CapitalAsset.tax_treatment == "taxable"
-        ).all()
-        
-        total_pension_value = sum(float(pf.balance or 0) for pf in pension_funds)
-        total_capital_value = sum(float(ca.current_value or 0) for ca in capital_assets)
-        total_value = total_pension_value + total_capital_value
-        
-        logger.info(f"  Total value: {total_value} (Pension: {total_pension_value}, Capital: {total_capital_value})")
-        
-        # Step 2: Convert all to pensions first
         for pf in pension_funds:
             if pf.balance and pf.annuity_factor:
                 original_balance = pf.balance
@@ -885,38 +979,40 @@ class RetirementScenariosBuilder:
                                 from_asset=f"יתרה: {original_balance:,.0f} ₪",
                                 to_asset=f"קצבה: {pf.pension_amount:,.0f} ₪/חודש ({tax_status})",
                                 amount=float(original_balance))
-        
-        # Convert capital to pension
-        for ca in capital_assets:
-            pension_amount = float(ca.current_value) / PENSION_COEFFICIENT
-            pf = PensionFund(
-                client_id=self.client_id,
-                fund_name=f"קצבה מ{ca.asset_name or 'נכס'}",
-                fund_type="converted_from_capital",
-                input_mode="manual",
-                pension_amount=pension_amount,
-                pension_start_date=date(self._get_retirement_year(), 1, 1),
-                indexation_method="none",
-                tax_treatment="taxable"
-            )
-            self.db.add(pf)
-            self._add_action("conversion", f"המרת נכס הון לקצבה: {ca.asset_name}",
-                            from_asset=f"הון: {ca.asset_name} ({ca.current_value:,.0f} ₪)",
-                            to_asset=f"קצבה: {pension_amount:,.0f} ₪/חודש",
-                            amount=float(ca.current_value))
-            self.db.delete(ca)
+                # ✅ איפוס balance אחרי המרה!
+                pf.balance = None
         
         self.db.flush()
         
-        # Step 3: Now capitalize half (50%) of the pension value
+        # Step 3: Keep existing capital assets as is (DON'T convert to pension!)
+        capital_assets = self.db.query(CapitalAsset).filter(
+            CapitalAsset.client_id == self.client_id
+        ).all()
+        total_capital = sum(float(ca.current_value) for ca in capital_assets)
+        logger.info(f"  ✅ Keeping {len(capital_assets)} capital assets ({total_capital:,.0f} ₪) as is")
+        
+        # Step 4: Now capitalize half (50%) of the PENSION FUNDS value only
         all_pensions = self.db.query(PensionFund).filter(
             PensionFund.client_id == self.client_id
         ).all()
         
-        total_pension_value_now = sum(pf.pension_amount * pf.annuity_factor for pf in all_pensions if pf.pension_amount and pf.annuity_factor)
-        target_capitalize_value = total_pension_value_now * 0.5  # Capitalize 50%
+        total_pension_amount = sum(pf.pension_amount or 0 for pf in all_pensions)
+        logger.info(f"  Total pension amount available: {total_pension_amount} ₪/month")
         
-        logger.info(f"  Target to capitalize: {target_capitalize_value} (50% of {total_pension_value_now})")
+        # Check if we can capitalize at all (need minimum pension)
+        if total_pension_amount < MINIMUM_PENSION:
+            logger.warning(f"  ⚠️ Cannot capitalize - total pension {total_pension_amount} < minimum {MINIMUM_PENSION}")
+            # Keep all as pension
+            return self._calculate_scenario_results("מאוזן (50% קצבה, 50% הון) - לא ניתן להיוון")
+        
+        total_pension_value_now = sum(pf.pension_amount * pf.annuity_factor for pf in all_pensions if pf.pension_amount and pf.annuity_factor)
+        
+        # Calculate target: try to keep minimum pension and capitalize the rest
+        # But don't exceed 50% of total value
+        max_can_capitalize = (total_pension_amount - MINIMUM_PENSION) * PENSION_COEFFICIENT
+        target_capitalize_value = min(total_pension_value_now * 0.5, max_can_capitalize)
+        
+        logger.info(f"  Target to capitalize: {target_capitalize_value} (max 50% or keep min pension)")
         
         # Sort by annuity factor (worst quality first)
         if target_capitalize_value > 0:
@@ -927,16 +1023,24 @@ class RetirementScenariosBuilder:
             )
             
             capitalized_value = 0
+            remaining_pension = total_pension_amount
             
             for pf in sorted_pensions:
-                if capitalized_value >= target_capitalize_value:
+                if capitalized_value >= target_capitalize_value or remaining_pension <= MINIMUM_PENSION:
                     logger.info(f"  ✅ Keeping pension: {pf.fund_name} ({pf.pension_amount} ₪)")
                     continue
                 
                 pf_value = pf.pension_amount * pf.annuity_factor
                 need_to_capitalize = target_capitalize_value - capitalized_value
                 
-                if pf_value <= need_to_capitalize:
+                # Check if we can capitalize without going below minimum
+                can_capitalize_amount = min(pf.pension_amount, remaining_pension - MINIMUM_PENSION)
+                
+                if can_capitalize_amount <= 0:
+                    logger.info(f"  ✅ Keeping pension: {pf.fund_name} (at minimum)")
+                    continue
+                
+                if pf_value <= need_to_capitalize and can_capitalize_amount >= pf.pension_amount:
                     # Capitalize entire fund
                     tax_treatment = "exempt" if pf.tax_treatment == "exempt" else "taxable"
                     tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
@@ -954,6 +1058,7 @@ class RetirementScenariosBuilder:
                     )
                     self.db.add(ca)
                     capitalized_value += pf_value
+                    remaining_pension -= pf.pension_amount
                     logger.info(f"  💼 Full capitalization: {pf.fund_name} → {pf_value} ₪ capital ({tax_status})")
                     self._add_action("capitalization", f"היוון מלא (50%): {pf.fund_name} ({tax_status})",
                                     from_asset=f"קצבה: {pf.fund_name} ({pf.pension_amount:,.0f} ₪/חודש)",
@@ -982,7 +1087,7 @@ class RetirementScenariosBuilder:
                     
                     original_pension_amount = pf.pension_amount
                     pf.pension_amount = new_pension_amount
-                    pf.balance = remaining_pension_value
+                    # ✅ לא להחזיר balance! המוצר כבר במצב pension
                     capitalized_value += need_to_capitalize
                     logger.info(f"  ⚖️ Partial capitalization: {pf.fund_name} - {need_to_capitalize} ₪ → capital ({tax_status}), {new_pension_amount} ₪ remains pension")
                     self._add_action("capitalization", f"היוון חלקי (50%): {pf.fund_name} ({tax_status})",
@@ -994,8 +1099,12 @@ class RetirementScenariosBuilder:
         
         self.db.flush()
         
-        # Step 5: Convert exempt capital to income
-        self._convert_exempt_capital_to_income()
+        # Step 5: Keep exempt capital as is (don't convert!)
+        exempt_capital = self.db.query(CapitalAsset).filter(
+            CapitalAsset.client_id == self.client_id,
+            CapitalAsset.tax_treatment == "exempt"
+        ).all()
+        logger.info(f"  ✅ Keeping {len(exempt_capital)} exempt capital assets as is")
         
         # Step 6: Verify
         self._verify_fixation_and_exempt_pension()
