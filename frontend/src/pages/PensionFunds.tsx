@@ -65,6 +65,17 @@ export default function PensionFunds() {
     commutation_type: "taxable",
   });
 
+  // אוטומטית מעדכן את יחס המס של ההיוון כאשר בוחרים קצבה פטורה ממס
+  useEffect(() => {
+    if (commutationForm.pension_fund_id) {
+      const selectedFund = funds.find(f => f.id === commutationForm.pension_fund_id);
+      if (selectedFund?.tax_treatment === "exempt") {
+        // אם הקצבה פטורה ממס, כופה את ההיוון להיות פטור ממס
+        setCommutationForm(prev => ({ ...prev, commutation_type: "exempt" }));
+      }
+    }
+  }, [commutationForm.pension_fund_id, funds]);
+
   // פונקציה מרכזית לחישוב היתרה המקורית של קצבה
   function calculateOriginalBalance(fund: PensionFund): number {
     // אם יש שדה commutable_balance (יתרה להיוון) - זה השדה המדויק!
@@ -606,10 +617,19 @@ export default function PensionFunds() {
         throw new Error(`סכום ההיוון (${commutationForm.exempt_amount.toLocaleString()}) גדול מהיתרה המקורית של הקצבה (${fundBalance.toLocaleString()})`);
       }
 
-      // קביעת יחס מס - יורש מהקצבה המקורית!
-      // אם הקצבה פטורה ממס, גם ההיוון יהיה פטור ממס
-      const taxTreatment = selectedFund.tax_treatment || "taxable";
-      console.log(`🔍 Pension tax_treatment: ${selectedFund.tax_treatment} → Capital asset will be: ${taxTreatment}`);
+      // אימות יחס מס - לוגיקה מיוחדת לפי סוג הקצבה
+      const pensionTaxTreatment = selectedFund.tax_treatment || "taxable";
+      
+      // אם הקצבה פטורה ממס - ההיוון חייב להיות פטור ממס
+      if (pensionTaxTreatment === "exempt" && commutationForm.commutation_type !== "exempt") {
+        throw new Error("קצבה פטורה ממס יכולה ליצור רק היוון פטור ממס");
+      }
+      
+      // אם הקצבה חייבת במס - ניתן ליצור היוון עם כל יחס מס
+      // (אין הגבלה - המשתמש יכול לבחור חייב או פטור)
+      
+      const taxTreatment = commutationForm.commutation_type === "exempt" ? "exempt" : "taxable";
+      console.log(`🔍 Pension tax: ${pensionTaxTreatment}, User selected: ${commutationForm.commutation_type} → Capital asset will be: ${taxTreatment}`);
       
       // יצירת נכס הוני
       const capitalAssetData = {
@@ -1026,14 +1046,34 @@ export default function PensionFunds() {
             
             <div>
               <label>יחס מס:</label>
-              <select
-                value={commutationForm.commutation_type}
-                onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "exempt" | "taxable" })}
-                style={{ padding: 8, width: "100%" }}
-              >
-                <option value="taxable">חייב במס</option>
-                <option value="exempt">פטור ממס</option>
-              </select>
+              {(() => {
+                const selectedFund = funds.find(f => f.id === commutationForm.pension_fund_id);
+                const isExemptPension = selectedFund?.tax_treatment === "exempt";
+                
+                return (
+                  <>
+                    <select
+                      value={commutationForm.commutation_type}
+                      onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "exempt" | "taxable" })}
+                      style={{ 
+                        padding: 8, 
+                        width: "100%",
+                        backgroundColor: isExemptPension ? "#f0f0f0" : "white",
+                        cursor: isExemptPension ? "not-allowed" : "pointer"
+                      }}
+                      disabled={isExemptPension}
+                    >
+                      <option value="taxable">חייב במס</option>
+                      <option value="exempt">פטור ממס</option>
+                    </select>
+                    {isExemptPension && (
+                      <div style={{ fontSize: "12px", color: "#856404", marginTop: "4px", fontStyle: "italic" }}>
+                        קצבה פטורה ממס - ההיוון חייב להיות פטור ממס
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             
             <button type="submit" style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}>

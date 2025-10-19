@@ -306,6 +306,36 @@ async def calculate_eligibility_date(data: Dict[str, Any]):
         logger.error(f"שגיאה בחישוב תאריך זכאות: {e}")
         raise HTTPException(status_code=400, detail=f"שגיאה בחישוב: {str(e)}")
 
+@router.get("/client/{client_id}")
+async def get_saved_fixation(client_id: int):
+    """
+    קבלת תוצאות קיבוע זכויות שמורות עבור לקוח
+    """
+    try:
+        from app.database import SessionLocal
+        from app.models.fixation_result import FixationResult
+        
+        with SessionLocal() as db:
+            result = db.query(FixationResult).filter(
+                FixationResult.client_id == client_id
+            ).order_by(FixationResult.created_at.desc()).first()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="לא נמצאו תוצאות קיבוע זכויות שמורות")
+            
+            return {
+                "success": True,
+                "calculation_date": result.created_at.isoformat(),
+                "exempt_capital_remaining": result.exempt_capital_remaining,
+                "raw_result": result.raw_result,
+                "raw_payload": result.raw_payload
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"שגיאה בטעינת קיבוע זכויות: {e}")
+        raise HTTPException(status_code=500, detail=f"שגיאה בטעינה: {str(e)}")
+
 @router.get("/test")
 async def test_cbs_api():
     """

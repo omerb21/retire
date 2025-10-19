@@ -126,8 +126,8 @@ const SimpleFixation: React.FC = () => {
     const totalDiscounts = commutations.reduce((sum, commutation) => sum + (commutation.exempt_amount || 0), 0);
     console.log('DEBUG: totalDiscounts from commutations:', totalDiscounts);
     
-    // יתרת פטור נותרת אחרי כל הקיזוזים
-    const remainingExemption = remainingExemptCapital;
+    // יתרת פטור נותרת אחרי כל הקיזוזים (כולל מענק עתידי והיוונים)
+    const remainingExemption = remainingExemptCapital - futureGrantImpact - totalDiscounts;
     
     // תקרת קצבה מזכה
     const eligibilityYear = fixationData?.eligibility_year || new Date().getFullYear();
@@ -168,6 +168,21 @@ const SimpleFixation: React.FC = () => {
           setClientData(clientResponse.data);
         } catch (err) {
           console.error('Error fetching client data:', err);
+        }
+
+        // Load saved fixation data (including future grant)
+        try {
+          const savedFixation = await axios.get(`/api/v1/rights-fixation/client/${id}`);
+          if (savedFixation.data.success && savedFixation.data.raw_payload) {
+            const savedFutureGrant = savedFixation.data.raw_payload.future_grant_reserved || 0;
+            setFutureGrantReserved(savedFutureGrant);
+            console.log('Loaded saved future grant:', savedFutureGrant);
+          }
+        } catch (err: any) {
+          if (err.response?.status !== 404) {
+            console.error('Error loading saved fixation:', err);
+          }
+          // 404 is OK - means no saved data yet
         }
 
         // Load commutations (היוונים פטורים)
@@ -351,26 +366,34 @@ const SimpleFixation: React.FC = () => {
       setLoading(true);
       setError(null);
 
+      // חישוב הסיכום המלא לפני שמירה
+      const pensionSummary = calculatePensionSummary();
+      
       // שמירת תוצאות קיבוע זכויות ב-DB
       const saveResponse = await axios.post('/api/v1/rights-fixation/save', {
         client_id: parseInt(id!),
         calculation_result: {
           grants: fixationData.grants,
-          exemption_summary: fixationData.exemption_summary,
+          exemption_summary: {
+            ...fixationData.exemption_summary,
+            future_grant_reserved: futureGrantReserved,
+            future_grant_impact: futureGrantReserved * 1.35,
+            total_commutations: pensionSummary.total_discounts,
+            final_remaining_exemption: pensionSummary.remaining_exemption,
+            exempt_pension: pensionSummary.exempt_pension_calculated.base_amount
+          },
           eligibility_date: fixationData.eligibility_date,
           eligibility_year: fixationData.eligibility_year
         },
         formatted_data: {
           id: parseInt(id!),
           eligibility_date: fixationData.eligibility_date,
-          eligibility_year: fixationData.eligibility_year
+          eligibility_year: fixationData.eligibility_year,
+          future_grant_reserved: futureGrantReserved
         }
       });
 
-      alert(`קיבוע זכויות נשמר בהצלחה!\nתאריך חישוב: ${new Date(saveResponse.data.calculation_date).toLocaleDateString('he-IL')}\n\nהנתונים הועברו למסך התוצאות`);
-      
-      // רענון הדף כדי לטעון את הנתונים השמורים
-      window.location.reload();
+      alert(`קיבוע זכויות נשמר בהצלחה!\nתאריך חישוב: ${new Date(saveResponse.data.calculation_date).toLocaleDateString('he-IL')}\n\nהנתונים נשמרו במערכת`);
     } catch (err: any) {
       setError('שגיאה בשמירת קיבוע זכויות: ' + err.message);
     } finally {
