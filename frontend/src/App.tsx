@@ -35,14 +35,14 @@ const ClientDetails = () => {
       
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         <a href={`/clients/${clientId}/pension-portfolio`} style={moduleButtonStyle}>תיק פנסיוני</a>
+        <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
+        <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
         <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>
-        <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>
-        <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
-        <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
+        <a href={`/clients/${clientId}/capital-assets`} style={moduleButtonStyle}>נכסי הון</a>         
         <a href={`/clients/${clientId}/fixation`} style={moduleButtonStyle}>קיבוע זכויות</a>
-        <a href={`/clients/${clientId}/retirement-scenarios`} style={moduleButtonStyle}>🎯 תרחישי פרישה</a>
         <a href={`/clients/${clientId}/reports`} style={moduleButtonStyle}>📊 תוצאות</a>
+        <a href={`/clients/${clientId}/retirement-scenarios`} style={moduleButtonStyle}>🎯 תרחישי פרישה</a>
       </div>
       
       <a href="/clients" style={{ display: 'inline-block', marginBottom: '20px' }}>חזרה לרשימת לקוחות</a>

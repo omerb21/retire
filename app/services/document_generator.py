@@ -103,21 +103,39 @@ def fill_161d_form(db: Session, client_id: int, output_dir: Path) -> Optional[Pa
         grants_nominal = sum(g.get('grant_amount', 0) for g in grants_list)
         grants_indexed = sum(g.get('limited_indexed_amount', 0) for g in grants_list)
         
+        # חישוב סך מענקים פטורים (רק מענקים שפוגעים בפטור)
+        total_exempt_grants = sum(g.get('limited_indexed_amount', 0) for g in grants_list if g.get('impact_on_exemption', 0) > 0)
+        
+        # סך פגיעה בפטור = total_impact מה-exemption_summary
+        total_impact_on_exemption = total_impact
+        
         # חישוב קצבה פטורה (מיתרת הפטור / 180)
         exempt_pension_monthly = remaining_exempt_capital / 180 if remaining_exempt_capital > 0 else 0
         
         # תקרת קצבה מזכה (9,430 לשנת 2025)
         pension_ceiling = 9430
         
-        reserved_grant = 0  # מענק עתידי משוריין
-        commutations_total = 0  # סך היוונים
+        # מענק עתידי משוריין
+        reserved_grant = exemption_summary.get('future_grant_reserved', 0)
+        reserved_grant_impact = exemption_summary.get('future_grant_impact', 0)
+        
+        # סך היוונים פטורים
+        commutations_total = exemption_summary.get('total_commutations', 0)
+        
+        # Build address string
+        address_parts = []
+        if client.address_street:
+            address_parts.append(client.address_street)
+        if client.address_city:
+            address_parts.append(client.address_city)
+        client_address = ", ".join(address_parts) if address_parts else ""
         
         field_data = {
             "Today": date.today().strftime("%d/%m/%Y"),
             "ClientFirstName": client.first_name or "",
             "ClientLastName": client.last_name or "",
             "ClientID": client.id_number or "",
-            "ClientAddress": f"{client.address or ''}",
+            "ClientAddress": client_address,
             "ClientBdate": client.birth_date.strftime("%d/%m/%Y") if client.birth_date else "",
             "Clientphone": client.phone or "",
             "ClientZdate": eligibility_date,
@@ -132,7 +150,13 @@ def fill_161d_form(db: Session, client_id: int, output_dir: Path) -> Optional[Pa
             "RemainingExemptCapital": f"{remaining_exempt_capital:,.0f}",
             "PensionCeiling": f"{pension_ceiling:,.0f}",
             "ExemptPensionMonthly": f"{exempt_pension_monthly:,.0f}",
-            "ExemptionPercentage": f"{exemption_percentage * 100:.1f}%"
+            "ExemptionPercentage": f"{exemption_percentage * 100:.1f}%",
+            
+            # שדות נוספים לטופס 161ד
+            "Clientmaanakpatur": f"{total_exempt_grants:,.0f}",  # סך מענקים פטורים
+            "Clientpgiabahon": f"{total_impact_on_exemption:,.0f}",  # סך פגיעה בפטור
+            "clientcapsum": f"{commutations_total:,.0f}",  # סך היוונים פטורים
+            "clientshiryun": f"{reserved_grant_impact:,.0f}"  # השפעת מענק עתידי משוריין
         }
         
         logger.info(f"📊 Form data prepared:")
@@ -204,6 +228,16 @@ def generate_grants_appendix(db: Session, client_id: int, output_dir: Path) -> O
         if not grants_summary:
             logger.warning(f"⚠️ No grants in fixation data for client {client_id}")
             return None
+        
+        # שליפת נתוני Grant מה-DB כדי לקבל תאריכי עבודה
+        grants_with_dates = db.query(Grant).filter(Grant.client_id == client_id).all()
+        grants_dates_map = {
+            g.employer_name: {
+                'work_start_date': g.work_start_date.strftime("%d/%m/%Y") if g.work_start_date else "-",
+                'work_end_date': g.work_end_date.strftime("%d/%m/%Y") if g.work_end_date else "-"
+            }
+            for g in grants_with_dates
+        }
         
         eligibility_date = raw_result.get('eligibility_date', '')
         if eligibility_date:
@@ -291,11 +325,16 @@ def generate_grants_appendix(db: Session, client_id: int, output_dir: Path) -> O
             indexed = grant.get('limited_indexed_amount', 0)
             impact = grant.get('impact_on_exemption', 0)
             
+            # שליפת תאריכי עבודה מה-map
+            dates_info = grants_dates_map.get(employer_name, {})
+            work_start = dates_info.get('work_start_date', '-')
+            work_end = dates_info.get('work_end_date', '-')
+            
             html_content += f"""
             <tr>
                 <td>{employer_name}</td>
-                <td>-</td>
-                <td>-</td>
+                <td>{work_start}</td>
+                <td>{work_end}</td>
                 <td>{nominal:,.0f}</td>
                 <td>{grant_date}</td>
                 <td>{relevant_nominal:,.0f}</td>
@@ -510,6 +549,306 @@ def html_to_pdf(html_path: Path, pdf_path: Path) -> Path:
     return pdf_path
 
 
+def generate_actual_commutations_appendix(db: Session, client_id: int, output_dir: Path) -> Optional[Path]:
+    """
+    יוצר נספח היוונים (ממש היוונים, לא קצבאות) בפורמט HTML וממיר ל-PDF
+    """
+    try:
+        from app.models.capital_asset import CapitalAsset
+        
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if not client:
+            return None
+        
+        # שליפת היוונים מנכסי הון (asset_type = 'commutation') - רק פטורים ממס
+        commutations = db.query(CapitalAsset).filter(
+            CapitalAsset.client_id == client_id,
+            CapitalAsset.remarks.like('%pension_fund_id=%'),
+            CapitalAsset.tax_treatment == 'exempt'  # רק היוונים פטורים ממס
+        ).all()
+        
+        if not commutations:
+            logger.info(f"No exempt commutations found for client {client_id}")
+            return None
+        
+        # יצירת HTML
+        html_content = f"""
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>נספח היוונים</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            direction: rtl;
+            padding: 20px;
+        }}
+        h1 {{
+            text-align: center;
+            color: #2c3e50;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: right;
+        }}
+        th {{
+            background-color: #3498db;
+            color: white;
+        }}
+        .total-row {{
+            background-color: #ecf0f1;
+            font-weight: bold;
+        }}
+    </style>
+</head>
+<body>
+    <h1>נספח היוונים - קיבוע זכויות</h1>
+    <div class="client-info">
+        <p><strong>שם הלקוח:</strong> {client.first_name} {client.last_name}</p>
+        <p><strong>תעודת זהות:</strong> {client.id_number or ''}</p>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>שם המשלם</th>
+                <th>תיק ניכויים</th>
+                <th>תאריך היוון</th>
+                <th>סכום היוון</th>
+                <th>סוג ההיוון</th>
+            </tr>
+        </thead>
+        <tbody>
+"""
+        
+        total_amount = 0
+        
+        for comm in commutations:
+            # חילוץ נתונים מה-remarks
+            import re
+            amount_match = re.search(r'amount=([\d.]+)', comm.remarks or '')
+            amount = float(amount_match.group(1)) if amount_match else (comm.current_value or 0)
+            
+            fund_id_match = re.search(r'pension_fund_id=(\d+)', comm.remarks or '')
+            fund_name = comm.asset_name or comm.description or 'לא ידוע'
+            
+            start_date = comm.start_date.strftime("%d/%m/%Y") if comm.start_date else ""
+            tax_treatment = "פטור ממס" if comm.tax_treatment == "exempt" else "חייב במס"
+            
+            html_content += f"""
+            <tr>
+                <td>{fund_name}</td>
+                <td>-</td>
+                <td>{start_date}</td>
+                <td>{amount:,.2f}</td>
+                <td>{tax_treatment}</td>
+            </tr>
+"""
+            
+            total_amount += amount
+        
+        html_content += f"""
+            <tr class="total-row">
+                <td colspan="3">סה"כ</td>
+                <td>{total_amount:,.2f}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
+"""
+        
+        # שמירת HTML
+        html_path = output_dir / "commutations_appendix.html"
+        html_path.write_text(html_content, encoding='utf-8')
+        
+        # המרה ל-PDF
+        pdf_path = output_dir / "נספח היוונים.pdf"
+        try:
+            html_to_pdf(html_path, pdf_path)
+            logger.info(f"Commutations appendix created: {pdf_path}")
+            return pdf_path
+        except Exception as e:
+            logger.warning(f"Could not convert HTML to PDF: {e}")
+            return html_path
+        
+    except Exception as e:
+        logger.error(f"Error creating commutations appendix: {e}", exc_info=True)
+        return None
+
+
+def generate_summary_table(db: Session, client_id: int, output_dir: Path) -> Optional[Path]:
+    """
+    יוצר טבלת סיכום קיבוע זכויות בפורמט HTML וממיר ל-PDF
+    """
+    try:
+        from app.models.fixation_result import FixationResult
+        
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if not client:
+            return None
+        
+        # שליפת נתוני קיבוע זכויות
+        fixation = db.query(FixationResult).filter(
+            FixationResult.client_id == client_id
+        ).order_by(FixationResult.created_at.desc()).first()
+        
+        if not fixation or not fixation.raw_result:
+            logger.info(f"No fixation data found for client {client_id}")
+            return None
+        
+        exemption_summary = fixation.raw_result.get('exemption_summary', {})
+        grants = fixation.raw_result.get('grants', [])
+        
+        # חישוב כל הסיכומים מהטבלה המקורית
+        exempt_capital_initial = exemption_summary.get('exempt_capital_initial', 0)
+        total_impact = exemption_summary.get('total_impact', 0)
+        remaining_exempt_capital = exemption_summary.get('remaining_exempt_capital', 0)
+        exempt_pension = remaining_exempt_capital / 180 if remaining_exempt_capital > 0 else 0
+        
+        # נתונים נוספים
+        grants_nominal = sum(g.get('grant_amount', 0) for g in grants)
+        grants_indexed = sum(g.get('limited_indexed_amount', 0) for g in grants)
+        future_grant_reserved = exemption_summary.get('future_grant_reserved', 0)
+        future_grant_impact = exemption_summary.get('future_grant_impact', 0)
+        total_commutations = exemption_summary.get('total_commutations', 0)
+        pension_ceiling = 9430  # תקרת קצבה מזכה
+        exemption_percentage = (exempt_pension / pension_ceiling * 100) if pension_ceiling > 0 else 0
+        
+        # יצירת HTML
+        html_content = f"""
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>טבלת סיכום קיבוע זכויות</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            direction: rtl;
+            padding: 20px;
+        }}
+        h1 {{
+            text-align: center;
+            color: #2c3e50;
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: right;
+        }}
+        th {{
+            background-color: #27ae60;
+            color: white;
+            font-weight: bold;
+        }}
+        .highlight-row {{
+            background-color: #d5f4e6;
+            font-weight: bold;
+        }}
+        .section-header {{
+            background-color: #95a5a6;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    <h1>טבלת סיכום - קיבוע זכויות</h1>
+    <div class="client-info">
+        <p><strong>שם הלקוח:</strong> {client.first_name} {client.last_name}</p>
+        <p><strong>תעודת זהות:</strong> {client.id_number or ''}</p>
+        <p><strong>תאריך:</strong> {date.today().strftime('%d/%m/%Y')}</p>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>פרט</th>
+                <th>סכום (₪)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background-color: #d1ecf1;">
+                <td style="font-weight: bold;">יתרת הון פטורה לשנת הזכאות</td>
+                <td style="font-weight: bold;">{exempt_capital_initial:,.2f}</td>
+            </tr>
+            <tr>
+                <td>סך נומינאלי של מענקי הפרישה</td>
+                <td>{grants_nominal:,.2f}</td>
+            </tr>
+            <tr>
+                <td>סך המענקים הרלוונטים לאחר הוצמדה</td>
+                <td>{grants_indexed:,.2f}</td>
+            </tr>
+            <tr>
+                <td>סך הכל פגיעה בפטור בגין מענקים פטורים</td>
+                <td>{total_impact:,.2f}</td>
+            </tr>
+            <tr style="background-color: #f8f9fa; color: #6c757d;">
+                <td>מענק עתידי משוריין (נומינלי)</td>
+                <td>{future_grant_reserved:,.2f}</td>
+            </tr>
+            <tr style="background-color: #f8f9fa; color: #6c757d;">
+                <td>השפעת מענק עתידי (×1.35)</td>
+                <td>{future_grant_impact:,.2f}</td>
+            </tr>
+            <tr style="background-color: #f8f9fa; color: #6c757d;">
+                <td>סך היוונים</td>
+                <td>{total_commutations:,.2f}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: 500;">יתרת הון פטורה לאחר קיזוזים</td>
+                <td style="color: #28a745;">{remaining_exempt_capital:,.2f}</td>
+            </tr>
+            <tr style="background-color: #fff3cd;">
+                <td>תקרת קצבה מזכה</td>
+                <td>{pension_ceiling:,.2f}</td>
+            </tr>
+            <tr style="background-color: #d4edda;">
+                <td style="font-weight: bold;">קצבה פטורה מחושבת</td>
+                <td style="font-weight: bold;">{exempt_pension:,.2f} ₪ ({exemption_percentage:.1f}%)</td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
+"""
+        
+        # שמירת HTML
+        html_path = output_dir / "summary_table.html"
+        html_path.write_text(html_content, encoding='utf-8')
+        
+        # המרה ל-PDF
+        pdf_path = output_dir / "טבלת סיכום.pdf"
+        try:
+            html_to_pdf(html_path, pdf_path)
+            logger.info(f"Summary table created: {pdf_path}")
+            return pdf_path
+        except Exception as e:
+            logger.warning(f"Could not convert HTML to PDF: {e}")
+            return html_path
+        
+    except Exception as e:
+        logger.error(f"Error creating summary table: {e}", exc_info=True)
+        return None
+
+
 def generate_document_package(db: Session, client_id: int) -> dict:
     """
     מייצר חבילת מסמכים מלאה ללקוח
@@ -555,6 +894,30 @@ def generate_document_package(db: Session, client_id: int) -> dict:
             logger.info(f"✅ Grants appendix created: {grants_app.name}")
         else:
             logger.warning(f"⚠️ Grants appendix not created")
+        
+        # 3. נספח היוונים
+        logger.info(f"📄 Generating commutations appendix...")
+        try:
+            commutations_app = generate_actual_commutations_appendix(db, client_id, output_dir)
+            if commutations_app and commutations_app.exists():
+                files.append(commutations_app.name)
+                logger.info(f"✅ Commutations appendix created: {commutations_app.name}")
+            else:
+                logger.warning(f"⚠️ Commutations appendix not created")
+        except Exception as e:
+            logger.error(f"❌ Exception in generate_commutations_appendix: {e}", exc_info=True)
+        
+        # 4. טבלת סיכום
+        logger.info(f"📄 Generating summary table...")
+        try:
+            summary_table = generate_summary_table(db, client_id, output_dir)
+            if summary_table and summary_table.exists():
+                files.append(summary_table.name)
+                logger.info(f"✅ Summary table created: {summary_table.name}")
+            else:
+                logger.warning(f"⚠️ Summary table not created")
+        except Exception as e:
+            logger.error(f"❌ Exception in generate_summary_table: {e}", exc_info=True)
         
         logger.info(f"✅ Package generated for client {client_id}: {len(files)} files")
         
