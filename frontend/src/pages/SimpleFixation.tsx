@@ -201,12 +201,16 @@ const SimpleFixation: React.FC = () => {
             const pensionFundId = match ? parseInt(match[1]) : undefined;
             const fund: any = pensionFundId ? fundsMap.get(pensionFundId) : undefined;
             
+            // חילוץ amount מה-remarks (כמו ב-PensionFunds.tsx)
+            const amountMatch = asset.remarks?.match(/amount=([\d.]+)/);
+            const amount = amountMatch ? parseFloat(amountMatch[1]) : asset.current_value;
+            
             return {
               id: asset.id,
               pension_fund_id: pensionFundId,
               fund_name: fund?.fund_name || 'לא ידוע',
               deduction_file: fund?.deduction_file || '',
-              exempt_amount: asset.current_value,
+              exempt_amount: amount,
               commutation_date: asset.start_date || asset.purchase_date,
               commutation_type: asset.tax_treatment
             };

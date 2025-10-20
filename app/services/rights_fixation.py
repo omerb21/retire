@@ -330,9 +330,13 @@ def compute_client_exemption(grants: List[Dict[str, Any]], eligibility_year: int
         # חישוב הון פטור נותר
         remaining_exempt_capital = max(exempt_capital_initial - total_impact, 0)
         
-        # חישוב פטור חודשי נותר
-        exemption_percentage = get_exemption_percentage(eligibility_year)
-        remaining_monthly_exemption = round(remaining_exempt_capital / (180 * exemption_percentage), 2) if exemption_percentage > 0 else 0
+        # חישוב אחוז הפטור המחושב של הלקוח
+        # האחוז המחושב = יתרה נותרת / יתרה התחלתית
+        calculated_exemption_percentage = (remaining_exempt_capital / exempt_capital_initial) if exempt_capital_initial > 0 else 0
+        
+        # חישוב פטור חודשי נותר (לפי האחוז הכללי של השנה)
+        general_exemption_percentage = get_exemption_percentage(eligibility_year)
+        remaining_monthly_exemption = round(remaining_exempt_capital / (180 * general_exemption_percentage), 2) if general_exemption_percentage > 0 else 0
         
         return {
             'exempt_capital_initial': exempt_capital_initial,
@@ -340,7 +344,8 @@ def compute_client_exemption(grants: List[Dict[str, Any]], eligibility_year: int
             'remaining_exempt_capital': remaining_exempt_capital,
             'remaining_monthly_exemption': remaining_monthly_exemption,
             'eligibility_year': eligibility_year,
-            'exemption_percentage': exemption_percentage
+            'exemption_percentage': calculated_exemption_percentage,  # האחוז המחושב של הלקוח
+            'general_exemption_percentage': general_exemption_percentage  # האחוז הכללי של השנה
         }
         
     except Exception as e:

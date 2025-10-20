@@ -126,22 +126,31 @@ export function calculateNPVComparison(
   yearlyProjection: any[],
   discountRate: number = 0.03
 ): { withExemption: number; withoutExemption: number; savings: number } {
-  // NPV עם פטור (מצב נוכחי)
+  // NPV עם פטור (מצב נוכחי - המס כבר מחושב עם קיזוז הקצבה הפטורה)
   const withExemption = yearlyProjection.reduce((sum, yearData, year) => {
     const annualNet = yearData.netMonthlyIncome * 12;
     return sum + (annualNet / Math.pow(1 + discountRate, year));
   }, 0);
   
-  // NPV ללא פטור (מצב היפותטי - מס גבוה יותר)
+  // NPV ללא פטור - חישוב מחדש של המס ללא קיזוז הקצבה הפטורה
   const withoutExemption = yearlyProjection.reduce((sum, yearData, year) => {
-    // נניח שללא פטור היה מס גבוה יותר בכ-15-20%
     const grossIncome = yearData.totalMonthlyIncome;
     const currentTax = yearData.totalMonthlyTax;
-    const exemptionSavings = yearData.exemptPension || 0; // הפטור החודשי
+    const exemptPension = yearData.exemptPension || 0; // הקצבה הפטורה שמקזזת מההכנסה החייבת
     
-    // מס ללא פטור
-    const taxWithoutExemption = currentTax + (exemptionSavings * 0.35); // מס על הפטור
-    const netWithoutExemption = grossIncome - taxWithoutExemption;
+    // אם אין פטור בשנה זו, ה-NPV זהה
+    if (exemptPension === 0) {
+      const annualNet = yearData.netMonthlyIncome * 12;
+      return sum + (annualNet / Math.pow(1 + discountRate, year));
+    }
+    
+    // חישוב מס נוסף על הקצבה הפטורה (שלא שולם בגלל הפטור)
+    // הפטור גרם להפחתת ההכנסה החייבת, כלומר חסכנו מס על הסכום הזה
+    // נניח מס שולי ממוצע של 31% (מדרגה רביעית)
+    const additionalTax = exemptPension * 0.31;
+    
+    // הכנסה נטו ללא פטור = הכנסה נטו נוכחית - המס הנוסף שהיינו משלמים
+    const netWithoutExemption = yearData.netMonthlyIncome - additionalTax;
     const annualNet = netWithoutExemption * 12;
     
     return sum + (annualNet / Math.pow(1 + discountRate, year));

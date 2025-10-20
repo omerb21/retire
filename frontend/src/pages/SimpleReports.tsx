@@ -42,6 +42,7 @@ interface YearlyProjection {
   netMonthlyIncome: number;
   incomeBreakdown: number[];
   taxBreakdown: number[];
+  exemptPension?: number;
 }
 
 /**
@@ -871,17 +872,13 @@ const SimpleReports: React.FC = () => {
       
       // Add pension fund incomes
       pensionFunds.forEach(fund => {
-        // חישוב שנת התחלה נכונה - קרן שהתחילה בעבר תוצג מהשנה הנוכחית
+        // חישוב שנת התחלה - שימוש בתאריך המקורי
         let fundStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
-        if (fund.start_date) {
-          const parsedYear = parseInt(fund.start_date.split('-')[0]);
-          // אם הקרן מתחילה בעתיד, נשתמש בשנת ההתחלה המקורית
-          // אם הקרן התחילה בעבר או בהווה, נשתמש בשנה הנוכחית
-          fundStartYear = Math.max(parsedYear, currentYear);
-          
-          // הדפסת מידע לבדיקה (מוסתר)
-          // console.log(`Fund ${fund.fund_name || 'unnamed'} original start: ${parsedYear}, effective start: ${fundStartYear}, current year: ${year}`);
+        if (fund.pension_start_date) {
+          fundStartYear = parseInt(fund.pension_start_date.split('-')[0]);
+        } else if (fund.start_date) {
+          fundStartYear = parseInt(fund.start_date.split('-')[0]);
         }
         
         const monthlyAmount = parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0;
@@ -904,17 +901,11 @@ const SimpleReports: React.FC = () => {
       
       // Add additional incomes
       additionalIncomes.forEach(income => {
-        // חישוב שנת התחלה נכונה - הכנסה שהתחילה בעבר תוצג מהשנה הנוכחית
+        // חישוב שנת התחלה - שימוש בתאריך המקורי
         let incomeStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
         
         if (income.start_date) {
-          const parsedYear = parseInt(income.start_date.split('-')[0]);
-          // אם ההכנסה מתחילה בעתיד, נשתמש בשנת ההתחלה המקורית
-          // אם ההכנסה התחילה בעבר או בהווה, נשתמש בשנה הנוכחית
-          incomeStartYear = Math.max(parsedYear, currentYear);
-          
-          // הדפסת מידע לבדיקה (מוסתר)
-          // console.log(`Income ${income.income_name || 'unnamed'} original start: ${parsedYear}, effective start: ${incomeStartYear}, current year: ${year}`);
+          incomeStartYear = parseInt(income.start_date.split('-')[0]);
         }
         
         const incomeEndYear = income.end_date ? parseInt(income.end_date.split('-')[0]) : maxYear;
@@ -956,8 +947,7 @@ const SimpleReports: React.FC = () => {
           let assetStartYear = currentYear;
           
           if (asset.start_date) {
-            const parsedYear = parseInt(asset.start_date.split('-')[0]);
-            assetStartYear = Math.max(parsedYear, currentYear);
+            assetStartYear = parseInt(asset.start_date.split('-')[0]);
           }
           
           // תשלום חד פעמי רק בשנת start_date
@@ -1220,7 +1210,8 @@ const SimpleReports: React.FC = () => {
         totalMonthlyTax: Math.round(totalMonthlyTax),
         netMonthlyIncome: Math.round(netIncome),
         incomeBreakdown,
-        taxBreakdown
+        taxBreakdown,
+        exemptPension: monthlyExemptPension
       });
     }
     
@@ -1879,18 +1870,31 @@ const SimpleReports: React.FC = () => {
                     <th>הכנסה חודשית</th>
                     <th>ערך נוכחי</th>
                     <th>תאריך התחלה</th>
-                    <th>תאריך סיום</th>
                 </tr>
             </thead>
             <tbody>
                 ${capitalAssets.map(asset => `
                     <tr>
                         <td>${asset.description || asset.asset_name || 'ללא תיאור'}</td>
-                        <td>${ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין'}</td>
+                        <td>${(() => {
+                            const typeMap: Record<string, string> = {
+                                rental_property: "דירה להשכרה",
+                                investment: "השקעות",
+                                stocks: "מניות",
+                                bonds: "אגרות חוב",
+                                mutual_funds: "קרנות נאמנות",
+                                real_estate: "נדלן",
+                                savings_account: "חשבון חיסכון",
+                                deposits: "היוון",
+                                provident_fund: "קופת גמל",
+                                education_fund: "קרן השתלמות",
+                                other: "אחר"
+                            };
+                            return typeMap[asset.asset_type] || asset.asset_type || 'לא צוין';
+                        })()}</td>
                         <td>₪${(asset.monthly_income || 0).toLocaleString()}</td>
                         <td>₪${(asset.current_value || 0).toLocaleString()}</td>
                         <td>${asset.start_date || 'לא צוין'}</td>
-                        <td>${asset.end_date || 'ללא הגבלה'}</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -1900,13 +1904,11 @@ const SimpleReports: React.FC = () => {
     
     ${pensionFunds.length > 0 ? `
     <div class="section">
-        <h2>📊 טבלת מוצרים פנסיונים</h2>
+        <h2>📊 קצבאות</h2>
         <table>
             <thead>
                 <tr>
                     <th>שם תכנית</th>
-                    <th>סוג מוצר</th>
-                    <th>חברה מנהלת</th>
                     <th>יתרה נוכחית</th>
                     <th>קצבה חודשית</th>
                     <th>תאריך התחלה</th>
@@ -1916,11 +1918,9 @@ const SimpleReports: React.FC = () => {
                 ${pensionFunds.map(fund => `
                     <tr>
                         <td>${fund.fund_name || 'ללא שם'}</td>
-                        <td>${PENSION_PRODUCT_TYPES[fund.product_type] || fund.product_type || 'לא צוין'}</td>
-                        <td>${fund.company || 'לא צוין'}</td>
                         <td>₪${(fund.current_balance || 0).toLocaleString()}</td>
                         <td>₪${(fund.monthly_pension || fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}</td>
-                        <td>${fund.start_date || 'לא צוין'}</td>
+                        <td>${fund.pension_start_date ? new Date(fund.pension_start_date).toLocaleDateString('he-IL') : (fund.start_date ? new Date(fund.start_date).toLocaleDateString('he-IL') : 'לא צוין')}</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -1929,99 +1929,6 @@ const SimpleReports: React.FC = () => {
             סה"כ יתרה: ₪${pensionFunds.reduce((sum, f) => sum + (parseFloat(f.current_balance) || 0), 0).toLocaleString()} | 
             סה"כ קצבה חודשית: ₪${pensionFunds.reduce((sum, f) => sum + (parseFloat(f.monthly_pension) || parseFloat(f.pension_amount) || parseFloat(f.computed_monthly_amount) || 0), 0).toLocaleString()}
         </div>
-        
-        <!-- גרף עוגה של פילוח מוצרים פנסיונים -->
-        <div style="margin-top: 30px; text-align: center;">
-            <h3>פילוח מוצרים פנסיונים לפי סוג</h3>
-            <canvas id="pensionPieChart" width="400" height="400" style="max-width: 500px; margin: 0 auto;"></canvas>
-        </div>
-        
-        <script>
-            // נתוני גרף העוגה
-            const pieData = ${JSON.stringify((() => {
-                const dataByType: Record<string, number> = {};
-                pensionFunds.forEach(fund => {
-                    const productType = PENSION_PRODUCT_TYPES[fund.product_type] || fund.product_type || 'לא צוין';
-                    const value = parseFloat(fund.current_balance) || 0;
-                    if (value > 0) {
-                        dataByType[productType] = (dataByType[productType] || 0) + value;
-                    }
-                });
-                return {
-                    labels: Object.keys(dataByType),
-                    values: Object.values(dataByType)
-                };
-            })())};
-            
-            // ציור גרף העוגה
-            const canvas = document.getElementById('pensionPieChart');
-            const ctx = canvas.getContext('2d');
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            const radius = Math.min(centerX, centerY) - 50;
-            
-            const colors = [
-                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
-                '#9966FF', '#FF9F40', '#C9CBCF'
-            ];
-            
-            const total = pieData.values.reduce((sum, val) => sum + val, 0);
-            let currentAngle = -Math.PI / 2;
-            
-            // ציור הפלחים
-            pieData.values.forEach((value, index) => {
-                const sliceAngle = (value / total) * 2 * Math.PI;
-                
-                // ציור הפלח
-                ctx.fillStyle = colors[index % colors.length];
-                ctx.beginPath();
-                ctx.moveTo(centerX, centerY);
-                ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-                ctx.closePath();
-                ctx.fill();
-                
-                // קו הפרדה
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                
-                // טקסט אחוזים על הפלח
-                const percentage = ((value / total) * 100).toFixed(1);
-                if (percentage > 5) {
-                    const textAngle = currentAngle + sliceAngle / 2;
-                    const textX = centerX + Math.cos(textAngle) * (radius * 0.7);
-                    const textY = centerY + Math.sin(textAngle) * (radius * 0.7);
-                    
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 14px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(percentage + '%', textX, textY);
-                }
-                
-                currentAngle += sliceAngle;
-            });
-            
-            // לגנדה
-            const legendY = canvas.height - 100;
-            let legendX = 50;
-            
-            pieData.labels.forEach((label, index) => {
-                const percentage = ((pieData.values[index] / total) * 100).toFixed(1);
-                const value = pieData.values[index];
-                
-                // ריבוע צבע
-                ctx.fillStyle = colors[index % colors.length];
-                ctx.fillRect(legendX, legendY + (index * 25), 15, 15);
-                
-                // טקסט
-                ctx.fillStyle = '#333';
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'right';
-                ctx.fillText(label + ': ' + percentage + '% (₪' + value.toLocaleString() + ')', 
-                    legendX + 350, legendY + (index * 25) + 12);
-            });
-        </script>
     </div>
     ` : ''}
     
@@ -2042,7 +1949,7 @@ const SimpleReports: React.FC = () => {
                 ${additionalIncomes.map(income => `
                     <tr>
                         <td>${income.description || 'ללא תיאור'}</td>
-                        <td>₪${(income.monthly_amount || 0).toLocaleString()}</td>
+                        <td>₪${(income.computed_monthly_amount || income.amount || 0).toLocaleString()}</td>
                         <td>${income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}</td>
                         <td>${income.start_date || 'לא צוין'}</td>
                         <td>${income.end_date || 'ללא הגבלה'}</td>
@@ -2053,31 +1960,29 @@ const SimpleReports: React.FC = () => {
     </div>
     ` : ''}
     
-    <div class="section">
-        <h2>📋 פרוט פעולות תזרים</h2>
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; line-height: 2;">
-            ${(() => {
-                const operations = generateCashflowOperationsDetails(
-                    pensionFunds,
-                    additionalIncomes,
-                    capitalAssets,
-                    fixationData,
-                    new Date().getFullYear()
-                );
-                return operations.map(line => `<div>${line.replace(/\n/g, '<br>')}</div>`).join('');
-            })()}
-        </div>
-    </div>
-    
-    ${fixationData ? `
+    ${fixationData && fixationData.exemption_summary ? `
     <div class="section">
         <h2>🛡️ פרוט פטורים ממס</h2>
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px;">
-            <div><strong>שנת קיבוע:</strong> ${fixationData.fixation_year || new Date().getFullYear()}</div>
-            <div><strong>יתרת הון פטורה ראשונית:</strong> ₪${(fixationData.exempt_capital_initial || 0).toLocaleString()}</div>
-            <div><strong>יתרה אחרי קיזוזים:</strong> ₪${(fixationData.remaining_exempt_capital || 0).toLocaleString()}</div>
-            <div><strong>קצבה פטורה חודשית (שנת קיבוע):</strong> ₪${((fixationData.remaining_exempt_capital || 0) / 180).toLocaleString()}</div>
-            <div><strong>אחוז פטור:</strong> ${((fixationData.exemption_percentage || 0) * 100).toFixed(2)}%</div>
+            <div><strong>שנת קיבוע:</strong> ${fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || new Date().getFullYear()}</div>
+            <div><strong>יתרת הון פטורה ראשונית:</strong> ₪${(fixationData.exemption_summary.exempt_capital_initial || 0).toLocaleString()}</div>
+            <div><strong>יתרה אחרי קיזוזים:</strong> ₪${(fixationData.exemption_summary.remaining_exempt_capital || 0).toLocaleString()}</div>
+            <div><strong>קצבה פטורה חודשית (שנת קיבוע):</strong> ₪${((fixationData.exemption_summary.remaining_exempt_capital || 0) / 180).toLocaleString()}</div>
+            <div><strong>אחוז פטור:</strong> ${(() => {
+                const remaining = fixationData.exemption_summary.remaining_exempt_capital || 0;
+                const exemptPension = remaining / 180;
+                const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || new Date().getFullYear();
+                // תקרת קצבה לפי שנה
+                const pensionCeilings = {
+                    2012: 6790, 2013: 6790, 2014: 6790, 2015: 6790,
+                    2016: 7640, 2017: 7640, 2018: 7640, 2019: 7640,
+                    2020: 8120, 2021: 8120, 2022: 8120, 2023: 8120, 2024: 8120,
+                    2025: 9430, 2026: 9430, 2027: 9430, 2028: 9430
+                };
+                const pensionCeiling = pensionCeilings[eligibilityYear] || 9430;
+                const calculatedPercentage = pensionCeiling > 0 ? (exemptPension / pensionCeiling) * 100 : 0;
+                return calculatedPercentage.toFixed(2);
+            })()}%</div>
             <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #856404;">
                 <strong>השוואת NPV:</strong><br>
                 NPV עם פטור: ₪${Math.round(calculateNPVComparison(yearlyProjection, 0.03).withExemption).toLocaleString()}<br>
@@ -2092,9 +1997,7 @@ const SimpleReports: React.FC = () => {
         <h2>סיכום כספי מקיף</h2>
         
         <h3>נכסים:</h3>
-        <div class="summary-item">• סך יתרות קצבאות: ₪${pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0).toLocaleString()}</div>
         <div class="summary-item">• סך ערך נכסי הון: ₪${capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0).toLocaleString()}</div>
-        <div class="summary-item summary-total">• סך כל הנכסים: ₪${(pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.current_balance) || 0), 0) + capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0)).toLocaleString()}</div>
         
         <h3>הכנסות חודשיות צפויות:</h3>
         <div class="summary-item">• קצבאות פנסיה: ₪${pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0).toLocaleString()}</div>
@@ -2123,33 +2026,38 @@ const SimpleReports: React.FC = () => {
     <div class="section" style="page-break-before: always;">
         <h2>תזרים מזומנים מפורט - פירוט מלא</h2>
         <div style="overflow-x: auto;">
-            <table style="font-size: 10px;">
+            <table style="font-size: 9px; width: 100%;">
                 <thead>
-                    <tr>
-                        <th rowspan="2">שנה</th>
-                        <th colspan="${pensionFunds.length}">הכנסות מקצבאות (חודשי)</th>
-                        <th colspan="${additionalIncomes.length > 0 ? additionalIncomes.length : 1}">הכנסות נוספות</th>
-                        <th rowspan="2">סה"כ הכנסה</th>
-                        <th colspan="${pensionFunds.length}">מס על קצבאות</th>
-                        <th rowspan="2">סה"כ מס</th>
-                        <th rowspan="2">נטו חודשי</th>
-                    </tr>
-                    <tr>
-                        ${pensionFunds.map(f => `<th style="font-size: 9px;">${(f.fund_name || 'קצבה').substring(0, 15)}</th>`).join('')}
-                        ${additionalIncomes.length > 0 ? additionalIncomes.map(i => `<th style="font-size: 9px;">${(i.description || 'הכנסה').substring(0, 15)}</th>`).join('') : '<th>-</th>'}
-                        ${pensionFunds.map(f => `<th style="font-size: 9px;">מס ${(f.fund_name || 'קצבה').substring(0, 10)}</th>`).join('')}
+                    <tr style="background: #003366; color: white;">
+                        <th style="padding: 8px; border: 1px solid #ddd;">שנה</th>
+                        <th style="padding: 8px; border: 1px solid #ddd; background: #f0f8ff;">נטו חודשי</th>
+                        <th style="padding: 8px; border: 1px solid #ddd; background: #ffe4e1;">סה"כ מס</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">סה"כ הכנסה</th>
+                        ${pensionFunds.map(f => `
+                            <th style="padding: 8px; border: 1px solid #ddd; background: #ffe4e1; font-size: 8px;">מס ${(f.fund_name || 'קצבה').substring(0, 12)}</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; font-size: 8px;">${(f.fund_name || 'קצבה').substring(0, 12)}</th>
+                        `).join('')}
+                        ${additionalIncomes.map(i => `
+                            <th style="padding: 8px; border: 1px solid #ddd; background: #ffe4e1; font-size: 8px;">מס ${(i.description || 'הכנסה').substring(0, 12)}</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; font-size: 8px;">${(i.description || 'הכנסה').substring(0, 12)}</th>
+                        `).join('')}
+                        ${capitalAssets.filter(asset => (parseFloat(asset.monthly_income) || 0) > 0).map(asset => `
+                            <th style="padding: 8px; border: 1px solid #ddd; background: #ffe4e1; font-size: 8px;">מס ${(asset.description || asset.asset_name || 'נכס').substring(0, 12)}</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; background: #fff8f0; font-size: 8px;">${(asset.description || asset.asset_name || 'נכס').substring(0, 12)} (חד פעמי)</th>
+                        `).join('')}
                     </tr>
                 </thead>
                 <tbody>
-                    ${yearlyProjection.map(year => `
-                        <tr>
-                            <td style="font-weight: bold;">${year.year}</td>
-                            ${year.incomeBreakdown.map(income => `<td>₪${income.toLocaleString()}</td>`).join('')}
-                            ${additionalIncomes.length > 0 ? year.incomeBreakdown.slice(pensionFunds.length).map(income => `<td>₪${income.toLocaleString()}</td>`).join('') : '<td>-</td>'}
-                            <td style="font-weight: bold; background: #e8f5e9;">₪${year.totalMonthlyIncome.toLocaleString()}</td>
-                            ${year.taxBreakdown.map(tax => `<td style="color: #d32f2f;">₪${tax.toLocaleString()}</td>`).join('')}
-                            <td style="font-weight: bold; background: #ffebee; color: #d32f2f;">₪${year.totalMonthlyTax.toLocaleString()}</td>
-                            <td style="font-weight: bold; background: #e3f2fd;">₪${year.netMonthlyIncome.toLocaleString()}</td>
+                    ${yearlyProjection.map((year, index) => `
+                        <tr style="background: ${index % 2 === 0 ? '#f8f9fa' : 'white'};">
+                            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${year.year}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; background: #f0f8ff;">₪${year.netMonthlyIncome.toLocaleString()}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; background: #ffe4e1;">₪${year.totalMonthlyTax.toLocaleString()}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">₪${year.totalMonthlyIncome.toLocaleString()}</td>
+                            ${year.incomeBreakdown.map((income, i) => `
+                                <td style="padding: 8px; border: 1px solid #ddd; background: #ffe4e1;">₪${(year.taxBreakdown[i] || 0).toLocaleString()}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">₪${income.toLocaleString()}</td>
+                            `).join('')}
                         </tr>
                     `).join('')}
                 </tbody>
