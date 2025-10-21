@@ -32,7 +32,7 @@ type PensionAccount = {
   תגמולי_מעביד_עד_2000?: number;
   תגמולי_מעביד_אחרי_2000?: number;
   תגמולי_מעביד_אחרי_2008_לא_משלמת?: number;
-  תגמולים?: number; // טור מחושב: יתרה פחות כל הטורים האחרים
+  תגמולים?: number; // ערך מיובא מתגית YITRAT-KASPEY-TAGMULIM
   selected?: boolean;
   conversion_type?: 'pension' | 'capital_asset';
   selected_amounts?: {[key: string]: boolean}; // לסימון סכומים ספציפיים
@@ -46,43 +46,12 @@ type ProcessedFile = {
 };
 
 /**
- * מחשב את טור התגמולים פעם אחת בלבד (בטעינה ראשונית)
- * תגמולים = יתרה מקורית - סכום כל הטורים האחרים
- * אחרי החישוב הראשוני, התגמולים הופכים לערך קבוע (ניתן לעריכה והמרה)
+ * פונקציה זו כבר לא מחשבת תגמולים - התגמולים מיובאים ישירות מהתגית YITRAT-KASPEY-TAGMULIM
+ * הפונקציה נשארת לצורך תאימות לאחור אך פשוט מחזירה את החשבון כמו שהוא
  */
 function calculateInitialTagmulim(account: PensionAccount): PensionAccount {
-  // אם כבר יש ערך תגמולים, לא נחשב מחדש
-  if (account.תגמולים !== undefined && account.תגמולים !== null) {
-    return account;
-  }
-  
-  const componentFields = [
-    'פיצויים_מעסיק_נוכחי',
-    'פיצויים_לאחר_התחשבנות',
-    'פיצויים_שלא_עברו_התחשבנות',
-    'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
-    'פיצויים_ממעסיקים_קודמים_רצף_קצבה',
-    'תגמולי_עובד_עד_2000',
-    'תגמולי_עובד_אחרי_2000',
-    'תגמולי_עובד_אחרי_2008_לא_משלמת',
-    'תגמולי_מעביד_עד_2000',
-    'תגמולי_מעביד_אחרי_2000',
-    'תגמולי_מעביד_אחרי_2008_לא_משלמת'
-  ];
-  
-  // חישוב סכום כל הטורים (לא כולל תגמולים)
-  const componentsSum = componentFields.reduce((sum, field) => {
-    const value = (account as any)[field];
-    return sum + (typeof value === 'number' ? value : 0);
-  }, 0);
-  
-  // חישוב תגמולים = יתרה מקורית - סכום הטורים
-  const תגמולים = Math.max(0, (account.יתרה || 0) - componentsSum);
-  
-  return {
-    ...account,
-    תגמולים
-  };
+  // אין יותר חישוב - התגמולים מיובאים ישירות מה-XML
+  return account;
 }
 
 /**
@@ -103,7 +72,7 @@ function calculateTotalBalance(account: PensionAccount): number {
     'תגמולי_מעביד_אחרי_2008_לא_משלמת',
     'תגמולים'
   ];
-  
+
   return allFields.reduce((sum, field) => {
     const value = (account as any)[field];
     return sum + (typeof value === 'number' ? value : 0);
@@ -130,8 +99,9 @@ export default function PensionPortfolio() {
     setError("");
     setProcessingStatus("מוחק נתונים קיימים ומעבד קבצים...");
     
-    // מחיקת כל הנתונים הקיימים
+    // מחיקת כל הנתונים הקיימים מה-state ומה-localStorage
     setPensionData([]);
+    localStorage.removeItem(`pensionData_${clientId}`);
 
     try {
       const processedAccounts: PensionAccount[] = [];
@@ -184,10 +154,11 @@ export default function PensionPortfolio() {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
     
-    // Debug: חיפוש ספציפי של SHEM-YATZRAN ו-TOTAL-CHISACHON-MTZBR
-    const schemYatzranElements = xmlDoc.getElementsByTagName('SHEM-YATZRAN');
-    const totalChisachonElements = xmlDoc.getElementsByTagName('TOTAL-CHISACHON-MTZBR');
-    console.log(`${fileName}: Found ${schemYatzranElements.length} SHEM-YATZRAN, ${totalChisachonElements.length} TOTAL-CHISACHON-MTZBR`);
+    // חילוץ תגיות גלובליות של סוג מוצר (פעם אחת לכל הקובץ)
+    const globalShemMutzar = xmlDoc.getElementsByTagName('SHEM-MUTZAR')[0]?.textContent?.trim() || '';
+    const globalSugMutzar = xmlDoc.getElementsByTagName('SUG-MUTZAR')[0]?.textContent?.trim() || '';
+    
+    console.log(`${fileName}: Global SHEM-MUTZAR="${globalShemMutzar}", SUG-MUTZAR="${globalSugMutzar}"`);
     
     // חיפוש אלמנטי חשבונות בשמות שונים
     const accountSelectors = [
@@ -201,7 +172,7 @@ export default function PensionPortfolio() {
       const accountElements = xmlDoc.getElementsByTagName(selector);
       console.log(`Found ${accountElements.length} elements with tag ${selector}`);
       for (let i = 0; i < accountElements.length; i++) {
-        const account = extractAccountData(accountElements[i], fileName, xmlDoc);
+        const account = extractAccountData(accountElements[i], fileName, xmlDoc, globalShemMutzar, globalSugMutzar);
         if (account) {
           console.log(`Adding account to list:`, account);
           accounts.push(account);
@@ -216,7 +187,7 @@ export default function PensionPortfolio() {
   };
 
   // פונקציה לחילוץ נתוני חשבון מאלמנט XML
-  const extractAccountData = (accountElem: Element, fileName: string, xmlDoc: Document): PensionAccount | null => {
+  const extractAccountData = (accountElem: Element, fileName: string, xmlDoc: Document, globalShemMutzar: string, globalSugMutzar: string): PensionAccount | null => {
     const getElementText = (tagName: string): string => {
       // חיפוש ראשון בתוך האלמנט הספציפי
       const elements = accountElem.getElementsByTagName(tagName);
@@ -420,36 +391,48 @@ export default function PensionPortfolio() {
                      getElementText('TAARICH-HITZTARFUT') ||
                      'לא ידוע';
 
-    // סוג מוצר - לפי שם התכנית בלבד (כמו במערכת המקורית)
-    let productType = 'קופת גמל'; // ברירת מחדל
+    // סוג מוצר - שימוש בתגיות הגלובליות שהועברו
+    let productType = 'לא ידוע';
     
-    // זיהוי לפי שם התכנית (הדרך הכי מהימנה)
-    if (planName) {
-      const planLower = planName.toLowerCase();
-      console.log(`Analyzing plan name: "${planName}"`);
-      
-      if (planLower.includes('השתלמות')) {
+    console.log(`🔍 Product type detection: SHEM-MUTZAR="${globalShemMutzar}", SUG-MUTZAR="${globalSugMutzar}"`);
+    
+    // זיהוי לפי SHEM-MUTZAR (עדיפות ראשונה)
+    if (globalShemMutzar) {
+      const mutzarLower = globalShemMutzar.toLowerCase();
+      // סדר הבדיקה חשוב! השתלמות לפני פנסיה
+      if (mutzarLower.includes('השתלמות')) {
         productType = 'קרן השתלמות';
-        console.log('Identified as קרן השתלמות by plan name');
-      } else if (planLower.includes('פנסיה')) {
+      } else if (mutzarLower.includes('קרן פנסיה')) {
         productType = 'קרן פנסיה';
-        console.log('Identified as קרן פנסיה by plan name');
-      } else if (planLower.includes('ביטוח מנהלים') || planLower.includes('מנהלים')) {
-        productType = 'ביטוח מנהלים';
-        console.log('Identified as ביטוח מנהלים by plan name');
-      } else if (planLower.includes('חיסכון') && !planLower.includes('גמל')) {
-        productType = 'פוליסת חיסכון';
-        console.log('Identified as פוליסת חיסכון by plan name');
-      } else if (planLower.includes('ביטוח חיים')) {
+      } else if (mutzarLower.includes('קופת גמל')) {
+        productType = 'קופת גמל';
+      } else if (mutzarLower.includes('ביטוח חיים משולב') || mutzarLower.includes('משולב חיסכון')) {
+        productType = 'פוליסת ביטוח חיים משולב חיסכון';
+      } else if (mutzarLower.includes('ביטוח חיים')) {
         productType = 'פוליסת ביטוח חיים';
-        console.log('Identified as פוליסת ביטוח חיים by plan name');
+      } else if (mutzarLower.includes('חיסכון טהור') || mutzarLower.includes('חסכון טהור')) {
+        productType = 'פוליסת חיסכון טהור';
       } else {
-        // ברירת מחדל לקופת גמל
-        console.log('Using default: קופת גמל');
+        productType = globalShemMutzar; // השתמש בשם המדויק מהתגית
       }
-    } else {
-      console.log('No plan name found, using default: קופת גמל');
     }
+    // זיהוי לפי SUG-MUTZAR (עדיפות שנייה)
+    else if (globalSugMutzar) {
+      const PRODUCT_TYPE_MAP: {[key: string]: string} = {
+        '1': 'פוליסת ביטוח חיים משולב חיסכון',
+        '2': 'קרן פנסיה',  // תוקן: 2 = קרן פנסיה (לפי קבצי PNN)
+        '3': 'קופת גמל',
+        '4': 'קרן השתלמות',
+        '5': 'פוליסת חיסכון טהור',
+        '6': 'קרן השתלמות',
+        '7': 'פוליסת ביטוח חיים',
+        '8': 'ביטוח מנהלים',
+        '9': 'קופת גמל להשקעה'
+      };
+      productType = PRODUCT_TYPE_MAP[globalSugMutzar] || globalSugMutzar;
+    }
+    
+    console.log(`✅ Final product type: ${productType}`);
 
     // מעסיקים היסטוריים - חיפוש מורחב
     const employerTags = ['SHEM-MAASIK', 'SHEM-MESHALEM', 'SHEM-BAAL-POLISA', 'SHEM-MAFKID'];
@@ -483,13 +466,19 @@ export default function PensionPortfolio() {
         'SCHUM-HAFKADA-SHESHULAM',
         'SCHUM-TAGMULIM',
         'SCHUM-PITURIM',
+        'YITRAT-PITZUIM-LELO-HITCHASHBENOT',
+        'KAYAM-RETZEF-PITZUIM-KITZBA',
+        'KAYAM-RETZEF-ZECHUYOT-PITZUIM',
+        'YITRAT-PITZUIM',
+        'YITRAT-PITZUIM-MAASIK-NOCHECHI',
+        'ERECH-PIDION-MARKIV-PITZUIM-LEMAS-NOCHECHI',
         'TZVIRAT-PITZUIM-PTURIM-MAAVIDIM-KODMIM',
         'TZVIRAT-PITZUIM-MAAVIDIM-KODMIM-BERETZEF-ZECHUYOT',
         'TZVIRAT-PITZUIM-MAAVIDIM-KODMIM-BERETZEF-KITZBA'
       ];
       
       const balanceKeywords = ['TAGMUL', 'PITZ', 'PITZU', 'PITZUI'];
-      const explicitSet = new Set(balanceExplicitTags);
+      const explicitSet = new Set(balanceExplicitTags.map(tag => tag.toUpperCase()));
       
       const allElements = accountElem.getElementsByTagName('*');
       for (let i = 0; i < allElements.length; i++) {
@@ -497,14 +486,14 @@ export default function PensionPortfolio() {
         if (!node.textContent || !node.textContent.trim()) continue;
         
         const tagUpper = node.tagName.toUpperCase();
-        const isExplicit = explicitSet.has(node.tagName);
+        const isExplicit = explicitSet.has(tagUpper);
         const hasKeyword = balanceKeywords.some(keyword => tagUpper.includes(keyword));
-        
+
         if (!(isExplicit || hasKeyword)) continue;
-        
+
         const value = node.textContent.trim();
-        if (!collected[node.tagName]) collected[node.tagName] = [];
-        collected[node.tagName].push(value);
+        if (!collected[tagUpper]) collected[tagUpper] = [];
+        collected[tagUpper].push(value);
       }
       
       const result: {[key: string]: string} = {};
@@ -596,12 +585,59 @@ export default function PensionPortfolio() {
     const balanceRelatedFields = collectBalanceRelatedFields();
     const tagmulPeriods = collectTagmulPeriods();
 
+    const getFirstBalanceValue = (tags: string[]): number => {
+      for (const tag of tags) {
+        const raw = balanceRelatedFields[tag];
+        if (!raw) continue;
+        const parts = raw.split(' | ');
+        for (const part of parts) {
+          const valueText = part?.trim();
+          if (!valueText) continue;
+          const numeric = parseFloat(valueText.replace(/,/g, ''));
+          if (!isNaN(numeric) && numeric !== 0) {
+            return numeric;
+          }
+        }
+      }
+      return 0;
+    };
+
     // פיצויים - לפי השדות הנכונים מהמערכת הקיימת
-    const פיצויים_מעסיק_נוכחי = parseFloat(balanceRelatedFields['ERECH-PIDION-PITZUIM-MAASIK-NOCHECHI']?.split(' | ')[0] || '0') || 0;
-    const פיצויים_לאחר_התחשבנות = parseFloat(balanceRelatedFields['ERECH-PIDION-PITZUIM-LEKITZBA-MAAVIDIM-KODMIM']?.split(' | ')[0] || '0') || 0;
-    const פיצויים_שלא_עברו_התחשבנות = parseFloat(balanceRelatedFields['TZVIRAT-PITZUIM-PTURIM-MAAVIDIM-KODMIM']?.split(' | ')[0] || '0') || 0;
-    const פיצויים_ממעסיקים_קודמים_רצף_זכויות = parseFloat(balanceRelatedFields['TZVIRAT-PITZUIM-MAAVIDIM-KODMIM-BERETZEF-ZECHUYOT']?.split(' | ')[0] || '0') || 0;
-    const פיצויים_ממעסיקים_קודמים_רצף_קצבה = parseFloat(balanceRelatedFields['TZVIRAT-PITZUIM-MAAVIDIM-KODMIM-BERETZEF-KITZBA']?.split(' | ')[0] || '0') || 0;
+    const פיצויים_מעסיק_נוכחי = getFirstBalanceValue([
+      'ERECH-PIDION-PITZUIM-MAASIK-NOCHECHI',
+      'YITRAT-PITZUIM-MAASIK-NOCHECHI',
+      'YITRAT-PITZUIM-LELO-HITCHASHBENOT'
+    ]);
+
+    if (accountNumber === '2209575014') {
+      console.log('🔍 DEBUG Plan 2209575014:');
+      console.log('  balance keys:', Object.keys(balanceRelatedFields));
+      console.log('  balance entries:', JSON.stringify(balanceRelatedFields, null, 2));
+      console.log('  פיצויים_מעסיק_נוכחי:', פיצויים_מעסיק_נוכחי);
+    }
+
+    if (accountNumber === '494930') {
+      console.log('🔍 DEBUG Plan 494930:');
+      console.log('  balance keys:', Object.keys(balanceRelatedFields));
+      console.log('  balance entries:', JSON.stringify(balanceRelatedFields, null, 2));
+      console.log('  פיצויים_מעסיק_נוכחי:', פיצויים_מעסיק_נוכחי);
+    }
+    const פיצויים_לאחר_התחשבנות = getFirstBalanceValue([
+      'ERECH-PIDION-PITZUIM-LEKITZBA-MAAVIDIM-KODMIM',
+      'YITRAT-PITZUIM-LEKITZBA-MAAVIDIM-KODMIM'
+    ]);
+    const פיצויים_שלא_עברו_התחשבנות = getFirstBalanceValue([
+      'TZVIRAT-PITZUIM-PTURIM-MAAVIDIM-KODMIM'
+    ]);
+    const פיצויים_ממעסיקים_קודמים_רצף_זכויות = getFirstBalanceValue([
+      'TZVIRAT-PITZUIM-MAAVIDIM-KODMIM-BERETZEF-ZECHUYOT'
+    ]);
+    const פיצויים_ממעסיקים_קודמים_רצף_קצבה = getFirstBalanceValue([
+      'TZVIRAT-PITZUIM-MAAVIDIM-KODMIM-BERETZEF-KITZBA'
+    ]);
+
+    const סך_פיצויים = פיצויים_מעסיק_נוכחי + פיצויים_לאחר_התחשבנות + פיצויים_שלא_עברו_התחשבנות +
+                     פיצויים_ממעסיקים_קודמים_רצף_זכויות + פיצויים_ממעסיקים_קודמים_רצף_קצבה;
 
     // תגמולים - לפי התקופות מהמערכת הקיימת
     const תגמולי_עובד_עד_2000 = tagmulPeriods['תגמולי עובד עד 2000'] || 0;
@@ -610,6 +646,10 @@ export default function PensionPortfolio() {
     const תגמולי_מעביד_עד_2000 = tagmulPeriods['תגמולי מעביד עד 2000'] || 0;
     const תגמולי_מעביד_אחרי_2000 = tagmulPeriods['תגמולי מעביד אחרי 2000'] || 0;
     const תגמולי_מעביד_אחרי_2008_לא_משלמת = tagmulPeriods['תגמולי מעביד אחרי 2008 (קצבה לא משלמת)'] || 0;
+
+    // תגמולים - ייבוא ישיר מהתגית YITRAT-KASPEY-TAGMULIM, ואז ניכוי רכיבי פיצויים ותגמולים לא משלמים
+    const תגמולים_מקור = parseFloat(balanceRelatedFields['YITRAT-KASPEY-TAGMULIM']?.split(' | ')[0] || '0') || 0;
+    const תגמולים = Math.max(0, תגמולים_מקור - סך_פיצויים - תגמולי_עובד_אחרי_2008_לא_משלמת - תגמולי_מעביד_אחרי_2008_לא_משלמת);
 
     // רק אם יש מידע משמעותי, נחזיר את החשבון
     if (accountNumber === 'לא ידוע' && planName === 'לא ידוע' && balance === 0) {
@@ -627,6 +667,7 @@ export default function PensionPortfolio() {
       תאריך_התחלה: startDate,
       סוג_מוצר: productType,
       מעסיקים_היסטוריים: employers.join(', '),
+      תגמולים,
       פיצויים_מעסיק_נוכחי,
       פיצויים_לאחר_התחשבנות,
       פיצויים_שלא_עברו_התחשבנות,
@@ -641,7 +682,11 @@ export default function PensionPortfolio() {
       selected: false,
       selected_amounts: {}
     };
-    
+
+    if (accountNumber === '494930') {
+      console.log('📦 Account 494930 object:', JSON.stringify(baseAccount, null, 2));
+    }
+
     // חישוב תגמולים (פעם אחת בלבד)
     const result = calculateInitialTagmulim(baseAccount);
     
@@ -1094,8 +1139,8 @@ export default function PensionPortfolio() {
             assetDescription = 'קופת גמל';
           }
           
-          // חישוב יחס מס לפי חוקי ההמרה - להון תמיד פטור ממס
-          const taxTreatment = 'exempt';
+          // חישוב יחס מס לפי חוקי ההמרה
+          const taxTreatment = calculateTaxTreatment(account, specificAmounts, 'capital_asset');
           
           // יצירת מידע מקור להחזרה במקרה של מחיקה
           const conversionSourceData = {

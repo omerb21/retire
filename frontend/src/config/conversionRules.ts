@@ -9,7 +9,7 @@
 export type ConversionType = 'pension' | 'capital_asset';
 
 // סוגי מוצרים
-export type ProductType = 'pension_fund' | 'insurance_policy' | 'provident_fund' | 'education_fund';
+export type ProductType = 'pension_fund' | 'insurance_policy' | 'provident_fund' | 'education_fund' | 'investment_provident_fund';
 
 // יכולת המרה של רכיב
 export interface ComponentConversionRule {
@@ -122,12 +122,13 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
   },
   {
     field: 'תגמולים',
-    displayName: 'תגמולים',
+    displayName: 'תגמולים (דינמי לפי סוג מוצר)',
     canConvertToPension: true,
-    canConvertToCapital: false,
-    taxTreatmentWhenPension: 'taxable', // חייב במס
-    errorMessage: 'תגמולים ניתנים להמרה לקצבה בלבד'
-  }
+    canConvertToCapital: true,
+    taxTreatmentWhenPension: 'taxable',
+    taxTreatmentWhenCapital: 'capital_gain',
+    errorMessage: 'חוקי המרה לתגמולים תלויים בסוג המוצר: קרן פנסיה/ביטוח מנהלים=קצבתי בלבד; קופת גמל/קרן השתלמות=הוני פטור; קופת גמל להשקעה=הוני עם מס רווח הון'
+  },
 ];
 
 /**
@@ -140,6 +141,8 @@ export function identifyProductType(productName: string): ProductType {
   
   if (lowerName.includes('קרן השתלמות')) {
     return 'education_fund';
+  } else if (lowerName.includes('גמל להשקעה')) {
+    return 'investment_provident_fund';
   } else if (lowerName.includes('ביטוח')) {
     return 'insurance_policy';
   } else if (lowerName.includes('קופת גמל')) {
@@ -238,6 +241,52 @@ export function validateComponentConversion(
     warnings: [],
     taxTreatment: 'taxable'
   };
+
+  // טיפול מיוחד בשדה תגמולים - תלוי בסוג המוצר
+  if (fieldName === 'תגמולים') {
+    const lowerProductType = productType.toLowerCase();
+    
+    // קרן פנסיה או ביטוח מנהלים - סכום קצבתי
+    if (lowerProductType.includes('קרן פנסיה') || lowerProductType.includes('ביטוח מנהלים')) {
+      if (conversionType === 'pension') {
+        result.canConvert = true;
+        result.taxTreatment = 'taxable'; // חייב במס
+      } else {
+        result.canConvert = false;
+        result.errors.push('תגמולים בקרן פנסיה/ביטוח מנהלים ניתנים להמרה לקצבה בלבד');
+      }
+      return result;
+    }
+    
+    // קופת גמל או קרן השתלמות - סכום הוני
+    if (lowerProductType.includes('קופת גמל') && !lowerProductType.includes('להשקעה')) {
+      result.canConvert = true;
+      result.taxTreatment = 'exempt'; // פטור ממס
+      return result;
+    }
+    
+    if (lowerProductType.includes('קרן השתלמות')) {
+      result.canConvert = true;
+      result.taxTreatment = 'exempt'; // פטור ממס
+      return result;
+    }
+    
+    // קופת גמל להשקעה - סכום הוני עם יחס מס שונה
+    if (lowerProductType.includes('גמל להשקעה')) {
+      result.canConvert = true;
+      if (conversionType === 'pension') {
+        result.taxTreatment = 'exempt'; // פטור ממס
+      } else {
+        result.taxTreatment = 'capital_gain'; // חייב במס רווח הון
+      }
+      return result;
+    }
+    
+    // ברירת מחדל - אם לא זוהה סוג מוצר
+    result.canConvert = false;
+    result.errors.push('לא ניתן לקבוע חוקי המרה עבור תגמולים - סוג מוצר לא מזוהה');
+    return result;
+  }
 
   // קרן השתלמות - כל היתרה היא הונית
   if (isEducationFund(productType)) {
@@ -422,6 +471,10 @@ export function getConversionRulesExplanation(): string {
 9. תגמולי מעביד אחרי 2000 - קצבה בלבד ✓ (חייב במס)
 10. תגמולי עובד אחרי 2008 (לא משלמת) - קצבה בלבד ✓ (חייב במס)
 11. תגמולי מעביד אחרי 2008 (לא משלמת) - קצבה בלבד ✓ (חייב במס)
+12. תגמולים - חוקי המרה דינמיים לפי סוג מוצר:
+    - קרן פנסיה/ביטוח מנהלים: קצבתי - קצבה בלבד ✓ (חייב במס)
+    - קופת גמל/קרן השתלמות: הוני - הון או קצבה ✓ (פטור ממס)
+    - קופת גמל להשקעה: הוני - הון (מס רווח הון) או קצבה (פטור ממס) ✓
 
 יחס מס:
 • סכום קצבתי -> קצבה: חייב במס
