@@ -88,19 +88,23 @@ const CurrentEmployer: React.FC = () => {
 
       const calculation = response.data;
       
+      // תיקון לוגיקה: כאשר יתרת הפיצויים גבוהה מהמענק הצפוי, המענק הצפוי מקבל את הערך של יתרת הפיצויים
+      const actualExpectedGrant = Math.max(calculation.severance_amount, employer.severance_balance);
+      
       // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
-      const employerCompletion = Math.max(0, calculation.severance_amount - employer.severance_balance);
+      const employerCompletion = Math.max(0, actualExpectedGrant - employer.severance_balance);
       
       console.log('חישוב השלמת מעסיק:', {
-        'סכום מענק צפוי': calculation.severance_amount,
+        'סכום מענק צפוי מחושב': calculation.severance_amount,
         'יתרת פיצויים נצברת': employer.severance_balance,
+        'מענק צפוי בפועל': actualExpectedGrant,
         'השלמת מעסיק מחושבת': employerCompletion
       });
       
       setEmployer(prev => ({
         ...prev,
         service_years: calculation.service_years,
-        expected_grant_amount: calculation.severance_amount,
+        expected_grant_amount: actualExpectedGrant,
         employer_completion: employerCompletion,
         tax_exempt_amount: calculation.final_exemption,
         taxable_amount: calculation.taxable_amount
@@ -112,17 +116,21 @@ const CurrentEmployer: React.FC = () => {
       const currentDate = new Date();
       const serviceYears = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
       const expectedGrant = employer.monthly_salary * serviceYears;
+      
+      // תיקון לוגיקה: כאשר יתרת הפיצויים גבוהה מהמענק הצפוי, המענק הצפוי מקבל את הערך של יתרת הפיצויים
+      const actualExpectedGrant = Math.max(Math.round(expectedGrant), employer.severance_balance);
+      
       const maxExemption = Math.min(375000, employer.monthly_salary * 9);
-      const taxExemptAmount = Math.min(expectedGrant, maxExemption - (employer.reserved_exemption || 0));
-      const taxableAmount = expectedGrant - taxExemptAmount;
+      const taxExemptAmount = Math.min(actualExpectedGrant, maxExemption - (employer.reserved_exemption || 0));
+      const taxableAmount = actualExpectedGrant - taxExemptAmount;
       
       // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
-      const employerCompletion = Math.max(0, Math.round(expectedGrant) - employer.severance_balance);
+      const employerCompletion = Math.max(0, actualExpectedGrant - employer.severance_balance);
 
       setEmployer(prev => ({
         ...prev,
         service_years: Math.round(serviceYears * 100) / 100,
-        expected_grant_amount: Math.round(expectedGrant),
+        expected_grant_amount: actualExpectedGrant,
         employer_completion: employerCompletion,
         tax_exempt_amount: Math.max(0, Math.round(taxExemptAmount)),
         taxable_amount: Math.max(0, Math.round(taxableAmount))
@@ -137,7 +145,30 @@ const CurrentEmployer: React.FC = () => {
         setLoading(true);
         const response = await axios.get(`/api/v1/clients/${id}/current-employer`);
         if (response.data && response.data.length > 0) {
-          setEmployer(response.data[0]);
+          const employerData = response.data[0];
+          
+          // תיקון לוגיקה: אם יתרת הפיצויים גבוהה מהמענק הצפוי, תקן את המענק הצפוי
+          const severanceBalance = Number(employerData.severance_balance) || 0;
+          const expectedGrant = Number(employerData.expected_grant_amount) || 0;
+          
+          console.log('🔍 Checking severance vs expected grant:', {
+            severance_balance: severanceBalance,
+            expected_grant_amount: expectedGrant,
+            severance_balance_type: typeof employerData.severance_balance,
+            expected_grant_type: typeof employerData.expected_grant_amount,
+            should_fix: severanceBalance > expectedGrant
+          });
+          
+          if (severanceBalance > expectedGrant) {
+            console.log('🔧 Fixing expected_grant_amount:', {
+              old: expectedGrant,
+              new: severanceBalance
+            });
+            employerData.expected_grant_amount = severanceBalance;
+            employerData.employer_completion = 0; // אין השלמה כי היתרה כבר מכסה הכל
+          }
+          
+          setEmployer(employerData);
         }
         setLoading(false);
       } catch (err: any) {
@@ -162,7 +193,7 @@ const CurrentEmployer: React.FC = () => {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [employer.start_date, employer.monthly_salary, employer.reserved_exemption]);
+  }, [employer.start_date, employer.monthly_salary, employer.reserved_exemption, employer.severance_balance]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

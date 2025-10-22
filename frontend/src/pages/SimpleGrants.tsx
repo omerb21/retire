@@ -407,7 +407,6 @@ const SimpleGrants: React.FC = () => {
                     <div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                         <div><strong>מעסיק:</strong> {grant.employer_name}</div>
-                        <div><strong>סוג מענק:</strong> {grant.grant_type}</div>
                         <div><strong>תקופת עבודה:</strong> {formatDateToDDMMYY(new Date(grant.work_start_date))} - {formatDateToDDMMYY(new Date(grant.work_end_date))}</div>
                         <div><strong>תאריך מענק:</strong> {formatDateToDDMMYY(new Date(grant.grant_date))}</div>
                       </div>
@@ -423,16 +422,14 @@ const SimpleGrants: React.FC = () => {
                           borderRadius: '4px',
                           border: '1px solid #d4edda'
                         }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                             <div><strong>שנות שירות:</strong> {details.serviceYears}</div>
-                            <div style={{ color: '#28a745' }}><strong>פטור ממס:</strong> ₪{details.taxExemptAmount.toLocaleString()}</div>
-                            <div style={{ color: '#dc3545' }}><strong>חייב במס:</strong> ₪{details.taxableAmount.toLocaleString()}</div>
+                            {details.taxDue > 0 && (
+                              <div style={{ color: '#dc3545' }}>
+                                <strong>מס משוער:</strong> ₪{details.taxDue.toLocaleString()}
+                              </div>
+                            )}
                           </div>
-                          {details.taxDue > 0 && (
-                            <div style={{ marginTop: '5px', color: '#dc3545', fontSize: '14px' }}>
-                              <strong>מס משוער:</strong> ₪{details.taxDue.toLocaleString()}
-                            </div>
-                          )}
                         </div>
                       )}
 
