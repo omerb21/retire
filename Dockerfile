@@ -2,10 +2,8 @@
 FROM python:3.11-slim as builder
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -26,9 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM python:3.11-slim as production
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    # DATABASE_URL removed - set by Render environment variable
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 
 # Install runtime dependencies
