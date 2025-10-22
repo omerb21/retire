@@ -28,7 +28,8 @@ FROM python:3.11-slim as production
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DATABASE_URL=postgresql://user:password@db:5432/retirement_db
+    # DATABASE_URL removed - set by Render environment variable
+
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
