@@ -35,7 +35,7 @@ const ClientDetails = () => {
       
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         <a href={`/clients/${clientId}/pension-portfolio`} style={moduleButtonStyle}>תיק פנסיוני</a>
-        <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים</a>
+        <a href={`/clients/${clientId}/grants`} style={moduleButtonStyle}>מענקים פטורים שהתקבלו</a>
         <a href={`/clients/${clientId}/current-employer`} style={moduleButtonStyle}>מעסיק נוכחי</a>
         <a href={`/clients/${clientId}/pension-funds`} style={moduleButtonStyle}>קצבאות והיוונים</a>
         <a href={`/clients/${clientId}/additional-incomes`} style={moduleButtonStyle}>הכנסות נוספות</a>

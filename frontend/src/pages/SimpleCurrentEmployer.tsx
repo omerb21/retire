@@ -198,8 +198,18 @@ const SimpleCurrentEmployer: React.FC = () => {
 
           const calculation = response.data;
           
+          // תיקון לוגיקה: אם יתרת הפיצויים גבוהה מהמענק הצפוי, המענק הצפוי מקבל את הערך של יתרת הפיצויים
+          const actualExpectedGrant = Math.max(calculation.severance_amount, employer.severance_accrued);
+          
           // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
-          const employerCompletion = Math.max(0, calculation.severance_amount - employer.severance_accrued);
+          const employerCompletion = Math.max(0, actualExpectedGrant - employer.severance_accrued);
+          
+          console.log('💰 Grant calculation (API):', {
+            calculated_grant: calculation.severance_amount,
+            severance_accrued: employer.severance_accrued,
+            actual_expected_grant: actualExpectedGrant,
+            employer_completion: employerCompletion
+          });
           
           // עדכון השלמת המעסיק באובייקט המעסיק
           setEmployer(prev => ({
@@ -209,7 +219,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           
           setGrantDetails({
             serviceYears: calculation.service_years,
-            expectedGrant: calculation.severance_amount,
+            expectedGrant: actualExpectedGrant,
             taxExemptAmount: calculation.exempt_amount,
             taxableAmount: calculation.taxable_amount,
             severanceCap: calculation.annual_exemption_cap
@@ -219,11 +229,22 @@ const SimpleCurrentEmployer: React.FC = () => {
           // Fallback calculation with correct formula
           const currentYearCap = 13750; // תקרת פטור למענקי פרישה 2025
           const severanceExemption = currentYearCap * serviceYears;
-          const taxExemptAmount = Math.min(expectedGrant, severanceExemption);
-          const taxableAmount = Math.max(0, expectedGrant - taxExemptAmount);
+          
+          // תיקון לוגיקה: אם יתרת הפיצויים גבוהה מהמענק הצפוי, המענק הצפוי מקבל את הערך של יתרת הפיצויים
+          const actualExpectedGrant = Math.max(Math.round(expectedGrant), employer.severance_accrued);
+          
+          const taxExemptAmount = Math.min(actualExpectedGrant, severanceExemption);
+          const taxableAmount = Math.max(0, actualExpectedGrant - taxExemptAmount);
 
           // חישוב השלמת המעסיק = סכום המענק הצפוי פחות יתרת פיצויים נצברת
-          const employerCompletion = Math.max(0, Math.round(expectedGrant) - employer.severance_accrued);
+          const employerCompletion = Math.max(0, actualExpectedGrant - employer.severance_accrued);
+          
+          console.log('💰 Grant calculation (Fallback):', {
+            calculated_grant: Math.round(expectedGrant),
+            severance_accrued: employer.severance_accrued,
+            actual_expected_grant: actualExpectedGrant,
+            employer_completion: employerCompletion
+          });
           
           // עדכון השלמת המעסיק באובייקט המעסיק
           setEmployer(prev => ({
@@ -233,7 +254,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           
           setGrantDetails({
             serviceYears: Math.round(serviceYears * 100) / 100,
-            expectedGrant: Math.round(expectedGrant),
+            expectedGrant: actualExpectedGrant,
             taxExemptAmount: Math.round(taxExemptAmount),
             taxableAmount: Math.round(taxableAmount),
             severanceCap: currentYearCap
