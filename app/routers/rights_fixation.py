@@ -63,8 +63,9 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                 if not client:
                     raise HTTPException(status_code=404, detail="Client not found")
                 
-                # טעינת מענקים
+                # טעינת מענקים (אופציונלי - קיבוע זכויות יכול להתבצע גם ללא מענקים)
                 grants = db.query(Grant).filter(Grant.client_id == client_id).all()
+                print(f"DEBUG: Found {len(grants)} grants for client {client_id}")
                 
                 # קביעת תאריך תחילת קצבה
                 pension_start_date = client.pension_start_date

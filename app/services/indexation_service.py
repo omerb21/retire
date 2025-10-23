@@ -6,6 +6,13 @@ from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 import logging
 
+# ייבוא שירות חישוב גיל פרישה דינמי
+try:
+    from app.services.retirement_age_service import get_retirement_date
+    USE_DYNAMIC_RETIREMENT_AGE = True
+except ImportError:
+    USE_DYNAMIC_RETIREMENT_AGE = False
+
 logger = logging.getLogger(__name__)
 
 # CBS Consumer Price Index API endpoint
@@ -115,13 +122,15 @@ class IndexationService:
     @staticmethod
     def calculate_eligibility_age(birth_date: date, gender: str, pension_start_date: date) -> date:
         """
-        חישוב תאריך זכאות לפי גיל פרישה
+        חישוב תאריך זכאות לפי גיל פרישה - משתמש בשירות גיל פרישה דינמי
         """
-        # גיל פרישה בישראל: גברים 67, נשים 62
-        retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 62
-        
-        # חישוב תאריך זכאות
-        eligibility_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
+        if USE_DYNAMIC_RETIREMENT_AGE:
+            # שימוש בשירות הדינמי שמחשב לפי טבלת החוק
+            eligibility_date = get_retirement_date(birth_date, gender)
+        else:
+            # fallback לחישוב ישן (למקרה שהשירות לא זמין)
+            retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65  # עדכון: 65 לנשים
+            eligibility_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
         
         # אם תאריך הפנסיה מאוחר יותר, נשתמש בו
         return max(eligibility_date, pension_start_date)

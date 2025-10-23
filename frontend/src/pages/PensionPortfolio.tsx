@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
 import { 
@@ -937,19 +938,29 @@ export default function PensionPortfolio() {
   };
 
   // פונקציה לחישוב תאריך פרישה - מחזיר פורמט ISO (YYYY-MM-DD)
-  const calculateRetirementDate = () => {
+  const calculateRetirementDate = async () => {
     if (!clientData?.birth_date) return null;
     
     try {
-      const birthDate = new Date(clientData.birth_date);
-      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 62 : 67;
-      const retirementDate = new Date(birthDate);
-      retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+      // שימוש ב-API לחישוב גיל פרישה דינמי
+      const response = await axios.post('/api/v1/retirement-age/calculate-simple', {
+        birth_date: clientData.birth_date,
+        gender: clientData.gender || 'female'
+      });
+      
+      const retirementDate = response.data.retirement_date;
+      console.log(`Calculated retirement date for client: ${retirementDate} (age: ${response.data.retirement_age})`);
+      
       // החזרת פורמט ISO לשרת
-      return retirementDate.toISOString().split('T')[0];
+      return retirementDate;
     } catch (error) {
       console.error('Error calculating retirement date:', error);
-      return null;
+      // fallback לחישוב ישן במקרה של שגיאה
+      const birthDate = new Date(clientData.birth_date);
+      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 65 : 67; // עדכון: 65 לנשים
+      const retirementDate = new Date(birthDate);
+      retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+      return retirementDate.toISOString().split('T')[0];
     }
   };
 
@@ -1042,7 +1053,7 @@ export default function PensionPortfolio() {
     try {
       // טיפול בהמרות לקצבה - יצירת קצבה נפרדת לכל תכנית
       if (pensionConversions.length > 0) {
-        const retirementDate = calculateRetirementDate();
+        const retirementDate = await calculateRetirementDate();
         
         for (const conversion of pensionConversions) {
           const {account, amountToConvert, specificAmounts} = conversion;

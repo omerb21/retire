@@ -4,18 +4,30 @@
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
-ELIG_AGE_MALE = 67
-ELIG_AGE_FEMALE = 62
+# ייבוא שירות חישוב גיל פרישה דינמי
+try:
+    from app.services.retirement_age_service import get_retirement_date
+    USE_DYNAMIC_RETIREMENT_AGE = True
+except ImportError:
+    # fallback למקרה שהשירות לא זמין
+    USE_DYNAMIC_RETIREMENT_AGE = False
+    ELIG_AGE_MALE = 67
+    ELIG_AGE_FEMALE = 62
 
 def calc_eligibility_date(birthdate: date, gender: str) -> date:
-    """חישוב תאריך זכאות לקיבוע זכויות לפי מין וגיל"""
-    g = (gender or "").strip().lower()
-    if g in {"male", "m", "זכר"}:
+    """חישוב תאריך זכאות לקיבוע זכויות לפי מין וגיל - משתמש בשירות גיל פרישה דינמי"""
+    if USE_DYNAMIC_RETIREMENT_AGE:
+        # שימוש בשירות הדינמי שמחשב לפי טבלת החוק
+        return get_retirement_date(birthdate, gender)
+    else:
+        # fallback לחישוב ישן (למקרה שהשירות לא זמין)
+        g = (gender or "").strip().lower()
+        if g in {"male", "m", "זכר"}:
+            return birthdate + relativedelta(years=ELIG_AGE_MALE)
+        elif g in {"female", "f", "נקבה"}:
+            return birthdate + relativedelta(years=ELIG_AGE_FEMALE)
+        # ברירת מחדל שמרנית אם לא ידוע - נחשב לפי גבר
         return birthdate + relativedelta(years=ELIG_AGE_MALE)
-    elif g in {"female", "f", "נקבה"}:
-        return birthdate + relativedelta(years=ELIG_AGE_FEMALE)
-    # ברירת מחדל שמרנית אם לא ידוע - נחשב לפי גבר
-    return birthdate + relativedelta(years=ELIG_AGE_MALE)
 
 def has_started_pension(pension_start_date: date | None, today: date | None = None) -> bool:
     """בדיקה האם התחיל לקבל קצבה"""

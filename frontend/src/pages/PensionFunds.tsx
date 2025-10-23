@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import axios from 'axios';
 import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type PensionFund = {
@@ -220,21 +221,27 @@ export default function PensionFunds() {
           return !earliest || fundDate < earliest ? fundDate : earliest;
         }, "") || formatDateToDDMMYY(new Date());
       } else if (clientData && clientData.birth_date) {
-        // אם אין קצבאות אבל יש תאריך לידה, חשב גיל פרישה לפי מגדר
+        // אם אין קצבאות אבל יש תאריך לידה, חשב גיל פרישה דינמי
         try {
-          const birthDate = new Date(clientData.birth_date);
-          const retirementDate = new Date(birthDate);
+          // שימוש ב-API לחישוב גיל פרישה דינמי
+          const response = await axios.post('/api/v1/retirement-age/calculate-simple', {
+            birth_date: clientData.birth_date,
+            gender: clientData.gender || 'female'
+          });
           
-          // חישוב גיל פרישה לפי מגדר: 67 לגבר, 62 לאישה
-          const retirementAge = clientData.gender?.toLowerCase() === "female" ? 62 : 67;
+          const retirementDateISO = response.data.retirement_date;
+          const retirementAge = response.data.retirement_age;
+          earliestStartDate = formatDateToDDMMYY(new Date(retirementDateISO));
           
-          retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-          earliestStartDate = formatDateToDDMMYY(retirementDate);
-          
-          console.log(`חישוב תאריך פרישה לפי מגדר: ${clientData.gender}, גיל פרישה: ${retirementAge}`);
+          console.log(`חישוב תאריך פרישה דינמי: ${clientData.gender}, גיל פרישה: ${retirementAge}, תאריך: ${earliestStartDate}`);
         } catch (error) {
           console.error("Error calculating retirement date:", error);
-          earliestStartDate = formatDateToDDMMYY(new Date());
+          // fallback
+          const birthDate = new Date(clientData.birth_date);
+          const retirementDate = new Date(birthDate);
+          const retirementAge = clientData.gender?.toLowerCase() === "female" ? 65 : 67;
+          retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+          earliestStartDate = formatDateToDDMMYY(retirementDate);
         }
       } else {
         // אם אין קצבאות ואין תאריך לידה, השתמש בתאריך היום
@@ -887,7 +894,7 @@ export default function PensionFunds() {
         
         {clientData && clientData.birth_date && (
           <div style={{ marginBottom: 10, fontSize: "0.9em", color: "#666" }}>
-            <strong>מידע:</strong> אם לא תזין תאריך התחלת קצבה, המערכת תשתמש בתאריך הקצבה המוקדמת ביותר או בגיל פרישה {clientData.gender?.toLowerCase() === "female" ? "62" : "67"}.
+            <strong>מידע:</strong> אם לא תזין תאריך התחלת קצבה, המערכת תשתמש בתאריך הקצבה המוקדמת ביותר או בגיל פרישה המחושב לפי החוק (משתנה לפי שנת לידה).
           </div>
         )}
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 400 }}>

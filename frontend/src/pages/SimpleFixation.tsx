@@ -75,6 +75,7 @@ const SimpleFixation: React.FC = () => {
   const [clientData, setClientData] = useState<any>(null);
   const [commutations, setCommutations] = useState<Commutation[]>([]);
   const [futureGrantReserved, setFutureGrantReserved] = useState<number>(0);
+  const [calculatedRetirementAge, setCalculatedRetirementAge] = useState<string>('');
 
   // Get pension ceiling for eligibility year
   const getPensionCeiling = (year: number): number => {
@@ -163,9 +164,44 @@ const SimpleFixation: React.FC = () => {
         setError(null);
 
         // Get client data
+        let loadedClientData: any = null;
         try {
           const clientResponse = await axios.get(`/api/v1/clients/${id}`);
-          setClientData(clientResponse.data);
+          loadedClientData = clientResponse.data;
+          setClientData(loadedClientData);
+          
+          // חישוב גיל פרישה מיד לאחר טעינת נתוני הלקוח
+          if (loadedClientData && loadedClientData.birth_date) {
+            try {
+              console.log('DEBUG: Calculating retirement age for:', loadedClientData.birth_date, loadedClientData.gender);
+              const retirementAgeResponse = await axios.post('/api/v1/retirement-age/calculate-simple', {
+                birth_date: loadedClientData.birth_date,
+                gender: loadedClientData.gender || 'female'
+              });
+              const retirementAge = retirementAgeResponse.data.retirement_age;
+              const retirementDate = new Date(retirementAgeResponse.data.retirement_date);
+              setCalculatedRetirementAge(`${retirementAge} (${retirementDate.toLocaleDateString('he-IL')})`);
+              console.log('DEBUG: Calculated retirement age successfully:', retirementAge, retirementDate);
+            } catch (err: any) {
+              console.error('Error calculating retirement age:', err);
+              console.error('Error details:', err.response?.data);
+              
+              // Fallback לחישוב ידני
+              try {
+                const birthDate = new Date(loadedClientData.birth_date);
+                const retirementAge = loadedClientData.gender?.toLowerCase() === 'female' ? 65 : 67;
+                const retirementDate = new Date(birthDate);
+                retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+                setCalculatedRetirementAge(`${retirementAge} (${retirementDate.toLocaleDateString('he-IL')}) - חישוב ידני`);
+                console.log('DEBUG: Using fallback calculation:', retirementAge);
+              } catch (fallbackErr) {
+                console.error('Fallback calculation also failed:', fallbackErr);
+                setCalculatedRetirementAge('לא ניתן לחשב');
+              }
+            }
+          } else {
+            console.log('DEBUG: No birth date available for retirement age calculation');
+          }
         } catch (err) {
           console.error('Error fetching client data:', err);
         }
@@ -228,10 +264,12 @@ const SimpleFixation: React.FC = () => {
           const grantsResponse = await axios.get(`/api/v1/clients/${id}/grants`);
           grants = grantsResponse.data || [];
           setHasGrants(grants.length > 0);
+          console.log('DEBUG: Loaded grants:', grants.length);
         } catch (err: any) {
           if (err.response?.status === 404) {
             grants = []; // No grants found - this is normal
             setHasGrants(false);
+            console.log('DEBUG: No grants found (404) - continuing with fixation calculation');
           } else {
             throw err; // Re-throw other errors
           }
@@ -245,7 +283,9 @@ const SimpleFixation: React.FC = () => {
         console.log('DEBUG: grants array:', grants);
         console.log('DEBUG: grants.length:', grants.length);
         
-        if (grants.length > 0) {
+        // קיבוע זכויות מתבצע תמיד - גם ללא מענקים!
+        // זה חשוב כי אנחנו צריכים לחשב את ההון הפטור גם אם אין מענקים
+        if (true) { // שינוי: תמיד מבצעים חישוב
           try {
             const fixationResponse = await axios.post('/api/v1/rights-fixation/calculate', {
               client_id: parseInt(id!)
@@ -340,10 +380,6 @@ const SimpleFixation: React.FC = () => {
               setHasGrants(false);
             }
           }
-        } else {
-          console.log('DEBUG: No grants found, skipping rights fixation calculation');
-          setGrantsSummary([]);
-          setExemptionSummary(null);
         }
 
         // Fixation data is set in the rights fixation service block above
@@ -452,6 +488,9 @@ const SimpleFixation: React.FC = () => {
                 <strong>לקוח:</strong> {clientData.full_name || `${clientData.first_name} ${clientData.last_name}` || 'לא צוין'} | 
                 <strong> ת.ז:</strong> {clientData.id_number} | 
                 <strong> תאריך לידה:</strong> {clientData.birth_date ? new Date(clientData.birth_date).toLocaleDateString('he-IL') : 'לא צוין'}
+                {calculatedRetirementAge && (
+                  <span> | <strong style={{ color: '#007bff' }}> גיל פרישה מחושב:</strong> {calculatedRetirementAge}</span>
+                )}
               </div>
             )}
           </div>
@@ -748,18 +787,23 @@ const SimpleFixation: React.FC = () => {
         </div>
       )}
 
-      {!hasGrants && (
+      {!hasGrants && fixationData && (
         <div style={{ 
           padding: '20px', 
-          backgroundColor: '#fff3cd', 
+          backgroundColor: '#d1ecf1', 
           borderRadius: '4px',
           textAlign: 'center',
-          color: '#856404'
+          color: '#0c5460',
+          border: '1px solid #bee5eb'
         }}>
-          לא נמצאו מענקים לחישוב קיבוע זכויות. יש להוסיף מענקים תחילה.
+          <strong>ℹ️ לא נמצאו מענקים</strong>
+          <div style={{ marginTop: '10px', fontSize: '14px' }}>
+            קיבוע הזכויות מחושב על בסיס ההון הפטור ללא מענקים.
+            ניתן להוסיף מענקים בעתיד אם יש צורך.
+          </div>
           <div style={{ marginTop: '10px' }}>
-            <a href={`/clients/${id}/grants`} style={{ color: '#007bff', textDecoration: 'none' }}>
-              הוסף מענקים ←
+            <a href={`/clients/${id}/grants`} style={{ color: '#007bff', textDecoration: 'none', fontWeight: 'bold' }}>
+              ➕ הוסף מענקים
             </a>
           </div>
         </div>

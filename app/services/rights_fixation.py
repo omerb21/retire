@@ -399,6 +399,8 @@ def calculate_full_fixation(client_data: Dict[str, Any]) -> Dict[str, Any]:
     
     :param client_data: נתוני הלקוח כולל מענקים ותאריך זכאות
     :return: תוצאות קיבוע זכויות מלאות
+    
+    הערה: קיבוע זכויות מתבצע גם ללא מענקים - חישוב ההון הפטור תקף בכל מקרה
     """
     try:
         grants = client_data.get('grants', [])
@@ -407,14 +409,20 @@ def calculate_full_fixation(client_data: Dict[str, Any]) -> Dict[str, Any]:
         
         if not eligibility_date:
             raise ValueError("חסר תאריך זכאות")
-            
-        # עיבוד כל המענקים
-        processed_grants = []
-        for grant in grants:
-            processed_grant = process_grant(grant, eligibility_date)
-            processed_grants.append(processed_grant)
         
-        # חישוב סיכום הפטור
+        logger.info(f"Calculating fixation with {len(grants)} grants for eligibility year {eligibility_year}")
+            
+        # עיבוד כל המענקים (אם קיימים)
+        processed_grants = []
+        if grants:
+            for grant in grants:
+                processed_grant = process_grant(grant, eligibility_date)
+                processed_grants.append(processed_grant)
+            logger.info(f"Processed {len(processed_grants)} grants")
+        else:
+            logger.info("No grants to process - calculating base exemption only")
+        
+        # חישוב סיכום הפטור (גם ללא מענקים - ההון הפטור ההתחלתי תקף)
         exemption_summary = compute_client_exemption(processed_grants, eligibility_year)
         
         return {
