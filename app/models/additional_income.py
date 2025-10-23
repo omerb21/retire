@@ -74,7 +74,7 @@ class AdditionalIncome(Base):
     
     # Tax treatment
     tax_treatment = Column(String(20), nullable=False, default="taxable", server_default="taxable")
-    tax_rate = Column(Numeric(5, 4), nullable=True)  # For fixed rate tax
+    tax_rate = Column(Numeric(5, 2), nullable=True)  # For fixed rate tax (0-99%)
     
     # Metadata
     remarks = Column(String(500), nullable=True)
@@ -95,5 +95,5 @@ class AdditionalIncome(Base):
             name="check_tax_rate_when_fixed_tax"
         ),
         CheckConstraint("fixed_rate IS NULL OR fixed_rate >= 0", name="check_non_negative_fixed_rate"),
-        CheckConstraint("tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 1)", name="check_valid_tax_rate"),
+        CheckConstraint("tax_rate IS NULL OR (tax_rate >= 0 AND tax_rate <= 99)", name="check_valid_tax_rate"),
     )

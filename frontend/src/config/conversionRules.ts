@@ -19,7 +19,7 @@ export interface ComponentConversionRule {
   canConvertToCapital: boolean; // ניתן להמרה להון
   errorMessage?: string; // הודעת שגיאה אם לא ניתן להמיר
   taxTreatmentWhenPension: 'taxable' | 'exempt'; // יחס מס בהמרה לקצבה
-  taxTreatmentWhenCapital?: 'capital_gain' | 'exempt'; // יחס מס בהמרה להון
+  taxTreatmentWhenCapital?: 'capital_gains' | 'exempt'; // יחס מס בהמרה להון
   capitalAssetType?: 'provident_fund' | 'education_fund'; // סוג נכס הון אם רלוונטי
 }
 
@@ -39,7 +39,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: true,
     taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס בהמרה לקצבה
-    taxTreatmentWhenCapital: 'capital_gain',
+    taxTreatmentWhenCapital: 'capital_gains',
     capitalAssetType: 'provident_fund'
   },
   {
@@ -71,7 +71,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: true,
     taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס
-    taxTreatmentWhenCapital: 'capital_gain',
+    taxTreatmentWhenCapital: 'capital_gains',
     capitalAssetType: 'provident_fund'
   },
   {
@@ -80,7 +80,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: true,
     taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס
-    taxTreatmentWhenCapital: 'capital_gain',
+    taxTreatmentWhenCapital: 'capital_gains',
     capitalAssetType: 'provident_fund'
   },
   {
@@ -126,7 +126,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: true,
     taxTreatmentWhenPension: 'taxable',
-    taxTreatmentWhenCapital: 'capital_gain',
+    taxTreatmentWhenCapital: 'capital_gains',
     errorMessage: 'חוקי המרה לתגמולים תלויים בסוג המוצר: קרן פנסיה/ביטוח מנהלים=קצבתי בלבד; קופת גמל/קרן השתלמות=הוני פטור; קופת גמל להשקעה=הוני עם מס רווח הון'
   },
 ];
@@ -223,7 +223,7 @@ export interface ConversionValidation {
   canConvert: boolean;
   errors: string[];
   warnings: string[];
-  taxTreatment: 'taxable' | 'exempt' | 'capital_gain';
+  taxTreatment: 'taxable' | 'exempt' | 'capital_gains';
 }
 
 /**
@@ -277,7 +277,7 @@ export function validateComponentConversion(
       if (conversionType === 'pension') {
         result.taxTreatment = 'exempt'; // פטור ממס
       } else {
-        result.taxTreatment = 'capital_gain'; // חייב במס רווח הון
+        result.taxTreatment = 'capital_gains'; // חייב במס רווח הון
       }
       return result;
     }
@@ -292,7 +292,7 @@ export function validateComponentConversion(
   if (isEducationFund(productType)) {
     if (conversionType === 'capital_asset') {
       result.canConvert = true;
-      result.taxTreatment = 'capital_gain';
+      result.taxTreatment = 'capital_gains';
     } else if (conversionType === 'pension') {
       result.canConvert = true;
       result.taxTreatment = 'exempt'; // הוני -> פטור ממס
@@ -320,7 +320,7 @@ export function validateComponentConversion(
   } else if (conversionType === 'capital_asset') {
     if (rule.canConvertToCapital) {
       result.canConvert = true;
-      result.taxTreatment = rule.taxTreatmentWhenCapital || 'capital_gain';
+      result.taxTreatment = rule.taxTreatmentWhenCapital || 'capital_gains';
     } else {
       result.canConvert = false;
       result.errors.push(rule.errorMessage || `לא ניתן להמיר ${rule.displayName} להון`);
@@ -400,18 +400,20 @@ export function calculateTaxTreatment(
   account: any,
   selectedAmounts: Record<string, boolean>,
   conversionType: ConversionType
-): 'taxable' | 'exempt' | 'capital_gain' {
+): 'taxable' | 'exempt' | 'capital_gains' {
   const productType = account.סוג_מוצר || '';
+  const lowerProductType = productType.toLowerCase();
 
-  // קרן השתלמות
+  // קרן השתלמות - פטור ממס תמיד (גם להון וגם לקצבה)
   if (isEducationFund(productType)) {
-    return conversionType === 'capital_asset' ? 'capital_gain' : 'exempt';
+    return 'exempt';
   }
 
   // חישוב לפי רכיבים
   let totalAmount = 0;
   let taxableAmount = 0;
   let exemptAmount = 0;
+  let capitalGainsAmount = 0;
 
   Object.entries(selectedAmounts).forEach(([field, isSelected]) => {
     if (!isSelected || field === 'יתרה') return;
@@ -426,15 +428,34 @@ export function calculateTaxTreatment(
       
       if (validation.taxTreatment === 'taxable') {
         taxableAmount += amount;
-      } else if (validation.taxTreatment === 'exempt' || validation.taxTreatment === 'capital_gain') {
+      } else if (validation.taxTreatment === 'exempt') {
         exemptAmount += amount;
+      } else if (validation.taxTreatment === 'capital_gains') {
+        capitalGainsAmount += amount;
       }
     }
   });
 
   // החזרת יחס המס הדומיננטי
   if (conversionType === 'capital_asset') {
-    return 'capital_gain';
+    // קופת גמל רגילה (לא להשקעה) - פטור ממס
+    if (lowerProductType.includes('קופת גמל') && !lowerProductType.includes('להשקעה')) {
+      return 'exempt';
+    }
+    
+    // קופת גמל להשקעה - מס רווח הון
+    if (lowerProductType.includes('גמל להשקעה')) {
+      return 'capital_gains';
+    }
+    
+    // החלטה לפי הסכומים - אם רוב הסכום פטור, נחזיר פטור
+    if (exemptAmount > capitalGainsAmount && exemptAmount > taxableAmount) {
+      return 'exempt';
+    } else if (capitalGainsAmount > 0) {
+      return 'capital_gains';
+    } else {
+      return 'exempt'; // ברירת מחדל להון
+    }
   } else {
     // להמרה לקצבה - אם רוב הסכום הוא פטור, נחזיר פטור
     return exemptAmount > taxableAmount ? 'exempt' : 'taxable';

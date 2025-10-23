@@ -171,6 +171,45 @@ export default function ConversionRulesSettings() {
           <li><strong>הודעת שגיאה:</strong> הודעה שתוצג למשתמש אם ינסה לבצע המרה לא חוקית</li>
         </ul>
       </div>
+
+      <div style={{ marginTop: 20, padding: 16, backgroundColor: '#fff3cd', border: '1px solid #ffc107', borderRadius: 4 }}>
+        <h3 style={{ color: '#856404', marginTop: 0 }}>⚠️ חשוב: לוגיקה דינמית לשדה "תגמולים"</h3>
+        <p style={{ fontSize: 13, lineHeight: 1.8, color: '#856404', marginBottom: 10 }}>
+          שדה התגמולים מיובא מתגית XML <code>YITRAT-KASPEY-TAGMULIM</code> וחוקי ההמרה שלו <strong>תלויים בסוג המוצר</strong>:
+        </p>
+        
+        <div style={{ backgroundColor: 'white', padding: 12, borderRadius: 4, marginBottom: 10 }}>
+          <h4 style={{ fontSize: 14, marginTop: 0, color: '#0066cc' }}>🔵 קרן פנסיה / ביטוח מנהלים</h4>
+          <ul style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 0 }}>
+            <li><strong>סוג סכום:</strong> קצבתי</li>
+            <li><strong>המרה לקצבה:</strong> ✅ מותר (יחס מס: <span style={{ color: '#dc3545' }}>חייב במס</span>)</li>
+            <li><strong>המרה להון:</strong> ❌ אסור</li>
+          </ul>
+        </div>
+
+        <div style={{ backgroundColor: 'white', padding: 12, borderRadius: 4, marginBottom: 10 }}>
+          <h4 style={{ fontSize: 14, marginTop: 0, color: '#28a745' }}>🟢 קופת גמל / קרן השתלמות (רגילה)</h4>
+          <ul style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 0 }}>
+            <li><strong>סוג סכום:</strong> הוני</li>
+            <li><strong>המרה לקצבה:</strong> ✅ מותר (יחס מס: <span style={{ color: '#28a745' }}>פטור ממס</span>)</li>
+            <li><strong>המרה להון:</strong> ✅ מותר (יחס מס: <span style={{ color: '#28a745' }}>פטור ממס</span>)</li>
+          </ul>
+        </div>
+
+        <div style={{ backgroundColor: 'white', padding: 12, borderRadius: 4 }}>
+          <h4 style={{ fontSize: 14, marginTop: 0, color: '#ff6b6b' }}>🔴 קופת גמל להשקעה</h4>
+          <ul style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 0 }}>
+            <li><strong>סוג סכום:</strong> הוני</li>
+            <li><strong>המרה לקצבה:</strong> ✅ מותר (יחס מס: <span style={{ color: '#28a745' }}>פטור ממס</span>)</li>
+            <li><strong>המרה להון:</strong> ✅ מותר (יחס מס: <span style={{ color: '#dc3545' }}>חייב במס רווח הון</span>)</li>
+          </ul>
+        </div>
+
+        <p style={{ fontSize: 12, color: '#856404', marginTop: 12, marginBottom: 0, fontStyle: 'italic' }}>
+          💡 <strong>הערה:</strong> המערכת מזהה אוטומטית את סוג המוצר מתגית <code>SHEM-MUTZAR</code> או <code>SUG-MUTZAR</code> 
+          ומיישמת את חוקי ההמרה המתאימים בזמן ביצוע ההמרה.
+        </p>
+      </div>
     </div>
   );
 }

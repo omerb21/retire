@@ -990,12 +990,11 @@ export default function PensionFunds() {
             <label>יחס למס:</label>
             <select
               value={form.tax_treatment || "taxable"}
-              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "taxable" | "exempt" | "capital_gains" })}
+              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "taxable" | "exempt" })}
               style={{ padding: 8, width: "100%" }}
             >
               <option value="taxable">חייב במס</option>
               <option value="exempt">פטור ממס</option>
-              <option value="capital_gains">מס רווח הון</option>
             </select>
           </div>
 

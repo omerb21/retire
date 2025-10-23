@@ -616,13 +616,12 @@ export default function CapitalAssets() {
             <label>יחס מס:</label>
             <select
               value={form.tax_treatment}
-              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "exempt" | "taxable" | "fixed_rate" | "capital_gains" | "tax_spread" })}
+              onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "exempt" | "taxable" | "capital_gains" | "tax_spread" })}
               style={{ padding: 8, width: "100%" }}
             >
               <option value="exempt">פטור ממס</option>
               <option value="taxable">חייב במס רגיל</option>
               <option value="capital_gains">מס רווח הון (25% מהרווח הריאלי)</option>
-              <option value="fixed_rate">שיעור מס קבוע</option>
               <option value="tax_spread">פריסת מס</option>
             </select>
           </div>
@@ -631,17 +630,6 @@ export default function CapitalAssets() {
             <div style={{ padding: 8, backgroundColor: "#e7f3ff", borderRadius: 4, fontSize: "14px" }}>
               <strong>מס רווח הון:</strong> יחושב כ-25% מהרווח הריאלי (שיעור התשואה פחות 2% מדד)
             </div>
-          )}
-
-          {form.tax_treatment === "fixed_rate" && (
-            <input
-              type="number"
-              step="0.01"
-              placeholder="שיעור מס (%)"
-              value={form.tax_rate || ""}
-              onChange={(e) => setForm({ ...form, tax_rate: parseFloat(e.target.value) || 0 })}
-              style={{ padding: 8 }}
-            />
           )}
 
           {form.tax_treatment === "tax_spread" && (

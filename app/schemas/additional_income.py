@@ -19,7 +19,7 @@ class AdditionalIncomeBase(BaseModel):
     indexation_method: IndexationMethod = Field(IndexationMethod.NONE, description="Indexation method")
     fixed_rate: Optional[Decimal] = Field(None, ge=0, description="Fixed indexation rate")
     tax_treatment: TaxTreatment = Field(TaxTreatment.TAXABLE, description="Tax treatment")
-    tax_rate: Optional[Decimal] = Field(None, ge=0, le=1, description="Tax rate for fixed rate tax")
+    tax_rate: Optional[Decimal] = Field(None, ge=0, le=99, description="Tax rate for fixed rate tax (0-99%)")
     remarks: Optional[str] = Field(None, max_length=500, description="Additional remarks")
 
     @validator('end_date')
@@ -62,7 +62,7 @@ class AdditionalIncomeUpdate(BaseModel):
     indexation_method: Optional[IndexationMethod] = None
     fixed_rate: Optional[Decimal] = Field(None, ge=0)
     tax_treatment: Optional[TaxTreatment] = None
-    tax_rate: Optional[Decimal] = Field(None, ge=0, le=1)
+    tax_rate: Optional[Decimal] = Field(None, ge=0, le=99)
     remarks: Optional[str] = Field(None, max_length=500)
 
 

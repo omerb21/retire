@@ -1050,38 +1050,60 @@ const SimpleReports: React.FC = () => {
       // חישוב הכנסה פטורה וחייבת במס מהכנסות נוספות (בהתבסס על ההכנסות הדינמיות)
       let monthlyExemptIncome = 0;
       let monthlyTaxableAdditionalIncome = 0;
+      let monthlyFixedRateIncome = 0;
       let monthlyCapitalAssetIncome = 0;
       
-      // הכנסות נוספות
+      // הכנסות נוספות - הפרדה בין חייב במס רגיל, שיעור קבוע ופטור
       incomeBreakdown.slice(pensionFunds.length, pensionFunds.length + additionalIncomes.length).forEach((income, index) => {
         const additionalIncome = additionalIncomes[index];
         if (additionalIncome && additionalIncome.tax_treatment === 'exempt') {
           monthlyExemptIncome += income;
+        } else if (additionalIncome && additionalIncome.tax_treatment === 'fixed_rate') {
+          monthlyFixedRateIncome += income;
         } else {
           monthlyTaxableAdditionalIncome += income;
         }
       });
 
-      // נכסי הון - מיסוי מיוחד
+      // נכסי הון - הפרדה לפי סוג מיסוי
+      let monthlyFixedRateCapitalIncome = 0;
+      let monthlyTaxableCapitalIncome = 0;
+      let monthlyExemptCapitalIncome = 0;
+      
       incomeBreakdown.slice(pensionFunds.length + additionalIncomes.length).forEach((income, index) => {
-        const asset = capitalAssets[index];
+        const asset = capitalAssets.filter(a => (parseFloat(a.monthly_income) || 0) > 0)[index];
         if (asset) {
+          if (asset.tax_treatment === 'exempt') {
+            monthlyExemptCapitalIncome += income;
+          } else if (asset.tax_treatment === 'fixed_rate') {
+            monthlyFixedRateCapitalIncome += income;
+          } else {
+            monthlyTaxableCapitalIncome += income;
+          }
           monthlyCapitalAssetIncome += income;
         }
       });
       
-      totalTaxableAnnualIncome = (monthlyTaxableIncome + monthlyTaxableAdditionalIncome) * 12;
-      totalExemptIncome = monthlyExemptIncome * 12;
-      const totalAnnualIncome = totalTaxableAnnualIncome + totalExemptIncome;
+      // חישוב הכנסה חייבת במס רגיל - ללא הכנסות/נכסים עם שיעור קבוע!
+      totalTaxableAnnualIncome = (monthlyTaxableIncome + monthlyTaxableAdditionalIncome + monthlyTaxableCapitalIncome) * 12;
+      totalExemptIncome = (monthlyExemptIncome + monthlyExemptCapitalIncome) * 12;
+      const totalFixedRateAnnualIncome = (monthlyFixedRateIncome + monthlyFixedRateCapitalIncome) * 12;
+      const totalAnnualIncome = totalTaxableAnnualIncome + totalExemptIncome + totalFixedRateAnnualIncome;
       
       console.log(`\n💰 Tax calculation summary for year ${year}:`);
       console.log(`  Monthly taxable income (pensions after exemption): ${monthlyTaxableIncome.toFixed(2)}`);
       console.log(`  Monthly taxable additional income: ${monthlyTaxableAdditionalIncome.toFixed(2)}`);
+      console.log(`  Monthly taxable capital income: ${monthlyTaxableCapitalIncome.toFixed(2)}`);
+      console.log(`  Monthly fixed rate income (additional): ${monthlyFixedRateIncome.toFixed(2)}`);
+      console.log(`  Monthly fixed rate income (capital): ${monthlyFixedRateCapitalIncome.toFixed(2)}`);
       console.log(`  Total annual taxable income: ${totalTaxableAnnualIncome.toLocaleString()}`);
       console.log(`  Total annual exempt income: ${totalExemptIncome.toLocaleString()}`);
       
+      // משתנה לאיסוף מס בשיעור קבוע - מוגדר כאן כדי להיות זמין בכל הבלוקים
+      let totalFixedRateTax = 0;
+      
       if (totalTaxableAnnualIncome > 0) {
-        // חישוב מס כולל על סך ההכנסות החייבות במס
+        // חישוב מס כולל על סך ההכנסות החייבות במס (ללא הכנסות עם שיעור קבוע!)
         let totalAnnualTax = 0;
         let remainingIncome = totalTaxableAnnualIncome;
         
@@ -1090,7 +1112,7 @@ const SimpleReports: React.FC = () => {
         
         console.log(`  Tax before credit: ${totalAnnualTax.toLocaleString()}`);
         
-        // הפחתת נקודות זיכוי אם קיימות
+        // הפחתת נקודות זיכוי אם קיימות (רק על מס רגיל, לא על מס בשיעור קבוע!)
         if (client?.tax_credit_points) {
           const creditAmount = client.tax_credit_points * 2640;
           totalAnnualTax = Math.max(0, totalAnnualTax - creditAmount);
@@ -1099,12 +1121,12 @@ const SimpleReports: React.FC = () => {
         
         console.log(`  Final annual tax: ${totalAnnualTax.toLocaleString()}`);
 
-        // מס חודשי מהכנסות רגילות בלבד (ללא נכסי הון)
+        // מס חודשי מהכנסות רגילות בלבד (ללא נכסי הון ומס בשיעור קבוע)
         const regularMonthlyTax = totalAnnualTax / 12;
         console.log(`  Monthly tax: ${regularMonthlyTax.toFixed(2)}`);
         
-        // חלוקת המס באופן יחסי לפי ההכנסות אחרי קיזוז הפטור
-        // חישוב סך ההכנסה החייבת במס
+        // חלוקת המס באופן יחסי לפי ההכנסות אחרי קיזוז הפטור (רק הכנסות חייבות במס רגיל!)
+        // חישוב סך ההכנסה החייבת במס רגיל (ללא הכנסות עם שיעור קבוע)
         const taxableTotalMonthlyIncome = monthlyTaxableIncome + monthlyTaxableAdditionalIncome;
         
         console.log(`\n📊 Distributing tax among income sources:`);
@@ -1125,15 +1147,21 @@ const SimpleReports: React.FC = () => {
           // אם ההכנסה פטורה ממס, המס הוא אפס
           if (income.tax_treatment === 'exempt') {
             taxBreakdown.push(0);
+          } else if (income.tax_treatment === 'fixed_rate') {
+            // מס בשיעור קבוע - חישוב ישיר ללא התחשבות בנקודות זיכוי
+            const taxRate = (income.tax_rate || 0) / 100;
+            const fixedTax = incomeAmount * taxRate;
+            taxBreakdown.push(Math.round(fixedTax));
           } else {
-            // חלוקת המס באופן יחסי - רק מהכנסות רגילות
+            // חלוקת המס באופן יחסי - רק מהכנסות רגילות חייבות במס
             const taxPortion = taxableTotalMonthlyIncome > 0 ? (incomeAmount / taxableTotalMonthlyIncome) * regularMonthlyTax : 0;
             taxBreakdown.push(Math.round(taxPortion));
           }
         });
 
         // חישוב מס עבור נכסי הון - בנפרד! רק לנכסים עם תשלום
-        let totalCapitalAssetTax = 0;
+        let totalCapitalAssetTax = 0; // מס על נכסי הון רגילים (לא fixed_rate)
+        let totalCapitalFixedRateTax = 0; // מס על נכסי הון עם שיעור קבוע
         let capitalAssetIncomeIndex = pensionFunds.length + additionalIncomes.length;
         
         capitalAssets.forEach((asset) => {
@@ -1150,6 +1178,13 @@ const SimpleReports: React.FC = () => {
           if (asset.tax_treatment === 'exempt') {
             // פטור ממס
             assetTax = 0;
+          } else if (asset.tax_treatment === 'fixed_rate') {
+            // ⚠️ שיעור מס קבוע - לא נכנס לחישוב המדרגות!
+            assetTax = annualIncome * ((asset.tax_rate || 0) / 100);
+            totalCapitalFixedRateTax += assetTax / 12; // מס חודשי
+            taxBreakdown.push(Math.round(assetTax / 12));
+            // לא נוסף ל-totalCapitalAssetTax!
+            return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
           } else if (asset.tax_treatment === 'tax_spread' && asset.spread_years && asset.spread_years > 0) {
             // 🔥 פריסת מס - חישוב מס לפי מדרגות על מספר שנים
             const taxableAmount = annualIncome; // הסכום החד פעמי
@@ -1170,9 +1205,6 @@ const SimpleReports: React.FC = () => {
             const realReturnRate = Math.max(0, (asset.annual_return_rate || 0) - 2);
             const realGain = annualIncome * (realReturnRate / (asset.annual_return_rate || 1));
             assetTax = realGain * 0.25;
-          } else if (asset.tax_treatment === 'fixed_rate') {
-            // שיעור מס קבוע
-            assetTax = annualIncome * ((asset.tax_rate || 0) / 100);
           } else if (asset.asset_type === 'rental_property') {
             // שכר דירה - מס רגיל אם מעל התקרה
             const exemptionThreshold = 5070 * 12;
@@ -1185,20 +1217,66 @@ const SimpleReports: React.FC = () => {
             assetTax += calculateTaxByBrackets(annualIncome);
           }
           
+            // רק מס על נכסי הון רגילים (לא fixed_rate)
             totalCapitalAssetTax += assetTax;
             taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי - המס הספציפי של הנכס!
           }
           // נכס ללא תשלום - לא נכנס לתזרים ולא ל-taxBreakdown
         });
         
-        // עדכון סך המס הכולל
-        totalMonthlyTax = regularMonthlyTax + (totalCapitalAssetTax / 12);
+        // עדכון סך המס הכולל - כולל מס רגיל, מס בשיעור קבוע (הכנסות+נכסים) ומס על נכסי הון רגילים
+        totalMonthlyTax = regularMonthlyTax + totalFixedRateTax + totalCapitalFixedRateTax + (totalCapitalAssetTax / 12);
+        
+        console.log(`\n📊 Final tax breakdown:`);
+        console.log(`  Regular monthly tax (from brackets): ${regularMonthlyTax.toFixed(2)}`);
+        console.log(`  Fixed rate tax (additional incomes): ${totalFixedRateTax.toFixed(2)}`);
+        console.log(`  Fixed rate tax (capital assets): ${totalCapitalFixedRateTax.toFixed(2)}`);
+        console.log(`  Capital asset tax (other): ${(totalCapitalAssetTax / 12).toFixed(2)}`);
+        console.log(`  💰 TOTAL MONTHLY TAX: ${totalMonthlyTax.toFixed(2)}`);
       } else {
-        // אין הכנסה - אין מס
-        // מוסיפים 0 לכל פריט ב-incomeBreakdown (שכבר מכיל רק נכסים עם תשלום)
-        for (let i = 0; i < incomeBreakdown.length; i++) {
+        // אין הכנסה חייבת במס רגיל - אבל עדיין יכול להיות מס בשיעור קבוע
+        // מוסיפים 0 לקצבאות
+        for (let i = 0; i < pensionFunds.length; i++) {
           taxBreakdown.push(0);
         }
+        
+        // מוסיפים מס בשיעור קבוע להכנסות נוספות
+        additionalIncomes.forEach((income, index) => {
+          const incomeIndex = pensionFunds.length + index;
+          const incomeAmount = incomeBreakdown[incomeIndex] || 0;
+          
+          if (income.tax_treatment === 'fixed_rate') {
+            const taxRate = (income.tax_rate || 0) / 100;
+            const fixedTax = incomeAmount * taxRate;
+            taxBreakdown.push(Math.round(fixedTax));
+            totalFixedRateTax += fixedTax;
+          } else {
+            taxBreakdown.push(0);
+          }
+        });
+        
+        // חישוב מס על נכסי הון עם שיעור קבוע
+        let totalCapitalFixedRateTax = 0;
+        capitalAssets.forEach((asset) => {
+          const paymentAmount = parseFloat(asset.monthly_income) || 0;
+          if (paymentAmount > 0) {
+            const assetIndex = pensionFunds.length + additionalIncomes.length + 
+                             capitalAssets.filter(a => (parseFloat(a.monthly_income) || 0) > 0)
+                                         .indexOf(asset);
+            const monthlyIncome = incomeBreakdown[assetIndex] || 0;
+            
+            if (asset.tax_treatment === 'fixed_rate') {
+              const assetTax = monthlyIncome * ((asset.tax_rate || 0) / 100);
+              totalCapitalFixedRateTax += assetTax;
+              taxBreakdown.push(Math.round(assetTax));
+            } else {
+              taxBreakdown.push(0);
+            }
+          }
+        });
+        
+        // עדכון סך המס הכולל - מס בשיעור קבוע (הכנסות + נכסים)
+        totalMonthlyTax = totalFixedRateTax + totalCapitalFixedRateTax;
       }
 
       const netIncome = totalMonthlyIncome - totalMonthlyTax;

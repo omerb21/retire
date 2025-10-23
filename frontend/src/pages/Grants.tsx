@@ -112,7 +112,7 @@ const Grants: React.FC = () => {
 
   return (
     <div>
-      <h2>מענקים ממעסיקים קודמים</h2>
+      <h2>מענקים פטורים שהתקבלו</h2>
       <div style={{ marginBottom: '20px' }}>
         <a href={`/clients/${id}`}>חזרה לפרטי לקוח</a>
       </div>
@@ -220,13 +220,10 @@ const Grants: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>מעסיק</th>
-                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>סוג</th>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>תאריך</th>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>סכום</th>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>שנות שירות</th>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>סיבה</th>
-                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>פטור ממס</th>
-                <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>חייב במס</th>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>מס לתשלום</th>
                 <th style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'right' }}>פעולות</th>
               </tr>
@@ -235,17 +232,10 @@ const Grants: React.FC = () => {
               {grants.map((grant) => (
                 <tr key={grant.id}>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.employer_name}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.grant_type}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.grant_date}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.amount.toLocaleString()}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.service_years}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>{grant.reason}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                    {grant.tax_calculation?.grant_exempt.toLocaleString() || '-'}
-                  </td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px' }}>
-                    {grant.tax_calculation?.grant_taxable.toLocaleString() || '-'}
-                  </td>
                   <td style={{ border: '1px solid #ddd', padding: '8px' }}>
                     {grant.tax_calculation?.tax_due.toLocaleString() || '-'}
                   </td>

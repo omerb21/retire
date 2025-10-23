@@ -75,7 +75,8 @@ class AdditionalIncomeService:
         elif income.tax_treatment == TaxTreatment.FIXED_RATE:
             if income.tax_rate is None:
                 raise ValueError("Tax rate is required for fixed rate tax")
-            return gross_amount * income.tax_rate
+            # tax_rate is now in percentage (0-99), convert to decimal
+            return gross_amount * (income.tax_rate / Decimal('100'))
         
         elif income.tax_treatment == TaxTreatment.TAXABLE:
             # For now, apply a basic tax calculation
