@@ -4,7 +4,7 @@ import requests
 
 CLIENT_ID = 1
 SCENARIO_ID = 24
-PORTS = [8000, 8001, 8002]
+PORTS = [8005, 8006, 8007]
 
 TS = datetime.now().strftime("%Y%m%d-%H%M")
 ART_DIR = "artifacts"
@@ -126,7 +126,7 @@ def main():
     if not base:
         print("=== SPRINT 11 PROOF SUMMARY ===")
         print("Server BASE: (not found)")
-        print("ERROR: No API detected on 127.0.0.1:8000/8001/8002")
+        print("ERROR: No API detected on 127.0.0.1:8005/8006/8007")
         print(f"NONCE: {nonce}")
         print("=== END SUMMARY ===")
         return

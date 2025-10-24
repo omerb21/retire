@@ -16,13 +16,13 @@ Ctrl + C
 
 ### 2. הפעל מחדש את השרת
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8005
 ```
 
 ### 3. המתן עד שתראה:
 ```
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8005
 ```
 
 ### 4. רק אז - רענן את הדפדפן

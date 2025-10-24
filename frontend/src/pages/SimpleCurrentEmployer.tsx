@@ -218,11 +218,11 @@ const SimpleCurrentEmployer: React.FC = () => {
           }));
           
           setGrantDetails({
-            serviceYears: calculation.service_years,
-            expectedGrant: actualExpectedGrant,
-            taxExemptAmount: calculation.exempt_amount,
-            taxableAmount: calculation.taxable_amount,
-            severanceCap: calculation.annual_exemption_cap
+            serviceYears: calculation.service_years || 0,
+            expectedGrant: actualExpectedGrant || 0,
+            taxExemptAmount: calculation.exempt_amount || 0,
+            taxableAmount: calculation.taxable_amount || 0,
+            severanceCap: calculation.annual_exemption_cap || 165240
           });
         } catch (error) {
           console.error('Error calculating severance:', error);

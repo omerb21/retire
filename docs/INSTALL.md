@@ -36,12 +36,12 @@ pytest -q
 
 6. **Start the server:**
 ```powershell
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8005
 ```
 
 7. **Test endpoints:**
 ```powershell
-Invoke-RestMethod http://localhost:8000/clients
+Invoke-RestMethod http://localhost:8005/clients
 ```
 
 ## Environment Variables

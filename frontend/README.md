@@ -102,7 +102,7 @@ src/
 ## Environment Variables
 
 ```bash
-REACT_APP_API_BASE_URL=http://localhost:8000  # כתובת API
+REACT_APP_API_BASE_URL=http://localhost:8005  # כתובת API
 ```
 
 ## טכנולוגיות

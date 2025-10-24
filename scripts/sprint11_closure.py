@@ -10,7 +10,7 @@ import requests
 from pathlib import Path
 
 # Configuration
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8005"
 CLIENT_ID = 1
 SCENARIO_ID = 24
 DATE_FROM = "2025-01"
@@ -178,5 +178,5 @@ for file in RELEASE_DIR.glob('*'):
     print(f"{file.name} → {size_kb:.1f}KB")
 
 print("\n==== UI ACCESS ====")
-print("UI URL: http://localhost:8000/ui")
+print("UI URL: http://localhost:8005/ui")
 print("\nSprint 11 closure completed successfully!")

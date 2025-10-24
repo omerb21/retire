@@ -52,7 +52,7 @@ async def generate_pdf_report(
     
     **Example Usage:**
     ```bash
-    curl -X POST "http://localhost:8000/api/v1/scenarios/24/report/pdf?client_id=1" \
+    curl -X POST "http://localhost:8005/api/v1/scenarios/24/report/pdf?client_id=1" \
          -H "Content-Type: application/json" \
          -d '{"from":"2025-01","to":"2025-12","frequency":"monthly"}' \
          --output report.pdf

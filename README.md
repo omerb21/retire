@@ -125,7 +125,7 @@ Use the CI dependency installation script to set up all dependencies:
 uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
+The API will be available at `http://localhost:8005`
 
 ## Frontend Setup
 
@@ -141,7 +141,7 @@ The API will be available at `http://localhost:8000`
 
 3. Set the API base URL in your frontend `.env` file:
    ```
-   VITE_API_BASE_URL=http://localhost:8000
+   VITE_API_BASE_URL=http://localhost:8005
    ```
 
 4. Start the development server:
@@ -395,7 +395,7 @@ The system supports processing pension portfolio data files in two formats:
 POST /api/v1/clients/{client_id}/pension-portfolio/process-xml
 
 # Upload multiple files
-curl -X POST "http://localhost:8000/api/v1/clients/1/pension-portfolio/process-xml" \
+curl -X POST "http://localhost:8005/api/v1/clients/1/pension-portfolio/process-xml" \
      -F "files=@file1.xml" \
      -F "files=@file2.dat"
 ```
@@ -450,11 +450,11 @@ Calculate exempt capital remaining and used commutation for a client:
 
 ```bash
 # Basic computation
-curl -X POST "http://localhost:8000/api/v1/fixation/1/compute" \
+curl -X POST "http://localhost:8005/api/v1/fixation/1/compute" \
      -H "Content-Type: application/json"
 
 # With optional parameters
-curl -X POST "http://localhost:8000/api/v1/fixation/1/compute" \
+curl -X POST "http://localhost:8005/api/v1/fixation/1/compute" \
      -H "Content-Type: application/json" \
      -d '{
        "scenario_id": 2,

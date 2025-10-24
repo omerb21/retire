@@ -130,17 +130,14 @@ def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str
         if birth_date and gender:
             try:
                 # שימוש בשירות גיל פרישה דינמי
-                if USE_DYNAMIC_RETIREMENT_AGE:
-                    from app.services.retirement_age_service import get_retirement_date
-                    retirement_date = get_retirement_date(birth_date, gender)
-                else:
-                    # fallback לחישוב פשוט
-                    retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65
-                    retirement_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
-                
+                from app.services.retirement_age_service import get_retirement_date
+                retirement_date = get_retirement_date(birth_date, gender)
                 logger.info(f"[יחסי מענק] גיל פרישה מחושב: {retirement_date} (מגדר: {gender})")
             except Exception as e:
                 logger.warning(f"[יחסי מענק] שגיאה בחישוב גיל פרישה: {e}")
+                # fallback לחישוב פשוט
+                retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65
+                retirement_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
         
         # הגבלת תאריך סיום העבודה לגיל הפרישה
         effective_end_date = end_date

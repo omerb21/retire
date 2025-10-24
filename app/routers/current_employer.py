@@ -439,6 +439,68 @@ def process_termination_decision(
             detail={"error": f"שגיאה בעיבוד החלטות עזיבה: {str(e)}"}
         )
 
+@router.post(
+    "/current-employer/calculate-severance",
+    status_code=status.HTTP_200_OK
+)
+def calculate_severance(
+    request_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Calculate severance payment based on employment details
+    """
+    try:
+        from datetime import datetime
+        
+        # Extract data from request
+        start_date_str = request_data.get('start_date')
+        end_date_str = request_data.get('end_date')
+        last_salary = request_data.get('last_salary', 0)
+        continuity_years = request_data.get('continuity_years', 0)
+        
+        # Convert dates
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else date.today()
+        
+        if not start_date:
+            raise ValueError("חסר תאריך התחלת עבודה")
+        
+        # Calculate service years
+        service_years = CurrentEmployerService.calculate_service_years(
+            start_date=start_date,
+            end_date=end_date,
+            continuity_years=continuity_years
+        )
+        
+        # Calculate severance: last_salary * service_years
+        severance_amount = last_salary * service_years
+        
+        # Calculate tax exempt and taxable amounts
+        # Annual exemption cap for 2024-2025: 13,770 * 12 = 165,240
+        annual_exemption_cap = 13770 * 12  # 165,240
+        
+        # Exempt amount is the minimum between severance and cap
+        exempt_amount = min(severance_amount, annual_exemption_cap)
+        
+        # Taxable amount is the remainder
+        taxable_amount = max(0, severance_amount - annual_exemption_cap)
+        
+        return {
+            "service_years": round(service_years, 2),
+            "severance_amount": round(severance_amount, 2),
+            "last_salary": last_salary,
+            "exempt_amount": round(exempt_amount, 2),
+            "taxable_amount": round(taxable_amount, 2),
+            "annual_exemption_cap": annual_exemption_cap
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": f"שגיאה בחישוב פיצויים: {str(e)}"}
+        )
+
 @router.delete(
     "/clients/{client_id}/delete-termination",
     status_code=status.HTTP_200_OK

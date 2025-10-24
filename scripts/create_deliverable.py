@@ -176,7 +176,7 @@ def create_deliverable_zip():
 
 3. Start the application:
    ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   uvicorn app.main:app --host 0.0.0.0 --port 8005
    ```
 
 ## Configuration
@@ -191,8 +191,8 @@ The system uses PostgreSQL with Alembic migrations. Run `alembic upgrade head` t
 
 ## API Documentation
 Once running, visit:
-- API Docs: http://localhost:8000/docs
-- Health Check: http://localhost:8000/health
+- API Docs: http://localhost:8005/docs
+- Health Check: http://localhost:8005/health
 
 ## Testing
 Run the test suite:

@@ -161,7 +161,7 @@ console.log(`גיל ברירת מחדל: ${defaultAge}`);
 
 ```bash
 # חישוב גיל פרישה
-curl -X POST http://localhost:8000/api/v1/retirement-age/calculate \
+curl -X POST http://localhost:8005/api/v1/retirement-age/calculate \
   -H "Content-Type: application/json" \
   -d '{"birth_date": "1965-06-15", "gender": "female"}'
 
@@ -174,10 +174,10 @@ curl -X POST http://localhost:8000/api/v1/retirement-age/calculate \
 }
 
 # קבלת הגדרות
-curl http://localhost:8000/api/v1/retirement-age/settings
+curl http://localhost:8005/api/v1/retirement-age/settings
 
 # עדכון הגדרות
-curl -X POST http://localhost:8000/api/v1/retirement-age/settings \
+curl -X POST http://localhost:8005/api/v1/retirement-age/settings \
   -H "Content-Type: application/json" \
   -d '{
     "male_retirement_age": 67,

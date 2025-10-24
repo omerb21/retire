@@ -3,7 +3,7 @@ import json
 
 def test_fixation():
     try:
-        url = "http://localhost:8000/api/v1/rights-fixation/calculate"
+        url = "http://localhost:8005/api/v1/rights-fixation/calculate"
         data = {"client_id": 1}
         
         print(f"Sending request to: {url}")
