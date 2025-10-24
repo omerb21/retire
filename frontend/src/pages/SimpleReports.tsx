@@ -978,24 +978,32 @@ const SimpleReports: React.FC = () => {
         
         // הפטור חל רק משנת הזכאות ואילך
         if (year >= eligibilityYear) {
-          const exemptionPercentage = fixationData.exemption_summary.exemption_percentage || 0;
           const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
+          const remainingMonthlyExemption = fixationData.exemption_summary.remaining_monthly_exemption || (remainingExemptCapital / 180);
+          const pensionCeilingEligibility = getPensionCeiling(eligibilityYear);
+          
+          // חישוב אחוז הפטור הנכון: (יתרה חודשית / תקרת שנת זכאות)
+          const correctExemptionPercentage = pensionCeilingEligibility > 0 
+            ? remainingMonthlyExemption / pensionCeilingEligibility 
+            : 0;
           
           if (year === eligibilityYear) {
             // שנת הקיבוע: יתרה נותרת (אחרי קיזוזים) ÷ 180
-            monthlyExemptPension = remainingExemptCapital / 180;
+            monthlyExemptPension = remainingMonthlyExemption;
             console.log(`📊 Year ${year} (ELIGIBILITY YEAR):`);
             console.log(`   Remaining exempt capital: ${remainingExemptCapital.toLocaleString()}`);
             console.log(`   💰 Exempt pension = ${remainingExemptCapital.toLocaleString()} ÷ 180 = ${monthlyExemptPension.toFixed(2)}`);
           } else {
-            // שנים אחרי הקיבוע: אחוז פטור × תקרת קצבה מזכה
+            // שנים אחרי הקיבוע: אחוז פטור מחושב × תקרת קצבה מזכה של השנה הנוכחית
             const pensionCeiling = getPensionCeiling(year);
-            monthlyExemptPension = exemptionPercentage * pensionCeiling;
+            monthlyExemptPension = correctExemptionPercentage * pensionCeiling;
             
             console.log(`📊 Year ${year} (POST-ELIGIBILITY):`);
-            console.log(`   Pension ceiling: ${pensionCeiling.toLocaleString()}`);
-            console.log(`   Exemption percentage: ${(exemptionPercentage * 100).toFixed(1)}%`);
-            console.log(`   💰 Exempt pension = ${(exemptionPercentage * 100).toFixed(1)}% × ${pensionCeiling.toLocaleString()} = ${monthlyExemptPension.toFixed(2)}`);
+            console.log(`   Pension ceiling (eligibility): ${pensionCeilingEligibility.toLocaleString()}`);
+            console.log(`   Pension ceiling (current year): ${pensionCeiling.toLocaleString()}`);
+            console.log(`   Remaining monthly exemption: ${remainingMonthlyExemption.toFixed(2)}`);
+            console.log(`   Correct exemption %: ${remainingMonthlyExemption.toFixed(2)} / ${pensionCeilingEligibility.toLocaleString()} = ${(correctExemptionPercentage * 100).toFixed(2)}%`);
+            console.log(`   💰 Exempt pension = ${(correctExemptionPercentage * 100).toFixed(2)}% × ${pensionCeiling.toLocaleString()} = ${monthlyExemptPension.toFixed(2)}`);
           }
         } else {
           console.log(`⏰ Year ${year} < eligibility year ${eligibilityYear} - no exemption yet`);
