@@ -1407,6 +1407,75 @@ const SystemSettings: React.FC = () => {
                 <strong>דוגמה לשנת 2025:</strong> 9,430 × 180 × 57% = 967,986 ₪
               </p>
             </div>
+            
+            {/* תיעוד מפורט של לוגיקת החישובים */}
+            <div style={{ 
+              backgroundColor: '#fff8dc', 
+              border: '2px solid #ffa500', 
+              borderRadius: '8px', 
+              padding: '20px', 
+              marginTop: '30px' 
+            }}>
+              <h3 style={{ color: '#ff8c00', marginTop: 0, fontSize: '18px' }}>
+                📚 תיעוד: לוגיקת חישובי קיבוע זכויות וקצבה פטורה
+              </h3>
+              
+              <div style={{ backgroundColor: '#e8f4fd', padding: '15px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #007bff' }}>
+                <h4 style={{ color: '#2c3e50', marginTop: 0 }}>🔹 גיל זכאות:</h4>
+                <p style={{ margin: '5px 0', lineHeight: '1.8' }}>
+                  <strong>גיל זכאות</strong> = התאריך המאוחר מבין:<br/>
+                  • גיל פרישה על פי חוק<br/>
+                  • תאריך קבלת קצבה ראשונה
+                </p>
+                <p style={{ margin: '10px 0 0 0', padding: '8px', backgroundColor: '#fff', borderRadius: '4px', fontSize: '14px' }}>
+                  💡 כדי להיות רשמית בגיל זכאות יש צורך בקיום <strong>שני התנאים</strong>: גם הגעה לגיל פרישה וגם קבלת קצבה ראשונה.
+                </p>
+              </div>
+              
+              <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #ddd' }}>
+                <h4 style={{ color: '#2c3e50', marginTop: 0 }}>🔹 חישוב במסך קיבוע זכויות:</h4>
+                <ol style={{ lineHeight: '1.8', margin: '10px 0' }}>
+                  <li><strong>יתרת הון פטורה ראשונית</strong> = תקרת קצבה מזכה לשנת גיל הזכאות × 180 × אחוז הון פטור</li>
+                  <li><strong>פגיעה בפטור למענק</strong> = ערך מענק מוצמד × 1.35<br/>
+                    <span style={{ fontSize: '13px', color: '#666' }}>
+                      (חובה לבדוק יחס 32 שנה ויחס גיל פרישה. פגיעה של היוונים = ערך ללא ×1.35)
+                    </span>
+                  </li>
+                  <li><strong>יתרה נותרת</strong> = יתרה ראשונית - סך פגיעות</li>
+                  <li><strong>אחוז פטור מחושב</strong> = (יתרה נותרת / 180) / תקרת הקצבה המזכה לשנת גיל הזכאות<br/>
+                    <span style={{ fontSize: '13px', color: '#28a745', fontWeight: 'bold' }}>
+                      דוגמה: (622,966.1 / 180) / 8,380 = 3,461 / 8,380 = 41.29%
+                    </span>
+                  </li>
+                </ol>
+                <p style={{ margin: '10px 0 0 0', padding: '10px', backgroundColor: '#d4edda', borderRadius: '4px', color: '#155724' }}>
+                  ✅ <strong>אחוז זה נשמר ומשמש לחישוב הקצבה הפטורה במסך התוצאות!</strong>
+                </p>
+              </div>
+              
+              <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '6px', marginBottom: '20px', border: '1px solid #ddd' }}>
+                <h4 style={{ color: '#2c3e50', marginTop: 0 }}>🔹 חישוב במסך תוצאות:</h4>
+                <div style={{ padding: '15px', backgroundColor: '#f8d7da', borderRadius: '4px', marginBottom: '10px', border: '1px solid #f5c6cb' }}>
+                  <p style={{ margin: 0, fontWeight: 'bold', color: '#721c24', fontSize: '16px' }}>
+                    קצבה פטורה = אחוז פטור מקיבוע × תקרת קצבה של השנה הראשונה בתזרים
+                  </p>
+                </div>
+                <p style={{ margin: '10px 0' }}><strong>דוגמה:</strong> 41.29% × 9,430 (תקרה 2025) = 3,893 ₪</p>
+                <p style={{ color: '#dc3545', fontWeight: 'bold', margin: '10px 0 0 0' }}>
+                  ⚠️ לא להכפיל באחוז כללי! לא לחשב מחדש! רק אחוז מקיבוע × תקרה!
+                </p>
+              </div>
+              
+              <div style={{ backgroundColor: '#fff', padding: '15px', borderRadius: '6px', border: '1px solid #ddd' }}>
+                <h4 style={{ color: '#2c3e50', marginTop: 0 }}>🔹 כללים חשובים:</h4>
+                <ul style={{ lineHeight: '1.8', margin: 0 }}>
+                  <li>אחוז הפטור מחושב <strong>פעם אחת</strong> במסך קיבוע זכויות</li>
+                  <li>השנה הראשונה בתזרים = <strong>השנה הנוכחית</strong> (לא שנת הזכאות!)</li>
+                  <li>הקצבה הפטורה <strong>תמיד מוצגת</strong> במסך התוצאות (גם אם 0)</li>
+                  <li>בדוחות - אחוז הפטור מוצג <strong>כפי שחושב במסך הקיבוע</strong></li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
         )}

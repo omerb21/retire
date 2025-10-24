@@ -102,14 +102,16 @@ def index_grant(amount: float, start_date: Union[str, date], grant_date: Union[s
 
 # ========== 2. יחס החלקיות של 32 השנים האחרונות ==========
 
-def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str, date], elig_date: Union[str, date]) -> float:
+def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str, date], elig_date: Union[str, date], birth_date: Optional[Union[str, date]] = None, gender: Optional[str] = None) -> float:
     """
     מחשב את היחס של ימי העבודה בין start_date ל-end_date שנופלים
-    בתוך 32 השנים שקדמו ל-elig_date.
+    בתוך 32 השנים שקדמו ל-elig_date, ומוגבל עד גיל הפרישה.
     
     :param start_date: תאריך תחילת עבודה
     :param end_date: תאריך סיום עבודה
     :param elig_date: תאריך זכאות
+    :param birth_date: תאריך לידה (אופציונלי - לחישוב גיל פרישה)
+    :param gender: מגדר (אופציונלי - לחישוב גיל פרישה)
     :return: יחס בין 0 ל-1
     """
     try:
@@ -120,18 +122,44 @@ def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str
             end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
         if isinstance(elig_date, str):
             elig_date = datetime.strptime(elig_date, '%Y-%m-%d').date()
+        if birth_date and isinstance(birth_date, str):
+            birth_date = datetime.strptime(birth_date, '%Y-%m-%d').date()
+            
+        # חישוב תאריך גיל פרישה אם ניתנו נתוני לקוח
+        retirement_date = None
+        if birth_date and gender:
+            try:
+                # שימוש בשירות גיל פרישה דינמי
+                if USE_DYNAMIC_RETIREMENT_AGE:
+                    from app.services.retirement_age_service import get_retirement_date
+                    retirement_date = get_retirement_date(birth_date, gender)
+                else:
+                    # fallback לחישוב פשוט
+                    retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65
+                    retirement_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
+                
+                logger.info(f"[יחסי מענק] גיל פרישה מחושב: {retirement_date} (מגדר: {gender})")
+            except Exception as e:
+                logger.warning(f"[יחסי מענק] שגיאה בחישוב גיל פרישה: {e}")
+        
+        # הגבלת תאריך סיום העבודה לגיל הפרישה
+        effective_end_date = end_date
+        if retirement_date and end_date > retirement_date:
+            effective_end_date = retirement_date
+            logger.info(f"[יחסי מענק] הגבלת תאריך סיום מ-{end_date} ל-{effective_end_date} (גיל פרישה)")
             
         # חישוב חלון 32 השנים
         limit_start = elig_date - timedelta(days=int(365.25 * 32))
         
-        # חישוב ימי עבודה כוללים
-        total_days = (end_date - start_date).days
+        # חישוב ימי עבודה כוללים (עד גיל פרישה)
+        total_days = (effective_end_date - start_date).days
         if total_days <= 0:
+            logger.info(f"[יחסי מענק] אין ימי עבודה רלוונטיים (עבודה לאחר גיל פרישה)")
             return 0.0
             
-        # חישוב חפיפה עם חלון 32 השנים
+        # חישוב חפיפה עם חלון 32 השנים (מוגבל לגיל פרישה)
         overlap_start = max(start_date, limit_start)
-        overlap_end = min(end_date, elig_date)
+        overlap_end = min(effective_end_date, elig_date)
         overlap_days = max((overlap_end - overlap_start).days, 0)
         
         # חישוב יחס
@@ -141,7 +169,8 @@ def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str
         ratio = min(max(ratio, 0), 1)
         
         logger.info(f"[יחסי מענק] תאריך ייחוס={elig_date}, התחלה={start_date}, "
-                   f"סיום={end_date}, חפיפה={overlap_days} ימים, יחס={ratio:.4f}")
+                   f"סיום מקורי={end_date}, סיום אפקטיבי={effective_end_date}, "
+                   f"חפיפה={overlap_days} ימים, יחס={ratio:.4f}")
         
         return ratio
         
@@ -230,12 +259,14 @@ def calc_exempt_capital(year: int) -> float:
 
 # ========== 4. חישוב פגיעה בהון הפטור ==========
 
-def compute_grant_effect(grant: Dict[str, Any], eligibility_date: Union[str, date]) -> Optional[Dict[str, Any]]:
+def compute_grant_effect(grant: Dict[str, Any], eligibility_date: Union[str, date], birth_date: Optional[Union[str, date]] = None, gender: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     מחשב את השפעת המענק על ההון הפטור
     
     :param grant: מילון עם נתוני המענק (grant_amount, work_start_date, work_end_date)
     :param eligibility_date: תאריך זכאות
+    :param birth_date: תאריך לידה (אופציונלי - לחישוב גיל פרישה)
+    :param gender: מגדר (אופציונלי - לחישוב גיל פרישה)
     :return: מילון עם תוצאות החישוב
     """
     try:
@@ -255,11 +286,13 @@ def compute_grant_effect(grant: Dict[str, Any], eligibility_date: Union[str, dat
             logger.error(f"כשל בהצמדת מענק: {grant}")
             return None
             
-        # חישוב יחס 32 השנים
+        # חישוב יחס 32 השנים עם הגבלה לפי גיל פרישה
         ratio = work_ratio_within_last_32y(
             start_date=grant['work_start_date'],
             end_date=grant['work_end_date'],
-            elig_date=eligibility_date
+            elig_date=eligibility_date,
+            birth_date=birth_date,
+            gender=gender
         )
         
         # חישוב סכום מוגבל ל-32 שנים
@@ -336,7 +369,7 @@ def compute_client_exemption(grants: List[Dict[str, Any]], eligibility_year: int
         
         # חישוב פטור חודשי נותר (לפי האחוז הכללי של השנה)
         general_exemption_percentage = get_exemption_percentage(eligibility_year)
-        remaining_monthly_exemption = round(remaining_exempt_capital / (180 * general_exemption_percentage), 2) if general_exemption_percentage > 0 else 0
+        remaining_monthly_exemption = round(remaining_exempt_capital / 180, 2)
         
         return {
             'exempt_capital_initial': exempt_capital_initial,
@@ -380,15 +413,17 @@ def calculate_eligibility_age(birth_date: date, gender: str, pension_start: date
 
 # ========== 6. פונקציות שירות מרכזיות ==========
 
-def process_grant(grant: Dict[str, Any], eligibility_date: Union[str, date]) -> Dict[str, Any]:
+def process_grant(grant: Dict[str, Any], eligibility_date: Union[str, date], birth_date: Optional[Union[str, date]] = None, gender: Optional[str] = None) -> Dict[str, Any]:
     """
     מעבד מענק בודד - מחשב הצמדה, יחס ופגיעה
     
     :param grant: נתוני המענק
     :param eligibility_date: תאריך זכאות
+    :param birth_date: תאריך לידה (אופציונלי)
+    :param gender: מגדר (אופציונלי)
     :return: מענק מעודכן עם חישובים
     """
-    effect = compute_grant_effect(grant, eligibility_date)
+    effect = compute_grant_effect(grant, eligibility_date, birth_date, gender)
     if effect:
         grant.update(effect)
     return grant
@@ -404,14 +439,16 @@ def calculate_full_fixation(client_data: Dict[str, Any]) -> Dict[str, Any]:
         grants = client_data.get('grants', [])
         eligibility_date = client_data.get('eligibility_date')
         eligibility_year = client_data.get('eligibility_year', 2025)
+        birth_date = client_data.get('birth_date')  # תאריך לידה לחישוב גיל פרישה
+        gender = client_data.get('gender')  # מגדר לחישוב גיל פרישה
         
         if not eligibility_date:
             raise ValueError("חסר תאריך זכאות")
             
-        # עיבוד כל המענקים
+        # עיבוד כל המענקים עם נתוני לקוח
         processed_grants = []
         for grant in grants:
-            processed_grant = process_grant(grant, eligibility_date)
+            processed_grant = process_grant(grant, eligibility_date, birth_date, gender)
             processed_grants.append(processed_grant)
         
         # חישוב סיכום הפטור

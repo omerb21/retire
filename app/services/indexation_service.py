@@ -78,10 +78,17 @@ class IndexationService:
             return IndexationService.calculate_adjusted_amount(amount, end_work_date)
 
     @staticmethod
-    def work_ratio_within_last_32y(start_date: str, end_date: str, elig_date: str) -> float:
+    def work_ratio_within_last_32y(start_date: str, end_date: str, elig_date: str, birth_date: Optional[date] = None, gender: Optional[str] = None) -> float:
         """
         מחשב את היחס של ימי העבודה בין start_date ל-end_date שנופלים
-        בתוך 32 השנים שקדמו ל-elig_date.
+        בתוך 32 השנים שקדמו ל-elig_date, ומוגבל עד גיל הפרישה.
+        
+        :param start_date: תאריך תחילת עבודה
+        :param end_date: תאריך סיום עבודה
+        :param elig_date: תאריך זכאות
+        :param birth_date: תאריך לידה (אופציונלי - לחישוב גיל פרישה)
+        :param gender: מגדר (אופציונלי - לחישוב גיל פרישה)
+        :return: יחס בין 0 ל-1
         """
         try:
             # המרת תאריכים לאובייקטי date אם הם מחרוזות
@@ -91,13 +98,42 @@ class IndexationService:
                 end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
             if isinstance(elig_date, str):
                 elig_date = datetime.strptime(elig_date, '%Y-%m-%d').date()
+            if birth_date and isinstance(birth_date, str):
+                birth_date = datetime.strptime(birth_date, '%Y-%m-%d').date()
+                
+            # חישוב תאריך גיל פרישה אם ניתנו נתוני לקוח
+            retirement_date = None
+            if birth_date and gender:
+                try:
+                    # שימוש בשירות גיל פרישה דינמי
+                    if USE_DYNAMIC_RETIREMENT_AGE:
+                        retirement_date = get_retirement_date(birth_date, gender)
+                    else:
+                        # fallback לחישוב פשוט
+                        retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65
+                        retirement_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
+                    
+                    logger.info(f"[יחסי מענק] גיל פרישה מחושב: {retirement_date} (מגדר: {gender})")
+                except Exception as e:
+                    logger.warning(f"[יחסי מענק] שגיאה בחישוב גיל פרישה: {e}")
+            
+            # הגבלת תאריך סיום העבודה לגיל הפרישה
+            effective_end_date = end_date
+            if retirement_date and end_date > retirement_date:
+                effective_end_date = retirement_date
+                logger.info(f"[יחסי מענק] הגבלת תאריך סיום מ-{end_date} ל-{effective_end_date} (גיל פרישה)")
                 
             today = elig_date  # השתמש תמיד בתאריך הזכאות
             limit_start = today - timedelta(days=int(365.25 * 32))
             
-            total_days = (end_date - start_date).days
+            # חישוב ימי עבודה כוללים (עד גיל פרישה)
+            total_days = (effective_end_date - start_date).days
+            if total_days <= 0:
+                logger.info(f"[יחסי מענק] אין ימי עבודה רלוונטיים (עבודה לאחר גיל פרישה)")
+                return 0.0
+                
             overlap_start = max(start_date, limit_start)
-            overlap_end = min(end_date, today)
+            overlap_end = min(effective_end_date, today)
             overlap_days = max((overlap_end - overlap_start).days, 0)
             
             ratio = (overlap_days / total_days) if total_days > 0 else 0
@@ -105,7 +141,8 @@ class IndexationService:
             ratio = min(max(ratio, 0), 1)
             
             logger.info(f"[יחסי מענק] תאריך ייחוס={today}, התחלה={start_date}, "
-                       f"סיום={end_date}, חפיפה={overlap_days} ימים, יחס={ratio:.4f}")
+                       f"סיום מקורי={end_date}, סיום אפקטיבי={effective_end_date}, "
+                       f"חפיפה={overlap_days} ימים, יחס={ratio:.4f}")
             return ratio
             
         except Exception as e:

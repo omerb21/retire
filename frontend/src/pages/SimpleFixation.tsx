@@ -75,6 +75,7 @@ const SimpleFixation: React.FC = () => {
   const [clientData, setClientData] = useState<any>(null);
   const [commutations, setCommutations] = useState<Commutation[]>([]);
   const [futureGrantReserved, setFutureGrantReserved] = useState<number>(0);
+  const [retirementAge, setRetirementAge] = useState<string>('לא ניתן לחשב');
 
   // Get pension ceiling for eligibility year
   const getPensionCeiling = (year: number): number => {
@@ -166,6 +167,29 @@ const SimpleFixation: React.FC = () => {
         try {
           const clientResponse = await axios.get(`/api/v1/clients/${id}`);
           setClientData(clientResponse.data);
+          
+          // חישוב גיל פרישה
+          if (clientResponse.data?.birth_date && clientResponse.data?.gender) {
+            try {
+              const retirementResponse = await axios.post('/api/v1/retirement-age/calculate-simple', {
+                birth_date: clientResponse.data.birth_date,
+                gender: clientResponse.data.gender
+              });
+              
+              if (retirementResponse.data?.retirement_age) {
+                setRetirementAge(retirementResponse.data.retirement_age.toString());
+              } else {
+                // fallback
+                const age = clientResponse.data.gender?.toLowerCase() === 'female' ? 65 : 67;
+                setRetirementAge(age.toString());
+              }
+            } catch (retErr) {
+              console.error('Error calculating retirement age:', retErr);
+              // fallback
+              const age = clientResponse.data.gender?.toLowerCase() === 'female' ? 65 : 67;
+              setRetirementAge(age.toString());
+            }
+          }
         } catch (err) {
           console.error('Error fetching client data:', err);
         }
@@ -611,6 +635,9 @@ const SimpleFixation: React.FC = () => {
               
               <div>
                 <div style={{ marginBottom: '8px', fontSize: '14px' }}>
+                  <strong>גיל פרישה:</strong> {retirementAge}
+                </div>
+                <div style={{ marginBottom: '8px', fontSize: '14px' }}>
                   <strong>תאריך חישוב:</strong> {"9.10.2025"}
                 </div>
               </div>
@@ -687,7 +714,7 @@ const SimpleFixation: React.FC = () => {
                       {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.grant_amount * (grant.ratio_32y || 0)).toLocaleString(undefined, {maximumFractionDigits: 2})}`}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#007bff' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.indexed_full || 0).toLocaleString()}`}
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.limited_indexed_amount || 0).toLocaleString()}`}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#dc3545' }}>
                       {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.impact_on_exemption || 0).toLocaleString()}`}

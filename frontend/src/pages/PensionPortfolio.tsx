@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
 import { 
@@ -937,19 +938,34 @@ export default function PensionPortfolio() {
   };
 
   // פונקציה לחישוב תאריך פרישה - מחזיר פורמט ISO (YYYY-MM-DD)
-  const calculateRetirementDate = () => {
+  const calculateRetirementDate = async () => {
     if (!clientData?.birth_date) return null;
     
     try {
+      // שימוש ב-API דינמי לחישוב גיל פרישה
+      const response = await axios.post('/api/v1/retirement-age/calculate-simple', {
+        birth_date: clientData.birth_date,
+        gender: clientData.gender
+      });
+      
+      if (response.data && response.data.retirement_date) {
+        return response.data.retirement_date;
+      }
+      
+      // fallback למקרה של שגיאה
       const birthDate = new Date(clientData.birth_date);
-      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 62 : 67;
+      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 65 : 67;
       const retirementDate = new Date(birthDate);
       retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-      // החזרת פורמט ISO לשרת
       return retirementDate.toISOString().split('T')[0];
     } catch (error) {
       console.error('Error calculating retirement date:', error);
-      return null;
+      // fallback
+      const birthDate = new Date(clientData.birth_date);
+      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 65 : 67;
+      const retirementDate = new Date(birthDate);
+      retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
+      return retirementDate.toISOString().split('T')[0];
     }
   };
 
@@ -1042,7 +1058,7 @@ export default function PensionPortfolio() {
     try {
       // טיפול בהמרות לקצבה - יצירת קצבה נפרדת לכל תכנית
       if (pensionConversions.length > 0) {
-        const retirementDate = calculateRetirementDate();
+        const retirementDate = await calculateRetirementDate();
         
         for (const conversion of pensionConversions) {
           const {account, amountToConvert, specificAmounts} = conversion;
