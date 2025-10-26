@@ -148,10 +148,12 @@ def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str
         # חישוב חלון 32 השנים
         limit_start = elig_date - timedelta(days=int(365.25 * 32))
         
-        # חישוב ימי עבודה כוללים (עד גיל פרישה)
-        total_days = (effective_end_date - start_date).days
+        # חישוב ימי עבודה כוללים - משתמשים בתאריך המקורי end_date (לא effective_end_date)
+        # זה חשוב לחישוב היחס הנכון: אם עבודה הסתיימה אחרי גיל פרישה, 
+        # היחס יהיה קטן יותר כי חלק מהעבודה לא נחשב
+        total_days = (end_date - start_date).days
         if total_days <= 0:
-            logger.info(f"[יחסי מענק] אין ימי עבודה רלוונטיים (עבודה לאחר גיל פרישה)")
+            logger.info(f"[יחסי מענק] אין ימי עבודה רלוונטיים")
             return 0.0
             
         # חישוב חפיפה עם חלון 32 השנים (מוגבל לגיל פרישה)
@@ -159,7 +161,8 @@ def work_ratio_within_last_32y(start_date: Union[str, date], end_date: Union[str
         overlap_end = min(effective_end_date, elig_date)
         overlap_days = max((overlap_end - overlap_start).days, 0)
         
-        # חישוב יחס
+        # חישוב יחס: חפיפה בפועל / סה"כ ימי עבודה
+        # אם עבודה הסתיימה אחרי גיל פרישה, overlap_end יהיה קטן יותר, ולכן היחס יהיה קטן יותר
         ratio = overlap_days / total_days if total_days > 0 else 0
         
         # גבולות [0, 1]

@@ -313,7 +313,28 @@ const SimpleCurrentEmployer: React.FC = () => {
         // מענק פיצויים צפוי = שכר אחרון × וותק
         const expectedGrant = employer.last_salary * serviceYears;
         
-        const maxSpreadYears = Math.floor(serviceYears / 4);
+        // חישוב שנות פריסה לפי הכללים:
+        // עד 2 שנים: 0 שנות פריסה
+        // 2+ שנים: 1 שנת פריסה
+        // 6+ שנים: 2 שנות פריסה
+        // 10+ שנים: 3 שנות פריסה
+        // 14+ שנים: 4 שנות פריסה
+        // 18+ שנים: 5 שנות פריסה
+        // 22+ שנים: 6 שנות פריסה (מקסימום)
+        let maxSpreadYears = 0;
+        if (serviceYears >= 22) {
+          maxSpreadYears = 6;
+        } else if (serviceYears >= 18) {
+          maxSpreadYears = 5;
+        } else if (serviceYears >= 14) {
+          maxSpreadYears = 4;
+        } else if (serviceYears >= 10) {
+          maxSpreadYears = 3;
+        } else if (serviceYears >= 6) {
+          maxSpreadYears = 2;
+        } else if (serviceYears >= 2) {
+          maxSpreadYears = 1;
+        }
         
         // 🔥 חישוב סכום הפיצויים לפי הסימון
         let severanceAmount: number;

@@ -2763,14 +2763,25 @@ const SimpleReports: React.FC = () => {
                       console.log(`   Result: ${(correctExemptionPercentage * 100).toFixed(2)}% × ${pensionCeilingFirstYear} = ${currentExemptPension.toFixed(2)}`);
                     }
                     
+                    // סנכרון עם התזרים - שימוש בנתוני השנה הראשונה מהתזרים
+                    const yearlyProjection = generateYearlyProjection();
+                    const firstYearProjection = yearlyProjection.length > 0 ? yearlyProjection[0] : null;
+                    const alignedMonthlyIncome = firstYearProjection ? firstYearProjection.totalMonthlyIncome : Math.round(totalMonthlyIncome);
+                    const alignedMonthlyTax = firstYearProjection ? firstYearProjection.totalMonthlyTax : Math.round(finalTax / 12);
+                    const alignedNetMonthlyIncome = firstYearProjection ? firstYearProjection.netMonthlyIncome : Math.round(alignedMonthlyIncome - alignedMonthlyTax);
+                    const alignedAnnualIncome = alignedMonthlyIncome * 12;
+                    const alignedAnnualTax = alignedMonthlyTax * 12;
+                    const alignedNetAnnualIncome = alignedNetMonthlyIncome * 12;
+                    const alignedExemptPension = firstYearProjection?.exemptPension ?? Math.round(currentExemptPension);
+                    
                     return (
                       <div>
                         <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
-                          <strong>סך הכנסה שנתית: ₪{totalAnnualIncome.toLocaleString()}</strong>
-                          <div>הכנסה חודשית: ₪{totalMonthlyIncome.toLocaleString()}</div>
+                          <strong>סך הכנסה שנתית: ₪{alignedAnnualIncome.toLocaleString()}</strong>
+                          <div>הכנסה חודשית: ₪{alignedMonthlyIncome.toLocaleString()}</div>
                           {hasFixationData && (
                             <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#d4edda', borderRadius: '4px', border: '1px solid #c3e6cb' }}>
-                              <strong style={{ color: '#155724' }}>קצבה פטורה (קיבוע זכויות): ₪{currentExemptPension.toLocaleString()}</strong>
+                              <strong style={{ color: '#155724' }}>קצבה פטורה (קיבוע זכויות): ₪{alignedExemptPension.toLocaleString()}</strong>
                               <div style={{ fontSize: '12px', color: '#155724', marginTop: '4px' }}>
                                 פטור חודשי המופחת מההכנסה החייבת מקצבאות
                               </div>
@@ -2810,12 +2821,18 @@ const SimpleReports: React.FC = () => {
                               <div>פחות זיכוי: ₪{taxCredits.toLocaleString()}</div>
                             )}
                             <div style={{ borderTop: '1px solid #eee', paddingTop: '5px', marginTop: '5px', fontWeight: 'bold', color: '#28a745' }}>
-                              <strong>מס לתשלום: ₪{finalTax.toLocaleString()}</strong>
+                              <strong>מס לתשלום: ₪{alignedAnnualTax.toLocaleString()}</strong>
                             </div>
                             <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-                              מס חודשי: ₪{(finalTax / 12).toLocaleString()}
+                              מס חודשי: ₪{alignedMonthlyTax.toLocaleString()}
                             </div>
                           </div>
+                        </div>
+
+                        <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f1f3f5', borderRadius: '4px' }}>
+                          <strong>הכנסה נטו לאחר מס:</strong>
+                          <div>נטו חודשי: ₪{alignedNetMonthlyIncome.toLocaleString()}</div>
+                          <div>נטו שנתי: ₪{alignedNetAnnualIncome.toLocaleString()}</div>
                         </div>
                       </div>
                     );
