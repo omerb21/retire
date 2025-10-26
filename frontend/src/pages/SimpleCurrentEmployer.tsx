@@ -614,9 +614,19 @@ const SimpleCurrentEmployer: React.FC = () => {
         throw new Error('תאריך התחלת עבודה לא תקין - יש להזין בפורמט DD/MM/YYYY');
       }
 
+      // Convert end_date to ISO format if exists
+      let endDateISO = undefined;
+      if (employer.end_date) {
+        endDateISO = convertDDMMYYToISO(employer.end_date);
+        if (!endDateISO) {
+          throw new Error('תאריך סיום עבודה לא תקין - יש להזין בפורמט DD/MM/YYYY');
+        }
+      }
+
       const employerData = {
         ...employer,
-        start_date: startDateISO
+        start_date: startDateISO,
+        end_date: endDateISO
       };
 
       if (employer.id) {
@@ -702,7 +712,18 @@ const SimpleCurrentEmployer: React.FC = () => {
           פרטי מעסיק
         </button>
         <button
-          onClick={() => setActiveTab('termination')}
+          onClick={() => {
+            // בדיקה אם יש תאריך סיום עבודה
+            if (!employer.end_date && !terminationDecision.termination_date) {
+              alert('נא להזין תאריך סיום עבודה בלשונית "פרטי מעסיק" לפני מעבר לעזיבת עבודה');
+              return;
+            }
+            // אם יש end_date במעסיק אבל לא ב-termination, העתק אותו
+            if (employer.end_date && !terminationDecision.termination_date) {
+              setTerminationDecision(prev => ({ ...prev, termination_date: employer.end_date || '' }));
+            }
+            setActiveTab('termination');
+          }}
           style={{
             padding: '10px 20px',
             border: 'none',
@@ -848,6 +869,33 @@ const SimpleCurrentEmployer: React.FC = () => {
               fontSize: '16px'
             }}
           />
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            תאריך סיום עבודה (אופציונלי)
+          </label>
+          <input
+            type="text"
+            name="end_date"
+            placeholder="DD/MM/YYYY"
+            value={employer.end_date || ''}
+            onChange={(e) => {
+              const formatted = formatDateInput(e.target.value);
+              setEmployer({ ...employer, end_date: formatted });
+            }}
+            maxLength={10}
+            style={{
+              width: '100%',
+              padding: '10px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              fontSize: '16px'
+            }}
+          />
+          <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+            יש להזין רק אם העבודה כבר הסתיימה. אם השדה ריק, תתבקש להזין תאריך בעת מעבר לעזיבת עבודה.
+          </small>
         </div>
 
         <div style={{ marginBottom: '20px' }}>

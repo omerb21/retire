@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
-import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
+import { formatDateToDDMMYY, formatDateToDDMMYYYY, formatDateInput } from '../utils/dateUtils';
 import { 
   validateAccountConversion, 
   calculateTaxTreatment, 
@@ -93,6 +93,7 @@ export default function PensionPortfolio() {
   const [clientData, setClientData] = useState<any>(null); // נתוני הלקוח
   const [editingCell, setEditingCell] = useState<{row: number, field: string} | null>(null); // תא בעריכה
   const [showConversionRules, setShowConversionRules] = useState<boolean>(false); // הצגת חוקי המרה
+  const [redemptionDate, setRedemptionDate] = useState<string>(''); // תאריך מימוש (DD/MM/YYYY)
 
   // פונקציה לעיבוד קבצי XML ו-DAT של המסלקה
   const processXMLFiles = async (files: FileList) => {
@@ -1056,10 +1057,26 @@ export default function PensionPortfolio() {
     setError("");
 
     try {
+      // קביעת תאריך תשלום - תאריך מימוש או גיל פרישה
+      let paymentDateISO = '';
+      if (redemptionDate && redemptionDate.length === 10) {
+        // המרת תאריך מימוש מ-DD/MM/YYYY ל-ISO
+        const parts = redemptionDate.split('/');
+        if (parts.length === 3) {
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
+          const year = parts[2];
+          paymentDateISO = `${year}-${month}-${day}`;
+        }
+      }
+      
+      if (!paymentDateISO) {
+        // אם אין תאריך מימוש, השתמש בתאריך גיל פרישה
+        paymentDateISO = await calculateRetirementDate();
+      }
+
       // טיפול בהמרות לקצבה - יצירת קצבה נפרדת לכל תכנית
       if (pensionConversions.length > 0) {
-        const retirementDate = await calculateRetirementDate();
-        
         for (const conversion of pensionConversions) {
           const {account, amountToConvert, specificAmounts} = conversion;
           
@@ -1096,14 +1113,14 @@ export default function PensionPortfolio() {
             input_mode: "manual" as const,
             balance: amountToConvert,
             pension_amount: Math.round(amountToConvert / 200), // מקדם קצבה 200
-            pension_start_date: retirementDate,
+            pension_start_date: paymentDateISO,
             indexation_method: "none" as const, // ללא הצמדה
             tax_treatment: taxTreatment, // יחס מס מחושב לפי חוקי המערכת
             remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}\nיחס מס: ${taxTreatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}`,
             conversion_source: JSON.stringify(conversionSourceData)
           };
           
-          console.log('DEBUG: retirementDate =', retirementDate);
+          console.log('DEBUG: paymentDateISO =', paymentDateISO);
           console.log('DEBUG: pensionData before send =', JSON.stringify(pensionData, null, 2));
           
           // הוספת שדות אופציונליים רק אם יש להם ערך
@@ -1190,7 +1207,7 @@ export default function PensionPortfolio() {
             liquidity: 'medium',
             risk_level: 'medium',
             monthly_income: 0, // אין תשלום חודשי
-            start_date: todayISO,
+            start_date: paymentDateISO, // תאריך מימוש או גיל פרישה
             indexation_method: 'none', // ללא הצמדה
             tax_treatment: taxTreatment, // מס רווח הון - מחושב לפי חוקי המערכת
             conversion_source: JSON.stringify(conversionSourceData)
@@ -1602,6 +1619,34 @@ export default function PensionPortfolio() {
             </button>
           </div>
           
+          {/* שדה תאריך מימוש */}
+          <div style={{ marginBottom: 16, padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '4px', border: '1px solid #007bff' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#004085' }}>
+              תאריך מימוש (אופציונלי):
+            </label>
+            <input
+              type="text"
+              placeholder="DD/MM/YYYY"
+              value={redemptionDate}
+              onChange={(e) => {
+                const formatted = formatDateInput(e.target.value);
+                setRedemptionDate(formatted);
+              }}
+              maxLength={10}
+              style={{
+                width: '200px',
+                padding: '8px',
+                border: '1px solid #007bff',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            />
+            <div style={{ marginTop: '8px', fontSize: '13px', color: '#004085' }}>
+              💡 <strong>הסבר:</strong> אם תזין תאריך מימוש, כל ההמרות ייווצרו עם תאריך תשלום = תאריך המימוש.<br/>
+              אם השדה ריק, ההמרות ייווצרו עם תאריך תשלום = תאריך גיל הפרישה של הלקוח.
+            </div>
+          </div>
+
           {/* כפתורי פעולה */}
           <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
