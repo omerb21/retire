@@ -40,4 +40,4 @@ if %errorlevel% equ 0 (
     timeout /t 2 /nobreak > nul
 )
 
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
+python -m uvicorn app.main:app --reload --port 8005 --host 0.0.0.0
