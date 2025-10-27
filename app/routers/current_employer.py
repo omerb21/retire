@@ -464,7 +464,7 @@ def process_termination_decision(
                     
                     pension_fund = PensionFund(
                         client_id=client_id,
-                        fund_name=f"קצבה ממענק פיצויים פטור - {plan_name}",
+                        fund_name=f"קצבה ממענק פיצויים פטור - {plan_name} ({ce.employer_name})",
                         fund_type="monthly_pension",
                         input_mode="manual",
                         balance=plan_exempt_amount,
@@ -580,7 +580,7 @@ def process_termination_decision(
                     
                     pension_fund = PensionFund(
                         client_id=client_id,
-                        fund_name=f"קצבה ממענק פיצויים חייב - {plan_name}",
+                        fund_name=f"קצבה ממענק פיצויים חייב - {plan_name} ({ce.employer_name})",
                         fund_type="monthly_pension",
                         input_mode="manual",
                         balance=plan_taxable_amount,
