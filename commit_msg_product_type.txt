@@ -1,0 +1,17 @@
+fix: use correct product_type for annuity coefficient calculation
+
+CRITICAL FIX: Insurance policies now get coefficients from insurance generation tables
+
+Changes:
+- Frontend: Added product_type to planDetails (SimpleCurrentEmployer.tsx)
+- Model: Added product_type column to EmployerGrant (employer_grant.py)
+- Migration: Created migration to add product_type column
+- Backend: Updated termination logic to use actual product_type instead of hardcoded 'קופת גמל'
+- Backend: Pass product_type to get_annuity_coefficient for correct table lookup
+
+Impact:
+- Pension funds (קרן פנסיה) → pension_fund_coefficient table
+- Provident funds (קופת גמל) → pension_fund_coefficient table  
+- Insurance policies (ביטוח מנהלים) → insurance_generation_coefficient table ✅
+
+This ensures each product type gets the correct annuity coefficient based on its generation.
