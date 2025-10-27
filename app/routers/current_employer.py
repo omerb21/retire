@@ -321,9 +321,27 @@ def process_termination_decision(
                 # Create PensionFund from exempt amount (regular pension fund, not special)
                 print(f"🟡 CREATING PENSION FUND FROM EXEMPT AMOUNT: {decision.exempt_amount}")
                 
-                # Calculate monthly pension: original_balance / annuity_factor
-                # מקדם קצבה בסיסי: 200 (לגיל פרישה 67 לגבר, 64 לאישה)
-                annuity_factor = 200
+                # Calculate dynamic annuity factor
+                from app.services.annuity_coefficient_service import get_annuity_coefficient
+                try:
+                    coefficient_result = get_annuity_coefficient(
+                        product_type='קופת גמל',
+                        start_date=ce.start_date if ce.start_date else decision.termination_date,
+                        gender=client.gender if client.gender else 'זכר',
+                        retirement_age=67,  # Default, should be calculated from client
+                        survivors_option='תקנוני',
+                        spouse_age_diff=0,
+                        birth_date=client.birth_date if client.birth_date else None,
+                        pension_start_date=decision.termination_date
+                    )
+                    annuity_factor = coefficient_result['factor_value']
+                    factor_source = coefficient_result['source_table']
+                    print(f"  📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
+                except Exception as e:
+                    print(f"  ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
+                    annuity_factor = 200
+                    factor_source = "default"
+                
                 monthly_amount = decision.exempt_amount / annuity_factor
                 
                 pension_fund = PensionFund(
@@ -335,12 +353,14 @@ def process_termination_decision(
                     annuity_factor=annuity_factor,
                     pension_amount=monthly_amount,
                     pension_start_date=decision.termination_date,
-                    indexation_method="none"
+                    indexation_method="none",
+                    tax_treatment="exempt",
+                    remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source})"
                 )
                 db.add(pension_fund)
                 db.flush()
                 
-                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, balance: {decision.exempt_amount}, monthly: {monthly_amount}")
+                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, balance: {decision.exempt_amount}, monthly: {monthly_amount}, factor: {annuity_factor}")
                 
                 if not result.get("created_pension_id"):
                     result["created_pension_id"] = pension_fund.id
@@ -384,9 +404,27 @@ def process_termination_decision(
                 # Create PensionFund from taxable amount (regular pension fund, not special)
                 print(f"🔵 CREATING PENSION FUND FROM TAXABLE AMOUNT: {decision.taxable_amount}")
                 
-                # Calculate monthly pension: original_balance / annuity_factor
-                # מקדם קצבה בסיסי: 200 (לגיל פרישה 67 לגבר, 64 לאישה)
-                annuity_factor = 200
+                # Calculate dynamic annuity factor
+                from app.services.annuity_coefficient_service import get_annuity_coefficient
+                try:
+                    coefficient_result = get_annuity_coefficient(
+                        product_type='קופת גמל',
+                        start_date=ce.start_date if ce.start_date else decision.termination_date,
+                        gender=client.gender if client.gender else 'זכר',
+                        retirement_age=67,  # Default, should be calculated from client
+                        survivors_option='תקנוני',
+                        spouse_age_diff=0,
+                        birth_date=client.birth_date if client.birth_date else None,
+                        pension_start_date=decision.termination_date
+                    )
+                    annuity_factor = coefficient_result['factor_value']
+                    factor_source = coefficient_result['source_table']
+                    print(f"  📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
+                except Exception as e:
+                    print(f"  ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
+                    annuity_factor = 200
+                    factor_source = "default"
+                
                 monthly_amount = decision.taxable_amount / annuity_factor
                 
                 pension_fund = PensionFund(
@@ -398,12 +436,14 @@ def process_termination_decision(
                     annuity_factor=annuity_factor,
                     pension_amount=monthly_amount,
                     pension_start_date=decision.termination_date,
-                    indexation_method="none"
+                    indexation_method="none",
+                    tax_treatment="taxable",
+                    remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source})"
                 )
                 db.add(pension_fund)
                 db.flush()
                 
-                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, balance: {decision.taxable_amount}, monthly: {monthly_amount}")
+                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, balance: {decision.taxable_amount}, monthly: {monthly_amount}, factor: {annuity_factor}")
                 
                 if not result.get("created_pension_id"):
                     result["created_pension_id"] = pension_fund.id
