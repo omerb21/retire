@@ -414,7 +414,7 @@ const SimpleCurrentEmployer: React.FC = () => {
       
       // שמירת ההתפלגות המדויקת של פיצויים מעסיק נוכחי לפני העזיבה
       let sourceAccountNames: string[] = [];
-      let planDetails: Array<{plan_name: string, plan_start_date: string | null, amount: number}> = [];
+      let planDetails: Array<{plan_name: string, plan_start_date: string | null, product_type: string, amount: number}> = [];
       if (storedPensionData) {
         try {
           const pensionData = JSON.parse(storedPensionData);
@@ -434,6 +434,7 @@ const SimpleCurrentEmployer: React.FC = () => {
               planDetails.push({
                 plan_name: accountName,
                 plan_start_date: account.תאריך_התחלה || null,
+                product_type: account.שם_מוצר || account.סוג_מוצר || 'קופת גמל',
                 amount: amount
               });
             }

@@ -31,6 +31,7 @@ class EmployerGrant(Base):
     # Plan details - link to specific pension plan
     plan_name = Column(String, nullable=True)  # שם התכנית מתיק הפנסיה
     plan_start_date = Column(Date, nullable=True)  # תאריך התחלת התכנית (לחישוב מקדם)
+    product_type = Column(String, nullable=True)  # סוג המוצר (קרן פנסיה / ביטוח מנהלים / קופת גמל)
     
     # Tax information
     tax_withheld = Column(Float, nullable=True, default=0.0)
@@ -60,6 +61,7 @@ class EmployerGrant(Base):
             "grant_date": self.grant_date.isoformat() if self.grant_date else None,
             "plan_name": self.plan_name,
             "plan_start_date": self.plan_start_date.isoformat() if self.plan_start_date else None,
+            "product_type": self.product_type,
             "tax_withheld": self.tax_withheld,
             "grant_exempt": self.grant_exempt,
             "grant_taxable": self.grant_taxable,

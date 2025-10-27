@@ -285,6 +285,7 @@ def process_termination_decision(
             for plan_detail in plan_details_list:
                 plan_name = plan_detail.get('plan_name')
                 plan_start_date_str = plan_detail.get('plan_start_date')
+                product_type = plan_detail.get('product_type', 'קופת גמל')
                 amount = plan_detail.get('amount', 0)
                 
                 if amount > 0:
@@ -307,10 +308,11 @@ def process_termination_decision(
                         grant_amount=amount,
                         grant_date=decision.termination_date,
                         plan_name=plan_name,
-                        plan_start_date=plan_start_date
+                        plan_start_date=plan_start_date,
+                        product_type=product_type
                     )
                     db.add(employer_grant)
-                    print(f"  ✅ Created EmployerGrant: {plan_name} - {amount} ₪ (start: {plan_start_date})")
+                    print(f"  ✅ Created EmployerGrant: {plan_name} ({product_type}) - {amount} ₪ (start: {plan_start_date})")
             
             db.flush()
             print(f"✅ Created {len(plan_details_list)} EmployerGrants")
@@ -421,7 +423,8 @@ def process_termination_decision(
                         grants_by_plan[plan_key] = {
                             'grants': [],
                             'plan_start_date': grant.plan_start_date,
-                            'plan_name': grant.plan_name
+                            'plan_name': grant.plan_name,
+                            'product_type': grant.product_type or 'קופת גמל'
                         }
                     grants_by_plan[plan_key]['grants'].append(grant)
                 
@@ -432,18 +435,19 @@ def process_termination_decision(
                     plan_grants = plan_data['grants']
                     plan_start_date = plan_data['plan_start_date']
                     plan_name = plan_data['plan_name'] or "תכנית ללא שם"
+                    product_type = plan_data['product_type']
                     
                     # Calculate proportion of exempt amount for this plan
                     total_grant_amount = sum(g.grant_amount for g in grants)
                     plan_grant_amount = sum(g.grant_amount for g in plan_grants)
                     plan_exempt_amount = (plan_grant_amount / total_grant_amount) * decision.exempt_amount if total_grant_amount > 0 else 0
                     
-                    print(f"  📊 Processing plan: {plan_name}, exempt_amount: {plan_exempt_amount}, start_date: {plan_start_date}")
+                    print(f"  📊 Processing plan: {plan_name} ({product_type}), exempt_amount: {plan_exempt_amount}, start_date: {plan_start_date}")
                     
                     # Calculate dynamic annuity factor based on plan start date
                     try:
                         coefficient_result = get_annuity_coefficient(
-                            product_type='קופת גמל',
+                            product_type=product_type,
                             start_date=plan_start_date if plan_start_date else (ce.start_date if ce.start_date else decision.termination_date),
                             gender=client.gender if client.gender else 'זכר',
                             retirement_age=67,
@@ -539,7 +543,8 @@ def process_termination_decision(
                         grants_by_plan[plan_key] = {
                             'grants': [],
                             'plan_start_date': grant.plan_start_date,
-                            'plan_name': grant.plan_name
+                            'plan_name': grant.plan_name,
+                            'product_type': grant.product_type or 'קופת גמל'
                         }
                     grants_by_plan[plan_key]['grants'].append(grant)
                 
@@ -550,16 +555,17 @@ def process_termination_decision(
                     plan_grants = plan_data['grants']
                     plan_start_date = plan_data['plan_start_date']
                     plan_name = plan_data['plan_name'] or "תכנית ללא שם"
+                    product_type = plan_data['product_type']
                     
                     # Sum amounts for this plan
                     plan_taxable_amount = sum(g.grant_amount for g in plan_grants)
                     
-                    print(f"  📊 Processing plan: {plan_name}, amount: {plan_taxable_amount}, start_date: {plan_start_date}")
+                    print(f"  📊 Processing plan: {plan_name} ({product_type}), amount: {plan_taxable_amount}, start_date: {plan_start_date}")
                     
                     # Calculate dynamic annuity factor based on plan start date
                     try:
                         coefficient_result = get_annuity_coefficient(
-                            product_type='קופת גמל',
+                            product_type=product_type,
                             start_date=plan_start_date if plan_start_date else (ce.start_date if ce.start_date else decision.termination_date),
                             gender=client.gender if client.gender else 'זכר',
                             retirement_age=67,

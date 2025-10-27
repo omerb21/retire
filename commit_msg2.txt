@@ -1,0 +1,6 @@
+Fix: Create separate pension for each plan in annuity conversion
+
+- Modified taxable annuity conversion to create separate pension for each plan
+- Modified exempt annuity conversion to create separate pension for each plan
+- Each pension uses the correct plan start date for coefficient calculation
+- Proportional distribution of exempt amount across plans
