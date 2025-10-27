@@ -401,52 +401,87 @@ def process_termination_decision(
                 result["created_capital_asset_id"] = capital_asset.id
             
             elif decision.exempt_choice == 'annuity':
-                # Create PensionFund from exempt amount (regular pension fund, not special)
-                print(f"🟡 CREATING PENSION FUND FROM EXEMPT AMOUNT: {decision.exempt_amount}")
+                # Create separate PensionFund for each plan (not aggregated)
+                print(f"🟡 CREATING SEPARATE PENSION FUNDS FROM EXEMPT AMOUNT: {decision.exempt_amount}")
                 
-                # Calculate dynamic annuity factor
+                # Get all EmployerGrants for this termination (created earlier)
+                from app.models.employer_grant import EmployerGrant, GrantType
+                grants = db.query(EmployerGrant).filter(
+                    EmployerGrant.employer_id == ce.id,
+                    EmployerGrant.grant_type == GrantType.severance
+                ).all()
+                
+                print(f"  📦 Found {len(grants)} severance grants to process")
+                
+                # Group grants by plan
+                grants_by_plan = {}
+                for grant in grants:
+                    plan_key = grant.plan_name or "ללא תכנית"
+                    if plan_key not in grants_by_plan:
+                        grants_by_plan[plan_key] = {
+                            'grants': [],
+                            'plan_start_date': grant.plan_start_date,
+                            'plan_name': grant.plan_name
+                        }
+                    grants_by_plan[plan_key]['grants'].append(grant)
+                
+                # Create separate pension for each plan
                 from app.services.annuity_coefficient_service import get_annuity_coefficient
-                try:
-                    coefficient_result = get_annuity_coefficient(
-                        product_type='קופת גמל',
-                        start_date=ce.start_date if ce.start_date else decision.termination_date,
-                        gender=client.gender if client.gender else 'זכר',
-                        retirement_age=67,  # Default, should be calculated from client
-                        survivors_option='תקנוני',
-                        spouse_age_diff=0,
-                        birth_date=client.birth_date if client.birth_date else None,
-                        pension_start_date=decision.termination_date
+                
+                for plan_key, plan_data in grants_by_plan.items():
+                    plan_grants = plan_data['grants']
+                    plan_start_date = plan_data['plan_start_date']
+                    plan_name = plan_data['plan_name'] or "תכנית ללא שם"
+                    
+                    # Calculate proportion of exempt amount for this plan
+                    total_grant_amount = sum(g.grant_amount for g in grants)
+                    plan_grant_amount = sum(g.grant_amount for g in plan_grants)
+                    plan_exempt_amount = (plan_grant_amount / total_grant_amount) * decision.exempt_amount if total_grant_amount > 0 else 0
+                    
+                    print(f"  📊 Processing plan: {plan_name}, exempt_amount: {plan_exempt_amount}, start_date: {plan_start_date}")
+                    
+                    # Calculate dynamic annuity factor based on plan start date
+                    try:
+                        coefficient_result = get_annuity_coefficient(
+                            product_type='קופת גמל',
+                            start_date=plan_start_date if plan_start_date else (ce.start_date if ce.start_date else decision.termination_date),
+                            gender=client.gender if client.gender else 'זכר',
+                            retirement_age=67,
+                            survivors_option='תקנוני',
+                            spouse_age_diff=0,
+                            birth_date=client.birth_date if client.birth_date else None,
+                            pension_start_date=decision.termination_date
+                        )
+                        annuity_factor = coefficient_result['factor_value']
+                        factor_source = coefficient_result['source_table']
+                        print(f"    📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
+                    except Exception as e:
+                        print(f"    ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
+                        annuity_factor = 200
+                        factor_source = "default"
+                    
+                    monthly_amount = plan_exempt_amount / annuity_factor
+                    
+                    pension_fund = PensionFund(
+                        client_id=client_id,
+                        fund_name=f"קצבה ממענק פיצויים פטור - {plan_name}",
+                        fund_type="monthly_pension",
+                        input_mode="manual",
+                        balance=plan_exempt_amount,
+                        annuity_factor=annuity_factor,
+                        pension_amount=monthly_amount,
+                        pension_start_date=decision.termination_date,
+                        indexation_method="none",
+                        tax_treatment="exempt",
+                        remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source}), תכנית: {plan_name}"
                     )
-                    annuity_factor = coefficient_result['factor_value']
-                    factor_source = coefficient_result['source_table']
-                    print(f"  📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
-                except Exception as e:
-                    print(f"  ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
-                    annuity_factor = 200
-                    factor_source = "default"
-                
-                monthly_amount = decision.exempt_amount / annuity_factor
-                
-                pension_fund = PensionFund(
-                    client_id=client_id,
-                    fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}{source_suffix}",
-                    fund_type="monthly_pension",
-                    input_mode="manual",
-                    balance=decision.exempt_amount,  # שמירת היתרה המקורית
-                    annuity_factor=annuity_factor,
-                    pension_amount=monthly_amount,
-                    pension_start_date=decision.termination_date,
-                    indexation_method="none",
-                    tax_treatment="exempt",
-                    remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source})"
-                )
-                db.add(pension_fund)
-                db.flush()
-                
-                print(f"🟢 CREATED EXEMPT PENSION FUND ID: {pension_fund.id}, balance: {decision.exempt_amount}, monthly: {monthly_amount}, factor: {annuity_factor}")
-                
-                if not result.get("created_pension_id"):
-                    result["created_pension_id"] = pension_fund.id
+                    db.add(pension_fund)
+                    db.flush()
+                    
+                    print(f"    🟢 CREATED PENSION FUND ID: {pension_fund.id}, balance: {plan_exempt_amount}, monthly: {monthly_amount}, factor: {annuity_factor}")
+                    
+                    if not result.get("created_pension_id"):
+                        result["created_pension_id"] = pension_fund.id
         
         # Process taxable amount decision  
         if decision.taxable_amount > 0:
@@ -484,52 +519,85 @@ def process_termination_decision(
                     result["created_capital_asset_id"] = capital_asset.id
             
             elif decision.taxable_choice == 'annuity':
-                # Create PensionFund from taxable amount (regular pension fund, not special)
-                print(f"🔵 CREATING PENSION FUND FROM TAXABLE AMOUNT: {decision.taxable_amount}")
+                # Create separate PensionFund for each plan (not aggregated)
+                print(f"🔵 CREATING SEPARATE PENSION FUNDS FROM TAXABLE AMOUNT: {decision.taxable_amount}")
                 
-                # Calculate dynamic annuity factor
+                # Get all EmployerGrants for this termination (created earlier)
+                from app.models.employer_grant import EmployerGrant, GrantType
+                grants = db.query(EmployerGrant).filter(
+                    EmployerGrant.employer_id == ce.id,
+                    EmployerGrant.grant_type == GrantType.severance
+                ).all()
+                
+                print(f"  📦 Found {len(grants)} severance grants to process")
+                
+                # Group grants by plan
+                grants_by_plan = {}
+                for grant in grants:
+                    plan_key = grant.plan_name or "ללא תכנית"
+                    if plan_key not in grants_by_plan:
+                        grants_by_plan[plan_key] = {
+                            'grants': [],
+                            'plan_start_date': grant.plan_start_date,
+                            'plan_name': grant.plan_name
+                        }
+                    grants_by_plan[plan_key]['grants'].append(grant)
+                
+                # Create separate pension for each plan
                 from app.services.annuity_coefficient_service import get_annuity_coefficient
-                try:
-                    coefficient_result = get_annuity_coefficient(
-                        product_type='קופת גמל',
-                        start_date=ce.start_date if ce.start_date else decision.termination_date,
-                        gender=client.gender if client.gender else 'זכר',
-                        retirement_age=67,  # Default, should be calculated from client
-                        survivors_option='תקנוני',
-                        spouse_age_diff=0,
-                        birth_date=client.birth_date if client.birth_date else None,
-                        pension_start_date=decision.termination_date
+                
+                for plan_key, plan_data in grants_by_plan.items():
+                    plan_grants = plan_data['grants']
+                    plan_start_date = plan_data['plan_start_date']
+                    plan_name = plan_data['plan_name'] or "תכנית ללא שם"
+                    
+                    # Sum amounts for this plan
+                    plan_taxable_amount = sum(g.grant_amount for g in plan_grants)
+                    
+                    print(f"  📊 Processing plan: {plan_name}, amount: {plan_taxable_amount}, start_date: {plan_start_date}")
+                    
+                    # Calculate dynamic annuity factor based on plan start date
+                    try:
+                        coefficient_result = get_annuity_coefficient(
+                            product_type='קופת גמל',
+                            start_date=plan_start_date if plan_start_date else (ce.start_date if ce.start_date else decision.termination_date),
+                            gender=client.gender if client.gender else 'זכר',
+                            retirement_age=67,
+                            survivors_option='תקנוני',
+                            spouse_age_diff=0,
+                            birth_date=client.birth_date if client.birth_date else None,
+                            pension_start_date=decision.termination_date
+                        )
+                        annuity_factor = coefficient_result['factor_value']
+                        factor_source = coefficient_result['source_table']
+                        print(f"    📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
+                    except Exception as e:
+                        print(f"    ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
+                        annuity_factor = 200
+                        factor_source = "default"
+                    
+                    monthly_amount = plan_taxable_amount / annuity_factor
+                    
+                    pension_fund = PensionFund(
+                        client_id=client_id,
+                        fund_name=f"קצבה ממענק פיצויים חייב - {plan_name}",
+                        fund_type="monthly_pension",
+                        input_mode="manual",
+                        balance=plan_taxable_amount,
+                        annuity_factor=annuity_factor,
+                        pension_amount=monthly_amount,
+                        pension_start_date=decision.termination_date,
+                        indexation_method="none",
+                        tax_treatment="taxable",
+                        remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source}), תכנית: {plan_name}"
                     )
-                    annuity_factor = coefficient_result['factor_value']
-                    factor_source = coefficient_result['source_table']
-                    print(f"  📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
-                except Exception as e:
-                    print(f"  ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
-                    annuity_factor = 200
-                    factor_source = "default"
-                
-                monthly_amount = decision.taxable_amount / annuity_factor
-                
-                pension_fund = PensionFund(
-                    client_id=client_id,
-                    fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}{source_suffix}",
-                    fund_type="monthly_pension",
-                    input_mode="manual",
-                    balance=decision.taxable_amount,  # שמירת היתרה המקורית
-                    annuity_factor=annuity_factor,
-                    pension_amount=monthly_amount,
-                    pension_start_date=decision.termination_date,
-                    indexation_method="none",
-                    tax_treatment="taxable",
-                    remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source})"
-                )
-                db.add(pension_fund)
-                db.flush()
-                
-                print(f"🟢 CREATED TAXABLE PENSION FUND ID: {pension_fund.id}, balance: {decision.taxable_amount}, monthly: {monthly_amount}, factor: {annuity_factor}")
-                
-                if not result.get("created_pension_id"):
-                    result["created_pension_id"] = pension_fund.id
+                    db.add(pension_fund)
+                    db.flush()
+                    
+                    print(f"    🟢 CREATED PENSION FUND ID: {pension_fund.id}, balance: {plan_taxable_amount}, monthly: {monthly_amount}, factor: {annuity_factor}")
+                    
+                    if not result.get("created_pension_id"):
+                        result["created_pension_id"] = pension_fund.id
         
         db.commit()
         
