@@ -413,6 +413,7 @@ const SimpleCurrentEmployer: React.FC = () => {
       const storedPensionData = localStorage.getItem(pensionStorageKey);
       
       // שמירת ההתפלגות המדויקת של פיצויים מעסיק נוכחי לפני העזיבה
+      let sourceAccountNames: string[] = [];
       if (storedPensionData) {
         try {
           const pensionData = JSON.parse(storedPensionData);
@@ -423,6 +424,11 @@ const SimpleCurrentEmployer: React.FC = () => {
           
           pensionData.forEach((account: any, idx: number) => {
             const amount = Number(account.פיצויים_מעסיק_נוכחי) || 0;
+            if (amount > 0) {
+              // שמירת שם התכנית
+              const accountName = account.שם_תכנית || account.שם_מוצר || `חשבון ${idx + 1}`;
+              sourceAccountNames.push(accountName);
+            }
             // משתמשים במספר חשבון כמפתח ייחודי
             const accountKey = account.מספר_חשבון || `account_${idx}`;
             distribution[accountKey] = amount;
@@ -431,6 +437,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           
           console.log('💾 שמירת התפלגות מדויקת לפני עזיבה:', distribution);
           console.log('💾 סכום כולל:', totalSeverance);
+          console.log('📋 שמות תכניות מקור:', sourceAccountNames);
           
           // שמירה ב-localStorage
           localStorage.setItem(`severanceDistribution_${id}`, JSON.stringify(distribution));
@@ -446,7 +453,8 @@ const SimpleCurrentEmployer: React.FC = () => {
         termination_date: terminationDateISO,
         // TODO: הפעל מחדש לאחר הרצת migration
         // severance_before_termination: totalSeverance,
-        confirmed: true // סימון שהעזיבה אושרה
+        confirmed: true, // סימון שהעזיבה אושרה
+        source_accounts: sourceAccountNames.length > 0 ? JSON.stringify(sourceAccountNames) : null
       };
       
       console.log('🚀 SENDING TERMINATION PAYLOAD:', JSON.stringify(payload, null, 2));

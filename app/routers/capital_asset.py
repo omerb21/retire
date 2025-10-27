@@ -111,25 +111,23 @@ def update_capital_asset(
     return asset
 
 
-@router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{asset_id}", status_code=status.HTTP_200_OK)
 def delete_capital_asset(
     client_id: int,
     asset_id: int,
     db: Session = Depends(get_db)
 ):
-    """Delete a capital asset."""
-    asset = db.query(CapitalAsset).filter(
-        CapitalAsset.id == asset_id,
-        CapitalAsset.client_id == client_id
-    ).first()
+    """Delete a capital asset with balance restoration if applicable."""
+    from app.services.asset_deletion_service import delete_capital_asset_with_restoration
     
-    if not asset:
+    result = delete_capital_asset_with_restoration(db, asset_id, client_id)
+    
+    if not result["success"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Capital asset with id {asset_id} not found for client {client_id}"
+            detail=result["error"]
         )
     
-    db.delete(asset)
     db.commit()
     
-    return None
+    return result

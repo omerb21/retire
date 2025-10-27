@@ -130,16 +130,11 @@ export default function PensionPortfolio() {
 
       console.log(`Total processed accounts:`, processedAccounts.length);
       if (processedAccounts.length > 0) {
-        // סינון תכניות שהומרו
-        const filteredAccounts = processedAccounts.filter(account => {
-          const accountId = `${account.מספר_חשבון}_${account.שם_תכנית}_${account.חברה_מנהלת}`;
-          return !convertedAccounts.has(accountId);
-        });
-        
-        setPensionData(filteredAccounts);
+        // אין סינון - מאפשרים לכל החשבונות להיקלט
+        setPensionData(processedAccounts);
         // שמירה ל-localStorage
-        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(filteredAccounts));
-        setProcessingStatus(`הושלם עיבוד ${filteredAccounts.length} חשבונות פנסיוניים (${processedAccounts.length - filteredAccounts.length} הומרו בעבר)`);
+        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(processedAccounts));
+        setProcessingStatus(`הושלם עיבוד ${processedAccounts.length} חשבונות פנסיוניים`);
       } else {
         setProcessingStatus("לא נמצאו חשבונות פנסיוניים בקבצים שנבחרו");
       }
@@ -1185,7 +1180,8 @@ export default function PensionPortfolio() {
             tax_treatment: taxTreatment,
             annuity_factor: annuityFactor,
             remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}\nיחס מס: ${taxTreatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}\nמקדם קצבה: ${annuityFactor} (${factorSource})${factorNotes ? '\n' + factorNotes : ''}`,
-            conversion_source: JSON.stringify(conversionSourceData)
+            conversion_source: JSON.stringify(conversionSourceData),
+            deduction_file: account.מספר_חשבון || null  // ✅ שמירת מספר חשבון לזיהוי מקור
           };
           
           console.log('DEBUG: paymentDateISO =', paymentDateISO);
@@ -1194,9 +1190,6 @@ export default function PensionPortfolio() {
           // הוספת שדות אופציונליים רק אם יש להם ערך
           if (pensionData.fixed_index_rate !== undefined) {
             pensionData.fixed_index_rate = null;
-          }
-          if (pensionData.deduction_file !== undefined) {
-            pensionData.deduction_file = null;
           }
 
           try {

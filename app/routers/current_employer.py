@@ -238,6 +238,25 @@ def process_termination_decision(
             "created_capital_asset_id": None
         }
         
+        # Parse source accounts if provided
+        source_account_names = []
+        if decision.source_accounts:
+            try:
+                source_account_names = json.loads(decision.source_accounts)
+                print(f"📋 Source accounts: {source_account_names}")
+            except:
+                pass
+        
+        # Create source suffix for names
+        source_suffix = ""
+        if source_account_names:
+            if len(source_account_names) == 1:
+                source_suffix = f" - נוצר מ: {source_account_names[0]}"
+            else:
+                source_suffix = f" - נוצר מ: {', '.join(source_account_names[:2])}"
+                if len(source_account_names) > 2:
+                    source_suffix += f" ועוד {len(source_account_names) - 2}"
+        
         # Update current employer end_date
         ce.end_date = decision.termination_date
         # TODO: Save severance_before_termination after running migration
@@ -257,7 +276,7 @@ def process_termination_decision(
                 # Create Grant for exempt amount
                 grant = Grant(
                     client_id=client_id,
-                    employer_name=f"מענק פיצויים פטור - {ce.employer_name}",
+                    employer_name=f"מענק פיצויים פטור - {ce.employer_name}{source_suffix}",
                     work_start_date=ce.start_date,
                     work_end_date=decision.termination_date,
                     grant_amount=decision.exempt_amount,
@@ -272,7 +291,7 @@ def process_termination_decision(
                 # Also create Capital Asset for exempt amount (no tax spread - it's exempt!)
                 capital_asset = CapitalAsset(
                     client_id=client_id,
-                    asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    asset_name=f"מענק פיצויים פטור ({ce.employer_name}){source_suffix}",
                     asset_type="other",
                     current_value=decision.exempt_amount,
                     monthly_income=decision.exempt_amount,
@@ -298,7 +317,7 @@ def process_termination_decision(
                 
                 capital_asset = CapitalAsset(
                     client_id=client_id,
-                    asset_name=f"מענק פיצויים פטור ({ce.employer_name})",
+                    asset_name=f"מענק פיצויים פטור ({ce.employer_name}){source_suffix}",
                     asset_type="other",
                     current_value=decision.exempt_amount,
                     monthly_income=decision.exempt_amount,
@@ -346,7 +365,7 @@ def process_termination_decision(
                 
                 pension_fund = PensionFund(
                     client_id=client_id,
-                    fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}",
+                    fund_name=f"קצבה ממענק פיצויים פטור - {ce.employer_name}{source_suffix}",
                     fund_type="monthly_pension",
                     input_mode="manual",
                     balance=decision.exempt_amount,  # שמירת היתרה המקורית
@@ -380,7 +399,7 @@ def process_termination_decision(
                 
                 capital_asset = CapitalAsset(
                     client_id=client_id,
-                    asset_name=f"מענק פיצויים חייב במס ({ce.employer_name})",
+                    asset_name=f"מענק פיצויים חייב במס ({ce.employer_name}){source_suffix}",
                     asset_type="other",
                     current_value=decision.taxable_amount,
                     monthly_income=decision.taxable_amount,
@@ -429,7 +448,7 @@ def process_termination_decision(
                 
                 pension_fund = PensionFund(
                     client_id=client_id,
-                    fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}",
+                    fund_name=f"קצבה ממענק פיצויים חייב - {ce.employer_name}{source_suffix}",
                     fund_type="monthly_pension",
                     input_mode="manual",
                     balance=decision.taxable_amount,  # שמירת היתרה המקורית

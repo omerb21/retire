@@ -316,10 +316,11 @@ const SimpleFixation: React.FC = () => {
             
           } catch (error: any) {
             if (error.response?.status === 400 || error.response?.status === 409) {
-              // טיפול בשגיאת זכאות
+              // טיפול בשגיאת זכאות או נתונים
               const errorData = error.response.data.detail || error.response.data;
               const reasons = errorData.reasons || [];
               const eligibilityDate = errorData.eligibility_date || '';
+              const suggestion = errorData.suggestion || '';
               
               let errorMessage = errorData.error || 'לא ניתן לבצע קיבוע זכויות';
               
@@ -332,6 +333,10 @@ const SimpleFixation: React.FC = () => {
               
               if (eligibilityDate) {
                 errorMessage += `\nתאריך זכאות צפוי: ${formatDateToDDMMYY(new Date(eligibilityDate))}`;
+              }
+              
+              if (suggestion) {
+                errorMessage += `\n\n💡 ${suggestion}`;
               }
               
               setError(errorMessage);
@@ -351,6 +356,9 @@ const SimpleFixation: React.FC = () => {
                 }
                 if (errorDetail.message) {
                   errorMsg += '\n' + errorDetail.message;
+                }
+                if (errorDetail.suggestion) {
+                  errorMsg += '\n\n💡 ' + errorDetail.suggestion;
                 }
               } else if (error.message && error.message.trim()) {
                 errorMsg += ':\n' + error.message;

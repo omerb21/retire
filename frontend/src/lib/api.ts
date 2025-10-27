@@ -28,6 +28,7 @@ async function parseTextSafe(res: Response) {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   try {
+    const method = init?.method || 'GET';
     const res = await fetch(`${API_BASE}${path}`, {
       credentials: "omit",
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -79,7 +80,68 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         console.log(`Raw response text (first 100 chars): ${rawText.substring(0, 100)}${rawText.length > 100 ? '...' : ''}`);
         
         // Then try to parse as JSON
-        return await res.json() as T;
+        const data = await res.json() as T;
+        
+        // 🔥 AUTO-RESTORE BALANCE FOR DELETE REQUESTS
+        if (method === 'DELETE' && (data as any)?.restoration?.reason === 'pension_portfolio') {
+          console.log('🔥🔥🔥 DETECTED PENSION PORTFOLIO RESTORATION IN API!', (data as any).restoration);
+          
+          try {
+            const restoration = (data as any).restoration;
+            const accountNumber = restoration.account_number;
+            const balanceToRestore = restoration.balance_to_restore;
+            
+            // Extract client ID from path (e.g., /clients/4/pension-funds/19)
+            const pathMatch = path.match(/\/clients\/(\d+)\//);
+            if (!pathMatch) {
+              console.warn('⚠️ Could not extract client ID from path:', path);
+              return data;
+            }
+            
+            const clientId = pathMatch[1];
+            const storageKey = `pensionData_${clientId}`;
+            const storedData = localStorage.getItem(storageKey);
+            
+            console.log(`📋 Attempting to restore ₪${balanceToRestore} to account ${accountNumber}`);
+            console.log(`📋 Storage key: ${storageKey}`);
+            console.log(`📋 Stored data exists: ${!!storedData}`);
+            
+            if (storedData) {
+              const pensionData = JSON.parse(storedData);
+              console.log(`📋 Parsed ${pensionData.length} accounts from localStorage`);
+              
+              const accountIndex = pensionData.findIndex((acc: any) => 
+                acc.מספר_חשבון === accountNumber
+              );
+              
+              console.log(`📋 Looking for account: ${accountNumber}`);
+              console.log(`📋 Account found at index: ${accountIndex}`);
+              
+              if (accountIndex !== -1) {
+                const account = pensionData[accountIndex];
+                console.log(`📋 Account before restore:`, account);
+                
+                // Restore to תגמולים (default)
+                account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
+                
+                console.log(`✅ Restored ₪${balanceToRestore} to תגמולים`);
+                console.log(`📋 Account after restore:`, account);
+                
+                localStorage.setItem(storageKey, JSON.stringify(pensionData));
+                console.log('✅✅✅ BALANCE SUCCESSFULLY RESTORED TO LOCALSTORAGE!');
+              } else {
+                console.warn(`⚠️ Account ${accountNumber} not found in pension portfolio`);
+                console.warn(`📋 Available accounts:`, pensionData.map((acc: any) => acc.מספר_חשבון));
+              }
+            } else {
+              console.warn(`⚠️ No stored data found for key: ${storageKey}`);
+            }
+          } catch (restoreError) {
+            console.error('❌ Error during balance restoration:', restoreError);
+          }
+        }
+        
+        return data;
       } catch (jsonError) {
         console.error("JSON parsing error:", jsonError);
         throw new Error(`Failed to parse JSON response: ${jsonError}`);

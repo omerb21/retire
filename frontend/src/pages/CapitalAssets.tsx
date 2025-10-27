@@ -273,159 +273,76 @@ export default function CapitalAssets() {
       // קבלת פרטי הנכס מהרשימה המקומית
       const asset = assets.find(a => a.id === assetId);
       
-      console.log('=== DELETE ASSET DEBUG ===');
-      console.log('All assets:', assets);
-      console.log('Looking for assetId:', assetId);
-      console.log('Asset found:', asset);
-      console.log('Asset remarks:', asset?.remarks);
-      console.log('Is commutation?', asset?.remarks?.startsWith('COMMUTATION:'));
-      console.log('Has conversion_source?', !!asset?.conversion_source);
-      console.log('conversion_source value:', asset?.conversion_source);
+      // מחיקת הנכס והחזרת מידע על שחזור
+      const deleteResponse = await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
+        method: 'DELETE'
+      }) as any;
       
-      // בדיקה אם יש מידע על מקור המרה
-      if (asset && (asset as any).conversion_source) {
-        try {
-          const conversionSource = JSON.parse((asset as any).conversion_source);
-          console.log('Parsed conversion_source:', conversionSource);
-          console.log('Type:', conversionSource.type);
-          
-          // אם זו המרה מתיק פנסיוני - נחזיר את הסכומים למקור
-          if (conversionSource.type === 'pension_portfolio') {
-            console.log('✅ Restoring amounts to pension portfolio:', conversionSource);
+      console.log('🗑️ Delete response:', JSON.stringify(deleteResponse, null, 2));
+      console.log('🔍 Restoration object:', deleteResponse?.restoration);
+      console.log('🔍 Restoration reason:', deleteResponse?.restoration?.reason);
+      
+      // בדיקה אם צריך לשחזר יתרה לתיק פנסיוני
+      if (deleteResponse?.restoration && deleteResponse.restoration.reason === 'pension_portfolio') {
+        const accountNumber = deleteResponse.restoration.account_number;
+        const balanceToRestore = deleteResponse.restoration.balance_to_restore;
+        
+        console.log(`📋 ✅ RESTORING ₪${balanceToRestore} to account ${accountNumber}`);
+        
+        // עדכון localStorage - החזרת היתרה לטבלה
+        const storageKey = `pensionData_${clientId}`;
+        const storedData = localStorage.getItem(storageKey);
+        
+        console.log(`🔍 Storage key: ${storageKey}`);
+        console.log(`🔍 Stored data exists: ${!!storedData}`);
+        
+        if (storedData && asset) {
+          try {
+            const pensionData = JSON.parse(storedData);
+            console.log(`🔍 Parsed pension data (${pensionData.length} accounts):`, pensionData);
             
-            // קריאה ל-API להחזרת הסכומים
-            await apiFetch(`/clients/${clientId}/pension-portfolio/restore`, {
-              method: 'POST',
-              body: JSON.stringify({
-                account_name: conversionSource.account_name,
-                company: conversionSource.company,
-                account_number: conversionSource.account_number,
-                product_type: conversionSource.product_type,
-                amount: conversionSource.amount,
-                specific_amounts: conversionSource.specific_amounts
-              })
-            });
+            // חיפוש החשבון לפי מספר חשבון
+            const accountIndex = pensionData.findIndex((acc: any) => 
+              acc.מספר_חשבון === accountNumber
+            );
             
-            // עדכון localStorage - החזרת הסכומים לטבלה
-            const storageKey = `pensionData_${clientId}`;
-            const storedData = localStorage.getItem(storageKey);
+            console.log(`🔍 Looking for account: ${accountNumber}`);
+            console.log(`🔍 Account found at index: ${accountIndex}`);
             
-            if (storedData) {
-              try {
-                const pensionData = JSON.parse(storedData);
-                console.log('Looking for account:', {
-                  name: conversionSource.account_name,
-                  company: conversionSource.company,
-                  number: conversionSource.account_number
-                });
-                console.log('Available accounts:', pensionData.map((acc: any) => ({
-                  name: acc.שם_תכנית,
-                  company: acc.חברה_מנהלת,
-                  number: acc.מספר_חשבון
-                })));
-                
-                // חיפוש החשבון המתאים
-                const accountIndex = pensionData.findIndex((acc: any) => 
-                  acc.שם_תכנית === conversionSource.account_name &&
-                  acc.חברה_מנהלת === conversionSource.company &&
-                  acc.מספר_חשבון === conversionSource.account_number
-                );
-                
-                if (accountIndex !== -1) {
-                  console.log('Found account at index:', accountIndex);
-                  // החזרת הסכומים לשדות הספציפיים
-                  if (conversionSource.specific_amounts && Object.keys(conversionSource.specific_amounts).length > 0) {
-                    // מחזירים רק את הסכומים הספציפיים - הם כבר כוללים את הכל
-                    Object.entries(conversionSource.specific_amounts).forEach(([key, value]) => {
-                      pensionData[accountIndex][key] = (pensionData[accountIndex][key] || 0) + parseFloat(value as string);
-                    });
-                    console.log('Restored specific amounts:', conversionSource.specific_amounts);
-                  } else {
-                    // אם אין סכומים ספציפיים, מחזירים את הסכום הכולל ליתרה
-                    pensionData[accountIndex].יתרה = (pensionData[accountIndex].יתרה || 0) + conversionSource.amount;
-                    console.log('Restored total amount to balance:', conversionSource.amount);
-                  }
-                  
-                  // שמירה חזרה ל-localStorage
-                  localStorage.setItem(storageKey, JSON.stringify(pensionData));
-                  console.log('Successfully restored amounts to pension portfolio in localStorage');
-                } else {
-                  console.error('Account NOT found in localStorage!');
-                  console.error('Searching for:', conversionSource);
-                }
-              } catch (storageError) {
-                console.error('Error updating localStorage:', storageError);
+            if (accountIndex !== -1) {
+              // החזרת היתרה - זיהוי השדה לפי שם הנכס
+              const account = pensionData[accountIndex];
+              const assetName = asset.asset_name || '';
+              
+              console.log(`🔍 Asset name: ${assetName}`);
+              console.log(`🔍 Account before restore:`, account);
+              
+              if (assetName.includes('תגמול')) {
+                account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
+                console.log(`✅ Restored ₪${balanceToRestore} to תגמולים`);
+              } else if (assetName.includes('פיצוי')) {
+                account.פיצויים_לאחר_התחשבנות = (parseFloat(account.פיצויים_לאחר_התחשבנות) || 0) + balanceToRestore;
+                console.log(`✅ Restored ₪${balanceToRestore} to פיצויים_לאחר_התחשבנות`);
+              } else {
+                // ברירת מחדל
+                account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
+                console.log(`✅ Restored ₪${balanceToRestore} to תגמולים (default)`);
               }
+              
+              console.log(`🔍 Account after restore:`, account);
+              localStorage.setItem(storageKey, JSON.stringify(pensionData));
+              console.log('✅ Updated pension portfolio in localStorage');
             } else {
-              console.error('No pension data found in localStorage!');
+              console.warn(`⚠️ Account ${accountNumber} not found in pension portfolio`);
+              console.warn(`🔍 Available accounts:`, pensionData.map((acc: any) => acc.מספר_חשבון));
             }
-            
-            console.log('Successfully restored amounts to pension portfolio');
+          } catch (e) {
+            console.error('❌ Error restoring balance to localStorage:', e);
           }
-        } catch (parseError) {
-          console.warn('Could not parse conversion_source:', parseError);
-          // ממשיכים עם המחיקה גם אם יש שגיאה בפרסור
+        } else {
+          console.warn(`⚠️ No stored data or asset info. storedData=${!!storedData}, asset=${!!asset}`);
         }
       }
-      
-      // בדיקה אם זה נכס הוני מהיוון
-      if (asset && asset.remarks && asset.remarks.startsWith('COMMUTATION:')) {
-        try {
-          console.log('✅ Detected commutation asset, restoring to pension fund');
-          
-          // פרסור המידע מה-remarks
-          const remarksData = asset.remarks.replace('COMMUTATION:', '');
-          console.log('📝 Remarks data:', remarksData);
-          
-          const params = new URLSearchParams(remarksData);
-          const pensionFundId = parseInt(params.get('pension_fund_id') || '0');
-          const amount = parseFloat(params.get('amount') || '0');
-          
-          console.log('📝 Parsed pension_fund_id:', pensionFundId);
-          console.log('📝 Parsed amount:', amount);
-          
-          if (pensionFundId > 0 && amount > 0) {
-            console.log('📞 Fetching pension fund...');
-            // קריאה לקצבה הנוכחית
-            const currentFund = await apiFetch<any>(`/pension-funds/${pensionFundId}`);
-            console.log('📋 Current fund:', currentFund);
-            
-            if (currentFund) {
-              // החזרת הסכום לקצבה
-              const oldBalance = currentFund.balance || 0;
-              const newBalance = oldBalance + amount;
-              const annuityFactor = currentFund.annuity_factor || 200;
-              const newMonthlyAmount = Math.round(newBalance / annuityFactor);
-              
-              console.log(`📊 Old balance: ${oldBalance}, New balance: ${newBalance}`);
-              console.log(`📊 New monthly amount: ${newMonthlyAmount}`);
-              
-              await apiFetch(`/pension-funds/${pensionFundId}`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                  ...currentFund,
-                  balance: newBalance,
-                  pension_amount: newMonthlyAmount
-                })
-              });
-              
-              console.log(`✅ Successfully restored ${amount} to pension fund ${pensionFundId}`);
-            } else {
-              console.warn('❌ Pension fund not found');
-            }
-          } else {
-            console.warn('❌ Invalid pension_fund_id or amount');
-          }
-        } catch (commutationError) {
-          console.error('❌ Error restoring commutation to pension fund:', commutationError);
-          // ממשיכים עם המחיקה גם אם יש שגיאה
-        }
-      }
-      
-      // מחיקת הנכס
-      await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
-        method: "DELETE",
-      });
       
       // Reload assets after deletion
       await loadAssets();

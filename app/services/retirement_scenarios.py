@@ -501,6 +501,7 @@ class RetirementScenariosBuilder:
         from app.models.current_employer import CurrentEmployer
         from app.models.employer_grant import EmployerGrant, GrantType
         from app.services.current_employer_service import CurrentEmployerService
+        from app.services.annuity_coefficient_service import get_annuity_coefficient
         
         # Check if termination event exists
         termination = self.db.query(TerminationEvent).filter(
@@ -550,9 +551,35 @@ class RetirementScenariosBuilder:
             return
         
         # תרחיש 1: המרת פיצויים לקצבה
-        # חישוב קצבה: סכום ÷ מקדם המרה
-        pension_amount = total_severance / PENSION_COEFFICIENT
+        # חישוב מקדם קצבה דינמי
         retirement_year = self._get_retirement_year()
+        pension_start_date = date(retirement_year, 1, 1)
+        
+        # קבלת נתוני לקוח לחישוב מקדם
+        client = self.db.query(Client).filter(Client.id == self.client_id).first()
+        
+        # חישוב מקדם קצבה דינמי
+        try:
+            coefficient_result = get_annuity_coefficient(
+                product_type='קופת גמל',  # פיצויים מתנהגים כמו קופת גמל
+                start_date=current_employer.start_date if current_employer.start_date else date.today(),
+                gender=client.gender if client else 'זכר',
+                retirement_age=self._get_retirement_age(),
+                survivors_option='תקנוני',
+                spouse_age_diff=0,
+                birth_date=client.birth_date if client else None,
+                pension_start_date=pension_start_date
+            )
+            annuity_factor = coefficient_result['factor_value']
+            factor_source = coefficient_result['source_table']
+            logger.info(f"  📊 Dynamic annuity coefficient: {annuity_factor} (source: {factor_source})")
+        except Exception as e:
+            logger.warning(f"  ⚠️ Failed to calculate dynamic coefficient: {e}, using default 200")
+            annuity_factor = PENSION_COEFFICIENT
+            factor_source = "default"
+        
+        # חישוב קצבה: סכום ÷ מקדם המרה
+        pension_amount = total_severance / annuity_factor
         
         # קביעת יחס מס לפי חלק הפטור
         exempt_ratio = total_exempt / total_severance if total_severance > 0 else 0
@@ -565,17 +592,20 @@ class RetirementScenariosBuilder:
             fund_type="severance_pension",
             input_mode="manual",
             balance=total_severance,
-            annuity_factor=PENSION_COEFFICIENT,
+            annuity_factor=annuity_factor,
             pension_amount=pension_amount,
-            pension_start_date=date(retirement_year, 1, 1),
+            pension_start_date=pension_start_date,
             indexation_method="none",
             tax_treatment=tax_treatment,
+            remarks=f"מקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source})",
             conversion_source=json.dumps({
                 "source": "termination_event",
                 "termination_id": termination.id,
                 "employer_id": current_employer.id,
                 "total_severance": total_severance,
-                "total_exempt": total_exempt
+                "total_exempt": total_exempt,
+                "annuity_factor": annuity_factor,
+                "factor_source": factor_source
             })
         )
         self.db.add(pf)
@@ -1121,6 +1151,10 @@ class RetirementScenariosBuilder:
         
         birth_year = self.client.birth_date.year
         return birth_year + self.retirement_age
+    
+    def _get_retirement_age(self) -> int:
+        """מחזיר את גיל הפרישה"""
+        return self.retirement_age
     
     def _verify_fixation_and_exempt_pension(self):
         """וידוא קיום קיבוע זכויות וקצבה פטורה"""

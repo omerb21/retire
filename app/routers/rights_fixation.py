@@ -53,7 +53,7 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
             from app.models.client import Client
             from app.models.grant import Grant
             from datetime import date
-            from services.eligibility import calc_eligibility_date, is_eligible_for_fixation
+            from app.services.retirement_age_service import calc_eligibility_date
             
             client_id = client_data["client_id"]
             
@@ -65,6 +65,17 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                 
                 # טעינת מענקים
                 grants = db.query(Grant).filter(Grant.client_id == client_id).all()
+                
+                # בדיקה שיש מענקים
+                if not grants:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "לא ניתן לחשב קיבוע זכויות",
+                            "reasons": ["לא קיימים מענקי פיצויים ללקוח זה"],
+                            "suggestion": "יש להוסיף מענקי פיצויים בטרם ביצוע חישוב קיבוע זכויות"
+                        }
+                    )
                 
                 # קביעת תאריך תחילת קצבה
                 pension_start_date = client.pension_start_date
@@ -82,25 +93,25 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                         pension_start_date = min(fund.pension_start_date for fund in pension_funds)
                         print(f"DEBUG: Found earliest pension start date from funds: {pension_start_date}")
                 
-                # בדיקת זכאות מלאה - גיל + תחילת קצבה
-                eligibility_check = is_eligible_for_fixation(
-                    client.birth_date, 
-                    client.gender, 
-                    pension_start_date
-                )
+                # חישוב תאריך זכאות (גיל פרישה)
+                eligibility_date = calc_eligibility_date(client.birth_date, client.gender)
                 
-                eligibility_date = eligibility_check["eligibility_date"]
+                # בדיקת זכאות - האם הגיע לגיל פרישה והתחיל לקבל קצבה
+                today = date.today()
+                age_condition_ok = today >= eligibility_date
+                pension_condition_ok = pension_start_date is not None and today >= pension_start_date
+                eligible = age_condition_ok and pension_condition_ok
                 
                 # אם הלקוח לא זכאי, נחזיר שגיאה מפורטת
-                if not eligibility_check["eligible"]:
+                if not eligible:
                     reasons = []
-                    if not eligibility_check["age_condition_ok"]:
+                    if not age_condition_ok:
                         reasons.append(f"טרם הגיע לגיל פרישה ({eligibility_date.strftime('%d/%m/%Y')})")
-                    if not eligibility_check["pension_condition_ok"]:
-                        if not client.pension_start_date:
+                    if not pension_condition_ok:
+                        if not pension_start_date:
                             reasons.append("לא הוגדר תאריך תחילת קצבה")
                         else:
-                            reasons.append(f"טרם התחיל לקבל קצבה ({client.pension_start_date.strftime('%d/%m/%Y')})")
+                            reasons.append(f"טרם התחיל לקבל קצבה ({pension_start_date.strftime('%d/%m/%Y')})")
                     
                     raise HTTPException(
                         status_code=400,
@@ -108,8 +119,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                             "error": "הלקוח אינו זכאי לקיבוע זכויות",
                             "reasons": reasons,
                             "eligibility_date": eligibility_date.isoformat(),
-                            "age_condition_ok": eligibility_check["age_condition_ok"],
-                            "pension_condition_ok": eligibility_check["pension_condition_ok"]
+                            "age_condition_ok": age_condition_ok,
+                            "pension_condition_ok": pension_condition_ok
                         }
                     )
                 
@@ -146,9 +157,51 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
             result = calculate_full_fixation(client_data)
             return result
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is (they already have proper error messages)
+        raise
+    except ValueError as e:
+        # Value errors usually indicate data problems
+        logger.error(f"שגיאת נתונים בחישוב קיבוע זכויות: {e}")
+        error_msg = str(e)
+        
+        # Translate common error messages to Hebrew
+        if "birth_date" in error_msg.lower():
+            error_msg = "תאריך לידה חסר או לא תקין"
+        elif "gender" in error_msg.lower():
+            error_msg = "מין הלקוח חסר או לא תקין"
+        elif "grant" in error_msg.lower():
+            error_msg = "נתוני מענק לא תקינים"
+        elif "date" in error_msg.lower():
+            error_msg = "אחד מהתאריכים אינו תקין"
+        
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "שגיאה בנתונים",
+                "message": error_msg,
+                "suggestion": "אנא בדוק שכל הנתונים הנדרשים קיימים ותקינים"
+            }
+        )
     except Exception as e:
-        logger.error(f"שגיאה בחישוב קיבוע זכויות: {e}")
-        raise HTTPException(status_code=500, detail=f"שגיאה בחישוב: {str(e)}")
+        # General errors
+        logger.error(f"שגיאה בחישוב קיבוע זכויות: {e}", exc_info=True)
+        error_msg = str(e)
+        
+        # Try to provide more helpful error messages
+        if "division by zero" in error_msg.lower():
+            error_msg = "שגיאה בחישוב - ערך אפס לא צפוי"
+        elif "none" in error_msg.lower():
+            error_msg = "חסר נתון נדרש לחישוב"
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "שגיאה בחישוב קיבוע זכויות",
+                "message": error_msg,
+                "suggestion": "אנא פנה לתמיכה טכנית"
+            }
+        )
 
 @router.post("/save")
 async def save_rights_fixation(data: Dict[str, Any]):

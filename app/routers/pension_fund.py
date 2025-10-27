@@ -47,25 +47,29 @@ def update_pension_fund(fund_id: int, payload: PensionFundUpdate, db: Session = 
     db.refresh(fund)
     return fund
 
-@router.delete("/pension-funds/{fund_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/pension-funds/{fund_id}", status_code=status.HTTP_200_OK)
 def delete_pension_fund(fund_id: int, db: Session = Depends(get_db)):
-    fund = db.get(PensionFund, fund_id)
-    if not fund:
-        raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
-    db.delete(fund)
+    from app.services.asset_deletion_service import delete_pension_fund_with_restoration
+    
+    result = delete_pension_fund_with_restoration(db, fund_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail={"error": result["error"]})
+    
     db.commit()
-    return
+    return result
 
-@router.delete("/clients/{client_id}/pension-funds/{fund_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/clients/{client_id}/pension-funds/{fund_id}", status_code=status.HTTP_200_OK)
 def delete_client_pension_fund(client_id: int, fund_id: int, db: Session = Depends(get_db)):
-    fund = db.get(PensionFund, fund_id)
-    if not fund:
-        raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
-    if fund.client_id != client_id:
-        raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא עבור לקוח זה"})
-    db.delete(fund)
+    from app.services.asset_deletion_service import delete_pension_fund_with_restoration
+    
+    result = delete_pension_fund_with_restoration(db, fund_id, client_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail={"error": result["error"]})
+    
     db.commit()
-    return
+    return result
 
 @router.post("/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
 def compute_pension_fund(
