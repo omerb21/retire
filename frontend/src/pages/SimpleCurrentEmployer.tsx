@@ -159,8 +159,16 @@ const SimpleCurrentEmployer: React.FC = () => {
             id: employerData.id,
             employer_name: employerData.employer_name,
             end_date: employerData.end_date,
-            has_termination: !!employerData.end_date
+            has_termination: !!employerData.end_date,
+            severance_accrued: severanceFromPension
           });
+        } else {
+          // אם אין employerData, עדיין צריך לעדכן את severance_accrued
+          console.log('⚠️ אין employerData, מעדכן רק severance_accrued:', severanceFromPension);
+          setEmployer(prev => ({
+            ...prev,
+            severance_accrued: severanceFromPension
+          }));
         }
         setLoading(false);
       } catch (err: any) {
