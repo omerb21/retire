@@ -54,7 +54,7 @@ export default function Fixation() {
         <Link to={`/clients/${clientId}`}>← חזרה לפרטי לקוח</Link>
       </div>
       
-      <h2>קיבוע מס</h2>
+      <h2>קיבוע זכויות</h2>
 
       {error && (
         <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>

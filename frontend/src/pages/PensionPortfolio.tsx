@@ -1106,17 +1106,85 @@ export default function PensionPortfolio() {
             tax_treatment: taxTreatment
           };
           
+          // חישוב מקדם קצבה דינמי
+          let annuityFactor = 200; // ברירת מחדל
+          let factorSource = 'default';
+          let factorNotes = '';
+          
+          try {
+            // חישוב גיל פרישה
+            let retirementAge = 67;
+            if (clientData) {
+              const retResponse: any = await apiFetch('/retirement-age/calculate-simple', {
+                method: 'POST',
+                body: JSON.stringify({
+                  birth_date: clientData.birth_date,
+                  gender: clientData.gender
+                })
+              });
+              retirementAge = retResponse.retirement_age;
+            }
+            
+            // חישוב מקדם קצבה
+            const coefficientResponse: any = await apiFetch('/annuity-coefficient/calculate', {
+              method: 'POST',
+              body: JSON.stringify({
+                product_type: account.סוג_מוצר || 'ביטוח מנהלים',
+                start_date: account.תאריך_התחלה || paymentDateISO,
+                gender: clientData?.gender || 'זכר',
+                retirement_age: retirementAge,
+                company_name: account.חברה_מנהלת,
+                option_name: null,
+                survivors_option: 'תקנוני',
+                spouse_age_diff: 0,
+                target_year: new Date(paymentDateISO).getFullYear(),
+                birth_date: clientData?.birth_date || null,
+                pension_start_date: paymentDateISO
+              })
+            });
+            
+            annuityFactor = coefficientResponse.factor_value;
+            factorSource = coefficientResponse.source_table;
+            factorNotes = coefficientResponse.notes || '';
+            
+            console.log(`[מקדם קצבה] ${account.שם_תכנית}: ${annuityFactor} (מקור: ${factorSource})`);
+            console.log('[מקדם קצבה] תגובה מלאה:', coefficientResponse);
+          } catch (error) {
+            console.error(`[מקדם קצבה] שגיאה בחישוב מקדם, משתמש בברירת מחדל 200:`, error);
+            if (error instanceof Error) {
+              console.error('[מקדם קצבה] פרטי שגיאה:', error.message, error.stack);
+            }
+          }
+          
+          // קביעת שם משלם לפי סוג מוצר
+          let fundNamePrefix = '';
+          const productType = account.סוג_מוצר || '';
+          const productLower = productType.toLowerCase();
+          
+          // בדיקה אם זו קרן פנסיה/קופת גמל/קרן השתלמות
+          if (productLower.includes('קרן פנסיה') || 
+              productLower.includes('פנסיה מקיפה') || 
+              productLower.includes('פנסיה כללית') ||
+              productLower.includes('קופת גמל') || 
+              productLower.includes('קרן השתלמות')) {
+            fundNamePrefix = 'קרן פנסיה שנוצרה מתכנית - ';
+          } else {
+            // כל שאר סוגי המוצרים (ביטוח מנהלים, פוליסות)
+            fundNamePrefix = 'קצבת ביטוח מנהלים שנוצרה מתכנית - ';
+          }
+          
           const pensionData: any = {
             client_id: parseInt(clientId),
-            fund_name: account.שם_תכנית || 'קצבה מתיק פנסיוני',
+            fund_name: fundNamePrefix + (account.שם_תכנית || 'קצבה מתיק פנסיוני'),
             fund_type: 'מחושב',
             input_mode: "manual" as const,
             balance: amountToConvert,
-            pension_amount: Math.round(amountToConvert / 200), // מקדם קצבה 200
+            pension_amount: Math.round(amountToConvert / annuityFactor),
             pension_start_date: paymentDateISO,
-            indexation_method: "none" as const, // ללא הצמדה
-            tax_treatment: taxTreatment, // יחס מס מחושב לפי חוקי המערכת
-            remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}\nיחס מס: ${taxTreatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}`,
+            indexation_method: "none" as const,
+            tax_treatment: taxTreatment,
+            annuity_factor: annuityFactor,
+            remarks: `הומר מתיק פנסיוני\nתכנית: ${account.שם_תכנית} (${account.חברה_מנהלת})\nסכומים שהומרו: ${conversionDetails}\nיחס מס: ${taxTreatment === 'exempt' ? 'פטור ממס' : 'חייב במס'}\nמקדם קצבה: ${annuityFactor} (${factorSource})${factorNotes ? '\n' + factorNotes : ''}`,
             conversion_source: JSON.stringify(conversionSourceData)
           };
           

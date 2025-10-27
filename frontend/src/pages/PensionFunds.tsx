@@ -1186,7 +1186,7 @@ export default function PensionFunds() {
                     color: "green", 
                     fontWeight: "bold", 
                     backgroundColor: "#f0fff0", 
-                    padding: "8px", 
+                    padding: "12px", 
                     borderRadius: "4px", 
                     border: "1px solid #28a745",
                     marginTop: "10px",
@@ -1197,6 +1197,11 @@ export default function PensionFunds() {
                       // השרת מחזיר את הסכום החודשי הנכון
                       fund.monthly || fund.computed_monthly_amount || fund.pension_amount || fund.monthly_amount || 0
                     ).toLocaleString()}
+                    {fund.annuity_factor && (
+                      <span style={{ marginRight: "15px", fontSize: "0.9em", color: "#155724" }}>
+                        {' '}| <strong>מקדם קצבה:</strong> {fund.annuity_factor}
+                      </span>
+                    )}
                   </div>
                   
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>

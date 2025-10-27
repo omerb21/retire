@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.routers import fixation, files, employment, current_employer, pension_fund, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection, clients, scenarios, grant, tax_data, indexation, rights_fixation, tax_calculation, pension_portfolio, snapshot, retirement_age
+from app.routers import fixation, files, employment, current_employer, pension_fund, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection, clients, scenarios, grant, tax_data, indexation, rights_fixation, tax_calculation, pension_portfolio, snapshot, retirement_age, annuity_coefficient
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,6 +69,7 @@ app.include_router(tax_calculation.router, tags=["tax-calculation"])
 app.include_router(pension_portfolio.router, prefix="/api/v1", tags=["pension-portfolio"])
 app.include_router(snapshot.router)  # snapshot router already has /api/v1/clients prefix
 app.include_router(retirement_age.router, prefix="/api/v1", tags=["retirement-age"])
+app.include_router(annuity_coefficient.router, prefix="/api/v1/annuity-coefficient", tags=["annuity-coefficient"])
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
