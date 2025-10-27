@@ -247,6 +247,15 @@ def process_termination_decision(
             except:
                 pass
         
+        # Parse plan details if provided
+        plan_details_list = []
+        if hasattr(decision, 'plan_details') and decision.plan_details:
+            try:
+                plan_details_list = json.loads(decision.plan_details)
+                print(f"📋 Plan details: {plan_details_list}")
+            except Exception as e:
+                print(f"⚠️ Failed to parse plan_details: {e}")
+        
         # Create source suffix for names
         source_suffix = ""
         if source_account_names:
@@ -266,6 +275,61 @@ def process_termination_decision(
         db.add(ce)  # Mark for update
         db.flush()  # Ensure end_date is saved
         print(f"✅ Updated CurrentEmployer end_date to: {decision.termination_date}")
+        
+        # Create EmployerGrant for each plan
+        from app.models.employer_grant import EmployerGrant, GrantType
+        from datetime import datetime
+        
+        if plan_details_list:
+            print(f"🔨 Creating EmployerGrant for each plan...")
+            for plan_detail in plan_details_list:
+                plan_name = plan_detail.get('plan_name')
+                plan_start_date_str = plan_detail.get('plan_start_date')
+                amount = plan_detail.get('amount', 0)
+                
+                if amount > 0:
+                    # Parse plan_start_date
+                    plan_start_date = None
+                    if plan_start_date_str:
+                        try:
+                            # Try parsing DD/MM/YYYY format
+                            plan_start_date = datetime.strptime(plan_start_date_str, '%d/%m/%Y').date()
+                        except:
+                            try:
+                                # Try parsing ISO format
+                                plan_start_date = datetime.fromisoformat(plan_start_date_str).date()
+                            except:
+                                print(f"⚠️ Could not parse plan_start_date: {plan_start_date_str}")
+                    
+                    employer_grant = EmployerGrant(
+                        employer_id=ce.id,
+                        grant_type=GrantType.severance,
+                        grant_amount=amount,
+                        grant_date=decision.termination_date,
+                        plan_name=plan_name,
+                        plan_start_date=plan_start_date
+                    )
+                    db.add(employer_grant)
+                    print(f"  ✅ Created EmployerGrant: {plan_name} - {amount} ₪ (start: {plan_start_date})")
+            
+            db.flush()
+            print(f"✅ Created {len(plan_details_list)} EmployerGrants")
+        else:
+            print(f"⚠️ No plan_details provided, creating single EmployerGrant for total amount")
+            # Fallback: create single grant for total amount
+            total_amount = decision.exempt_amount + decision.taxable_amount
+            if total_amount > 0:
+                employer_grant = EmployerGrant(
+                    employer_id=ce.id,
+                    grant_type=GrantType.severance,
+                    grant_amount=total_amount,
+                    grant_date=decision.termination_date,
+                    plan_name="ללא תכנית",
+                    plan_start_date=ce.start_date
+                )
+                db.add(employer_grant)
+                db.flush()
+                print(f"  ✅ Created single EmployerGrant: {total_amount} ₪")
         
         # Process exempt amount decision
         if decision.exempt_amount > 0:

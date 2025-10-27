@@ -126,6 +126,7 @@ class TerminationDecisionBase(BaseModel):
     max_spread_years: Optional[int] = Field(None, description="מקסימום שנות פריסה מותרות")
     confirmed: Optional[bool] = Field(False, description="האם העזיבה אושרה והנתונים הוקפאו")
     source_accounts: Optional[str] = Field(None, description="רשימת שמות התכניות שמהן נלקחו הפיצויים (JSON)")
+    plan_details: Optional[str] = Field(None, description="פרטי תכניות מלאים: שם, תאריך התחלה, סכום (JSON)")
 
 class TerminationDecisionCreate(TerminationDecisionBase):
     """Schema for creating termination decision"""

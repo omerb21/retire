@@ -414,6 +414,7 @@ const SimpleCurrentEmployer: React.FC = () => {
       
       // שמירת ההתפלגות המדויקת של פיצויים מעסיק נוכחי לפני העזיבה
       let sourceAccountNames: string[] = [];
+      let planDetails: Array<{plan_name: string, plan_start_date: string | null, amount: number}> = [];
       if (storedPensionData) {
         try {
           const pensionData = JSON.parse(storedPensionData);
@@ -428,6 +429,13 @@ const SimpleCurrentEmployer: React.FC = () => {
               // שמירת שם התכנית
               const accountName = account.שם_תכנית || account.שם_מוצר || `חשבון ${idx + 1}`;
               sourceAccountNames.push(accountName);
+              
+              // שמירת פרטי התכנית המלאים
+              planDetails.push({
+                plan_name: accountName,
+                plan_start_date: account.תאריך_התחלה || null,
+                amount: amount
+              });
             }
             // משתמשים במספר חשבון כמפתח ייחודי
             const accountKey = account.מספר_חשבון || `account_${idx}`;
@@ -438,6 +446,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           console.log('💾 שמירת התפלגות מדויקת לפני עזיבה:', distribution);
           console.log('💾 סכום כולל:', totalSeverance);
           console.log('📋 שמות תכניות מקור:', sourceAccountNames);
+          console.log('📋 פרטי תכניות מלאים:', planDetails);
           
           // שמירה ב-localStorage
           localStorage.setItem(`severanceDistribution_${id}`, JSON.stringify(distribution));
@@ -454,7 +463,8 @@ const SimpleCurrentEmployer: React.FC = () => {
         // TODO: הפעל מחדש לאחר הרצת migration
         // severance_before_termination: totalSeverance,
         confirmed: true, // סימון שהעזיבה אושרה
-        source_accounts: sourceAccountNames.length > 0 ? JSON.stringify(sourceAccountNames) : null
+        source_accounts: sourceAccountNames.length > 0 ? JSON.stringify(sourceAccountNames) : null,
+        plan_details: planDetails.length > 0 ? JSON.stringify(planDetails) : null  // פרטי תכניות מלאים
       };
       
       console.log('🚀 SENDING TERMINATION PAYLOAD:', JSON.stringify(payload, null, 2));

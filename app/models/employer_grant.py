@@ -2,7 +2,7 @@
 EmployerGrant entity model for SQLAlchemy ORM - Sprint 3
 Grant entity connected to CurrentEmployer for retirement calculations
 """
-from sqlalchemy import Column, Integer, Float, Date, DateTime, ForeignKey, Enum as SQLEnum, func
+from sqlalchemy import Column, Integer, Float, Date, DateTime, ForeignKey, Enum as SQLEnum, String, func
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import enum
@@ -27,6 +27,10 @@ class EmployerGrant(Base):
     grant_type = Column(SQLEnum(GrantType), nullable=False)
     grant_amount = Column(Float, nullable=False)
     grant_date = Column(Date, nullable=False)
+    
+    # Plan details - link to specific pension plan
+    plan_name = Column(String, nullable=True)  # שם התכנית מתיק הפנסיה
+    plan_start_date = Column(Date, nullable=True)  # תאריך התחלת התכנית (לחישוב מקדם)
     
     # Tax information
     tax_withheld = Column(Float, nullable=True, default=0.0)
@@ -54,6 +58,8 @@ class EmployerGrant(Base):
             "grant_type": self.grant_type.value if self.grant_type else None,
             "grant_amount": self.grant_amount,
             "grant_date": self.grant_date.isoformat() if self.grant_date else None,
+            "plan_name": self.plan_name,
+            "plan_start_date": self.plan_start_date.isoformat() if self.plan_start_date else None,
             "tax_withheld": self.tax_withheld,
             "grant_exempt": self.grant_exempt,
             "grant_taxable": self.grant_taxable,
