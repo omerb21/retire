@@ -872,11 +872,16 @@ const SimpleReports: React.FC = () => {
       pensionFunds.forEach(fund => {
         // חישוב שנת התחלה - שימוש בתאריך המקורי
         let fundStartYear = currentYear; // ברירת מחדל היא השנה הנוכחית
+        let fundStartMonth = 1; // ברירת מחדל: ינואר
         
         if (fund.pension_start_date) {
-          fundStartYear = parseInt(fund.pension_start_date.split('-')[0]);
+          const dateParts = fund.pension_start_date.split('-');
+          fundStartYear = parseInt(dateParts[0]);
+          fundStartMonth = parseInt(dateParts[1]);
         } else if (fund.start_date) {
-          fundStartYear = parseInt(fund.start_date.split('-')[0]);
+          const dateParts = fund.start_date.split('-');
+          fundStartYear = parseInt(dateParts[0]);
+          fundStartMonth = parseInt(dateParts[1]);
         }
         
         const monthlyAmount = parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0;
@@ -886,9 +891,18 @@ const SimpleReports: React.FC = () => {
         // אם אין הצמדה מוגדרת, ברירת המחדל היא ללא הצמדה (0)
         const indexationRate = fund.indexation_rate !== undefined ? fund.indexation_rate : 0;
         
-        // תיקון: גם כשהקרן מתחילה בשנה הנוכחית (yearsActive = 0), היא צריכה להניב הכנסה
-        const adjustedAmount = year >= fundStartYear ? 
-          monthlyAmount * Math.pow(1 + indexationRate, yearsActive) : 0;
+        // תיקון קריטי: התאמה למספר חודשים בשנה הראשונה
+        let adjustedAmount = 0;
+        if (year > fundStartYear) {
+          // שנים אחרי שנת ההתחלה: 12 חודשים מלאים עם הצמדה
+          adjustedAmount = monthlyAmount * Math.pow(1 + indexationRate, yearsActive);
+        } else if (year === fundStartYear) {
+          // שנת ההתחלה: רק חלק מהשנה
+          const monthsInFirstYear = 13 - fundStartMonth; // מחודש ההתחלה עד סוף השנה
+          adjustedAmount = (monthlyAmount * monthsInFirstYear) / 12; // ממוצע חודשי לשנה
+          console.log(`🔧 PENSION TIMING FIX: ${fund.fund_name || 'Fund'} starts ${fundStartMonth}/${fundStartYear}, first year has ${monthsInFirstYear} months, adjusted monthly: ${adjustedAmount.toFixed(2)}`);
+        }
+        // אם year < fundStartYear, adjustedAmount נשאר 0
         
         // Only add income if pension has started
         const amount: number = adjustedAmount;
