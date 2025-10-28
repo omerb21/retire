@@ -88,7 +88,7 @@ class Client(Base):
     )
     
     # Relationships
-    fixation_results = relationship("FixationResult", back_populates="client")
+    fixation_results = relationship("FixationResult", back_populates="client", cascade="all, delete-orphan")
     pension_funds = relationship("PensionFund", back_populates="client", cascade="all, delete-orphan")
     current_employers = relationship("CurrentEmployer", back_populates="client", cascade="all, delete-orphan")
     grants = relationship("Grant", back_populates="client", cascade="all, delete-orphan")
