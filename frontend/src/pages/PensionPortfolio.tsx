@@ -1259,7 +1259,7 @@ export default function PensionPortfolio() {
             client_id: parseInt(clientId),
             asset_type: assetTypeValue, // ערך באנגלית לשרת: 'mutual_funds' או 'deposits'
             description: `${assetDescription} - ${account.שם_תכנית} (${conversionDetails})` || 'נכס הון מתיק פנסיוני',
-            current_value: amountToConvert,
+            current_value: 0, // ערך נוכחי = 0
             purchase_value: amountToConvert,
             purchase_date: purchaseDateISO,
             annual_return: 0,
@@ -1267,7 +1267,7 @@ export default function PensionPortfolio() {
             payment_frequency: 'monthly',
             liquidity: 'medium',
             risk_level: 'medium',
-            monthly_income: 0, // אין תשלום חודשי
+            monthly_income: amountToConvert, // הערך הכספי נכנס לתשלום חודשי
             start_date: paymentDateISO, // תאריך מימוש או גיל פרישה
             indexation_method: 'none', // ללא הצמדה
             tax_treatment: taxTreatment, // מס רווח הון - מחושב לפי חוקי המערכת

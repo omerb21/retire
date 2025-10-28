@@ -189,10 +189,11 @@ const SimpleCurrentEmployer: React.FC = () => {
     const calculateGrantDetails = async () => {
       if (employer.start_date && employer.last_salary > 0) {
         const startDate = new Date(employer.start_date);
-        const currentDate = new Date();
+        // תמיד משתמשים בתאריך היום לחישוב וותק בפרטי מעסיק
+        const referenceDate = new Date();
         
         // Calculate service years
-        const serviceYears = (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        const serviceYears = (referenceDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
         
         // Basic severance calculation (1 month salary per year)
         const expectedGrant = employer.last_salary * serviceYears;
@@ -368,9 +369,10 @@ const SimpleCurrentEmployer: React.FC = () => {
           console.warn('Failed to fetch severance cap, using default:', err);
         }
         
-        // תקרת פטור = תקרה שנתית × וותק
-        // התקרה החודשית שמוחזרת מה-API היא למעשה תקרה שנתית!
-        const exemptCap = monthlyCap * serviceYears;
+        // תקרת פטור = תקרה × וותק
+        // משתמשים בוותק מה-API לעקביות
+        const apiServiceYears = grantDetails.serviceYears || serviceYears;
+        const exemptCap = monthlyCap * apiServiceYears;
         const exemptAmount = Math.min(severanceAmount, exemptCap);
         const taxableAmount = Math.max(0, severanceAmount - exemptAmount);
         
@@ -792,7 +794,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           
           {grantDetails.serviceYears > 0 && (
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px' }}>
-              <h4>חישוב מענק פיצויים צפוי (תקרה שנתית: ₪{grantDetails.severanceCap.toLocaleString()})</h4>
+              <h4>חישוב מענק פיצויים צפוי</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                 <div><strong>שנות שירות:</strong> {grantDetails.serviceYears}</div>
                 <div><strong>מענק צפוי:</strong> ₪{grantDetails.expectedGrant.toLocaleString()}</div>
@@ -1020,16 +1022,14 @@ const SimpleCurrentEmployer: React.FC = () => {
               <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
                 <h4>שלב 2: סיכום זכויות</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div><strong>שנות וותק:</strong> {(() => {
-                    let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
-                    let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
-                    const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-                    return isNaN(years) ? '0' : years.toFixed(2);
-                  })()} שנים</div>
+                  <div><strong>שנות וותק:</strong> {grantDetails.serviceYears.toFixed(2)} שנים</div>
                   <div><strong>פיצויים צבורים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
                   <div><strong>פיצויים צפויים:</strong> ₪{(() => {
                     let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
-                    let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
+                    // אם אין תאריך עזיבה, משתמשים בתאריך היום
+                    let endISO = terminationDecision.termination_date 
+                      ? (terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date)
+                      : new Date().toISOString().split('T')[0];
                     const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
                     if (isNaN(years)) return '0';
                     const expectedFromSalary = Math.round(employer.last_salary * years);

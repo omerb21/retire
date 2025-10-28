@@ -9,8 +9,10 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 
 from app.models.additional_income import AdditionalIncome, PaymentFrequency, IndexationMethod, TaxTreatment
+from app.models.client import Client
 from app.providers.tax_params import TaxParamsProvider, InMemoryTaxParamsProvider
 from app.schemas.additional_income import AdditionalIncomeCashflowItem
+from app.services.tax_calculator import TaxCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +69,14 @@ class AdditionalIncomeService:
         else:
             raise ValueError(f"Unsupported indexation method: {income.indexation_method}")
 
-    def calculate_tax(self, gross_amount: Decimal, income: AdditionalIncome) -> Decimal:
-        """Calculate tax on the gross amount."""
+    def calculate_tax(
+        self, 
+        gross_amount: Decimal, 
+        income: AdditionalIncome,
+        client: Optional[Client] = None,
+        calculation_date: Optional[date] = None
+    ) -> Decimal:
+        """Calculate tax on the gross amount based on income type and client age."""
         if income.tax_treatment == TaxTreatment.EXEMPT:
             return Decimal('0')
         
@@ -79,11 +87,46 @@ class AdditionalIncomeService:
             return gross_amount * (income.tax_rate / Decimal('100'))
         
         elif income.tax_treatment == TaxTreatment.TAXABLE:
-            # For now, apply a basic tax calculation
-            # This can be enhanced with more sophisticated tax brackets
-            tax_params = self.tax_params_provider.get_params()
-            # Apply basic marginal tax rate (simplified)
-            return gross_amount * Decimal('0.31')  # 31% marginal rate as example
+            # חישוב מס מתקדם לפי סוג הכנסה
+            annual_amount = float(gross_amount * 12)  # המרה לסכום שנתי
+            
+            # בדיקת גיל פרישה
+            is_retired = False
+            if client and calculation_date:
+                client_age = client.get_age(calculation_date)
+                is_retired = client_age >= 67
+            
+            tax_calculator = TaxCalculator()
+            
+            if income.source_type == "salary":
+                # שכיר: מס הכנסה + ביטוח לאומי + מס בריאות (עד גיל פרישה)
+                income_tax, _ = tax_calculator.calculate_income_tax(annual_amount)
+                
+                if is_retired:
+                    # אחרי פרישה - רק מס הכנסה
+                    total_tax = income_tax
+                else:
+                    # לפני פרישה - מס + ביטוח לאומי + מס בריאות
+                    ni_tax = tax_calculator.calculate_national_insurance(annual_amount)
+                    health_tax = tax_calculator.calculate_health_tax(annual_amount)
+                    total_tax = income_tax + ni_tax + health_tax
+                
+                # המרה חזרה לחודשי
+                return Decimal(str(total_tax / 12))
+            
+            elif income.source_type == "business":
+                # עסק: מס הכנסה + ביטוח לאומי (ללא מס בריאות)
+                income_tax, _ = tax_calculator.calculate_income_tax(annual_amount)
+                ni_tax = tax_calculator.calculate_national_insurance(annual_amount)
+                total_tax = income_tax + ni_tax
+                
+                # המרה חזרה לחודשי
+                return Decimal(str(total_tax / 12))
+            
+            else:
+                # סוגי הכנסה אחרים - רק מס הכנסה
+                income_tax, _ = tax_calculator.calculate_income_tax(annual_amount)
+                return Decimal(str(income_tax / 12))
         
         else:
             raise ValueError(f"Unsupported tax treatment: {income.tax_treatment}")
@@ -93,7 +136,8 @@ class AdditionalIncomeService:
         income: AdditionalIncome,
         start_date: date,
         end_date: date,
-        reference_date: Optional[date] = None
+        reference_date: Optional[date] = None,
+        client: Optional[Client] = None
     ) -> List[AdditionalIncomeCashflowItem]:
         """Project cashflow for the income source."""
         logger.debug(f"Projecting cashflow for income {income.id} from {start_date} to {end_date}")
@@ -133,7 +177,7 @@ class AdditionalIncomeService:
                 )
                 
                 # Calculate tax
-                tax_amount = self.calculate_tax(indexed_amount, income)
+                tax_amount = self.calculate_tax(indexed_amount, income, client, current_date)
                 net_amount = indexed_amount - tax_amount
             else:
                 # No payment this month
@@ -175,6 +219,9 @@ class AdditionalIncomeService:
             AdditionalIncome.client_id == client_id
         ).all()
         
+        # Get client details for age calculation
+        client = db_session.query(Client).filter(Client.id == client_id).first()
+        
         if not incomes:
             logger.debug("No additional incomes found for client")
             return []
@@ -183,7 +230,7 @@ class AdditionalIncomeService:
         all_cashflow_items = []
         for income in incomes:
             cashflow_items = self.project_cashflow(
-                income, start_date, end_date, reference_date
+                income, start_date, end_date, reference_date, client
             )
             all_cashflow_items.extend(cashflow_items)
         

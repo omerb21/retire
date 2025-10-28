@@ -472,13 +472,17 @@ export default function CapitalAssets() {
             />
           </div>
 
-          <input
-            type="number"
-            placeholder="ערך נוכחי (₪) - אופציונלי"
-            value={form.current_value || ""}
-            onChange={(e) => setForm({ ...form, current_value: parseFloat(e.target.value) || 0 })}
-            style={{ padding: 8 }}
-          />
+          <div>
+            <label>ערך נוכחי (₪) - אופציונלי:</label>
+            <input
+              type="number"
+              placeholder="0"
+              value={form.current_value || ""}
+              onChange={(e) => setForm({ ...form, current_value: parseFloat(e.target.value) || 0 })}
+              style={{ padding: 8, width: "100%" }}
+              min="0"
+            />
+          </div>
 
           <input
             type="number"

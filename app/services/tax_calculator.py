@@ -35,12 +35,13 @@ class TaxCalculator:
         
         logger.info(f"אותחל מחשבון מס לשנת {self.tax_year}")
     
-    def calculate_income_tax(self, taxable_income: float) -> Tuple[float, List[TaxBreakdown]]:
+    def calculate_income_tax(self, taxable_income: float, is_business_income: bool = False) -> Tuple[float, List[TaxBreakdown]]:
         """
         מחשב מס הכנסה לפי מדרגות המס
         
         Args:
             taxable_income: הכנסה חייבת במס
+            is_business_income: לא בשימוש (נשמר לתאימות לאחור)
             
         Returns:
             Tuple של (סך המס, פירוט לפי מדרגות)
@@ -48,6 +49,7 @@ class TaxCalculator:
         if taxable_income <= 0:
             return 0.0, []
         
+        # חישוב מס הכנסה לפי מדרגות המס
         total_tax = 0.0
         breakdown = []
         remaining_income = taxable_income
@@ -370,8 +372,19 @@ class TaxCalculator:
         # 6. הכנסה חייבת במס רגיל (לאחר פטורים וניכויים)
         taxable_income = max(0, regular_taxable_income - pension_exemption - total_deductions)
         
-        # 7. חישוב מס הכנסה רגיל
-        income_tax, tax_breakdown = self.calculate_income_tax(taxable_income)
+        # 7. חישוב מס הכנסה - מפרידים בין הכנסה מעסק להכנסה רגילה
+        business_income = input_data.business_income
+        other_income = taxable_income - business_income if taxable_income > business_income else 0
+        
+        # חישוב מס על הכנסה מעסק
+        business_tax, business_breakdown = self.calculate_income_tax(business_income, is_business_income=True)
+        
+        # חישוב מס על שאר ההכנסות
+        other_tax, other_breakdown = self.calculate_income_tax(other_income, is_business_income=False)
+        
+        # איחוד התוצאות
+        income_tax = business_tax + other_tax
+        tax_breakdown = business_breakdown + other_breakdown
         
         # 8. חישוב ביטוח לאומי ומס בריאות (רק על הכנסה רגילה, עם בדיקת גיל)
         national_insurance = self.calculate_national_insurance(regular_taxable_income, input_data.personal_details)

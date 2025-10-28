@@ -24,13 +24,13 @@ const INCOME_TYPE_MAP: Record<string, string> = {
   "dividends": "דיבידנדים",
   "interest": "ריבית",
   "business": "עסק",
-  "freelance": "עבודה עצמאית",
+  "salary": "שכיר",
   "other": "אחר"
 };
 
 // סוגי הכנסות באנגלית (לשימוש בצד השרת)
 const INCOME_TYPES = [
-  "rental", "dividends", "interest", "business", "freelance", "other"
+  "rental", "dividends", "interest", "business", "salary", "other"
 ];
 
 export default function AdditionalIncome() {

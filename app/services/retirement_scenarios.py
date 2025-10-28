@@ -68,9 +68,10 @@ class RetirementScenariosBuilder:
             client_id=self.client_id,
             asset_name=asset_name,
             asset_type=asset_type,
-            current_value=Decimal(str(value)),
+            current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+            monthly_income=Decimal(str(value)),  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
             annual_return_rate=Decimal("0.04"),
-            payment_frequency="monthly",  # ✅ תוקן: one_time → monthly (נכסי הון מהיוון)
+            payment_frequency="monthly",
             start_date=date(retirement_year, 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
@@ -343,13 +344,15 @@ class RetirementScenariosBuilder:
         
         for ca in capital_assets:
             # Create pension fund from capital asset
-            pension_amount = float(ca.current_value) / PENSION_COEFFICIENT
+            # תוקן: נכסי הון מייצגים תשלום חודשי, לא הון חד-פעמי
+            capital_value = float(ca.monthly_income or 0)
+            pension_amount = capital_value / PENSION_COEFFICIENT
             retirement_year = self._get_retirement_year()
             
             pf = PensionFund(
                 client_id=self.client_id,
-                fund_name=f"קצבה מ{ca.asset_name or 'נכס הוני'}",
-                fund_type="converted_from_capital",
+                fund_name=f"קצבה מ{ca.asset_name}",
+                fund_type="converted_capital",
                 input_mode="manual",
                 pension_amount=pension_amount,
                 pension_start_date=date(retirement_year, 1, 1),
@@ -358,15 +361,15 @@ class RetirementScenariosBuilder:
                     "source_type": "capital_asset",
                     "source_id": ca.id,
                     "source_name": ca.asset_name,
-                    "original_value": float(ca.current_value)
+                    "original_value": capital_value
                 })
             )
             self.db.add(pf)
-            logger.info(f"  🏦 Converted capital asset '{ca.asset_name}': {ca.current_value} → Pension {pension_amount}")
+            logger.info(f"  Converted capital asset '{ca.asset_name}': {capital_value} → Pension {pension_amount}")
             self._add_action("conversion", f"המרת נכס הון לקצבה: {ca.asset_name}",
-                            from_asset=f"הון: {ca.asset_name} ({ca.current_value:,.0f} ₪)",
+                            from_asset=f"הון: {ca.asset_name} ({capital_value:,.0f} ₪)",
                             to_asset=f"קצבה: {pension_amount:,.0f} ₪/חודש",
-                            amount=float(ca.current_value))
+                            amount=capital_value)
             
             # Delete capital asset
             self.db.delete(ca)
@@ -389,7 +392,7 @@ class RetirementScenariosBuilder:
             original_balance = ef.balance
             
             if not original_balance or original_balance <= 0:
-                logger.warning(f"  ⚠️ Education fund {ef.fund_name} has no balance, skipping")
+                logger.warning(f"  Education fund {ef.fund_name} has no balance, skipping")
                 continue
             
             # המרה לקצבה פטורה
@@ -401,7 +404,7 @@ class RetirementScenariosBuilder:
             ef.annuity_factor = PENSION_COEFFICIENT
             ef.fund_type = "education_fund_pension"  # סימון שעברה המרה
             
-            logger.info(f"  🎁 Converted education fund '{ef.fund_name}': {original_balance} → Exempt PENSION {pension_amount} ₪/month")
+            logger.info(f"  Converted education fund '{ef.fund_name}': {original_balance} → Exempt PENSION {pension_amount} ₪/month")
             self._add_action("conversion", f"המרת קרן השתלמות לקצבה פטורה: {ef.fund_name}",
                             from_asset=f"קרן השתלמות: {ef.fund_name} ({original_balance:,.0f} ₪)",
                             to_asset=f"קצבה פטורה: {pension_amount:,.0f} ₪/חודש",
@@ -423,7 +426,7 @@ class RetirementScenariosBuilder:
             original_balance = ef.balance
             
             if not original_balance or original_balance <= 0:
-                logger.warning(f"  ⚠️ Education fund {ef.fund_name} has no balance, skipping")
+                logger.warning(f"  Education fund {ef.fund_name} has no balance, skipping")
                 continue
             
             # יצירת נכס הוני פטור
@@ -442,7 +445,7 @@ class RetirementScenariosBuilder:
             )
             self.db.add(ca)
             
-            logger.info(f"  🎁 Converted education fund '{ef.fund_name}': {original_balance} → Exempt CAPITAL {original_balance} ₪")
+            logger.info(f"  Converted education fund '{ef.fund_name}': {original_balance} → Exempt CAPITAL {original_balance} ₪")
             self._add_action("conversion", f"המרת קרן השתלמות להון פטור: {ef.fund_name}",
                             from_asset=f"קרן השתלמות: {ef.fund_name} ({original_balance:,.0f} ₪)",
                             to_asset=f"הון פטור: {original_balance:,.0f} ₪",
@@ -464,32 +467,33 @@ class RetirementScenariosBuilder:
         
         for ca in capital_assets:
             # Create PENSION FUND (tax-exempt) - NOT additional income!
-            pension_amount = float(ca.current_value) / PENSION_COEFFICIENT
+            # תוקן: נכסי הון מייצגים תשלום חודשי, לא הון חד-פעמי
+            capital_value = float(ca.monthly_income or 0)
+            pension_amount = capital_value / PENSION_COEFFICIENT
             
             pf = PensionFund(
                 client_id=self.client_id,
-                fund_name=f"קצבה פטורה מ{ca.asset_name or 'נכס הוני'}",
-                fund_type="converted_from_capital",
+                fund_name=f"קצבה פטורה מ{ca.asset_name}",
+                fund_type="converted_capital",
                 input_mode="manual",
                 pension_amount=pension_amount,
-                pension_start_date=date(retirement_year, 1, 1),
-                annuity_factor=PENSION_COEFFICIENT,
+                pension_start_date=date(self._get_retirement_year(), 1, 1),
                 indexation_method="none",
-                tax_treatment="exempt",  # פטור ממס!
+                tax_treatment="exempt",  # קצבה פטורה!
                 conversion_source=json.dumps({
                     "source_type": "capital_asset",
                     "source_id": getattr(ca, 'id', None),
                     "source_name": ca.asset_name,
-                    "original_value": float(ca.current_value),
+                    "original_value": capital_value,
                     "tax_treatment": "exempt"
                 })
             )
             self.db.add(pf)
-            logger.info(f"  🎁 Converted exempt capital '{ca.asset_name}': {ca.current_value} → Exempt PENSION {pension_amount} ₪/month")
+            logger.info(f"  Converted exempt capital '{ca.asset_name}': {capital_value} → Exempt PENSION {pension_amount} ₪/month")
             self._add_action("conversion", f"המרת נכס פטור לקצבה פטורה: {ca.asset_name}",
-                            from_asset=f"נכס פטור: {ca.asset_name} ({ca.current_value:,.0f} ₪)",
+                            from_asset=f"נכס פטור: {ca.asset_name} ({capital_value:,.0f} ₪)",
                             to_asset=f"קצבה פטורה: {pension_amount:,.0f} ₪/חודש",
-                            amount=float(ca.current_value))
+                            amount=capital_value)
             
             # Delete capital asset
             self.db.delete(ca)
@@ -910,7 +914,8 @@ class RetirementScenariosBuilder:
                 client_id=self.client_id,
                 asset_name=f"הון מ{pf.fund_name}",
                 asset_type="provident_fund",
-                current_value=Decimal(str(pf.balance)),
+                current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                monthly_income=Decimal(str(pf.balance)),  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                 annual_return_rate=Decimal("0.04"),  # Default 4%
                 payment_frequency="monthly",
                 start_date=date(self._get_retirement_year(), 1, 1),
@@ -983,7 +988,8 @@ class RetirementScenariosBuilder:
                     client_id=self.client_id,
                     asset_name=f"הון מהיוון {pf.fund_name} (חלקי)",
                     asset_type="provident_fund",
-                    current_value=Decimal(str(capital_value)),
+                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                    monthly_income=Decimal(str(capital_value)),  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                     annual_return_rate=Decimal("0.04"),
                     payment_frequency="monthly",
                     start_date=date(self._get_retirement_year(), 1, 1),
@@ -1006,7 +1012,8 @@ class RetirementScenariosBuilder:
                         client_id=self.client_id,
                         asset_name=f"הון מהיוון {pf.fund_name}",
                         asset_type="provident_fund",
-                        current_value=Decimal(str(capital_value)),
+                        current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                        monthly_income=Decimal(str(capital_value)),  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                         annual_return_rate=Decimal("0.04"),
                         payment_frequency="monthly",
                         start_date=date(self._get_retirement_year(), 1, 1),
@@ -1069,8 +1076,9 @@ class RetirementScenariosBuilder:
         capital_assets = self.db.query(CapitalAsset).filter(
             CapitalAsset.client_id == self.client_id
         ).all()
-        total_capital = sum(float(ca.current_value) for ca in capital_assets)
-        logger.info(f"  ✅ Keeping {len(capital_assets)} capital assets ({total_capital:,.0f} ₪) as is")
+        # ✅ תוקן: נכסי הון מייצגים תשלום חודשי, לא הון חד-פעמי
+        total_capital_monthly = sum(float(ca.monthly_income or 0) for ca in capital_assets)
+        logger.info(f"  ✅ Keeping {len(capital_assets)} capital assets ({total_capital_monthly:,.0f} ₪/month) as is")
         
         # Step 4: Now capitalize half (50%) of the PENSION FUNDS value only
         all_pensions = self.db.query(PensionFund).filter(
@@ -1130,7 +1138,8 @@ class RetirementScenariosBuilder:
                         client_id=self.client_id,
                         asset_name=f"הון מהיוון {pf.fund_name}",
                         asset_type="provident_fund",
-                        current_value=Decimal(str(pf_value)),
+                        current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                        monthly_income=Decimal(str(pf_value)),  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                         annual_return_rate=Decimal("0.04"),
                         payment_frequency="monthly",
                         start_date=date(self._get_retirement_year(), 1, 1),
@@ -1157,7 +1166,8 @@ class RetirementScenariosBuilder:
                         client_id=self.client_id,
                         asset_name=f"הון מהיוון חלקי {pf.fund_name}",
                         asset_type="provident_fund",
-                        current_value=Decimal(str(need_to_capitalize)),
+                        current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                        monthly_income=Decimal(str(need_to_capitalize)),  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                         annual_return_rate=Decimal("0.04"),
                         payment_frequency="monthly",
                         start_date=date(self._get_retirement_year(), 1, 1),
@@ -1230,6 +1240,32 @@ class RetirementScenariosBuilder:
         else:
             logger.info(f"  ✅ Found {len(exempt_incomes)} exempt income sources")
     
+    def _calculate_npv(self, monthly_pension: float, monthly_additional: float, capital: float, 
+                       discount_rate: float = 0.05, years: int = 30) -> float:
+        """
+        מחשב NPV באמצעות שיטת DCF (Discounted Cash Flow)
+        
+        Args:
+            monthly_pension: קצבה חודשית
+            monthly_additional: הכנסה נוספת חודשית
+            capital: הון חד-פעמי
+            discount_rate: שיעור היוון שנתי (ברירת מחדל 5%)
+            years: מספר שנים להקרנה (ברירת מחדל 30 שנים)
+            
+        Returns:
+            NPV כערך נוכחי נקי
+        """
+        npv = float(capital)  # הון חד-פעמי בשנה 0
+        monthly_income = monthly_pension + monthly_additional
+        annual_income = monthly_income * 12
+        
+        # הוספת תזרימי מזומנים שנתיים מהוונים
+        for year in range(1, years + 1):
+            discounted_cashflow = annual_income / ((1 + discount_rate) ** year)
+            npv += discounted_cashflow
+        
+        return round(npv, 2)
+    
     def _calculate_scenario_results(self, scenario_name: str) -> Dict:
         """מחשב NPV ומחזיר את תוצאות התרחיש"""
         # Get current state
@@ -1247,23 +1283,41 @@ class RetirementScenariosBuilder:
         
         # Calculate totals
         total_pension = sum(pf.pension_amount or 0 for pf in pension_funds)
-        total_capital = sum(float(ca.current_value) for ca in capital_assets)
-        total_additional = sum(float(ai.amount) for ai in additional_incomes)
+        # ✅ תוקן: נכסי הון מייצגים תשלום חודשי, לא הון חד-פעמי
+        total_capital_monthly = sum(float(ca.monthly_income or 0) for ca in capital_assets)
         
-        # Simple NPV calculation (for MVP)
-        # In full implementation, would use proper cashflow projection
-        npv = total_capital + (total_pension * 180) + (total_additional * 240)
+        # ✅ תוקן: חישוב הכנסות נוספות לפי תדירות
+        total_additional = 0
+        for ai in additional_incomes:
+            if ai.frequency == "monthly":
+                total_additional += float(ai.amount)
+            elif ai.frequency == "quarterly":
+                total_additional += float(ai.amount) / 3  # ממוצע חודשי
+            elif ai.frequency == "annually":
+                total_additional += float(ai.amount) / 12  # ממוצע חודשי
+            else:
+                total_additional += float(ai.amount)  # ברירת מחדל
+        
+        # חישוב NPV תקין באמצעות DCF
+        # נכסי הון הם תשלום חודשי, לא הון חד-פעמי
+        npv = self._calculate_npv(
+            monthly_pension=total_pension,
+            monthly_additional=total_additional + total_capital_monthly,  # ✅ נכסי הון = תשלום חודשי
+            capital=0,  # ✅ אין הון חד-פעמי
+            discount_rate=0.05,  # 5% שיעור היוון
+            years=30  # 30 שנה הקרנה
+        )
         
         logger.info(f"  📊 {scenario_name} Results:")
         logger.info(f"     Total Pension: {total_pension} ₪/month")
-        logger.info(f"     Total Capital: {total_capital} ₪")
+        logger.info(f"     Total Capital (monthly): {total_capital_monthly} ₪/month")
         logger.info(f"     Total Additional: {total_additional} ₪/month")
-        logger.info(f"     Estimated NPV: {npv} ₪")
+        logger.info(f"     Estimated NPV (DCF): {npv} ₪")
         
         return {
             "scenario_name": scenario_name,
             "total_pension_monthly": total_pension,
-            "total_capital": total_capital,
+            "total_capital": total_capital_monthly,  # ✅ תוקן: נכסי הון = תשלום חודשי
             "total_additional_income_monthly": total_additional,
             "estimated_npv": npv,
             "pension_funds_count": len(pension_funds),

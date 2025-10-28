@@ -107,6 +107,28 @@ class Client(Base):
                 kwargs[canonical] = kwargs.pop(alias)
         super().__init__(*args, **kwargs)
     
+    def get_age(self, reference_date: date = None) -> int:
+        """
+        חישוב גיל הלקוח
+        
+        Args:
+            reference_date: תאריך ייחוס (ברירת מחדל: היום)
+            
+        Returns:
+            גיל בשנים
+        """
+        if not self.birth_date:
+            return 0
+        
+        ref_date = reference_date or date.today()
+        age = ref_date.year - self.birth_date.year
+        
+        # תיקון אם עוד לא חגג יום הולדת השנה
+        if (ref_date.month, ref_date.day) < (self.birth_date.month, self.birth_date.day):
+            age -= 1
+        
+        return age
+    
     def __repr__(self):
         return f"<Client(id={self.id}, full_name='{self.full_name}', id_number='{self.id_number}')>"
 

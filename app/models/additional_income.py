@@ -17,7 +17,7 @@ class IncomeSourceType(str, Enum):
     DIVIDENDS = "dividends"
     INTEREST = "interest"
     BUSINESS = "business"
-    FREELANCE = "freelance"
+    SALARY = "salary"
     OTHER = "other"
 
 # Add aliases for lowercase access to prevent AttributeError
@@ -25,7 +25,7 @@ IncomeSourceType.rental = IncomeSourceType.RENTAL
 IncomeSourceType.dividends = IncomeSourceType.DIVIDENDS
 IncomeSourceType.interest = IncomeSourceType.INTEREST
 IncomeSourceType.business = IncomeSourceType.BUSINESS
-IncomeSourceType.freelance = IncomeSourceType.FREELANCE
+IncomeSourceType.salary = IncomeSourceType.SALARY
 IncomeSourceType.other = IncomeSourceType.OTHER
 
 

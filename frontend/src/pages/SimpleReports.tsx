@@ -180,14 +180,14 @@ function generatePDFReport(
     const capitalAssetsData = capitalAssets.map(asset => [
       asset.description || asset.asset_name || 'ללא תיאור',
       ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
-      `₪${(asset.monthly_income || 0).toLocaleString()}`,
       `₪${(asset.current_value || 0).toLocaleString()}`,
+      `₪${(asset.monthly_income || 0).toLocaleString()}`,
       asset.start_date || 'לא צוין',
       asset.end_date || 'ללא הגבלה'
     ]);
     
     autoTable(doc, {
-      head: [['תיאור', 'סוג נכס', 'הכנסה חודשית', 'ערך נוכחי', 'תאריך התחלה', 'תאריך סיום']],
+      head: [['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תאריך התחלה', 'תאריך סיום']],
       body: capitalAssetsData,
       startY: yPosition,
       styles: {
@@ -387,13 +387,13 @@ function generateExcelReport(
   // גיליון 2: נכסי הון מפורט
   if (capitalAssets.length > 0) {
     const capitalAssetsData = [
-      ['תיאור', 'סוג נכס', 'הכנסה חודשית', 'ערך נוכחי', 'תשואה שנתית %', 'יחס למס', 'תאריך התחלה', 'תאריך סיום'],
+      ['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית %', 'יחס למס', 'תאריך התחלה', 'תאריך סיום'],
       ...capitalAssets.map(asset => [
         asset.description || asset.asset_name || 'ללא תיאור',
         ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
-        (asset.monthly_income || 0).toLocaleString(),
-        (asset.current_value || 0).toLocaleString(),
-        ((asset.annual_return_rate || 0) * 100).toFixed(1) + '%',
+        `₪${(asset.current_value || 0).toLocaleString()}`,
+        `₪${(asset.monthly_income || 0).toLocaleString()}`,
+        `${((asset.annual_return_rate || 0) * 100).toFixed(1)}%`, 
         asset.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
         asset.start_date || 'לא צוין',
         asset.end_date || 'ללא הגבלה'
@@ -781,7 +781,6 @@ const SimpleReports: React.FC = () => {
             total_pension_value: totalPensionValue,
             total_additional_income: totalAdditionalIncome,
             total_capital_assets: totalCapitalAssetsValue,
-            total_capital_payments: totalCapitalAssetsPayments,
             total_wealth: totalWealth,
             estimated_tax: estimatedTax,
             total_monthly_income: totalMonthlyIncome
@@ -1666,7 +1665,7 @@ const SimpleReports: React.FC = () => {
     // ==== גיליון 3: נכסי הון ====
     if (capitalAssets && capitalAssets.length > 0) {
       const assetsData = [
-        ['שם נכס', 'סוג', 'ערך נוכחי', 'הכנסה חודשית', 'תשואה שנתית', 'תאריך התחלה', 'תאריך סיום'],
+        ['שם נכס', 'סוג', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית', 'תאריך התחלה', 'תאריך סיום'],
         ...capitalAssets.map(asset => [
           asset.asset_name || asset.description || '',
           ASSET_TYPES_MAP[asset.asset_type] || asset.asset_type || '',
@@ -1968,8 +1967,8 @@ const SimpleReports: React.FC = () => {
                 <tr>
                     <th>תיאור</th>
                     <th>סוג נכס</th>
-                    <th>הכנסה חודשית</th>
-                    <th>ערך נוכחי</th>
+                    <th>ערך נוכחי (₪)</th>
+                    <th>תשלום חודשי (₪)</th>
                     <th>תאריך התחלה</th>
                 </tr>
             </thead>

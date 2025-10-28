@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from datetime import date, datetime
+from decimal import Decimal
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employer import CurrentEmployer
@@ -359,8 +360,8 @@ def process_termination_decision(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים פטור ({ce.employer_name}){source_suffix}",
                     asset_type="other",
-                    current_value=decision.exempt_amount,
-                    monthly_income=decision.exempt_amount,
+                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                    monthly_income=decision.exempt_amount,  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
@@ -385,8 +386,8 @@ def process_termination_decision(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים פטור ({ce.employer_name}){source_suffix}",
                     asset_type="other",
-                    current_value=decision.exempt_amount,
-                    monthly_income=decision.exempt_amount,
+                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                    monthly_income=decision.exempt_amount,  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
@@ -504,8 +505,8 @@ def process_termination_decision(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים חייב במס ({ce.employer_name}){source_suffix}",
                     asset_type="other",
-                    current_value=decision.taxable_amount,
-                    monthly_income=decision.taxable_amount,
+                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
+                    monthly_income=decision.taxable_amount,  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
@@ -674,14 +675,16 @@ def calculate_severance(
         severance_amount = last_salary * service_years
         
         # Calculate tax exempt and taxable amounts
-        # Annual exemption cap for 2024-2025: 13,770 * 12 = 165,240
-        annual_exemption_cap = 13770 * 12  # 165,240
-        
-        # Exempt amount is the minimum between severance and cap
-        exempt_amount = min(severance_amount, annual_exemption_cap)
+        # Exemption cap: 13,750 * service_years
+        exemption_cap_per_year = 13750  # התקרה החודשית שהיא למעשה התקרה לחישוב הפטור
+        exempt_cap = exemption_cap_per_year * service_years
+        exempt_amount = min(severance_amount, exempt_cap)
         
         # Taxable amount is the remainder
-        taxable_amount = max(0, severance_amount - annual_exemption_cap)
+        taxable_amount = max(0, severance_amount - exempt_amount)
+        
+        # For API response - include the cap used
+        annual_exemption_cap = exemption_cap_per_year
         
         return {
             "service_years": round(service_years, 2),
