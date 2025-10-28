@@ -81,6 +81,10 @@ class TaxCalculationInput(BaseModel):
     insurance_premiums: float = Field(0, ge=0, description="דמי ביטוח")
     charitable_donations: float = Field(0, ge=0, description="תרומות")
     
+    # פטורים וקצבאות
+    exempt_pension_amount: float = Field(0, ge=0, description="קצבה פטורה ממס (מקיבוע זכויות)")
+    pension_months_in_year: int = Field(12, ge=1, le=12, description="מספר חודשי קצבה בשנה")
+    
     @validator('tax_year')
     def validate_tax_year(cls, v):
         current_year = date.today().year
@@ -89,7 +93,7 @@ class TaxCalculationInput(BaseModel):
         return v
     
     def get_total_annual_income(self) -> float:
-        """מחשב סך ההכנסה השנתית"""
+        """מחשב סך ההכנסה השנתית (כולל הכל)"""
         return (
             self.salary_income +
             self.pension_income +
@@ -101,6 +105,26 @@ class TaxCalculationInput(BaseModel):
             self.other_income +
             sum(source.annual_amount for source in self.income_sources)
         )
+    
+    def get_taxable_income_sources(self) -> float:
+        """מחשב רק הכנסות החייבות במס רגיל (ללא מסים מיוחדים)"""
+        # הכנסות שחייבות במס רגיל: שכר, פנסיה, עסקים, אחרות
+        return (
+            self.salary_income +
+            self.pension_income +
+            self.business_income +
+            self.other_income +
+            sum(source.annual_amount for source in self.income_sources if source.is_taxable)
+        )
+    
+    def get_special_tax_incomes(self) -> Dict[str, float]:
+        """מחזיר הכנסות עם מס מיוחד"""
+        return {
+            'rental_income': self.rental_income,
+            'capital_gains': self.capital_gains,
+            'interest_income': self.interest_income,
+            'dividend_income': self.dividend_income
+        }
     
     def get_total_deductions(self) -> float:
         """מחשב סך הניכויים"""
@@ -119,6 +143,15 @@ class TaxBreakdown(BaseModel):
     taxable_amount: float = Field(..., description="סכום חייב במדרגה זו")
     tax_amount: float = Field(..., description="מס במדרגה זו")
 
+class IncomeTypeBreakdown(BaseModel):
+    """פירוט הכנסה לפי סוג"""
+    income_type: str = Field(..., description="סוג ההכנסה")
+    amount: float = Field(..., description="סכום ההכנסה")
+    tax_rate: Optional[float] = Field(None, description="שיעור מס")
+    tax_amount: float = Field(0, description="סכום המס")
+    is_included_in_taxable: bool = Field(True, description="האם נכלל בהכנסה החייבת")
+    description: str = Field("", description="הסבר")
+
 class TaxCalculationResult(BaseModel):
     """תוצאת חישוב מס"""
     # הכנסות
@@ -130,6 +163,7 @@ class TaxCalculationResult(BaseModel):
     income_tax: float = Field(..., description="מס הכנסה")
     national_insurance: float = Field(..., description="ביטוח לאומי")
     health_tax: float = Field(..., description="מס בריאות")
+    special_taxes: Dict[str, float] = Field(default_factory=dict, description="מסים מיוחדים (שכירות, רווח הון וכו')")
     total_tax: float = Field(..., description="סך המסים")
     
     # זיכויים
@@ -142,8 +176,9 @@ class TaxCalculationResult(BaseModel):
     effective_tax_rate: float = Field(..., description="שיעור מס אפקטיבי")
     marginal_tax_rate: float = Field(..., description="שיעור מס שולי")
     
-    # פירוט מדרגות
+    # פירוט מדרגות והכנסות
     tax_breakdown: List[TaxBreakdown] = Field(default_factory=list, description="פירוט מס לפי מדרגות")
+    income_breakdown: List[IncomeTypeBreakdown] = Field(default_factory=list, description="פירוט הכנסות לפי סוג")
     
     # מטא-דאטה
     calculation_date: datetime = Field(default_factory=datetime.now, description="תאריך החישוב")

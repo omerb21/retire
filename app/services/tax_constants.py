@@ -98,6 +98,14 @@ class TaxConstants:
         'salary_annual': 0.030,  # 3.0% הצמדה שנתית לשכר הממוצע
     }
     
+    # שיעורי מס מיוחדים לסוגי הכנסות שונות
+    SPECIAL_TAX_RATES = {
+        'rental_income': 0.10,  # מס קבוע 10% על הכנסה משכירות
+        'capital_gains': 0.25,  # מס רווח הון 25%
+        'dividend_income': 0.25,  # מס דיבידנד 25%
+        'interest_income': 0.15,  # מס על ריבית 15%
+    }
+    
     @classmethod
     def get_tax_brackets(cls, year: int = None) -> List[TaxBracket]:
         """מחזיר את מדרגות המס לשנה מסוימת"""

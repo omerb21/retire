@@ -1,8 +1,0 @@
-Separate pension per plan on termination
-
-- Added plan_name and plan_start_date fields to EmployerGrant model
-- Updated retirement scenarios to create separate pension for each plan
-- Each pension gets dynamic coefficient based on plan start date
-- Updated Frontend to send complete plan details
-- Created migration for new database fields
-- Added comprehensive documentation

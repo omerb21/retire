@@ -1,5 +1,0 @@
-fix: include employer name in pension fund names for deletion tracking
-
-- Added employer name to pension fund names: "plan_name (employer_name)"
-- This allows the delete termination endpoint to find and delete pensions
-- Fixes issue where separate pensions per plan were not deleted on termination cancellation

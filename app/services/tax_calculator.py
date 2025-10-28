@@ -82,17 +82,23 @@ class TaxCalculator:
         
         return round(total_tax, 2), breakdown
     
-    def calculate_national_insurance(self, annual_income: float) -> float:
+    def calculate_national_insurance(self, annual_income: float, personal_details=None) -> float:
         """
         מחשב ביטוח לאומי
         
         Args:
             annual_income: הכנסה שנתית
+            personal_details: פרטים אישיים (לבדיקת גיל פרישה)
             
         Returns:
             סכום ביטוח לאומי שנתי
         """
         if annual_income <= 0:
+            return 0.0
+        
+        # בדיקת גיל פרישה - ביטוח לאומי לא חל אחרי גיל פרישה
+        if personal_details and personal_details.get_age() >= 67:
+            logger.info(f"ביטוח לאומי לא חל - מעל גיל פרישה ({personal_details.get_age()})")
             return 0.0
         
         monthly_income = annual_income / 12
@@ -115,18 +121,28 @@ class TaxCalculator:
         
         return round(monthly_ni * 12, 2)
     
-    def calculate_health_tax(self, annual_income: float) -> float:
+    def calculate_health_tax(self, annual_income: float, personal_details=None) -> float:
         """
         מחשב מס בריאות
         
         Args:
             annual_income: הכנסה שנתית
+            personal_details: פרטים אישיים (לבדיקת גיל פרישה)
             
         Returns:
             סכום מס בריאות שנתי
         """
         if annual_income <= 0:
             return 0.0
+        
+        # בדיקת גיל פרישה - מס בריאות מופחת אחרי גיל פרישה
+        # לפנסיונרים מעל גיל 67 יש שיעור מופחת
+        if personal_details and personal_details.get_age() >= 67:
+            logger.info(f"מס בריאות מופחת - מעל גיל פרישה ({personal_details.get_age()})")
+            # שיעור מופחת לפנסיונרים: 3.1% על כל ההכנסה
+            monthly_income = annual_income / 12
+            monthly_health = monthly_income * 0.031  # 3.1% קבוע לפנסיונרים
+            return round(monthly_health * 12, 2)
         
         monthly_income = annual_income / 12
         health_rates = self.health_tax
@@ -204,7 +220,7 @@ class TaxCalculator:
     
     def calculate_comprehensive_tax(self, input_data: TaxCalculationInput) -> TaxCalculationResult:
         """
-        מחשב מס מקיף
+        מחשב מס מקיף - עם טיפול נכון בסוגי הכנסות שונים
         
         Args:
             input_data: נתוני הקלט
@@ -214,48 +230,172 @@ class TaxCalculator:
         """
         logger.info(f"מתחיל חישוב מס מקיף לשנת {input_data.tax_year}")
         
-        # חישוב סך ההכנסה
+        from ..schemas.tax_schemas import IncomeTypeBreakdown
+        
+        # 1. חישוב סך ההכנסה הכוללת
         total_income = input_data.get_total_annual_income()
         
-        # חישוב פטורים לפנסיה
-        pension_exemption = self.calculate_pension_exemptions(
-            input_data.pension_income, 
+        # 2. חישוב מסים מיוחדים לסוגי הכנסות שונים
+        special_tax_incomes = input_data.get_special_tax_incomes()
+        special_taxes = {}
+        income_breakdown = []
+        total_special_tax = 0.0
+        
+        # מס שכירות - 10% קבוע
+        if special_tax_incomes['rental_income'] > 0:
+            rental_tax = special_tax_incomes['rental_income'] * TaxConstants.SPECIAL_TAX_RATES['rental_income']
+            special_taxes['rental_income'] = rental_tax
+            total_special_tax += rental_tax
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="הכנסה משכירות",
+                amount=special_tax_incomes['rental_income'],
+                tax_rate=0.10,
+                tax_amount=rental_tax,
+                is_included_in_taxable=False,
+                description="מס קבוע 10%"
+            ))
+            logger.info(f"מס שכירות: {rental_tax:,.2f} על {special_tax_incomes['rental_income']:,.2f}")
+        
+        # מס רווח הון - 25%
+        if special_tax_incomes['capital_gains'] > 0:
+            capital_gains_tax = special_tax_incomes['capital_gains'] * TaxConstants.SPECIAL_TAX_RATES['capital_gains']
+            special_taxes['capital_gains'] = capital_gains_tax
+            total_special_tax += capital_gains_tax
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="רווח הון",
+                amount=special_tax_incomes['capital_gains'],
+                tax_rate=0.25,
+                tax_amount=capital_gains_tax,
+                is_included_in_taxable=False,
+                description="מס רווח הון 25%"
+            ))
+            logger.info(f"מס רווח הון: {capital_gains_tax:,.2f} על {special_tax_incomes['capital_gains']:,.2f}")
+        
+        # מס דיבידנד - 25%
+        if special_tax_incomes['dividend_income'] > 0:
+            dividend_tax = special_tax_incomes['dividend_income'] * TaxConstants.SPECIAL_TAX_RATES['dividend_income']
+            special_taxes['dividend_income'] = dividend_tax
+            total_special_tax += dividend_tax
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="הכנסה מדיבידנד",
+                amount=special_tax_incomes['dividend_income'],
+                tax_rate=0.25,
+                tax_amount=dividend_tax,
+                is_included_in_taxable=False,
+                description="מס דיבידנד 25%"
+            ))
+            logger.info(f"מס דיבידנד: {dividend_tax:,.2f} על {special_tax_incomes['dividend_income']:,.2f}")
+        
+        # מס ריבית - 15%
+        if special_tax_incomes['interest_income'] > 0:
+            interest_tax = special_tax_incomes['interest_income'] * TaxConstants.SPECIAL_TAX_RATES['interest_income']
+            special_taxes['interest_income'] = interest_tax
+            total_special_tax += interest_tax
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="הכנסה מריבית",
+                amount=special_tax_incomes['interest_income'],
+                tax_rate=0.15,
+                tax_amount=interest_tax,
+                is_included_in_taxable=False,
+                description="מס ריבית 15%"
+            ))
+            logger.info(f"מס ריבית: {interest_tax:,.2f} על {special_tax_incomes['interest_income']:,.2f}")
+        
+        # 3. חישוב הכנסה חייבת במס רגיל (ללא מסים מיוחדים)
+        # תיקון: התאמת הכנסת הקצבה למספר חודשים בשנה
+        adjusted_pension_income = input_data.pension_income
+        if input_data.pension_months_in_year < 12:
+            # אם הקצבה התחילה באמצע השנה, נתאים את הסכום השנתי
+            monthly_pension = input_data.pension_income / 12
+            adjusted_pension_income = monthly_pension * input_data.pension_months_in_year
+            logger.info(f"התאמת הכנסת קצבה: {input_data.pension_income:,.2f} -> {adjusted_pension_income:,.2f} ({input_data.pension_months_in_year} חודשים)")
+        
+        regular_taxable_income = (
+            input_data.salary_income +
+            adjusted_pension_income +
+            input_data.business_income +
+            input_data.other_income +
+            sum(source.annual_amount for source in input_data.income_sources if source.is_taxable)
+        )
+        
+        # הוספת פירוט הכנסות רגילות
+        if input_data.salary_income > 0:
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="שכר עבודה",
+                amount=input_data.salary_income,
+                tax_rate=None,
+                tax_amount=0,
+                is_included_in_taxable=True,
+                description="חייב במס רגיל"
+            ))
+        
+        if adjusted_pension_income > 0:
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="פנסיה",
+                amount=adjusted_pension_income,
+                tax_rate=None,
+                tax_amount=0,
+                is_included_in_taxable=True,
+                description=f"חייב במס רגיל (עם פטורים) - {input_data.pension_months_in_year} חודשים"
+            ))
+        
+        if input_data.business_income > 0:
+            income_breakdown.append(IncomeTypeBreakdown(
+                income_type="הכנסה עצמאית",
+                amount=input_data.business_income,
+                tax_rate=None,
+                tax_amount=0,
+                is_included_in_taxable=True,
+                description="חייב במס רגיל"
+            ))
+        
+        # 4. חישוב פטורים לפנסיה
+        # תיקון: שילוב פטור מקיבוע זכויות + פטור רגיל
+        pension_exemption_regular = self.calculate_pension_exemptions(
+            adjusted_pension_income, 
             input_data.personal_details
         )
         
-        # חישוב ניכויים
+        # הוספת קצבה פטורה מקיבוע זכויות (התאמה למספר חודשים)
+        exempt_pension_annual = input_data.exempt_pension_amount * input_data.pension_months_in_year
+        
+        # סך הפטורים מקצבה
+        pension_exemption = pension_exemption_regular + exempt_pension_annual
+        
+        logger.info(f"פטורי פנסיה: רגיל={pension_exemption_regular:,.2f}, מקיבוע זכויות={exempt_pension_annual:,.2f}, סה\"כ={pension_exemption:,.2f}")
+        
+        # 5. חישוב ניכויים
         total_deductions = input_data.get_total_deductions()
         
-        # הכנסה חייבת במס
-        taxable_income = max(0, total_income - pension_exemption - total_deductions)
-        exempt_income = total_income - taxable_income
+        # 6. הכנסה חייבת במס רגיל (לאחר פטורים וניכויים)
+        taxable_income = max(0, regular_taxable_income - pension_exemption - total_deductions)
         
-        # חישוב מס הכנסה
+        # 7. חישוב מס הכנסה רגיל
         income_tax, tax_breakdown = self.calculate_income_tax(taxable_income)
         
-        # חישוב ביטוח לאומי ומס בריאות
-        national_insurance = self.calculate_national_insurance(total_income)
-        health_tax = self.calculate_health_tax(total_income)
+        # 8. חישוב ביטוח לאומי ומס בריאות (רק על הכנסה רגילה, עם בדיקת גיל)
+        national_insurance = self.calculate_national_insurance(regular_taxable_income, input_data.personal_details)
+        health_tax = self.calculate_health_tax(regular_taxable_income, input_data.personal_details)
         
-        # חישוב זיכויים
+        # 9. חישוב זיכויים
         tax_credits_amount, applied_credits = self.calculate_applicable_credits(input_data)
         
-        # סך המסים לפני זיכויים
-        total_tax_before_credits = income_tax + national_insurance + health_tax
+        # 10. סך המסים
+        total_tax_before_credits = income_tax + national_insurance + health_tax + total_special_tax
         
-        # מס נטו לתשלום (לא יכול להיות שלילי)
+        # 11. מס נטו לתשלום
         net_tax = max(0, total_tax_before_credits - tax_credits_amount)
         
-        # הכנסה נטו
+        # 12. הכנסה נטו
         net_income = total_income - net_tax
         
-        # שיעורי מס
-        effective_tax_rate = (net_tax / total_income * 100) if total_income > 0 else 0
+        # 13. הכנסה פטורה
+        # הכנסות עם מס מיוחד אינן נחשבות "פטורות" אלא ממוסות בנפרד
+        exempt_income = pension_exemption
         
-        # שיעור מס שולי (המדרגה הגבוהה ביותר שהופעלה)
-        marginal_tax_rate = 0
-        if tax_breakdown:
-            marginal_tax_rate = tax_breakdown[-1].rate * 100
+        # 14. שיעורי מס
+        effective_tax_rate = (net_tax / total_income * 100) if total_income > 0 else 0
+        marginal_tax_rate = tax_breakdown[-1].rate * 100 if tax_breakdown else 0
         
         result = TaxCalculationResult(
             total_income=round(total_income, 2),
@@ -264,6 +404,7 @@ class TaxCalculator:
             income_tax=round(income_tax, 2),
             national_insurance=round(national_insurance, 2),
             health_tax=round(health_tax, 2),
+            special_taxes=special_taxes,
             total_tax=round(total_tax_before_credits, 2),
             tax_credits_amount=round(tax_credits_amount, 2),
             applied_credits=applied_credits,
@@ -272,11 +413,13 @@ class TaxCalculator:
             effective_tax_rate=round(effective_tax_rate, 2),
             marginal_tax_rate=round(marginal_tax_rate, 2),
             tax_breakdown=tax_breakdown,
+            income_breakdown=income_breakdown,
             calculation_date=datetime.now(),
             tax_year=input_data.tax_year
         )
         
         logger.info(f"הושלם חישוב מס: הכנסה {total_income:,.2f}, מס נטו {net_tax:,.2f}")
+        logger.info(f"פירוט: מס הכנסה={income_tax:,.2f}, בל={national_insurance:,.2f}, בריאות={health_tax:,.2f}, מיוחדים={total_special_tax:,.2f}")
         return result
     
     def generate_optimization_suggestions(self, input_data: TaxCalculationInput, 
