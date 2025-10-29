@@ -63,19 +63,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                 if not client:
                     raise HTTPException(status_code=404, detail="Client not found")
                 
-                # טעינת מענקים
+                # טעינת מענקים (אופציונלי - ניתן לחשב קיבוע זכויות גם ללא מענקים)
                 grants = db.query(Grant).filter(Grant.client_id == client_id).all()
-                
-                # בדיקה שיש מענקים
-                if not grants:
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "לא ניתן לחשב קיבוע זכויות",
-                            "reasons": ["לא קיימים מענקי פיצויים ללקוח זה"],
-                            "suggestion": "יש להוסיף מענקי פיצויים בטרם ביצוע חישוב קיבוע זכויות"
-                        }
-                    )
                 
                 # קביעת תאריך תחילת קצבה
                 pension_start_date = client.pension_start_date

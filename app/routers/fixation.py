@@ -7,6 +7,25 @@ from app.models.fixation_result import FixationResult
 
 router = APIRouter()  # ללא prefix כאן
 
+@router.get("/clients/{client_id}/fixation")
+def get_fixation(client_id: int, db: Session = Depends(get_db)):
+    """Get the latest fixation result for a client"""
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+    
+    # Get the latest fixation result
+    fixation = db.query(FixationResult).filter(
+        FixationResult.client_id == client_id
+    ).order_by(FixationResult.created_at.desc()).first()
+    
+    if not fixation:
+        # Return null if no fixation exists (frontend handles this gracefully)
+        return None
+    
+    # Return the raw result which contains the calculation data
+    return fixation.raw_result or {}
+
 @router.post("/fixation/{client_id}/compute")
 def compute_fixation(client_id: int, payload: dict | None = None, db: Session = Depends(get_db)):
     client = db.get(Client, client_id)

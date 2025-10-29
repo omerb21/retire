@@ -1201,20 +1201,23 @@ const SimpleReports: React.FC = () => {
             // לא נוסף ל-totalCapitalAssetTax!
             return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
           } else if (asset.tax_treatment === 'tax_spread' && asset.spread_years && asset.spread_years > 0) {
-            // 🔥 פריסת מס - חישוב מס לפי מדרגות על מספר שנים
+            // 🔥 פריסת מס - חישוב תיאורטי לפי מדרגות על מספר שנים
             const taxableAmount = annualIncome; // הסכום החד פעמי
-            const annualPortion = taxableAmount / asset.spread_years; // חלוקה שווה
+            const annualPortion = taxableAmount / asset.spread_years; // חלוקה שווה לשנים
             
-            // חישוב מס לכל שנה
-            let totalSpreadTax = 0;
-            for (let spreadYear = 0; spreadYear < asset.spread_years; spreadYear++) {
-              // מס על חלק מהסכום לפי מדרגות
-              const taxWithSeverance = calculateTaxByBrackets(annualPortion, year);
-              totalSpreadTax += taxWithSeverance;
-            }
+            // חישוב מס שנתי על החלק השנתי (תיאורטי)
+            const annualTax = calculateTaxByBrackets(annualPortion, year);
+            
+            // סה"כ מס = מס שנתי × מספר שנות הפריסה
+            const totalSpreadTax = annualTax * asset.spread_years;
+            
+            console.log(`  📊 Tax spread: amount=${taxableAmount.toLocaleString()}, annual_portion=${annualPortion.toLocaleString()}, annual_tax=${annualTax.toLocaleString()}, spread_years=${asset.spread_years}, total_tax=${totalSpreadTax.toLocaleString()}`);
             
             // בשנת התשלום - כל המס המצטבר
             assetTax = totalSpreadTax;
+            totalCapitalAssetTax += assetTax;
+            taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי
+            return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
           } else if (asset.tax_treatment === 'capital_gains') {
             // ⚠️ מס רווח הון - 25% מהרווח (תשלום - צבירה מקורית) - לא נכנס לחישוב המס הכללי!
             // אם לא הוגדרה צבירה מקורית, ברירת המחדל היא ערך התשלום (אין רווח)

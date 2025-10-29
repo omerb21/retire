@@ -70,19 +70,17 @@ class CapitalAssetService:
             raise ValueError(f"Unsupported indexation method: {asset.indexation_method}")
 
     def _calculate_tax_by_brackets(self, taxable_income: Decimal) -> Decimal:
-        """חישוב מס לפי מדרגות מס ישראליות (2024)."""
+        """חישוב מס לפי מדרגות מס ישראליות (2025)."""
         if taxable_income <= 0:
             return Decimal('0')
         
-        # מדרגות מס ישראליות (בשקלים שנתיים)
+        # מדרגות מס ישראליות 2025 (בשקלים שנתיים)
         brackets = [
-            (Decimal('84120'), Decimal('0.10')),   # עד 84,120 - 10%
-            (Decimal('120720'), Decimal('0.14')),  # 84,121-120,720 - 14%
-            (Decimal('193800'), Decimal('0.20')),  # 120,721-193,800 - 20%
-            (Decimal('269280'), Decimal('0.31')),  # 193,801-269,280 - 31%
-            (Decimal('560280'), Decimal('0.35')),  # 269,281-560,280 - 35%
-            (Decimal('721560'), Decimal('0.47')),  # 560,281-721,560 - 47%
-            (None, Decimal('0.50'))                 # 721,561+ - 50%
+            (Decimal('84000'), Decimal('0.14')),    # עד 84,000 - 14%
+            (Decimal('205680'), Decimal('0.20')),   # 84,001-205,680 - 20%
+            (Decimal('403680'), Decimal('0.31')),   # 205,681-403,680 - 31%
+            (Decimal('655200'), Decimal('0.35')),   # 403,681-655,200 - 35%
+            (None, Decimal('0.47'))                  # 655,201+ - 47%
         ]
         
         total_tax = Decimal('0')
@@ -111,7 +109,7 @@ class CapitalAssetService:
         taxable_amount: Decimal, 
         spread_years: int,
         annual_regular_income: Decimal = Decimal('0')
-    ) -> Decimal:
+    ) -> Dict[str, Any]:
         """
         חישוב מס עם פריסה לפי מדרגות.
         
@@ -121,7 +119,10 @@ class CapitalAssetService:
             annual_regular_income: הכנסה שנתית רגילה (אם ידועה)
         
         Returns:
-            סכום המס הכולל לאחר פריסה
+            Dict עם:
+            - total_tax: סכום המס הכולל
+            - annual_portion: חלק שנתי מהסכום
+            - yearly_taxes: רשימת מס לכל שנה
         """
         if spread_years <= 0:
             raise ValueError("spread_years must be positive")
@@ -129,31 +130,27 @@ class CapitalAssetService:
         # חלוקה שווה של הסכום על השנים
         annual_portion = taxable_amount / Decimal(spread_years)
         
-        total_spread_tax = Decimal('0')
+        # חישוב מס שנתי על החלק השנתי
+        annual_tax = self._calculate_tax_by_brackets(annual_portion)
         
-        # חישוב המס לכל שנה
-        for year in range(spread_years):
-            # מס על הכנסה רגילה + חלק מהמענק
-            tax_with_severance = self._calculate_tax_by_brackets(
-                annual_regular_income + annual_portion
-            )
-            
-            # מס על הכנסה רגילה בלבד
-            tax_without_severance = self._calculate_tax_by_brackets(
-                annual_regular_income
-            )
-            
-            # ההפרש = המס על חלק המענק של השנה
-            year_tax = tax_with_severance - tax_without_severance
-            total_spread_tax += year_tax
-            
-            logger.debug(
-                f"Year {year+1}: regular={annual_regular_income}, "
-                f"with_sev={annual_regular_income + annual_portion}, "
-                f"tax_diff={year_tax}"
-            )
+        # סה"כ מס = מס שנתי × מספר שנים
+        total_spread_tax = annual_tax * Decimal(spread_years)
         
-        return total_spread_tax
+        # רשימת מס לכל שנה (אותו סכום בכל שנה)
+        yearly_taxes = [annual_tax] * spread_years
+        
+        logger.info(
+            f"📊 TAX SPREAD CALCULATION: "
+            f"total_amount={taxable_amount}, spread_years={spread_years}, "
+            f"annual_portion={annual_portion}, annual_tax={annual_tax}, "
+            f"total_tax={total_spread_tax}"
+        )
+        
+        return {
+            'total_tax': total_spread_tax,
+            'annual_portion': annual_portion,
+            'yearly_taxes': yearly_taxes
+        }
 
     def calculate_tax(self, gross_return: Decimal, asset: CapitalAsset) -> Decimal:
         """Calculate tax on the gross return."""
@@ -216,23 +213,19 @@ class CapitalAssetService:
         actual_end_date = end_date
 
         # חישוב מס מצטבר לפריסה (אם רלוונטי)
-        total_spread_tax = Decimal('0')
+        spread_tax_data = None
         is_tax_spread = asset.tax_treatment == TaxTreatment.TAX_SPREAD
         
         if is_tax_spread and asset.spread_years:
-            # הסכום החייב במס הוא current_value של הנכס (לדוגמה מענק פרישה)
-            taxable_amount = asset.current_value
+            # הסכום החייב במס הוא monthly_income (סכום התשלום החד פעמי)
+            taxable_amount = asset.monthly_income if asset.monthly_income else asset.current_value
             
             # הכנסה שנתית רגילה משוערת (יכול לבוא מהלקוח - כרגע 0)
             # בעתיד ניתן לחשב מקצבאות והכנסות נוספות
             annual_regular_income = Decimal('0')
             
-            # אם יש monthly_income, נניח שזו הכנסה שנתית רגילה
-            if asset.monthly_income and asset.monthly_income > 0:
-                annual_regular_income = asset.monthly_income * Decimal('12')
-            
             # חישוב מס לפי מדרגות עם פריסה
-            total_spread_tax = self.calculate_spread_tax(
+            spread_tax_data = self.calculate_spread_tax(
                 taxable_amount=taxable_amount,
                 spread_years=asset.spread_years,
                 annual_regular_income=annual_regular_income
@@ -241,67 +234,62 @@ class CapitalAssetService:
             logger.info(
                 f"Tax spread calculation: taxable={taxable_amount}, "
                 f"years={asset.spread_years}, regular_income={annual_regular_income}, "
-                f"total_tax={total_spread_tax}"
+                f"total_tax={spread_tax_data['total_tax']}"
             )
         
-        # ⚠️ נכס הון הוא תמיד תשלום חד פעמי - לא תזרים מתמשך! ⚠️
-        logger.warning(f"🔴 CAPITAL ASSET ONE-TIME PAYMENT: asset_id={asset.id}, type={asset.asset_type}, value={asset.current_value}")
+        # ⚠️ נכס הון עם פריסת מס - יוצר cashflow items לכל שנה ⚠️
+        logger.warning(f"🔴 CAPITAL ASSET: asset_id={asset.id}, type={asset.asset_type}, value={asset.current_value}, spread={is_tax_spread}")
         
-        # נכס הון הוא תשלום חד פעמי בתאריך התחלה בלבד
-        # יוצרים cashflow item אחד בלבד לתאריך התשלום
         payment_date = self._align_to_first_of_month(asset.start_date)
-        
-        # חישוב הסכום (current_value הוא הסכום החד פעמי)
         gross_amount = asset.current_value
         
-        # Apply indexation if needed (בדרך כלל לא רלוונטי לתשלום חד פעמי)
+        # Apply indexation if needed
         indexed_amount = self.apply_indexation(
             gross_amount, asset, payment_date, reference_date
         )
         
-        # חישוב מס - לפי סוג המיסוי
-        if is_tax_spread:
-            # פריסת מס - כל המס המצטבר משולם בפועל
-            tax_amount = total_spread_tax
-            logger.info(f"One-time payment with tax spread: gross={indexed_amount}, tax={tax_amount}")
-        else:
-            # מס רגיל
-            tax_amount = self.calculate_tax(indexed_amount, asset)
-        
-        net_amount = indexed_amount - tax_amount
-        
-        # Create single cashflow item for the payment date
-        cashflow_item = CapitalAssetCashflowItem(
-            date=payment_date,
-            gross_return=indexed_amount,
-            tax_amount=tax_amount,
-            net_return=net_amount,
-            asset_type=asset.asset_type,
-            description=asset.description or f"תשלום חד פעמי - {asset.asset_type}"
-        )
-        cashflow_items.append(cashflow_item)
-        
-        # אם יש פריסת מס, נוסיף items נוספים עם מס 0 לשנים הבאות (רק להצגה)
-        if is_tax_spread and asset.spread_years and asset.spread_years > 1:
-            annual_portion = indexed_amount / Decimal(asset.spread_years)
+        # אם יש פריסת מס - תשלום מיידי של כל המס בתאריך קבלת ההכנסה
+        if is_tax_spread and spread_tax_data and asset.spread_years:
+            total_tax = spread_tax_data['total_tax']
+            yearly_taxes = spread_tax_data['yearly_taxes']
             
-            for year in range(1, asset.spread_years):
-                # תאריך שנה לאחר
-                future_date = self._add_months(payment_date, year * 12)
-                
-                if future_date > actual_end_date:
-                    break
-                
-                # item להצגה בלבד - מס = 0
-                display_item = CapitalAssetCashflowItem(
-                    date=future_date,
-                    gross_return=Decimal('0'),  # אין תשלום בפועל
-                    tax_amount=Decimal('0'),  # מס = 0 (כבר שולם)
-                    net_return=Decimal('0'),
-                    asset_type=asset.asset_type,
-                    description=f"{asset.description} - פריסה שנה {year + 1} (הצגה בלבד)"
-                )
-                cashflow_items.append(display_item)
+            logger.info(
+                f"🔵 TAX SPREAD: Single payment on {payment_date}\n"
+                f"  Gross amount: {indexed_amount}\n"
+                f"  Spread years: {asset.spread_years}\n"
+                f"  Total tax (computed): {total_tax}\n"
+                f"  Net amount: {indexed_amount - total_tax}\n"
+                f"  Tax allocation by year: {yearly_taxes}"
+            )
+            
+            # יצירת cashflow item אחד בלבד בתאריך קבלת ההכנסה
+            # המס משולם מיידית, הפריסה היא חישובית בלבד
+            net_amount = indexed_amount - total_tax
+            
+            cashflow_item = CapitalAssetCashflowItem(
+                date=payment_date,
+                gross_return=indexed_amount,
+                tax_amount=total_tax,
+                net_return=net_amount,
+                asset_type=asset.asset_type,
+                description=f"{asset.description or asset.asset_type} - תשלום חד פעמי עם פריסת מס ({asset.spread_years} שנים)"
+            )
+            cashflow_items.append(cashflow_item)
+        
+        else:
+            # תשלום חד פעמי רגיל ללא פריסה
+            tax_amount = self.calculate_tax(indexed_amount, asset)
+            net_amount = indexed_amount - tax_amount
+            
+            cashflow_item = CapitalAssetCashflowItem(
+                date=payment_date,
+                gross_return=indexed_amount,
+                tax_amount=tax_amount,
+                net_return=net_amount,
+                asset_type=asset.asset_type,
+                description=asset.description or f"תשלום חד פעמי - {asset.asset_type}"
+            )
+            cashflow_items.append(cashflow_item)
         
         logger.debug(f"Generated {len(cashflow_items)} cashflow items")
         return cashflow_items

@@ -269,7 +269,8 @@ const SimpleFixation: React.FC = () => {
         console.log('DEBUG: grants array:', grants);
         console.log('DEBUG: grants.length:', grants.length);
         
-        if (grants.length > 0) {
+        // ✅ חישוב קיבוע זכויות גם ללא מענקים
+        {
           try {
             const fixationResponse = await axios.post('/api/v1/rights-fixation/calculate', {
               client_id: parseInt(id!)
@@ -372,10 +373,6 @@ const SimpleFixation: React.FC = () => {
               setHasGrants(false);
             }
           }
-        } else {
-          console.log('DEBUG: No grants found, skipping rights fixation calculation');
-          setGrantsSummary([]);
-          setExemptionSummary(null);
         }
 
         // Fixation data is set in the rights fixation service block above

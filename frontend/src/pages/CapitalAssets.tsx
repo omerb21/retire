@@ -435,8 +435,9 @@ export default function CapitalAssets() {
         }}>
           <strong>💡 איך נכסי הון מוצגים במערכת:</strong>
           <ul style={{ marginTop: 8, marginBottom: 0, paddingRight: 20 }}>
-            <li><strong>תשלום חד פעמי:</strong> אם שדה "תשלום" {'>'} 0, הנכס יוצג בתזרים בתאריך התשלום החד פעמי</li>
-            <li><strong>חישוב NPV:</strong> אם שדה "תשלום" = 0, הנכס לא יוצג בתזרים אלא יחושב NPV שלו לפי ערך נוכחי, תשואה, הצמדה ויחס מס</li>
+            <li><strong>תשלום חד פעמי:</strong> אם שדה "ערך נוכחי" {'>'} 0, הנכס יוצג בתזרים בתאריך התשלום החד פעמי</li>
+            <li><strong>הכנסה חודשית:</strong> אם שדה "תשלום" {'>'} 0, הנכס יוצג כהכנסה חודשית קבועה</li>
+            <li><strong>פריסת מס:</strong> עבור תשלום חד-פעמי עם פריסה, המס יחושב על פי הפריסה אך ישולם בחד-פעמיות בתאריך התשלום</li>
           </ul>
         </div>
         
