@@ -910,6 +910,9 @@ class RetirementScenariosBuilder:
         
         # Convert convertible funds to capital assets
         for pf in convertible_funds:
+            # ✅ שימור יחס המס מהקרן המקורית
+            tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
+            
             ca = CapitalAsset(
                 client_id=self.client_id,
                 asset_name=f"הון מ{pf.fund_name}",
@@ -920,12 +923,13 @@ class RetirementScenariosBuilder:
                 payment_frequency="monthly",
                 start_date=date(self._get_retirement_year(), 1, 1),
                 indexation_method="none",
-                tax_treatment="taxable",
+                tax_treatment=tax_treatment,  # ✅ שימור יחס המס המקורי
                 conversion_source=json.dumps({
                     "source_type": "pension_fund",
                     "source_id": pf.id,
                     "source_name": pf.fund_name,
-                    "original_balance": float(pf.balance)
+                    "original_balance": float(pf.balance),
+                    "original_tax_treatment": tax_treatment
                 })
             )
             self.db.add(ca)
@@ -983,6 +987,8 @@ class RetirementScenariosBuilder:
                 pf, amount = item
                 # Partial capitalization - create capital asset for part
                 capital_value = amount * (pf.annuity_factor or 180)
+                # ✅ שימור יחס המס מהקרן המקורית
+                tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
                 
                 ca = CapitalAsset(
                     client_id=self.client_id,
@@ -994,7 +1000,7 @@ class RetirementScenariosBuilder:
                     payment_frequency="monthly",
                     start_date=date(self._get_retirement_year(), 1, 1),
                     indexation_method="none",
-                    tax_treatment="taxable"
+                    tax_treatment=tax_treatment  # ✅ שימור יחס המס המקורי
                 )
                 self.db.add(ca)
                 
@@ -1007,6 +1013,8 @@ class RetirementScenariosBuilder:
                 # Full capitalization
                 if pf.annuity_factor and pf.pension_amount:
                     capital_value = pf.pension_amount * pf.annuity_factor
+                    # ✅ שימור יחס המס מהקרן המקורית
+                    tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
                     
                     ca = CapitalAsset(
                         client_id=self.client_id,
@@ -1018,7 +1026,7 @@ class RetirementScenariosBuilder:
                         payment_frequency="monthly",
                         start_date=date(self._get_retirement_year(), 1, 1),
                         indexation_method="none",
-                        tax_treatment="taxable"
+                        tax_treatment=tax_treatment  # ✅ שימור יחס המס המקורי
                     )
                     self.db.add(ca)
                     

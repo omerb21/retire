@@ -111,18 +111,24 @@ def restore_balance_from_capital_asset(
         # Check if this was from pension portfolio conversion
         if source_data.get("type") == "pension_portfolio":
             account_number = source_data.get("account_number")
-            current_value = float(capital_asset.current_value or 0)
+            # נכסי הון נוצרים עם current_value=0 ו-monthly_income מכיל את הערך
+            balance_to_restore = float(capital_asset.monthly_income or 0)
+            
+            # אם monthly_income הוא 0, ננסה לקחת מה-conversion_source
+            if balance_to_restore == 0:
+                balance_to_restore = float(source_data.get("amount", 0))
             
             logger.info(f"  📋 Capital asset from portfolio (account: {account_number})")
-            logger.info(f"  📋 Balance to restore: ₪{current_value:,.2f}")
+            logger.info(f"  📋 Balance to restore: ₪{balance_to_restore:,.2f}")
             logger.info(f"  ⚠️ Balance restoration to pension portfolio must be handled by client-side")
             
             result = {
                 "restored": False,
                 "reason": "pension_portfolio",
                 "account_number": account_number,
-                "balance_to_restore": current_value,
-                "message": f"יש להחזיר ₪{current_value:,.0f} לחשבון {account_number} בתיק הפנסיוני"
+                "balance_to_restore": balance_to_restore,
+                "message": f"יש להחזיר ₪{balance_to_restore:,.0f} לחשבון {account_number} בתיק הפנסיוני",
+                "specific_amounts": source_data.get("specific_amounts", {})
             }
             logger.info(f"  ✅ Returning restoration info: {result}")
             return result

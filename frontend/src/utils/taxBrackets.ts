@@ -41,7 +41,9 @@ export const getTaxBrackets = (): TaxBracket[] => {
 /**
  * המרת מדרגות המס לפורמט הישן לתאימות לאחור
  */
-export const getTaxBracketsLegacyFormat = () => {
+export const getTaxBracketsLegacyFormat = (year?: number) => {
+  // כל השנים משתמשות באותן מדרגות כרגע (2025)
+  // בעתיד, כאן יהיה קוד לטעינת מדרגות שנה-ספציפיות
   const brackets = getTaxBrackets();
   return brackets.map(bracket => ({
     min: bracket.minAnnual,
@@ -53,10 +55,12 @@ export const getTaxBracketsLegacyFormat = () => {
 /**
  * חישוב מס לפי מדרגות המס המעודכנות
  */
-export const calculateTaxByBrackets = (annualIncome: number): number => {
+export const calculateTaxByBrackets = (annualIncome: number, year?: number): number => {
   if (annualIncome <= 0) return 0;
   
-  const brackets = getTaxBracketsLegacyFormat();
+  // קבלת מדרגות המס - אם לא צוינה שנה, משתמשים בברירת מחדל
+  let brackets = getTaxBracketsLegacyFormat(year);
+  
   let totalTax = 0;
   let currentIncome = 0;
   

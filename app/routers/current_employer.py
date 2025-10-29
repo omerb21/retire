@@ -14,7 +14,8 @@ from app.services.current_employer_service import CurrentEmployerService
 from app.schemas.current_employer import (
     CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut,
     EmployerGrantCreate, GrantWithCalculation,
-    TerminationDecisionCreate, TerminationDecisionOut
+    TerminationDecisionCreate, TerminationDecisionOut,
+    SeveranceCalculationRequest, SeveranceCalculationResponse
 )
 from app.models.grant import Grant
 from app.models.pension_fund import PensionFund
@@ -277,9 +278,22 @@ def process_termination_decision(
         db.flush()  # Ensure end_date is saved
         print(f"✅ Updated CurrentEmployer end_date to: {decision.termination_date}")
         
-        # Create EmployerGrant for each plan
+        # Delete existing EmployerGrants for this employer to avoid duplicates
         from app.models.employer_grant import EmployerGrant, GrantType
         from datetime import datetime
+        
+        existing_grants = db.query(EmployerGrant).filter(
+            EmployerGrant.employer_id == ce.id,
+            EmployerGrant.grant_type == GrantType.severance
+        ).all()
+        
+        if existing_grants:
+            print(f"🗑️ Deleting {len(existing_grants)} existing EmployerGrants to avoid duplicates")
+            for grant in existing_grants:
+                db.delete(grant)
+            db.flush()
+        
+        # Create EmployerGrant for each plan
         
         if plan_details_list:
             print(f"🔨 Creating EmployerGrant for each plan...")
@@ -536,6 +550,15 @@ def process_termination_decision(
                 
                 print(f"  📦 Found {len(grants)} severance grants to process")
                 
+                # Calculate total severance amount from all grants
+                total_grant_amount = sum(g.grant_amount for g in grants)
+                print(f"  📊 Total grant amount: {total_grant_amount}")
+                print(f"  📊 Taxable amount to distribute: {decision.taxable_amount}")
+                
+                # Calculate taxable ratio (what portion of total is taxable)
+                taxable_ratio = decision.taxable_amount / total_grant_amount if total_grant_amount > 0 else 0
+                print(f"  📊 Taxable ratio: {taxable_ratio:.4f} ({taxable_ratio*100:.2f}%)")
+                
                 # Group grants by plan
                 grants_by_plan = {}
                 for grant in grants:
@@ -558,10 +581,14 @@ def process_termination_decision(
                     plan_name = plan_data['plan_name'] or "תכנית ללא שם"
                     product_type = plan_data['product_type']
                     
-                    # Sum amounts for this plan
-                    plan_taxable_amount = sum(g.grant_amount for g in plan_grants)
+                    # Sum total amounts for this plan
+                    plan_total_amount = sum(g.grant_amount for g in plan_grants)
                     
-                    print(f"  📊 Processing plan: {plan_name} ({product_type}), amount: {plan_taxable_amount}, start_date: {plan_start_date}")
+                    # Calculate taxable portion for this plan (proportional)
+                    plan_taxable_amount = plan_total_amount * taxable_ratio
+                    
+                    print(f"  📊 Processing plan: {plan_name} ({product_type})")
+                    print(f"      Total amount: {plan_total_amount}, Taxable portion: {plan_taxable_amount}, start_date: {plan_start_date}")
                     
                     # Calculate dynamic annuity factor based on plan start date
                     try:
@@ -639,10 +666,11 @@ def process_termination_decision(
 
 @router.post(
     "/current-employer/calculate-severance",
+    response_model=SeveranceCalculationResponse,
     status_code=status.HTTP_200_OK
 )
 def calculate_severance(
-    request_data: dict,
+    request_data: SeveranceCalculationRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -652,10 +680,10 @@ def calculate_severance(
         from datetime import datetime
         
         # Extract data from request
-        start_date_str = request_data.get('start_date')
-        end_date_str = request_data.get('end_date')
-        last_salary = request_data.get('last_salary', 0)
-        continuity_years = request_data.get('continuity_years', 0)
+        start_date_str = request_data.start_date
+        end_date_str = request_data.end_date
+        last_salary = request_data.last_salary
+        continuity_years = request_data.continuity_years
         
         # Convert dates
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
@@ -686,14 +714,14 @@ def calculate_severance(
         # For API response - include the cap used
         annual_exemption_cap = exemption_cap_per_year
         
-        return {
-            "service_years": round(service_years, 2),
-            "severance_amount": round(severance_amount, 2),
-            "last_salary": last_salary,
-            "exempt_amount": round(exempt_amount, 2),
-            "taxable_amount": round(taxable_amount, 2),
-            "annual_exemption_cap": annual_exemption_cap
-        }
+        return SeveranceCalculationResponse(
+            service_years=round(service_years, 2),
+            severance_amount=round(severance_amount, 2),
+            last_salary=last_salary,
+            exempt_amount=round(exempt_amount, 2),
+            taxable_amount=round(taxable_amount, 2),
+            annual_exemption_cap=annual_exemption_cap
+        )
         
     except Exception as e:
         raise HTTPException(

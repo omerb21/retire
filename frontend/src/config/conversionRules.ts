@@ -71,7 +71,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: true,
     taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס
-    taxTreatmentWhenCapital: 'capital_gains',
+    taxTreatmentWhenCapital: 'exempt', // פטור ממס גם בהמרה להון
     capitalAssetType: 'provident_fund'
   },
   {
@@ -80,7 +80,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     canConvertToPension: true,
     canConvertToCapital: true,
     taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס
-    taxTreatmentWhenCapital: 'capital_gains',
+    taxTreatmentWhenCapital: 'exempt', // פטור ממס גם בהמרה להון
     capitalAssetType: 'provident_fund'
   },
   {

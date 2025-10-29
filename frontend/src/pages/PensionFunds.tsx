@@ -504,26 +504,23 @@ export default function PensionFunds() {
             console.log(`🔍 Account found at index: ${accountIndex}`);
             
             if (accountIndex !== -1) {
-              // החזרת היתרה - צריך לזהות לאיזה שדה להחזיר
-              // בדרך כלל זה יהיה תגמולים או פיצויים
+              // החזרת היתרה לשדות הספציפיים שהומרו
               const account = pensionData[accountIndex];
               
-              // ניסיון לזהות את השדה המקורי לפי שם הקצבה
-              const fundName = fund.fund_name || '';
-              
-              console.log(`🔍 Fund name: ${fundName}`);
               console.log(`🔍 Account before restore:`, account);
+              console.log(`🔍 Specific amounts to restore:`, deleteResponse.restoration.specific_amounts);
               
-              if (fundName.includes('תגמול')) {
-                // החזרה לתגמולים
-                account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
-                console.log(`✅ Restored ₪${balanceToRestore} to תגמולים`);
-              } else if (fundName.includes('פיצוי')) {
-                // החזרה לפיצויים לאחר התחשבנות
-                account.פיצויים_לאחר_התחשבנות = (parseFloat(account.פיצויים_לאחר_התחשבנות) || 0) + balanceToRestore;
-                console.log(`✅ Restored ₪${balanceToRestore} to פיצויים_לאחר_התחשבנות`);
+              // אם יש specific_amounts, נחזיר לשדות הספציפיים
+              if (deleteResponse.restoration.specific_amounts && 
+                  Object.keys(deleteResponse.restoration.specific_amounts).length > 0) {
+                Object.entries(deleteResponse.restoration.specific_amounts).forEach(([field, amount]: [string, any]) => {
+                  if (account.hasOwnProperty(field)) {
+                    account[field] = (parseFloat(account[field]) || 0) + parseFloat(amount);
+                    console.log(`✅ Restored ₪${amount} to ${field}`);
+                  }
+                });
               } else {
-                // ברירת מחדל - תגמולים
+                // אם אין specific_amounts, נחזיר לתגמולים (ברירת מחדל)
                 account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
                 console.log(`✅ Restored ₪${balanceToRestore} to תגמולים (default)`);
               }
@@ -531,6 +528,10 @@ export default function PensionFunds() {
               console.log(`🔍 Account after restore:`, account);
               localStorage.setItem(storageKey, JSON.stringify(pensionData));
               console.log('✅ Updated pension portfolio in localStorage');
+              
+              // הפעלת אירוע כדי לעדכן את הטבלה
+              window.dispatchEvent(new Event('storage'));
+              console.log('✅ Dispatched storage event to refresh table');
             } else {
               console.warn(`⚠️ Account ${accountNumber} not found in pension portfolio`);
               console.warn(`🔍 Available accounts:`, pensionData.map((acc: any) => acc.מספר_חשבון));

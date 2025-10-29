@@ -1,16 +1,39 @@
 @echo off
-echo מפעיל את שרת ה-API של מערכת תכנון הפרישה...
+setlocal enabledelayedexpansion
+
+echo ============================================================
+echo 🛡️  SAFE SERVER START - Killing existing processes first
+echo ============================================================
 echo.
 
-REM הפעלת הסביבה הוירטואלית
+REM Kill all Python processes
+echo 🔍 Killing any existing Python processes...
+taskkill /F /IM python.exe >nul 2>&1
+if errorlevel 1 (
+    echo ⚠️  No Python processes found (or already killed)
+) else (
+    echo ✅ Python processes killed
+)
+
+REM Wait for processes to die
+echo ⏳ Waiting 3 seconds for cleanup...
+timeout /t 3 /nobreak
+
+REM Activate virtual environment
+echo.
+echo 📦 Activating virtual environment...
 call venv\Scripts\activate
 
-REM הפעלת השרת
-echo השרת יהיה זמין בכתובת: http://localhost:8005
-echo תיעוד ה-API זמין בכתובת: http://localhost:8005/docs
-echo בדיקת בריאות המערכת: http://localhost:8005/health
+REM Start the server with safe startup script
 echo.
-echo לחץ Ctrl+C לעצירת השרת.
+echo ============================================================
+echo 🚀 Starting server on port 8005...
+echo ============================================================
+echo.
+echo 📍 API Documentation: http://localhost:8005/docs
+echo 📍 Health Check: http://localhost:8005/health
+echo.
+echo ⏹️  Press Ctrl+C to stop the server
 echo.
 
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
+python scripts\safe_server_start.py

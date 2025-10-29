@@ -743,7 +743,7 @@ const SimpleReports: React.FC = () => {
               const annualTaxableIncome = monthlyTaxableIncome * 12;
               
               // חישוב מס לפי מדרגות המס המעודכנות
-              let baseTax = calculateTaxByBrackets(annualTaxableIncome);
+              let baseTax = calculateTaxByBrackets(annualTaxableIncome, year);
               
               // הפחתת נקודות זיכוי אם קיימות
               if (clientData?.tax_credit_points) {
@@ -809,7 +809,7 @@ const SimpleReports: React.FC = () => {
     let remainingIncome = annualIncome;
     
     // חישוב מס בסיסי לפי מדרגות המס המעודכנות
-    baseTax = calculateTaxByBrackets(annualIncome);
+    baseTax = calculateTaxByBrackets(annualIncome, year);
     
     // הכנסות מקרן פנסיה הן הכנסות עבודה רגילות - ללא הנחות מיוחדות
     // (ההנחה הוסרה - הכנסות פנסיה חייבות במס כמו הכנסות עבודה רגילות)
@@ -1123,7 +1123,7 @@ const SimpleReports: React.FC = () => {
         let remainingIncome = totalTaxableAnnualIncome;
         
         // שימוש במדרגות המס המעודכנות מההגדרות
-        totalAnnualTax = calculateTaxByBrackets(totalTaxableAnnualIncome);
+        totalAnnualTax = calculateTaxByBrackets(totalTaxableAnnualIncome, year);
         
         console.log(`  Tax before credit: ${totalAnnualTax.toLocaleString()}`);
         
@@ -1175,8 +1175,9 @@ const SimpleReports: React.FC = () => {
         });
 
         // חישוב מס עבור נכסי הון - בנפרד! רק לנכסים עם תשלום
-        let totalCapitalAssetTax = 0; // מס על נכסי הון רגילים (לא fixed_rate)
-        let totalCapitalFixedRateTax = 0; // מס על נכסי הון עם שיעור קבוע
+        let totalCapitalAssetTax = 0; // מס על נכסי הון רגילים (רק "חייב במס" נכנס לחישוב כללי)
+        let totalCapitalFixedRateTax = 0; // מס על נכסי הון עם שיעור קבוע (לא נכנס לחישוב כללי)
+        let totalCapitalGainsTax = 0; // מס רווח הון (לא נכנס לחישוב כללי)
         let capitalAssetIncomeIndex = pensionFunds.length + additionalIncomes.length;
         
         capitalAssets.forEach((asset) => {
@@ -1184,8 +1185,7 @@ const SimpleReports: React.FC = () => {
           
           // ✅ רק נכסים עם תשלום חד פעמי
           if (paymentAmount > 0) {
-            const monthlyIncome = incomeBreakdown[capitalAssetIncomeIndex] || 0;
-            const annualIncome = monthlyIncome;  // כבר הסכום השנתי (תשלום חד פעמי)
+            const annualIncome = incomeBreakdown[capitalAssetIncomeIndex] || 0;  // כבר סכום שנתי (תשלום חד-פעמי)
             let assetTax = 0;
             capitalAssetIncomeIndex++; // מתקדם רק אם יש תשלום!
           
@@ -1209,30 +1209,35 @@ const SimpleReports: React.FC = () => {
             let totalSpreadTax = 0;
             for (let spreadYear = 0; spreadYear < asset.spread_years; spreadYear++) {
               // מס על חלק מהסכום לפי מדרגות
-              const taxWithSeverance = calculateTaxByBrackets(annualPortion);
+              const taxWithSeverance = calculateTaxByBrackets(annualPortion, year);
               totalSpreadTax += taxWithSeverance;
             }
             
             // בשנת התשלום - כל המס המצטבר
             assetTax = totalSpreadTax;
           } else if (asset.tax_treatment === 'capital_gains') {
-            // מס רווח הון - 25% מהרווח הריאלי (תשואה פחות 2%)
-            const realReturnRate = Math.max(0, (asset.annual_return_rate || 0) - 2);
-            const realGain = annualIncome * (realReturnRate / (asset.annual_return_rate || 1));
-            assetTax = realGain * 0.25;
+            // ⚠️ מס רווח הון - 25% מהרווח (תשלום - צבירה מקורית) - לא נכנס לחישוב המס הכללי!
+            // אם לא הוגדרה צבירה מקורית, ברירת המחדל היא ערך התשלום (אין רווח)
+            const originalPrincipal = parseFloat(asset.original_principal || annualIncome);
+            const capitalGain = Math.max(0, annualIncome - originalPrincipal);
+            assetTax = capitalGain * 0.25;
+            totalCapitalGainsTax += assetTax / 12; // מס חודשי
+            taxBreakdown.push(Math.round(assetTax / 12));
+            console.log(`  💰 Capital gains tax: payment=${annualIncome}, principal=${originalPrincipal}, gain=${capitalGain}, tax=${assetTax}`);
+            return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
           } else if (asset.asset_type === 'rental_property') {
             // שכר דירה - מס רגיל אם מעל התקרה
             const exemptionThreshold = 5070 * 12;
             if (annualIncome > exemptionThreshold) {
               const taxableRentalIncome = annualIncome - exemptionThreshold;
-              assetTax += calculateTaxByBrackets(taxableRentalIncome);
+              assetTax += calculateTaxByBrackets(taxableRentalIncome, year);
             }
           } else {
-            // מס רגיל על נכסי הון אחרים
-            assetTax += calculateTaxByBrackets(annualIncome);
+            // מס רגיל על נכסי הון אחרים - רק "חייב במס" נכנס לחישוב המס הכללי
+            assetTax += calculateTaxByBrackets(annualIncome, year);
           }
           
-            // רק מס על נכסי הון רגילים (לא fixed_rate)
+            // רק מס על נכסי הון עם tax_treatment="taxable" (חייב במס)
             totalCapitalAssetTax += assetTax;
             taxBreakdown.push(Math.round(assetTax / 12)); // המרה למס חודשי - המס הספציפי של הנכס!
           }
@@ -1246,7 +1251,8 @@ const SimpleReports: React.FC = () => {
         console.log(`  Regular monthly tax (from brackets): ${regularMonthlyTax.toFixed(2)}`);
         console.log(`  Fixed rate tax (additional incomes): ${totalFixedRateTax.toFixed(2)}`);
         console.log(`  Fixed rate tax (capital assets): ${totalCapitalFixedRateTax.toFixed(2)}`);
-        console.log(`  Capital asset tax (other): ${(totalCapitalAssetTax / 12).toFixed(2)}`);
+        console.log(`  Capital gains tax: ${totalCapitalGainsTax.toFixed(2)}`);
+        console.log(`  Capital asset tax (taxable only): ${(totalCapitalAssetTax / 12).toFixed(2)}`);
         console.log(`  💰 TOTAL MONTHLY TAX: ${totalMonthlyTax.toFixed(2)}`);
       } else {
         // אין הכנסה חייבת במס רגיל - אבל עדיין יכול להיות מס בשיעור קבוע
@@ -1396,7 +1402,7 @@ const SimpleReports: React.FC = () => {
           tax = gain * (taxRate / 100);
         } else {
           // מס רגיל לפי מדרגות
-          tax = calculateTaxByBrackets(gain);
+          tax = calculateTaxByBrackets(gain, year);
         }
         
         const npvAfterTax = (futureValue - tax) / Math.pow(1 + discountRate, years);

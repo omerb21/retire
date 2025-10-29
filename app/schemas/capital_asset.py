@@ -26,6 +26,7 @@ class CapitalAssetBase(BaseModel):
     tax_treatment: TaxTreatment = Field(TaxTreatment.TAXABLE, description="Tax treatment")
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=1, description="Tax rate for fixed rate tax")
     spread_years: Optional[int] = Field(None, ge=1, description="Number of years for tax spread")
+    original_principal: Optional[Decimal] = Field(None, ge=0, description="Original principal for capital gains tax")
     remarks: Optional[str] = Field(None, max_length=500, description="Additional remarks")
     conversion_source: Optional[str] = Field(None, max_length=1000, description="JSON with conversion source details")
 
@@ -72,6 +73,7 @@ class CapitalAssetUpdate(BaseModel):
     tax_treatment: Optional[TaxTreatment] = None
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=1)
     spread_years: Optional[int] = Field(None, ge=1)
+    original_principal: Optional[Decimal] = Field(None, ge=0)
     remarks: Optional[str] = Field(None, max_length=500)
     conversion_source: Optional[str] = Field(None, max_length=1000)
 

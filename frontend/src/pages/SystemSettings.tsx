@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from "../lib/api";
 import { DEFAULT_RULES, ComponentConversionRule, loadConversionRules } from '../config/conversionRules';
+import TaxCalculationDocumentation from '../components/TaxCalculationDocumentation';
 
 interface TaxBracket {
   id: number;
@@ -32,7 +33,7 @@ interface ExemptCapitalPercentage {
 }
 
 const SystemSettings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'tax' | 'severance' | 'conversion' | 'fixation' | 'scenarios' | 'retirement' | 'termination' | 'annuity'>('tax');
+  const [activeTab, setActiveTab] = useState<'tax' | 'severance' | 'conversion' | 'fixation' | 'scenarios' | 'retirement' | 'termination' | 'annuity' | 'tax_calculation'>('tax');
   
   const [taxBrackets, setTaxBrackets] = useState<TaxBracket[]>([
     { id: 1, minMonthly: 0, maxMonthly: 7010, minAnnual: 0, maxAnnual: 84120, rate: 10 },
@@ -473,6 +474,12 @@ const SystemSettings: React.FC = () => {
             className={`tab-button ${activeTab === 'annuity' ? 'active' : ''}`}
           >
             📊 מקדמי קצבה
+          </button>
+          <button
+            onClick={() => setActiveTab('tax_calculation')}
+            className={`tab-button ${activeTab === 'tax_calculation' ? 'active' : ''}`}
+          >
+            🧮 חישובי מס
           </button>
         </div>
 
@@ -1934,11 +1941,21 @@ const SystemSettings: React.FC = () => {
         </div>
         )}
 
+        {/* Tax Calculation Tab */}
+        {activeTab === 'tax_calculation' && (
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ color: '#2c3e50', fontSize: '24px', marginBottom: '30px' }}>
+              תיעוד חישובי מס
+            </h2>
+            <TaxCalculationDocumentation />
+          </div>
+        )}
+
         {/* Annuity Coefficient Tab */}
         {activeTab === 'annuity' && (
-        <div style={{ marginBottom: '40px' }}>
-          <h2 style={{ color: '#2c3e50', fontSize: '24px', marginBottom: '20px' }}>
-            📊 מקדמי קצבה
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ color: '#2c3e50', fontSize: '24px', marginBottom: '30px' }}>
+              מקדמי קצבה
           </h2>
           
           <div style={{ 

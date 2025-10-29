@@ -80,6 +80,7 @@ class CapitalAsset(Base):
     tax_treatment = Column(String(20), nullable=False, default="taxable", server_default="taxable")
     tax_rate = Column(Numeric(5, 4), nullable=True)  # For fixed rate tax
     spread_years = Column(Integer, nullable=True)  # Number of years for tax spread
+    original_principal = Column(Numeric(15, 2), nullable=True)  # צבירה מקורית - למס רווח הון
     
     # Metadata
     remarks = Column(String(500), nullable=True)

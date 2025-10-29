@@ -6,14 +6,18 @@
 - **Backend (FastAPI)**: Port **8005**
 - **Frontend (Vite)**: Port **3000**
 
-### How to Start the System
+### ⚠️ CRITICAL: Safe Server Startup
 
-**IMPORTANT**: Always use the provided scripts to avoid duplicate servers!
+**ALWAYS use the safe startup script to avoid port conflicts and duplicate processes!**
 
-1. **Start Backend:**
+1. **Start Backend (Safe Mode):**
    ```bash
-   # Run from project root
-   start_backend.bat
+   # Run from project root - This kills existing processes and starts clean
+   START_SERVER.bat
+   ```
+   Or use PowerShell:
+   ```powershell
+   .\START_SERVER.ps1
    ```
    Wait for: `Application startup complete.`
 
@@ -21,17 +25,11 @@
    ```bash
    # Run from project root or frontend folder
    cd frontend
-   start_frontend.bat
+   npm run dev
    ```
    Wait for: `VITE v5.x.x ready`
 
-3. **Check for Issues:**
-   ```bash
-   # Run from project root
-   check_servers.bat
-   ```
-
-📖 **For detailed instructions, see [START_HERE.md](START_HERE.md)**
+📖 **For detailed server startup guide, see [SERVER_STARTUP_GUIDE.md](SERVER_STARTUP_GUIDE.md)**
 
 ---
 

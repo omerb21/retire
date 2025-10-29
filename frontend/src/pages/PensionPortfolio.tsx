@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { formatDateToDDMMYY, formatDateToDDMMYYYY, formatDateInput } from '../utils/dateUtils';
 import { 
   validateAccountConversion, 
+  validateComponentConversion,
   calculateTaxTreatment, 
   getConversionRulesExplanation,
   isEducationFund
@@ -1207,47 +1208,44 @@ export default function PensionPortfolio() {
         console.log('Created', pensionConversions.length, 'separate pension funds');
       }
 
-      // טיפול בהמרות לנכס הון
+      // טיפול בהמרות לנכס הון - פיצול לפי יחס מס
       if (capitalAssetConversions.length > 0) {
+        let totalAssetsCreated = 0;
+        
         for (const conversion of capitalAssetConversions) {
           const {account, amountToConvert, specificAmounts} = conversion;
           
-          // יצירת תיאור מפורט של מה הומר
-          let conversionDetails = '';
-          if (Object.keys(specificAmounts).length > 0) {
-            conversionDetails = Object.entries(specificAmounts)
-              .map(([key, value]) => `${key}: ₪${parseFloat(value as string).toLocaleString()}`)
-              .join(', ');
-          } else {
-            conversionDetails = `כל היתרה: ₪${amountToConvert.toLocaleString()}`;
-          }
-          
-          // קביעת סוג הנכס לפי סוג המוצר - לפי בקשת המשתמש
+          // קביעת סוג הנכס לפי סוג המוצר
           let assetTypeValue = '';
           let assetDescription = '';
           if (account.סוג_מוצר && account.סוג_מוצר.includes('קרן השתלמות')) {
-            assetTypeValue = 'education_fund'; // קרן השתלמות
+            assetTypeValue = 'education_fund';
             assetDescription = 'קרן השתלמות';
           } else {
-            assetTypeValue = 'provident_fund'; // קופת גמל
+            assetTypeValue = 'provident_fund';
             assetDescription = 'קופת גמל';
           }
           
-          // חישוב יחס מס לפי חוקי ההמרה
-          const taxTreatment = calculateTaxTreatment(account, specificAmounts, 'capital_asset');
+          // פיצול הסכומים לפי יחס מס
+          const exemptComponents: Record<string, number> = {};
+          const capitalGainsComponents: Record<string, number> = {};
           
-          // יצירת מידע מקור להחזרה במקרה של מחיקה
-          const conversionSourceData = {
-            type: 'pension_portfolio',
-            account_name: account.שם_תכנית,
-            company: account.חברה_מנהלת,
-            account_number: account.מספר_חשבון,
-            product_type: account.סוג_מוצר,
-            amount: amountToConvert,
-            specific_amounts: specificAmounts,
-            conversion_date: new Date().toISOString(),
-            tax_treatment: taxTreatment
-          };
+          Object.entries(specificAmounts).forEach(([field, isSelected]) => {
+            if (!isSelected || field === 'יתרה') return;
+            
+            const amount = account[field] || 0;
+            if (amount <= 0) return;
+            
+            const validation = validateComponentConversion(field, amount, 'capital_asset', account.סוג_מוצר);
+            
+            if (validation.canConvert) {
+              if (validation.taxTreatment === 'exempt') {
+                exemptComponents[field] = amount;
+              } else if (validation.taxTreatment === 'capital_gains') {
+                capitalGainsComponents[field] = amount;
+              }
+            }
+          });
           
           // המרת תאריכים לפורמט ISO
           const todayISO = new Date().toISOString().split('T')[0];
@@ -1255,32 +1253,100 @@ export default function PensionPortfolio() {
             ? (account.תאריך_התחלה.includes('-') ? account.תאריך_התחלה : todayISO)
             : todayISO;
           
-          const assetData = {
-            client_id: parseInt(clientId),
-            asset_type: assetTypeValue, // ערך באנגלית לשרת: 'mutual_funds' או 'deposits'
-            description: `${assetDescription} - ${account.שם_תכנית} (${conversionDetails})` || 'נכס הון מתיק פנסיוני',
-            current_value: 0, // ערך נוכחי = 0
-            purchase_value: amountToConvert,
-            purchase_date: purchaseDateISO,
-            annual_return: 0,
-            annual_return_rate: 0.03,
-            payment_frequency: 'monthly',
-            liquidity: 'medium',
-            risk_level: 'medium',
-            monthly_income: amountToConvert, // הערך הכספי נכנס לתשלום חודשי
-            start_date: paymentDateISO, // תאריך מימוש או גיל פרישה
-            indexation_method: 'none', // ללא הצמדה
-            tax_treatment: taxTreatment, // מס רווח הון - מחושב לפי חוקי המערכת
-            conversion_source: JSON.stringify(conversionSourceData)
-          };
+          // יצירת נכס הון לסכומים פטורים ממס
+          if (Object.keys(exemptComponents).length > 0) {
+            const exemptAmount = Object.values(exemptComponents).reduce((sum, val) => sum + val, 0);
+            const exemptDetails = Object.entries(exemptComponents)
+              .map(([key, value]) => `${key}: ₪${value.toLocaleString()}`)
+              .join(', ');
+            
+            const conversionSourceData = {
+              type: 'pension_portfolio',
+              account_name: account.שם_תכנית,
+              company: account.חברה_מנהלת,
+              account_number: account.מספר_חשבון,
+              product_type: account.סוג_מוצר,
+              amount: exemptAmount,
+              specific_amounts: exemptComponents,
+              conversion_date: new Date().toISOString(),
+              tax_treatment: 'exempt'
+            };
+            
+            const assetData = {
+              client_id: parseInt(clientId),
+              asset_type: assetTypeValue,
+              description: `${assetDescription} - ${account.שם_תכנית} (${exemptDetails})`,
+              current_value: 0,
+              purchase_value: exemptAmount,
+              purchase_date: purchaseDateISO,
+              annual_return: 0,
+              annual_return_rate: 0.03,
+              payment_frequency: 'monthly',
+              liquidity: 'medium',
+              risk_level: 'medium',
+              monthly_income: exemptAmount,
+              start_date: paymentDateISO,
+              indexation_method: 'none',
+              tax_treatment: 'exempt',
+              conversion_source: JSON.stringify(conversionSourceData)
+            };
 
-          await apiFetch(`/clients/${clientId}/capital-assets`, {
-            method: 'POST',
-            body: JSON.stringify(assetData)
-          });
+            await apiFetch(`/clients/${clientId}/capital-assets`, {
+              method: 'POST',
+              body: JSON.stringify(assetData)
+            });
+            
+            totalAssetsCreated++;
+          }
+          
+          // יצירת נכס הון לסכומים עם מס רווח הון
+          if (Object.keys(capitalGainsComponents).length > 0) {
+            const capitalGainsAmount = Object.values(capitalGainsComponents).reduce((sum, val) => sum + val, 0);
+            const capitalGainsDetails = Object.entries(capitalGainsComponents)
+              .map(([key, value]) => `${key}: ₪${value.toLocaleString()}`)
+              .join(', ');
+            
+            const conversionSourceData = {
+              type: 'pension_portfolio',
+              account_name: account.שם_תכנית,
+              company: account.חברה_מנהלת,
+              account_number: account.מספר_חשבון,
+              product_type: account.סוג_מוצר,
+              amount: capitalGainsAmount,
+              specific_amounts: capitalGainsComponents,
+              conversion_date: new Date().toISOString(),
+              tax_treatment: 'capital_gains'
+            };
+            
+            const assetData = {
+              client_id: parseInt(clientId),
+              asset_type: assetTypeValue,
+              description: `${assetDescription} - ${account.שם_תכנית} (${capitalGainsDetails})`,
+              current_value: 0,
+              purchase_value: capitalGainsAmount,
+              purchase_date: purchaseDateISO,
+              annual_return: 0,
+              annual_return_rate: 0.03,
+              payment_frequency: 'monthly',
+              liquidity: 'medium',
+              risk_level: 'medium',
+              monthly_income: capitalGainsAmount,
+              start_date: paymentDateISO,
+              indexation_method: 'none',
+              tax_treatment: 'capital_gains',
+              conversion_source: JSON.stringify(conversionSourceData)
+            };
+
+            await apiFetch(`/clients/${clientId}/capital-assets`, {
+              method: 'POST',
+              body: JSON.stringify(assetData)
+            });
+            
+            totalAssetsCreated++;
+          }
         }
         
-        console.log('Created capital assets for', capitalAssetConversions.length, 'accounts');
+        console.log('Created', totalAssetsCreated, 'capital assets (split by tax treatment)');
       }
 
       

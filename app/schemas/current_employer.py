@@ -139,3 +139,19 @@ class TerminationDecisionOut(TerminationDecisionBase):
     created_capital_asset_id: Optional[int] = Field(None, description="ID של נכס הון שנוצר")
     
     model_config = ConfigDict(from_attributes=True)
+
+class SeveranceCalculationRequest(BaseModel):
+    """Schema for severance calculation request"""
+    start_date: Optional[str] = Field(None, description="תאריך התחלת עבודה (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="תאריך סיום עבודה (YYYY-MM-DD)")
+    last_salary: float = Field(0, description="שכר אחרון")
+    continuity_years: float = Field(0, description="שנות רציפות")
+
+class SeveranceCalculationResponse(BaseModel):
+    """Schema for severance calculation response"""
+    service_years: float = Field(..., description="שנות שירות")
+    severance_amount: float = Field(..., description="סכום פיצויים")
+    last_salary: float = Field(..., description="שכר אחרון")
+    exempt_amount: float = Field(..., description="סכום פטור ממס")
+    taxable_amount: float = Field(..., description="סכום חייב במס")
+    annual_exemption_cap: float = Field(..., description="תקרה שנתית לפטור")

@@ -112,7 +112,18 @@ class TaxConstants:
         if year is None:
             year = cls.CURRENT_TAX_YEAR
             
-        if year >= 2025:
+        if year == 2026:
+            # Use 2025 brackets for 2026 as a default, but adjust rates if needed
+            return [
+                TaxBracket(0, 84120, 0.10, "מדרגה ראשונה - 10%"),
+                TaxBracket(84121, 120720, 0.14, "מדרגה שנייה - 14%"),
+                TaxBracket(120721, 193800, 0.20, "מדרגה שלישית - 20%"),
+                TaxBracket(193801, 269280, 0.31, "מדרגה רביעית - 31%"),
+                TaxBracket(269281, 560280, 0.35, "מדרגה חמישית - 35%"),
+                TaxBracket(560281, 721560, 0.47, "מדרגה שישית - 47%"),
+                TaxBracket(721561, None, 0.50, "מדרגה עליונה - 50%")
+            ]
+        elif year >= 2025:
             return cls.INCOME_TAX_BRACKETS_2025
         else:
             return cls.INCOME_TAX_BRACKETS_2024
