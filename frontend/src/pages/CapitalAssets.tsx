@@ -27,6 +27,7 @@ type CapitalAsset = {
   tax_treatment?: "exempt" | "taxable" | "fixed_rate" | "capital_gains" | "tax_spread";
   tax_rate?: number;
   spread_years?: number;
+  nominal_principal?: number;  // סכום ההפקדה הנומינאלי למס רווח הון
 };
 
 const ASSET_TYPES = [
@@ -62,6 +63,7 @@ export default function CapitalAssets() {
     fixed_rate: 0,
     tax_rate: 0,
     spread_years: 0,
+    nominal_principal: 0,
   });
 
   async function loadAssets() {
@@ -155,6 +157,27 @@ export default function CapitalAssets() {
         throw new Error("ערך נכס לא יכול להיות שלילי");
       }
       
+      // חישוב מס רווח הון אם נבחר
+      let adjustedMonthlyIncome = Number(form.monthly_income) || 0;
+      let adjustedTaxTreatment = form.tax_treatment || "taxable";
+      
+      if (form.tax_treatment === "capital_gains" && form.monthly_income && form.nominal_principal !== undefined) {
+        const payment = Number(form.monthly_income);
+        const principal = Number(form.nominal_principal) || payment; // ברירת מחדל = סכום התשלום
+        const gain = payment - principal;
+        const tax = gain * 0.25;
+        adjustedMonthlyIncome = payment - tax;
+        adjustedTaxTreatment = "exempt"; // שמירה כפטור ממס
+        
+        console.log(`💰 CAPITAL GAINS TAX CALCULATION:`);
+        console.log(`   Payment: ${payment}`);
+        console.log(`   Principal: ${principal}`);
+        console.log(`   Gain: ${gain}`);
+        console.log(`   Tax (25%): ${tax}`);
+        console.log(`   Adjusted payment: ${adjustedMonthlyIncome}`);
+        console.log(`   Tax treatment changed to: exempt`);
+      }
+      
       const payload = {
         asset_type: form.asset_type,
         description: form.asset_name?.trim() || "נכס הון",
@@ -168,12 +191,12 @@ export default function CapitalAssets() {
         risk_level: "medium", // ערך ברירת מחדל
         
         // השדות הנדרשים לתצוגה
-        monthly_income: Number(form.monthly_income) || 0,
+        monthly_income: adjustedMonthlyIncome,
         start_date: startDateISO,
         end_date: null,  // תמיד null - תשלום חד פעמי
         indexation_method: form.indexation_method || "none",
         fixed_rate: form.fixed_rate !== undefined ? Number(form.fixed_rate) : 0,
-        tax_treatment: form.tax_treatment || "taxable",
+        tax_treatment: adjustedTaxTreatment,
         tax_rate: form.tax_rate !== undefined ? Number(form.tax_rate) : 0,
         spread_years: form.spread_years && form.spread_years > 0 ? Number(form.spread_years) : null
       };
@@ -212,6 +235,7 @@ export default function CapitalAssets() {
         fixed_rate: 0,
         tax_rate: 0,
         spread_years: 0,
+        nominal_principal: 0,
       });
       
       // איפוס מצב העריכה
@@ -375,6 +399,7 @@ export default function CapitalAssets() {
       fixed_rate: asset.fixed_rate || 0,
       tax_rate: asset.tax_rate || 0,
       spread_years: asset.spread_years || 0,
+      nominal_principal: asset.nominal_principal || 0,
     });
     
     // Scroll to form
@@ -555,8 +580,38 @@ export default function CapitalAssets() {
           </div>
 
           {form.tax_treatment === "capital_gains" && (
-            <div style={{ padding: 8, backgroundColor: "#e7f3ff", borderRadius: 4, fontSize: "14px" }}>
-              <strong>מס רווח הון:</strong> יחושב כ-25% מהרווח הריאלי (שיעור התשואה פחות 2% מדד)
+            <div style={{ padding: 15, backgroundColor: "#e7f3ff", borderRadius: 4, border: "1px solid #007bff" }}>
+              <strong>💰 מס רווח הון (25%)</strong>
+              <p style={{ fontSize: "14px", marginTop: "8px", color: "#666", lineHeight: "1.6" }}>
+                <strong>איך עובד חישוב מס רווח הון:</strong><br/>
+                • המס מחושב על הרווח בלבד (תשלום - הפקדה נומינלית)<br/>
+                • שיעור המס: 25% מהרווח<br/>
+                • התשלום המעודכן: תשלום - 0.25 × (תשלום - הפקדה נומינלית)<br/>
+                • הנכס יישמר כ"פטור ממס" עם התשלום המעודכן
+              </p>
+              <div style={{ marginTop: "10px" }}>
+                <label>סכום ההפקדה הנומינאלי (₪):</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="סכום ההפקדה הנומינאלי"
+                  value={form.nominal_principal !== undefined && form.nominal_principal > 0 ? form.nominal_principal : (form.monthly_income || 0)}
+                  onChange={(e) => setForm({ ...form, nominal_principal: parseFloat(e.target.value) || 0 })}
+                  style={{ padding: 8, width: "100%", marginTop: "5px" }}
+                  required
+                />
+                <div style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
+                  ברירת מחדל: {(form.monthly_income || 0).toLocaleString()} ₪ (סכום התשלום)
+                </div>
+                {form.monthly_income && form.monthly_income > 0 && (
+                  <div style={{ marginTop: "10px", padding: "8px", backgroundColor: "#fff", borderRadius: "4px", border: "1px solid #ddd" }}>
+                    <strong>חישוב:</strong><br/>
+                    רווח: {((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)).toLocaleString()} ₪<br/>
+                    מס (25%): {(((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)) * 0.25).toLocaleString()} ₪<br/>
+                    <strong>תשלום מעודכן: {((form.monthly_income || 0) - 0.25 * ((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0))).toLocaleString()} ₪</strong>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -619,6 +674,7 @@ export default function CapitalAssets() {
                     fixed_rate: 0,
                     tax_rate: 0,
                     spread_years: 0,
+                    nominal_principal: 0,
                   });
                 }}
                 style={{ 
