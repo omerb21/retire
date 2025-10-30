@@ -747,7 +747,7 @@ const SimpleReports: React.FC = () => {
               
               // הפחתת נקודות זיכוי אם קיימות
               if (clientData?.tax_credit_points) {
-                baseTax = Math.max(0, baseTax - (clientData.tax_credit_points * 2640));
+                baseTax = Math.max(0, baseTax - (clientData.tax_credit_points * 2904));
               }
               
               monthlyTax = baseTax / 12;
@@ -816,7 +816,7 @@ const SimpleReports: React.FC = () => {
     
     // חישוב נקודות זיכוי
     let totalTaxCredits = 0;
-    const creditPointValue = 2640; // ערך נקודת זיכוי 2024 בשקלים
+    const creditPointValue = 2904; // ערך נקודת זיכוי 2025 בשקלים
     
     if (client) {
       // נקודות זיכוי מקלט המשתמש בלבד
@@ -1129,9 +1129,9 @@ const SimpleReports: React.FC = () => {
         
         // הפחתת נקודות זיכוי אם קיימות (רק על מס רגיל, לא על מס בשיעור קבוע!)
         if (client?.tax_credit_points) {
-          const creditAmount = client.tax_credit_points * 2640;
+          const creditAmount = client.tax_credit_points * 2904;
           totalAnnualTax = Math.max(0, totalAnnualTax - creditAmount);
-          console.log(`  Tax credit applied (${client.tax_credit_points} points × 2640): ${creditAmount.toLocaleString()}`);
+          console.log(`  Tax credit applied (${client.tax_credit_points} points × 2904): ${creditAmount.toLocaleString()}`);
         }
         
         console.log(`  Final annual tax: ${totalAnnualTax.toLocaleString()}`);
@@ -2751,7 +2751,7 @@ const SimpleReports: React.FC = () => {
                     }
                     
                     // חישוב נקודות זיכוי
-                    const taxCredits = client?.tax_credit_points ? client.tax_credit_points * 2640 : 0;
+                    const taxCredits = client?.tax_credit_points ? client.tax_credit_points * 2904 : 0;
                     const finalTax = Math.max(0, baseTax - taxCredits);
                     
                     // חישוב קצבה פטורה מקיבוע זכויות - לפי השנה הראשונה בתזרים

@@ -9,11 +9,13 @@ export interface TaxBracket {
 
 // מדרגות המס הברירת מחדל לשנת 2025
 export const DEFAULT_TAX_BRACKETS: TaxBracket[] = [
-  { id: 1, minMonthly: 0, maxMonthly: 7000, minAnnual: 0, maxAnnual: 84000, rate: 14 },
-  { id: 2, minMonthly: 7001, maxMonthly: 17140, minAnnual: 84001, maxAnnual: 205680, rate: 20 },
-  { id: 3, minMonthly: 17141, maxMonthly: 33640, minAnnual: 205681, maxAnnual: 403680, rate: 31 },
-  { id: 4, minMonthly: 33641, maxMonthly: 54600, minAnnual: 403681, maxAnnual: 655200, rate: 35 },
-  { id: 5, minMonthly: 54601, maxMonthly: Infinity, minAnnual: 655201, maxAnnual: Infinity, rate: 47 }
+  { id: 1, minMonthly: 0, maxMonthly: 7010, minAnnual: 0, maxAnnual: 84120, rate: 10 },
+  { id: 2, minMonthly: 7011, maxMonthly: 10060, minAnnual: 84121, maxAnnual: 120720, rate: 14 },
+  { id: 3, minMonthly: 10061, maxMonthly: 16150, minAnnual: 120721, maxAnnual: 193800, rate: 20 },
+  { id: 4, minMonthly: 16151, maxMonthly: 22440, minAnnual: 193801, maxAnnual: 269280, rate: 31 },
+  { id: 5, minMonthly: 22441, maxMonthly: 46690, minAnnual: 269281, maxAnnual: 560280, rate: 35 },
+  { id: 6, minMonthly: 46691, maxMonthly: 60130, minAnnual: 560281, maxAnnual: 721560, rate: 47 },
+  { id: 7, minMonthly: 60131, maxMonthly: Infinity, minAnnual: 721561, maxAnnual: Infinity, rate: 50 }
 ];
 
 /**
@@ -40,8 +42,7 @@ export const getTaxBrackets = (): TaxBracket[] => {
  * המרת מדרגות המס לפורמט הישן לתאימות לאחור
  */
 export const getTaxBracketsLegacyFormat = (year?: number) => {
-  // כל השנים משתמשות באותן מדרגות כרגע (2025)
-  // בעתיד, כאן יהיה קוד לטעינת מדרגות שנה-ספציפיות
+  // Use sync version for legacy compatibility
   const brackets = getTaxBrackets();
   return brackets.map(bracket => ({
     min: bracket.minAnnual,

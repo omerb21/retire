@@ -70,17 +70,18 @@ class CapitalAssetService:
             raise ValueError(f"Unsupported indexation method: {asset.indexation_method}")
 
     def _calculate_tax_by_brackets(self, taxable_income: Decimal) -> Decimal:
-        """חישוב מס לפי מדרגות מס ישראליות (2025)."""
+        """חישוב מס לפי מדרגות מס ישראליות (2025) מ-TaxConstants."""
         if taxable_income <= 0:
             return Decimal('0')
         
-        # מדרגות מס ישראליות 2025 (בשקלים שנתיים)
+        # שימוש במדרגות המס הרשמיות מ-TaxConstants
+        from .tax_constants import TaxConstants
+        tax_brackets = TaxConstants.INCOME_TAX_BRACKETS_2025
+        
         brackets = [
-            (Decimal('84000'), Decimal('0.14')),    # עד 84,000 - 14%
-            (Decimal('205680'), Decimal('0.20')),   # 84,001-205,680 - 20%
-            (Decimal('403680'), Decimal('0.31')),   # 205,681-403,680 - 31%
-            (Decimal('655200'), Decimal('0.35')),   # 403,681-655,200 - 35%
-            (None, Decimal('0.47'))                  # 655,201+ - 47%
+            (Decimal(str(bracket.max_income)) if bracket.max_income else None, 
+             Decimal(str(bracket.rate)))
+            for bracket in tax_brackets
         ]
         
         total_tax = Decimal('0')

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Clients from "./pages/Clients";
 import PensionFunds from "./pages/PensionFunds";
@@ -12,6 +12,7 @@ import SimpleReports from "./pages/SimpleReports";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
 import SystemSnapshot from "./components/SystemSnapshot";
+import { getTaxBrackets } from "./utils/taxBrackets";
 import "./styles/modern-theme.css";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
@@ -81,6 +82,13 @@ const moduleButtonStyle = {
 // All modules now imported from separate files
 
 export default function App() {
+  // טעינת מדרגות מס מ-API בעת טעינת האפליקציה
+  useEffect(() => {
+    // כרגע getTaxBrackets היא סינכרונית, נטען את המדרגות מיד
+    const brackets = getTaxBrackets();
+    console.log('✅ מדרגות מס אותחלו בהצלחה:', brackets.length, 'מדרגות');
+  }, []);
+
   return (
     <BrowserRouter>
       <div>

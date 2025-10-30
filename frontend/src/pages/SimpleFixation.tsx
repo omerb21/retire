@@ -780,23 +780,6 @@ const SimpleFixation: React.FC = () => {
         </div>
       )}
 
-      {!hasGrants && (
-        <div style={{ 
-          padding: '20px', 
-          backgroundColor: '#fff3cd', 
-          borderRadius: '4px',
-          textAlign: 'center',
-          color: '#856404'
-        }}>
-          לא נמצאו מענקים לחישוב קיבוע זכויות. יש להוסיף מענקים תחילה.
-          <div style={{ marginTop: '10px' }}>
-            <a href={`/clients/${id}/grants`} style={{ color: '#007bff', textDecoration: 'none' }}>
-              הוסף מענקים ←
-            </a>
-          </div>
-        </div>
-      )}
-
       <div style={{ 
         marginTop: '30px', 
         padding: '15px', 
