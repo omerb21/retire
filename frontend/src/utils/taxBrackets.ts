@@ -57,25 +57,23 @@ export const getTaxBracketsLegacyFormat = (year?: number) => {
 export const calculateTaxByBrackets = (annualIncome: number, year?: number): number => {
   if (annualIncome <= 0) return 0;
   
-  // קבלת מדרגות המס - אם לא צוינה שנה, משתמשים בברירת מחדל
-  let brackets = getTaxBracketsLegacyFormat(year);
+  // Use the default tax brackets for 2025
+  const brackets = DEFAULT_TAX_BRACKETS;
   
   let totalTax = 0;
-  let currentIncome = 0;
+  let remainingIncome = annualIncome;
   
   for (const bracket of brackets) {
-    if (annualIncome <= currentIncome) break;
+    if (remainingIncome <= 0) break;
     
-    const bracketStart = bracket.min;
-    const bracketEnd = bracket.max;
-    const incomeInBracket = Math.min(annualIncome, bracketEnd) - Math.max(currentIncome, bracketStart);
+    const bracketSize = bracket.maxAnnual - bracket.minAnnual;
+    const taxableInBracket = Math.min(remainingIncome, bracketSize);
     
-    if (incomeInBracket > 0) {
-      totalTax += incomeInBracket * bracket.rate;
+    if (taxableInBracket > 0) {
+      totalTax += taxableInBracket * (bracket.rate / 100);
+      remainingIncome -= taxableInBracket;
     }
-    
-    currentIncome = bracketEnd;
   }
   
-  return totalTax;
+  return Math.round(totalTax * 100) / 100; // Round to 2 decimal places
 };

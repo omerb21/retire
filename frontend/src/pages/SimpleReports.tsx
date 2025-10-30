@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import jsPDF from 'jspdf';
@@ -965,18 +965,16 @@ const SimpleReports: React.FC = () => {
           if (year === assetStartYear) {
             amount = paymentAmount;
             console.log(`💰 CAPITAL ASSET ONE-TIME PAYMENT: ${asset.asset_name || asset.description || 'unnamed'} in year ${year}, annual_amount=${amount}`);
-          }
-          
-          // ✅ רק נכסים עם תשלום נכנסים ל-incomeBreakdown!
-          if (amount > 0) {
+            
             // ⚠️ חשוב: מחלקים ב-12 כי התזרים חודשי
             const monthlyAmount = amount / 12;
             incomeBreakdown.push(Math.round(monthlyAmount));
             totalMonthlyIncome += monthlyAmount;
             console.log(`  → Monthly amount for cashflow: ${monthlyAmount.toFixed(2)}`);
           } else {
-            // נכס ללא תשלום בשנה זו - לא נכנס ל-incomeBreakdown
-            console.log(`  → No payment in year ${year}, skipping incomeBreakdown`);
+            // 🔧 FIX: נכס ללא תשלום בשנה זו - חייבים להוסיף 0 כדי לשמור על עקביות האינדקסים!
+            incomeBreakdown.push(0);
+            console.log(`  → No payment in year ${year}, adding 0 to incomeBreakdown for consistency`);
           }
         }
         // אם monthly_income = 0, הנכס לא מוצג בתזרים בכלל (לא נוסף ל-incomeBreakdown)
@@ -1100,6 +1098,9 @@ const SimpleReports: React.FC = () => {
             monthlyExemptCapitalIncome += income;
           } else if (asset.tax_treatment === 'fixed_rate') {
             monthlyFixedRateCapitalIncome += income;
+          } else if (asset.tax_treatment === 'tax_spread') {
+            // נכסים עם tax_spread לא נכללים בחישוב המס הרגיל - המס שלהם מחושב בנפרד
+            // לא מוסיפים ל-monthlyTaxableCapitalIncome
           } else {
             monthlyTaxableCapitalIncome += income;
           }
@@ -1108,6 +1109,8 @@ const SimpleReports: React.FC = () => {
       });
       
       // חישוב הכנסה חייבת במס רגיל - ללא הכנסות/נכסים עם שיעור קבוע!
+      // ⚠️ חשוב: זה חישוב לפני עיבוד capital assets עם tax_spread
+      // capital assets עם tax_spread מחושבים בנפרד ולא נכללים כאן
       totalTaxableAnnualIncome = (monthlyTaxableIncome + monthlyTaxableAdditionalIncome + monthlyTaxableCapitalIncome) * 12;
       totalExemptIncome = (monthlyExemptIncome + monthlyExemptCapitalIncome) * 12;
       const totalFixedRateAnnualIncome = (monthlyFixedRateIncome + monthlyFixedRateCapitalIncome) * 12;
@@ -1124,6 +1127,14 @@ const SimpleReports: React.FC = () => {
       
       // משתנה לאיסוף מס בשיעור קבוע - מוגדר כאן כדי להיות זמין בכל הבלוקים
       let totalFixedRateTax = 0;
+      
+      // 🔥 חישוב מס עבור נכסי הון - הגדרות משתנים לפני בלוק if
+      let totalCapitalAssetTax = 0; // מס על נכסי הון רגילים
+      let totalCapitalFixedRateTax = 0; // מס על נכסי הון עם שיעור קבוע
+      let totalCapitalGainsTax = 0; // מס רווח הון
+      
+      // ⚠️ baseAnnualIncome לשימוש בחישוב tax_spread - זה ההכנסה הרגילה ללא הנכס
+      const baseAnnualIncome = Math.max(0, totalTaxableAnnualIncome);
       
       if (totalTaxableAnnualIncome > 0) {
         // חישוב מס כולל על סך ההכנסות החייבות במס (ללא הכנסות עם שיעור קבוע!)
@@ -1181,152 +1192,64 @@ const SimpleReports: React.FC = () => {
             taxBreakdown.push(Math.round(taxPortion));
           }
         });
-
-        // חישוב מס עבור נכסי הון - בנפרד! רק לנכסים עם תשלום
-        let totalCapitalAssetTax = 0; // מס על נכסי הון רגילים (רק "חייב במס" נכנס לחישוב כללי)
-        let totalCapitalFixedRateTax = 0; // מס על נכסי הון עם שיעור קבוע (לא נכנס לחישוב כללי)
-        let totalCapitalGainsTax = 0; // מס רווח הון (לא נכנס לחישוב כללי)
-        
-        // חישוב האינדקס הנכון - רק נכסים עם תשלום נמצאים ב-incomeBreakdown
-        const assetsWithPayment = capitalAssets.filter(asset => (parseFloat(asset.monthly_income) || 0) > 0);
-        let capitalAssetIncomeIndex = pensionFunds.length + additionalIncomes.length;
-        
-        capitalAssets.forEach((asset) => {
-          const paymentAmount = parseFloat(asset.monthly_income) || 0;
-          
-          // ✅ רק נכסים עם תשלום חד פעמי
-          if (paymentAmount > 0) {
-            const annualIncome = incomeBreakdown[capitalAssetIncomeIndex] || 0;  // כבר סכום שנתי (תשלום חד-פעמי)
-            let assetTax = 0;
-            capitalAssetIncomeIndex++; // מתקדם רק אם יש תשלום!
-          
-          // חישוב מס לפי סוג המיסוי
-          if (asset.tax_treatment === 'exempt') {
-            // פטור ממס
-            assetTax = 0;
-          } else if (asset.tax_treatment === 'fixed_rate') {
-            // ⚠️ שיעור מס קבוע - לא נכנס לחישוב המדרגות!
-            assetTax = annualIncome * ((asset.tax_rate || 0) / 100);
-            totalCapitalFixedRateTax += assetTax; // מס שנתי
-            taxBreakdown.push(Math.round(assetTax));
-            // לא נוסף ל-totalCapitalAssetTax!
-            return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
-          } else if (asset.tax_treatment === 'tax_spread' && asset.spread_years && asset.spread_years > 0) {
-            // 🔥 פריסת מס - חישוב תיאורטי לפי מדרגות על מספר שנים
-            const taxableAmount = annualIncome; // הסכום החד פעמי
-            const annualPortion = taxableAmount / asset.spread_years; // חלוקה שווה לשנים
-            
-            // חישוב מס שנתי על החלק השנתי (תיאורטי)
-            const annualTax = calculateTaxByBrackets(annualPortion, year);
-            
-            // סה"כ מס = מס שנתי × מספר שנות הפריסה
-            const totalSpreadTax = annualTax * asset.spread_years;
-            
-            console.log(`  📊 Tax spread: amount=${taxableAmount.toLocaleString()}, annual_portion=${annualPortion.toLocaleString()}, annual_tax=${annualTax.toLocaleString()}, spread_years=${asset.spread_years}, total_tax=${totalSpreadTax.toLocaleString()}`);
-            
-            // בשנת התשלום - כל המס המצטבר
-            assetTax = totalSpreadTax;
-            totalCapitalAssetTax += assetTax;
-            taxBreakdown.push(Math.round(assetTax)); // מס שנתי
-            return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
-          } else if (asset.tax_treatment === 'capital_gains') {
-            // ⚠️ מס רווח הון - 25% מהרווח (תשלום - צבירה מקורית) - לא נכנס לחישוב המס הכללי!
-            // אם לא הוגדרה צבירה מקורית, ברירת המחדל היא ערך התשלום (אין רווח)
-            const originalPrincipal = parseFloat(asset.original_principal || annualIncome);
-            const capitalGain = Math.max(0, annualIncome - originalPrincipal);
-            assetTax = capitalGain * 0.25;
-            totalCapitalGainsTax += assetTax; // מס שנתי
-            taxBreakdown.push(Math.round(assetTax));
-            console.log(`  💰 Capital gains tax: payment=${annualIncome}, principal=${originalPrincipal}, gain=${capitalGain}, tax=${assetTax}`);
-            return; // סיום מוקדם - לא ממשיכים לחישובים אחרים
-          } else if (asset.asset_type === 'rental_property') {
-            // שכר דירה - מס רגיל אם מעל התקרה
-            const exemptionThreshold = 5070 * 12;
-            if (annualIncome > exemptionThreshold) {
-              const taxableRentalIncome = annualIncome - exemptionThreshold;
-              assetTax += calculateTaxByBrackets(taxableRentalIncome, year);
-            }
-            totalCapitalAssetTax += assetTax;
-            taxBreakdown.push(Math.round(assetTax));
-          } else if (asset.tax_treatment === 'taxable') {
-            // ⚠️ מס רגיל על נכסי הון - חלוקה יחסית לפי ההכנסה
-            // הנכס מקבל חלק יחסי מהמס לפי ההכנסה שלו מתוך סך ההכנסות החייבות
-            // annualIncome מ-incomeBreakdown הוא כבר חודשי!
-            const assetMonthlyIncome = annualIncome; // כבר חודשי
-            const taxPortionMonthly = taxableTotalMonthlyIncome > 0 ? (assetMonthlyIncome / taxableTotalMonthlyIncome) * regularMonthlyTax : 0;
-            // totalCapitalAssetTax צריך לאגור מס חודשי, לא שנתי!
-            assetTax = taxPortionMonthly; // מס חודשי בלבד
-            totalCapitalAssetTax += assetTax;
-            // taxBreakdown צריך מס שנתי
-            taxBreakdown.push(Math.round(taxPortionMonthly * 12));
-            console.log(`  💰 Taxable capital asset: monthly_income=${annualIncome}, monthly_tax=${taxPortionMonthly.toFixed(2)}, annual_tax_for_breakdown=${(taxPortionMonthly * 12).toFixed(2)}`);
-          } else {
-            // סוגים אחרים - לא מטופלים כאן
-            taxBreakdown.push(0);
-          }
-          } // סוגר את if (paymentAmount > 0)
-          // נכס ללא תשלום - לא נכנס לתזרים ולא ל-taxBreakdown
-        });
-        
-        // עדכון סך המס הכולל
-        // regularMonthlyTax - כבר חודשי וכולל את המס על נכסי הון עם tax_treatment='taxable'
-        // totalFixedRateTax, totalCapitalFixedRateTax, totalCapitalGainsTax - שנתיים, צריך לחלק ב-12
-        // ⚠️ לא מוסיפים totalCapitalAssetTax כי הוא כבר נכלל ב-regularMonthlyTax!
-        totalMonthlyTax = regularMonthlyTax + (totalFixedRateTax / 12) + (totalCapitalFixedRateTax / 12) + (totalCapitalGainsTax / 12);
-        
-        console.log(`\n📊 Final tax breakdown:`);
-        console.log(`  Regular monthly tax (from brackets): ${regularMonthlyTax.toFixed(2)}`);
-        console.log(`  Fixed rate tax (additional incomes): ${(totalFixedRateTax / 12).toFixed(2)}`);
-        console.log(`  Fixed rate tax (capital assets): ${(totalCapitalFixedRateTax / 12).toFixed(2)}`);
-        console.log(`  Capital gains tax: ${(totalCapitalGainsTax / 12).toFixed(2)}`);
-        console.log(`  Capital asset tax (taxable only): ${totalCapitalAssetTax.toFixed(2)}`);
-        console.log(`  💰 TOTAL MONTHLY TAX: ${totalMonthlyTax.toFixed(2)}`);
-      } else {
-        // אין הכנסה חייבת במס רגיל - אבל עדיין יכול להיות מס בשיעור קבוע
-        // מוסיפים 0 לקצבאות
-        for (let i = 0; i < pensionFunds.length; i++) {
-          taxBreakdown.push(0);
-        }
-        
-        // מוסיפים מס בשיעור קבוע להכנסות נוספות
-        additionalIncomes.forEach((income, index) => {
-          const incomeIndex = pensionFunds.length + index;
-          const incomeAmount = incomeBreakdown[incomeIndex] || 0;
-          
-          if (income.tax_treatment === 'fixed_rate') {
-            const taxRate = (income.tax_rate || 0) / 100;
-            const fixedTax = incomeAmount * taxRate;
-            taxBreakdown.push(Math.round(fixedTax));
-            totalFixedRateTax += fixedTax;
-          } else {
-            taxBreakdown.push(0);
-          }
-        });
-        
-        // חישוב מס על נכסי הון עם שיעור קבוע
-        let totalCapitalFixedRateTax = 0;
-        capitalAssets.forEach((asset) => {
-          const paymentAmount = parseFloat(asset.monthly_income) || 0;
-          if (paymentAmount > 0) {
-            const assetIndex = pensionFunds.length + additionalIncomes.length + 
-                             capitalAssets.filter(a => (parseFloat(a.monthly_income) || 0) > 0)
-                                         .indexOf(asset);
-            const monthlyIncome = incomeBreakdown[assetIndex] || 0;
-            
-            if (asset.tax_treatment === 'fixed_rate') {
-              const assetTax = monthlyIncome * ((asset.tax_rate || 0) / 100);
-              totalCapitalFixedRateTax += assetTax; // מס שנתי
-              taxBreakdown.push(Math.round(assetTax));
-            } else {
-              taxBreakdown.push(0);
-            }
-          }
-        });
-        
-        // עדכון סך המס הכולל - מס בשיעור קבוע (הכנסות + נכסים)
-        // כל המסים הם שנתיים, צריך לחלק ב-12 להמרה לחודשי
-        totalMonthlyTax = (totalFixedRateTax / 12) + (totalCapitalFixedRateTax / 12);
       }
+
+      // 🔥 חישוב מס עבור נכסי הון - OUTSIDE של בלוק if! רק לנכסים עם תשלום
+      // זה מתבצע גם כשאין הכנסה חייבת במס רגיל
+      const assetsWithPayment = capitalAssets.filter(asset => (parseFloat(asset.monthly_income) || 0) > 0);
+      let capitalAssetIncomeIndex = pensionFunds.length + additionalIncomes.length;
+      
+      console.log(`\n📦 CAPITAL ASSETS PROCESSING:`);
+      console.log(`  Total capital assets: ${capitalAssets.length}`);
+      console.log(`  Assets with payment: ${assetsWithPayment.length}`);
+      console.log(`  incomeBreakdown length: ${incomeBreakdown.length}`);
+      console.log(`  capitalAssetIncomeIndex start: ${capitalAssetIncomeIndex}`);
+      
+      capitalAssets.forEach((asset, assetIndex: number) => {
+        const paymentAmount = parseFloat(asset.monthly_income) || 0;
+        if (paymentAmount > 0) {
+          const annualIncome = incomeBreakdown[capitalAssetIncomeIndex] || 0;
+          capitalAssetIncomeIndex++;
+          
+          if (annualIncome === 0) {
+            taxBreakdown.push(0);
+            return;
+          }
+          
+          console.log(`🔍 CAPITAL ASSET TAX TREATMENT: ${asset.tax_treatment}`);
+          
+          if (asset.tax_treatment === 'tax_spread' && asset.spread_years && asset.spread_years > 0) {
+            console.log('🔥 TAX SPREAD CALCULATION');
+            const totalPayment = annualIncome * 12;
+            const annualPortion = totalPayment / asset.spread_years;
+            
+            let totalSpreadTax = 0;
+            for (let spreadYear = 0; spreadYear < asset.spread_years; spreadYear++) {
+              const targetYear = year + spreadYear;
+              const totalIncomeWithSpread = baseAnnualIncome + annualPortion;
+              let taxWithSpread = calculateTaxByBrackets(totalIncomeWithSpread, targetYear);
+              let taxWithoutSpread = baseAnnualIncome > 0 ? calculateTaxByBrackets(baseAnnualIncome, targetYear) : 0;
+              
+              if (client?.tax_credit_points) {
+                const creditAmount = client.tax_credit_points * 2904;
+                taxWithSpread = Math.max(0, taxWithSpread - creditAmount);
+                taxWithoutSpread = Math.max(0, taxWithoutSpread - creditAmount);
+              }
+              
+              const marginalTax = taxWithSpread - taxWithoutSpread;
+              totalSpreadTax += marginalTax;
+            }
+            
+            const monthlyTaxDisplay = totalSpreadTax / 12;
+            totalCapitalAssetTax += monthlyTaxDisplay;
+            totalMonthlyTax += monthlyTaxDisplay;  // 🔥 הוסף את המס לסך הכולל!
+            taxBreakdown.push(Math.round(totalSpreadTax));  // 🔥 הוסף את המס השנתי (לא החודשי) לטבלה!
+            console.log(`✅ Tax spread tax: ${monthlyTaxDisplay.toFixed(2)} (monthly), ${totalSpreadTax.toFixed(2)} (annual), Total monthly tax now: ${totalMonthlyTax.toFixed(2)}`);
+          } else {
+            taxBreakdown.push(0);
+          }
+        }
+      });
 
       const netIncome = totalMonthlyIncome - totalMonthlyTax;
       
@@ -1363,6 +1286,14 @@ const SimpleReports: React.FC = () => {
     
     return yearlyData;
   };
+
+  // 🔥 FIX CRITICAL: קריאה לפונקציה פעם אחת בלבד ושמירת התוצאה
+  const yearlyProjectionData = useMemo(() => generateYearlyProjection(), [
+    pensionFunds,
+    additionalIncomes,
+    capitalAssets,
+    client
+  ]);
 
   // הוסר calculateTaxImpact - המס מחושב ישירות בטבלה
 
@@ -1804,7 +1735,7 @@ const SimpleReports: React.FC = () => {
       return;
     }
     
-    const yearlyProjection = generateYearlyProjection();
+    const yearlyProjection = yearlyProjectionData;
     
     // יצירת HTML עם כל הנתונים
     const htmlContent = `
@@ -2224,7 +2155,7 @@ const SimpleReports: React.FC = () => {
       setError(null);
       
       // יצירת דוח Excel מקיף עם הנתונים הקיימים
-      const yearlyProjection = generateYearlyProjection();
+      const yearlyProjection = yearlyProjectionData;
       createExcelReport(yearlyProjection);
       
       alert('דוח Excel מקיף נוצר בהצלחה!');
@@ -2242,7 +2173,7 @@ const SimpleReports: React.FC = () => {
       setError(null);
 
       // יצירת דוח Excel עם הנתונים הקיימים
-      const yearlyProjection = generateYearlyProjection();
+      const yearlyProjection = yearlyProjectionData;
       generateExcelReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
 
       alert('דוח Excel נוצר בהצלחה');
@@ -2811,7 +2742,7 @@ const SimpleReports: React.FC = () => {
                     }
                     
                     // סנכרון עם התזרים - שימוש בנתוני השנה הראשונה מהתזרים
-                    const yearlyProjection = generateYearlyProjection();
+                    const yearlyProjection = yearlyProjectionData;
                     const firstYearProjection = yearlyProjection.length > 0 ? yearlyProjection[0] : null;
                     const alignedMonthlyIncome = firstYearProjection ? firstYearProjection.totalMonthlyIncome : Math.round(totalMonthlyIncome);
                     const alignedMonthlyTax = firstYearProjection ? firstYearProjection.totalMonthlyTax : Math.round(finalTax / 12);
@@ -2905,7 +2836,7 @@ const SimpleReports: React.FC = () => {
             {/* חישוב והצגת ה-NPV */}
             {(() => {
               // חישוב תזרים המזומנים השנתי
-              const yearlyProjection = generateYearlyProjection();
+              const yearlyProjection = yearlyProjectionData;
               
               // המרת תזרים חודשי לתזרים שנתי
               const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
@@ -3150,7 +3081,9 @@ const SimpleReports: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {generateYearlyProjection().map((yearData, index) => (
+                  {(() => {
+                    const yearlyProjection = yearlyProjectionData;
+                    return yearlyProjection.map((yearData, index) => (
                     <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#f8f9fa' : 'white' }}>
                       <td style={{ padding: '8px', border: '1px solid #ddd', position: 'sticky', left: 0, backgroundColor: index % 2 === 0 ? '#f8f9fa' : 'white' }}>
                         {yearData.year}
@@ -3183,7 +3116,8 @@ const SimpleReports: React.FC = () => {
                         );
                       })}
                     </tr>
-                  ))}
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
