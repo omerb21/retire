@@ -169,11 +169,9 @@ class CapitalAssetService:
             return gross_return * Decimal('0.25')  # 25% capital gains rate
         
         elif asset.tax_treatment == TaxTreatment.TAX_SPREAD:
-            # פריסת מס - החישוב המלא יתבצע ב-project_cashflow
-            # כאן רק placeholder
-            if not asset.spread_years or asset.spread_years <= 0:
-                raise ValueError("spread_years is required for tax spread")
-            return Decimal('0')  # יחושב ב-project_cashflow
+            # Tax spread is treated as a regular capital asset with fixed tax rate
+            # The spread_years is metadata only, not used in tax calculation
+            return gross_return * Decimal('0.25')  # 25% capital gains rate
         
         else:
             raise ValueError(f"Unsupported tax treatment: {asset.tax_treatment}")
@@ -188,12 +186,8 @@ class CapitalAssetService:
         """
         Project cashflow for the capital asset.
         
-        For TAX_SPREAD treatment:
-        - Divides taxable amount equally across spread_years
-        - Calculates tax per year using marginal brackets
-        - Full accumulated tax is paid in first payment
-        - Subsequent years show tax=0 (for display only)
-        - Uses Israeli tax brackets (2024)
+        Capital assets are always single lump-sum payments.
+        Tax treatment is applied uniformly regardless of spread_years.
         
         Args:
             asset: The capital asset to project
@@ -207,90 +201,29 @@ class CapitalAssetService:
         logger.debug(f"Projecting cashflow for asset {asset.id} from {start_date} to {end_date}")
         
         cashflow_items = []
-        current_date = self._align_to_first_of_month(max(start_date, asset.start_date))
         
-        # נכסי הון הם תמיד תשלום חד פעמי - התעלם מ-end_date
-        # Determine actual end date (for spread display only)
-        actual_end_date = end_date
-
-        # חישוב מס מצטבר לפריסה (אם רלוונטי)
-        spread_tax_data = None
-        is_tax_spread = asset.tax_treatment == TaxTreatment.TAX_SPREAD
-        
-        if is_tax_spread and asset.spread_years:
-            # הסכום החייב במס הוא monthly_income (סכום התשלום החד פעמי)
-            taxable_amount = asset.monthly_income if asset.monthly_income else asset.current_value
-            
-            # הכנסה שנתית רגילה משוערת (יכול לבוא מהלקוח - כרגע 0)
-            # בעתיד ניתן לחשב מקצבאות והכנסות נוספות
-            annual_regular_income = Decimal('0')
-            
-            # חישוב מס לפי מדרגות עם פריסה
-            spread_tax_data = self.calculate_spread_tax(
-                taxable_amount=taxable_amount,
-                spread_years=asset.spread_years,
-                annual_regular_income=annual_regular_income
-            )
-            
-            logger.info(
-                f"Tax spread calculation: taxable={taxable_amount}, "
-                f"years={asset.spread_years}, regular_income={annual_regular_income}, "
-                f"total_tax={spread_tax_data['total_tax']}"
-            )
-        
-        # ⚠️ נכס הון עם פריסת מס - יוצר cashflow items לכל שנה ⚠️
-        logger.warning(f"🔴 CAPITAL ASSET: asset_id={asset.id}, type={asset.asset_type}, value={asset.current_value}, spread={is_tax_spread}")
-        
+        # Capital assets are always single lump-sum payments
         payment_date = self._align_to_first_of_month(asset.start_date)
-        gross_amount = asset.current_value
+        gross_amount = asset.monthly_income
         
         # Apply indexation if needed
         indexed_amount = self.apply_indexation(
             gross_amount, asset, payment_date, reference_date
         )
         
-        # אם יש פריסת מס - תשלום מיידי של כל המס בתאריך קבלת ההכנסה
-        if is_tax_spread and spread_tax_data and asset.spread_years:
-            total_tax = spread_tax_data['total_tax']
-            yearly_taxes = spread_tax_data['yearly_taxes']
-            
-            logger.info(
-                f"🔵 TAX SPREAD: Single payment on {payment_date}\n"
-                f"  Gross amount: {indexed_amount}\n"
-                f"  Spread years: {asset.spread_years}\n"
-                f"  Total tax (computed): {total_tax}\n"
-                f"  Net amount: {indexed_amount - total_tax}\n"
-                f"  Tax allocation by year: {yearly_taxes}"
-            )
-            
-            # יצירת cashflow item אחד בלבד בתאריך קבלת ההכנסה
-            # המס משולם מיידית, הפריסה היא חישובית בלבד
-            net_amount = indexed_amount - total_tax
-            
-            cashflow_item = CapitalAssetCashflowItem(
-                date=payment_date,
-                gross_return=indexed_amount,
-                tax_amount=total_tax,
-                net_return=net_amount,
-                asset_type=asset.asset_type,
-                description=f"{asset.description or asset.asset_type} - תשלום חד פעמי עם פריסת מס ({asset.spread_years} שנים)"
-            )
-            cashflow_items.append(cashflow_item)
+        # Calculate tax based on tax treatment (uniform for all assets)
+        tax_amount = self.calculate_tax(indexed_amount, asset)
+        net_amount = indexed_amount - tax_amount
         
-        else:
-            # תשלום חד פעמי רגיל ללא פריסה
-            tax_amount = self.calculate_tax(indexed_amount, asset)
-            net_amount = indexed_amount - tax_amount
-            
-            cashflow_item = CapitalAssetCashflowItem(
-                date=payment_date,
-                gross_return=indexed_amount,
-                tax_amount=tax_amount,
-                net_return=net_amount,
-                asset_type=asset.asset_type,
-                description=asset.description or f"תשלום חד פעמי - {asset.asset_type}"
-            )
-            cashflow_items.append(cashflow_item)
+        cashflow_item = CapitalAssetCashflowItem(
+            date=payment_date,
+            gross_return=indexed_amount,
+            tax_amount=tax_amount,
+            net_return=net_amount,
+            asset_type=asset.asset_type,
+            description=asset.description or f"תשלום חד פעמי - {asset.asset_type}"
+        )
+        cashflow_items.append(cashflow_item)
         
         logger.debug(f"Generated {len(cashflow_items)} cashflow items")
         return cashflow_items

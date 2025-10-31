@@ -84,35 +84,32 @@ const SimpleCurrentEmployer: React.FC = () => {
           employerData = response.data;
         }
         
-        // בדיקה אם העזיבה כבר אושרה
-        // רק אם יש end_date במעסיק במסד הנתונים, זה אומר שהעזיבה אושרה
-        const hasEndDate = employerData?.end_date;
+        // בדיקה אם העזיבה כבר אושרה - נבדוק ב-localStorage
+        const terminationStorageKey = `terminationConfirmed_${id}`;
+        const isTerminationConfirmed = localStorage.getItem(terminationStorageKey) === 'true';
         
         console.log('🔍 בדיקת מצב עזיבה:', {
           is_array: Array.isArray(response.data),
-          has_end_date: hasEndDate,
           end_date_value: employerData?.end_date,
+          is_confirmed_in_storage: isTerminationConfirmed,
           client_id: id,
           full_response: response.data
         });
         
-        if (hasEndDate) {
-          console.log('✅ נמצא end_date - העזיבה כבר אושרה, מסמן מצב מוקפא');
+        if (isTerminationConfirmed) {
+          console.log('✅ העזיבה אושרה בעבר - מסמן מצב מוקפא');
           setTerminationDecision(prev => ({ 
             ...prev, 
             confirmed: true,
-            termination_date: employerData.end_date 
+            termination_date: employerData?.end_date || prev.termination_date
           }));
-          
-          // שמירה ב-localStorage לסנכרון
-          const terminationStorageKey = `terminationConfirmed_${id}`;
-          localStorage.setItem(terminationStorageKey, 'true');
         } else {
-          console.log('📝 אין end_date - מסך עזיבה פתוח לעריכה');
-          
-          // נקה localStorage אם קיים
-          const terminationStorageKey = `terminationConfirmed_${id}`;
-          localStorage.removeItem(terminationStorageKey);
+          console.log('📝 העזיבה לא אושרה - מסך עזיבה פתוח לעריכה');
+          setTerminationDecision(prev => ({ 
+            ...prev, 
+            confirmed: false,
+            termination_date: employerData?.end_date || prev.termination_date
+          }));
         }
         
         // Load severance balance from pension portfolio (localStorage)
@@ -150,7 +147,7 @@ const SimpleCurrentEmployer: React.FC = () => {
             id: employerData.id,
             employer_name: employerData.employer_name || '',
             start_date: employerData.start_date || '',
-            end_date: employerData.end_date || undefined,
+            end_date: employerData.end_date ? convertISOToDDMMYY(employerData.end_date) : undefined,
             last_salary: Number(employerData.monthly_salary || employerData.last_salary || employerData.average_salary || 0),
             severance_accrued: severanceFromPension
           });
@@ -188,12 +185,22 @@ const SimpleCurrentEmployer: React.FC = () => {
   useEffect(() => {
     const calculateGrantDetails = async () => {
       if (employer.start_date && employer.last_salary > 0) {
-        const startDate = new Date(employer.start_date);
+        // המרת תאריך מ-DD/MM/YYYY ל-ISO אם צריך
+        let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
+        const startDate = new Date(startISO || '');
+        
         // תמיד משתמשים בתאריך היום לחישוב וותק בפרטי מעסיק
         const referenceDate = new Date();
         
         // Calculate service years
         const serviceYears = (referenceDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        
+        console.log('🔍 Grant calculation input:', {
+          start_date: employer.start_date,
+          startISO,
+          last_salary: employer.last_salary,
+          serviceYears: serviceYears.toFixed(2)
+        });
         
         // Basic severance calculation (1 month salary per year)
         const expectedGrant = employer.last_salary * serviceYears;
@@ -279,6 +286,13 @@ const SimpleCurrentEmployer: React.FC = () => {
     
     return () => clearTimeout(timeoutId);
   }, [employer.start_date, employer.last_salary, employer.severance_accrued, id]);
+
+  // Sync termination_date with employer.end_date
+  useEffect(() => {
+    if (employer.end_date && employer.end_date !== terminationDecision.termination_date) {
+      setTerminationDecision(prev => ({ ...prev, termination_date: employer.end_date || '' }));
+    }
+  }, [employer.end_date]);
 
   // Calculate termination details when termination date is set
   useEffect(() => {
@@ -405,7 +419,7 @@ const SimpleCurrentEmployer: React.FC = () => {
     
     return () => clearTimeout(timeoutId);
   }, [
-    terminationDecision.termination_date, 
+    terminationDecision.termination_date,
     terminationDecision.use_employer_completion, 
     employer.start_date, 
     employer.last_salary, 
@@ -466,7 +480,7 @@ const SimpleCurrentEmployer: React.FC = () => {
         }
       }
 
-      const terminationDateISO = convertDDMMYYToISO(terminationDecision.termination_date) || terminationDecision.termination_date;
+      const terminationDateISO = convertDDMMYYToISO(employer.end_date || '') || employer.end_date;
       
       const payload = {
         ...terminationDecision,
@@ -655,15 +669,58 @@ const SimpleCurrentEmployer: React.FC = () => {
       const employerData = {
         ...employer,
         start_date: startDateISO,
+        // שומרים את end_date תמיד כדי שיהיה זמין בטאב עזיבה
         end_date: endDateISO
       };
 
       if (employer.id) {
+        console.log('🔍 Sending PUT request with data:', {
+          employer_name: employerData.employer_name,
+          start_date: employerData.start_date,
+          end_date: employerData.end_date,
+          last_salary: employerData.last_salary
+        });
         const response = await axios.put(`/api/v1/clients/${id}/current-employer/${employer.id}`, employerData);
-        setEmployer({ ...response.data, start_date: convertISOToDDMMYY(response.data.start_date) });
+        console.log('🔍 Received PUT response:', {
+          id: response.data.id,
+          employer_name: response.data.employer_name,
+          start_date: response.data.start_date,
+          end_date: response.data.end_date,
+          monthly_salary: response.data.monthly_salary,
+          last_salary: response.data.last_salary
+        });
+        
+        const newEmployerData = { 
+          id: response.data.id,
+          employer_name: response.data.employer_name,
+          start_date: convertISOToDDMMYY(response.data.start_date),
+          end_date: response.data.end_date ? convertISOToDDMMYY(response.data.end_date) : undefined,
+          last_salary: Number(response.data.monthly_salary || response.data.last_salary || 0),
+          severance_accrued: employer.severance_accrued // שמירת הערך הקיים
+        };
+        console.log('🔍 Setting new employer state:', {
+          employer_name: newEmployerData.employer_name,
+          start_date: newEmployerData.start_date,
+          end_date: newEmployerData.end_date,
+          last_salary: newEmployerData.last_salary,
+          severance_accrued: newEmployerData.severance_accrued
+        });
+        setEmployer(newEmployerData);
       } else {
+        console.log('🔍 Sending POST request with data:', employerData);
         const response = await axios.post(`/api/v1/clients/${id}/current-employer`, employerData);
-        setEmployer({ ...response.data, start_date: convertISOToDDMMYY(response.data.start_date) });
+        console.log('🔍 Received POST response:', response.data);
+        
+        const newEmployerData = { 
+          id: response.data.id,
+          employer_name: response.data.employer_name,
+          start_date: convertISOToDDMMYY(response.data.start_date),
+          end_date: response.data.end_date ? convertISOToDDMMYY(response.data.end_date) : undefined,
+          last_salary: Number(response.data.monthly_salary || response.data.last_salary || 0),
+          severance_accrued: employer.severance_accrued // שמירת הערך הקיים
+        };
+        console.log('🔍 Setting new employer state:', newEmployerData);
+        setEmployer(newEmployerData);
       }
 
       alert('נתוני מעסיק נשמרו בהצלחה');
@@ -681,6 +738,11 @@ const SimpleCurrentEmployer: React.FC = () => {
       [name]: name.includes('salary') || name.includes('balance') 
         ? parseFloat(value) || 0 : value
     }));
+    
+    // אם המשתמש משנה נתונים, נקה את סימון האישור
+    const terminationStorageKey = `terminationConfirmed_${id}`;
+    localStorage.removeItem(terminationStorageKey);
+    setTerminationDecision(prev => ({ ...prev, confirmed: false }));
   };
 
   return (
@@ -743,14 +805,12 @@ const SimpleCurrentEmployer: React.FC = () => {
         <button
           onClick={() => {
             // בדיקה אם יש תאריך סיום עבודה
-            if (!employer.end_date && !terminationDecision.termination_date) {
+            if (!employer.end_date) {
               alert('נא להזין תאריך סיום עבודה בלשונית "פרטי מעסיק" לפני מעבר לעזיבת עבודה');
               return;
             }
-            // אם יש end_date במעסיק אבל לא ב-termination, העתק אותו
-            if (employer.end_date && !terminationDecision.termination_date) {
-              setTerminationDecision(prev => ({ ...prev, termination_date: employer.end_date || '' }));
-            }
+            // העתק את end_date ל-termination_date
+            setTerminationDecision(prev => ({ ...prev, termination_date: employer.end_date || '' }));
             setActiveTab('termination');
           }}
           style={{
@@ -780,10 +840,25 @@ const SimpleCurrentEmployer: React.FC = () => {
           backgroundColor: '#f8fff9'
         }}>
           <h3 style={{ color: '#28a745', marginBottom: '15px' }}>נתונים שמורים</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+          {(() => {
+            console.log('📊 TABLE DATA:', {
+              employer_name: employer.employer_name,
+              start_date: employer.start_date,
+              end_date: employer.end_date,
+              last_salary: employer.last_salary,
+              severance_accrued: employer.severance_accrued,
+              id: employer.id
+            });
+            return null;
+          })()}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
             <div><strong>שם מעסיק:</strong> {employer.employer_name}</div>
             <div><strong>תאריך התחלה:</strong> {employer.start_date}</div>
-            <div><strong>שכר חודשי:</strong> ₪{employer.last_salary.toLocaleString()}</div>
+            <div><strong>תאריך סיום:</strong> {employer.end_date || 'לא הוזן'}</div>
+            <div><strong>שכר חודשי:</strong> ₪{(() => {
+              console.log('💰 TABLE SALARY:', employer.last_salary);
+              return employer.last_salary.toLocaleString();
+            })()}</div>
             <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
             {employer.employer_completion !== undefined && (
               <div style={{ color: '#0066cc', fontWeight: 'bold', gridColumn: '1 / -1' }}>
@@ -791,20 +866,6 @@ const SimpleCurrentEmployer: React.FC = () => {
               </div>
             )}
           </div>
-          
-          {grantDetails.serviceYears > 0 && (
-            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px' }}>
-              <h4>חישוב מענק פיצויים צפוי</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
-                <div><strong>שנות שירות:</strong> {grantDetails.serviceYears}</div>
-                <div><strong>מענק צפוי:</strong> ₪{grantDetails.expectedGrant.toLocaleString()}</div>
-                <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
-                <div style={{ color: '#0066cc', fontWeight: 'bold' }}><strong>השלמת המעסיק:</strong> ₪{employer.employer_completion?.toLocaleString() || '0'}</div>
-                <div style={{ color: '#28a745' }}><strong>פטור ממס:</strong> ₪{grantDetails.taxExemptAmount.toLocaleString()}</div>
-                <div style={{ color: '#dc3545' }}><strong>חייב במס:</strong> ₪{grantDetails.taxableAmount.toLocaleString()}</div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -912,6 +973,12 @@ const SimpleCurrentEmployer: React.FC = () => {
             onChange={(e) => {
               const formatted = formatDateInput(e.target.value);
               setEmployer({ ...employer, end_date: formatted });
+              
+              // אם המשתמש משנה את תאריך הסיום, נקה את סימון האישור
+              // כי השינוי עדיין לא נשמר בשרת
+              const terminationStorageKey = `terminationConfirmed_${id}`;
+              localStorage.removeItem(terminationStorageKey);
+              setTerminationDecision(prev => ({ ...prev, confirmed: false }));
             }}
             maxLength={10}
             style={{
@@ -925,6 +992,22 @@ const SimpleCurrentEmployer: React.FC = () => {
           <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
             יש להזין רק אם העבודה כבר הסתיימה. אם השדה ריק, תתבקש להזין תאריך בעת מעבר לעזיבת עבודה.
           </small>
+          {terminationDecision.confirmed && (
+            <div style={{ 
+              marginTop: '10px', 
+              padding: '10px', 
+              backgroundColor: '#fff3cd', 
+              border: '1px solid #ffeaa7', 
+              borderRadius: '4px' 
+            }}>
+              <p style={{ color: '#856404', fontSize: '14px', margin: 0, fontWeight: 'bold' }}>
+                ⚠️ קיימת עזיבת עבודה שמורה במערכת מתאריך {employer.end_date}
+              </p>
+              <p style={{ color: '#856404', fontSize: '12px', margin: '5px 0 0 0' }}>
+                לעריכת החלטות חדשות, עבור לטאב "עזיבת עבודה" ומחק את העזיבה הקיימת
+              </p>
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: '20px' }}>
@@ -991,29 +1074,17 @@ const SimpleCurrentEmployer: React.FC = () => {
         <div>
           <h3>מסך עזיבת עבודה</h3>
           
-          <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px' }}>
-            <h4>שלב 1: קביעת תאריך סיום עבודה</h4>
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>תאריך סיום עבודה:</label>
-              <input
-                type="text"
-                placeholder="DD/MM/YYYY"
-                value={terminationDecision.termination_date}
-                onChange={(e) => {
-                  const formatted = formatDateInput(e.target.value);
-                  setTerminationDecision(prev => ({ ...prev, termination_date: formatted }));
-                }}
-                maxLength={10}
-                disabled={terminationDecision.confirmed}
-                style={{ 
-                  width: '100%', 
-                  padding: '8px', 
-                  border: '1px solid #ddd', 
-                  borderRadius: '4px',
-                  backgroundColor: terminationDecision.confirmed ? '#f0f0f0' : 'white',
-                  cursor: terminationDecision.confirmed ? 'not-allowed' : 'text'
-                }}
-              />
+          <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
+            <h4>שלב 1: תאריך סיום עבודה</h4>
+            <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
+              <p style={{ margin: 0, fontWeight: 'bold', color: '#155724' }}>
+                תאריך סיום עבודה: <strong>{employer.end_date || 'לא הוזן'}</strong>
+              </p>
+              {!employer.end_date && (
+                <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#856404' }}>
+                  יש להזין תאריך סיום עבודה בטאב "פרטי מעסיק" לפני המשך התהליך
+                </p>
+              )}
             </div>
           </div>
 
@@ -1022,7 +1093,21 @@ const SimpleCurrentEmployer: React.FC = () => {
               <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
                 <h4>שלב 2: סיכום זכויות</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div><strong>שנות וותק:</strong> {grantDetails.serviceYears.toFixed(2)} שנים</div>
+                  <div><strong>שנות וותק:</strong> {(() => {
+                    let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
+                    let endISO = terminationDecision.termination_date 
+                      ? (terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date)
+                      : new Date().toISOString().split('T')[0];
+                    const years = (new Date(endISO || '').getTime() - new Date(startISO || '').getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                    console.log('🔍 Service years calculation:', {
+                      start_date: employer.start_date,
+                      termination_date: terminationDecision.termination_date,
+                      startISO,
+                      endISO,
+                      years: years.toFixed(2)
+                    });
+                    return isNaN(years) ? '0.00' : years.toFixed(2);
+                  })()} שנים</div>
                   <div><strong>פיצויים צבורים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
                   <div><strong>פיצויים צפויים:</strong> ₪{(() => {
                     let startISO = employer.start_date.includes('/') ? convertDDMMYYToISO(employer.start_date) : employer.start_date;
@@ -1034,6 +1119,13 @@ const SimpleCurrentEmployer: React.FC = () => {
                     if (isNaN(years)) return '0';
                     const expectedFromSalary = Math.round(employer.last_salary * years);
                     const accrued = employer.severance_accrued || 0;
+                    console.log('🔍 Expected severance calculation:', {
+                      last_salary: employer.last_salary,
+                      years: years.toFixed(2),
+                      expectedFromSalary,
+                      accrued,
+                      final: Math.max(expectedFromSalary, accrued)
+                    });
                     // לתצוגה: אם צבורים גבוהים יותר, הראה אותם
                     return Math.max(expectedFromSalary, accrued).toLocaleString();
                   })()}</div>
@@ -1078,22 +1170,22 @@ const SimpleCurrentEmployer: React.FC = () => {
                     let endISO = terminationDecision.termination_date.includes('/') ? convertDDMMYYToISO(terminationDecision.termination_date) : terminationDecision.termination_date;
                     return new Date(endISO).getFullYear();
                   })()}</strong></div>
-                  <div>סכום פיצויים: <strong>₪{terminationDecision.severance_amount.toLocaleString()}</strong></div>
+                  <div>סכום פיצויים: <strong>₪{(terminationDecision.severance_amount || 0).toLocaleString()}</strong></div>
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
                     <strong style={{ color: '#155724' }}>חלק פטור ממס:</strong>
-                    <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{terminationDecision.exempt_amount.toLocaleString()}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{(terminationDecision.exempt_amount || 0).toLocaleString()}</p>
                   </div>
                   <div style={{ padding: '15px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
                     <strong style={{ color: '#721c24' }}>חלק חייב במס:</strong>
-                    <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{terminationDecision.taxable_amount.toLocaleString()}</p>
+                    <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{(terminationDecision.taxable_amount || 0).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
 
-              {terminationDecision.exempt_amount > 0 && (
+              {(terminationDecision.exempt_amount || 0) > 0 && (
                 <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
                   <h4>שלב 5א: בחירת אפשרות לחלק הפטור ממס</h4>
                   {['redeem_with_exemption', 'redeem_no_exemption', 'annuity'].map(choice => (
@@ -1122,7 +1214,7 @@ const SimpleCurrentEmployer: React.FC = () => {
                 </div>
               )}
 
-              {terminationDecision.taxable_amount > 0 && (
+              {(terminationDecision.taxable_amount || 0) > 0 && (
                 <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #dc3545', borderRadius: '4px', backgroundColor: '#fff5f5' }}>
                   <h4>שלב 5ב: בחירת אפשרות לחלק החייב במס</h4>
                   {['redeem_no_exemption', 'annuity'].map(choice => (
@@ -1235,9 +1327,13 @@ const SimpleCurrentEmployer: React.FC = () => {
                       </button>
                     </>
                   ) : (
-                    <div style={{ backgroundColor: '#d4edda', padding: '20px', borderRadius: '4px', marginBottom: '20px' }}>
-                      <p style={{ fontWeight: 'bold', color: '#155724', marginBottom: '15px', fontSize: '18px' }}>
-                        ✅ החלטות העזיבה אושרו והנתונים הוקפאו
+                    <div style={{ backgroundColor: '#fff3cd', padding: '20px', borderRadius: '4px', marginBottom: '20px', border: '1px solid #ffeaa7' }}>
+                      <p style={{ fontWeight: 'bold', color: '#856404', marginBottom: '10px', fontSize: '18px' }}>
+                        ⚠️ קיימת עזיבת עבודה שמורה במערכת
+                      </p>
+                      <p style={{ color: '#856404', marginBottom: '15px', fontSize: '14px' }}>
+                        כדי לערוך החלטות עזיבה חדשות, יש למחוק תחילה את העזיבה הקיימת. 
+                        פעולה זו תמחק את כל המענקים, הקצבאות ונכסי ההון שנוצרו מהעזיבה הקודמת.
                       </p>
                       <button
                         type="button"

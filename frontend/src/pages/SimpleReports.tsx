@@ -1361,7 +1361,7 @@ const SimpleReports: React.FC = () => {
           tax = gain * (taxRate / 100);
         } else {
           // מס רגיל לפי מדרגות
-          tax = calculateTaxByBrackets(gain, year);
+          tax = calculateTaxByBrackets(gain, years);
         }
         
         const npvAfterTax = (futureValue - tax) / Math.pow(1 + discountRate, years);

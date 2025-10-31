@@ -374,8 +374,8 @@ def process_termination_decision(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים פטור ({ce.employer_name}){source_suffix}",
                     asset_type="other",
-                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
-                    monthly_income=decision.exempt_amount,  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
+                    current_value=Decimal("0"),
+                    monthly_income=decision.exempt_amount,
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
@@ -400,8 +400,8 @@ def process_termination_decision(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים פטור ({ce.employer_name}){source_suffix}",
                     asset_type="other",
-                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
-                    monthly_income=decision.exempt_amount,  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
+                    current_value=Decimal("0"),
+                    monthly_income=decision.exempt_amount,
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
@@ -519,13 +519,13 @@ def process_termination_decision(
                     client_id=client_id,
                     asset_name=f"מענק פיצויים חייב במס ({ce.employer_name}){source_suffix}",
                     asset_type="other",
-                    current_value=Decimal("0"),  # ✅ תוקן: ערך נוכחי = 0
-                    monthly_income=decision.taxable_amount,  # ✅ תוקן: הערך הכספי נכנס לתשלום חודשי
+                    current_value=Decimal("0"),
+                    monthly_income=decision.taxable_amount,
                     annual_return_rate=0.0,
                     payment_frequency="annually",
                     start_date=decision.termination_date,
                     indexation_method="none",
-                    tax_treatment="tax_spread",  # ← Changed from "taxable" to "tax_spread"
+                    tax_treatment="tax_spread",
                     spread_years=spread_years,
                     remarks=f"מענק פיצויים חייב במס עם פריסת מס ל-{spread_years} שנים"
                 )
