@@ -1101,6 +1101,9 @@ const SimpleReports: React.FC = () => {
           } else if (asset.tax_treatment === 'tax_spread') {
             // נכסים עם tax_spread לא נכללים בחישוב המס הרגיל - המס שלהם מחושב בנפרד
             // לא מוסיפים ל-monthlyTaxableCapitalIncome
+          } else if (asset.tax_treatment === 'taxable') {
+            // נכסים עם taxable לא נכללים בחישוב המס הרגיל - המס שלהם מחושב בנפרד בשיטה שולית
+            // לא מוסיפים ל-monthlyTaxableCapitalIncome
           } else {
             monthlyTaxableCapitalIncome += income;
           }
@@ -1133,8 +1136,8 @@ const SimpleReports: React.FC = () => {
       let totalCapitalFixedRateTax = 0; // מס על נכסי הון עם שיעור קבוע
       let totalCapitalGainsTax = 0; // מס רווח הון
       
-      // ⚠️ baseAnnualIncome לשימוש בחישוב tax_spread - זה ההכנסה הרגילה ללא הנכס
-      const baseAnnualIncome = Math.max(0, totalTaxableAnnualIncome);
+      // ⚠️ baseAnnualIncome לשימוש בחישוב tax_spread - זה ההכנסה הרגילה ללא נכסי הון
+      const baseAnnualIncome = Math.max(0, totalTaxableAnnualIncome - (monthlyTaxableCapitalIncome * 12));
       
       if (totalTaxableAnnualIncome > 0) {
         // חישוב מס כולל על סך ההכנסות החייבות במס (ללא הכנסות עם שיעור קבוע!)
@@ -1157,6 +1160,7 @@ const SimpleReports: React.FC = () => {
 
         // מס חודשי מהכנסות רגילות בלבד (ללא נכסי הון ומס בשיעור קבוע)
         const regularMonthlyTax = totalAnnualTax / 12;
+        totalMonthlyTax += regularMonthlyTax;
         console.log(`  Monthly tax: ${regularMonthlyTax.toFixed(2)}`);
         
         // חלוקת המס באופן יחסי לפי ההכנסות אחרי קיזוז הפטור (רק הכנסות חייבות במס רגיל!)
@@ -1185,6 +1189,7 @@ const SimpleReports: React.FC = () => {
             // מס בשיעור קבוע - חישוב ישיר ללא התחשבות בנקודות זיכוי
             const taxRate = (income.tax_rate || 0) / 100;
             const fixedTax = incomeAmount * taxRate;
+            totalMonthlyTax += fixedTax;
             taxBreakdown.push(Math.round(fixedTax));
           } else {
             // חלוקת המס באופן יחסי - רק מהכנסות רגילות חייבות במס
@@ -1196,6 +1201,10 @@ const SimpleReports: React.FC = () => {
 
       // 🔥 חישוב מס עבור נכסי הון - OUTSIDE של בלוק if! רק לנכסים עם תשלום
       // זה מתבצע גם כשאין הכנסה חייבת במס רגיל
+      console.log(`\n🔍 DEBUG: Checking capital assets for tax calculation:`);
+      capitalAssets.forEach((asset, idx) => {
+        console.log(`  Asset ${idx}: monthly_income=${asset.monthly_income}, current_value=${asset.current_value}, tax_treatment=${asset.tax_treatment}, start_date=${asset.start_date}`);
+      });
       const assetsWithPayment = capitalAssets.filter(asset => (parseFloat(asset.monthly_income) || 0) > 0);
       let capitalAssetIncomeIndex = pensionFunds.length + additionalIncomes.length;
       
@@ -1218,7 +1227,29 @@ const SimpleReports: React.FC = () => {
           
           console.log(`🔍 CAPITAL ASSET TAX TREATMENT: ${asset.tax_treatment}`);
           
-          if (asset.tax_treatment === 'tax_spread' && asset.spread_years && asset.spread_years > 0) {
+          if (asset.tax_treatment === 'exempt') {
+            taxBreakdown.push(0);
+            console.log(`✅ EXEMPT: No tax`);
+          } else if (asset.tax_treatment === 'taxable') {
+            console.log('💰 TAXABLE - Regular marginal tax calculation');
+            const annualPayment = annualIncome * 12;
+            const totalIncomeWithAsset = baseAnnualIncome + annualPayment;
+            let taxWithAsset = calculateTaxByBrackets(totalIncomeWithAsset, year);
+            let taxWithoutAsset = baseAnnualIncome > 0 ? calculateTaxByBrackets(baseAnnualIncome, year) : 0;
+            
+            if (client?.tax_credit_points) {
+              const creditAmount = client.tax_credit_points * 2904;
+              taxWithAsset = Math.max(0, taxWithAsset - creditAmount);
+              taxWithoutAsset = Math.max(0, taxWithoutAsset - creditAmount);
+            }
+            
+            const marginalTax = taxWithAsset - taxWithoutAsset;
+            const monthlyTaxDisplay = marginalTax / 12;
+            totalCapitalAssetTax += monthlyTaxDisplay;
+            totalMonthlyTax += monthlyTaxDisplay;
+            taxBreakdown.push(Math.round(monthlyTaxDisplay));
+            console.log(`✅ Taxable asset tax: ${monthlyTaxDisplay.toFixed(2)} (monthly), ${marginalTax.toFixed(2)} (annual)`);
+          } else if (asset.tax_treatment === 'tax_spread' && asset.spread_years && asset.spread_years > 0) {
             console.log('🔥 TAX SPREAD CALCULATION');
             const totalPayment = annualIncome * 12;
             const annualPortion = totalPayment / asset.spread_years;
@@ -1242,11 +1273,12 @@ const SimpleReports: React.FC = () => {
             
             const monthlyTaxDisplay = totalSpreadTax / 12;
             totalCapitalAssetTax += monthlyTaxDisplay;
-            totalMonthlyTax += monthlyTaxDisplay;  // 🔥 הוסף את המס לסך הכולל!
-            taxBreakdown.push(Math.round(totalSpreadTax));  // 🔥 הוסף את המס השנתי (לא החודשי) לטבלה!
-            console.log(`✅ Tax spread tax: ${monthlyTaxDisplay.toFixed(2)} (monthly), ${totalSpreadTax.toFixed(2)} (annual), Total monthly tax now: ${totalMonthlyTax.toFixed(2)}`);
+            totalMonthlyTax += monthlyTaxDisplay;
+            taxBreakdown.push(Math.round(monthlyTaxDisplay));
+            console.log(`✅ Tax spread tax: ${monthlyTaxDisplay.toFixed(2)} (monthly), ${totalSpreadTax.toFixed(2)} (annual)`);
           } else {
             taxBreakdown.push(0);
+            console.log(`⚠️ Unhandled tax treatment: ${asset.tax_treatment}`);
           }
         }
       });
@@ -3098,11 +3130,8 @@ const SimpleReports: React.FC = () => {
                         ₪{yearData.totalMonthlyIncome.toLocaleString()}
                       </td>
                       {yearData.incomeBreakdown.map((income, i) => {
-                        // taxBreakdown: קצבאות וההכנסות נוספות הן חודשיות, נכסי הון הם שנתיים
-                        const isCapitalAsset = i >= pensionFunds.length + additionalIncomes.length;
-                        const taxAmount = isCapitalAsset 
-                          ? Math.round((yearData.taxBreakdown[i] || 0) / 12)
-                          : (yearData.taxBreakdown[i] || 0);
+                        // taxBreakdown: כל הערכים הם חודשיים (קצבאות, הכנסות נוספות, נכסי הון)
+                        const taxAmount = (yearData.taxBreakdown[i] || 0);
                         
                         return (
                           <React.Fragment key={i}>

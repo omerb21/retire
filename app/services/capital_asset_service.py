@@ -154,7 +154,12 @@ class CapitalAssetService:
         }
 
     def calculate_tax(self, gross_return: Decimal, asset: CapitalAsset) -> Decimal:
-        """Calculate tax on the gross return."""
+        """
+        Calculate tax on the gross return.
+        
+        Note: For TAXABLE and TAX_SPREAD, the actual tax calculation is done in the frontend
+        using marginal tax rates. This function returns 0 for these cases.
+        """
         if asset.tax_treatment == TaxTreatment.EXEMPT:
             return Decimal('0')
         
@@ -164,14 +169,14 @@ class CapitalAssetService:
             return gross_return * asset.tax_rate
         
         elif asset.tax_treatment == TaxTreatment.TAXABLE:
-            # For capital gains, typically lower tax rate
-            tax_params = self.tax_params_provider.get_params()
-            return gross_return * Decimal('0.25')  # 25% capital gains rate
+            # Tax is calculated in frontend using marginal tax rates
+            # Return 0 here to avoid double taxation
+            return Decimal('0')
         
         elif asset.tax_treatment == TaxTreatment.TAX_SPREAD:
-            # Tax spread is treated as a regular capital asset with fixed tax rate
-            # The spread_years is metadata only, not used in tax calculation
-            return gross_return * Decimal('0.25')  # 25% capital gains rate
+            # Tax is calculated in frontend using special spread logic
+            # Return 0 here to avoid double taxation
+            return Decimal('0')
         
         else:
             raise ValueError(f"Unsupported tax treatment: {asset.tax_treatment}")
@@ -204,7 +209,7 @@ class CapitalAssetService:
         
         # Capital assets are always single lump-sum payments
         payment_date = self._align_to_first_of_month(asset.start_date)
-        gross_amount = asset.monthly_income
+        gross_amount = asset.current_value
         
         # Apply indexation if needed
         indexed_amount = self.apply_indexation(
