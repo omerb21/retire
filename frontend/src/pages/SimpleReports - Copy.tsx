@@ -187,7 +187,7 @@ function generatePDFReport(
     ]);
     
     autoTable(doc, {
-      head: [['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום  (₪)', 'תאריך תשלום', 'תאריך סיום']],
+      head: [['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תאריך התחלה', 'תאריך סיום']],
       body: capitalAssetsData,
       startY: yPosition,
       styles: {
@@ -387,7 +387,7 @@ function generateExcelReport(
   // גיליון 2: נכסי הון מפורט
   if (capitalAssets.length > 0) {
     const capitalAssetsData = [
-      ['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום  (₪)', 'תשואה שנתית %', 'יחס למס', 'תאריך תשלום', 'תאריך סיום'],
+      ['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית %', 'יחס למס', 'תאריך התחלה', 'תאריך סיום'],
       ...capitalAssets.map(asset => [
         asset.description || asset.asset_name || 'ללא תיאור',
         ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
@@ -1666,7 +1666,7 @@ const SimpleReports: React.FC = () => {
     // ==== גיליון 3: נכסי הון ====
     if (capitalAssets && capitalAssets.length > 0) {
       const assetsData = [
-        ['שם נכס', 'סוג', 'ערך נוכחי (₪)', 'תשלום  (₪)', 'תשואה שנתית', 'תאריך תשלום', 'תאריך סיום'],
+        ['שם נכס', 'סוג', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית', 'תאריך התחלה', 'תאריך סיום'],
         ...capitalAssets.map(asset => [
           asset.asset_name || asset.description || '',
           ASSET_TYPES_MAP[asset.asset_type] || asset.asset_type || '',
@@ -1969,8 +1969,8 @@ const SimpleReports: React.FC = () => {
                     <th>תיאור</th>
                     <th>סוג נכס</th>
                     <th>ערך נוכחי (₪)</th>
-                    <th>תשלום  (₪)</th>
-                    <th>תאריך תשלום</th>
+                    <th>תשלום חודשי (₪)</th>
+                    <th>תאריך התחלה</th>
                 </tr>
             </thead>
             <tbody>
