@@ -1252,28 +1252,47 @@ class RetirementScenariosBuilder:
             logger.info(f"  ✅ Found {len(exempt_incomes)} exempt income sources")
     
     def _calculate_npv(self, monthly_pension: float, monthly_additional: float, capital: float, 
-                       discount_rate: float = 0.05, years: int = 30) -> float:
+                       discount_rate: float = 0.03) -> float:
         """
-        מחשב NPV באמצעות שיטת DCF (Discounted Cash Flow)
+        מחשב NPV באמצעות שיטת DCF (Discounted Cash Flow) עד גיל 90
         
         Args:
             monthly_pension: קצבה חודשית
             monthly_additional: הכנסה נוספת חודשית
             capital: הון חד-פעמי
-            discount_rate: שיעור היוון שנתי (ברירת מחדל 5%)
-            years: מספר שנים להקרנה (ברירת מחדל 30 שנים)
+            discount_rate: שיעור היוון שנתי (ברירת מחדל 3%)
             
         Returns:
             NPV כערך נוכחי נקי
+            
+        Note:
+            החישוב מבוצע עד גיל 90 של הלקוח, לא תקופה קבועה.
+            ריבית היוון: 3% לשנה (לפי מפרט המערכת)
         """
-        npv = float(capital)  # הון חד-פעמי בשנה 0
-        monthly_income = monthly_pension + monthly_additional
-        annual_income = monthly_income * 12
+        # חישוב מספר שנים עד גיל 90
+        if not self.client or not self.client.birth_date:
+            years_to_90 = 30  # ברירת מחדל אם אין תאריך לידה
+        else:
+            current_age = (date.today() - self.client.birth_date).days / 365.25
+            retirement_age = self.retirement_age
+            years_to_90 = max(1, int(90 - retirement_age))  # מגיל פרישה עד גיל 90
         
-        # הוספת תזרימי מזומנים שנתיים מהוונים
-        for year in range(1, years + 1):
-            discounted_cashflow = annual_income / ((1 + discount_rate) ** year)
+        logger.info(f"  📊 NPV Calculation: retirement_age={self.retirement_age}, years_to_90={years_to_90}, discount_rate={discount_rate}")
+        
+        # הון חד-פעמי בשנה 0 (לא מהוון)
+        npv = float(capital)
+        
+        # חישוב חודשי עם היוון חודשי
+        monthly_income = monthly_pension + monthly_additional
+        monthly_discount_rate = (1 + discount_rate) ** (1/12) - 1  # המרה לריבית חודשית
+        
+        # הוספת תזרימי מזומנים חודשיים מהוונים
+        total_months = years_to_90 * 12
+        for month in range(1, total_months + 1):
+            discounted_cashflow = monthly_income / ((1 + monthly_discount_rate) ** month)
             npv += discounted_cashflow
+        
+        logger.info(f"  💰 NPV Result: total_months={total_months}, monthly_income={monthly_income:.2f}, npv={npv:.2f}")
         
         return round(npv, 2)
     
@@ -1315,8 +1334,7 @@ class RetirementScenariosBuilder:
             monthly_pension=total_pension,
             monthly_additional=total_additional + total_capital_monthly,  # ✅ נכסי הון = תשלום חודשי
             capital=0,  # ✅ אין הון חד-פעמי
-            discount_rate=0.05,  # 5% שיעור היוון
-            years=30  # 30 שנה הקרנה
+            discount_rate=0.03  # ✅ 3% שיעור היוון (לפי מפרט המערכת)
         )
         
         logger.info(f"  📊 {scenario_name} Results:")

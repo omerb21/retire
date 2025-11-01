@@ -187,7 +187,7 @@ function generatePDFReport(
     ]);
     
     autoTable(doc, {
-      head: [['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תאריך התחלה', 'תאריך סיום']],
+      head: [['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תאריך תשלום', 'תאריך סיום']],
       body: capitalAssetsData,
       startY: yPosition,
       styles: {
@@ -215,7 +215,7 @@ function generatePDFReport(
     
     const pensionData = pensionFunds.map(fund => [
       fund.fund_name || 'ללא שם',
-      `₪${(fund.current_balance || 0).toLocaleString()}`,
+      fund.annuity_coefficient || fund.coefficient || 0,  // מקדם הקצבה
       `₪${(fund.monthly_deposit || 0).toLocaleString()}`,
       `${((fund.annual_return_rate || 0) * 100).toFixed(1)}%`,
       `₪${(fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}`,
@@ -223,7 +223,7 @@ function generatePDFReport(
     ]);
     
     autoTable(doc, {
-      head: [['שם הקרן', 'יתרה נוכחית', 'הפקדה חודשית', 'תשואה שנתית', 'קצבה חודשית', 'גיל פרישה']],
+      head: [['שם הקרן', 'מקדם', 'הפקדה חודשית', 'תשואה שנתית', 'קצבה חודשית', 'גיל פרישה']],
       body: pensionData,
       startY: yPosition,
       styles: {
@@ -387,7 +387,7 @@ function generateExcelReport(
   // גיליון 2: נכסי הון מפורט
   if (capitalAssets.length > 0) {
     const capitalAssetsData = [
-      ['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית %', 'יחס למס', 'תאריך התחלה', 'תאריך סיום'],
+      ['תיאור', 'סוג נכס', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית %', 'יחס למס', 'תאריך תשלום', 'תאריך סיום'],
       ...capitalAssets.map(asset => [
         asset.description || asset.asset_name || 'ללא תיאור',
         ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
@@ -1351,6 +1351,10 @@ const SimpleReports: React.FC = () => {
   const calculateCapitalAssetsNPV = (): { asset: any; npv: number; npvAfterTax: number }[] => {
     const results: { asset: any; npv: number; npvAfterTax: number }[] = [];
     
+    // חישוב שנים עד גיל 90
+    const retirementAge = parseInt(localStorage.getItem('retirementAge') || '67');
+    const yearsTo90 = Math.max(1, 90 - retirementAge);
+    
     capitalAssets.forEach(asset => {
       const paymentAmount = parseFloat(asset.monthly_income) || 0;
       
@@ -1371,8 +1375,8 @@ const SimpleReports: React.FC = () => {
           totalReturnRate += 0.02; // הנחה: אינפלציה ממוצעת 2%
         }
         
-        // חישוב ערך עתידי (לדוגמה: 10 שנים)
-        const years = 10;
+        // חישוב ערך עתידי עד גיל 90 (לא 10 שנים קבועות!)
+        const years = yearsTo90;
         const futureValue = currentValue * Math.pow(1 + totalReturnRate, years);
         
         // חישוב NPV (ערך נוכחי של הערך העתידי)
@@ -1637,12 +1641,12 @@ const SimpleReports: React.FC = () => {
     // ==== גיליון 2: מוצרים פנסיונים ====
     if (pensionFunds && pensionFunds.length > 0) {
       const pensionData = [
-        ['שם תכנית', 'סוג מוצר', 'חברה', 'יתרה', 'קצבה חודשית', 'תאריך התחלה'],
+        ['שם תכנית', 'סוג מוצר', 'חברה', 'מקדם', 'קצבה חודשית', 'תאריך התחלה'],
         ...pensionFunds.map(p => [
           p.fund_name || '',
           PENSION_PRODUCT_TYPES[p.product_type] || p.product_type || '',
           p.company || '',
-          p.current_balance || 0,
+          p.annuity_coefficient || p.coefficient || 0,  // מקדם הקצבה
           p.monthly_pension || 0,
           p.start_date || ''
         ])
@@ -1653,7 +1657,7 @@ const SimpleReports: React.FC = () => {
       const totalMonthly = pensionFunds.reduce((sum, p) => sum + (p.monthly_pension || 0), 0);
       
       pensionData.push(['', '', '', '', '', '']);
-      pensionData.push(['סה"כ', '', '', totalBalance, totalMonthly, '']);
+      pensionData.push(['סה"כ', '', '', '', totalMonthly, '']);
       
       const pensionSheet = XLSX.utils.aoa_to_sheet(pensionData);
       XLSX.utils.book_append_sheet(workbook, pensionSheet, 'מוצרים פנסיונים');
@@ -1662,7 +1666,7 @@ const SimpleReports: React.FC = () => {
     // ==== גיליון 3: נכסי הון ====
     if (capitalAssets && capitalAssets.length > 0) {
       const assetsData = [
-        ['שם נכס', 'סוג', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית', 'תאריך התחלה', 'תאריך סיום'],
+        ['שם נכס', 'סוג', 'ערך נוכחי (₪)', 'תשלום חודשי (₪)', 'תשואה שנתית', 'תאריך תשלום', 'תאריך סיום'],
         ...capitalAssets.map(asset => [
           asset.asset_name || asset.description || '',
           ASSET_TYPES_MAP[asset.asset_type] || asset.asset_type || '',
@@ -1678,7 +1682,7 @@ const SimpleReports: React.FC = () => {
       const totalIncome = capitalAssets.reduce((sum, a) => sum + (a.monthly_income || 0), 0);
       
       assetsData.push(['', '', '', '', '', '', '']);
-      assetsData.push(['סה"כ', '', totalValue, totalIncome, '', '', '']);
+      assetsData.push(['סה"כ', '', totalValue, totalIncome, '', '', '']);  // תאריך תשלום בעמודה 6
       
       const assetsSheet = XLSX.utils.aoa_to_sheet(assetsData);
       XLSX.utils.book_append_sheet(workbook, assetsSheet, 'נכסי הון');
