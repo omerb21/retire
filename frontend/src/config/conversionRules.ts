@@ -246,26 +246,15 @@ export function validateComponentConversion(
   if (fieldName === 'תגמולים') {
     const lowerProductType = productType.toLowerCase();
     
-    // קרן פנסיה או ביטוח מנהלים - סכום קצבתי
-    if (lowerProductType.includes('קרן פנסיה') || lowerProductType.includes('ביטוח מנהלים')) {
-      if (conversionType === 'pension') {
-        result.canConvert = true;
-        result.taxTreatment = 'taxable'; // חייב במס
-      } else {
-        result.canConvert = false;
-        result.errors.push('תגמולים בקרן פנסיה/ביטוח מנהלים ניתנים להמרה לקצבה בלבד');
-      }
-      return result;
-    }
-    
-    // קופת גמל או קרן השתלמות - סכום הוני
-    if (lowerProductType.includes('קופת גמל') && !lowerProductType.includes('להשקעה')) {
+    // קרן השתלמות - סכום הוני פטור
+    if (lowerProductType.includes('קרן השתלמות')) {
       result.canConvert = true;
       result.taxTreatment = 'exempt'; // פטור ממס
       return result;
     }
     
-    if (lowerProductType.includes('קרן השתלמות')) {
+    // קופת גמל (לא להשקעה) - סכום הוני פטור
+    if (lowerProductType.includes('קופת גמל') && !lowerProductType.includes('להשקעה')) {
       result.canConvert = true;
       result.taxTreatment = 'exempt'; // פטור ממס
       return result;
@@ -282,9 +271,27 @@ export function validateComponentConversion(
       return result;
     }
     
-    // ברירת מחדל - אם לא זוהה סוג מוצר
-    result.canConvert = false;
-    result.errors.push('לא ניתן לקבוע חוקי המרה עבור תגמולים - סוג מוצר לא מזוהה');
+    // קרן פנסיה - סכום קצבתי
+    if (lowerProductType.includes('קרן פנסיה')) {
+      if (conversionType === 'pension') {
+        result.canConvert = true;
+        result.taxTreatment = 'taxable'; // חייב במס
+      } else {
+        result.canConvert = false;
+        result.errors.push('תגמולים בקרן פנסיה ניתנים להמרה לקצבה בלבד');
+      }
+      return result;
+    }
+    
+    // ברירת מחדל: כל מה שלא קרן פנסיה/קופ"ג/השתלמות = ביטוח מנהלים (פוליסות)
+    // זה כולל: "פוליסת ביטוח חיים משולב חיסכון", "פוליסת חיסכון טהור", "ביטוח מנהלים" וכו'
+    if (conversionType === 'pension') {
+      result.canConvert = true;
+      result.taxTreatment = 'taxable'; // חייב במס
+    } else {
+      result.canConvert = false;
+      result.errors.push('תגמולים בפוליסות ביטוח ניתנים להמרה לקצבה בלבד');
+    }
     return result;
   }
 

@@ -551,7 +551,8 @@ class RetirementScenariosBuilder:
                     grants_by_plan[plan_key] = {
                         'grants': [],
                         'plan_start_date': grant.plan_start_date,
-                        'plan_name': grant.plan_name
+                        'plan_name': grant.plan_name,
+                        'product_type': grant.product_type  # שמירת סוג המוצר
                     }
                 grants_by_plan[plan_key]['grants'].append(grant)
         
@@ -565,6 +566,7 @@ class RetirementScenariosBuilder:
             plan_grants = plan_data['grants']
             plan_start_date = plan_data['plan_start_date']
             plan_name = plan_data['plan_name'] or "תכנית ללא שם"
+            product_type = plan_data.get('product_type') or 'ביטוח מנהלים'  # ברירת מחדל: ביטוח מנהלים
             
             # חישוב סכומים לתכנית זו
             plan_severance = 0
@@ -582,10 +584,11 @@ class RetirementScenariosBuilder:
                 logger.info(f"  ℹ️ No severance amount for plan {plan_name}")
                 continue
             
-            # חישוב מקדם קצבה דינמי לפי תאריך התחלת התכנית
+            # חישוב מקדם קצבה דינמי לפי תאריך התחלת התכנית וסוג המוצר
             try:
+                logger.info(f"  📊 Calculating coefficient for {plan_name}: product_type='{product_type}'")
                 coefficient_result = get_annuity_coefficient(
-                    product_type='קופת גמל',  # פיצויים מתנהגים כמו קופת גמל
+                    product_type=product_type,  # שימוש בסוג המוצר האמיתי מהגרנט
                     start_date=plan_start_date if plan_start_date else (current_employer.start_date if current_employer.start_date else date.today()),
                     gender=client.gender if client else 'זכר',
                     retirement_age=self._get_retirement_age(),

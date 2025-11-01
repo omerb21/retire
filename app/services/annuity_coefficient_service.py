@@ -109,15 +109,18 @@ def is_pension_fund(product_type: str) -> bool:
     """
     בודק אם המוצר צריך להשתמש בטבלת מקדמי קרנות פנסיה
     
-    קרן פנסיה, קופת גמל, קרן השתלמות → טבלת קרנות פנסיה
-    כל סוג אחר (ביטוח מנהלים, פוליסות) → טבלת דורות ביטוח
+    לוגיקה:
+    - קרן פנסיה → טבלת קרנות פנסיה
+    - קופת גמל → טבלת קרנות פנסיה
+    - קרן השתלמות → טבלת קרנות פנסיה
+    - כל השאר (פוליסות ביטוח, ביטוח מנהלים) → טבלת דורות ביטוח
     """
     if not product_type:
         return False
     
     product_lower = product_type.lower()
     
-    # מוצרים שמשתמשים בטבלת קרנות פנסיה
+    # מוצרים שמשתמשים בטבלת קרנות פנסיה (רשימה ממצה)
     pension_keywords = [
         'קרן פנסיה',
         'פנסיה מקיפה', 
@@ -130,7 +133,13 @@ def is_pension_fund(product_type: str) -> bool:
     ]
     
     result = any(keyword in product_lower for keyword in pension_keywords)
-    logger.info(f"🔵 [DEBUG] is_pension_fund('{product_type}') = {result}")
+    
+    # לוג מפורט לדיבאג
+    if result:
+        logger.info(f"🔵 [DEBUG] is_pension_fund('{product_type}') = True → ישתמש בטבלת pension_fund_coefficient")
+    else:
+        logger.info(f"🔵 [DEBUG] is_pension_fund('{product_type}') = False → ישתמש בטבלת policy_generation_coefficient (ביטוח מנהלים)")
+    
     return result
 
 
