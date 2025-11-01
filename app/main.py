@@ -41,10 +41,15 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # מאפשר גם Origin=null של file:// וגם כל פורט מקומי
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://retire-1.onrender.com",
+        "https://retire.onrender.com"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=False,      # חייב להיות False כדי לאפשר "*"
 )
 
 # Include routers

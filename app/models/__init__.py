@@ -14,14 +14,14 @@ from .fixation_result import FixationResult
 from .current_employer import CurrentEmployer, ActiveContinuityType
 from .employer_grant import EmployerGrant, GrantType
 from .pension_fund import PensionFund
+from .pension_fund_coefficient import PensionFundCoefficient
 from .additional_income import AdditionalIncome, IncomeSourceType, PaymentFrequency, IndexationMethod, TaxTreatment
 from .capital_asset import CapitalAsset, AssetType
 
 __all__ = [
-    "Base", "Client", "Employer", "Employment", "TerminationEvent", "TerminationReason", 
-    "Grant", "Pension", "Commutation", "Scenario", "FixationResult",
-    "CurrentEmployer", "ActiveContinuityType", "EmployerGrant", "GrantType",
-    "PensionFund", "AdditionalIncome", "IncomeSourceType", "PaymentFrequency", 
-    "IndexationMethod", "TaxTreatment", "CapitalAsset", "AssetType"
+    'Base', 'Client', 'Employer', 'Employment', 'TerminationEvent', 'TerminationReason',
+    'Grant', 'Pension', 'Commutation', 'Scenario', 'FixationResult', 'CurrentEmployer',
+    'ActiveContinuityType', 'EmployerGrant', 'GrantType', 'PensionFund', 'PensionFundCoefficient',
+    'AdditionalIncome', 'IncomeSourceType', 'PaymentFrequency', 'IndexationMethod', 'TaxTreatment', 
+    'CapitalAsset', 'AssetType'
 ]
-
