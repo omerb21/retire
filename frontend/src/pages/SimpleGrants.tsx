@@ -45,7 +45,26 @@ const SimpleGrants: React.FC = () => {
       try {
         setLoading(true);
         const response = await axios.get(`/api/v1/clients/${id}/grants`);
-        const grantsData = response.data || [];
+        // Ensure we have an array, even if the response is not in the expected format
+        let grantsData = [];
+        if (Array.isArray(response.data)) {
+          grantsData = response.data;
+        } else if (response.data && typeof response.data === 'object') {
+          // If the response is an object, try to extract an array from it
+          const data = response.data;
+          if (Array.isArray(data.grants)) {
+            grantsData = data.grants;
+          } else if (Array.isArray(data.items)) {
+            grantsData = data.items;
+          } else if (data.data && Array.isArray(data.data)) {
+            grantsData = data.data;
+          } else {
+            // If we can't find an array, log the response for debugging
+            console.warn('Unexpected grants API response format:', response.data);
+          }
+        }
+        
+        console.log('Grants data loaded:', grantsData);
         setGrants(grantsData);
         
         // Calculate details for each grant
