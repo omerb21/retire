@@ -6,6 +6,7 @@ echo 🛡️  SAFE SERVER START - Killing existing processes first
 echo ============================================================
 echo.
 
+
 REM Kill all Python processes
 echo 🔍 Killing any existing Python processes...
 taskkill /F /IM python.exe >nul 2>&1
@@ -35,5 +36,8 @@ echo 📍 Health Check: http://localhost:8005/health
 echo.
 echo ⏹️  Press Ctrl+C to stop the server
 echo.
+echo הפעלת שרת ה-Frontend...
+start cmd /k "start_frontend.bat"
 
 python scripts\safe_server_start.py
+

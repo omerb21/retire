@@ -423,7 +423,7 @@ const SimpleGrants: React.FC = () => {
                           border: '1px solid #d4edda'
                         }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
-                            <div><strong>שנות שירות:</strong> {details.serviceYears}</div>
+                            <div><strong>תקופת עבודה:</strong> {details.serviceYears}</div>
                             {details.taxDue > 0 && (
                               <div style={{ color: '#dc3545' }}>
                                 <strong>מס משוער:</strong> ₪{details.taxDue.toLocaleString()}
@@ -470,7 +470,7 @@ const SimpleGrants: React.FC = () => {
         fontSize: '14px'
       }}>
         <strong>הסבר:</strong> המערכת מחשבת את הפטור ממס בהתאם לחוק (עד 375,000 ₪). 
-        חשוב לוודא שתאריכי העבודה נכונים לחישוב מדויק של שנות השירות.
+        חשוב לוודא שתאריכי העבודה נכונים לחישוב מדויק של תקופת העבודה.
         הסכומים הפטורים ממס נלקחים בחשבון בחישוב קיבוע המס הכללי.
       </div>
       </div>
