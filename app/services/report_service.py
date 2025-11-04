@@ -38,73 +38,45 @@ from app.services.cashflow_service import generate_cashflow
 from app.services.case_service import detect_case
 from app.schemas.case import ClientCase
 
+# Import modular components
+from app.services.report import (
+    FontManager,
+    ensure_fonts,
+    get_default_font,
+    PDFStyles,
+    DataFormatters,
+    DEFAULT_HEBREW_FONT
+)
+from app.services.report.charts import (
+    CashflowChartRenderer,
+    ScenariosChartRenderer,
+    render_cashflow_chart,
+    create_net_cashflow_chart,
+    render_scenarios_compare_chart
+)
+
 _logger = logging.getLogger(__name__)
-_DEFAULT_HEBREW_FONT = "DejaVu Sans"  # Default to DejaVu which is bundled with matplotlib
+
+# Module-level variables for backward compatibility
+def _get_default_font():
+    """Get default font, ensuring fonts are initialized."""
+    ensure_fonts()
+    return get_default_font()
+
+# For backward compatibility, use a property-like access
+class _FontGetter:
+    def __str__(self):
+        return _get_default_font()
+    def __repr__(self):
+        return _get_default_font()
+
+_DEFAULT_HEBREW_FONT = _FontGetter()
 _FONTS_READY = False
 
+# Backward compatibility wrapper
 def _register_font_once(alias: str, path: str) -> str:
-    try:
-        if alias in pdfmetrics.getRegisteredFontNames():
-            return alias
-        pdfmetrics.registerFont(TTFont(alias, path))
-        return alias
-    except Exception as e:
-        _logger.warning("Font registration failed (%s -> %s): %s", alias, path, e)
-        return "Helvetica"
-
-def ensure_fonts():
-    """Call only from rendering functions (not at import time)."""
-    global _FONTS_READY, _DEFAULT_HEBREW_FONT
-    if _FONTS_READY:
-        return
-    # Build a prioritized list of possible TTF font paths that support Hebrew
-    candidates = []
-    # 1) Project-bundled font (if provided)
-    candidates.append(os.path.join("app", "static", "fonts", "NotoSansHebrew-Regular.ttf"))
-    
-    # 2) Matplotlib-bundled DejaVuSans (portable across CI/OS)
-    try:
-        import matplotlib as mpl
-        from matplotlib import font_manager as fm
-        try:
-            # Prefer an actual path to DejaVu Sans
-            dv_path = fm.findfont("DejaVu Sans", fallback_to_default=False)
-            if dv_path and os.path.exists(dv_path):
-                candidates.append(dv_path)
-        except Exception:
-            pass
-        # Fallback to data path lookup
-        dv2 = os.path.join(mpl.get_data_path(), "fonts", "ttf", "DejaVuSans.ttf")
-        if os.path.exists(dv2):
-            candidates.append(dv2)
-    except Exception as e:
-        _logger.warning("Matplotlib DejaVu font discovery failed: %s", e)
-
-    # 3) Common Windows fonts (if available)
-    for win_font in (
-        r"C:\\Windows\\Fonts\\ARIALUNI.TTF",
-        r"C:\\Windows\\Fonts\\Arial.ttf",
-        r"C:\\Windows\\Fonts\\Tahoma.ttf",
-    ):
-        if os.path.exists(win_font):
-            candidates.append(win_font)
-
-    # 4) Common Linux path
-    candidates.append("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-
-    # Register the first available candidate
-    for p in candidates:
-        if os.path.exists(p):
-            _DEFAULT_HEBREW_FONT = _register_font_once("HebrewUI", p)
-            break
-
-    # Configure Matplotlib to use a Unicode-capable font
-    try:
-        plt.rcParams["font.family"] = ["DejaVu Sans", "HebrewUI", "sans-serif"]
-        plt.rcParams["axes.unicode_minus"] = False
-    except Exception as e:
-        _logger.warning("Matplotlib font setup warning: %s", e)
-    _FONTS_READY = True
+    """Backward compatibility wrapper for font registration."""
+    return FontManager.register_font_once(alias, path)
 
 
 class ReportService:
