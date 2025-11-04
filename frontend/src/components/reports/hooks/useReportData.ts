@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getPensionCeiling } from '../calculations/pensionCalculations';
-import { calculateTaxByBrackets } from '../../../utils/taxBrackets';
+import { calculateTaxByBrackets } from '../calculations/taxCalculations';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 
 interface ReportData {

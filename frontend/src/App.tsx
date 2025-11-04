@@ -12,7 +12,7 @@ import SimpleReports from "./pages/SimpleReports";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
 import SystemSnapshot from "./components/SystemSnapshot";
-import { getTaxBrackets } from "./utils/taxBrackets";
+import { getTaxBrackets } from "./components/reports/calculations/taxCalculations";
 import "./styles/modern-theme.css";
 // Create inline ClientDetails component until we implement the full version
 const ClientDetails = () => {
