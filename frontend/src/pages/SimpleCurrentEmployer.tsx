@@ -13,7 +13,7 @@ import { useTerminationActions } from './SimpleCurrentEmployer/hooks/useTerminat
 import { SavedDataDisplay } from './SimpleCurrentEmployer/components/SavedDataDisplay';
 import { EmployerDetailsForm } from './SimpleCurrentEmployer/components/EmployerDetailsForm';
 import { TerminationSteps } from './SimpleCurrentEmployer/components/TerminationSteps';
-import { clearTerminationState } from './SimpleCurrentEmployer/utils/storageHelpers';
+import { clearTerminationState, isTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
 
 const SimpleCurrentEmployer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -60,6 +60,17 @@ const SimpleCurrentEmployer: React.FC = () => {
     setLoading,
     setError
   );
+
+  // Load confirmed state from localStorage on mount
+  useEffect(() => {
+    if (id) {
+      const isConfirmed = isTerminationConfirmed(id);
+      if (isConfirmed) {
+        setTerminationDecision(prev => ({ ...prev, confirmed: true }));
+        console.log('✅ Loaded confirmed state from localStorage: true');
+      }
+    }
+  }, [id]);
 
   // Sync termination_date with employer.end_date
   useEffect(() => {
