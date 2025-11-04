@@ -1,43 +1,22 @@
 @echo off
-setlocal enabledelayedexpansion
+title הפעלת שרתי המערכת
 
-echo ============================================================
-echo 🛡️  SAFE SERVER START - Killing existing processes first
-echo ============================================================
+:: עצירת שרתים קיימים
+taskkill /f /im node.exe >nul 2>&1
+taskkill /f /im python.exe >nul 2>&1
+
+:: הפעלת שרת Backend
+start "Backend Server" cmd /k "cd /d c:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire && python -m uvicorn app.main:app --reload --port 8005"
+
+:: המתנה קצרה להפעלת השרת
+timeout /t 5 >nul
+
+:: הפעלת שרת Frontend
+start "Frontend Server" cmd /k "cd /d c:\Users\USER\OneDrive\AI PROJECTS\WINSURDF\dev\retire\frontend && npm run dev"
+
 echo.
-
-
-REM Kill all Python processes
-echo 🔍 Killing any existing Python processes...
-taskkill /F /IM python.exe >nul 2>&1
-if errorlevel 1 (
-    echo ⚠️  No Python processes found (or already killed)
-) else (
-    echo ✅ Python processes killed
-)
-
-REM Wait for processes to die
-echo ⏳ Waiting 3 seconds for cleanup...
-timeout /t 3 /nobreak
-
-REM Activate virtual environment
+echo ✅ השרתים הופעלו בהצלחה!
+echo - Backend: http://localhost:8005
+echo - Frontend: http://localhost:3000
 echo.
-echo 📦 Activating virtual environment...
-call venv\Scripts\activate
-
-REM Start the server with safe startup script
-echo.
-echo ============================================================
-echo 🚀 Starting server on port 8005...
-echo ============================================================
-echo.
-echo 📍 API Documentation: http://localhost:8005/docs
-echo 📍 Health Check: http://localhost:8005/health
-echo.
-echo ⏹️  Press Ctrl+C to stop the server
-echo.
-echo הפעלת שרת ה-Frontend...
-start cmd /k "start_frontend.bat"
-
-python scripts\safe_server_start.py
-
+pause

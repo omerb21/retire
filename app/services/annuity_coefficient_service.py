@@ -1,5 +1,6 @@
 """
 שירות לחישוב מקדמי קצבה דינמיים לפי סוג מוצר, גיל ומגדר
+Updated: 2025-11-04
 """
 from datetime import date, datetime
 from typing import Optional, Dict, Any
@@ -8,6 +9,7 @@ from sqlalchemy import text
 from app.database import get_db
 
 logger = logging.getLogger(__name__)
+# Force reload: 2025-11-04 15:35
 
 
 def get_annuity_coefficient(
@@ -92,7 +94,7 @@ def get_annuity_coefficient(
 
 
 def normalize_gender(gender: str) -> str:
-    """מנרמל מגדר לפורמט אחיד"""
+    """מנרמל מגדר לפורמט אחיד - מחזיר בעברית לתאימות עם הטבלה"""
     if not gender:
         return 'זכר'
     
@@ -181,7 +183,15 @@ def get_pension_fund_coefficient(
         logger.info(f"🔵 [DEBUG] Query result: {result}")
         
         if result:
-            factor = result[0] * result[1]  # base_coefficient * adjust_percent
+            base_coef = result[0]
+            adjust_pct = result[1]
+            
+            # אם adjust_percent הוא 0, משתמשים רק ב-base_coefficient
+            # אחרת, מכפילים (adjust_percent צריך להיות 1.0 לברירת מחדל)
+            if adjust_pct == 0:
+                factor = base_coef
+            else:
+                factor = base_coef * adjust_pct
             
             logger.info(
                 f"[מקדם קצבה] קרן פנסיה: מין={sex}, גיל={retirement_age}, "
@@ -339,7 +349,7 @@ def get_company_specific_coefficient(
 def get_generation_coefficient(db, generation_code: str, age: int, sex: str) -> Dict[str, Any]:
     """שולף מקדם לפי דור פוליסה, גיל ומין"""
     
-    # בחירת עמודת המקדם לפי מין
+    # בחירת עמודת המקדם לפי מין (sex כבר מנורמל ל-זכר/נקבה)
     coef_column = 'male_coefficient' if sex == 'זכר' else 'female_coefficient'
     
     query = text(f"""

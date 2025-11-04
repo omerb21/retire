@@ -75,7 +75,7 @@ class CapitalAssetService:
             return Decimal('0')
         
         # שימוש במדרגות המס הרשמיות מ-TaxConstants
-        from .tax_constants import TaxConstants
+        from .tax.constants import TaxConstants
         tax_brackets = TaxConstants.INCOME_TAX_BRACKETS_2025
         
         brackets = [

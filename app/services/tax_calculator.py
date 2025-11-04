@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple, Optional
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
-from .tax_constants import TaxConstants, TaxBracket, TaxCredit
+from .tax.constants import TaxConstants, TaxBracket, TaxCredit
 from ..schemas.tax_schemas import (
     TaxCalculationInput, TaxCalculationResult, TaxBreakdown,
     TaxCreditInput, MonthlyTaxProjection, AnnualTaxProjection,

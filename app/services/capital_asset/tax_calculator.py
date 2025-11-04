@@ -239,7 +239,7 @@ class TaxCalculator(BaseCalculator):
         if not self.tax_brackets:
             logger.warning("No tax brackets defined, using TaxConstants")
             # שימוש במדרגות המס הרשמיות מ-TaxConstants
-            from app.services.tax_constants import TaxConstants
+            from app.services.tax.constants import TaxConstants
             tax_brackets_data = TaxConstants.INCOME_TAX_BRACKETS_2025
             
             brackets = [

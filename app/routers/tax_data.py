@@ -4,7 +4,7 @@ Tax Data API Router - Official tax parameters from government sources
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict
 from datetime import datetime
-from app.services.tax_data_service import TaxDataService
+from app.services.tax_data import TaxDataService
 
 router = APIRouter()
 

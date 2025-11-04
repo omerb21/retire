@@ -269,7 +269,7 @@ def calculate_tax_impact_for_client(client_data: Dict[str, Any],
         additional_credits = []
         if client_data.get('tax_credit_points', 0) > 0:
             from ..schemas.tax_schemas import TaxCreditInput
-            from .tax_constants import TaxConstants
+            from .tax.constants import TaxConstants
             
             # שימוש בערך נקודת זיכוי עדכני לפי שנה
             tax_year = datetime.now().year
