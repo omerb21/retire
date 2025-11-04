@@ -16,67 +16,63 @@ import {
   drawPieChart
 } from '../utils/reportGenerator';
 
-// ניסיון להוסיף תמיכה בעברית
-declare module 'jspdf' {
-  interface jsPDF {
-    addFileToVFS(filename: string, content: string): void;
-    addFont(filename: string, fontName: string, fontStyle: string): void;
-  }
-}
-const ASSET_TYPES = [
-  { value: "rental_property", label: "דירה להשכרה" },
-  { value: "investment", label: "השקעות" },
-  { value: "stocks", label: "מניות" },
-  { value: "bonds", label: "אגרות חוב" },
-  { value: "mutual_funds", label: "קרנות נאמנות" },
-  { value: "real_estate", label: "נדלן" },
-  { value: "savings_account", label: "חשבון חיסכון" },
-  { value: "other", label: "אחר" }
-];
+// ייבוא קבצים מפוצלים
+import { calculateNPV } from '../components/reports/calculations/npvCalculations';
+import { getPensionCeiling, getExemptCapitalPercentage } from '../components/reports/calculations/pensionCalculations';
+import { generatePDFReport } from '../components/reports/generators/PDFGenerator';
+import { generateExcelReport } from '../components/reports/generators/ExcelGenerator';
+import { ASSET_TYPES, YearlyProjection } from '../components/reports/types/reportTypes';
 
-interface YearlyProjection {
-  year: number;
-  clientAge: number;
-  totalMonthlyIncome: number;
-  totalMonthlyTax: number;
-  netMonthlyIncome: number;
-  incomeBreakdown: number[];
-  taxBreakdown: number[];
-  exemptPension?: number;
-}
+// הערה: calculateNPV, generatePDFReport, generateExcelReport מיובאים מקבצים מפוצלים
 
-/**
- * מחשב את הערך הנוכחי הנקי (NPV) של תזרים מזומנים
- * @param cashFlows מערך של תזרימי מזומנים (ערך שלילי עבור השקעה ראשונית, חיובי עבור תקבולים)
- * @param discountRate שיעור היוון שנתי (למשל 0.05 עבור 5%)
- * @returns הערך הנוכחי הנקי (NPV)
- */
-function calculateNPV(cashFlows: number[], discountRate: number): number {
-  return cashFlows.reduce((sum, cashFlow, year) => {
-    return sum + (cashFlow / Math.pow(1 + discountRate, year));
-  }, 0);
+interface ReportData {
+  client_info: {
+    name: string;
+    id_number: string;
+    birth_year?: number;
+  };
+  financial_summary: {
+    total_pension_value: number;
+    total_additional_income: number;
+    total_capital_assets: number;
+    total_wealth: number;
+    estimated_tax: number;
+    total_monthly_income: number;
+  };
+  cashflow_projection: Array<{
+    date: string;
+    amount: number;
+    grossAmount: number;
+    tax: number;
+    source: string;
+  }>;
+  yearly_totals: {
+    total_income: number;
+    total_tax: number;
+    net_income: number;
+  };
 }
 
-/**
- * יוצר דוח PDF עם תמיכה מלאה בעברית
- */
-function generatePDFReport(
-  yearlyProjection: YearlyProjection[],
-  pensionFunds: any[],
-  additionalIncomes: any[],
-  capitalAssets: any[],
-  clientData: any
-) {
-  const doc = new jsPDF();
+const SimpleReports: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   
-  // ניסיון לתמיכה בעברית - נשתמש בפונט שתומך טוב יותר
-  try {
-    // ננסה עם פונט שתומך בעברית
-    doc.setFont('times', 'normal');
-  } catch (e) {
-    // אם לא עובד, נחזור לפונט בסיסי
-    doc.setFont('helvetica');
-  }
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pensionFunds, setPensionFunds] = useState<any[]>([]);
+  const [additionalIncomes, setAdditionalIncomes] = useState<any[]>([]);
+  const [capitalAssets, setCapitalAssets] = useState<any[]>([]);
+  const [taxCalculation, setTaxCalculation] = useState<any>(null);
+  const [client, setClient] = useState<any>(null);
+  const [fixationData, setFixationData] = useState<any>(null);
+
+  // Load report data
+  useEffect(() => {
+    const fetchReportData = async () => {
+      try {
   
   // נוסיף הערה על בעיות encoding אפשריות
   const addHebrewNote = () => {
