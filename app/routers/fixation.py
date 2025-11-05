@@ -146,12 +146,55 @@ def package(client_id: int, db: Session = Depends(get_db)):
             detail={"error": f"שגיאה בייצור המסמכים: {result.get('error', 'לא ידוע')}"}
         )
     
-    return {
-        "client_id": client_id,
-        "client_name": client.full_name,
-        "success": True,
-        "status": "ok",
-        "message": "חבילת מסמכי קיבוע זכויות נוצרה בהצלחה",
-        "folder": result.get("folder"),
-        "files": result.get("files", [])
-    }
+    # יצירת קובץ ZIP והחזרתו
+    import zipfile
+    import os
+    from fastapi.responses import FileResponse
+    import tempfile
+    
+    folder_path = result.get("folder")
+    files = result.get("files", [])
+    
+    if not folder_path or not files:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "לא נמצאו קבצים לארכוב"}
+        )
+    
+    # יצירת קובץ ZIP זמני
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    temp_zip_path = temp_zip.name
+    temp_zip.close()
+    
+    try:
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_name in files:
+                file_path = os.path.join(folder_path, file_name)
+                if os.path.exists(file_path):
+                    zipf.write(file_path, file_name)
+                    logger.info(f"✅ Added to ZIP: {file_name}")
+        
+        logger.info(f"✅ ZIP created: {temp_zip_path}")
+        
+        # החזרת הקובץ
+        from urllib.parse import quote
+        safe_filename = f"fixation_{client.id}_documents.zip"
+        hebrew_filename = f"מסמכי_קיבוע_{client.first_name}_{client.last_name}.zip"
+        encoded_filename = quote(hebrew_filename)
+        
+        return FileResponse(
+            path=temp_zip_path,
+            media_type='application/zip',
+            filename=safe_filename,
+            headers={
+                "Content-Disposition": f"attachment; filename={safe_filename}; filename*=UTF-8''{encoded_filename}"
+            }
+        )
+    except Exception as e:
+        logger.error(f"❌ Error creating ZIP: {e}")
+        if os.path.exists(temp_zip_path):
+            os.unlink(temp_zip_path)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": f"שגיאה ביצירת קובץ ZIP: {str(e)}"}
+        )

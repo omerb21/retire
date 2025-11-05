@@ -1,7 +1,17 @@
 # מבנה קומפוננטות הדוחות
 
 ## סקירה כללית
-הקבצים בתיקייה זו מהווים פיצול של הקובץ הגדול `SimpleReports.tsx` לקבצים קטנים יותר ומנוהלים.
+הקבצים בתיקייה זו מהווים מבנה מודולרי לדוחות. הקובץ `SimpleReports.tsx` הישן הוחלף ב-`ReportsPage.tsx` שמשתמש **אך ורק** בקבצים המפוצלים.
+
+## ✅ המערכת עובדת כעת רק עם הקבצים המפוצלים!
+
+הקובץ `ReportsPage.tsx` החדש הוא קובץ קצר וקריא (כ-350 שורות) שמשתמש ב:
+- `useReportData` hook לטעינת נתונים
+- `generateYearlyProjection` לחישוב תזרים
+- `generatePDFReport` ו-`generateExcelReport` ליצירת דוחות
+- `calculateNPV` לחישובי ערך נוכחי
+
+הקובץ המקורי הגדול (2669 שורות) גובה ב-`ReportsPage_OLD.tsx` לצורך התייחסות בלבד.
 
 ## מבנה התיקיות
 
@@ -143,7 +153,7 @@ function MyComponent() {
 
 ## שימוש בקומפוננטה הראשית
 
-הקובץ `SimpleReports.tsx` המקורי נשאר ללא שינוי כרגע, אך ניתן להשתמש בקבצים החדשים:
+הקובץ `ReportsPage.tsx` משתמש בכל הקבצים המפוצלים:
 
 ```typescript
 import { useReportData } from '../components/reports/hooks/useReportData';
@@ -151,7 +161,7 @@ import { generatePDFReport } from '../components/reports/generators/PDFGenerator
 import { generateExcelReport } from '../components/reports/generators/ExcelGenerator';
 import { calculateNPV } from '../components/reports/calculations/npvCalculations';
 
-function SimpleReports() {
+function ReportsPage() {
   const { id } = useParams();
   const { loading, error, pensionFunds, additionalIncomes, capitalAssets, client } = useReportData(id);
   
@@ -194,13 +204,14 @@ function SimpleReports() {
 
 ## צעדים הבאים
 
-1. ✅ יצירת מבנה תיקיות
+1. ✅ הפרדת קבצי utility (reportUtils, chartUtils)
 2. ✅ הפרדת חישובים (NPV, פנסיה)
 3. ✅ הפרדת generators (PDF, Excel)
 4. ✅ יצירת useReportData hook
-5. ⏳ עדכון SimpleReports.tsx להשתמש בקבצים החדשים
-6. ⏳ הפרדת קומפוננטות UI נוספות
-7. ⏳ כתיבת unit tests
+5. ✅ יצירת ReportsPage.tsx שמשתמש בקבצים המפוצלים
+6. ✅ מחיקת SimpleReports.tsx הישן
+7. ⏳ הפרדת קומפוננטות UI נוספות
+8. ⏳ כתיבת unit tests
 
 ## תיעוד נוסף
 

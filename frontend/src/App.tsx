@@ -8,7 +8,7 @@ import RetirementScenarios from "./pages/RetirementScenarios";
 import SimpleFixation from "./pages/SimpleFixation";
 import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
 import SimpleGrants from "./pages/SimpleGrants";
-import SimpleReports from "./pages/SimpleReports";
+import ReportsPage from "./pages/ReportsPage";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
 import SystemSnapshot from "./components/SystemSnapshot";
@@ -130,7 +130,7 @@ export default function App() {
             <Route path="/clients/:id/grants" element={<SimpleGrants />} />
             <Route path="/clients/:id/retirement-scenarios" element={<RetirementScenarios />} />
             <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
-            <Route path="/clients/:id/reports" element={<SimpleReports />} />
+            <Route path="/clients/:id/reports" element={<ReportsPage />} />
             <Route path="/system-settings" element={<SystemSettings />} />
             <Route path="/" element={<Clients />} />
             <Route path="*" element={<Clients />} />

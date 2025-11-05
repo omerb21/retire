@@ -90,3 +90,33 @@ temp/
 !frontend/src/lib/
 !frontend/src/lib/**
 report_smoke.pdf
+
+# Backup files
+*.bak
+*.backup
+*~
+*.swp
+*.swo
+
+# Old files
+*old*
+*OLD*
+*.old
+
+# Temporary documentation (keep only in docs/archive)
+/*_SUMMARY.md
+/*_REPORT.md
+/*_GUIDE.md
+/*_INSTRUCTIONS.md
+/*_TRACKING.md
+/*_LOGIC.md
+/*_README.md
+/*_IMPLEMENTATION.md
+/*_FIX*.md
+/*_REFACTORING*.md
+
+# Keep only main README in root
+!README.md
+
+# Generated packages
+packages/*/
