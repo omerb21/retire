@@ -120,7 +120,13 @@ class SeveranceCalculator:
 
 
 class GrantCalculator:
-    """מחשבון מענקים"""
+    """
+    מחשבון מענקים
+    
+    DEPRECATED: פונקציה זו שומרת לתאימות לאחור בלבד.
+    יש להשתמש ב-CurrentEmployerService.calculate_severance_grant() במקום,
+    שמשתמש בנתוני מס אמיתיים מ-TaxDataService.
+    """
     
     @staticmethod
     def calculate_grant(
@@ -133,30 +139,30 @@ class GrantCalculator:
         """
         חישוב מענק עם הצמדה ופירוק מס
         
+        DEPRECATED: השתמש ב-CurrentEmployerService.calculate_severance_grant()
+        
         Args:
             grant_amount: סכום המענק
             service_years: שנות ותק
             last_salary: משכורת אחרונה
-            base_cap: תקרת פטור בסיסית (זמני)
-            index_factor: מקדם הצמדה (זמני)
+            base_cap: תקרת פטור בסיסית (deprecated)
+            index_factor: מקדם הצמדה (deprecated)
             
         Returns:
             GrantCalculationResult עם פרטי החישוב
         """
-        # TODO: חיבור למדד המחירים לצרכן להצמדה אמיתית
-        # כרגע משתמשים בסכום המקורי
+        # NOTE: חישוב זה משתמש בקבועים ישנים ולא מדויק
+        # לחישוב מדויק, השתמש ב-CurrentEmployerService.calculate_severance_grant()
         indexed_amount = float(grant_amount)
         
-        # חישוב תקרת פטור לפיצויים
-        # אם last_salary הוא 0, תקרת הפטור היא 0, מה שהופך את כל המענק לחייב במס
+        # חישוב תקרת פטור לפיצויים (לא מדויק - משתמש בקבועים ישנים)
         severance_exemption_cap = service_years * last_salary * base_cap * index_factor
         
         # חישוב חלקים פטורים וחייבים
         grant_exempt = min(indexed_amount, severance_exemption_cap)
         grant_taxable = max(0, indexed_amount - grant_exempt)
         
-        # TODO: חיבור למדרגות מס לחישוב מס מדויק
-        # כרגע משתמשים בשיעור מס זמני (25% על החלק החייב)
+        # חישוב מס פשוט (לא מדויק - לא משתמש במדרגות מס אמיתיות)
         tax_rate = 0.25  # שיעור מס זמני
         tax_due = grant_taxable * tax_rate
         

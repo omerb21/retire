@@ -87,9 +87,11 @@ export class GrantService {
       return response.data.total_exemption;
     } catch (error) {
       console.error('Error fetching tax data:', error);
-      // Fallback to hardcoded value if API fails
-      const fallbackCap = 41667;
-      return fallbackCap * serviceYears;
+      // Fallback: תקרה חודשית לשנת 2025 (13,750 ₪) × 12 חודשים × שנות ותק
+      // NOTE: ערך זה צריך להתעדכן מדי שנה או להיטען מהשרת
+      const monthlyCap2025 = 13750;
+      const annualCap = monthlyCap2025 * 12;
+      return annualCap * serviceYears;
     }
   }
 }

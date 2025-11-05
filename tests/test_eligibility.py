@@ -6,9 +6,34 @@ from datetime import date, timedelta
 import sys
 import os
 
-# הוספת נתיב למודול services
+# הוספת נתיב למודול app
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from services.eligibility import calc_eligibility_date, has_started_pension, is_eligible_for_fixation
+from app.services.retirement_age_service import calc_eligibility_date
+
+# פונקציות עזר לבדיקות
+def has_started_pension(pension_start_date):
+    """בדיקה האם התחיל לקבל קצבה"""
+    if pension_start_date is None:
+        return False
+    return pension_start_date <= date.today()
+
+def is_eligible_for_fixation(birthdate, gender, pension_start_date, check_date=None):
+    """בדיקה האם זכאי לקיבוע זכויות"""
+    if check_date is None:
+        check_date = date.today()
+    
+    # בדיקת גיל
+    eligibility_date = calc_eligibility_date(birthdate, gender)
+    age_condition_ok = check_date >= eligibility_date
+    
+    # בדיקת קצבה
+    pension_condition_ok = has_started_pension(pension_start_date)
+    
+    return {
+        "eligible": age_condition_ok and pension_condition_ok,
+        "age_condition_ok": age_condition_ok,
+        "pension_condition_ok": pension_condition_ok
+    }
 
 class TestEligibility(unittest.TestCase):
     

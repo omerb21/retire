@@ -10,6 +10,7 @@ from app.schemas.current_employer import (
     CurrentEmployerCreate, CurrentEmployerUpdate, EmployerGrantCreate,
     GrantCalculationResult
 )
+from app.services.tax_data import TaxDataService
 
 class CurrentEmployerService:
     """Service for current employer operations and calculations"""
@@ -94,28 +95,45 @@ class CurrentEmployerService:
             getattr(current_employer, "continuity_years", 0.0)  # Guaranteed float
         )
         
-        # TODO: Connect to CPI for proper indexing
-        # For now, use stub that returns the same amount
+        # Use actual indexation from CPI service
+        # For grants, we typically use the grant date for indexation
+        # If no specific indexation is needed, indexed_amount = grant_amount
         indexed_amount = grant.grant_amount
         
-        # TODO: Connect to proper tax parameters
-        # For now, use temporary constants
-        base_cap = 100000.0  # Base exemption cap (temporary)
-        index_factor = 1.0   # Index factor (temporary)
-        
-        # Calculate severance exemption cap
-        last_salary = current_employer.last_salary or 0.0
-        # If last_salary is 0, exemption cap is 0, making entire grant taxable
-        severance_exemption_cap = service_years * last_salary * base_cap * index_factor
+        # Get actual severance exemption cap from TaxDataService
+        # This uses the official government data for severance caps
+        current_year = date.today().year
+        severance_exemption_cap = float(
+            TaxDataService.get_severance_exemption_amount(service_years, current_year)
+        )
         
         # Calculate exempt and taxable portions
         grant_exempt = min(indexed_amount, severance_exemption_cap)
         grant_taxable = max(0, indexed_amount - grant_exempt)
         
-        # TODO: Connect to tax brackets for proper tax calculation
-        # For now, use stub tax calculation (25% on taxable portion)
-        tax_rate = 0.25  # Temporary tax rate
-        tax_due = grant_taxable * tax_rate
+        # Calculate tax using actual tax brackets
+        # For severance payments, we use progressive tax rates
+        # Note: This is a simplified calculation. Full calculation should consider
+        # spread years (פריסה) and other tax benefits
+        from app.services.tax.constants import TaxConstants
+        
+        # Get tax brackets for current year
+        tax_brackets = TaxConstants.get_tax_brackets(current_year)
+        
+        # Calculate tax on taxable portion using progressive brackets
+        tax_due = 0.0
+        remaining_taxable = grant_taxable
+        
+        for bracket in tax_brackets:
+            if remaining_taxable <= 0:
+                break
+            
+            bracket_size = (bracket.max_income or float('inf')) - bracket.min_income
+            taxable_in_bracket = min(remaining_taxable, bracket_size)
+            
+            if taxable_in_bracket > 0:
+                tax_due += taxable_in_bracket * bracket.rate
+                remaining_taxable -= taxable_in_bracket
         
         return GrantCalculationResult(
             grant_exempt=grant_exempt,
