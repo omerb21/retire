@@ -1,7 +1,7 @@
 """בדיקת חישוב מס משולב על פיצויים - לקוח 5"""
 
 from decimal import Decimal
-from app.services.capital_asset_service import CapitalAssetService
+from app.services.capital_asset import CapitalAssetService
 
 # יצירת service
 service = CapitalAssetService()

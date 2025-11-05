@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.capital_asset import CapitalAsset, AssetType, PaymentFrequency, IndexationMethod, TaxTreatment
 from app.models.client import Client
-from app.services.capital_asset_service import CapitalAssetService
+from app.services.capital_asset import CapitalAssetService
 from app.providers.tax_params import InMemoryTaxParamsProvider
 
 

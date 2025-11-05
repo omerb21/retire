@@ -102,24 +102,23 @@ export function generateYearlyProjection(
       totalMonthlyIncome += amount;
     });
 
-    // Add capital assets income
-    capitalAssets.forEach(asset => {
+    // Add capital assets income - only assets with payment > 0
+    const activeCapitalAssets = capitalAssets.filter(asset => (parseFloat(asset.monthly_income) || 0) > 0);
+    
+    activeCapitalAssets.forEach(asset => {
       const paymentAmount = parseFloat(asset.monthly_income) || 0;
+      let assetStartYear = currentYear;
       
-      if (paymentAmount > 0) {
-        let assetStartYear = currentYear;
-        
-        if (asset.start_date) {
-          assetStartYear = parseInt(asset.start_date.split('-')[0]);
-        }
-        
-        if (year === assetStartYear) {
-          const monthlyAmount = paymentAmount / 12;
-          incomeBreakdown.push(Math.round(monthlyAmount));
-          totalMonthlyIncome += monthlyAmount;
-        } else {
-          incomeBreakdown.push(0);
-        }
+      if (asset.start_date) {
+        assetStartYear = parseInt(asset.start_date.split('-')[0]);
+      }
+      
+      if (year === assetStartYear) {
+        const monthlyAmount = paymentAmount / 12;
+        incomeBreakdown.push(Math.round(monthlyAmount));
+        totalMonthlyIncome += monthlyAmount;
+      } else {
+        incomeBreakdown.push(0);
       }
     });
     
@@ -194,7 +193,37 @@ export function generateYearlyProjection(
       totalAnnualTax = Math.max(0, totalAnnualTax - (client.tax_credit_points * 2904));
     }
     
-    // שלב 4: חלוקת המס בין המקורות באופן פרופורציונלי
+    // שלב 4: חלוקת המס בין המקורות
+    // חישוב הכנסה בסיסית (ללא נכסי הון עם טיפול מיוחד)
+    let baseAnnualIncome = 0;
+    incomeBreakdown.forEach((monthlyIncome, index) => {
+      const annualIncome = monthlyIncome * 12;
+      
+      // דלג על נכסי הון - הם מטופלים בנפרד
+      if (index >= pensionFunds.length + additionalIncomes.length) {
+        return;
+      }
+      
+      // דלג על הכנסות נוספות עם fixed_rate או exempt
+      if (index >= pensionFunds.length) {
+        const additionalIncomeIndex = index - pensionFunds.length;
+        const additionalIncome = additionalIncomes[additionalIncomeIndex];
+        if (additionalIncome && (additionalIncome.tax_treatment === 'exempt' || additionalIncome.tax_treatment === 'fixed_rate')) {
+          return;
+        }
+      }
+      
+      baseAnnualIncome += annualIncome;
+    });
+    
+    baseAnnualIncome = Math.max(0, baseAnnualIncome - annualExemptPension);
+    
+    // התחל עם המס הרגיל מהקצבאות וההכנסות הרגילות
+    const regularMonthlyTax = totalAnnualTax / 12;
+    totalMonthlyTax = regularMonthlyTax;
+    
+    // חלוקת המס לפי סוג ההכנסה
+    
     incomeBreakdown.forEach((monthlyIncome, index) => {
       if (monthlyIncome === 0) {
         taxBreakdown.push(0);
@@ -203,39 +232,103 @@ export function generateYearlyProjection(
       
       const annualIncome = monthlyIncome * 12;
       
-      // בדיקה אם המקור פטור לחלוטין
-      let isFullyExempt = false;
-      
-      // הכנסות נוספות פטורות
+      // הכנסות נוספות - בדיקת יחס מס
       if (index >= pensionFunds.length && index < pensionFunds.length + additionalIncomes.length) {
         const additionalIncomeIndex = index - pensionFunds.length;
         const additionalIncome = additionalIncomes[additionalIncomeIndex];
-        if (additionalIncome && additionalIncome.tax_treatment === 'exempt') {
-          isFullyExempt = true;
+        
+        if (additionalIncome) {
+          if (additionalIncome.tax_treatment === 'exempt') {
+            taxBreakdown.push(0);
+            return;
+          } else if (additionalIncome.tax_treatment === 'fixed_rate') {
+            // מס קבוע (כמו שכירות מדירה 10%)
+            const monthlyTax = monthlyIncome * ((additionalIncome.tax_rate || 0) / 100);
+            taxBreakdown.push(Math.round(monthlyTax));
+            totalMonthlyTax += monthlyTax;
+            return;
+          }
         }
       }
       
-      // נכסי הון פטורים
+      // נכסי הון - טיפול מיוחד לפי יחס מס
       if (index >= pensionFunds.length + additionalIncomes.length) {
         const capitalAssetIndex = index - pensionFunds.length - additionalIncomes.length;
-        const capitalAsset = capitalAssets[capitalAssetIndex];
-        if (capitalAsset && capitalAsset.tax_treatment === 'exempt') {
-          isFullyExempt = true;
+        const capitalAsset = activeCapitalAssets[capitalAssetIndex];
+        
+        if (capitalAsset) {
+          if (capitalAsset.tax_treatment === 'exempt') {
+            taxBreakdown.push(0);
+            return;
+          } else if (capitalAsset.tax_treatment === 'fixed_rate') {
+            // מס קבוע
+            const monthlyTax = monthlyIncome * ((capitalAsset.tax_rate || 0) / 100);
+            taxBreakdown.push(Math.round(monthlyTax));
+            totalMonthlyTax += monthlyTax;
+            return;
+          } else if (capitalAsset.tax_treatment === 'tax_spread') {
+            // פריסת מס - חישוב מס שולי עם פריסה
+            const spreadYears = capitalAsset.spread_years || 1;
+            const totalPayment = annualIncome;
+            const annualPortion = totalPayment / spreadYears;
+            
+            let totalSpreadTax = 0;
+            for (let spreadYear = 0; spreadYear < spreadYears; spreadYear++) {
+              const targetYear = year + spreadYear;
+              const totalIncomeWithSpread = baseAnnualIncome + annualPortion;
+              let taxWithSpread = calculateTaxByBrackets(totalIncomeWithSpread, targetYear);
+              let taxWithoutSpread = baseAnnualIncome > 0 ? calculateTaxByBrackets(baseAnnualIncome, targetYear) : 0;
+              
+              if (client?.tax_credit_points) {
+                const creditAmount = client.tax_credit_points * 2904;
+                taxWithSpread = Math.max(0, taxWithSpread - creditAmount);
+                taxWithoutSpread = Math.max(0, taxWithoutSpread - creditAmount);
+              }
+              
+              const marginalTax = taxWithSpread - taxWithoutSpread;
+              totalSpreadTax += marginalTax;
+            }
+            
+            const monthlyTax = totalSpreadTax / 12;
+            taxBreakdown.push(Math.round(monthlyTax));
+            totalMonthlyTax += monthlyTax;
+            return;
+          } else if (capitalAsset.tax_treatment === 'capital_gains') {
+            // רווח הון - 25% על הרווח הריאלי
+            const realReturnRate = Math.max(0, (capitalAsset.annual_return_rate || 0) - 2);
+            const realGain = annualIncome * (realReturnRate / (capitalAsset.annual_return_rate || 1));
+            const monthlyTax = (realGain * 0.25) / 12;
+            taxBreakdown.push(Math.round(monthlyTax));
+            totalMonthlyTax += monthlyTax;
+            return;
+          } else {
+            // taxable - מס שולי רגיל
+            const totalIncomeWithAsset = baseAnnualIncome + annualIncome;
+            let taxWithAsset = calculateTaxByBrackets(totalIncomeWithAsset, year);
+            let taxWithoutAsset = baseAnnualIncome > 0 ? calculateTaxByBrackets(baseAnnualIncome, year) : 0;
+            
+            if (client?.tax_credit_points) {
+              const creditAmount = client.tax_credit_points * 2904;
+              taxWithAsset = Math.max(0, taxWithAsset - creditAmount);
+              taxWithoutAsset = Math.max(0, taxWithoutAsset - creditAmount);
+            }
+            
+            const marginalTax = taxWithAsset - taxWithoutAsset;
+            const monthlyTax = marginalTax / 12;
+            taxBreakdown.push(Math.round(monthlyTax));
+            totalMonthlyTax += monthlyTax;
+            return;
+          }
         }
       }
       
-      if (isFullyExempt) {
-        taxBreakdown.push(0);
-      } else {
-        // חלוקה פרופורציונלית של המס
-        const taxRatio = totalTaxableAnnualIncome > 0 ? annualIncome / totalTaxableAnnualIncome : 0;
-        const annualTaxForSource = totalAnnualTax * taxRatio;
-        const monthlyTaxForSource = annualTaxForSource / 12;
-        taxBreakdown.push(Math.round(monthlyTaxForSource));
-      }
+      // קצבאות והכנסות נוספות רגילות - חלוקה פרופורציונלית
+      const taxableBaseIncome = baseAnnualIncome + annualExemptPension;
+      const taxRatio = taxableBaseIncome > 0 ? annualIncome / taxableBaseIncome : 0;
+      const monthlyTaxForSource = regularMonthlyTax * taxRatio;
+      taxBreakdown.push(Math.round(monthlyTaxForSource));
     });
     
-    totalMonthlyTax = totalAnnualTax / 12;
     
     yearlyData.push({
       year,
