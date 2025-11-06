@@ -161,7 +161,9 @@ const ReportsPage: React.FC = () => {
     <p><strong>שנת קיבוע:</strong> ${fixationData.fixation_year || fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}</p>
     <p><strong>הון פטור ראשוני:</strong> ₪${(fixationData.exemption_summary?.exempt_capital_initial || 0).toLocaleString()}</p>
     <p><strong>הון פטור נותר:</strong> ₪${(fixationData.exemption_summary?.remaining_exempt_capital || 0).toLocaleString()}</p>
-    <p><strong>קצבה פטורה חודשית:</strong> ₪${(fixationData.exemption_summary?.remaining_monthly_exemption || ((fixationData.exemption_summary?.remaining_exempt_capital || 0) / 180)).toLocaleString()}</p>
+    <p><strong>קצבה פטורה מקיבוע (${fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}):</strong> ₪${(fixationData.exemption_summary?.remaining_monthly_exemption || ((fixationData.exemption_summary?.remaining_exempt_capital || 0) / 180)).toLocaleString()}</p>
+    <p><strong>אחוז קצבה פטורה:</strong> ${((fixationData.exemption_summary?.exempt_pension_percentage || 0) * 100).toFixed(2)}%</p>
+    <p><strong>קצבה פטורה לשנת התזרים (${new Date().getFullYear()}):</strong> ₪${((fixationData.exemption_summary?.exempt_pension_percentage || 0) * getPensionCeiling(new Date().getFullYear())).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
   </div>
   ` : ''}
 
@@ -476,7 +478,9 @@ const ReportsPage: React.FC = () => {
             <div><strong>שנת קיבוע:</strong> {fixationData.fixation_year || fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || '-'}</div>
             <div><strong>הון פטור ראשוני:</strong> ₪{(fixationData.exemption_summary.exempt_capital_initial || 0).toLocaleString()}</div>
             <div><strong>הון פטור נותר:</strong> ₪{(fixationData.exemption_summary.remaining_exempt_capital || 0).toLocaleString()}</div>
-            <div><strong>קצבה פטורה חודשית:</strong> ₪{(fixationData.exemption_summary.remaining_monthly_exemption || ((fixationData.exemption_summary.remaining_exempt_capital || 0) / 180)).toLocaleString()}</div>
+            <div><strong>קצבה פטורה מקיבוע ({fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || '-'}):</strong> ₪{(fixationData.exemption_summary.remaining_monthly_exemption || ((fixationData.exemption_summary.remaining_exempt_capital || 0) / 180)).toLocaleString()}</div>
+            <div><strong>אחוז קצבה פטורה:</strong> {((fixationData.exemption_summary.exempt_pension_percentage || 0) * 100).toFixed(2)}%</div>
+            <div><strong>קצבה פטורה לשנת התזרים ({new Date().getFullYear()}):</strong> ₪{((fixationData.exemption_summary.exempt_pension_percentage || 0) * getPensionCeiling(new Date().getFullYear())).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
           </div>
         </div>
       )}

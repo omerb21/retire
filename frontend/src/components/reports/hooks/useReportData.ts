@@ -59,13 +59,19 @@ export function useReportData(clientId: string | undefined) {
           axios.get(`/api/v1/clients/${clientId}/pension-funds`),
           axios.get(`/api/v1/clients/${clientId}/additional-incomes`),
           axios.get(`/api/v1/clients/${clientId}/capital-assets`),
-          axios.get(`/api/v1/clients/${clientId}/fixation`).catch(() => ({ data: null }))
+          axios.get(`/api/v1/rights-fixation/client/${clientId}`).catch(() => ({ data: null }))
         ]);
         
         const pensionFundsData = pensionFundsResponse.data || [];
         const additionalIncomesData = additionalIncomesResponse.data || [];
         const capitalAssetsData = capitalAssetsResponse.data || [];
-        const fixationDataResponse = fixationResponse?.data || null;
+        
+        // Extract raw_result from the fixation response
+        let fixationDataResponse = fixationResponse?.data?.raw_result || null;
+        
+        // עדכון remaining_exempt_capital עם הערך הסופי ששמרנו ב-DB
+        // הערכים הסופיים (אחרי כל הקיזוזים) נשמרים ב-raw_result.exemption_summary
+        // ולא צריך לעדכן אותם כאן - הם כבר נכונים!
         
         // Update state
         setPensionFunds(pensionFundsData);

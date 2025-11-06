@@ -1,5 +1,11 @@
+/**
+ * SystemSettings - Wrapper component using modular sub-components
+ * 
+ * This file provides the same functionality as the original SystemSettings.tsx
+ * but delegates all logic to specialized sub-components in components/system-settings/
+ */
+
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { DEFAULT_RULES, ComponentConversionRule, loadConversionRules } from '../config/conversionRules';
 import TaxCalculationDocumentation from '../components/TaxCalculationDocumentation';
 import TaxSettings from '../components/system-settings/TaxSettings';

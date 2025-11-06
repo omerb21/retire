@@ -363,13 +363,18 @@ def compute_client_exemption(grants: List[Dict[str, Any]], eligibility_year: int
         # חישוב הון פטור נותר
         remaining_exempt_capital = max(exempt_capital_initial - total_impact, 0)
         
-        # חישוב אחוז הפטור המחושב של הלקוח
+        # חישוב אחוז הפטור המחושב של הלקוח (לפני קיזוז)
         # האחוז המחושב = יתרה נותרת / יתרה התחלתית
         calculated_exemption_percentage = (remaining_exempt_capital / exempt_capital_initial) if exempt_capital_initial > 0 else 0
         
-        # חישוב פטור חודשי נותר (לפי האחוז הכללי של השנה)
+        # חישוב אחוז קצבה פטורה מחושבת (אחרי קיזוז)
+        # אחוז קצבה פטורה = (יתרה נותרת / 180) / תקרת קצבה של שנת הזכאות
+        pension_ceiling = get_monthly_cap(eligibility_year)
+        calculated_pension_exemption_percentage = ((remaining_exempt_capital / 180) / pension_ceiling) if pension_ceiling > 0 else 0
+        
+        # חישוב פטור חודשי נותר (לפי אחוז הקצבה הפטורה המחושבת)
         general_exemption_percentage = get_exemption_percentage(eligibility_year)
-        remaining_monthly_exemption = round(remaining_exempt_capital / 180, 2)
+        remaining_monthly_exemption = round(calculated_pension_exemption_percentage * pension_ceiling, 2)
         
         return {
             'exempt_capital_initial': exempt_capital_initial,
@@ -377,7 +382,8 @@ def compute_client_exemption(grants: List[Dict[str, Any]], eligibility_year: int
             'remaining_exempt_capital': remaining_exempt_capital,
             'remaining_monthly_exemption': remaining_monthly_exemption,
             'eligibility_year': eligibility_year,
-            'exemption_percentage': calculated_exemption_percentage,  # האחוז המחושב של הלקוח
+            'exemption_percentage': calculated_exemption_percentage,  # האחוז המחושב של הלקוח (לפני קיזוז)
+            'calculated_pension_exemption_percentage': calculated_pension_exemption_percentage,  # אחוז קצבה פטורה מחושבת (אחרי קיזוז)
             'general_exemption_percentage': general_exemption_percentage  # האחוז הכללי של השנה
         }
         

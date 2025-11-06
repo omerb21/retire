@@ -126,24 +126,22 @@ export function generateYearlyProjection(
     let totalMonthlyTax = 0;
     let monthlyExemptPension = 0;
     
+    // חישוב קצבה פטורה לפי הלוגיקה הנכונה מהגדרות המערכת:
+    // קצבה פטורה = אחוז פטור מקיבוע × תקרת קצבה של השנה הראשונה בתזרים
     if (fixationData && fixationData.exemption_summary) {
       const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
       
       if (year >= eligibilityYear) {
-        const remainingExemptCapital = fixationData.exemption_summary.remaining_exempt_capital || 0;
-        const remainingMonthlyExemption = fixationData.exemption_summary.remaining_monthly_exemption || (remainingExemptCapital / 180);
-        const pensionCeilingEligibility = getPensionCeiling(eligibilityYear);
+        // אחוז הקצבה הפטורה שחושב במסך קיבוע זכויות (פעם אחת!)
+        const exemptPensionPercentage = fixationData.exemption_summary.exempt_pension_percentage || 0;
         
-        const correctExemptionPercentage = pensionCeilingEligibility > 0 
-          ? remainingMonthlyExemption / pensionCeilingEligibility 
-          : 0;
+        // תקרת קצבה של השנה הנוכחית (השנה הראשונה בתזרים)
+        const currentYearCeiling = getPensionCeiling(currentYear);
         
-        if (year === eligibilityYear) {
-          monthlyExemptPension = remainingMonthlyExemption;
-        } else {
-          const pensionCeiling = getPensionCeiling(year);
-          monthlyExemptPension = correctExemptionPercentage * pensionCeiling;
-        }
+        // קצבה פטורה = אחוז פטור מקיבוע × תקרת השנה הנוכחית
+        monthlyExemptPension = exemptPensionPercentage * currentYearCeiling;
+        
+        console.log(`DEBUG Exempt Pension: ${exemptPensionPercentage} × ${currentYearCeiling} = ${monthlyExemptPension}`);
       }
     }
     
