@@ -37,4 +37,5 @@ export type TabType =
   | 'retirement' 
   | 'termination' 
   | 'annuity' 
-  | 'tax_calculation';
+  | 'tax_calculation'
+  | 'health';

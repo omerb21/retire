@@ -11,7 +11,7 @@ from decimal import Decimal
 from .base_engine import BaseEngine
 from app.providers.tax_params import TaxParamsProvider
 from app.calculation.indexation import index_factor, index_amount
-from app.calculation.grants import calc_grant_components
+from app.schemas.tax import TaxParameters
 
 
 class GrantEngine(BaseEngine):
@@ -33,6 +33,39 @@ class GrantEngine(BaseEngine):
             tax_provider: Provider for tax parameters
         """
         super().__init__(db=None, tax_provider=tax_provider)
+    
+    @staticmethod
+    def _calc_grant_components(gross: float, params: TaxParameters) -> tuple[float, float, float]:
+        """
+        חישוב (exempt, taxable, tax) עבור מענק פיצויים מאונדקס.
+        
+        Args:
+            gross: סכום ברוטו מאונדקס
+            params: פרמטרי מס
+            
+        Returns:
+            tuple: (exempt, taxable, tax)
+            
+        Raises:
+            ValueError: אם הסכום שלילי
+        """
+        if gross < 0:
+            raise ValueError("סכום מענק שלילי אינו חוקי")
+        
+        exempt = min(gross, params.grant_exemption_cap)
+        taxable = max(0.0, gross - exempt)
+        tax = 0.0
+        remaining = taxable
+        
+        for b in params.grant_tax_brackets:
+            if remaining <= 0:
+                break
+            chunk = remaining if b.up_to is None else min(remaining, b.up_to)
+            tax += chunk * b.rate
+            remaining -= chunk
+        
+        tax = round(tax, 2)
+        return round(exempt, 2), round(taxable, 2), tax
     
     def calculate(
         self, 
@@ -77,7 +110,7 @@ class GrantEngine(BaseEngine):
         indexed_amount = index_amount(base_amount, f)
         
         # Calculate grant components (exempt, taxable, tax)
-        exempt, taxable, tax = calc_grant_components(indexed_amount, params)
+        exempt, taxable, tax = self._calc_grant_components(indexed_amount, params)
         
         # Calculate net amount
         net_amount = indexed_amount - tax

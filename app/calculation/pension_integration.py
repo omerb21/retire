@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.pension_fund import PensionFund
 from app.models.client import Client
 from app.schemas.tax import TaxParameters
-from app.calculation.pensions import calc_pension_from_fund, project_pension_cashflow
+from app.calculation.engine.pension_engine import PensionEngine
 from app.providers.tax_params import TaxParamsProvider, InMemoryTaxParamsProvider
 
 def get_client_pension_funds(db: Session, client_id: int) -> List[PensionFund]:
@@ -34,7 +34,7 @@ def calculate_total_monthly_pension(funds: List[PensionFund],
         # For calculated mode, calculate from balance and annuity factor
         else:
             try:
-                pension = calc_pension_from_fund(fund, params)
+                pension = PensionEngine._calc_pension_from_fund(fund, params)
                 total += pension
             except (ValueError, ZeroDivisionError):
                 # Skip funds with invalid calculation parameters
@@ -61,7 +61,7 @@ def generate_combined_pension_cashflow(db: Session,
     all_cashflows = []
     
     for fund in funds:
-        fund_cashflow = project_pension_cashflow(fund, months, params, start_date)
+        fund_cashflow = PensionEngine._project_pension_cashflow(fund, months, params, start_date)
         all_cashflows.extend(fund_cashflow)
     
     # Organize by date

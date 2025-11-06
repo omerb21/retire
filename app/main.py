@@ -20,13 +20,36 @@ logger = logging.getLogger(__name__)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.routers import fixation, files, employment, current_employer, pension_fund, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection, clients, grant, tax_data, indexation, rights_fixation, tax_calculation, pension_portfolio, snapshot, retirement_age, annuity_coefficient
+from app.routers import fixation, files, employment, current_employer, pension_fund, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection, clients, grant, tax_data, indexation, rights_fixation, tax_calculation, pension_portfolio, snapshot, retirement_age, annuity_coefficient, system_health
 from app.routers.scenarios import router as scenarios_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize database tables on application startup"""
     Base.metadata.create_all(bind=engine)
+    
+    # אימות תקינות המערכת
+    logger.info("=" * 60)
+    logger.info("🚀 Starting Retirement Planning System")
+    logger.info("=" * 60)
+    
+    from app.database import get_db
+    from app.core.system_validator import validate_system_on_startup
+    
+    db = next(get_db())
+    try:
+        is_valid = validate_system_on_startup(db)
+        if not is_valid:
+            logger.error("⚠️ System validation failed - some features may not work correctly")
+            logger.error("⚠️ Please check the validation report above")
+        else:
+            logger.info("✅ System validation passed - all critical data is present")
+    except Exception as e:
+        logger.error(f"❌ System validation error: {e}")
+    finally:
+        db.close()
+    
+    logger.info("=" * 60)
     
     yield
     # Cleanup code can go here (if needed)
@@ -76,6 +99,7 @@ app.include_router(pension_portfolio.router, prefix="/api/v1", tags=["pension-po
 app.include_router(snapshot.router)  # snapshot router already has /api/v1/clients prefix
 app.include_router(retirement_age.router, prefix="/api/v1", tags=["retirement-age"])
 app.include_router(annuity_coefficient.router, prefix="/api/v1/annuity-coefficient", tags=["annuity-coefficient"])
+app.include_router(system_health.router, tags=["system-health"])
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

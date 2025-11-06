@@ -16,6 +16,7 @@ import FixationSettings from '../components/system-settings/FixationSettings';
 import ScenariosSettings from '../components/system-settings/ScenariosSettings';
 import TerminationSettings from '../components/system-settings/TerminationSettings';
 import AnnuitySettings from '../components/system-settings/AnnuitySettings';
+import SystemHealthMonitor from '../components/system-settings/SystemHealthMonitor';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { 
   TabType, 
@@ -387,6 +388,12 @@ const SystemSettings: React.FC = () => {
           >
             🧮 חישובי מס
           </button>
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`tab-button ${activeTab === 'health' ? 'active' : ''}`}
+          >
+            🏥 תקינות מערכת
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -473,6 +480,8 @@ const SystemSettings: React.FC = () => {
             <TaxCalculationDocumentation />
           </div>
         )}
+
+        {activeTab === 'health' && <SystemHealthMonitor />}
       </div>
     </div>
   );

@@ -14,8 +14,8 @@ from app.providers.tax_params import TaxParamsProvider
 from app.schemas.scenario import ScenarioIn, ScenarioOut
 from app.calculation.seniority import calc_seniority_years
 from app.calculation.indexation import index_factor, index_amount
-from app.calculation.grants import calc_grant_components
-from app.calculation.pensions import calc_monthly_pension_from_capital
+from app.calculation.engine.grant_engine import GrantEngine
+from app.calculation.engine.pension_engine import PensionEngine
 from app.calculation.cashflow import make_simple_cashflow
 
 
@@ -94,12 +94,12 @@ class CalculationEngine:
         indexed_amount = index_amount(base_amount, f)
 
         # 3) Calculate grant components (exempt/taxable/tax)
-        exempt, taxable, tax = calc_grant_components(indexed_amount, params)
+        exempt, taxable, tax = GrantEngine._calc_grant_components(indexed_amount, params)
         grant_net = round(indexed_amount - tax, 2)
 
         # 4) Calculate monthly pension
         # Assumption: Converting net grant to monthly pension
-        pension_monthly = calc_monthly_pension_from_capital(grant_net, params)
+        pension_monthly = PensionEngine._calc_monthly_pension_from_capital(grant_net, params)
 
         # 5) Generate cashflow (simple: 12 months ahead)
         income = scenario.other_incomes_monthly or pension_monthly
