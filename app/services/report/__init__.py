@@ -15,6 +15,9 @@ from .charts import (
     create_net_cashflow_chart,
     render_scenarios_compare_chart
 )
+from .base import ReportService
+from .generators.report_generator import generate_report_pdf
+from .services import DataService, PDFService
 
 __all__ = [
     # Configuration
@@ -37,4 +40,12 @@ __all__ = [
     'render_cashflow_chart',
     'create_net_cashflow_chart',
     'render_scenarios_compare_chart',
+    
+    # Main service
+    'ReportService',
+    'generate_report_pdf',
+    
+    # Internal services
+    'DataService',
+    'PDFService',
 ]

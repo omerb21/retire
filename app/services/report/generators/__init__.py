@@ -1,12 +1,11 @@
 """
 Generators module for report generation.
 
-This module will contain high-level PDF generation functions.
-Currently reserved for future expansion.
+This module contains high-level PDF generation functions.
 """
 
-# Future components:
-# - ReportGenerator
-# - PDFGenerator
+from .report_generator import generate_report_pdf
 
-__all__ = []
+__all__ = [
+    'generate_report_pdf',
+]
