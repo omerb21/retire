@@ -1,4 +1,4 @@
-﻿"""
+"""
 Scenario service for managing calculation scenarios
 """
 import json
@@ -14,7 +14,7 @@ from app.models.scenario import Scenario
 from app.models.client import Client
 from app.models.employment import Employment
 from app.schemas.scenario import ScenarioCreateIn, ScenarioOut, CashflowPoint, ScenarioListItem
-from app.calculation.engine import CalculationEngine
+from app.calculation.engine.calculation_engine import CalculationEngine
 from app.providers.tax_params import InMemoryTaxParamsProvider
 
 logger = logging.getLogger("app.scenario")

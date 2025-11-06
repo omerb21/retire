@@ -14,10 +14,10 @@ app/calculation/
 │   ├── seniority_engine.py      # חישובי ותק
 │   ├── grant_engine.py          # חישובי מענקים והצמדה
 │   ├── pension_engine.py        # חישובי המרה לקצבה
-│   └── cashflow_engine.py       # יצירת תזרים מזומנים
+│   ├── cashflow_engine.py       # יצירת תזרים מזומנים
+│   └── calculation_engine.py    # מנוע חישוב מרכזי
 ├── engine_factory.py            # Factory לייצור מנועים
-├── engine_v2.py                 # מנוע חישוב מרכזי מעודכן
-└── engine.py                    # מנוע מקורי (נשמר לתאימות)
+└── engine_v2.py                 # מנוע חישוב מרכזי מעודכן (גרסה חלופית)
 ```
 
 ## המודולים
@@ -312,20 +312,67 @@ grant = engine.calculate_grant_only(client_id=1, base_amount=100000)
 
 ---
 
-## תאימות לאחור
+## CalculationEngine - מנוע חישוב מרכזי
 
-**הקובץ המקורי `engine.py` נשאר ללא שינוי!**
+מנוע החישוב המרכזי שמתאם את כל המנועים המודולריים.
 
-כל הקוד הקיים ממשיך לעבוד בדיוק כמו קודם. הקבצים החדשים הם תוספת בלבד.
+**קובץ**: `calculation_engine.py`
 
-### מעבר הדרגתי
+**שימוש**:
 
 ```python
-# גרסה ישנה (ממשיכה לעבוד)
+from app.calculation.engine import CalculationEngine
+from app.schemas.scenario import ScenarioIn
+from sqlalchemy.orm import Session
+from app.providers.tax_params import TaxParamsProvider
+
+engine = CalculationEngine(db, tax_provider)
+
+# חישוב תרחיש מלא
+scenario = ScenarioIn(
+    planned_termination_date=date(2025, 12, 31),
+    other_incomes_monthly=5000.0,
+    monthly_expenses=8000.0
+)
+
+result = engine.run(client_id=1, scenario=scenario)
+
+print(f"ותק: {result.seniority_years} שנים")
+print(f"מענק ברוטו: ₪{result.grant_gross:,.2f}")
+print(f"מענק נטו: ₪{result.grant_net:,.2f}")
+print(f"קצבה חודשית: ₪{result.pension_monthly:,.2f}")
+```
+
+**מתודות**:
+
+1. `run(client_id, scenario)` - מריץ תרחיש מלא
+   - מאמת לקוח ותעסוקה
+   - מחשב ותק
+   - מחשב מענק עם הצמדה
+   - מחשב מס
+   - מחשב קצבה
+   - יוצר תזרים מזומנים
+
+---
+
+## תאימות לאחור
+
+**הקובץ המקורי `engine.py` הוסר והוחלף ב-`calculation_engine.py`!**
+
+כל הייבואים עודכנו אוטומטית. הקוד הקיים ממשיך לעבוד בדיוק כמו קודם.
+
+### שימוש נוכחי
+
+```python
+# ייבוא מהחבילה (מומלץ)
 from app.calculation.engine import CalculationEngine
 engine = CalculationEngine(db, tax_provider)
 
-# גרסה חדשה (מומלץ לקוד חדש)
+# ייבוא ישיר (אפשרי)
+from app.calculation.engine.calculation_engine import CalculationEngine
+engine = CalculationEngine(db, tax_provider)
+
+# גרסה חלופית (מומלץ לקוד חדש)
 from app.calculation.engine_v2 import CalculationEngineV2
 engine = CalculationEngineV2(db, tax_provider)
 ```

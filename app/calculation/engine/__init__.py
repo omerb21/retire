@@ -18,11 +18,13 @@ from .seniority_engine import SeniorityEngine
 from .grant_engine import GrantEngine
 from .pension_engine import PensionEngine
 from .cashflow_engine import CashflowEngine
+from .calculation_engine import CalculationEngine
 
 __all__ = [
     'BaseEngine',
     'SeniorityEngine',
     'GrantEngine',
     'PensionEngine',
-    'CashflowEngine'
+    'CashflowEngine',
+    'CalculationEngine'
 ]
