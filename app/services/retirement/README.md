@@ -180,18 +180,6 @@ NPV = הון_חד_פעמי + Σ(תזרים_חודשי / (1 + r)^t)
 - **חייבת במס** - מס שולי
 - **פטורה ממס** - מס = 0
 
-## Backward Compatibility
-
-הקובץ המקורי `retirement_scenarios.py` נשמר כ-wrapper:
-
-```python
-# הקוד הישן ממשיך לעבוד
-from app.services.retirement_scenarios import RetirementScenariosBuilder
-
-# זהה לחלוטין לשימוש החדש
-from app.services.retirement import RetirementScenariosBuilder
-```
-
 ## יתרונות המבנה החדש
 
 ### 1. אחזקה קלה

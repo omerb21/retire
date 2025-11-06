@@ -13,7 +13,7 @@ from app.models.scenario import Scenario
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
-from app.services.retirement_scenarios import RetirementScenariosBuilder
+from app.services.retirement import RetirementScenariosBuilder
 from ..schemas import RetirementScenariosRequest
 
 logger = logging.getLogger(__name__)

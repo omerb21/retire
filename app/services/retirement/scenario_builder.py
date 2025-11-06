@@ -92,3 +92,33 @@ class RetirementScenariosBuilder:
             # Restore state on error
             self.state_service.restore_state(original_state)
             raise
+    
+    def _build_max_pension_scenario(self) -> Dict:
+        """בניית תרחיש מקסימום קצבה - wrapper for backward compatibility"""
+        scenario_builder = MaxPensionScenario(
+            self.db,
+            self.client_id,
+            self.retirement_age,
+            self.pension_portfolio
+        )
+        return scenario_builder.build_scenario()
+    
+    def _build_max_capital_scenario(self) -> Dict:
+        """בניית תרחיש מקסימום הון - wrapper for backward compatibility"""
+        scenario_builder = MaxCapitalScenario(
+            self.db,
+            self.client_id,
+            self.retirement_age,
+            self.pension_portfolio
+        )
+        return scenario_builder.build_scenario()
+    
+    def _build_max_npv_scenario(self) -> Dict:
+        """בניית תרחיש מאוזן - wrapper for backward compatibility"""
+        scenario_builder = MaxNPVScenario(
+            self.db,
+            self.client_id,
+            self.retirement_age,
+            self.pension_portfolio
+        )
+        return scenario_builder.build_scenario()
