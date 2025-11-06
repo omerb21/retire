@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import Clients from "./pages/Clients";
 import PensionFunds from "./pages/PensionFunds";
 import AdditionalIncome from "./pages/AdditionalIncome";
-import CapitalAssets from "./pages/CapitalAssets";
+import CapitalAssets from "./pages/CapitalAssets";  // Updated import - now from modular structure
 import RetirementScenarios from "./pages/RetirementScenarios";
 import SimpleFixation from "./pages/SimpleFixation";
 import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
