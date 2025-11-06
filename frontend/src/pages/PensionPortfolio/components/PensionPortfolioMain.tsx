@@ -1,18 +1,18 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getConversionRulesExplanation } from '../config/conversionRules';
-import { formatDateInput } from '../utils/dateUtils';
-import { usePensionData } from './PensionPortfolio/hooks/usePensionData';
-import { usePensionConversion } from './PensionPortfolio/hooks/usePensionConversion';
-import { FileUploadSection } from './PensionPortfolio/components/FileUploadSection';
-import { PensionTable } from './PensionPortfolio/components/PensionTable';
-import { generateExcelReport } from './PensionPortfolio/utils/exportUtils';
+import { getConversionRulesExplanation } from '../../../config/conversionRules';
+import { formatDateInput } from '../../../utils/dateUtils';
+import { usePensionData } from '../hooks/usePensionData';
+import { usePensionConversion } from '../hooks/usePensionConversion';
+import { FileUploadSection } from './FileUploadSection';
+import { PensionTable } from './PensionTable';
+import { generateExcelReport } from '../utils/exportUtils';
 
 /**
  * קומפוננטה ראשית לניהול תיק פנסיוני
  * מפוצלת לקומפוננטות ו-hooks נפרדים לשיפור תחזוקה וקריאות
  */
-export default function PensionPortfolio() {
+export default function PensionPortfolioMain() {
   const { id: clientId } = useParams<{ id: string }>();
   
   // שימוש ב-hooks מפוצלים
