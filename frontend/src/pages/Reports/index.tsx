@@ -1,14 +1,14 @@
 import React, { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useReportData } from '../components/reports/hooks/useReportData';
-import { generateYearlyProjection } from '../components/reports/calculations/cashflowCalculations';
-import { calculateNPVComparison } from '../components/reports/calculations/npvCalculations';
-import { ReportHeader } from './Reports/components/ReportHeader';
-import { ExportControls } from './Reports/components/ExportControls';
-import { YearlyBreakdown } from './Reports/components/YearlyBreakdown';
-import { NPVAnalysis } from './Reports/components/NPVAnalysis';
-import { IncomeDetails } from './Reports/components/IncomeDetails';
-import { generateHTMLReport } from './Reports/utils/htmlReportGenerator';
+import { useReportData } from '../../components/reports/hooks/useReportData';
+import { generateYearlyProjection } from '../../components/reports/calculations/cashflowCalculations';
+import { calculateNPVComparison } from '../../components/reports/calculations/npvCalculations';
+import { ReportHeader } from './components/ReportHeader';
+import { ExportControls } from './components/ExportControls';
+import { YearlyBreakdown } from './components/YearlyBreakdown';
+import { NPVAnalysis } from './components/NPVAnalysis';
+import { IncomeDetails } from './components/IncomeDetails';
+import { generateHTMLReport } from './utils/htmlReportGenerator';
 
 const ReportsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();

@@ -8,7 +8,7 @@ import RetirementScenarios from "./pages/RetirementScenarios";
 import SimpleFixation from "./pages/SimpleFixation";
 import SimpleCurrentEmployer from "./pages/SimpleCurrentEmployer";
 import SimpleGrants from "./pages/SimpleGrants";
-import ReportsPage from "./pages/ReportsPage";
+import ReportsPage from "./pages/Reports";
 import SystemSettings from "./pages/SystemSettings";
 import PensionPortfolio from "./pages/PensionPortfolio";
 import SystemSnapshot from "./components/SystemSnapshot";
