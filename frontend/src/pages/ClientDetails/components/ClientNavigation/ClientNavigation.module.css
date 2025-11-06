@@ -1,0 +1,37 @@
+.navigationContainer {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 5px 0;
+  margin-bottom: 20px;
+  gap: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc #f0f0f0;
+}
+
+.navigationContainer::-webkit-scrollbar {
+  height: 6px;
+}
+
+.navigationContainer::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}
+
+.navigationContainer::-webkit-scrollbar-track {
+  background-color: #f0f0f0;
+  border-radius: 3px;
+}
+
+.moduleButton {
+  padding: 8px 12px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  text-decoration: none;
+  color: #333;
+  font-weight: bold;
+  margin: 2px;
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 0.9em;
+}
