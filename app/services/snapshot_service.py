@@ -240,6 +240,13 @@ class SnapshotService:
                     grant_data = dict(grant_data)
                     grant_data["employer_id"] = employer.id
                     grant_data["grant_date"] = _parse_date(grant_data.get("grant_date"))
+                    grant_data["plan_start_date"] = _parse_date(grant_data.get("plan_start_date"))
+                    
+                    # המרת grant_type מ-string ל-enum
+                    if grant_data.get("grant_type") and isinstance(grant_data["grant_type"], str):
+                        from app.models.current_employment.enums import GrantType
+                        grant_data["grant_type"] = GrantType(grant_data["grant_type"])
+                    
                     grant_data.pop("created_at", None)
                     grant_data.pop("updated_at", None)
                     grant = EmployerGrant(**grant_data)
@@ -439,11 +446,17 @@ class SnapshotService:
     def _serialize_grant(self, grant: EmployerGrant) -> Dict:
         """ממיר EmployerGrant לדיקשנרי"""
         return {
-            "grant_type": grant.grant_type,
+            "grant_type": grant.grant_type.value if grant.grant_type else None,
             "grant_amount": float(grant.grant_amount),
             "grant_date": grant.grant_date.isoformat() if grant.grant_date else None,
-            "indexation_base_year": grant.indexation_base_year,
-            "remarks": grant.remarks
+            "plan_name": grant.plan_name,
+            "plan_start_date": grant.plan_start_date.isoformat() if grant.plan_start_date else None,
+            "product_type": grant.product_type,
+            "tax_withheld": float(grant.tax_withheld) if grant.tax_withheld else None,
+            "grant_exempt": float(grant.grant_exempt) if grant.grant_exempt else None,
+            "grant_taxable": float(grant.grant_taxable) if grant.grant_taxable else None,
+            "tax_due": float(grant.tax_due) if grant.tax_due else None,
+            "indexed_amount": float(grant.indexed_amount) if grant.indexed_amount else None
         }
     
     def _serialize_termination_event(self, te: TerminationEvent) -> Dict:
