@@ -3,7 +3,7 @@
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from dateutil.relativedelta import relativedelta
 
 from sqlalchemy.orm import Session
@@ -75,16 +75,24 @@ class AdditionalIncomeService:
         income: AdditionalIncome,
         client: Optional[Client] = None,
         calculation_date: Optional[date] = None
-    ) -> Decimal:
-        """Calculate tax on the gross amount based on income type and client age."""
+    ) -> Tuple[Decimal, bool]:
+        """Calculate tax on the gross amount based on income type and client age.
+        
+        Returns:
+            Tuple of (tax_amount, should_include_in_total_tax)
+            - tax_amount: המס המחושב
+            - should_include_in_total_tax: האם לכלול את המס בסה"כ המס בתזרים
+        """
         if income.tax_treatment == TaxTreatment.EXEMPT:
-            return Decimal('0')
+            return Decimal('0'), False
         
         elif income.tax_treatment == TaxTreatment.FIXED_RATE:
             if income.tax_rate is None:
                 raise ValueError("Tax rate is required for fixed rate tax")
             # tax_rate is now in percentage (0-99), convert to decimal
-            return gross_amount * (income.tax_rate / Decimal('100'))
+            tax_amount = gross_amount * (income.tax_rate / Decimal('100'))
+            # ⚠️ CRITICAL: מס קבוע לא נכלל בסה"כ המס בתזרים - זה מס שמוצג למידע בלבד
+            return tax_amount, False
         
         elif income.tax_treatment == TaxTreatment.TAXABLE:
             # חישוב מס מתקדם לפי סוג הכנסה
@@ -112,7 +120,7 @@ class AdditionalIncomeService:
                     total_tax = income_tax + ni_tax + health_tax
                 
                 # המרה חזרה לחודשי
-                return Decimal(str(total_tax / 12))
+                return Decimal(str(total_tax / 12)), True
             
             elif income.source_type == "business":
                 # עסק: מס הכנסה + ביטוח לאומי (ללא מס בריאות)
@@ -121,12 +129,12 @@ class AdditionalIncomeService:
                 total_tax = income_tax + ni_tax
                 
                 # המרה חזרה לחודשי
-                return Decimal(str(total_tax / 12))
+                return Decimal(str(total_tax / 12)), True
             
             else:
                 # סוגי הכנסה אחרים - רק מס הכנסה
                 income_tax, _ = tax_calculator.calculate_income_tax(annual_amount)
-                return Decimal(str(income_tax / 12))
+                return Decimal(str(income_tax / 12)), True
         
         else:
             raise ValueError(f"Unsupported tax treatment: {income.tax_treatment}")
@@ -177,13 +185,14 @@ class AdditionalIncomeService:
                 )
                 
                 # Calculate tax
-                tax_amount = self.calculate_tax(indexed_amount, income, client, current_date)
+                tax_amount, include_in_total = self.calculate_tax(indexed_amount, income, client, current_date)
                 net_amount = indexed_amount - tax_amount
             else:
                 # No payment this month
                 indexed_amount = Decimal('0')
                 tax_amount = Decimal('0')
                 net_amount = Decimal('0')
+                include_in_total = True  # Default for zero months
             
             # Create cashflow item (even for zero months, for consistency)
             cashflow_item = AdditionalIncomeCashflowItem(
@@ -192,7 +201,8 @@ class AdditionalIncomeService:
                 tax_amount=tax_amount,
                 net_amount=net_amount,
                 source_type=income.source_type,
-                description=income.description
+                description=income.description,
+                include_in_total_tax=include_in_total
             )
             cashflow_items.append(cashflow_item)
             
@@ -243,11 +253,15 @@ class AdditionalIncomeService:
                     'date': date_key,
                     'gross_amount': Decimal('0'),
                     'tax_amount': Decimal('0'),
+                    'tax_amount_for_total': Decimal('0'),  # רק מסים שצריכים להיכלל בסה"כ
                     'net_amount': Decimal('0')
                 }
             
             aggregated_cashflow[date_key]['gross_amount'] += item.gross_amount
             aggregated_cashflow[date_key]['tax_amount'] += item.tax_amount
+            # רק מסים שצריכים להיכלל בסה"כ המס
+            if item.include_in_total_tax:
+                aggregated_cashflow[date_key]['tax_amount_for_total'] += item.tax_amount
             aggregated_cashflow[date_key]['net_amount'] += item.net_amount
         
         # Convert to sorted list

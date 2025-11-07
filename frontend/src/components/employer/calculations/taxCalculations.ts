@@ -19,15 +19,15 @@ export const calculateTaxWithSpread = (
   // חישוב הכנסה שנתית ממוצעת
   const annualIncome = taxableAmount / spreadYears;
   
-  // מדרגות מס 2025 (לדוגמה - יש לעדכן לפי שנה)
+  // מדרגות מס 2025 - מעודכן לערכים הנכונים
   const taxBrackets = [
     { threshold: 0, rate: 0.10 },
-    { threshold: 77400, rate: 0.14 },
-    { threshold: 110880, rate: 0.20 },
-    { threshold: 178080, rate: 0.31 },
-    { threshold: 247440, rate: 0.35 },
-    { threshold: 514920, rate: 0.47 },
-    { threshold: 663240, rate: 0.50 }
+    { threshold: 84120, rate: 0.14 },
+    { threshold: 120720, rate: 0.20 },
+    { threshold: 193800, rate: 0.31 },
+    { threshold: 269280, rate: 0.35 },
+    { threshold: 560280, rate: 0.47 },
+    { threshold: 721560, rate: 0.50 }
   ];
 
   let tax = 0;

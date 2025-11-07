@@ -70,7 +70,8 @@ def integrate_additional_incomes_with_scenario(
         if scenario_date in income_by_date:
             income_item = income_by_date[scenario_date]
             integrated_item['additional_income_gross'] = float(income_item['gross_amount'])
-            integrated_item['additional_income_tax'] = float(income_item['tax_amount'])
+            integrated_item['additional_income_tax'] = float(income_item['tax_amount'])  # מס מוצג (כולל מס קבוע)
+            integrated_item['additional_income_tax_for_total'] = float(income_item.get('tax_amount_for_total', income_item['tax_amount']))  # מס לסה"כ (ללא מס קבוע)
             integrated_item['additional_income_net'] = float(income_item['net_amount'])
             
             # Update total inflow and net
@@ -79,6 +80,7 @@ def integrate_additional_incomes_with_scenario(
         else:
             integrated_item['additional_income_gross'] = 0.0
             integrated_item['additional_income_tax'] = 0.0
+            integrated_item['additional_income_tax_for_total'] = 0.0
             integrated_item['additional_income_net'] = 0.0
         
         integrated_cashflow.append(integrated_item)

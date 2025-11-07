@@ -50,38 +50,45 @@ class TaxCalculator:
             return 0.0, []
         
         # חישוב מס הכנסה לפי מדרגות המס
+        # אלגוריתם נכון: עוברים על המדרגות ומחשבים כמה מההכנסה נופלת בכל מדרגה
         total_tax = 0.0
         breakdown = []
-        remaining_income = taxable_income
+        processed_income = 0.0  # כמה הכנסה כבר עיבדנו
         
         for bracket in self.tax_brackets:
-            if remaining_income <= 0:
+            # אם עיבדנו את כל ההכנסה, נסיים
+            if processed_income >= taxable_income:
                 break
             
-            # חישוב הסכום החייב במדרגה הנוכחית
-            bracket_size = (
-                bracket.max_income - bracket.min_income 
-                if bracket.max_income 
-                else float('inf')
-            )
+            # כמה הכנסה נופלת במדרגה הנוכחית
+            if bracket.max_income:
+                # מדרגה עם תקרה
+                income_in_bracket = min(
+                    taxable_income - processed_income,  # ההכנסה שנותרה
+                    bracket.max_income - processed_income  # הגבול העליון של המדרגה פחות מה שכבר עיבדנו
+                )
+            else:
+                # מדרגה אחרונה ללא תקרה
+                income_in_bracket = taxable_income - processed_income
             
-            # הסכום שיחויב במדרגה זו
-            taxable_in_bracket = min(remaining_income, bracket_size)
-            
-            if taxable_in_bracket > 0:
-                tax_in_bracket = taxable_in_bracket * bracket.rate
+            if income_in_bracket > 0:
+                tax_in_bracket = income_in_bracket * bracket.rate
                 total_tax += tax_in_bracket
                 
                 breakdown.append(TaxBreakdown(
                     bracket_min=bracket.min_income,
                     bracket_max=bracket.max_income,
                     rate=bracket.rate,
-                    taxable_amount=taxable_in_bracket,
+                    taxable_amount=income_in_bracket,
                     tax_amount=tax_in_bracket
                 ))
                 
-                remaining_income -= taxable_in_bracket
+                processed_income += income_in_bracket
+                
+                logger.debug(f"Tax Bracket {bracket.min_income}-{bracket.max_income}: "
+                           f"Income {income_in_bracket:.2f} at {bracket.rate*100}% = {tax_in_bracket:.2f}")
         
+        logger.debug(f"Total Annual Tax: {total_tax:.2f} on income {taxable_income:.2f}")
         return round(total_tax, 2), breakdown
     
     def calculate_national_insurance(self, annual_income: float, personal_details=None) -> float:

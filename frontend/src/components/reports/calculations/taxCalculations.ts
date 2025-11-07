@@ -53,6 +53,12 @@ export const getTaxBracketsLegacyFormat = (year?: number) => {
 
 /**
  * חישוב מס לפי מדרגות המס המעודכנות
+ * 
+ * חישוב נכון:
+ * 1. עוברים על כל מדרגה לפי הסדר
+ * 2. מחשבים כמה מההכנסה נופלת במדרגה הנוכחית
+ * 3. מחשבים את המס על החלק הזה
+ * 4. ממשיכים למדרגה הבאה עם ההכנסה שנותרה
  */
 export const calculateTaxByBrackets = (annualIncome: number, year?: number): number => {
   if (annualIncome <= 0) return 0;
@@ -61,19 +67,28 @@ export const calculateTaxByBrackets = (annualIncome: number, year?: number): num
   const brackets = DEFAULT_TAX_BRACKETS;
   
   let totalTax = 0;
-  let remainingIncome = annualIncome;
+  let processedIncome = 0; // כמה הכנסה כבר עיבדנו
   
   for (const bracket of brackets) {
-    if (remainingIncome <= 0) break;
+    // אם עיבדנו את כל ההכנסה, נסיים
+    if (processedIncome >= annualIncome) break;
     
-    const bracketSize = bracket.maxAnnual - bracket.minAnnual;
-    const taxableInBracket = Math.min(remainingIncome, bracketSize);
+    // כמה הכנסה נופלת במדרגה הנוכחית
+    const incomeInBracket = Math.min(
+      annualIncome - processedIncome,  // ההכנסה שנותרה
+      bracket.maxAnnual - processedIncome  // הגבול העליון של המדרגה פחות מה שכבר עיבדנו
+    );
     
-    if (taxableInBracket > 0) {
-      totalTax += taxableInBracket * (bracket.rate / 100);
-      remainingIncome -= taxableInBracket;
+    if (incomeInBracket > 0) {
+      const taxInBracket = incomeInBracket * (bracket.rate / 100);
+      totalTax += taxInBracket;
+      processedIncome += incomeInBracket;
+      
+      // Debug log
+      console.log(`Tax Bracket ${bracket.id}: Income ${incomeInBracket.toFixed(2)} at ${bracket.rate}% = ${taxInBracket.toFixed(2)}`);
     }
   }
   
+  console.log(`Total Annual Tax: ${totalTax.toFixed(2)} on income ${annualIncome.toFixed(2)}`);
   return Math.round(totalTax * 100) / 100; // Round to 2 decimal places
 };

@@ -83,3 +83,4 @@ class AdditionalIncomeCashflowItem(BaseModel):
     net_amount: Decimal
     source_type: IncomeSourceType
     description: Optional[str] = None
+    include_in_total_tax: bool = Field(True, description="האם לכלול את המס בסה\"כ המס בתזרים")
