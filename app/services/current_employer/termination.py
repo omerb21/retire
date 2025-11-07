@@ -353,7 +353,7 @@ class TerminationService:
         result: Dict
     ):
         """יצירת קצבאות מסכום נתון"""
-        from app.services.annuity_coefficient_service import get_annuity_coefficient
+        from app.services.annuity_coefficient import get_annuity_coefficient
         
         grants = self.db.query(EmployerGrant).filter(
             EmployerGrant.employer_id == employer.id,

@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import date
 import logging
 
-from app.services.annuity_coefficient_service import get_annuity_coefficient
+from app.services.annuity_coefficient import get_annuity_coefficient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

@@ -14,7 +14,7 @@ from app.models.capital_asset import CapitalAsset
 from app.models.termination_event import TerminationEvent
 from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
 from app.services.current_employer_service import CurrentEmployerService
-from app.services.annuity_coefficient_service import get_annuity_coefficient
+from app.services.annuity_coefficient import get_annuity_coefficient
 from ..constants import PENSION_COEFFICIENT
 
 logger = logging.getLogger("app.scenarios.termination")
