@@ -7,7 +7,7 @@ from typing import List, Optional
 from types import SimpleNamespace
 
 from app.models.client import Client
-from app.models.current_employer import CurrentEmployer
+from app.models.current_employment import CurrentEmployer
 from app.models.additional_income import AdditionalIncome
 from app.schemas.case import ClientCase, CaseDetectionResult
 from app.utils.calculation_log import log_calc

@@ -7,7 +7,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.models.client import Client
-from app.models.current_employer import CurrentEmployer
+from app.models.current_employment import CurrentEmployer
 from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate
 
 

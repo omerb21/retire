@@ -39,9 +39,7 @@ export const ClientNavigation: React.FC<ClientNavigationProps> = ({ clientId }) 
         </Link>
       </div>
 
-      <Link to="/clients" style={{ display: 'inline-block', marginBottom: '20px' }}>
-        חזרה לרשימת לקוחות
-      </Link>
+ 
     </div>
   );
 };

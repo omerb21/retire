@@ -11,8 +11,7 @@ from .pension import Pension
 from .commutation import Commutation
 from .scenario import Scenario
 from .fixation_result import FixationResult
-from .current_employer import CurrentEmployer, ActiveContinuityType
-from .employer_grant import EmployerGrant, GrantType
+from .current_employment import CurrentEmployer, ActiveContinuityType, EmployerGrant, GrantType
 from .pension_fund import PensionFund
 from .pension_fund_coefficient import PensionFundCoefficient
 from .additional_income import AdditionalIncome, IncomeSourceType, PaymentFrequency, IndexationMethod, TaxTreatment

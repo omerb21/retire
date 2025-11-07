@@ -8,11 +8,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from app.models.client import Client
-from app.models.current_employer import CurrentEmployer
+from app.models.current_employment import CurrentEmployer
 from app.models.grant import Grant
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
-from app.models.employer_grant import EmployerGrant, GrantType
+from app.models.current_employment import EmployerGrant, GrantType
 from app.schemas.current_employer import TerminationDecisionCreate
 from .calculations import ServiceYearsCalculator, SeveranceCalculator
 

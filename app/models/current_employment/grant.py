@@ -4,18 +4,10 @@ Grant entity connected to CurrentEmployer for retirement calculations
 """
 from sqlalchemy import Column, Integer, Float, Date, DateTime, ForeignKey, Enum as SQLEnum, String, func
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
-import enum
 from app.database import Base
+from .enums import GrantType
+from .base import utcnow
 
-def utcnow():
-    return datetime.now(timezone.utc)
-
-class GrantType(enum.Enum):
-    """Enum for grant types"""
-    severance = "severance"
-    adjustment = "adjustment"
-    other = "other"
 
 class EmployerGrant(Base):
     __tablename__ = "employer_grant"

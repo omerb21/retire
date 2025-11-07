@@ -4,18 +4,11 @@ Core entity for retirement grant calculations
 """
 from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, JSON, Enum as SQLEnum, func
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone, date
-import enum
+from datetime import date
 from app.database import Base
+from .enums import ActiveContinuityType
+from .base import utcnow
 
-def utcnow():
-    return datetime.now(timezone.utc)
-
-class ActiveContinuityType(enum.Enum):
-    """Enum for active continuity types"""
-    none = "none"
-    severance = "severance"
-    pension = "pension"
 
 class CurrentEmployer(Base):
     __tablename__ = "current_employer"
@@ -125,6 +118,7 @@ class CurrentEmployer(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
+
 
 # Compatibility shim: allow constructing CurrentEmployer(employer_id=...) in tests.
 # This monkeypatch wraps or replaces the class __init__ to accept employer_id kwarg,

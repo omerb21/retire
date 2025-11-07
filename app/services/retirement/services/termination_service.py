@@ -12,8 +12,7 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.termination_event import TerminationEvent
-from app.models.current_employer import CurrentEmployer
-from app.models.employer_grant import EmployerGrant, GrantType
+from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
 from app.services.current_employer_service import CurrentEmployerService
 from app.services.annuity_coefficient_service import get_annuity_coefficient
 from ..constants import PENSION_COEFFICIENT

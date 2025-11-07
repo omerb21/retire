@@ -9,7 +9,7 @@ from sqlalchemy.orm import clear_mappers
 def import_models():
     # import all model modules here (only after clear_mappers)
     import app.models.client
-    import app.models.current_employer
+    import app.models.current_employment
     # ... כל שאר המודלים ...
 
 @pytest.fixture(scope="session")

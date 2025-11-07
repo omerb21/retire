@@ -53,13 +53,9 @@ export default function ClientDetailsPage() {
         padding: '20px', 
         backgroundColor: '#f8f9fa', 
         borderRadius: '8px 8px 0 0',
-        border: '2px solid #dee2e6',
         borderBottom: 'none'
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#495057' }}>
-          🔄 שמירה ושחזור מצב מערכת
-        </h3>
-        <ClientSystemSnapshot 
+            <ClientSystemSnapshot 
           clientId={parseInt(id!)} 
           onSnapshotRestored={() => window.location.reload()}
         />

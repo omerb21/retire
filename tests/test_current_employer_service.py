@@ -7,8 +7,7 @@ from datetime import date, timedelta
 from unittest.mock import Mock
 from app.services.current_employer_service import CurrentEmployerService
 from app.models import CurrentEmployer, EmployerGrant
-from app.models.current_employer import ActiveContinuityType
-from app.models.employer_grant import GrantType
+from app.models.current_employment import ActiveContinuityType, GrantType
 
 
 class TestCurrentEmployerService:

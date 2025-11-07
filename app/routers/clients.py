@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.models.client import Client
-from app.models.current_employer import CurrentEmployer
+from app.models.current_employment import CurrentEmployer
 # ייבוא סכמות הלקוח
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 

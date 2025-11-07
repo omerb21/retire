@@ -12,8 +12,7 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
-from app.models.current_employer import CurrentEmployer
-from app.models.employer_grant import EmployerGrant
+from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
 

@@ -4,8 +4,7 @@ Grants Service Module
 """
 from typing import Tuple
 from sqlalchemy.orm import Session
-from app.models.current_employer import CurrentEmployer
-from app.models.employer_grant import EmployerGrant
+from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.schemas.current_employer import EmployerGrantCreate, GrantCalculationResult
 from .calculations import ServiceYearsCalculator, GrantCalculator
 
@@ -100,7 +99,7 @@ class GrantService:
         Returns:
             מספר מענקים שנמחקו
         """
-        from app.models.employer_grant import EmployerGrant, GrantType
+        from app.models.current_employment import EmployerGrant, GrantType
         
         query = self.db.query(EmployerGrant).filter(
             EmployerGrant.employer_id == employer.id
