@@ -18,11 +18,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ייבוא המודלים והראוטרים
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.routers import fixation, files, employment, pension_fund, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection, clients, grant, tax_data, indexation, rights_fixation, tax_calculation, pension_portfolio, snapshot, retirement_age, annuity_coefficient, system_health
+from app.routers import (
+    fixation, files, employment, pension_fund, additional_income, 
+    capital_asset, income_integration, cashflow_generation, 
+    report_generation, scenario_compare, case_detection, clients, 
+    grant, tax_data, indexation, rights_fixation, tax_calculation, 
+    pension_portfolio, snapshot, retirement_age, annuity_coefficient, 
+    system_health
+)
 from app.routers.employment import router as employment_router
 from app.routers.scenarios import router as scenarios_router
+
+# הגדרת CORS
+origins = [
+    "https://retire-1.onrender.com",
+    "https://retire.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:8000",
+]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,15 +69,9 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     
     yield
-    # Cleanup code can go here (if needed)
 
 # Create FastAPI app
-app = FastAPI(
-    title="Retirement Planning System",
-    description="API for retirement planning system",
-    version="1.0.0",
-    lifespan=lifespan,
-)
+app = FastAPI(lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(
@@ -88,7 +98,6 @@ app.include_router(capital_asset.router, prefix="/api/v1")
 app.include_router(income_integration.router, prefix="/api/v1")
 app.include_router(cashflow_generation.router)
 app.include_router(report_generation.router)
-app.include_router(scenarios_router)  # scenarios router already has /api/v1/clients prefix
 app.include_router(scenario_compare.router)
 app.include_router(case_detection.router, prefix="/api/v1")
 app.include_router(grant.router, prefix="/api/v1")  # Grant router
