@@ -49,16 +49,21 @@ export function useCapitalAssets(clientId: string | undefined) {
     }
   }
 
-  async function deleteAsset(assetId: number) {
+  async function deleteAsset(
+    assetId: number,
+    options?: { skipConfirm?: boolean; skipReload?: boolean }
+  ) {
     console.log('🔴 handleDelete called with assetId:', assetId);
     if (!clientId) {
       console.log('❌ No clientId, returning');
       return;
     }
     
-    if (!confirm("האם אתה בטוח שברצונך למחוק את נכס ההון?")) {
-      console.log('❌ User cancelled deletion');
-      return;
+    if (!options?.skipConfirm) {
+      if (!confirm("האם אתה בטוח שברצונך למחוק את נכס ההון?")) {
+        console.log('❌ User cancelled deletion');
+        return;
+      }
     }
 
     console.log('✅ Starting deletion process...');
@@ -149,8 +154,10 @@ export function useCapitalAssets(clientId: string | undefined) {
         }
       }
       
-      // Reload assets after deletion
-      await loadAssets();
+      // Reload assets after deletion (unless part of bulk delete)
+      if (!options?.skipReload) {
+        await loadAssets();
+      }
     } catch (e: any) {
       setError(`שגיאה במחיקת נכס הון: ${e?.message || e}`);
     }
@@ -171,16 +178,14 @@ export function useCapitalAssets(clientId: string | undefined) {
     try {
       setError("");
       
-      // מחיקת כל הנכסים אחד אחד
+      // מחיקת כל הנכסים אחד אחד, תוך שימוש בלוגיקת השחזור המלאה
       for (const asset of assets) {
         if (asset.id) {
-          await apiFetch(`/clients/${clientId}/capital-assets/${asset.id}`, {
-            method: 'DELETE'
-          });
+          await deleteAsset(asset.id, { skipConfirm: true, skipReload: true });
         }
       }
-      
-      // רענון הרשימה
+
+      // רענון הרשימה פעם אחת בסיום
       await loadAssets();
       alert(`נמחקו ${assets.length} נכסי הון בהצלחה`);
     } catch (e: any) {

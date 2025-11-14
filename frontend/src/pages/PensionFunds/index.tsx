@@ -155,19 +155,23 @@ export default function PensionFunds() {
 
     try {
       setError("");
-      
-      for (const fund of funds) {
-        if (fund.id) {
-          await deletePensionFund(clientId, fund.id);
-        }
-      }
-      
-      for (const commutation of commutations) {
+
+      // קודם מוחקים את כל ההיוונים כדי להחזיר את הסכומים לקצבאות
+      const commutationsSnapshot = [...commutations];
+      for (const commutation of commutationsSnapshot) {
         if (commutation.id) {
-          await deleteCommutation(clientId, commutation.id);
+          await handleCommutationDelete(commutation.id, { skipConfirm: true, suppressAlert: true });
         }
       }
-      
+
+      // לאחר מכן מוחקים את כל הקצבאות ומשחזרים את היתרות לתיק הפנסיוני
+      const fundsSnapshot = [...funds];
+      for (const fund of fundsSnapshot) {
+        if (fund.id) {
+          await handleDelete(fund.id, { skipConfirm: true, suppressAlert: true });
+        }
+      }
+
       await loadFunds();
       alert(`נמחקו ${funds.length} קצבאות ו-${commutations.length} היוונים בהצלחה`);
     } catch (e: any) {
@@ -175,11 +179,16 @@ export default function PensionFunds() {
     }
   }
 
-  async function handleDelete(fundId: number) {
+  async function handleDelete(
+    fundId: number,
+    options?: { skipConfirm?: boolean; suppressAlert?: boolean }
+  ) {
     if (!clientId) return;
     
-    if (!confirm("האם אתה בטוח שברצונך למחוק את הקצבה?")) {
-      return;
+    if (!options?.skipConfirm) {
+      if (!confirm("האם אתה בטוח שברצונך למחוק את הקצבה?")) {
+        return;
+      }
     }
 
     try {
@@ -199,7 +208,9 @@ export default function PensionFunds() {
       
       const deleteResponse = await deletePensionFund(clientId, fundId);
       
-      alert(`🔥 NEW CODE LOADED! Response: ${JSON.stringify(deleteResponse).substring(0, 200)}`);
+      if (!options?.suppressAlert) {
+        alert(`🔥 NEW CODE LOADED! Response: ${JSON.stringify(deleteResponse).substring(0, 200)}`);
+      }
       console.log('🗑️ Delete response:', JSON.stringify(deleteResponse, null, 2));
       console.log('🔍 Restoration object:', deleteResponse?.restoration);
       console.log('🔍 Restoration reason:', deleteResponse?.restoration?.reason);
@@ -395,11 +406,16 @@ export default function PensionFunds() {
     }
   }
 
-  async function handleCommutationDelete(commutationId: number) {
+  async function handleCommutationDelete(
+    commutationId: number,
+    options?: { skipConfirm?: boolean; suppressAlert?: boolean }
+  ) {
     if (!clientId) return;
     
-    if (!confirm("האם אתה בטוח שברצונך למחוק את ההיוון? היתרה תוחזר לקצבה.")) {
-      return;
+    if (!options?.skipConfirm) {
+      if (!confirm("האם אתה בטוח שברצונך למחוק את ההיוון? היתרה תוחזר לקצבה.")) {
+        return;
+      }
     }
     
     try {
@@ -447,7 +463,9 @@ export default function PensionFunds() {
           : f
       ));
       
-      alert(`ההיוון נמחק בהצלחה!\nהיתרה הוחזרה לקצבה: ₪${newBalance.toLocaleString()}\nקצבה חודשית חדשה: ₪${newMonthlyAmount.toLocaleString()}`);
+      if (!options?.suppressAlert) {
+        alert(`ההיוון נמחק בהצלחה!\nהיתרה הוחזרה לקצבה: ₪${newBalance.toLocaleString()}\nקצבה חודשית חדשה: ₪${newMonthlyAmount.toLocaleString()}`);
+      }
     } catch (e: any) {
       setError(`שגיאה במחיקת היוון: ${e?.message || e}`);
     }
