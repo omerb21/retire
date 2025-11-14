@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 function extractMessage(body: any): string | undefined {
   if (!body) return;
@@ -29,10 +29,18 @@ async function parseTextSafe(res: Response) {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const method = init?.method || 'GET';
+    const isFormData = init?.body instanceof FormData;
+    const customHeaders = init?.headers;
+    const headers = new Headers(customHeaders as HeadersInit | undefined);
+
+    if (!isFormData && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+
     const res = await fetch(`${API_BASE}${path}`, {
       credentials: "omit",
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
       ...init,
+      headers,
     });
 
     const ct = res.headers.get("content-type") ?? "";

@@ -25,6 +25,15 @@ export type PensionAccount = {
   תגמולי_מעביד_אחרי_2000?: number;
   תגמולי_מעביד_אחרי_2008_לא_משלמת?: number;
   תגמולים?: number; // ערך מיובא מתגית YITRAT-KASPEY-TAGMULIM
+  סך_תגמולים?: number;
+  סך_פיצויים?: number;
+  סך_רכיבים?: number;
+  פער_יתרה_מול_רכיבים?: number;
+  תגמולים_לפי_תקופה?: Record<string, number>;
+  רכיבי_פיצויים?: Record<string, number>;
+  שדות_פיצויים_תגמולים?: Record<string, string>;
+  קובץ_מקור?: string;
+  processed_at?: string;
   selected?: boolean;
   conversion_type?: 'pension' | 'capital_asset';
   selected_amounts?: {[key: string]: boolean}; // לסימון סכומים ספציפיים

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { PensionAccount, EditingCell } from '../types';
-import { extractAccountsFromXML } from '../utils/xmlProcessing';
-import { calculateInitialTagmulim } from '../utils/pensionCalculations';
-import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { apiFetch } from '../../../lib/api';
+import { formatDateToDDMMYY } from '../../../utils/dateUtils';
+import { calculateInitialTagmulim } from '../utils/pensionCalculations';
 
 /**
  * Hook לניהול נתוני תיק פנסיוני
@@ -33,33 +32,27 @@ export function usePensionData(clientId: string | undefined) {
     localStorage.removeItem(`pensionData_${clientId}`);
 
     try {
-      const processedAccounts: PensionAccount[] = [];
-      const supportedExtensions = ['.xml', '.dat'];
+      const formData = new FormData();
+      Array.from(files).forEach(file => {
+        formData.append('files', file);
+      });
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileName = file.name.toLowerCase();
-        
-        // בדיקה אם הקובץ נתמך
-        if (!supportedExtensions.some(ext => fileName.endsWith(ext))) {
-          console.log(`דילוג על קובץ ${file.name} - סוג קובץ לא נתמך`);
-          continue;
-        }
+      setProcessingStatus(`מעלה ומעבד ${files.length} קבצים במסלקה...`);
 
-        const fileType = fileName.endsWith('.dat') ? 'DAT' : 'XML';
-        setProcessingStatus(`מעבד קובץ ${fileType} ${i + 1} מתוך ${files.length}: ${file.name}`);
+      const data = await apiFetch<{ accounts: PensionAccount[] }>(`/clients/${clientId}/pension-portfolio/process-xml`, {
+        method: 'POST',
+        body: formData
+      });
+      const accounts: PensionAccount[] = (data?.accounts || []).map((acc: PensionAccount) => ({
+        ...acc,
+        selected: false,
+        selected_amounts: acc.selected_amounts || {}
+      }));
 
-        const text = await file.text();
-        const accounts = extractAccountsFromXML(text, file.name);
-        console.log(`File ${file.name} (${fileType}) produced ${accounts.length} accounts`);
-        processedAccounts.push(...accounts);
-      }
-
-      console.log(`Total processed accounts:`, processedAccounts.length);
-      if (processedAccounts.length > 0) {
-        setPensionData(processedAccounts);
-        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(processedAccounts));
-        setProcessingStatus(`הושלם עיבוד ${processedAccounts.length} חשבונות פנסיוניים`);
+      if (accounts.length > 0) {
+        setPensionData(accounts);
+        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(accounts));
+        setProcessingStatus(`הושלם עיבוד ${accounts.length} חשבונות פנסיוניים`);
       } else {
         setProcessingStatus("לא נמצאו חשבונות פנסיוניים בקבצים שנבחרו");
       }

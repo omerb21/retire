@@ -1,7 +1,6 @@
 import React from 'react';
 import { PensionAccount, EditingCell } from '../types';
 import { EditableNumberCell } from './EditableNumberCell';
-import { calculateTotalBalance } from '../utils/pensionCalculations';
 
 interface PensionTableProps {
   pensionData: PensionAccount[];
@@ -50,8 +49,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>מספר חשבון</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 150 }}>שם תכנית</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>חברה מנהלת</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80, backgroundColor: "#f0f8ff" }}> סה"כ יתרה</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולים</th>
+            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80, backgroundColor: "#f0f8ff" }}>יתרה</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים מעסיק נוכחי</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים לאחר התחשבנות</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים שלא עברו התחשבנות</th>
@@ -63,6 +61,10 @@ export const PensionTable: React.FC<PensionTableProps> = ({
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד עד 2000</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד אחרי 2000</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד אחרי 2008 (לא משלמת)</th>
+            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 110 }}>סך תגמולים</th>
+            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 110 }}>סך פיצויים</th>
+            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>סה"כ רכיבים</th>
+            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>פער יתרה מול רכיבים</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>סוג מוצר</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תאריך התחלה</th>
             <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 150 }}>מעסיקים היסטוריים</th>
@@ -132,22 +134,11 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                 ) : account.חברה_מנהלת}
               </td>
               
-              {/* יתרה כללית - מחושבת (לא ניתנת לעריכה) */}
+              {/* יתרה - ערך מקור מהקובץ (לא ניתנת לעריכה) */}
               <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f0f8ff", fontWeight: "bold" }}>
-                {calculateTotalBalance(account).toLocaleString()}
+                {(Number(account.יתרה) || 0).toLocaleString()}
               </td>
-              
-              {/* תגמולים - טור רגיל (ניתן לעריכה והמרה) */}
-              <EditableNumberCell 
-                account={account} 
-                index={index} 
-                field="תגמולים"
-                editingCell={editingCell}
-                setEditingCell={setEditingCell}
-                updateCellValue={updateCellValue}
-                toggleAmountSelection={toggleAmountSelection}
-              />
-              
+
               <EditableNumberCell account={account} index={index} field="פיצויים_מעסיק_נוכחי" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               <EditableNumberCell account={account} index={index} field="פיצויים_לאחר_התחשבנות" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               <EditableNumberCell account={account} index={index} field="פיצויים_שלא_עברו_התחשבנות" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
@@ -160,6 +151,29 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2000" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2008_לא_משלמת" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               
+              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f7fbff" }}>
+                {(account.סך_תגמולים || 0).toLocaleString()}
+              </td>
+              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f7fbff" }}>
+                {(account.סך_פיצויים || 0).toLocaleString()}
+              </td>
+              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#eef7ff", fontWeight: "bold" }}>
+                {(account.סך_רכיבים || 0).toLocaleString()}
+              </td>
+              <td
+                style={{
+                  border: "1px solid #ddd",
+                  padding: 4,
+                  textAlign: "right",
+                  color: (account.פער_יתרה_מול_רכיבים || 0) === 0 ? "#155724" : "#721c24",
+                  backgroundColor: (account.פער_יתרה_מול_רכיבים || 0) === 0 ? "#d4edda" : "#f8d7da",
+                  fontWeight: "bold"
+                }}
+                title="פער בין יתרה מדווחת לסכום הרכיבים שהתקבלו מה-XML"
+              >
+                {(account.פער_יתרה_מול_רכיבים || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </td>
+
               {/* סוג מוצר - עריכה */}
               <td 
                 style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
@@ -256,10 +270,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                 סה"כ
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right", backgroundColor: "#f0f8ff" }}>
-                {pensionData.reduce((sum, acc) => sum + calculateTotalBalance(acc), 0).toLocaleString()}
-              </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולים) || 0), 0).toLocaleString()}
+                {pensionData.reduce((sum, acc) => sum + (Number(acc.יתרה) || 0), 0).toLocaleString()}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
                 {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_מעסיק_נוכחי) || 0), 0).toLocaleString()}
