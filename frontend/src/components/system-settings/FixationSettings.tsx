@@ -53,7 +53,7 @@ const FixationSettings: React.FC<FixationSettingsProps> = ({
           marginBottom: '20px' 
         }}>
           <h3 style={{ color: '#2c3e50', fontSize: '20px', margin: 0 }}>
-            תקרות קצבה מזכה (2012-2025)
+            תקרות קצבה מזכה (2012-2028)
           </h3>
           
           {!isEditingCeilings ? (
@@ -224,7 +224,7 @@ const FixationSettings: React.FC<FixationSettingsProps> = ({
           marginBottom: '20px' 
         }}>
           <h3 style={{ color: '#2c3e50', fontSize: '20px', margin: 0 }}>
-            אחוזי הון פטור לחישוב יתרת הון (2012-2025)
+            אחוזי הון פטור לחישוב יתרת הון (2012-2028)
           </h3>
           
           {!isEditingPercentages ? (

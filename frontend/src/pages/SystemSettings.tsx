@@ -182,28 +182,54 @@ const SystemSettings: React.FC = () => {
   // Pension Ceilings handlers
   const loadPensionCeilings = () => {
     const saved = localStorage.getItem('pensionCeilings');
+
+    const defaultCeilings: PensionCeiling[] = [
+      { year: 2028, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2028' },
+      { year: 2027, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2027' },
+      { year: 2026, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2026' },
+      { year: 2025, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2025' },
+      { year: 2024, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2024' },
+      { year: 2023, monthly_ceiling: 9120, description: 'תקרת קצבה מזכה לשנת 2023' },
+      { year: 2022, monthly_ceiling: 8660, description: 'תקרת קצבה מזכה לשנת 2022' },
+      { year: 2021, monthly_ceiling: 8460, description: 'תקרת קצבה מזכה לשנת 2021' },
+      { year: 2020, monthly_ceiling: 8510, description: 'תקרת קצבה מזכה לשנת 2020' },
+      { year: 2019, monthly_ceiling: 8480, description: 'תקרת קצבה מזכה לשנת 2019' },
+      { year: 2018, monthly_ceiling: 8380, description: 'תקרת קצבה מזכה לשנת 2018' },
+      { year: 2017, monthly_ceiling: 8330, description: 'תקרת קצבה מזכה לשנת 2017' },
+      { year: 2016, monthly_ceiling: 8370, description: 'תקרת קצבה מזכה לשנת 2016' },
+      { year: 2015, monthly_ceiling: 8480, description: 'תקרת קצבה מזכה לשנת 2015' },
+      { year: 2014, monthly_ceiling: 8500, description: 'תקרת קצבה מזכה לשנת 2014' },
+      { year: 2013, monthly_ceiling: 8320, description: 'תקרת קצבה מזכה לשנת 2013' },
+      { year: 2012, monthly_ceiling: 8210, description: 'תקרת קצבה מזכה לשנת 2012' },
+    ];
+
     if (saved) {
-      setPensionCeilings(JSON.parse(saved));
-    } else {
-      const defaultCeilings: PensionCeiling[] = [
-        { year: 2025, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2025' },
-        { year: 2024, monthly_ceiling: 9430, description: 'תקרת קצבה מזכה לשנת 2024' },
-        { year: 2023, monthly_ceiling: 9120, description: 'תקרת קצבה מזכה לשנת 2023' },
-        { year: 2022, monthly_ceiling: 8660, description: 'תקרת קצבה מזכה לשנת 2022' },
-        { year: 2021, monthly_ceiling: 8460, description: 'תקרת קצבה מזכה לשנת 2021' },
-        { year: 2020, monthly_ceiling: 8510, description: 'תקרת קצבה מזכה לשנת 2020' },
-        { year: 2019, monthly_ceiling: 8480, description: 'תקרת קצבה מזכה לשנת 2019' },
-        { year: 2018, monthly_ceiling: 8380, description: 'תקרת קצבה מזכה לשנת 2018' },
-        { year: 2017, monthly_ceiling: 8330, description: 'תקרת קצבה מזכה לשנת 2017' },
-        { year: 2016, monthly_ceiling: 8370, description: 'תקרת קצבה מזכה לשנת 2016' },
-        { year: 2015, monthly_ceiling: 8480, description: 'תקרת קצבה מזכה לשנת 2015' },
-        { year: 2014, monthly_ceiling: 8500, description: 'תקרת קצבה מזכה לשנת 2014' },
-        { year: 2013, monthly_ceiling: 8320, description: 'תקרת קצבה מזכה לשנת 2013' },
-        { year: 2012, monthly_ceiling: 8210, description: 'תקרת קצבה מזכה לשנת 2012' },
-      ];
-      setPensionCeilings(defaultCeilings);
-      localStorage.setItem('pensionCeilings', JSON.stringify(defaultCeilings));
+      try {
+        const parsed: PensionCeiling[] = JSON.parse(saved);
+        const years = new Set(parsed.map((item) => item.year));
+        const merged = [...parsed];
+
+        [2026, 2027, 2028].forEach((year) => {
+          if (!years.has(year)) {
+            merged.unshift({
+              year,
+              monthly_ceiling: 9430,
+              description: `תקרת קצבה מזכה לשנת ${year}`,
+            });
+          }
+        });
+
+        setPensionCeilings(merged);
+        localStorage.setItem('pensionCeilings', JSON.stringify(merged));
+        return;
+      } catch (e) {
+        // אם הנתונים השמורים אינם תקינים, נשתמש בברירת המחדל
+        console.error('Error parsing pensionCeilings from localStorage, using defaults instead', e);
+      }
     }
+
+    setPensionCeilings(defaultCeilings);
+    localStorage.setItem('pensionCeilings', JSON.stringify(defaultCeilings));
   };
 
   const handleEditCeilings = () => {
