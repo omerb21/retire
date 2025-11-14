@@ -95,13 +95,16 @@ const ConversionSettings: React.FC<ConversionSettingsProps> = ({
             </thead>
             <tbody>
               {conversionRules.map((rule, index) => (
-                <tr key={rule.field} style={{ 
-                  backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa',
-                  borderBottom: '1px solid #dee2e6'
-                }}>
+                <tr
+                  key={rule.field}
+                  style={{
+                    backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa',
+                    borderBottom: '1px solid #dee2e6',
+                  }}
+                >
                   <td style={{ padding: '12px' }}>
                     <strong>{rule.displayName}</strong>
-                    <br/>
+                    <br />
                     <span style={{ fontSize: '11px', color: '#666' }}>({rule.field})</span>
                   </td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>
@@ -145,12 +148,43 @@ const ConversionSettings: React.FC<ConversionSettingsProps> = ({
                     <textarea
                       value={rule.errorMessage || ''}
                       onChange={(e) => onUpdateRule(index, 'errorMessage', e.target.value)}
-                      style={{ width: '100%', padding: '6px', minHeight: '40px', fontSize: '12px', borderRadius: '4px', border: '1px solid #ccc' }}
+                      style={{
+                        width: '100%',
+                        padding: '6px',
+                        minHeight: '40px',
+                        fontSize: '12px',
+                        borderRadius: '4px',
+                        border: '1px solid #ccc',
+                      }}
                       placeholder="הודעת שגיאה במקרה של המרה לא חוקית"
                     />
                   </td>
                 </tr>
               ))}
+
+              <tr
+                style={{
+                  backgroundColor: '#fffbe6',
+                  borderTop: '2px solid #ffc107',
+                  borderBottom: '1px solid #dee2e6',
+                }}
+              >
+                <td style={{ padding: '12px' }}>
+                  <strong>קופת גמל להשקעה (סוג מוצר)</strong>
+                  <br />
+                  <span style={{ fontSize: '11px', color: '#666' }}>
+                    לוגיקה אוטומטית לפי סוג המוצר, לא לפי רכיב בודד
+                  </span>
+                </td>
+                <td style={{ padding: '12px', textAlign: 'center' }}>כן</td>
+                <td style={{ padding: '12px', textAlign: 'center' }}>כן</td>
+                <td style={{ padding: '12px' }}>פטור ממס</td>
+                <td style={{ padding: '12px' }}>מס רווח הון</td>
+                <td style={{ padding: '12px', fontSize: '12px' }}>
+                  החוק הזה מופעל אוטומטית לכל חשבון שסוג המוצר שלו מכיל "גמל להשקעה":
+                  המרה לקצבה = פטור ממס, המרה לנכס הוני = חייב במס רווח הון. לא ניתן לערוך כלל זה בטבלה.
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

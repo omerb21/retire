@@ -119,16 +119,7 @@ const DEFAULT_COMPONENT_CONVERSION_RULES: ComponentConversionRule[] = [
     taxTreatmentWhenPension: 'exempt', // סכום הוני -> פטור ממס
     taxTreatmentWhenCapital: 'exempt', // פטור ממס גם בהמרה להון
     capitalAssetType: 'education_fund'
-  },
-  {
-    field: 'תגמולים',
-    displayName: 'תגמולים (דינמי לפי סוג מוצר)',
-    canConvertToPension: true,
-    canConvertToCapital: true,
-    taxTreatmentWhenPension: 'taxable',
-    taxTreatmentWhenCapital: 'capital_gains',
-    errorMessage: 'חוקי המרה לתגמולים תלויים בסוג המוצר: קרן פנסיה/ביטוח מנהלים=קצבתי בלבד; קופת גמל/קרן השתלמות=הוני פטור; קופת גמל להשקעה=הוני עם מס רווח הון'
-  },
+  }
 ];
 
 /**
@@ -242,68 +233,19 @@ export function validateComponentConversion(
     taxTreatment: 'taxable'
   };
 
-  // טיפול מיוחד בשדה תגמולים - תלוי בסוג המוצר
-  if (fieldName === 'תגמולים') {
-    const lowerProductType = productType.toLowerCase();
-    
-    // קרן השתלמות - סכום הוני פטור
-    if (lowerProductType.includes('קרן השתלמות')) {
-      result.canConvert = true;
-      result.taxTreatment = 'exempt'; // פטור ממס
-      return result;
-    }
-    
-    // קופת גמל (לא להשקעה) - סכום הוני פטור
-    if (lowerProductType.includes('קופת גמל') && !lowerProductType.includes('להשקעה')) {
-      result.canConvert = true;
-      result.taxTreatment = 'exempt'; // פטור ממס
-      return result;
-    }
-    
-    // קופת גמל להשקעה - סכום הוני עם יחס מס שונה
-    if (lowerProductType.includes('גמל להשקעה')) {
-      result.canConvert = true;
-      if (conversionType === 'pension') {
-        result.taxTreatment = 'exempt'; // פטור ממס
-      } else {
-        result.taxTreatment = 'capital_gains'; // חייב במס רווח הון
-      }
-      return result;
-    }
-    
-    // קרן פנסיה - סכום קצבתי
-    if (lowerProductType.includes('קרן פנסיה')) {
-      if (conversionType === 'pension') {
-        result.canConvert = true;
-        result.taxTreatment = 'taxable'; // חייב במס
-      } else {
-        result.canConvert = false;
-        result.errors.push('תגמולים בקרן פנסיה ניתנים להמרה לקצבה בלבד');
-      }
-      return result;
-    }
-    
-    // ברירת מחדל: כל מה שלא קרן פנסיה/קופ"ג/השתלמות = ביטוח מנהלים (פוליסות)
-    // זה כולל: "פוליסת ביטוח חיים משולב חיסכון", "פוליסת חיסכון טהור", "ביטוח מנהלים" וכו'
-    if (conversionType === 'pension') {
-      result.canConvert = true;
-      result.taxTreatment = 'taxable'; // חייב במס
-    } else {
-      result.canConvert = false;
-      result.errors.push('תגמולים בפוליסות ביטוח ניתנים להמרה לקצבה בלבד');
-    }
+  // טיפול מיוחד בקופת גמל להשקעה לפי סוג המוצר
+  const lowerProductType = (productType || '').toLowerCase();
+
+  if (lowerProductType.includes('גמל להשקעה')) {
+    result.canConvert = true;
+    result.taxTreatment = conversionType === 'pension' ? 'exempt' : 'capital_gains';
     return result;
   }
 
-  // קרן השתלמות - כל היתרה היא הונית
+  // קרן השתלמות - כל הרכיבים נחשבים כהוניים פטורים ממס
   if (isEducationFund(productType)) {
-    if (conversionType === 'capital_asset') {
-      result.canConvert = true;
-      result.taxTreatment = 'capital_gains';
-    } else if (conversionType === 'pension') {
-      result.canConvert = true;
-      result.taxTreatment = 'exempt'; // הוני -> פטור ממס
-    }
+    result.canConvert = true;
+    result.taxTreatment = 'exempt'; // גם לקצבה וגם לנכס הון
     return result;
   }
 

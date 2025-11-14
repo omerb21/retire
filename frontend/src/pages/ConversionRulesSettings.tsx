@@ -157,6 +157,30 @@ export default function ConversionRulesSettings() {
                 </td>
               </tr>
             ))}
+
+            {/* שורה סטטית עבור חוק המרה של קופת גמל להשקעה ברמת סוג מוצר */}
+            <tr>
+              <td style={{ border: '1px solid #ddd', padding: 8 }}>
+                <strong>קופת גמל להשקעה (סוג מוצר)</strong>
+                <br/>
+                <span style={{ fontSize: 11, color: '#666' }}>(לוגיקה קבועה לפי סוג המוצר, לא לפי רכיב ספציפי)</span>
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 8, textAlign: 'center' }}>
+                כן
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 8, textAlign: 'center' }}>
+                כן
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 8 }}>
+                פטור ממס
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 8 }}>
+                מס רווח הון
+              </td>
+              <td style={{ border: '1px solid #ddd', padding: 8 }}>
+                החוק הזה מיושם אוטומטית לפי סוג המוצר "קופת גמל להשקעה":\nהמרה לקצבה = פטור ממס, המרה לנכס הוני = חייב במס רווח הון. אין צורך לשנותו בטבלה.
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>

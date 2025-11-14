@@ -123,6 +123,12 @@ export function useCapitalAssets(clientId: string | undefined) {
                 account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
                 console.log(`✅ Restored ₪${balanceToRestore} to תגמולים (default)`);
               }
+
+              // עדכון יתרה כללית בתיק הפנסיוני
+              const restoreAmount = Number(balanceToRestore) || 0;
+              if (restoreAmount > 0) {
+                account.יתרה = (Number(account.יתרה) || 0) + restoreAmount;
+              }
               
               console.log(`🔍 Account after restore:`, account);
               localStorage.setItem(storageKey, JSON.stringify(pensionData));

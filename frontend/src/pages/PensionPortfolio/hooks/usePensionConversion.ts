@@ -67,17 +67,37 @@ export function usePensionConversion(
       const isCapitalAssetConversion = conversionTypes[index] === 'capital_asset';
       
       if (!isPensionConversion && !isCapitalAssetConversion) return;
+
+      // בדיקה האם קיימים טורי תגמולים מפורטים (עובד/מעביד לפי תקופות)
+      const hasDetailedTagmulim = (
+        (Number((account as any).תגמולי_עובד_עד_2000) || 0) > 0 ||
+        (Number((account as any).תגמולי_עובד_אחרי_2000) || 0) > 0 ||
+        (Number((account as any).תגמולי_עובד_אחרי_2008_לא_משלמת) || 0) > 0 ||
+        (Number((account as any).תגמולי_מעביד_עד_2000) || 0) > 0 ||
+        (Number((account as any).תגמולי_מעביד_אחרי_2000) || 0) > 0 ||
+        (Number((account as any).תגמולי_מעביד_אחרי_2008_לא_משלמת) || 0) > 0
+      );
       
       let amountToConvert = 0;
       let specificAmounts: any = {};
       let selectedForValidation: any = {};
       
       if (account.selected) {
+        // המרה של כל החשבון - משתמשים ביתרה הכללית, אך מפלחים רק לרכיבים הרלוונטיים
         amountToConvert = account.יתרה || 0;
         specificAmounts = {};
         selectedForValidation = {};
         Object.keys(account).forEach(key => {
-          if (typeof (account as any)[key] === 'number' && key !== 'יתרה') {
+          if (
+            typeof (account as any)[key] === 'number' &&
+            key !== 'יתרה' &&
+            key !== 'סך_תגמולים' &&
+            key !== 'סך_פיצויים' &&
+            key !== 'סך_רכיבים' &&
+            key !== 'פער_יתרה_מול_רכיבים' &&
+            // אם יש פירוט תגמולים, לא נכלול את שדה "תגמולים" הכללי כדי לא לספור פעמיים
+            !(key === 'תגמולים' && hasDetailedTagmulim)
+          ) {
             const fieldAmount = (account as any)[key];
             if (fieldAmount && fieldAmount > 0) {
               specificAmounts[key] = fieldAmount;
@@ -89,9 +109,14 @@ export function usePensionConversion(
           selectedForValidation['יתרה'] = true;
         }
       } else {
+        // המרה לפי טורים נבחרים (selected_amounts)
         const selectedAmounts = account.selected_amounts || {};
         Object.entries(selectedAmounts).forEach(([key, isSelected]) => {
-          if (isSelected && (account as any)[key]) {
+          if (!isSelected) return;
+          // במקרה שקיימים טורי תגמולים מפורטים, נתעלם משדה "תגמולים" כללי גם אם סומן בעבר
+          if (key === 'תגמולים' && hasDetailedTagmulim) return;
+
+          if ((account as any)[key]) {
             const fieldAmount = parseFloat((account as any)[key]) || 0;
             amountToConvert += fieldAmount;
             specificAmounts[key] = fieldAmount;
@@ -189,11 +214,18 @@ export function usePensionConversion(
               });
               retirementAge = retResponse.retirement_age;
             }
+
+            // עבור גמל להשקעה נשתמש במקדם של קרן פנסיה
+            let coefficientProductType = account.סוג_מוצר || 'ביטוח מנהלים';
+            const coefficientProductLower = (coefficientProductType || '').toLowerCase();
+            if (coefficientProductLower.includes('גמל להשקעה')) {
+              coefficientProductType = 'קרן פנסיה';
+            }
             
             const coefficientResponse: any = await apiFetch('/annuity-coefficient/calculate', {
               method: 'POST',
               body: JSON.stringify({
-                product_type: account.סוג_מוצר || 'ביטוח מנהלים',
+                product_type: coefficientProductType,
                 start_date: account.תאריך_התחלה || paymentDateISO,
                 gender: clientData?.gender || 'זכר',
                 retirement_age: retirementAge,
@@ -222,7 +254,7 @@ export function usePensionConversion(
           
           if (productLower.includes('קרן פנסיה') || productLower.includes('פנסיה מקיפה') || 
               productLower.includes('פנסיה כללית') || productLower.includes('קופת גמל') || 
-              productLower.includes('קרן השתלמות')) {
+              productLower.includes('קרן השתלמות') || productLower.includes('גמל להשקעה')) {
             fundNamePrefix = 'קרן פנסיה שנוצרה מתכנית - ';
           } else {
             fundNamePrefix = 'קצבת ביטוח מנהלים שנוצרה מתכנית - ';
@@ -401,14 +433,22 @@ export function usePensionConversion(
         
         if (!conversion) return account;
         
-        const {specificAmounts} = conversion;
+        const {specificAmounts, amountToConvert} = conversion as any;
         let updatedAccount = {...account};
         
+        // אפס רק את הרכיבים שהומרו
         Object.keys(specificAmounts).forEach(key => {
           if ((updatedAccount as any)[key]) {
             (updatedAccount as any)[key] = 0;
           }
         });
+
+        // עדכון יתרה: הפחתת הסכום שהומר מהיתרה המקורית
+        const originalBalance = Number(updatedAccount.יתרה) || 0;
+        const convertedAmount = Number(amountToConvert) || 0;
+        if (convertedAmount > 0) {
+          updatedAccount.יתרה = Math.max(0, originalBalance - convertedAmount);
+        }
         
         updatedAccount.selected = false;
         updatedAccount.selected_amounts = {};

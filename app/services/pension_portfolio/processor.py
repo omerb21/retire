@@ -77,10 +77,6 @@ PRODUCT_TYPE_MAP = {
     "3": "קופת גמל",
     "4": "קרן פנסיה",
     "5": "פוליסת חיסכון טהור",
-    "6": "קרן השתלמות",
-    "7": "פוליסת ביטוח חיים",
-    "8": "ביטוח מנהלים",
-    "9": "קופת גמל להשקעה",
 }
 
 SEVERANCE_COLUMN_TAGS: Dict[str, List[str]] = {
@@ -575,6 +571,13 @@ class _PensionFileProcessor:
         return "לא ידוע"
 
     def _resolve_product_type(self, account_elem: ET.Element, product_type_code: Optional[str], plan_name: str) -> str:
+        """Determine product type using the same rules as the mislaka PensionFileProcessor._get_product_type.
+
+        The product_type_code argument is intentionally ignored to avoid overriding SUG-MUTZAR
+        with less reliable fields like SUG-TOCHNIT-O-CHESHBON or SUG-POLISA.
+        """
+
+        # 1. Try to infer from plan names (SHEM-TOCHNIT/TOCHNIT/SHEM_TOCHNIT)
         plan_name_tags = ["SHEM-TOCHNIT", "TOCHNIT", "SHEM_TOCHNIT"]
         plan_names: List[str] = []
         for tag in plan_name_tags:
@@ -590,35 +593,34 @@ class _PensionFileProcessor:
 
         name_type: Optional[str] = None
         for name in plan_names:
-            lower_name = name.lower()
-            if "השתלמות" in lower_name:
+            name_lower = name.lower()
+            if "גמל להשקעה" in name or "קופת גמל להשקעה" in name:
+                name_type = "גמל להשקעה"
+                break
+            if "השתלמות" in name:
                 name_type = "קרן השתלמות"
                 break
-            if "פנסיה" in lower_name or "מקפת" in lower_name or "עתודות" in lower_name:
+            if "פנסיה" in name or "מקפת" in name or "עתודות" in name:
                 name_type = "קרן פנסיה"
                 break
-            if "גמל" in lower_name:
+            if "גמל" in name:
                 name_type = "קופת גמל"
                 break
-            if "ביטוח" in lower_name and ("חיים" in lower_name or "מנהלים" in lower_name or "מנהל" in lower_name):
-                if "מקפת" in lower_name or "פנסיה" in lower_name:
+            if "ביטוח" in name and ("חיים" in name or "מנהלים" in name or "מנהל" in name):
+                if "מקפת" in name or "פנסיה" in name:
                     name_type = "קרן פנסיה"
                     break
                 name_type = "פוליסת ביטוח חיים"
                 break
-            if "חיסכון" in lower_name or "savings" in lower_name:
+            if "חיסכון" in name or "savings" in name_lower:
                 name_type = "פוליסת חיסכון טהור"
                 break
 
+        # 2. Try to infer from SUG-MUTZAR codes only (no overrides from other type codes)
         codes = self._collect_tag_values(account_elem, "SUG-MUTZAR", include_parents=True)
         if not codes:
-            fallback_code = self._get_first_text(account_elem, ["SUG-MUTZAR"])
-            if fallback_code:
-                codes = [fallback_code]
-
-        normalized_code_param = (product_type_code or "").strip()
-        if normalized_code_param:
-            codes = [normalized_code_param] + codes
+            code = self._get_text(account_elem, "SUG-MUTZAR")
+            codes = [code] if code else []
 
         code_type: Optional[str] = None
         for code in codes:
@@ -630,6 +632,7 @@ class _PensionFileProcessor:
                 code_type = mapped
                 break
 
+        # 3. Reconcile name-based and code-based types, following mislaka rules
         if code_type and name_type:
             if code_type == name_type:
                 return code_type
@@ -643,6 +646,7 @@ class _PensionFileProcessor:
                 return code_type
             return name_type
 
+        # 4. Fallbacks matching mislaka behavior
         if name_type:
             return name_type
 
@@ -657,7 +661,7 @@ class _PensionFileProcessor:
             if normalized_code:
                 return normalized_code
 
-        return "לא ידוע"
+        return ""
 
     def _get_global_text(self, tag: str) -> Optional[str]:
         if tag in self._global_cache:
