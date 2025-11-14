@@ -15,22 +15,115 @@ export function generateExcelReport(
 ) {
   const workbook = XLSX.utils.book_new();
   
-  // גיליון 1: תזרים מזומנים מפורט
-  const cashflowData = [
-    // כותרות עמודות
-    ['שנה', 'הכנסות פנסיה', 'הכנסות נוספות', 'הכנסות מנכסים', 'סך הכנסה', 'סך מס', 'נטו חודשי', 'נטו שנתי'],
-    // נתונים
-    ...yearlyProjection.slice(0, 30).map(year => [
+  // גיליון 1: תזרים מזומנים - סיכום שנתי + פירוט לפי מקורות
+  const cashflowData: (string | number)[][] = [];
+
+  // חלק א': תחזית תזרים שנתי - סיכום
+  cashflowData.push(['תחזית תזרים שנתי - סיכום', '', '', '', '', '', '', '']);
+  cashflowData.push([
+    'שנה',
+    'גיל',
+    'הכנסה חודשית',
+    'מס חודשי',
+    'נטו חודשי',
+    'נטו שנתי',
+    'קצבה פטורה חודשית',
+    ''
+  ]);
+
+  yearlyProjection.forEach((year) => {
+    const annualNet = year.netMonthlyIncome * 12;
+    cashflowData.push([
       year.year.toString(),
-      Math.round(year.totalMonthlyIncome * 0.6).toLocaleString(), // הערכה של הכנסות פנסיה
-      Math.round(year.totalMonthlyIncome * 0.3).toLocaleString(), // הערכה של הכנסות נוספות  
-      Math.round(year.totalMonthlyIncome * 0.1).toLocaleString(), // הערכה של הכנסות מנכסים
+      year.clientAge,
       year.totalMonthlyIncome.toLocaleString(),
       year.totalMonthlyTax.toLocaleString(),
       year.netMonthlyIncome.toLocaleString(),
-      (year.netMonthlyIncome * 12).toLocaleString()
-    ])
-  ];
+      annualNet.toLocaleString(),
+      (year.exemptPension ?? 0).toLocaleString(),
+      ''
+    ]);
+  });
+
+  // רווח ויזואלי
+  cashflowData.push(['', '', '', '', '', '', '', '']);
+
+  // חלק ב': תחזית תזרים מפורט - פירוט לפי מקור (כמו בטבלת YearlyBreakdown)
+  cashflowData.push(['תחזית תזרים מפורט - פירוט לפי מקור', '', '', '', '', '', '', '']);
+
+  // בניית כותרות דינמיות לפי קצבאות, הכנסות נוספות ונכסי הון פעילים
+  const activeCapitalAssets = capitalAssets.filter((asset) => (parseFloat(asset.monthly_income) || 0) > 0);
+
+  const detailedHeader: (string | number)[] = [];
+  detailedHeader.push('שנה', 'גיל');
+
+  pensionFunds.forEach((fund: any) => {
+    detailedHeader.push(fund.fund_name || 'קצבה', 'מס');
+  });
+
+  additionalIncomes.forEach((income: any) => {
+    detailedHeader.push(income.description || 'הכנסה נוספת', 'מס');
+  });
+
+  activeCapitalAssets.forEach((asset: any) => {
+    detailedHeader.push(asset.asset_name || asset.description || 'נכס הון', 'מס');
+  });
+
+  detailedHeader.push('סה"כ הכנסה', 'מס', 'נטו');
+  cashflowData.push(detailedHeader);
+
+  yearlyProjection.forEach((proj) => {
+    const row: (string | number)[] = [];
+    row.push(proj.year.toString(), proj.clientAge);
+
+    const incomes = proj.incomeBreakdown || [];
+    const taxes = proj.taxBreakdown || [];
+
+    const pensionCount = pensionFunds.length;
+    const additionalCount = additionalIncomes.length;
+    const assetCount = activeCapitalAssets.length;
+
+    // קצבאות
+    for (let i = 0; i < pensionCount; i++) {
+      const amount = incomes[i] || 0;
+      const tax = taxes[i] || 0;
+      row.push(
+        amount > 0 ? amount.toLocaleString() : '-',
+        tax > 0 ? tax.toLocaleString() : '-'
+      );
+    }
+
+    // הכנסות נוספות
+    for (let i = 0; i < additionalCount; i++) {
+      const idx = pensionCount + i;
+      const amount = incomes[idx] || 0;
+      const tax = taxes[idx] || 0;
+      row.push(
+        amount > 0 ? amount.toLocaleString() : '-',
+        tax > 0 ? tax.toLocaleString() : '-'
+      );
+    }
+
+    // נכסי הון
+    for (let i = 0; i < assetCount; i++) {
+      const idx = pensionCount + additionalCount + i;
+      const amount = incomes[idx] || 0;
+      const tax = taxes[idx] || 0;
+      row.push(
+        amount > 0 ? amount.toLocaleString() : '-',
+        tax > 0 ? tax.toLocaleString() : '-'
+      );
+    }
+
+    // סיכומים
+    row.push(
+      proj.totalMonthlyIncome.toLocaleString(),
+      proj.totalMonthlyTax.toLocaleString(),
+      proj.netMonthlyIncome.toLocaleString()
+    );
+
+    cashflowData.push(row);
+  });
   
   // חישוב NPV
   const annualNetCashFlows = yearlyProjection.map(yearData => yearData.netMonthlyIncome * 12);
