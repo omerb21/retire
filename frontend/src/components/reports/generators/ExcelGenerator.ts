@@ -136,6 +136,40 @@ export function generateExcelReport(
   cashflowData.push(['סך שנות תחזית:', '', '', '', '', '', '', yearlyProjection.length.toString()]);
   
   const cashflowSheet = XLSX.utils.aoa_to_sheet(cashflowData);
+
+  // עיצוב גיליון התזרים: רוחבי עמודות ומיזוג כותרות
+  const totalCashflowColumns = cashflowData.reduce((max, row) => Math.max(max, row.length), 0) || 1;
+
+  const cashflowCols: { wch: number }[] = [];
+  for (let c = 0; c < totalCashflowColumns; c++) {
+    if (c === 0 || c === 1) {
+      // שנה / גיל
+      cashflowCols.push({ wch: 8 });
+    } else {
+      // שאר העמודות: סכומים ומס
+      cashflowCols.push({ wch: 14 });
+    }
+  }
+  (cashflowSheet as any)['!cols'] = cashflowCols;
+
+  const cashflowMerges: any[] = [];
+  cashflowData.forEach((row, rowIndex) => {
+    const titleCell = row[0];
+    if (
+      titleCell === 'תחזית תזרים שנתי - סיכום' ||
+      titleCell === 'תחזית תזרים מפורט - פירוט לפי מקור'
+    ) {
+      cashflowMerges.push({
+        s: { r: rowIndex, c: 0 },
+        e: { r: rowIndex, c: totalCashflowColumns - 1 }
+      });
+    }
+  });
+
+  if (cashflowMerges.length > 0) {
+    (cashflowSheet as any)['!merges'] = cashflowMerges;
+  }
+
   XLSX.utils.book_append_sheet(workbook, cashflowSheet, 'תזרים מזומנים');
   
   // גיליון 2: נכסי הון מפורט
@@ -276,6 +310,19 @@ export function generateExcelReport(
   ];
   
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+
+  // עיצוב גיליון הסיכום הכללי: כותרת ממוזגת ורוחבי עמודות
+  const summaryCols: { wch: number }[] = [
+    { wch: 28 }, // כותרת / תיאור
+    { wch: 22 }, // ערך
+    { wch: 10 }  // יחידה / מטבע
+  ];
+  (summarySheet as any)['!cols'] = summaryCols;
+
+  (summarySheet as any)['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }
+  ];
+
   XLSX.utils.book_append_sheet(workbook, summarySheet, 'סיכום כללי');
   
   // שמירת הקובץ
