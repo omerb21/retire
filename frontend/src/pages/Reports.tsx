@@ -26,10 +26,26 @@ const ReportsPage: React.FC = () => {
 
   // חישוב תחזית שנתית באמצעות הפונקציה המפוצלת
   const yearlyProjection = useMemo(() => {
-    if (!client || pensionFunds.length === 0) {
+    if (!client) {
       return [];
     }
-    return generateYearlyProjection(pensionFunds, additionalIncomes, capitalAssets, client, fixationData);
+
+    // מחזירים תחזית גם אם אין קצבאות, כל עוד יש לפחות מקור הכנסה אחד (הכנסות נוספות / נכסי הון)
+    if (
+      pensionFunds.length === 0 &&
+      additionalIncomes.length === 0 &&
+      capitalAssets.length === 0
+    ) {
+      return [];
+    }
+
+    return generateYearlyProjection(
+      pensionFunds,
+      additionalIncomes,
+      capitalAssets,
+      client,
+      fixationData
+    );
   }, [pensionFunds, additionalIncomes, capitalAssets, client, fixationData]);
 
   // חישוב NPV

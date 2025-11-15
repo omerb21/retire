@@ -114,56 +114,59 @@ export function useReportData(clientId: string | undefined) {
           let monthlyTax = 0;
           let monthlyNetAmount = 0;
           let source = 'ללא הכנסה';
-          
+
+          // הכנסה נוספת קיימת גם לפני תחילת הפנסיה
+          const monthlyAdditional = additionalIncomesData.reduce((sum: number, income: any) => 
+            sum + (income.monthly_amount || income.annual_amount / 12 || 0), 0);
+
+          // פנסיה פעילה רק אחרי תאריך תחילת הפנסיה
+          let monthlyPensionTaxable = 0;
+          let monthlyPensionExempt = 0;
           if (isPensionActive) {
-            const monthlyPensionTaxable = pensionFundsData.reduce((sum: number, fund: any) => {
+            monthlyPensionTaxable = pensionFundsData.reduce((sum: number, fund: any) => {
               if (fund.tax_treatment === 'exempt') return sum;
               return sum + (fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0);
             }, 0);
             
-            const monthlyPensionExempt = pensionFundsData.reduce((sum: number, fund: any) => {
+            monthlyPensionExempt = pensionFundsData.reduce((sum: number, fund: any) => {
               if (fund.tax_treatment !== 'exempt') return sum;
               return sum + (fund.pension_amount || fund.computed_monthly_amount || fund.monthly_amount || 0);
             }, 0);
-            
-            const monthlyAdditional = additionalIncomesData.reduce((sum: number, income: any) => 
-              sum + (income.monthly_amount || income.annual_amount / 12 || 0), 0);
-            
-            const monthlyPension = monthlyPensionTaxable + monthlyPensionExempt;
-            monthlyGrossAmount = monthlyPension + monthlyAdditional;
-            
-            if (monthlyGrossAmount > 0) {
-              let monthlyExemptPension = monthlyPensionExempt;
-              if (fixationDataResponse && fixationDataResponse.exemption_summary) {
-                const eligibilityYear = fixationDataResponse.eligibility_year || fixationDataResponse.exemption_summary.eligibility_year;
-                const currentYear = monthDate.getFullYear();
+          }
+
+          const monthlyPension = monthlyPensionTaxable + monthlyPensionExempt;
+          monthlyGrossAmount = monthlyPension + monthlyAdditional;
+
+          if (monthlyGrossAmount > 0) {
+            let monthlyExemptPension = monthlyPensionExempt;
+            if (fixationDataResponse && fixationDataResponse.exemption_summary) {
+              const eligibilityYear = fixationDataResponse.eligibility_year || fixationDataResponse.exemption_summary.eligibility_year;
+              const currentYear = monthDate.getFullYear();
+              
+              if (currentYear >= eligibilityYear) {
+                const exemptionPercentage = fixationDataResponse.exemption_summary.exemption_percentage || 0;
+                const remainingExemptCapital = fixationDataResponse.exemption_summary.remaining_exempt_capital || 0;
                 
-                if (currentYear >= eligibilityYear) {
-                  const exemptionPercentage = fixationDataResponse.exemption_summary.exemption_percentage || 0;
-                  const remainingExemptCapital = fixationDataResponse.exemption_summary.remaining_exempt_capital || 0;
-                  
-                  if (currentYear === eligibilityYear) {
-                    monthlyExemptPension += remainingExemptCapital / 180;
-                  } else {
-                    const pensionCeiling = getPensionCeiling(currentYear);
-                    monthlyExemptPension += exemptionPercentage * pensionCeiling;
-                  }
+                if (currentYear === eligibilityYear) {
+                  monthlyExemptPension += remainingExemptCapital / 180;
+                } else {
+                  const pensionCeiling = getPensionCeiling(currentYear);
+                  monthlyExemptPension += exemptionPercentage * pensionCeiling;
                 }
               }
-              
-              const monthlyTaxableIncome = monthlyPensionTaxable + monthlyAdditional;
-              const annualTaxableIncome = monthlyTaxableIncome * 12;
-              
-              let baseTax = calculateTaxByBrackets(annualTaxableIncome, monthDate.getFullYear());
-              
-              if (clientData?.tax_credit_points) {
-                baseTax = Math.max(0, baseTax - (clientData.tax_credit_points * 2904));
-              }
-              
-              monthlyTax = baseTax / 12;
-              monthlyNetAmount = monthlyGrossAmount - monthlyTax;
             }
             
+            const monthlyTaxableIncome = monthlyPensionTaxable + monthlyAdditional;
+            const annualTaxableIncome = monthlyTaxableIncome * 12;
+            
+            let baseTax = calculateTaxByBrackets(annualTaxableIncome, monthDate.getFullYear());
+            
+            if (clientData?.tax_credit_points) {
+              baseTax = Math.max(0, baseTax - (clientData.tax_credit_points * 2904));
+            }
+            
+            monthlyTax = baseTax / 12;
+            monthlyNetAmount = monthlyGrossAmount - monthlyTax;
             source = monthlyPension > 0 ? 'פנסיה' : 'הכנסות נוספות';
           }
           

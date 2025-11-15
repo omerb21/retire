@@ -42,6 +42,12 @@ class CashflowRow(BaseModel):
     additional_income_net: float
     capital_return_net: float
     net: float
+    # Optional detailed fields for additional incomes and capital assets
+    additional_income_gross: float = 0.0
+    additional_income_tax: float = 0.0
+    additional_income_tax_for_total: float = 0.0
+    capital_return_gross: float = 0.0
+    capital_return_tax: float = 0.0
 
 
 CashflowGenerateResponse = List[CashflowRow]

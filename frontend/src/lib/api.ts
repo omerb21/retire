@@ -264,6 +264,136 @@ export const clientApi = {
   getPensionFunds: getClientPensionFunds
 };
 
+// ===== Scenarios API (used by Scenarios.tsx) =====
+
+export type ScenarioDto = {
+  id: number;
+  client_id: number;
+  name: string;
+  description?: string | null;
+  parameters?: string;
+  cashflow_projection?: string | null;
+  summary_results?: string | null;
+  created_at: string;
+};
+
+export async function listScenarios(clientId: number) {
+  return apiFetch<ScenarioDto[]>(`/clients/${clientId}/scenarios`);
+}
+
+export async function createScenario(clientId: number, payload: { name: string; description?: string }) {
+  return apiFetch<ScenarioDto>(`/clients/${clientId}/scenarios`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: payload.name,
+      description: payload.description ?? null,
+    }),
+  });
+}
+
+export const scenarioApi = {
+  list: listScenarios,
+  create: createScenario,
+};
+
+// ===== Calculation API (used by Scenarios.tsx -> Results.tsx) =====
+
+export type CalculationRequestDto = {
+  client_id: number;
+  scenario_name?: string;
+  save_scenario?: boolean;
+  scenario_id?: number;
+};
+
+export type CalculationCashFlowItemDto = {
+  year: number;
+  month: number;
+  gross_income: number;
+  tax_amount: number;
+  net_income: number;
+  asset_balances: Record<string, number>;
+};
+
+export type CalculationSummaryDto = {
+  total_gross: number;
+  total_tax: number;
+  total_net: number;
+  final_balances: Record<string, number>;
+};
+
+export type CalculationResultDto = {
+  client_id: number;
+  scenario_name?: string;
+  case_number: number;
+  assumptions: any;
+  cash_flow: CalculationCashFlowItemDto[];
+  summary: CalculationSummaryDto;
+};
+
+export async function runCalculation(payload: CalculationRequestDto) {
+  return apiFetch<CalculationResultDto>(`/calculation/run`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export const calculationApi = {
+  calculate: runCalculation,
+};
+
+// ===== Reports API (PDF export used in Results.tsx) =====
+
+async function downloadBlob(path: string, init?: RequestInit) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "omit",
+    ...init,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status} ${res.statusText}`);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match?.[1] || "report.pdf";
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function exportReportPdf(clientId: number, scenarioIds: number[]) {
+  if (!scenarioIds.length) {
+    throw new Error("No scenarios selected for PDF export");
+  }
+
+  const body = {
+    from: "2025-01",
+    to: "2025-12",
+    frequency: "monthly",
+    scenarios: scenarioIds,
+  };
+
+  const firstScenarioId = scenarioIds[0];
+  const qs = new URLSearchParams({ client_id: String(clientId) }).toString();
+  await downloadBlob(`/scenarios/${firstScenarioId}/report/pdf?${qs}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export const reportsApi = {
+  exportReportPdf,
+};
+
 export function handleApiError(error: any): string {
   if (error instanceof Error) {
     return error.message;

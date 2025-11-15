@@ -195,6 +195,11 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
         outflow = float(r.get("outflow", 0) or 0)
         add_net = float(r.get("additional_income_net", 0) or 0)
         cap_net = float(r.get("capital_return_net", 0) or 0)
+        add_gross = float(r.get("additional_income_gross", 0) or 0)
+        add_tax = float(r.get("additional_income_tax", 0) or 0)
+        add_tax_total = float(r.get("additional_income_tax_for_total", 0) or 0)
+        cap_gross = float(r.get("capital_return_gross", 0) or 0)
+        cap_tax = float(r.get("capital_return_tax", 0) or 0)
         
         # Always recalculate net for consistency
         net = inflow - outflow + add_net + cap_net
@@ -208,6 +213,11 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
             "outflow": outflow,
             "additional_income_net": add_net,
             "capital_return_net": cap_net,
+            "additional_income_gross": add_gross,
+            "additional_income_tax": add_tax,
+            "additional_income_tax_for_total": add_tax_total,
+            "capital_return_gross": cap_gross,
+            "capital_return_tax": cap_tax,
             "net": net,
             "meta": meta
         }
@@ -234,6 +244,11 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
                 "outflow": outflow,
                 "additional_income_net": add_net,
                 "capital_return_net": cap_net,
+                "additional_income_gross": 0.0,
+                "additional_income_tax": 0.0,
+                "additional_income_tax_for_total": 0.0,
+                "capital_return_gross": 0.0,
+                "capital_return_tax": 0.0,
                 "net": net,
                 "meta": {"is_filled": True}  # Mark as grid-filled month
             })
