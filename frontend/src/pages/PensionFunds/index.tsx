@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { PensionFund, Commutation } from './types';
 import { calculateOriginalBalance } from './utils';
+import { formatCurrency } from '../../lib/validation';
 import { 
   loadPensionFunds, 
   loadClientData, 
@@ -379,7 +380,7 @@ export default function PensionFunds() {
         commutation_type: "taxable",
       });
 
-      alert(`היוון נוצר בהצלחה!\n${shouldDeleteFund ? 'הקצבה נמחקה כולה' : `נותרה יתרה של ₪${(fundBalance - (commutationForm.exempt_amount || 0)).toLocaleString()}`}`);
+      alert(`היוון נוצר בהצלחה!\n${shouldDeleteFund ? 'הקצבה נמחקה כולה' : `נותרה יתרה של ${formatCurrency(fundBalance - (commutationForm.exempt_amount || 0))}`}`);
     } catch (e: any) {
       setError(`שגיאה ביצירת היוון: ${e?.message || e}`);
     }
@@ -443,7 +444,7 @@ export default function PensionFunds() {
       ));
       
       if (!options?.suppressAlert) {
-        alert(`ההיוון נמחק בהצלחה!\nהיתרה הוחזרה לקצבה: ₪${newBalance.toLocaleString()}\nקצבה חודשית חדשה: ₪${newMonthlyAmount.toLocaleString()}`);
+        alert(`ההיוון נמחק בהצלחה!\nהיתרה הוחזרה לקצבה: ${formatCurrency(newBalance)}\nקצבה חודשית חדשה: ${formatCurrency(newMonthlyAmount)}`);
       }
     } catch (e: any) {
       setError(`שגיאה במחיקת היוון: ${e?.message || e}`);

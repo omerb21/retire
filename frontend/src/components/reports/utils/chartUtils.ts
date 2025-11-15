@@ -1,4 +1,10 @@
 import jsPDF from 'jspdf';
+import { formatCurrency } from '../../../lib/validation';
+
+const formatMoney = (value: number): string => {
+  const formatted = formatCurrency(value);
+  return formatted.replace('₪', '').trim();
+};
 
 // ======= פונקציה להוספת גרף עוגה ל-PDF =======
 export function drawPieChart(
@@ -101,7 +107,7 @@ export function drawPieChart(
     // טקסט
     doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
-    const text = `${label}: ${percentage}% (₪${value.toLocaleString()})`;
+    const text = `${label}: ${percentage}% (₪${formatMoney(value)})`;
     doc.text(text, legendX + 6, legendY);
     
     legendY += 6;

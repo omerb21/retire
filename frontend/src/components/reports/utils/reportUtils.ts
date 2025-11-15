@@ -1,3 +1,5 @@
+import { formatCurrency } from '../../../lib/validation';
+
 // ======= קבועים ומיפויים =======
 
 export const ASSET_TYPES_MAP: Record<string, string> = {
@@ -24,6 +26,11 @@ export const PENSION_PRODUCT_TYPES: Record<string, string> = {
   annuity: "קצבה"
 };
 
+const formatMoney = (value: number): string => {
+  const formatted = formatCurrency(value);
+  return formatted.replace('₪', '').trim();
+};
+
 // ======= פונקציה ליצירת פרוט פעולות תזרים =======
 export function generateCashflowOperationsDetails(
   pensions: any[],
@@ -45,7 +52,7 @@ export function generateCashflowOperationsDetails(
       if (monthlyAmount > 0) {
         operations.push(
           `${idx + 1}. **${pension.fund_name || 'מוצר פנסיוני'}** (${productType})\n` +
-          `   - סכום חודשי: ₪${monthlyAmount.toLocaleString()}\n` +
+          `   - סכום חודשי: ₪${formatMoney(monthlyAmount)}\n` +
           `   - תאריך התחלת משיכה: ${startDate}\n` +
           `   - משך: לכל החיים (קצבה)\n`
         );
@@ -64,7 +71,7 @@ export function generateCashflowOperationsDetails(
       
       operations.push(
         `${idx + 1}. **${income.description || 'הכנסה נוספת'}**\n` +
-        `   - סכום חודשי: ₪${monthlyAmount.toLocaleString()}\n` +
+        `   - סכום חודשי: ₪${formatMoney(monthlyAmount)}\n` +
         `   - תקופה: ${startDate} עד ${endDate}\n`
       );
     });
@@ -84,14 +91,14 @@ export function generateCashflowOperationsDetails(
       if (monthlyIncome > 0) {
         operations.push(
           `${idx + 1}. **${asset.asset_name || assetType}**\n` +
-          `   - הכנסה חודשית: ₪${monthlyIncome.toLocaleString()}\n` +
-          `   - ערך נוכחי: ₪${currentValue.toLocaleString()}\n` +
+          `   - הכנסה חודשית: ₪${formatMoney(monthlyIncome)}\n` +
+          `   - ערך נוכחי: ₪${formatMoney(currentValue)}\n` +
           `   - תקופה: ${startDate} עד ${endDate}\n`
         );
       } else if (currentValue > 0) {
         operations.push(
           `${idx + 1}. **${asset.asset_name || assetType}**\n` +
-          `   - ערך נוכחי: ₪${currentValue.toLocaleString()}\n` +
+          `   - ערך נוכחי: ₪${formatMoney(currentValue)}\n` +
           `   - תשואה שנתית משוערת: ${asset.annual_return_rate || 0}%\n` +
           `   - נכס הון (לא מופיע בתזרים החודשי)\n`
         );
@@ -107,10 +114,10 @@ export function generateCashflowOperationsDetails(
     const exemptionPercentage = ((fixationData.exemption_percentage || 0) * 100).toFixed(2);
     
     operations.push(
-      `- קצבה פטורה חודשית (שנת קיבוע ${fixationData.fixation_year || currentYear}): ₪${monthlyExemption.toLocaleString()}\n` +
+      `- קצבה פטורה חודשית (שנת קיבוע ${fixationData.fixation_year || currentYear}): ₪${formatMoney(monthlyExemption)}\n` +
       `- אחוז פטור: ${exemptionPercentage}%\n` +
-      `- יתרת הון פטורה ראשונית: ₪${(fixationData.exempt_capital_initial || 0).toLocaleString()}\n` +
-      `- יתרה אחרי קיזוזים: ₪${(fixationData.remaining_exempt_capital || 0).toLocaleString()}\n`
+      `- יתרת הון פטורה ראשונית: ₪${formatMoney(fixationData.exempt_capital_initial || 0)}\n` +
+      `- יתרה אחרי קיזוזים: ₪${formatMoney(fixationData.remaining_exempt_capital || 0)}\n`
     );
   }
   

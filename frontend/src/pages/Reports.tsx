@@ -184,7 +184,7 @@ const ReportsPage: React.FC = () => {
   return (
     <div style={{ padding: '20px', direction: 'rtl' }}>
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>דוחות פנסיה - {client?.name}</h2>
+        <h2>תיק פרישה - {client?.name}</h2>
         <ExportControls
           yearlyProjection={yearlyProjection}
           pensionFunds={pensionFunds}

@@ -5,6 +5,7 @@ import {
   PensionCeiling, 
   ExemptCapitalPercentage 
 } from '../types/system-settings.types';
+import { formatCurrency as baseFormatCurrency } from '../lib/validation';
 import { 
   loadSeveranceCapsFromAPI, 
   saveSeveranceCapsToAPI, 
@@ -95,10 +96,7 @@ export const useSystemSettings = () => {
   // Format currency
   const formatCurrency = (amount: number) => {
     if (amount === Infinity) return 'ומעלה';
-    return amount.toLocaleString('he-IL', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }) + ' ₪';
+    return baseFormatCurrency(amount);
   };
 
   return {

@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { SimpleEmployer } from '../types';
+import { formatCurrency } from '../../../lib/validation';
 
 interface SavedDataDisplayProps {
   employer: SimpleEmployer;
@@ -48,14 +49,14 @@ export const SavedDataDisplay: React.FC<SavedDataDisplayProps> = ({ employer }) 
         <div><strong>שם מעסיק:</strong> {employer.employer_name}</div>
         <div><strong>תאריך התחלה:</strong> {employer.start_date}</div>
         <div><strong>תאריך סיום:</strong> {employer.end_date || 'לא הוזן'}</div>
-        <div><strong>שכר חודשי:</strong> ₪{(() => {
+        <div><strong>שכר חודשי:</strong> {(() => {
           console.log('💰 TABLE SALARY:', employer.last_salary);
-          return employer.last_salary.toLocaleString();
+          return formatCurrency(employer.last_salary);
         })()}</div>
-        <div><strong>יתרת פיצויים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
+        <div><strong>יתרת פיצויים:</strong> {formatCurrency(employer.severance_accrued)}</div>
         {employer.employer_completion !== undefined && (
           <div style={{ color: '#0066cc', fontWeight: 'bold', gridColumn: '1 / -1' }}>
-            <strong>השלמת המעסיק:</strong> ₪{employer.employer_completion.toLocaleString()}
+            <strong>השלמת המעסיק:</strong> {formatCurrency(employer.employer_completion)}
           </div>
         )}
       </div>

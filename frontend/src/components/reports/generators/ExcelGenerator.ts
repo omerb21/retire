@@ -2,6 +2,12 @@ import * as XLSX from 'xlsx';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { YearlyProjection, ASSET_TYPES } from '../types/reportTypes';
 import { calculateNPV } from '../calculations/npvCalculations';
+import { formatCurrency } from '../../../lib/validation';
+
+const formatMoney = (value: number): string => {
+  const formatted = formatCurrency(value);
+  return formatted.replace('₪', '').trim();
+};
 
 /**
  * יוצר דוח Excel
@@ -36,11 +42,11 @@ export function generateExcelReport(
     cashflowData.push([
       year.year.toString(),
       year.clientAge,
-      year.totalMonthlyIncome.toLocaleString(),
-      year.totalMonthlyTax.toLocaleString(),
-      year.netMonthlyIncome.toLocaleString(),
-      annualNet.toLocaleString(),
-      (year.exemptPension ?? 0).toLocaleString(),
+      formatMoney(year.totalMonthlyIncome),
+      formatMoney(year.totalMonthlyTax),
+      formatMoney(year.netMonthlyIncome),
+      formatMoney(annualNet),
+      formatMoney(year.exemptPension ?? 0),
       ''
     ]);
   });
@@ -88,8 +94,8 @@ export function generateExcelReport(
       const amount = incomes[i] || 0;
       const tax = taxes[i] || 0;
       row.push(
-        amount > 0 ? amount.toLocaleString() : '-',
-        tax > 0 ? tax.toLocaleString() : '-'
+        amount > 0 ? formatMoney(amount) : '-',
+        tax > 0 ? formatMoney(tax) : '-'
       );
     }
 
@@ -99,8 +105,8 @@ export function generateExcelReport(
       const amount = incomes[idx] || 0;
       const tax = taxes[idx] || 0;
       row.push(
-        amount > 0 ? amount.toLocaleString() : '-',
-        tax > 0 ? tax.toLocaleString() : '-'
+        amount > 0 ? formatMoney(amount) : '-',
+        tax > 0 ? formatMoney(tax) : '-'
       );
     }
 
@@ -110,16 +116,16 @@ export function generateExcelReport(
       const amount = incomes[idx] || 0;
       const tax = taxes[idx] || 0;
       row.push(
-        amount > 0 ? amount.toLocaleString() : '-',
-        tax > 0 ? tax.toLocaleString() : '-'
+        amount > 0 ? formatMoney(amount) : '-',
+        tax > 0 ? formatMoney(tax) : '-'
       );
     }
 
     // סיכומים
     row.push(
-      proj.totalMonthlyIncome.toLocaleString(),
-      proj.totalMonthlyTax.toLocaleString(),
-      proj.netMonthlyIncome.toLocaleString()
+      formatMoney(proj.totalMonthlyIncome),
+      formatMoney(proj.totalMonthlyTax),
+      formatMoney(proj.netMonthlyIncome)
     );
 
     cashflowData.push(row);
@@ -132,7 +138,7 @@ export function generateExcelReport(
   // הוספת NPV וסיכומים לגיליון
   cashflowData.push(['', '', '', '', '', '', '', '']);
   cashflowData.push(['סיכום:', '', '', '', '', '', '', '']);
-  cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', '', '', '', Math.round(npv).toLocaleString()]);
+  cashflowData.push(['ערך נוכחי נקי (NPV):', '', '', '', '', '', '', formatMoney(Math.round(npv))]);
   cashflowData.push(['סך שנות תחזית:', '', '', '', '', '', '', yearlyProjection.length.toString()]);
   
   const cashflowSheet = XLSX.utils.aoa_to_sheet(cashflowData);
@@ -179,8 +185,8 @@ export function generateExcelReport(
       ...capitalAssets.map(asset => [
         asset.description || asset.asset_name || 'ללא תיאור',
         ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
-        `₪${(asset.current_value || 0).toLocaleString()}`,
-        `₪${(asset.monthly_income || 0).toLocaleString()}`,
+        `₪${formatMoney(asset.current_value || 0)}`,
+        `₪${formatMoney(asset.monthly_income || 0)}`,
         `${((asset.annual_return_rate || 0) * 100).toFixed(1)}%`, 
         asset.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
         asset.start_date || 'לא צוין',
@@ -193,8 +199,8 @@ export function generateExcelReport(
     const totalMonthlyIncome = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0);
     
     capitalAssetsData.push(['', '', '', '', '', '', '', '']);
-    capitalAssetsData.push(['סך ערך נכסים:', '', '', totalValue.toLocaleString(), '', '', '', '']);
-    capitalAssetsData.push(['סך הכנסה חודשית:', '', totalMonthlyIncome.toLocaleString(), '', '', '', '', '']);
+    capitalAssetsData.push(['סך ערך נכסים:', '', '', formatMoney(totalValue), '', '', '', '']);
+    capitalAssetsData.push(['סך הכנסה חודשית:', '', formatMoney(totalMonthlyIncome), '', '', '', '', '']);
     
     const capitalAssetsSheet = XLSX.utils.aoa_to_sheet(capitalAssetsData);
     XLSX.utils.book_append_sheet(workbook, capitalAssetsSheet, 'נכסי הון');
@@ -208,9 +214,9 @@ export function generateExcelReport(
         fund.fund_name || 'ללא שם',
         fund.fund_type || 'לא צוין',
         (fund.annuity_factor || 0).toFixed(2),
-        (fund.monthly_deposit || 0).toLocaleString(),
+        formatMoney(fund.monthly_deposit || 0),
         ((fund.annual_return_rate || 0) * 100).toFixed(1) + '%',
-        (fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString(),
+        formatMoney(fund.pension_amount || fund.computed_monthly_amount || 0),
         fund.start_date || 'לא צוין',
         (fund.retirement_age || 67).toString()
       ])
@@ -223,8 +229,8 @@ export function generateExcelReport(
     
     pensionData.push(['', '', '', '', '', '', '', '']);
     pensionData.push(['סך מקדמים:', '', totalCoefficient.toFixed(2), '', '', '', '', '']);
-    pensionData.push(['סך הפקדות חודשיות:', '', '', totalMonthlyDeposit.toLocaleString(), '', '', '', '']);
-    pensionData.push(['סך קצבאות חודשיות:', '', '', '', '', totalPensionAmount.toLocaleString(), '', '']);
+    pensionData.push(['סך הפקדות חודשיות:', '', '', formatMoney(totalMonthlyDeposit), '', '', '', '']);
+    pensionData.push(['סך קצבאות חודשיות:', '', '', '', '', formatMoney(totalPensionAmount), '', '']);
     
     const pensionSheet = XLSX.utils.aoa_to_sheet(pensionData);
     XLSX.utils.book_append_sheet(workbook, pensionSheet, 'קצבאות');
@@ -253,8 +259,8 @@ export function generateExcelReport(
         return [
           income.description || 'ללא תיאור',
           income.source_type || 'אחר',
-          monthlyAmount.toLocaleString(),
-          annualAmount.toLocaleString(),
+          formatMoney(monthlyAmount),
+          formatMoney(annualAmount),
           income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
           income.start_date || 'לא צוין',
           income.end_date || 'ללא הגבלה',
@@ -280,8 +286,8 @@ export function generateExcelReport(
     }, 0);
     
     additionalIncomesData.push(['', '', '', '', '', '', '', '']);
-    additionalIncomesData.push(['סך הכנסה חודשית:', '', totalMonthlyIncome.toLocaleString(), '', '', '', '', '']);
-    additionalIncomesData.push(['סך הכנסה שנתית:', '', '', totalAnnualIncome.toLocaleString(), '', '', '', '']);
+    additionalIncomesData.push(['סך הכנסה חודשית:', '', formatMoney(totalMonthlyIncome), '', '', '', '', '']);
+    additionalIncomesData.push(['סך הכנסה שנתית:', '', '', formatMoney(totalAnnualIncome), '', '', '', '']);
     
     const additionalIncomesSheet = XLSX.utils.aoa_to_sheet(additionalIncomesData);
     XLSX.utils.book_append_sheet(workbook, additionalIncomesSheet, 'הכנסות נוספות');
@@ -298,13 +304,13 @@ export function generateExcelReport(
     ['', '', ''],
     ['סיכום כספי:', '', ''],
     ['סך מקדמי קצבה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.annuity_factor) || 0), 0).toFixed(2), ''],
-    ['סך נכסי הון:', capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0).toLocaleString(), '₪'],
-    ['הכנסה חודשית מפנסיה:', pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0).toLocaleString(), '₪'],
-    ['הכנסות נוספות חודשיות:', additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0).toLocaleString(), '₪'],
-    ['הכנסה חודשית מנכסי הון:', capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0).toLocaleString(), '₪'],
+    ['סך נכסי הון:', formatMoney(capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0)), '₪'],
+    ['הכנסה חודשית מפנסיה:', formatMoney(pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || 0), 0)), '₪'],
+    ['הכנסות נוספות חודשיות:', formatMoney(additionalIncomes.reduce((sum, income) => sum + (parseFloat(income.monthly_amount) || 0), 0)), '₪'],
+    ['הכנסה חודשית מנכסי הון:', formatMoney(capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0)), '₪'],
     ['', '', ''],
     ['ניתוח NPV:', '', ''],
-    ['ערך נוכחי נקי:', Math.round(npv).toLocaleString(), '₪'],
+    ['ערך נוכחי נקי:', formatMoney(Math.round(npv)), '₪'],
     ['תקופת תחזית:', yearlyProjection.length.toString(), 'שנים'],
     ['שיעור היוון:', '3%', '']
   ];

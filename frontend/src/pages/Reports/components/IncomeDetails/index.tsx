@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatDateToDDMMYY } from '../../../../utils/dateUtils';
+import { formatCurrency } from '../../../../lib/validation';
 
 interface IncomeDetailsProps {
   pensionFunds: any[];
@@ -37,7 +38,7 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
                     {fund.annuity_factor || fund.pension_coefficient || fund.coefficient || '-'}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                    ₪{(parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0).toLocaleString()}
+                    {formatCurrency(parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0)}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                     {fund.pension_start_date ? formatDateToDDMMYY(fund.pension_start_date) : fund.start_date ? formatDateToDDMMYY(fund.start_date) : '-'}
@@ -67,13 +68,13 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
                 <tr key={index}>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>{income.description}</td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                    ₪{(() => {
+                    {formatCurrency((() => {
                       const amount = parseFloat(income.amount) || 0;
                       if (income.frequency === 'monthly') return amount;
                       if (income.frequency === 'quarterly') return amount / 3;
                       if (income.frequency === 'annually') return amount / 12;
                       return amount;
-                    })().toLocaleString()}
+                    })())}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                     {income.start_date ? formatDateToDDMMYY(income.start_date) : '-'}
@@ -108,10 +109,10 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
                     {asset.asset_name || asset.description}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                    ₪{(parseFloat(asset.current_value) || 0).toLocaleString()}
+                    {formatCurrency(parseFloat(asset.current_value) || 0)}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
-                    ₪{(parseFloat(asset.monthly_income) || 0).toLocaleString()}
+                    {formatCurrency(parseFloat(asset.monthly_income) || 0)}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
                     {asset.start_date ? formatDateToDDMMYY(asset.start_date) : '-'}

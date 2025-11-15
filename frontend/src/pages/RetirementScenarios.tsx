@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { formatCurrency } from "../lib/validation";
 
 interface ExecutionAction {
   type: string;
@@ -178,15 +179,6 @@ export default function RetirementScenarios() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("he-IL", {
-      style: "currency",
-      currency: "ILS",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const renderScenarioCard = (scenario: ScenarioResult, rank: number) => {

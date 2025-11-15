@@ -6,6 +6,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
+import { formatCurrency } from '../../../lib/validation';
 import {
   saveSeveranceDistribution,
   clearSeveranceFromPension,
@@ -107,7 +108,7 @@ export const useTerminationActions = (
       // Clear termination state from localStorage
       clearTerminationState(clientId);
 
-      alert(`החלטות העזיבה נמחקו בהצלחה!\n- נמחקו ${response.data.deleted_count} אלמנטים\n- הוחזרו ${severanceToRestore.toLocaleString()} ₪ לתיק הפנסיוני`);
+      alert(`החלטות העזיבה נמחקו בהצלחה!\n- נמחקו ${response.data.deleted_count} אלמנטים\n- הוחזרו ${formatCurrency(severanceToRestore)} לתיק הפנסיוני`);
       
       // Reload page
       window.location.reload();

@@ -1,5 +1,6 @@
 import React from 'react';
 import { PensionCeiling, ExemptCapitalPercentage } from '../../types/system-settings.types';
+import { formatCurrency } from '../../lib/validation';
 
 interface FixationSettingsProps {
   pensionCeilings: PensionCeiling[];
@@ -158,7 +159,7 @@ const FixationSettings: React.FC<FixationSettingsProps> = ({
                         }}
                       />
                     ) : (
-                      ceiling.monthly_ceiling.toLocaleString()
+                      formatCurrency(ceiling.monthly_ceiling)
                     )}
                   </td>
                   <td style={{ padding: '12px' }}>

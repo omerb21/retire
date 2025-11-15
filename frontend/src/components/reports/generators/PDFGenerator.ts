@@ -3,6 +3,12 @@ import autoTable from 'jspdf-autotable';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { YearlyProjection, ASSET_TYPES } from '../types/reportTypes';
 import { calculateNPV } from '../calculations/npvCalculations';
+import { formatCurrency } from '../../../lib/validation';
+
+const formatMoney = (value: number): string => {
+  const formatted = formatCurrency(value);
+  return formatted.replace('₪', '').trim();
+};
 
 /**
  * יוצר דוח PDF עם תמיכה מלאה בעברית
@@ -68,7 +74,7 @@ export function generatePDFReport(
   // הצגת NPV
   doc.setFontSize(14);
   doc.setTextColor(0, 128, 0);
-  doc.text(`ערך נוכחי נקי (NPV): ₪${Math.round(npv).toLocaleString()}`, 20, yPosition);
+  doc.text(`ערך נוכחי נקי (NPV): ₪${formatMoney(Math.round(npv))}`, 20, yPosition);
   doc.setTextColor(0, 0, 0);
   yPosition += 20;
   
@@ -80,10 +86,10 @@ export function generatePDFReport(
   
   const tableData = yearlyProjection.slice(0, 20).map(year => [
     year.year.toString(),
-    `₪${year.totalMonthlyIncome.toLocaleString()}`,
-    `₪${year.totalMonthlyTax.toLocaleString()}`,
-    `₪${year.netMonthlyIncome.toLocaleString()}`,
-    `₪${(year.netMonthlyIncome * 12).toLocaleString()}`
+    `₪${formatMoney(year.totalMonthlyIncome)}`,
+    `₪${formatMoney(year.totalMonthlyTax)}`,
+    `₪${formatMoney(year.netMonthlyIncome)}`,
+    `₪${formatMoney(year.netMonthlyIncome * 12)}`
   ]);
   
   autoTable(doc, {
@@ -125,8 +131,8 @@ export function generatePDFReport(
     const capitalAssetsData = capitalAssets.map(asset => [
       asset.description || asset.asset_name || 'ללא תיאור',
       ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
-      `₪${(asset.current_value || 0).toLocaleString()}`,
-      `₪${(asset.monthly_income || 0).toLocaleString()}`,
+      `₪${formatMoney(asset.current_value || 0)}`,
+      `₪${formatMoney(asset.monthly_income || 0)}`,
       asset.start_date ? formatDateToDDMMYY(asset.start_date) : 'לא צוין',
       asset.end_date ? formatDateToDDMMYY(asset.end_date) : 'ללא הגבלה'
     ]);
@@ -161,9 +167,9 @@ export function generatePDFReport(
     const pensionData = pensionFunds.map(fund => [
       fund.fund_name || 'ללא שם',
       (fund.annuity_factor || 0).toFixed(2),
-      `₪${(fund.monthly_deposit || 0).toLocaleString()}`,
+      `₪${formatMoney(fund.monthly_deposit || 0)}`,
       `${((fund.annual_return_rate || 0) * 100).toFixed(1)}%`,
-      `₪${(fund.pension_amount || fund.computed_monthly_amount || 0).toLocaleString()}`,
+      `₪${formatMoney(fund.pension_amount || fund.computed_monthly_amount || 0)}`,
       fund.retirement_age || 'לא צוין'
     ]);
     
@@ -196,7 +202,7 @@ export function generatePDFReport(
     
     const additionalIncomesData = additionalIncomes.map(income => [
       income.description || 'ללא תיאור',
-      `₪${(income.monthly_amount || 0).toLocaleString()}`,
+      `₪${formatMoney(income.monthly_amount || 0)}`,
       income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
       income.start_date ? formatDateToDDMMYY(income.start_date) : 'לא צוין',
       income.end_date ? formatDateToDDMMYY(income.end_date) : 'ללא הגבלה'
@@ -249,31 +255,31 @@ export function generatePDFReport(
   // נכסים
   doc.text('נכסים:', 20, yPosition);
   yPosition += 10;
-  doc.text(`• סך יתרות קצבאות: ₪${totalPensionBalance.toLocaleString()}`, 30, yPosition);
+  doc.text(`• סך יתרות קצבאות: ₪${formatMoney(totalPensionBalance)}`, 30, yPosition);
   yPosition += 8;
-  doc.text(`• סך ערך נכסי הון: ₪${totalCapitalValue.toLocaleString()}`, 30, yPosition);
+  doc.text(`• סך ערך נכסי הון: ₪${formatMoney(totalCapitalValue)}`, 30, yPosition);
   yPosition += 8;
-  doc.text(`• סך כל הנכסים: ₪${(totalPensionBalance + totalCapitalValue).toLocaleString()}`, 30, yPosition);
+  doc.text(`• סך כל הנכסים: ₪${formatMoney(totalPensionBalance + totalCapitalValue)}`, 30, yPosition);
   yPosition += 15;
   
   // הכנסות חודשיות
   doc.text('הכנסות חודשיות צפויות:', 20, yPosition);
   yPosition += 10;
-  doc.text(`• קצבאות פנסיה: ₪${totalMonthlyPension.toLocaleString()}`, 30, yPosition);
+  doc.text(`• קצבאות פנסיה: ₪${formatMoney(totalMonthlyPension)}`, 30, yPosition);
   yPosition += 8;
-  doc.text(`• הכנסות נוספות: ₪${totalMonthlyAdditional.toLocaleString()}`, 30, yPosition);
+  doc.text(`• הכנסות נוספות: ₪${formatMoney(totalMonthlyAdditional)}`, 30, yPosition);
   yPosition += 8;
-  doc.text(`• הכנסות מנכסי הון: ₪${totalMonthlyCapital.toLocaleString()}`, 30, yPosition);
+  doc.text(`• הכנסות מנכסי הון: ₪${formatMoney(totalMonthlyCapital)}`, 30, yPosition);
   yPosition += 8;
   doc.setTextColor(0, 128, 0);
-  doc.text(`• סך הכנסה חודשית: ₪${(totalMonthlyPension + totalMonthlyAdditional + totalMonthlyCapital).toLocaleString()}`, 30, yPosition);
+  doc.text(`• סך הכנסה חודשית: ₪${formatMoney(totalMonthlyPension + totalMonthlyAdditional + totalMonthlyCapital)}`, 30, yPosition);
   doc.setTextColor(0, 0, 0);
   yPosition += 15;
   
   // ניתוח NPV
   doc.text('ניתוח ערך נוכחי נקי:', 20, yPosition);
   yPosition += 10;
-  doc.text(`• NPV של התזרים: ₪${Math.round(npv).toLocaleString()}`, 30, yPosition);
+  doc.text(`• NPV של התזרים: ₪${formatMoney(Math.round(npv))}`, 30, yPosition);
   yPosition += 8;
   doc.text(`• תקופת תחזית: ${yearlyProjection.length} שנים`, 30, yPosition);
   yPosition += 8;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { YearlyProjection } from '../../../../components/reports/types/reportTypes';
+import { formatCurrency } from '../../../../lib/validation';
 
 interface YearlyBreakdownProps {
   yearlyProjection: YearlyProjection[];
@@ -43,13 +44,13 @@ export const YearlyBreakdown: React.FC<YearlyBreakdownProps> = ({
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'center' }}>{proj.year}</td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'center' }}>{proj.clientAge}</td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                    ₪{proj.totalMonthlyIncome.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(proj.totalMonthlyIncome)}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                    ₪{proj.totalMonthlyTax.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(proj.totalMonthlyTax)}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                    ₪{proj.netMonthlyIncome.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(proj.netMonthlyIncome)}
                   </td>
                 </tr>
               ))}
@@ -120,41 +121,41 @@ export const YearlyBreakdown: React.FC<YearlyBreakdownProps> = ({
                   {proj.incomeBreakdown.slice(0, pensionFunds.length).map((amount, idx) => (
                     <React.Fragment key={`pension-${idx}`}>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                        {amount > 0 ? `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                        {amount > 0 ? formatCurrency(amount) : '-'}
                       </td>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                        {proj.taxBreakdown && proj.taxBreakdown[idx] > 0 ? `₪${proj.taxBreakdown[idx].toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                        {proj.taxBreakdown && proj.taxBreakdown[idx] > 0 ? formatCurrency(proj.taxBreakdown[idx]) : '-'}
                       </td>
                     </React.Fragment>
                   ))}
                   {proj.incomeBreakdown.slice(pensionFunds.length, pensionFunds.length + additionalIncomes.length).map((amount, idx) => (
                     <React.Fragment key={`income-${idx}`}>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                        {amount > 0 ? `₪${amount.toLocaleString()}` : '-'}
+                        {amount > 0 ? formatCurrency(amount) : '-'}
                       </td>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + idx] > 0 ? `₪${proj.taxBreakdown[pensionFunds.length + idx].toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + idx] > 0 ? formatCurrency(proj.taxBreakdown[pensionFunds.length + idx]) : '-'}
                       </td>
                     </React.Fragment>
                   ))}
                   {proj.incomeBreakdown.slice(pensionFunds.length + additionalIncomes.length).map((amount, idx) => (
                     <React.Fragment key={`asset-${idx}`}>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                        {amount > 0 ? `₪${amount.toLocaleString()}` : '-'}
+                        {amount > 0 ? formatCurrency(amount) : '-'}
                       </td>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx] > 0 ? `₪${proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx].toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx] > 0 ? formatCurrency(proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx]) : '-'}
                       </td>
                     </React.Fragment>
                   ))}
                   <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', fontWeight: 'bold' }}>
-                    ₪{proj.totalMonthlyIncome.toLocaleString()}
+                    {formatCurrency(proj.totalMonthlyIncome)}
                   </td>
                   <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                    ₪{proj.totalMonthlyTax.toLocaleString()}
+                    {formatCurrency(proj.totalMonthlyTax)}
                   </td>
                   <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', fontWeight: 'bold', color: '#28a745' }}>
-                    ₪{proj.netMonthlyIncome.toLocaleString()}
+                    {formatCurrency(proj.netMonthlyIncome)}
                   </td>
                 </tr>
               ))}

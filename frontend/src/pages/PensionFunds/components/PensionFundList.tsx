@@ -2,6 +2,7 @@ import React from 'react';
 import { PensionFund } from '../types';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { calculateOriginalBalance } from '../utils';
+import { formatCurrency } from '../../../lib/validation';
 
 interface PensionFundListProps {
   funds: PensionFund[];
@@ -43,7 +44,7 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
               marginBottom: "8px",
               fontSize: "1.05em"
             }}>
-              <strong>יתרה שעליה מבוססת הקצבה:</strong> ₪{calculateOriginalBalance(fund).toLocaleString()}
+              <strong>יתרה שעליה מבוססת הקצבה:</strong> {formatCurrency(calculateOriginalBalance(fund))}
             </div>
             
             {fund.input_mode === "calculated" && (
@@ -85,10 +86,10 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
               marginBottom: "10px",
               fontSize: "1.1em"
             }}>
-              <strong>סכום חודשי:</strong> ₪{(
+              <strong>סכום חודשי:</strong> {formatCurrency(
                 // השרת מחזיר את הסכום החודשי הנכון
                 fund.monthly || fund.computed_monthly_amount || fund.pension_amount || fund.monthly_amount || 0
-              ).toLocaleString()}
+              )}
               {fund.annuity_factor && (
                 <span style={{ marginRight: "15px", fontSize: "0.9em", color: "#155724" }}>
                   {' '}| <strong>מקדם קצבה:</strong> {fund.annuity_factor}

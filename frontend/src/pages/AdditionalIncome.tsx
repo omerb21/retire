@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { formatCurrency } from '../lib/validation';
 import { formatDateToDDMMYY, formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../utils/dateUtils';
 
 type AdditionalIncome = {
@@ -453,7 +454,7 @@ export default function AdditionalIncome() {
                 <div style={{ display: "grid", gap: 8 }}>
                   <div><strong>סוג:</strong> {INCOME_TYPE_MAP[income.source_type] || income.source_type}</div>
                   <div><strong>שם הכנסה:</strong> {income.description || ""}</div>
-                  <div><strong>סכום:</strong> ₪{income.amount?.toLocaleString()}</div>
+                  <div><strong>סכום:</strong> {income.amount != null ? formatCurrency(income.amount) : ''}</div>
                   <div><strong>תדירות:</strong> {
                     income.frequency === "monthly" ? "חודשי" :
                     income.frequency === "annually" ? "שנתי" : "לא ידוע"
@@ -473,7 +474,7 @@ export default function AdditionalIncome() {
                   
                   {income.computed_monthly_amount && (
                     <div style={{ color: "green", fontWeight: "bold" }}>
-                      <strong>סכום חודשי מחושב:</strong> ₪{income.computed_monthly_amount.toLocaleString()}
+                      <strong>סכום חודשי מחושב:</strong> {formatCurrency(income.computed_monthly_amount)}
                     </div>
                   )}
                   

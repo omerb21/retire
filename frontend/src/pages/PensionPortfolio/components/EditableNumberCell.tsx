@@ -1,5 +1,6 @@
 import React from 'react';
 import { PensionAccount, EditingCell } from '../types';
+import { formatCurrency } from '../../../lib/validation';
 
 interface EditableNumberCellProps {
   account: PensionAccount;
@@ -15,6 +16,11 @@ interface EditableNumberCellProps {
 /**
  * קומפוננטת עזר לתא מספרי עם checkbox
  */
+const formatMoney = (value: number): string => {
+  const formatted = formatCurrency(value);
+  return formatted.replace('₪', '').trim();
+};
+
 export const EditableNumberCell: React.FC<EditableNumberCellProps> = ({
   account,
   index,
@@ -52,7 +58,7 @@ export const EditableNumberCell: React.FC<EditableNumberCellProps> = ({
               autoFocus
               style={{ width: '100%', padding: 2, fontSize: '12px', textAlign: 'right' }}
             />
-          ) : (value > 0 ? value.toLocaleString() : '-')}
+          ) : (value > 0 ? formatMoney(value) : '-')}
         </div>
       </div>
     </td>

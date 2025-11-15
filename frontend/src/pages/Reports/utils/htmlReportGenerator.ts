@@ -1,6 +1,7 @@
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { getPensionCeiling } from '../../../components/reports/calculations/pensionCalculations';
 import { YearlyProjection } from '../../../components/reports/types/reportTypes';
+import { formatCurrency } from '../../../lib/validation';
 
 interface Client {
   id: number;
@@ -95,19 +96,19 @@ export const generateHTMLReport = (
   <div class="summary">
     <h2>פרטי קיבוע זכויות</h2>
     <p><strong>שנת קיבוע:</strong> ${fixationData.fixation_year || fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}</p>
-    <p><strong>הון פטור ראשוני:</strong> ₪${(fixationData.exemption_summary?.exempt_capital_initial || 0).toLocaleString()}</p>
-    <p><strong>הון פטור נותר:</strong> ₪${(fixationData.exemption_summary?.remaining_exempt_capital || 0).toLocaleString()}</p>
-    <p><strong>קצבה פטורה מקיבוע (${fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}):</strong> ₪${(fixationData.exemption_summary?.remaining_monthly_exemption || ((fixationData.exemption_summary?.remaining_exempt_capital || 0) / 180)).toLocaleString()}</p>
+    <p><strong>הון פטור ראשוני:</strong> ${formatCurrency(fixationData.exemption_summary?.exempt_capital_initial || 0)}</p>
+    <p><strong>הון פטור נותר:</strong> ${formatCurrency(fixationData.exemption_summary?.remaining_exempt_capital || 0)}</p>
+    <p><strong>קצבה פטורה מקיבוע (${fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}):</strong> ${formatCurrency(fixationData.exemption_summary?.remaining_monthly_exemption || ((fixationData.exemption_summary?.remaining_exempt_capital || 0) / 180))}</p>
     <p><strong>אחוז קצבה פטורה:</strong> ${((fixationData.exemption_summary?.exempt_pension_percentage || 0) * 100).toFixed(2)}%</p>
-    <p><strong>קצבה פטורה לשנת התזרים (${new Date().getFullYear()}):</strong> ₪${((fixationData.exemption_summary?.exempt_pension_percentage || 0) * getPensionCeiling(new Date().getFullYear())).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+    <p><strong>קצבה פטורה לשנת התזרים (${new Date().getFullYear()}):</strong> ${formatCurrency((fixationData.exemption_summary?.exempt_pension_percentage || 0) * getPensionCeiling(new Date().getFullYear()))}</p>
   </div>
   ` : ''}
 
   <div class="summary">
     <h2>סיכום כספי</h2>
-    <p><strong>סך יתרות קצבאות:</strong> ₪${totalPensionBalance.toLocaleString()}</p>
-    <p><strong>סך נכסי הון:</strong> ₪${totalCapitalValue.toLocaleString()}</p>
-    <p><strong>הכנסה חודשית צפויה:</strong> ₪${totalMonthlyIncome.toLocaleString()}</p>
+    <p><strong>סך יתרות קצבאות:</strong> ${formatCurrency(totalPensionBalance)}</p>
+    <p><strong>סך נכסי הון:</strong> ${formatCurrency(totalCapitalValue)}</p>
+    <p><strong>הכנסה חודשית צפויה:</strong> ${formatCurrency(totalMonthlyIncome)}</p>
   </div>
 
   <h2>תחזית תזרים שנתי</h2>
@@ -126,9 +127,9 @@ export const generateHTMLReport = (
         <tr>
           <td>${proj.year}</td>
           <td>${proj.clientAge}</td>
-          <td>₪${proj.totalMonthlyIncome.toLocaleString()}</td>
-          <td>₪${proj.totalMonthlyTax.toLocaleString()}</td>
-          <td>₪${proj.netMonthlyIncome.toLocaleString()}</td>
+          <td>${formatCurrency(proj.totalMonthlyIncome)}</td>
+          <td>${formatCurrency(proj.totalMonthlyTax)}</td>
+          <td>${formatCurrency(proj.netMonthlyIncome)}</td>
         </tr>
       `).join('')}
     </tbody>
@@ -149,7 +150,7 @@ export const generateHTMLReport = (
         <tr>
           <td>${fund.fund_name}</td>
           <td>${fund.annuity_factor || fund.pension_coefficient || fund.coefficient || '-'}</td>
-          <td>₪${(parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0).toLocaleString()}</td>
+          <td>${formatCurrency(Number(fund.pension_amount) || Number(fund.computed_monthly_amount) || Number(fund.monthly_amount) || 0)}</td>
           <td>${fund.pension_start_date ? formatDateToDDMMYY(fund.pension_start_date) : '-'}</td>
         </tr>
       `).join('')}
@@ -171,13 +172,13 @@ export const generateHTMLReport = (
       ${additionalIncomes.map(income => `
         <tr>
           <td>${income.description}</td>
-          <td>₪${(() => {
+          <td>${formatCurrency((() => {
             const amount = parseFloat(income.amount) || 0;
             if (income.frequency === 'monthly') return amount;
             if (income.frequency === 'quarterly') return amount / 3;
             if (income.frequency === 'annually') return amount / 12;
             return amount;
-          })().toLocaleString()}</td>
+          })())}</td>
           <td>${income.start_date ? formatDateToDDMMYY(income.start_date) : '-'}</td>
           <td>${income.end_date ? formatDateToDDMMYY(income.end_date) : 'ללא הגבלה'}</td>
         </tr>
@@ -201,8 +202,8 @@ export const generateHTMLReport = (
       ${capitalAssets.map(asset => `
         <tr>
           <td>${asset.asset_name || asset.description}</td>
-          <td>₪${(parseFloat(asset.current_value) || 0).toLocaleString()}</td>
-          <td>₪${(parseFloat(asset.monthly_income) || 0).toLocaleString()}</td>
+          <td>${formatCurrency(parseFloat(asset.current_value) || 0)}</td>
+          <td>${formatCurrency(parseFloat(asset.monthly_income) || 0)}</td>
           <td>${asset.start_date ? formatDateToDDMMYY(asset.start_date) : '-'}</td>
         </tr>
       `).join('')}
@@ -214,13 +215,13 @@ export const generateHTMLReport = (
   <div class="summary">
     <h2>ניתוח ערך נוכחי נקי (NPV)</h2>
     <h3>NPV תזרים (קצבאות והכנסות)</h3>
-    <p><strong>עם פטור:</strong> ₪${npvComparison.withExemption.toLocaleString()}</p>
-    <p><strong>ללא פטור:</strong> ₪${npvComparison.withoutExemption.toLocaleString()}</p>
-    <p><strong>חיסכון מקיבוע:</strong> ₪${npvComparison.savings.toLocaleString()}</p>
+    <p><strong>עם פטור:</strong> ${formatCurrency(npvComparison.withExemption)}</p>
+    <p><strong>ללא פטור:</strong> ${formatCurrency(npvComparison.withoutExemption)}</p>
+    <p><strong>חיסכון מקיבוע:</strong> ${formatCurrency(npvComparison.savings)}</p>
     ${totalCapitalValue > 0 ? `
     <h3>ערך נוכחי נכסי הון</h3>
-    <p><strong>סך נכסי הון:</strong> ₪${totalCapitalValue.toLocaleString()}</p>
-    <p><strong>סה"כ ערך כולל (תזרים + נכסים):</strong> ₪${(npvComparison.withExemption + totalCapitalValue).toLocaleString()}</p>
+    <p><strong>סך נכסי הון:</strong> ${formatCurrency(totalCapitalValue)}</p>
+    <p><strong>סה"כ ערך כולל (תזרים + נכסים):</strong> ${formatCurrency(npvComparison.withExemption + totalCapitalValue)}</p>
     <p style="font-size: 12px; color: #6c757d;">נכסים אלו לא מופיעים בתזרים החודשי</p>
     ` : ''}
   </div>
@@ -265,8 +266,8 @@ export const generateHTMLReport = (
           <td>${proj.year}</td>
           <td>${proj.clientAge}</td>
           ${proj.incomeBreakdown.map((income, idx) => `
-            <td>₪${income.toLocaleString()}</td>
-            <td>₪${(proj.taxBreakdown[idx] || 0).toLocaleString()}</td>
+            <td>${formatCurrency(income)}</td>
+            <td>${formatCurrency(proj.taxBreakdown[idx] || 0)}</td>
           `).join('')}
         </tr>
       `).join('')}

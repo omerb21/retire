@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency } from '../../../../lib/validation';
 
 interface NPVComparison {
   withExemption: number;
@@ -30,19 +31,19 @@ export const NPVAnalysis: React.FC<NPVAnalysisProps> = ({ npvComparison, totalCa
           <div>
             <strong>עם פטור:</strong>
             <div style={{ fontSize: '20px', color: '#28a745' }}>
-              ₪{npvComparison.withExemption.toLocaleString()}
+              {formatCurrency(npvComparison.withExemption)}
             </div>
           </div>
           <div>
             <strong>ללא פטור:</strong>
             <div style={{ fontSize: '20px', color: '#dc3545' }}>
-              ₪{npvComparison.withoutExemption.toLocaleString()}
+              {formatCurrency(npvComparison.withoutExemption)}
             </div>
           </div>
           <div>
             <strong>חיסכון מקיבוע:</strong>
             <div style={{ fontSize: '20px', color: '#007bff' }}>
-              ₪{npvComparison.savings.toLocaleString()}
+              {formatCurrency(npvComparison.savings)}
             </div>
           </div>
         </div>
@@ -60,7 +61,7 @@ export const NPVAnalysis: React.FC<NPVAnalysisProps> = ({ npvComparison, totalCa
             <div>
               <strong>סך נכסי הון:</strong>
               <div style={{ fontSize: '20px', color: '#28a745' }}>
-                ₪{totalCapitalValue.toLocaleString()}
+                {formatCurrency(totalCapitalValue)}
               </div>
               <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '5px' }}>
                 נכסים אלו לא מופיעים בתזרים החודשי
@@ -69,7 +70,7 @@ export const NPVAnalysis: React.FC<NPVAnalysisProps> = ({ npvComparison, totalCa
             <div>
               <strong>סה"כ ערך כולל (תזרים + נכסים):</strong>
               <div style={{ fontSize: '20px', color: '#007bff' }}>
-                ₪{(npvComparison.withExemption + totalCapitalValue).toLocaleString()}
+                {formatCurrency(npvComparison.withExemption + totalCapitalValue)}
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { PensionAccount, ConversionSourceData } from '../types';
+import { formatCurrency } from '../../../lib/validation';
 import { 
   validateAccountConversion, 
   validateComponentConversion,
@@ -178,10 +179,10 @@ export function usePensionConversion(
           let conversionDetails = '';
           if (Object.keys(specificAmounts).length > 0) {
             conversionDetails = Object.entries(specificAmounts)
-              .map(([key, value]) => `${key}: ₪${parseFloat(value as string).toLocaleString()}`)
+              .map(([key, value]) => `${key}: ${formatCurrency(Number(value))}`)
               .join(', ');
           } else {
-            conversionDetails = `כל היתרה: ₪${amountToConvert.toLocaleString()}`;
+            conversionDetails = `כל היתרה: ${formatCurrency(amountToConvert)}`;
           }
           
           const taxTreatment = calculateTaxTreatment(account, specificAmounts, 'pension');
@@ -335,7 +336,7 @@ export function usePensionConversion(
           if (Object.keys(exemptComponents).length > 0) {
             const exemptAmount = Object.values(exemptComponents).reduce((sum, val) => sum + val, 0);
             const exemptDetails = Object.entries(exemptComponents)
-              .map(([key, value]) => `${key}: ₪${value.toLocaleString()}`)
+              .map(([key, value]) => `${key}: ${formatCurrency(value as number)}`)
               .join(', ');
             
             const conversionSourceData: ConversionSourceData = {
@@ -381,7 +382,7 @@ export function usePensionConversion(
           if (Object.keys(capitalGainsComponents).length > 0) {
             const capitalGainsAmount = Object.values(capitalGainsComponents).reduce((sum, val) => sum + val, 0);
             const capitalGainsDetails = Object.entries(capitalGainsComponents)
-              .map(([key, value]) => `${key}: ₪${value.toLocaleString()}`)
+              .map(([key, value]) => `${key}: ${formatCurrency(value as number)}`)
               .join(', ');
             
             const conversionSourceData: ConversionSourceData = {
@@ -475,11 +476,11 @@ export function usePensionConversion(
       let successMessage = "הומרה בהצלחה!\n";
       if (pensionConversions.length > 0) {
         const totalBalance = pensionConversions.reduce((sum, conversion) => sum + conversion.amountToConvert, 0);
-        successMessage += `נוצרו ${pensionConversions.length} קצבאות נפרדות בסכום כולל: ${totalBalance.toLocaleString()} ש"ח\n`;
+        successMessage += `נוצרו ${pensionConversions.length} קצבאות נפרדות בסכום כולל: ${formatCurrency(totalBalance)}\n`;
       }
       if (capitalAssetConversions.length > 0) {
         const totalAssets = capitalAssetConversions.reduce((sum, conversion) => sum + conversion.amountToConvert, 0);
-        successMessage += `נוצרו ${capitalAssetConversions.length} נכסי הון בסכום כולל: ${totalAssets.toLocaleString()} ש"ח`;
+        successMessage += `נוצרו ${capitalAssetConversions.length} נכסי הון בסכום כולל: ${formatCurrency(totalAssets)}`;
       }
       
       setProcessingStatus(successMessage);

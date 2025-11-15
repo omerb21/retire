@@ -7,6 +7,7 @@
 import React from 'react';
 import { CapitalAsset, ASSET_TYPES } from '../../../types/capitalAsset';
 import { formatDateInput } from '../../../utils/dateUtils';
+import { formatCurrency } from '../../../lib/validation';
 
 interface AssetFormProps {
   form: Partial<CapitalAsset>;
@@ -173,14 +174,14 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
                 required
               />
               <div style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
-                ברירת מחדל: {(form.monthly_income || 0).toLocaleString()} ₪ (סכום התשלום)
+                ברירת מחדל: {formatCurrency(form.monthly_income || 0)} (סכום התשלום)
               </div>
               {form.monthly_income && form.monthly_income > 0 && (
                 <div style={{ marginTop: "10px", padding: "8px", backgroundColor: "#fff", borderRadius: "4px", border: "1px solid #ddd" }}>
                   <strong>חישוב:</strong><br/>
-                  רווח: {((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)).toLocaleString()} ₪<br/>
-                  מס (25%): {(((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)) * 0.25).toLocaleString()} ₪<br/>
-                  <strong>תשלום מעודכן: {((form.monthly_income || 0) - 0.25 * ((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0))).toLocaleString()} ₪</strong>
+                  רווח: {formatCurrency((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0))}<br/>
+                  מס (25%): {formatCurrency(((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)) * 0.25)}<br/>
+                  <strong>תשלום מעודכן: {formatCurrency((form.monthly_income || 0) - 0.25 * ((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)))}</strong>
                 </div>
               )}
             </div>

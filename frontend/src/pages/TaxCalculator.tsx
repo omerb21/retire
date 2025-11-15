@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import { formatCurrency } from '../lib/validation';
 
 interface PersonalDetails {
   birth_date?: string;
@@ -464,22 +465,22 @@ const TaxCalculator: React.FC = () => {
               {/* סיכום כללי */}
               <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
                 <h3>סיכום כללי</h3>
-                <div><strong>סך הכנסה:</strong> ₪{result.total_income.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div><strong>הכנסה חייבת:</strong> ₪{result.taxable_income.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div><strong>הכנסה פטורה:</strong> ₪{result.exempt_income.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div style={{ color: '#dc3545' }}><strong>מס נטו לתשלום:</strong> ₪{result.net_tax.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div style={{ color: '#28a745' }}><strong>הכנסה נטו:</strong> ₪{result.net_income.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div><strong>סך הכנסה:</strong> {formatCurrency(result.total_income)}</div>
+                <div><strong>הכנסה חייבת:</strong> {formatCurrency(result.taxable_income)}</div>
+                <div><strong>הכנסה פטורה:</strong> {formatCurrency(result.exempt_income)}</div>
+                <div style={{ color: '#dc3545' }}><strong>מס נטו לתשלום:</strong> {formatCurrency(result.net_tax)}</div>
+                <div style={{ color: '#28a745' }}><strong>הכנסה נטו:</strong> {formatCurrency(result.net_income)}</div>
                 <div><strong>שיעור מס אפקטיבי:</strong> {result.effective_tax_rate.toFixed(2)}%</div>
               </div>
 
               {/* פירוט מסים */}
               <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '4px' }}>
                 <h3>פירוט מסים</h3>
-                <div><strong>מס הכנסה:</strong> ₪{result.income_tax.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div><strong>ביטוח לאומי:</strong> ₪{result.national_insurance.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div><strong>מס בריאות:</strong> ₪{result.health_tax.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div><strong>סך מסים:</strong> ₪{result.total_tax.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div style={{ color: '#28a745' }}><strong>זיכויים:</strong> ₪{result.tax_credits_amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div><strong>מס הכנסה:</strong> {formatCurrency(result.income_tax)}</div>
+                <div><strong>ביטוח לאומי:</strong> {formatCurrency(result.national_insurance)}</div>
+                <div><strong>מס בריאות:</strong> {formatCurrency(result.health_tax)}</div>
+                <div><strong>סך מסים:</strong> {formatCurrency(result.total_tax)}</div>
+                <div style={{ color: '#28a745' }}><strong>זיכויים:</strong> {formatCurrency(result.tax_credits_amount)}</div>
               </div>
 
               {/* נקודות זיכוי */}
@@ -488,7 +489,7 @@ const TaxCalculator: React.FC = () => {
                   <h3>נקודות זיכוי</h3>
                   {result.applied_credits.map((credit, index) => (
                     <div key={index}>
-                      <strong>{credit.description}:</strong> ₪{credit.amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <strong>{credit.description}:</strong> {formatCurrency(credit.amount)}
                     </div>
                   ))}
                 </div>
@@ -511,16 +512,16 @@ const TaxCalculator: React.FC = () => {
                       {result.tax_breakdown.map((bracket, index) => (
                         <tr key={index}>
                           <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                            ₪{bracket.bracket_min.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - {bracket.bracket_max ? `₪${bracket.bracket_max.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'ומעלה'}
+                            {formatCurrency(bracket.bracket_min)} - {bracket.bracket_max ? formatCurrency(bracket.bracket_max) : 'ומעלה'}
                           </td>
                           <td style={{ padding: '8px', border: '1px solid #ddd' }}>
                             {(bracket.rate * 100).toFixed(1)}%
                           </td>
                           <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                            ₪{bracket.taxable_amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(bracket.taxable_amount)}
                           </td>
                           <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                            ₪{bracket.tax_amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(bracket.tax_amount)}
                           </td>
                         </tr>
                       ))}

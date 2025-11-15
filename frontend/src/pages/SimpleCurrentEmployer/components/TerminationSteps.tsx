@@ -6,6 +6,7 @@ import React from 'react';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import { calculateServiceYears } from '../utils/calculations';
+import { formatCurrency } from '../../../lib/validation';
 
 interface TerminationStepsProps {
   employer: SimpleEmployer;
@@ -56,8 +57,8 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
         <h4>שלב 2: סיכום זכויות</h4>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
           <div><strong>שנות וותק:</strong> {serviceYears.toFixed(2)} שנים</div>
-          <div><strong>פיצויים צבורים:</strong> ₪{employer.severance_accrued.toLocaleString()}</div>
-          <div><strong>פיצויים צפויים:</strong> ₪{expectedGrant.toLocaleString()}</div>
+          <div><strong>פיצויים צבורים:</strong> {formatCurrency(employer.severance_accrued)}</div>
+          <div><strong>פיצויים צפויים:</strong> {formatCurrency(expectedGrant)}</div>
         </div>
       </div>
     );
@@ -86,7 +87,7 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
         </label>
         {terminationDecision.use_employer_completion && (
           <div style={{ padding: '10px', backgroundColor: '#e8f4f8', borderRadius: '4px', marginTop: '10px' }}>
-            <p><strong>גובה השלמת המעסיק:</strong> ₪{completion.toLocaleString()}</p>
+            <p><strong>גובה השלמת המעסיק:</strong> {formatCurrency(completion)}</p>
             <small>ההפרש בין המענק הצפוי ליתרת הפיצויים הנצברת</small>
           </div>
         )}
@@ -110,17 +111,17 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
           <strong>🔍 פרטי חישוב:</strong>
           <div>תאריך עזיבה מקורי: <strong>{terminationDecision.termination_date}</strong></div>
           <div>שנת עזיבה מחושבת: <strong>{new Date(endISO || '').getFullYear()}</strong></div>
-          <div>סכום פיצויים: <strong>₪{(terminationDecision.severance_amount || 0).toLocaleString()}</strong></div>
+          <div>סכום פיצויים: <strong>{formatCurrency(terminationDecision.severance_amount || 0)}</strong></div>
         </div>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
           <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
             <strong style={{ color: '#155724' }}>חלק פטור ממס:</strong>
-            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{(terminationDecision.exempt_amount || 0).toLocaleString()}</p>
+            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>{formatCurrency(terminationDecision.exempt_amount || 0)}</p>
           </div>
           <div style={{ padding: '15px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
             <strong style={{ color: '#721c24' }}>חלק חייב במס:</strong>
-            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>₪{(terminationDecision.taxable_amount || 0).toLocaleString()}</p>
+            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>{formatCurrency(terminationDecision.taxable_amount || 0)}</p>
           </div>
         </div>
       </div>

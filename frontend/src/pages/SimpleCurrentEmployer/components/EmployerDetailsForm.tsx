@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { formatDateInput } from '../../../utils/dateUtils';
 import { clearTerminationState } from '../utils/storageHelpers';
+import { formatCurrency } from '../../../lib/validation';
 
 interface EmployerDetailsFormProps {
   clientId: string;
@@ -171,7 +172,7 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
           fontWeight: 'bold',
           color: '#495057'
         }}>
-          ₪{employer.severance_accrued.toLocaleString()}
+          {formatCurrency(employer.severance_accrued)}
         </div>
         <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
           שדה מחושב: סה"כ יתרות פיצויים מתיק פנסיוני של מעסיק נוכחי

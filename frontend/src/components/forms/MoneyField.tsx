@@ -5,6 +5,7 @@ import {
   FormHelperText,
   InputAdornment,
 } from '@mui/material';
+import { formatCurrency } from '../../lib/validation';
 
 interface MoneyFieldProps {
   label: string;
@@ -38,7 +39,8 @@ const MoneyField: React.FC<MoneyFieldProps> = ({
     if (!val) return '';
     const numVal = typeof val === 'string' ? parseFloat(val) : val;
     if (isNaN(numVal)) return '';
-    return numVal.toLocaleString('he-IL');
+    const formatted = formatCurrency(numVal);
+    return formatted.replace('₪', '').trim();
   };
 
   return (

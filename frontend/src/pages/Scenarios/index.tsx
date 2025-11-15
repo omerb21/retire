@@ -8,6 +8,7 @@ import { ScenarioList } from '../../components/scenarios/ScenarioList/ScenarioLi
 import { ScenarioResults } from '../../components/scenarios/ScenarioResults/ScenarioResults';
 import { ScenarioChart } from '../../components/scenarios/ScenarioChart/ScenarioChart';
 import { formatDateToDDMMYYYY } from '../../utils/dateUtils';
+import { formatCurrency } from '../../lib/validation';
 
 const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
   const {
@@ -28,13 +29,6 @@ const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
     createScenario,
     toggleForm
   } = useScenarioForm(clientId, loadScenarios, setError);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('he-IL', {
-      style: 'currency',
-      currency: 'ILS',
-    }).format(amount);
-  };
 
   const formatDate = (dateString: string) => {
     return formatDateToDDMMYYYY(dateString);

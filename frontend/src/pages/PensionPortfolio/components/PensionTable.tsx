@@ -1,6 +1,7 @@
 import React from 'react';
 import { PensionAccount, EditingCell } from '../types';
 import { EditableNumberCell } from './EditableNumberCell';
+import { formatCurrency } from '../../../lib/validation';
 
 interface PensionTableProps {
   pensionData: PensionAccount[];
@@ -14,6 +15,12 @@ interface PensionTableProps {
   setConversionType: (index: number, type: 'pension' | 'capital_asset') => void;
   deleteAccount: (index: number) => void;
 }
+
+const formatMoney = (value: number | string | null | undefined): string => {
+  const numeric = Number(value) || 0;
+  const formatted = formatCurrency(numeric);
+  return formatted.replace('₪', '').trim();
+};
 
 /**
  * קומפוננטת הטבלה הראשית של התיק הפנסיוני
@@ -136,7 +143,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               
               {/* יתרה - ערך מקור מהקובץ (לא ניתנת לעריכה) */}
               <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f0f8ff", fontWeight: "bold" }}>
-                {(Number(account.יתרה) || 0).toLocaleString()}
+                {formatMoney(account.יתרה)}
               </td>
 
               <EditableNumberCell account={account} index={index} field="פיצויים_מעסיק_נוכחי" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
@@ -152,13 +159,13 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2008_לא_משלמת" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               
               <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f7fbff" }}>
-                {(account.סך_תגמולים || 0).toLocaleString()}
+                {formatMoney(account.סך_תגמולים)}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f7fbff" }}>
-                {(account.סך_פיצויים || 0).toLocaleString()}
+                {formatMoney(account.סך_פיצויים)}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#eef7ff", fontWeight: "bold" }}>
-                {(account.סך_רכיבים || 0).toLocaleString()}
+                {formatMoney(account.סך_רכיבים)}
               </td>
               <td
                 style={{
@@ -171,7 +178,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                 }}
                 title="פער בין יתרה מדווחת לסכום הרכיבים שהתקבלו מה-XML"
               >
-                {(account.פער_יתרה_מול_רכיבים || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {formatMoney(account.פער_יתרה_מול_רכיבים || 0)}
               </td>
 
               {/* סוג מוצר - עריכה */}
@@ -270,40 +277,40 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                 סה"כ
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right", backgroundColor: "#f0f8ff" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.יתרה) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.יתרה) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_מעסיק_נוכחי) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_מעסיק_נוכחי) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_לאחר_התחשבנות) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_לאחר_התחשבנות) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_שלא_עברו_התחשבנות) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_שלא_עברו_התחשבנות) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_זכויות) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_זכויות) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_קצבה) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_קצבה) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_עד_2000) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_עד_2000) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2000) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2000) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2008_לא_משלמת) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2008_לא_משלמת) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_עד_2000) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_עד_2000) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2000) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2000) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
-                {pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2008_לא_משלמת) || 0), 0).toLocaleString()}
+                {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2008_לא_משלמת) || 0), 0))}
               </td>
               <td style={{ border: "1px solid #ddd", padding: 6 }} colSpan={4}></td>
             </tr>

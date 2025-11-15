@@ -1,6 +1,7 @@
 import React from 'react';
 import { Commutation, PensionFund } from '../types';
 import { calculateOriginalBalance } from '../utils';
+import { formatCurrency } from '../../../lib/validation';
 
 interface CommutationFormProps {
   commutationForm: Commutation;
@@ -30,7 +31,7 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
             <option value="">בחר קצבה</option>
             {funds.map((fund) => (
               <option key={fund.id} value={fund.id}>
-                {fund.fund_name} - יתרה מקורית: ₪{calculateOriginalBalance(fund).toLocaleString()}
+                {fund.fund_name} - יתרה מקורית: {formatCurrency(calculateOriginalBalance(fund))}
               </option>
             ))}
           </select>

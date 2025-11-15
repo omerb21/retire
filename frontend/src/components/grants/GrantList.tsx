@@ -7,6 +7,7 @@ import React from 'react';
 import { Grant, GrantDetails } from '../../types/grant.types';
 import { formatDateToDDMMYY } from '../../utils/dateUtils';
 import { getGrantAmount } from '../../utils/grantCalculations';
+import { formatCurrency } from '../../lib/validation';
 
 interface GrantListProps {
   grants: Grant[];
@@ -61,7 +62,7 @@ export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDe
                 
                 <div style={{ marginBottom: '10px' }}>
                   <div>
-                    <strong>סכום מענק:</strong> ₪{amount.toLocaleString()}
+                    <strong>סכום מענק:</strong> {formatCurrency(amount)}
                   </div>
                 </div>
 
@@ -78,7 +79,7 @@ export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDe
                       </div>
                       {details.taxDue > 0 && (
                         <div style={{ color: '#dc3545' }}>
-                          <strong>מס משוער:</strong> ₪{details.taxDue.toLocaleString()}
+                          <strong>מס משוער:</strong> {formatCurrency(details.taxDue)}
                         </div>
                       )}
                     </div>

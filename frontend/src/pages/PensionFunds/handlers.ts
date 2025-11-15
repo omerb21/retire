@@ -1,5 +1,6 @@
 import { PensionFund, Commutation } from './types';
 import { calculateOriginalBalance } from './utils';
+import { formatCurrency } from '../../lib/validation';
 import {
   loadPensionFunds,
   savePensionFund,
@@ -166,7 +167,7 @@ export async function handleCommutationSubmitLogic(
   const fundBalance = calculateOriginalBalance(selectedFund);
   
   if (commutationForm.exempt_amount > fundBalance) {
-    throw new Error(`סכום ההיוון (${commutationForm.exempt_amount.toLocaleString()}) גדול מהיתרה המקורית של הקצבה (${fundBalance.toLocaleString()})`);
+    throw new Error(`סכום ההיוון (${formatCurrency(commutationForm.exempt_amount)}) גדול מהיתרה המקורית של הקצבה (${formatCurrency(fundBalance)})`);
   }
 
   const pensionTaxTreatment = selectedFund.tax_treatment || "taxable";

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../utils/dateUtils';
+import { formatCurrency } from '../lib/validation';
 import axios from 'axios';
 
 interface FixationData {
@@ -60,6 +61,11 @@ interface Commutation {
   commutation_date: string;
   commutation_type: string;
 }
+
+const formatMoney = (value: number): string => {
+  const formatted = formatCurrency(value);
+  return formatted.replace('₪', '').trim();
+};
 
 const SimpleFixation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -612,7 +618,7 @@ const SimpleFixation: React.FC = () => {
                       <tr style={{ backgroundColor: '#d1ecf1' }}>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold' }}>יתרת הון פטורה לשנת הזכאות</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                          {summary.exempt_amount.toLocaleString()}
+                          {formatMoney(summary.exempt_amount)}
                         </td>
                       </tr>
                       
@@ -620,7 +626,7 @@ const SimpleFixation: React.FC = () => {
                       <tr>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500' }}>סך נומינאלי של מענקי הפרישה</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace' }}>
-                          {summary.total_grants.toLocaleString()}
+                          {formatMoney(summary.total_grants)}
                         </td>
                       </tr>
                       
@@ -628,7 +634,7 @@ const SimpleFixation: React.FC = () => {
                       <tr>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500' }}>סך המענקים הרלוונטים לאחר הוצמדה</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace' }}>
-                          {summary.total_indexed.toLocaleString()}
+                          {formatMoney(summary.total_indexed)}
                         </td>
                       </tr>
                       
@@ -636,7 +642,7 @@ const SimpleFixation: React.FC = () => {
                       <tr>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500' }}>סך הכל פגיעה בפטור בגין מענקים פטורים</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace' }}>
-                          {summary.used_exemption.toLocaleString()}
+                          {formatMoney(summary.used_exemption)}
                         </td>
                       </tr>
                       
@@ -644,7 +650,7 @@ const SimpleFixation: React.FC = () => {
                       <tr style={{ backgroundColor: '#f8f9fa' }}>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500', color: '#6c757d' }}>מענק עתידי משוריין (נומינלי)</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace', color: '#6c757d' }}>
-                          {summary.future_grant_reserved.toLocaleString()}
+                          {formatMoney(summary.future_grant_reserved)}
                         </td>
                       </tr>
                       
@@ -652,7 +658,7 @@ const SimpleFixation: React.FC = () => {
                       <tr style={{ backgroundColor: '#f8f9fa' }}>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500', color: '#6c757d' }}>השפעת מענק עתידי (×1.35)</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace', color: '#6c757d' }}>
-                          {summary.future_grant_impact.toLocaleString()}
+                          {formatMoney(summary.future_grant_impact)}
                         </td>
                       </tr>
                       
@@ -660,7 +666,7 @@ const SimpleFixation: React.FC = () => {
                       <tr style={{ backgroundColor: '#f8f9fa' }}>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500', color: '#6c757d' }}>סך היוונים</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace', color: '#6c757d' }}>
-                          {summary.total_discounts.toLocaleString()}
+                          {formatMoney(summary.total_discounts)}
                         </td>
                       </tr>
                       
@@ -668,7 +674,7 @@ const SimpleFixation: React.FC = () => {
                       <tr>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500' }}>יתרת הון פטורה לאחר קיזוזים</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace', color: '#28a745' }}>
-                          {summary.remaining_exemption.toLocaleString()}
+                          {formatMoney(summary.remaining_exemption)}
                         </td>
                       </tr>
                       
@@ -676,7 +682,7 @@ const SimpleFixation: React.FC = () => {
                       <tr style={{ backgroundColor: '#fff3cd' }}>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: '500' }}>תקרת קצבה מזכה</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace' }}>
-                          {summary.pension_ceiling.toLocaleString()}
+                          {formatMoney(summary.pension_ceiling)}
                         </td>
                       </tr>
                       
@@ -684,7 +690,7 @@ const SimpleFixation: React.FC = () => {
                       <tr style={{ backgroundColor: '#d4edda' }}>
                         <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold' }}>קצבה פטורה מחושבת</td>
                         <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                          {summary.exempt_pension_calculated.base_amount.toLocaleString()} ₪ ({summary.exempt_pension_calculated.percentage.toFixed(1)}%)
+                          {formatMoney(summary.exempt_pension_calculated.base_amount)} ₪ ({summary.exempt_pension_calculated.percentage.toFixed(1)}%)
                         </td>
                       </tr>
                     </>
@@ -796,16 +802,16 @@ const SimpleFixation: React.FC = () => {
                       ) : ''}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
-                      ₪{grant.grant_amount.toLocaleString()}
+                      ₪{formatMoney(grant.grant_amount)}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.grant_amount * (grant.ratio_32y || 0)).toLocaleString(undefined, {maximumFractionDigits: 2})}`}
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${formatMoney(grant.grant_amount * (grant.ratio_32y || 0))}`}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#007bff' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.limited_indexed_amount || 0).toLocaleString()}`}
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${formatMoney(grant.limited_indexed_amount || 0)}`}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#6c757d' : '#dc3545' }}>
-                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${(grant.impact_on_exemption || 0).toLocaleString()}`}
+                      {grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? 'הוחרג' : `₪${formatMoney(grant.impact_on_exemption || 0)}`}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right', color: grant.exclusion_reason || (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) ? '#dc3545' : '#28a745' }}>
                       {grant.exclusion_reason ? grant.exclusion_reason : 
@@ -850,7 +856,7 @@ const SimpleFixation: React.FC = () => {
                       {commutation.commutation_date ? formatDateToDDMMYYYY(new Date(commutation.commutation_date)) : '-'}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>
-                      ₪{commutation.exempt_amount.toLocaleString()}
+                      ₪{formatMoney(commutation.exempt_amount)}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                       {commutation.commutation_type === 'exempt' ? 'פטור ממס' : 'חייב במס'}
