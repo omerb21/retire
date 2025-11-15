@@ -95,7 +95,10 @@ export const useSystemSettings = () => {
   // Format currency
   const formatCurrency = (amount: number) => {
     if (amount === Infinity) return 'ומעלה';
-    return amount.toLocaleString('he-IL') + ' ₪';
+    return amount.toLocaleString('he-IL', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + ' ₪';
   };
 
   return {

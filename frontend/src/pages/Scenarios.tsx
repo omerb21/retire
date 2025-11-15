@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { apiFetch } from "../lib/api";
+import { formatDateToDDMMYYYY } from "../utils/dateUtils";
 
 type Scenario = {
   id?: number;
@@ -419,7 +420,7 @@ export default function Scenarios() {
                     <div><strong>גיל פרישה:</strong> {scenario.retirement_age}</div>
                   )}
                   {scenario.created_at && (
-                    <div><strong>נוצר:</strong> {new Date(scenario.created_at).toLocaleDateString('he-IL')}</div>
+                    <div><strong>נוצר:</strong> {formatDateToDDMMYYYY(scenario.created_at)}</div>
                   )}
                   {selectedScenarioId === scenario.id && (
                     <div style={{ color: "#0066cc", fontWeight: "bold" }}>✓ נבחר לשילוב</div>

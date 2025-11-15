@@ -42,7 +42,7 @@ export function generatePDFReport(
   // תאריך יצירת הדוח
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
-  const currentDate = new Date().toLocaleDateString('he-IL');
+  const currentDate = formatDateToDDMMYY(new Date());
   doc.text(`תאריך יצירת הדוח: ${currentDate}`, 20, yPosition);
   yPosition += 10;
   
@@ -51,7 +51,7 @@ export function generatePDFReport(
     doc.text(`שם הלקוח: ${clientData.first_name || ''} ${clientData.last_name || ''}`, 20, yPosition);
     yPosition += 8;
     if (clientData.birth_date) {
-      doc.text(`תאריך לידה: ${clientData.birth_date}`, 20, yPosition);
+      doc.text(`תאריך לידה: ${formatDateToDDMMYY(clientData.birth_date)}`, 20, yPosition);
       yPosition += 8;
     }
     if (clientData.id_number) {
@@ -127,8 +127,8 @@ export function generatePDFReport(
       ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
       `₪${(asset.current_value || 0).toLocaleString()}`,
       `₪${(asset.monthly_income || 0).toLocaleString()}`,
-      asset.start_date || 'לא צוין',
-      asset.end_date || 'ללא הגבלה'
+      asset.start_date ? formatDateToDDMMYY(asset.start_date) : 'לא צוין',
+      asset.end_date ? formatDateToDDMMYY(asset.end_date) : 'ללא הגבלה'
     ]);
     
     autoTable(doc, {
@@ -198,8 +198,8 @@ export function generatePDFReport(
       income.description || 'ללא תיאור',
       `₪${(income.monthly_amount || 0).toLocaleString()}`,
       income.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
-      income.start_date || 'לא צוין',
-      income.end_date || 'ללא הגבלה'
+      income.start_date ? formatDateToDDMMYY(income.start_date) : 'לא צוין',
+      income.end_date ? formatDateToDDMMYY(income.end_date) : 'ללא הגבלה'
     ]);
     
     autoTable(doc, {

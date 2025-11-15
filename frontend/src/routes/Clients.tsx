@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { clientApi, ClientItem } from '../lib/api';
 import { Link } from 'react-router-dom';
+import { formatDateToDDMMYYYY } from '../utils/dateUtils';
 
 const Clients: React.FC = () => {
   const [clients, setClients] = useState<ClientItem[]>([]);
@@ -78,7 +79,7 @@ const Clients: React.FC = () => {
                   <tr key={client.id} className="hover:bg-gray-50">
                     <td className="py-2 px-4 border">{client.full_name}</td>
                     <td className="py-2 px-4 border">{client.id_number}</td>
-                    <td className="py-2 px-4 border">{client.birth_date}</td>
+                    <td className="py-2 px-4 border">{client.birth_date ? formatDateToDDMMYYYY(client.birth_date) : ''}</td>
                     <td className="py-2 px-4 border">{client.email || '-'}</td>
                     <td className="py-2 px-4 border">{client.phone || '-'}</td>
                     <td className="py-2 px-4 border">

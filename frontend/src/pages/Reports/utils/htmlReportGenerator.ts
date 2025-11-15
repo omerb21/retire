@@ -81,7 +81,7 @@ export const generateHTMLReport = (
 <body>
   <button class="print-button" onclick="window.print()">הדפס דוח</button>
   <h1>דוח פנסיוני מקיף - ${client?.name || 'לקוח'}</h1>
-  <p>תאריך: ${new Date().toLocaleDateString('he-IL')}</p>
+  <p>תאריך: ${formatDateToDDMMYY(new Date())}</p>
   
   <div class="client-info">
     <h2>פרטי לקוח</h2>

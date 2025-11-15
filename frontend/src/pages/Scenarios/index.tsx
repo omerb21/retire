@@ -7,6 +7,7 @@ import { ScenarioForm } from '../../components/scenarios/ScenarioForm/ScenarioFo
 import { ScenarioList } from '../../components/scenarios/ScenarioList/ScenarioList';
 import { ScenarioResults } from '../../components/scenarios/ScenarioResults/ScenarioResults';
 import { ScenarioChart } from '../../components/scenarios/ScenarioChart/ScenarioChart';
+import { formatDateToDDMMYYYY } from '../../utils/dateUtils';
 
 const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
   const {
@@ -36,7 +37,7 @@ const Scenarios: React.FC<ScenariosProps> = ({ clientId }) => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('he-IL');
+    return formatDateToDDMMYYYY(dateString);
   };
 
   const loading = scenariosLoading || formLoading;

@@ -39,6 +39,7 @@ import {
 import { performSanityChecks, formatCurrency } from '../lib/validation';
 import { useCaseDetection } from '../lib/case-detection';
 import { reportsApi } from '../lib/api';
+import { formatDateToDDMMYYYY } from '../utils/dateUtils';
 
 interface CalculationResult {
   client_id: number;
@@ -212,7 +213,7 @@ const Results: React.FC = () => {
               sx={{ mb: 1 }}
             />
             <Typography variant="body2">
-              תאריך חישוב: {new Date().toLocaleDateString('he-IL')}
+              תאריך חישוב: {formatDateToDDMMYYYY(new Date())}
             </Typography>
           </Grid>
         </Grid>

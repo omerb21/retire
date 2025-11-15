@@ -43,13 +43,13 @@ export const YearlyBreakdown: React.FC<YearlyBreakdownProps> = ({
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'center' }}>{proj.year}</td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'center' }}>{proj.clientAge}</td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                    ₪{proj.totalMonthlyIncome.toLocaleString()}
+                    ₪{proj.totalMonthlyIncome.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                    ₪{proj.totalMonthlyTax.toLocaleString()}
+                    ₪{proj.totalMonthlyTax.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                    ₪{proj.netMonthlyIncome.toLocaleString()}
+                    ₪{proj.netMonthlyIncome.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}
@@ -120,10 +120,10 @@ export const YearlyBreakdown: React.FC<YearlyBreakdownProps> = ({
                   {proj.incomeBreakdown.slice(0, pensionFunds.length).map((amount, idx) => (
                     <React.Fragment key={`pension-${idx}`}>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left' }}>
-                        {amount > 0 ? `₪${amount.toLocaleString()}` : '-'}
+                        {amount > 0 ? `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </td>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                        {proj.taxBreakdown && proj.taxBreakdown[idx] > 0 ? `₪${proj.taxBreakdown[idx].toLocaleString()}` : '-'}
+                        {proj.taxBreakdown && proj.taxBreakdown[idx] > 0 ? `₪${proj.taxBreakdown[idx].toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </td>
                     </React.Fragment>
                   ))}
@@ -133,7 +133,7 @@ export const YearlyBreakdown: React.FC<YearlyBreakdownProps> = ({
                         {amount > 0 ? `₪${amount.toLocaleString()}` : '-'}
                       </td>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + idx] > 0 ? `₪${proj.taxBreakdown[pensionFunds.length + idx].toLocaleString()}` : '-'}
+                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + idx] > 0 ? `₪${proj.taxBreakdown[pensionFunds.length + idx].toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </td>
                     </React.Fragment>
                   ))}
@@ -143,7 +143,7 @@ export const YearlyBreakdown: React.FC<YearlyBreakdownProps> = ({
                         {amount > 0 ? `₪${amount.toLocaleString()}` : '-'}
                       </td>
                       <td style={{ padding: '6px', border: '1px solid #dee2e6', textAlign: 'left', color: '#dc3545' }}>
-                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx] > 0 ? `₪${proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx].toLocaleString()}` : '-'}
+                        {proj.taxBreakdown && proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx] > 0 ? `₪${proj.taxBreakdown[pensionFunds.length + additionalIncomes.length + idx].toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </td>
                     </React.Fragment>
                   ))}

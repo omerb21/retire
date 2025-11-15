@@ -204,7 +204,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'תאריך_התחלה', e.currentTarget.value)}
                     autoFocus
                     style={{ width: '100%', padding: 2, fontSize: '12px' }}
-                    placeholder="DD/MM/YY"
+                    placeholder="DD/MM/YYYY"
                   />
                 ) : (account.תאריך_התחלה || 'לא ידוע')}
               </td>

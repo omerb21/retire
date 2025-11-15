@@ -193,7 +193,7 @@ export function usePensionData(clientId: string | undefined) {
     const balance = prompt('יתרה:', '0');
     if (balance === null) return;
     
-    const startDate = prompt('תאריך התחלה (DD/MM/YY):', formatDateToDDMMYY(new Date()));
+    const startDate = prompt('תאריך התחלה (DD/MM/YYYY):', formatDateToDDMMYY(new Date()));
     if (startDate === null) return;
     
     const productType = prompt('סוג מוצר (קרן השתלמות / קופת גמל):', 'קופת גמל');

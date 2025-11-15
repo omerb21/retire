@@ -21,6 +21,7 @@ import {
 import { Add as AddIcon, PlayArrow as RunIcon, Save as SaveIcon } from '@mui/icons-material';
 import FormField from '../components/forms/FormField';
 import { scenarioApi, calculationApi, handleApiError } from '../lib/api';
+import { formatDateToDDMMYYYY } from '../utils/dateUtils';
 import { useCaseDetection } from '../lib/case-detection';
 
 interface Scenario {
@@ -203,7 +204,7 @@ const Scenarios: React.FC = () => {
                     </Typography>
                     {scenario.created_at && (
                       <Typography variant="caption" color="text.secondary">
-                        נוצר: {new Date(scenario.created_at).toLocaleDateString('he-IL')}
+                        נוצר: {formatDateToDDMMYYYY(scenario.created_at)}
                       </Typography>
                     )}
                     {scenario.calculation_results && (

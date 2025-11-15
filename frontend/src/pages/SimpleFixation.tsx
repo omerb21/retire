@@ -452,7 +452,7 @@ const SimpleFixation: React.FC = () => {
         }
       });
 
-      alert(`קיבוע זכויות נשמר בהצלחה!\nתאריך חישוב: ${new Date(saveResponse.data.calculation_date).toLocaleDateString('he-IL')}\n\nהנתונים נשמרו במערכת`);
+      alert(`קיבוע זכויות נשמר בהצלחה!\nתאריך חישוב: ${formatDateToDDMMYYYY(new Date(saveResponse.data.calculation_date))}\n\nהנתונים נשמרו במערכת`);
     } catch (err: any) {
       setError('שגיאה בשמירת קיבוע זכויות: ' + err.message);
     } finally {
@@ -548,7 +548,7 @@ const SimpleFixation: React.FC = () => {
               <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
                 <strong>לקוח:</strong> {clientData.full_name || `${clientData.first_name} ${clientData.last_name}` || 'לא צוין'} | 
                 <strong> ת.ז:</strong> {clientData.id_number} | 
-                <strong> תאריך לידה:</strong> {clientData.birth_date ? new Date(clientData.birth_date).toLocaleDateString('he-IL') : 'לא צוין'}
+                <strong> תאריך לידה:</strong> {clientData.birth_date ? formatDateToDDMMYYYY(clientData.birth_date) : 'לא צוין'}
               </div>
             )}
           </div>
@@ -702,7 +702,7 @@ const SimpleFixation: React.FC = () => {
                   <strong>שנת זכאות:</strong> {fixationData.eligibility_year}
                 </div>
                 <div style={{ marginBottom: '8px', fontSize: '14px' }}>
-                  <strong>תאריך זכאות:</strong> {new Date(fixationData.eligibility_date).toLocaleDateString('he-IL')}
+                  <strong>תאריך זכאות:</strong> {formatDateToDDMMYYYY(fixationData.eligibility_date)}
                 </div>
               </div>
               

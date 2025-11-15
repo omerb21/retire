@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { clientApi, ClientResponse, handleApiError } from '../lib/api';
+import { formatDateToDDMMYYYY } from '../utils/dateUtils';
 
 const ClientDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -108,7 +109,7 @@ const ClientDetail: React.FC = () => {
           </div>
           <div>
             <h3 className="text-gray-600">תאריך לידה</h3>
-            <p className="text-lg">{client.birth_date}</p>
+            <p className="text-lg">{client.birth_date ? formatDateToDDMMYYYY(client.birth_date) : '-'}</p>
           </div>
           <div>
             <h3 className="text-gray-600">אימייל</h3>
@@ -120,7 +121,7 @@ const ClientDetail: React.FC = () => {
           </div>
           <div>
             <h3 className="text-gray-600">תאריך פרישה</h3>
-            <p className="text-lg">{client.retirement_date || '-'}</p>
+            <p className="text-lg">{client.retirement_date ? formatDateToDDMMYYYY(client.retirement_date) : '-'}</p>
           </div>
           <div>
             <h3 className="text-gray-600">סטטוס</h3>
@@ -134,7 +135,7 @@ const ClientDetail: React.FC = () => {
           </div>
           <div>
             <h3 className="text-gray-600">נוצר בתאריך</h3>
-            <p className="text-lg">{new Date(client.created_at).toLocaleDateString('he-IL')}</p>
+            <p className="text-lg">{formatDateToDDMMYYYY(client.created_at)}</p>
           </div>
         </div>
       </div>
