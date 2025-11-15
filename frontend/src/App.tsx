@@ -4,12 +4,12 @@ import { getTaxBrackets } from "./components/reports/calculations/taxCalculation
 import "./styles/modern-theme.css";
 
 // Lazy-loaded page components for better bundle splitting
-const Clients = React.lazy(() => import("./pages/Clients"));
+const Clients = React.lazy(() => import("./pages/Clients/ClientsPage"));
 const PensionFunds = React.lazy(() => import("./pages/PensionFunds"));
 const AdditionalIncome = React.lazy(() => import("./pages/AdditionalIncome"));
 const CapitalAssets = React.lazy(() => import("./pages/CapitalAssets"));
 const RetirementScenarios = React.lazy(() => import("./pages/RetirementScenarios"));
-const SimpleFixation = React.lazy(() => import("./pages/SimpleFixation"));
+const SimpleFixation = React.lazy(() => import("./pages/SimpleFixation/SimpleFixationPage"));
 const SimpleCurrentEmployer = React.lazy(() => import("./pages/SimpleCurrentEmployer"));
 const SimpleGrants = React.lazy(() => import("./pages/SimpleGrants"));
 const ReportsPage = React.lazy(() => import("./pages/Reports"));
