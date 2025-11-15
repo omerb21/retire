@@ -15,6 +15,7 @@ from app.services.rights_fixation import (
     get_exemption_percentage,
     calc_exempt_capital
 )
+from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
 
 logger = logging.getLogger(__name__)
 
@@ -66,21 +67,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                 # טעינת מענקים (אופציונלי - ניתן לחשב קיבוע זכויות גם ללא מענקים)
                 grants = db.query(Grant).filter(Grant.client_id == client_id).all()
                 
-                # קביעת תאריך תחילת קצבה
-                pension_start_date = client.pension_start_date
-                
-                # אם אין תאריך בטבלת Client, נחפש את התאריך המוקדם ביותר מהקצבאות
-                if not pension_start_date:
-                    from app.models.pension_fund import PensionFund
-                    pension_funds = db.query(PensionFund).filter(
-                        PensionFund.client_id == client_id,
-                        PensionFund.pension_start_date.isnot(None)
-                    ).all()
-                    
-                    if pension_funds:
-                        # מציאת התאריך המוקדם ביותר
-                        pension_start_date = min(fund.pension_start_date for fund in pension_funds)
-                        print(f"DEBUG: Found earliest pension start date from funds: {pension_start_date}")
+                # קביעת תאריך תחילת קצבה (אחיד דרך פונקציית עזר)
+                pension_start_date = get_effective_pension_start_date(db, client)
                 
                 # חישוב תאריך זכאות (גיל פרישה)
                 eligibility_date = calc_eligibility_date(client.birth_date, client.gender)
@@ -129,7 +117,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any]):
                         for grant in grants
                     ],
                     "eligibility_date": eligibility_date.isoformat(),
-                    "eligibility_year": eligibility_date.year
+                    "eligibility_year": eligibility_date.year,
+                    "effective_pension_start_date": pension_start_date.isoformat() if pension_start_date else None,
                 }
                 
                 print(f"DEBUG: Formatted data for service: {formatted_data}")
@@ -207,16 +196,28 @@ async def save_rights_fixation(data: Dict[str, Any]):
     try:
         from app.database import SessionLocal
         from app.models.fixation_result import FixationResult
+        from app.models.client import Client
         from datetime import datetime
         
         client_id = data.get("client_id")
         result = data.get("calculation_result")
-        formatted_data = data.get("formatted_data")
+        formatted_data = data.get("formatted_data") or {}
         
         if not client_id or not result:
             raise HTTPException(status_code=400, detail="Missing required fields")
         
+        # Ensure formatted_data is a mutable dict
+        if not isinstance(formatted_data, dict):
+            formatted_data = dict(formatted_data)
+        
         with SessionLocal() as db:
+            # Compute effective pension start date on save, so it's always present in the payload
+            client = db.query(Client).filter(Client.id == client_id).first()
+            effective_pension_start_date = get_effective_pension_start_date(db, client)
+            formatted_data["effective_pension_start_date"] = (
+                effective_pension_start_date.isoformat() if effective_pension_start_date else None
+            )
+
             # Check if there's an existing result and update, or create new
             existing = db.query(FixationResult).filter(
                 FixationResult.client_id == client_id

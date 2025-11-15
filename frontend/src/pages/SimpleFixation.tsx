@@ -76,6 +76,9 @@ const SimpleFixation: React.FC = () => {
   const [commutations, setCommutations] = useState<Commutation[]>([]);
   const [futureGrantReserved, setFutureGrantReserved] = useState<number>(0);
   const [retirementAge, setRetirementAge] = useState<string>('לא ניתן לחשב');
+  const [savedEffectivePensionDate, setSavedEffectivePensionDate] = useState<string | null>(null);
+  const [currentPensionStartDate, setCurrentPensionStartDate] = useState<string | null>(null);
+  const [isFixationStale, setIsFixationStale] = useState<boolean>(false);
 
   // Get pension ceiling for eligibility year
   const getPensionCeiling = (year: number): number => {
@@ -167,6 +170,7 @@ const SimpleFixation: React.FC = () => {
         try {
           const clientResponse = await axios.get(`/api/v1/clients/${id}`);
           setClientData(clientResponse.data);
+          setCurrentPensionStartDate(clientResponse.data?.pension_start_date || null);
           
           // חישוב גיל פרישה
           if (clientResponse.data?.birth_date && clientResponse.data?.gender) {
@@ -201,6 +205,9 @@ const SimpleFixation: React.FC = () => {
             const savedFutureGrant = savedFixation.data.raw_payload.future_grant_reserved || 0;
             setFutureGrantReserved(savedFutureGrant);
             console.log('Loaded saved future grant:', savedFutureGrant);
+
+            const savedEffective = savedFixation.data.raw_payload.effective_pension_start_date || null;
+            setSavedEffectivePensionDate(savedEffective);
           }
         } catch (err: any) {
           if (err.response?.status !== 404) {
@@ -389,6 +396,22 @@ const SimpleFixation: React.FC = () => {
     }
   }, [id]);
 
+  // Detect if saved fixation became stale relative to current pension start date
+  useEffect(() => {
+    if (!savedEffectivePensionDate) {
+      setIsFixationStale(false);
+      return;
+    }
+
+    if (!currentPensionStartDate) {
+      // יש קיבוע שמור עם תאריך קצבה, אבל כרגע ללקוח אין תאריך – נתייחס כלא עדכני
+      setIsFixationStale(true);
+      return;
+    }
+
+    setIsFixationStale(savedEffectivePensionDate !== currentPensionStartDate);
+  }, [savedEffectivePensionDate, currentPensionStartDate]);
+
   const handleCalculateFixation = async () => {
     if (!fixationData) {
       alert('אין נתוני חישוב לשמירה');
@@ -454,6 +477,13 @@ const SimpleFixation: React.FC = () => {
             ← חזרה
           </button>
         </div>
+
+        {isFixationStale && (
+          <div className="fixation-stale-warning">
+            <strong>שימו לב:</strong> תאריך הקצבה הראשונה של הלקוח השתנה מאז קיבוע הזכויות האחרון שנשמר.
+            מומלץ לבצע חישוב קיבוע זכויות מחדש כדי לוודא שהנתונים מעודכנים.
+          </div>
+        )}
 
       {error && (
         <div style={{ 

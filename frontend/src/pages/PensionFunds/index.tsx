@@ -8,10 +8,9 @@ import {
   computePensionFund,
   deletePensionFund,
   deleteCommutation,
-  updatePensionFund,
-  updateClientPensionStartDate
+  updatePensionFund
 } from './api';
-import { handleSubmitPensionFund, handleCommutationSubmitLogic } from './handlers';
+import { handleSubmitPensionFund, handleCommutationSubmitLogic, recalculateClientPensionStartDate } from './handlers';
 import { PensionFundForm } from './components/PensionFundForm';
 import { PensionFundList } from './components/PensionFundList';
 import { CommutationForm } from './components/CommutationForm';
@@ -285,29 +284,9 @@ export default function PensionFunds() {
       
       await loadFunds();
       
-      // עדכון תאריך הקצבה הראשונה
+      // עדכון תאריך הקצבה הראשונה ברמת הלקוח (מרוכז בפונקציה משותפת)
       try {
-        const updatedFunds = await loadPensionFunds(clientId);
-        
-        if (updatedFunds.funds && updatedFunds.funds.length > 0) {
-          const sortedFunds = [...updatedFunds.funds].sort((a, b) => {
-            const dateA = a.pension_start_date || a.start_date || '';
-            const dateB = b.pension_start_date || b.start_date || '';
-            return dateA.localeCompare(dateB);
-          });
-          
-          const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date;
-          
-          if (earliestDate) {
-            await updateClientPensionStartDate(clientId, earliestDate);
-            console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
-          } else {
-            console.error("לא נמצא תאריך קצבה תקין");
-          }
-        } else {
-          await updateClientPensionStartDate(clientId, null);
-          console.log("תאריך הקצבה הראשונה נוקה כי אין קצבאות");
-        }
+        await recalculateClientPensionStartDate(clientId);
       } catch (updateError) {
         console.error("שגיאה בעדכון תאריך הקצבה הראשונה:", updateError);
       }

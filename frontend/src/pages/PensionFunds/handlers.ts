@@ -10,7 +10,32 @@ import {
   updatePensionFund,
   updateClientPensionStartDate
 } from './api';
-import { formatDateToDDMMYY, convertDDMMYYToISO } from '../../utils/dateUtils';
+import { convertDDMMYYToISO } from '../../utils/dateUtils';
+
+/**
+ * Helper: מחשב ומעדכן את תאריך הקצבה הראשונה של הלקוח
+ * לפי התאריך המוקדם ביותר מבין כל הקצבאות הפעילות.
+ */
+export async function recalculateClientPensionStartDate(clientId: string): Promise<void> {
+  const updatedFunds = await loadPensionFunds(clientId);
+
+  if (updatedFunds.funds && updatedFunds.funds.length > 0) {
+    const sortedFunds = [...updatedFunds.funds].sort((a, b) => {
+      const dateA = a.pension_start_date || a.start_date || '';
+      const dateB = b.pension_start_date || b.start_date || '';
+      return dateA.localeCompare(dateB);
+    });
+
+    const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date || null;
+
+    if (earliestDate) {
+      await updateClientPensionStartDate(clientId, earliestDate);
+    }
+  } else {
+    // אין קצבאות כלל - ננקה את התאריך ברמת הלקוח
+    await updateClientPensionStartDate(clientId, null);
+  }
+}
 
 export async function handleSubmitPensionFund(
   clientId: string,
@@ -41,35 +66,38 @@ export async function handleSubmitPensionFund(
     throw new Error("חובה למלא שיעור הצמדה קבוע");
   }
 
-  // חישוב תאריך התחלה
-  let earliestStartDate: string;
-  
+  // חישוב תאריך התחלה (תמיד נשמר בפורמט ISO YYYY-MM-DD)
+  let finalStartDate: string;
+
   if (form.pension_start_date) {
-    earliestStartDate = form.pension_start_date;
+    // המשתמש הזין תאריך ידני בטופס (DD/MM/YYYY)
+    finalStartDate = convertDDMMYYToISO(form.pension_start_date);
   } else if (funds.length > 0) {
-    earliestStartDate = funds.reduce((earliest, fund) => {
+    // אם יש כבר קצבאות, ניקח את התאריך המוקדם ביותר מביניהן (כפי שנשמר מהשרת)
+    const earliestFromFunds = funds.reduce((earliest, fund) => {
       const fundDate = fund.pension_start_date || fund.start_date;
       if (!fundDate) return earliest;
       return !earliest || fundDate < earliest ? fundDate : earliest;
-    }, "") || formatDateToDDMMYY(new Date());
+    }, "");
+
+    finalStartDate = earliestFromFunds || new Date().toISOString().slice(0, 10);
   } else if (clientData && clientData.birth_date) {
+    // אם אין קצבאות עדיין, ננסה להעריך תאריך פרישה ראשוני לפי גיל ומגדר
     try {
       const birthDate = new Date(clientData.birth_date);
       const retirementDate = new Date(birthDate);
       const retirementAge = clientData.gender?.toLowerCase() === "female" ? 62 : 67;
       retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-      earliestStartDate = formatDateToDDMMYY(retirementDate);
+      finalStartDate = retirementDate.toISOString().slice(0, 10);
       console.log(`חישוב תאריך פרישה לפי מגדר: ${clientData.gender}, גיל פרישה: ${retirementAge}`);
     } catch (error) {
       console.error("Error calculating retirement date:", error);
-      earliestStartDate = formatDateToDDMMYY(new Date());
+      finalStartDate = new Date().toISOString().slice(0, 10);
     }
   } else {
-    earliestStartDate = formatDateToDDMMYY(new Date());
+    // ברירת מחדל: היום (בפורמט ISO)
+    finalStartDate = new Date().toISOString().slice(0, 10);
   }
-  
-  const pensionStartDateISO = form.pension_start_date ? convertDDMMYYToISO(form.pension_start_date) : '';
-  const finalStartDate = pensionStartDateISO || earliestStartDate;
   
   // Create payload
   const payload: Record<string, any> = {
@@ -105,29 +133,9 @@ export async function handleSubmitPensionFund(
 
   await savePensionFund(clientId, payload, editingFundId);
 
-  // עדכון תאריך הקצבה הראשונה
+  // עדכון תאריך הקצבה הראשונה ברמת הלקוח (מרוכז בפונקציה משותפת)
   try {
-    console.log("מתחיל עדכון תאריך הקצבה הראשונה...");
-    const updatedFunds = await loadPensionFunds(clientId);
-    console.log("קצבאות שנמצאו:", updatedFunds.funds);
-    
-    if (updatedFunds.funds && updatedFunds.funds.length > 0) {
-      const sortedFunds = [...updatedFunds.funds].sort((a, b) => {
-        const dateA = a.pension_start_date || a.start_date || '';
-        const dateB = b.pension_start_date || b.start_date || '';
-        return dateA.localeCompare(dateB);
-      });
-      console.log("קצבאות ממוינות:", sortedFunds);
-      
-      const earliestDate = sortedFunds[0].pension_start_date || sortedFunds[0].start_date;
-      console.log("התאריך המוקדם ביותר:", earliestDate);
-      
-      if (earliestDate) {
-        console.log(`מעדכן תאריך הקצבה הראשונה ללקוח ${clientId} ל-${earliestDate}`);
-        await updateClientPensionStartDate(clientId, earliestDate);
-        console.log(`תאריך הקצבה הראשונה עודכן ל-${earliestDate}`);
-      }
-    }
+    await recalculateClientPensionStartDate(clientId);
   } catch (updateError) {
     console.error("שגיאה בעדכון תאריך הקצבה הראשונה:", updateError);
   }

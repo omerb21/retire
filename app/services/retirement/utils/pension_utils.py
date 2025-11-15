@@ -15,6 +15,33 @@ import json
 logger = logging.getLogger("app.scenarios.pension")
 
 
+def get_effective_pension_start_date(db: Session, client) -> Optional[date]:
+    if not client:
+        return None
+
+    pension_start_date = getattr(client, "pension_start_date", None)
+    if pension_start_date:
+        return pension_start_date
+
+    funds = (
+        db.query(PensionFund)
+        .filter(
+            PensionFund.client_id == client.id,
+            PensionFund.pension_start_date.isnot(None),
+        )
+        .all()
+    )
+
+    if not funds:
+        return None
+
+    candidates = [fund.pension_start_date for fund in funds if fund.pension_start_date]
+    if not candidates:
+        return None
+
+    return min(candidates)
+
+
 def convert_balance_to_pension(
     pf: PensionFund,
     retirement_year: int,
