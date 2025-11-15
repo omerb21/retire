@@ -379,6 +379,46 @@ async def get_saved_fixation(client_id: int):
         logger.error(f"שגיאה בטעינת קיבוע זכויות: {e}")
         raise HTTPException(status_code=500, detail=f"שגיאה בטעינה: {str(e)}")
 
+
+@router.delete("/client/{client_id}")
+async def delete_fixation(client_id: int):
+    """מחיקת תוצאות קיבוע זכויות שמורות עבור לקוח.
+
+    הפעולה מוחקת את הרשומות מטבלת fixation_result עבור הלקוח,
+    כך שנתוני קיבוע לא ישמשו יותר בחישובי קצבה פטורה ובדוחות.
+    """
+    try:
+        from app.database import SessionLocal
+        from app.models.fixation_result import FixationResult
+
+        with SessionLocal() as db:
+            deleted = (
+                db.query(FixationResult)
+                .filter(FixationResult.client_id == client_id)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+
+            if not deleted:
+                raise HTTPException(
+                    status_code=404,
+                    detail="לא נמצאו תוצאות קיבוע זכויות למחיקה עבור לקוח זה",
+                )
+
+            return {
+                "success": True,
+                "message": "תוצאות קיבוע הזכויות נמחקו בהצלחה",
+                "deleted_rows": deleted,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"שגיאה במחיקת קיבוע זכויות: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"שגיאה במחיקת קיבוע זכויות: {str(e)}",
+        )
+
 @router.get("/test")
 async def test_cbs_api():
     """

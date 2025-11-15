@@ -460,6 +460,42 @@ const SimpleFixation: React.FC = () => {
     }
   };
 
+  const handleDeleteFixation = async () => {
+    if (!id) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'האם אתה בטוח שברצונך למחוק את קיבוע הזכויות השמור?\nהקצבה הפטורה לא תילקח עוד בחשבון בחישובי המס והדוחות עד שמירת קיבוע חדש.'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      await axios.delete(`/api/v1/rights-fixation/client/${id}`);
+
+      // איפוס נתוני קיבוע שמורים כך שלא תהיה השפעה על חישובי הקצבה הפטורה
+      setFixationData((prev) => prev); // משאירים החישוב הנוכחי על המסך
+      setFutureGrantReserved(0);
+      setSavedEffectivePensionDate(null);
+      setIsFixationStale(false);
+
+      alert('קיבוע הזכויות השמור נמחק. נתוני קיבוע לא ישמשו בחישובי המס עד שתשמור קיבוע חדש.');
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        alert('לא נמצא קיבוע זכויות שמור למחיקה עבור הלקוח.');
+      } else {
+        setError('שגיאה במחיקת קיבוע זכויות: ' + (err.message || ''));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   if (loading && !fixationData) {
     return <div style={{ padding: '20px' }}>טוען נתוני קיבוע זכויות...</div>;
@@ -681,7 +717,7 @@ const SimpleFixation: React.FC = () => {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', gap: '12px' }}>
             <button
               onClick={handleCalculateFixation}
               disabled={loading}
@@ -704,6 +740,21 @@ const SimpleFixation: React.FC = () => {
               }}
             >
               {loading ? 'שומר...' : '💾 שמור קיבוע זכויות'}
+            </button>
+            <button
+              onClick={handleDeleteFixation}
+              disabled={loading}
+              style={{
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '4px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              🗑 מחק קיבוע זכויות שמור
             </button>
           </div>
         </div>
