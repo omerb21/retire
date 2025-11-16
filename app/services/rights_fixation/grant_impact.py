@@ -29,20 +29,22 @@ def compute_grant_effect(
     """
     try:
         # הצמדת המענק לסכום עדכני - מתאריך קבלת המענק
-        grant_date = grant.get('grant_date', grant['work_end_date'])  # fallback לתאריך סיום עבודה אם אין grant_date
+        # אם grant_date חסר או None, נ fallback לתאריך סיום העבודה
+        grant_date = grant.get('grant_date') or grant['work_end_date']
         logger.info(f"DEBUG: Using grant_date={grant_date} for indexation")
         
         # קריאה לפונקציה עם הפרמטרים המעודכנים
         indexed_full = calculate_adjusted_amount(
             amount=grant['grant_amount'],
-            grant_date=grant_date,  # שימוש ב-grant_date במקום end_work_date
+            grant_date=grant_date,
             to_date=eligibility_date
         )
         logger.info(f"DEBUG: Indexed amount result: {indexed_full}")
         
+        # אם יש כשל בהצמדה (למשל בעיית תקשורת ל-API), נ fallback לסכום הנומינלי
         if indexed_full is None:
-            logger.error(f"כשל בהצמדת מענק: {grant}")
-            return None
+            logger.error(f"כשל בהצמדת מענק, שימוש בסכום נומינלי כ-fallback: {grant}")
+            indexed_full = float(grant['grant_amount'])
             
         # חישוב יחס 32 השנים עם הגבלה לפי גיל פרישה
         ratio = work_ratio_within_last_32y(

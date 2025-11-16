@@ -7,7 +7,7 @@ import { ClientSystemSnapshot } from './components/ClientSystemSnapshot';
 
 export default function ClientDetailsPage() {
   const { id } = useParams<{ id: string }>();
-  const { client, loading, error } = useClientData(id);
+  const { client, loading, error, refreshClient } = useClientData(id);
 
   if (loading) return <div>טוען...</div>;
   if (error && !client) return <div className="error">{error}</div>;
@@ -57,7 +57,7 @@ export default function ClientDetailsPage() {
       }}>
             <ClientSystemSnapshot 
           clientId={parseInt(id!)} 
-          onSnapshotRestored={() => window.location.reload()}
+          onSnapshotRestored={refreshClient}
         />
       </div>
     </div>

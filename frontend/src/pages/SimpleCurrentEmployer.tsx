@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { TerminationDecision } from './SimpleCurrentEmployer/types';
 import { useEmployerData } from './SimpleCurrentEmployer/hooks/useEmployerData';
 import { useGrantCalculation } from './SimpleCurrentEmployer/hooks/useGrantCalculation';
@@ -91,9 +91,9 @@ const SimpleCurrentEmployer: React.FC = () => {
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
       <div style={{ marginBottom: '20px' }}>
-        <a href={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
+        <Link to={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
           ← חזרה לפרטי לקוח
-        </a>
+        </Link>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>

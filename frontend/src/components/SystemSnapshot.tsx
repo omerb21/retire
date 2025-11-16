@@ -149,10 +149,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
         onSnapshotRestored();
       }
 
-      // רענון הדף אחרי 2 שניות
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // רענון הדף מנוהל ע"י הקומפוננטה העוטפת (callback) כדי לא לשבור את ה-SPA
 
     } catch (error: any) {
       console.error('Restore snapshot error:', error);

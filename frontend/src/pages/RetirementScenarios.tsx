@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
 import { formatCurrency } from "../lib/validation";
 
@@ -36,6 +36,7 @@ interface ScenariosResponse {
 
 export default function RetirementScenarios() {
   const { id: clientId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [retirementAge, setRetirementAge] = useState<number>(67);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState<number | null>(null);
@@ -108,10 +109,8 @@ export default function RetirementScenarios() {
       const data = await response.json();
       setSuccessMessage(`✅ ${data.message || 'התרחיש בוצע בהצלחה!'}`);
       
-      // רענון הדף אחרי 2 שניות
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // ניווט חזרה למסך פרטי הלקוח במקום רענון מלא של הדף
+      navigate(`/clients/${clientId}`);
     } catch (err: any) {
       console.error("Scenario execution error:", err);
       setError(err.message || "שגיאה לא צפויה בביצוע התרחיש");
