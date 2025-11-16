@@ -70,3 +70,33 @@ def log_balance_change(mapper, connection, target):
             for line in traceback.format_stack()[-5:]:
                 print(f"    {line.strip()}")
             print()
+
+
+@event.listens_for(PensionFund, "after_insert")
+@event.listens_for(PensionFund, "after_update")
+@event.listens_for(PensionFund, "after_delete")
+def sync_client_pension_start_date(mapper, connection, target):
+    """Keep Client.pension_start_date in sync with the earliest pension fund start date.
+
+    Whenever a PensionFund row is inserted, updated or deleted, we recompute the
+    minimum non-null pension_start_date for the same client and store it on
+    the Client record. This ensures the client-level field always reflects the
+    first pension payment date derived from all existing pensions.
+    """
+    client_id = getattr(target, "client_id", None)
+    if not client_id:
+        return
+
+    from sqlalchemy import select
+    from app.models.client import Client
+
+    result = connection.execute(
+        select(func.min(PensionFund.pension_start_date)).where(PensionFund.client_id == client_id)
+    )
+    min_start_date = result.scalar()
+
+    connection.execute(
+        Client.__table__.update()
+        .where(Client.id == client_id)
+        .values(pension_start_date=min_start_date)
+    )

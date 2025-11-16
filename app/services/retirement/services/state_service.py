@@ -9,6 +9,8 @@ from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
 from app.models.termination_event import TerminationEvent
+from app.models.client import Client
+from ..utils.pension_utils import compute_pension_start_date_from_funds
 from ..utils.serialization_utils import (
     serialize_pension_fund,
     serialize_capital_asset,
@@ -79,5 +81,12 @@ class StateService:
             te = TerminationEvent(**te_data)
             self.db.add(te)
         
+        # לאחר השחזור, נעדכן את תאריך תחילת הקצבה של הלקוח לפי הקצבאות
+        client = self.db.query(Client).filter(Client.id == self.client_id).first()
+        if client:
+            effective_pension_start_date = compute_pension_start_date_from_funds(self.db, client)
+            client.pension_start_date = effective_pension_start_date
+            self.db.add(client)
+
         self.db.flush()
         logger.info(f"  🔄 Restored state: {len(state['pension_funds'])} pension funds, {len(state['capital_assets'])} capital assets")

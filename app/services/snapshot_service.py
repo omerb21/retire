@@ -15,6 +15,7 @@ from app.models.additional_income import AdditionalIncome
 from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
+from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
 
 logger = logging.getLogger("app.snapshot")
 
@@ -270,6 +271,11 @@ class SnapshotService:
                 self.db.add(fixation)
                 restored_count += 1
             
+            # לאחר שיחזור כל הנתונים, נעדכן את תאריך תחילת הקצבה של הלקוח לפי הקצבאות
+            effective_pension_start_date = compute_pension_start_date_from_funds(self.db, client)
+            client.pension_start_date = effective_pension_start_date
+            self.db.add(client)
+
             self.db.flush()
             self.db.commit()
             

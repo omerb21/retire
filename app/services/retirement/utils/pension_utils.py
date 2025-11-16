@@ -15,13 +15,14 @@ import json
 logger = logging.getLogger("app.scenarios.pension")
 
 
-def get_effective_pension_start_date(db: Session, client) -> Optional[date]:
+def compute_pension_start_date_from_funds(db: Session, client) -> Optional[date]:
+    """Calculate earliest pension_start_date from all of the client's pension funds.
+
+    This ignores the value stored on the Client itself and looks only at PensionFund
+    records that have a non-null pension_start_date.
+    """
     if not client:
         return None
-
-    pension_start_date = getattr(client, "pension_start_date", None)
-    if pension_start_date:
-        return pension_start_date
 
     funds = (
         db.query(PensionFund)
@@ -40,6 +41,22 @@ def get_effective_pension_start_date(db: Session, client) -> Optional[date]:
         return None
 
     return min(candidates)
+
+
+def get_effective_pension_start_date(db: Session, client) -> Optional[date]:
+    """Return the effective pension start date for a client.
+
+    If the client already has a pension_start_date stored, it is returned. Otherwise
+    the date is derived from the client's pension funds.
+    """
+    if not client:
+        return None
+
+    pension_start_date = getattr(client, "pension_start_date", None)
+    if pension_start_date:
+        return pension_start_date
+
+    return compute_pension_start_date_from_funds(db, client)
 
 
 def convert_balance_to_pension(

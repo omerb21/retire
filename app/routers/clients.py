@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
+from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
 # ייבוא סכמות הלקוח
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 
@@ -92,6 +93,16 @@ def get_client(client_id: int = Path(..., description="Client ID"), db: Session 
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Client not found"
         )
+    
+    # אם לא הוגדר תאריך תחילת קצבה ללקוח, נחשב אותו מקצבאות הפנסיה ונשמור פעם אחת
+    if not db_client.pension_start_date:
+        effective_pension_start_date = compute_pension_start_date_from_funds(db, db_client)
+        if effective_pension_start_date:
+            db_client.pension_start_date = effective_pension_start_date
+            db.add(db_client)
+            db.commit()
+            db.refresh(db_client)
+
     return db_client
 
 

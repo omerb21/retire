@@ -23,7 +23,7 @@ export const usePensionDate = (client: ClientItem | null, onUpdate: () => void) 
       setError(null);
       setSuccessMessage(null);
       
-      await axios.patch(`${API_BASE}/clients/${client.id}/pension-start-date`, {
+      await axios.put(`${API_BASE}/clients/${client.id}`, {
         pension_start_date: pensionStartDate || null
       });
       
