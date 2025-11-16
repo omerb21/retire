@@ -2,6 +2,8 @@
  * Utility functions for retirement age calculations
  */
 
+import { API_BASE } from '../lib/api';
+
 interface RetirementAgeResult {
   age_years: number;
   age_months: number;
@@ -21,7 +23,7 @@ export async function calculateRetirementAge(
   birthDate: string,
   gender: string
 ): Promise<RetirementAgeResult> {
-  const response = await fetch('/api/v1/retirement-age/calculate', {
+  const response = await fetch(`${API_BASE}/retirement-age/calculate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -44,7 +46,7 @@ export async function calculateRetirementAgeSimple(
   birthDate: string,
   gender: string
 ): Promise<number> {
-  const response = await fetch('/api/v1/retirement-age/calculate-simple', {
+  const response = await fetch(`${API_BASE}/retirement-age/calculate-simple`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -69,7 +71,7 @@ export async function getRetirementAgeSettings(): Promise<{
   use_legal_table_for_women: boolean;
   female_retirement_age?: number;
 }> {
-  const response = await fetch('/api/v1/retirement-age/settings');
+  const response = await fetch(`${API_BASE}/retirement-age/settings`);
 
   if (!response.ok) {
     // Return defaults if settings not available

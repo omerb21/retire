@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../../../lib/api';
 import { SimpleEmployer, TerminationDecision, GrantDetails } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import {
@@ -74,7 +75,7 @@ export const useTerminationCalculation = (
       let monthlyCap = 13750; // Default for 2024-2025
       
       try {
-        const response = await axios.get(`/api/v1/tax-data/severance-cap?year=${terminationYear}`);
+        const response = await axios.get(`${API_BASE}/tax-data/severance-cap?year=${terminationYear}`);
         if (response.data && response.data.monthly_cap) {
           monthlyCap = response.data.monthly_cap;
         }

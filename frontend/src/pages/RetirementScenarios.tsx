@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { API_BASE } from "../lib/api";
 import { formatCurrency } from "../lib/validation";
 
 interface ExecutionAction {
@@ -52,7 +53,7 @@ export default function RetirementScenarios() {
   const loadSavedScenarios = async () => {
     try {
       const response = await fetch(
-        `/api/v1/clients/${clientId}/retirement-scenarios?retirement_age=${retirementAge}`
+        `${API_BASE}/clients/${clientId}/retirement-scenarios?retirement_age=${retirementAge}`
       );
       
       if (response.ok) {
@@ -83,7 +84,7 @@ export default function RetirementScenarios() {
 
     try {
       const response = await fetch(
-        `/api/v1/clients/${clientId}/retirement-scenarios/${scenarioId}/execute`,
+        `${API_BASE}/clients/${clientId}/retirement-scenarios/${scenarioId}/execute`,
         {
           method: "POST",
           headers: {
@@ -145,7 +146,7 @@ export default function RetirementScenarios() {
       }
 
       const response = await fetch(
-        `/api/v1/clients/${clientId}/retirement-scenarios`,
+        `${API_BASE}/clients/${clientId}/retirement-scenarios`,
         {
           method: "POST",
           headers: {

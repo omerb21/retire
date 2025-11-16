@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../../../lib/api';
 import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../../../utils/dateUtils';
 import {
   FixationData,
@@ -54,13 +55,13 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         setError(null);
 
         try {
-          const clientResponse = await axios.get(`/api/v1/clients/${id}`);
+          const clientResponse = await axios.get(`${API_BASE}/clients/${id}`);
           setClientData(clientResponse.data);
           setCurrentPensionStartDate(clientResponse.data?.pension_start_date || null);
 
           if (clientResponse.data?.birth_date && clientResponse.data?.gender) {
             try {
-              const retirementResponse = await axios.post('/api/v1/retirement-age/calculate-simple', {
+              const retirementResponse = await axios.post(`${API_BASE}/retirement-age/calculate-simple`, {
                 birth_date: clientResponse.data.birth_date,
                 gender: clientResponse.data.gender
               });
@@ -82,7 +83,7 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         }
 
         try {
-          const savedFixation = await axios.get(`/api/v1/rights-fixation/client/${id}`);
+          const savedFixation = await axios.get(`${API_BASE}/rights-fixation/client/${id}`);
           if (savedFixation.data.success && savedFixation.data.raw_payload) {
             const savedFutureGrant = savedFixation.data.raw_payload.future_grant_reserved || 0;
             setFutureGrantReserved(savedFutureGrant);
@@ -98,12 +99,12 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         }
 
         try {
-          const capitalAssets = await axios.get(`/api/v1/clients/${id}/capital-assets`);
+          const capitalAssets = await axios.get(`${API_BASE}/clients/${id}/capital-assets`);
           const commutationAssets = (capitalAssets.data || []).filter((asset: any) =>
             asset.remarks && asset.remarks.includes('COMMUTATION:') && asset.tax_treatment === 'exempt'
           );
 
-          const pensionFunds = await axios.get(`/api/v1/clients/${id}/pension-funds`);
+          const pensionFunds = await axios.get(`${API_BASE}/clients/${id}/pension-funds`);
           const fundsMap = new Map(pensionFunds.data.map((f: any) => [f.id, f]));
 
           const loadedCommutations: Commutation[] = commutationAssets.map((asset: any) => {
@@ -133,7 +134,7 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
 
         let grants: any[] = [];
         try {
-          const grantsResponse = await axios.get(`/api/v1/clients/${id}/grants`);
+          const grantsResponse = await axios.get(`${API_BASE}/clients/${id}/grants`);
           grants = grantsResponse.data || [];
           setHasGrants(grants.length > 0);
         } catch (err: any) {
@@ -152,7 +153,7 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         console.log('DEBUG: grants.length:', grants.length);
 
         try {
-          const fixationResponse = await axios.post('/api/v1/rights-fixation/calculate', {
+          const fixationResponse = await axios.post(`${API_BASE}/rights-fixation/calculate`, {
             client_id: parseInt(id!)
           });
 
@@ -296,7 +297,7 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         fixationData
       );
 
-      const saveResponse = await axios.post('/api/v1/rights-fixation/save', {
+      const saveResponse = await axios.post(`${API_BASE}/rights-fixation/save`, {
         client_id: parseInt(id!),
         calculation_result: {
           grants: fixationData.grants,
@@ -350,7 +351,7 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
       setLoading(true);
       setError(null);
 
-      await axios.delete(`/api/v1/rights-fixation/client/${id}`);
+      await axios.delete(`${API_BASE}/rights-fixation/client/${id}`);
 
       setFixationData((prev) => prev);
       setFutureGrantReserved(0);

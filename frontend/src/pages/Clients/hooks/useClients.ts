@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listClients, createClient, ClientItem } from '../../../lib/api';
+import { listClients, createClient, ClientItem, API_BASE } from '../../../lib/api';
 import { convertDDMMYYToISO, convertISOToDDMMYY } from '../../../utils/dateUtils';
 import { NewClientForm, EditClientForm } from '../types';
 
@@ -56,7 +56,7 @@ export function useClients() {
         console.error('Error with listClients API:', apiError);
 
         try {
-          const testResponse = await fetch('/api/v1/clients');
+          const testResponse = await fetch(`${API_BASE}/clients`);
           console.log('Direct fetch status:', testResponse.status);
 
           if (!testResponse.ok) {
@@ -108,7 +108,7 @@ export function useClients() {
 
     try {
       setMsg('');
-      const response = await fetch(`/api/v1/clients/${clientId}`, {
+      const response = await fetch(`${API_BASE}/clients/${clientId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -167,7 +167,7 @@ export function useClients() {
         throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YYYY');
       }
 
-      const response = await fetch(`/api/v1/clients/${editingClient.id}`, {
+      const response = await fetch(`${API_BASE}/clients/${editingClient.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

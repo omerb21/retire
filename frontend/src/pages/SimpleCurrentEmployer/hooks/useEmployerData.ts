@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../../../lib/api';
 import { SimpleEmployer } from '../types';
 import { getSeveranceFromPension, isTerminationConfirmed } from '../utils/storageHelpers';
 import { convertISOToDDMMYY, convertDDMMYYToISO } from '../../../utils/dateUtils';
@@ -25,7 +26,7 @@ export const useEmployerData = (clientId: string | undefined) => {
       
       try {
         setLoading(true);
-        const response = await axios.get(`/api/v1/clients/${clientId}/current-employer`);
+        const response = await axios.get(`${API_BASE}/clients/${clientId}/current-employer`);
         
         // Handle response - can be array or object
         let employerData = null;
@@ -121,7 +122,7 @@ export const useEmployerData = (clientId: string | undefined) => {
           end_date: employerData.end_date,
           last_salary: employerData.last_salary
         });
-        const response = await axios.put(`/api/v1/clients/${clientId}/current-employer/${employer.id}`, employerData);
+        const response = await axios.put(`${API_BASE}/clients/${clientId}/current-employer/${employer.id}`, employerData);
         
         const newEmployerData = { 
           id: response.data.id,
@@ -134,7 +135,7 @@ export const useEmployerData = (clientId: string | undefined) => {
         setEmployer(newEmployerData);
       } else {
         console.log('🔍 Sending POST request with data:', employerData);
-        const response = await axios.post(`/api/v1/clients/${clientId}/current-employer`, employerData);
+        const response = await axios.post(`${API_BASE}/clients/${clientId}/current-employer`, employerData);
         
         const newEmployerData = { 
           id: response.data.id,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ClientItem } from '../../../lib/api';
+import { ClientItem, API_BASE } from '../../../lib/api';
 
 export const usePensionDate = (client: ClientItem | null, onUpdate: () => void) => {
   const [editMode, setEditMode] = useState(false);
@@ -23,7 +23,7 @@ export const usePensionDate = (client: ClientItem | null, onUpdate: () => void) 
       setError(null);
       setSuccessMessage(null);
       
-      await axios.patch(`/api/v1/clients/${client.id}/pension-start-date`, {
+      await axios.patch(`${API_BASE}/clients/${client.id}/pension-start-date`, {
         pension_start_date: pensionStartDate || null
       });
       

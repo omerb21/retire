@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../../../lib/api';
 import { getPensionCeiling } from '../calculations/pensionCalculations';
 import { calculateTaxByBrackets } from '../calculations/taxCalculations';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
@@ -50,16 +51,16 @@ export function useReportData(clientId: string | undefined) {
         setError(null);
 
         // Get client info
-        const clientResponse = await axios.get(`/api/v1/clients/${clientId}`);
+        const clientResponse = await axios.get(`${API_BASE}/clients/${clientId}`);
         const clientData = clientResponse.data;
         setClient(clientData);
 
         // Get financial data
         const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse, fixationResponse] = await Promise.all([
-          axios.get(`/api/v1/clients/${clientId}/pension-funds`),
-          axios.get(`/api/v1/clients/${clientId}/additional-incomes`),
-          axios.get(`/api/v1/clients/${clientId}/capital-assets`),
-          axios.get(`/api/v1/rights-fixation/client/${clientId}`).catch(() => ({ data: null }))
+          axios.get(`${API_BASE}/clients/${clientId}/pension-funds`),
+          axios.get(`${API_BASE}/clients/${clientId}/additional-incomes`),
+          axios.get(`${API_BASE}/clients/${clientId}/capital-assets`),
+          axios.get(`${API_BASE}/rights-fixation/client/${clientId}`).catch(() => ({ data: null }))
         ]);
         
         const pensionFundsData = pensionFundsResponse.data || [];

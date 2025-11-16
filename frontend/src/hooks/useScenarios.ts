@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Scenario, ScenarioResult } from '../types/scenario';
+import { API_BASE } from '../lib/api';
 
 export const useScenarios = (clientId: number) => {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -7,7 +8,7 @@ export const useScenarios = (clientId: number) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+  const apiBaseUrl = API_BASE;
 
   useEffect(() => {
     loadScenarios();
@@ -35,7 +36,7 @@ export const useScenarios = (clientId: number) => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${apiBaseUrl}/api/v1/scenarios/${scenarioId}/run`, {
+      const response = await fetch(`${apiBaseUrl}/scenarios/${scenarioId}/run`, {
         method: 'POST',
       });
 

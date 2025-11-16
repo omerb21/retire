@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import axios from 'axios';
+import { API_BASE } from '../../../lib/api';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import { formatCurrency } from '../../../lib/validation';
@@ -45,7 +46,7 @@ export const useTerminationActions = (
       
       console.log('🚀 SENDING TERMINATION PAYLOAD:', JSON.stringify(payload, null, 2));
       
-      const response = await axios.post(`/api/v1/clients/${clientId}/current-employer/termination`, payload);
+      const response = await axios.post(`${API_BASE}/clients/${clientId}/current-employer/termination`, payload);
       
       console.log('✅ TERMINATION RESPONSE:', JSON.stringify(response.data, null, 2));
 
@@ -83,7 +84,7 @@ export const useTerminationActions = (
       setError(null);
 
       // Delete termination decisions from server
-      const response = await axios.delete(`/api/v1/clients/${clientId}/delete-termination`);
+      const response = await axios.delete(`${API_BASE}/clients/${clientId}/delete-termination`);
       
       console.log('✅ DELETE RESPONSE:', response.data);
       

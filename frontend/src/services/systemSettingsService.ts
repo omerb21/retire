@@ -5,7 +5,7 @@ import { SeveranceCap } from "../types/system-settings.types";
 
 export const loadSeveranceCapsFromAPI = async (): Promise<SeveranceCap[]> => {
   try {
-    const response = await apiFetch<{caps: SeveranceCap[]}>('/api/v1/tax-data/severance-caps');
+    const response = await apiFetch<{caps: SeveranceCap[]}>('/tax-data/severance-caps');
     if (response && response.caps) {
       return response.caps;
     }

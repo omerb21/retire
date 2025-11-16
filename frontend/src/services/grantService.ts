@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { Grant, GrantFormData } from '../types/grant.types';
 import { convertDDMMYYToISO } from '../utils/dateUtils';
 
@@ -13,7 +14,7 @@ export class GrantService {
    */
   static async fetchGrants(clientId: string): Promise<Grant[]> {
     try {
-      const response = await axios.get(`/api/v1/clients/${clientId}/grants`);
+      const response = await axios.get(`${API_BASE}/clients/${clientId}/grants`);
       const grantsData = response.data || [];
       
       // התאמת שדות - סנכרון בין amount ו-grant_amount
@@ -52,7 +53,7 @@ export class GrantService {
     }
 
     try {
-      await axios.post(`/api/v1/clients/${clientId}/grants`, {
+      await axios.post(`${API_BASE}/clients/${clientId}/grants`, {
         ...grantData,
         work_start_date: workStartDateISO,
         work_end_date: workEndDateISO,
@@ -69,7 +70,7 @@ export class GrantService {
    */
   static async deleteGrant(clientId: string, grantId: number): Promise<void> {
     try {
-      await axios.delete(`/api/v1/clients/${clientId}/grants/${grantId}`);
+      await axios.delete(`${API_BASE}/clients/${clientId}/grants/${grantId}`);
     } catch (error: any) {
       console.error('Error deleting grant:', error);
       throw new Error('שגיאה במחיקת מענק: ' + (error.message || 'שגיאה לא ידועה'));
@@ -81,7 +82,7 @@ export class GrantService {
    */
   static async getSeveranceExemption(serviceYears: number): Promise<number> {
     try {
-      const response = await axios.get('/api/v1/tax-data/severance-exemption', {
+      const response = await axios.get(`${API_BASE}/tax-data/severance-exemption`, {
         params: { service_years: serviceYears }
       });
       return response.data.total_exemption;

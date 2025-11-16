@@ -9,6 +9,7 @@ import { YearlyBreakdown } from './Reports/components/YearlyBreakdown';
 import { NPVAnalysis } from './Reports/components/NPVAnalysis';
 import { IncomeDetails } from './Reports/components/IncomeDetails';
 import { generateHTMLReport } from './Reports/utils/htmlReportGenerator';
+import { API_BASE } from '../lib/api';
 
 const ReportsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -118,7 +119,7 @@ const ReportsPage: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch(`/api/v1/fixation/${client.id}/package`, {
+      const response = await fetch(`${API_BASE}/fixation/${client.id}/package`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });

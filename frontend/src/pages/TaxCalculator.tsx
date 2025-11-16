@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE } from '../lib/api';
 import { formatCurrency } from '../lib/validation';
 
 interface PersonalDetails {
@@ -101,7 +102,7 @@ const TaxCalculator: React.FC = () => {
 
   const loadClientData = async () => {
     try {
-      const response = await axios.get(`/api/v1/clients/${id}`);
+      const response = await axios.get(`${API_BASE}/clients/${id}`);
       const client = response.data;
       
       setFormData(prev => ({
@@ -151,7 +152,7 @@ const TaxCalculator: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await axios.post('/api/v1/tax/calculate', formData);
+      const response = await axios.post(`${API_BASE}/tax/calculate`, formData);
       setResult(response.data);
       
     } catch (err: any) {
@@ -165,7 +166,7 @@ const TaxCalculator: React.FC = () => {
     if (!id) return;
     
     try {
-      await axios.put(`/api/v1/clients/${id}`, {
+      await axios.put(`${API_BASE}/clients/${id}`, {
         num_children: formData.personal_details.num_children,
         is_new_immigrant: formData.personal_details.is_new_immigrant,
         is_veteran: formData.personal_details.is_veteran,

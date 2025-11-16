@@ -7,6 +7,7 @@ import { Button, Box, Typography, Alert, Dialog, DialogTitle, DialogContent, Dia
 import SaveIcon from '@mui/icons-material/Save';
 import RestoreIcon from '@mui/icons-material/Restore';
 import InfoIcon from '@mui/icons-material/Info';
+import { API_BASE } from '../lib/api';
 
 interface SystemSnapshotProps {
   clientId: number;
@@ -45,7 +46,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
     setMessage(null);
 
     try {
-      const response = await fetch(`/api/v1/clients/${clientId}/snapshot/save`, {
+      const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +107,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
     setConfirmDialogOpen(false);
 
     try {
-      const response = await fetch(`/api/v1/clients/${clientId}/snapshot/restore`, {
+      const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

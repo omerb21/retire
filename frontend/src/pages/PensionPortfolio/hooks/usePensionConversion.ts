@@ -31,13 +31,16 @@ export function usePensionConversion(
     if (!clientData?.birth_date) return null;
     
     try {
-      const response = await axios.post('/api/v1/retirement-age/calculate-simple', {
-        birth_date: clientData.birth_date,
-        gender: clientData.gender
+      const response: any = await apiFetch('/retirement-age/calculate-simple', {
+        method: 'POST',
+        body: JSON.stringify({
+          birth_date: clientData.birth_date,
+          gender: clientData.gender
+        })
       });
       
-      if (response.data && response.data.retirement_date) {
-        return response.data.retirement_date;
+      if (response && response.retirement_date) {
+        return response.retirement_date;
       }
       
       const birthDate = new Date(clientData.birth_date);
