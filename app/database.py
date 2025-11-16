@@ -14,8 +14,24 @@ Base = declarative_base()
 def get_engine(url=None):
     """Get SQLAlchemy engine with proper configuration"""
     url = url or DATABASE_URL
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-    return create_engine(url, connect_args=connect_args)
+    is_sqlite = url.startswith("sqlite")
+
+    # SQLite needs special connect args, but we don't use pooling settings there
+    connect_args = {"check_same_thread": False} if is_sqlite else {}
+
+    engine_kwargs = {}
+    if not is_sqlite:
+        # On managed Postgres (Render) connections can be killed after idle time.
+        # pool_pre_ping verifies connections before use, and pool_recycle forces
+        # periodic reconnection to avoid using dead connections.
+        engine_kwargs.update(
+            pool_pre_ping=True,
+            pool_recycle=600,  # recycle connections every 10 minutes
+            pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
+        )
+
+    return create_engine(url, connect_args=connect_args, **engine_kwargs)
 
 def setup_database(engine):
     """Setup database with proper mapper clearing"""

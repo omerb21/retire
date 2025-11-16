@@ -62,7 +62,6 @@ export const useTerminationActions = (
       alert('החלטות עזיבה נשמרו בהצלחה והנתונים הוקפאו');
       
       // Reload page to show delete button
-      window.location.reload();
       
       setLoading(false);
     } catch (err: any) {
@@ -112,7 +111,6 @@ export const useTerminationActions = (
       alert(`החלטות העזיבה נמחקו בהצלחה!\n- נמחקו ${response.data.deleted_count} אלמנטים\n- הוחזרו ${formatCurrency(severanceToRestore)} לתיק הפנסיוני`);
       
       // Reload page
-      window.location.reload();
       
       setLoading(false);
     } catch (err: any) {
