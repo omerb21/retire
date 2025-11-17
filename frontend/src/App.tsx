@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import { HashRouter, Routes, Route, NavLink } from "react-router-dom";
 import { getTaxBrackets } from "./components/reports/calculations/taxCalculations";
 import "./styles/modern-theme.css";
 
@@ -29,7 +29,7 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div>
         <header className="modern-header">
           <div className="header-container">
@@ -85,6 +85,6 @@ export default function App() {
           </React.Suspense>
         </main>
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
