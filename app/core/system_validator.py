@@ -18,6 +18,21 @@ class SystemValidator:
             'min_rows': 1000,
             'description': 'מקדמי קצבה לקרנות פנסיה',
             'csv_file': 'MEKEDMIM/pension_fund_coefficient.csv'
+        },
+        'policy_generation_coefficient': {
+            'min_rows': 100,
+            'description': 'מקדמי קצבה לדורות ביטוח מנהלים',
+            'csv_file': 'MEKEDMIM/policy_generation_coefficient.csv'
+        },
+        'product_to_generation_map': {
+            'min_rows': 5,
+            'description': 'מיפוי סוג מוצר לדור פוליסה',
+            'csv_file': 'MEKEDMIM/product_to_generation_map.csv'
+        },
+        'company_annuity_coefficient': {
+            'min_rows': 1,
+            'description': 'מקדמי קצבה ספציפיים לחברות ביטוח',
+            'csv_file': 'MEKEDMIM/company_annuity_coefficient.csv'
         }
         # הערה: שאר הטבלאות (tax_brackets, severance_caps, pension_ceilings) מוטמעות בקוד
         # ומוגדרות ב: app/services/tax/constants/
