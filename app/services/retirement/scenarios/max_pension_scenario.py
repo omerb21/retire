@@ -15,9 +15,13 @@ class MaxPensionScenario(BaseScenarioBuilder):
     def build_scenario(self) -> Dict:
         """בניית תרחיש מקסימום קצבה"""
         logger.info("📊 Building Scenario 1: Maximum Pension")
+        self._log_scenario_start("מקסימום קצבה")
         
         # 0. Import pension portfolio if provided
         self._import_pension_portfolio_if_needed()
+        
+        # 0.1 Apply 4% compound projection up to retirement date (if > ~6 months away)
+        self._apply_retirement_projection_if_needed()
         
         # 1. Convert all pension funds to pensions
         self.conversion_service.convert_all_pension_funds_to_pension()
@@ -32,10 +36,19 @@ class MaxPensionScenario(BaseScenarioBuilder):
         self.conversion_service.convert_exempt_capital_to_pension()
         
         # 4. Handle termination event
-        self.termination_service.handle_termination_for_pension()
+        if self.use_current_employer_termination:
+            # תרחיש 1: מקסימום קצבה – גם החלק הפטור וגם החלק החייב כקצבה
+            self.termination_service.run_current_employer_termination(
+                exempt_choice="annuity",
+                taxable_choice="annuity",
+            )
+        else:
+            self.termination_service.handle_termination_for_pension()
         
         # 5. Verify fixation and exempt pension
         self.conversion_service.verify_fixation_and_exempt_pension()
         
         # 6. Calculate NPV and return results
-        return self._calculate_scenario_results("מקסימום קצבה")
+        results = self._calculate_scenario_results("מקסימום קצבה")
+        self._log_scenario_complete("מקסימום קצבה")
+        return results

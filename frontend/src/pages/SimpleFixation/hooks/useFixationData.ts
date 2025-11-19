@@ -99,15 +99,34 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         }
 
         try {
-          const capitalAssets = await axios.get(`${API_BASE}/clients/${id}/capital-assets`);
+          const capitalAssets = await axios.get(`${API_BASE}/clients/${id}/capital-assets/`);
+          const pensionFunds = await axios.get(`${API_BASE}/clients/${id}/pension-funds`);
+          const fundsMap = new Map(pensionFunds.data.map((f: any) => [f.id, f]));
+
+          // שלב 1: בוחרים רק נכסים הוניים שהם היוונים פטורים (COMMUTATION + tax_treatment === 'exempt')
           const commutationAssets = (capitalAssets.data || []).filter((asset: any) =>
             asset.remarks && asset.remarks.includes('COMMUTATION:') && asset.tax_treatment === 'exempt'
           );
 
-          const pensionFunds = await axios.get(`${API_BASE}/clients/${id}/pension-funds`);
-          const fundsMap = new Map(pensionFunds.data.map((f: any) => [f.id, f]));
+          // שלב 2: מסננים החוצה היוונים שהמקור שלהם הוא קצבה עם יחס מס "פטור ממס"
+          const filteredAssets = commutationAssets.filter((asset: any) => {
+            const match = asset.remarks.match(/pension_fund_id=(\d+)/);
+            const pensionFundId = match ? parseInt(match[1]) : undefined;
+            if (!pensionFundId) {
+              return false;
+            }
 
-          const loadedCommutations: Commutation[] = commutationAssets.map((asset: any) => {
+            const fund: any = fundsMap.get(pensionFundId);
+            if (!fund) {
+              return false;
+            }
+
+            const fundTax = fund.tax_treatment || 'taxable';
+            // נכלול רק היוונים שהמקור שלהם הוא קצבה שלא מסומנת כ"פטורה ממס"
+            return fundTax !== 'exempt';
+          });
+
+          const loadedCommutations: Commutation[] = filteredAssets.map((asset: any) => {
             const match = asset.remarks.match(/pension_fund_id=(\d+)/);
             const pensionFundId = match ? parseInt(match[1]) : undefined;
             const fund: any = pensionFundId ? fundsMap.get(pensionFundId) : undefined;

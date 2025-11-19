@@ -343,18 +343,20 @@ export default function PensionFunds() {
         funds
       );
 
-      if (!shouldDeleteFund) {
-        const selectedFund = funds.find(f => f.id === commutationForm.pension_fund_id);
+      // עדכון מצב הקצבה גם כאשר ההיוון מלא – היתרה תעמוד על 0 אבל הקצבה תישאר ברשימה
+      const selectedFund = funds.find(f => f.id === commutationForm.pension_fund_id);
+      if (selectedFund) {
         const newCommutableBalance = fundBalance - (commutationForm.exempt_amount || 0);
-        const annuityFactor = selectedFund?.annuity_factor || 200;
-        const newMonthlyAmount = Math.round(newCommutableBalance / annuityFactor);
-        
+        const annuityFactor = selectedFund.annuity_factor || 200;
+        const safeNewBalance = Math.max(0, newCommutableBalance);
+        const newMonthlyAmount = safeNewBalance > 0 ? Math.round(safeNewBalance / annuityFactor) : 0;
+
         setFunds(funds.map(f => 
           f.id === commutationForm.pension_fund_id 
             ? { 
                 ...f, 
-                balance: newCommutableBalance,
-                commutable_balance: newCommutableBalance,
+                balance: safeNewBalance,
+                commutable_balance: safeNewBalance,
                 pension_amount: newMonthlyAmount,
                 monthly: newMonthlyAmount 
               }
@@ -380,7 +382,13 @@ export default function PensionFunds() {
         commutation_type: "taxable",
       });
 
-      alert(`היוון נוצר בהצלחה!\n${shouldDeleteFund ? 'הקצבה נמחקה כולה' : `נותרה יתרה של ${formatCurrency(fundBalance - (commutationForm.exempt_amount || 0))}`}`);
+      const remaining = fundBalance - (commutationForm.exempt_amount || 0);
+      alert(
+        `היוון נוצר בהצלחה!\n` +
+        (shouldDeleteFund
+          ? 'הקצבה הומרה במלואה – יתרת הקצבה כעת 0. ניתן למחוק את ההיוון כדי להחזיר את הקצבה.'
+          : `נותרה יתרה של ${formatCurrency(remaining)}`)
+      );
     } catch (e: any) {
       setError(`שגיאה ביצירת היוון: ${e?.message || e}`);
     }

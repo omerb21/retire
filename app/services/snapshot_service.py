@@ -12,6 +12,7 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
+from app.models.grant import Grant
 from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
@@ -82,9 +83,10 @@ class SnapshotService:
                 "additional_incomes": self._collect_additional_incomes(client_id),
                 "current_employer": self._collect_current_employer(client_id),
                 "grants": self._collect_grants(client_id),
+                "legacy_grants": self._collect_legacy_grants(client_id),
                 "termination_event": self._collect_termination_event(client_id),
-                "fixation_result": self._collect_fixation_result(client_id)
-            }
+                "fixation_result": self._collect_fixation_result(client_id),
+            },
         }
         
         # ספירת פריטים
@@ -94,16 +96,18 @@ class SnapshotService:
             len(snapshot_data["data"]["additional_incomes"]) +
             (1 if snapshot_data["data"]["current_employer"] else 0) +
             len(snapshot_data["data"]["grants"]) +
+            len(snapshot_data["data"].get("legacy_grants", [])) +
             (1 if snapshot_data["data"]["termination_event"] else 0) +
             (1 if snapshot_data["data"]["fixation_result"] else 0)
         )
-        
+
         logger.info(f"  ✅ Snapshot created: {total_items} items")
         logger.info(f"     - Pension Funds: {len(snapshot_data['data']['pension_funds'])}")
         logger.info(f"     - Capital Assets: {len(snapshot_data['data']['capital_assets'])}")
         logger.info(f"     - Additional Incomes: {len(snapshot_data['data']['additional_incomes'])}")
-        logger.info(f"     - Grants: {len(snapshot_data['data']['grants'])}")
-        
+        logger.info(f"     - Grants (current employer): {len(snapshot_data['data']['grants'])}")
+        logger.info(f"     - Legacy Grants (rights fixation): {len(snapshot_data['data']['legacy_grants'])}")
+
         # שמירה ב-localStorage (client-side) או בקובץ (server-side)
         # כרגע נחזיר את הנתונים, הם יישמרו ב-localStorage בצד הלקוח
         
@@ -159,7 +163,12 @@ class SnapshotService:
             deleted_count += self.db.query(FixationResult).filter(
                 FixationResult.client_id == client_id
             ).delete(synchronize_session=False)
-            
+
+            # מחיקת מענקים מטבלת grant (מערכת קיבוע זכויות הישנה)
+            deleted_count += self.db.query(Grant).filter(
+                Grant.client_id == client_id
+            ).delete(synchronize_session=False)
+
             deleted_count += self.db.query(TerminationEvent).filter(
                 TerminationEvent.client_id == client_id
             ).delete(synchronize_session=False)
@@ -215,7 +224,21 @@ class SnapshotService:
                 ai = AdditionalIncome(**ai_data)
                 self.db.add(ai)
                 restored_count += 1
-            
+
+            # שחזור מענקים מטבלת grant (legacy rights fixation)
+            for grant_data in data.get("legacy_grants", []):
+                grant_data = dict(grant_data)
+                grant_data["client_id"] = client_id
+                grant_data["work_start_date"] = _parse_date(grant_data.get("work_start_date"))
+                grant_data["work_end_date"] = _parse_date(grant_data.get("work_end_date"))
+                grant_data["grant_date"] = _parse_date(grant_data.get("grant_date"))
+                grant_data.pop("id", None)
+                grant_data.pop("created_at", None)
+                grant_data.pop("updated_at", None)
+                grant = Grant(**grant_data)
+                self.db.add(grant)
+                restored_count += 1
+
             # שחזור מעסיק נוכחי
             employer_data = data.get("current_employer")
             if employer_data:
@@ -341,6 +364,14 @@ class SnapshotService:
             grants.extend([self._serialize_grant(g) for g in employer_grants])
         
         return grants
+    
+    def _collect_legacy_grants(self, client_id: int) -> list:
+        """איסוף מענקים מטבלת grant (מערכת קיבוע זכויות הישנה)"""
+        items = self.db.query(Grant).filter(
+            Grant.client_id == client_id
+        ).all()
+
+        return [g.to_dict() for g in items]
     
     def _collect_termination_event(self, client_id: int) -> Optional[Dict]:
         """איסוף עזיבת עבודה"""

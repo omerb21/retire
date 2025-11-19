@@ -59,7 +59,7 @@ export function useReportData(clientId: string | undefined) {
         const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse, fixationResponse] = await Promise.all([
           axios.get(`${API_BASE}/clients/${clientId}/pension-funds`),
           axios.get(`${API_BASE}/clients/${clientId}/additional-incomes`),
-          axios.get(`${API_BASE}/clients/${clientId}/capital-assets`),
+          axios.get(`${API_BASE}/clients/${clientId}/capital-assets/`),
           axios.get(`${API_BASE}/rights-fixation/client/${clientId}`).catch(() => ({ data: null }))
         ]);
         
@@ -69,6 +69,12 @@ export function useReportData(clientId: string | undefined) {
         
         // Extract raw_result from the fixation response
         let fixationDataResponse = fixationResponse?.data?.raw_result || null;
+
+        // אם הלקוח אינו זכאי כיום לקיבוע זכויות – נתוני הקיבוע השמורים לא ישמשו לדוח
+        const fixationEligible = fixationResponse?.data?.eligible;
+        if (fixationEligible === false) {
+          fixationDataResponse = null;
+        }
         
         // עדכון remaining_exempt_capital עם הערך הסופי ששמרנו ב-DB
         // הערכים הסופיים (אחרי כל הקיזוזים) נשמרים ב-raw_result.exemption_summary

@@ -3,6 +3,7 @@ Retirement scenarios router - handles retirement-specific endpoints
 """
 import json
 import logging
+from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
@@ -13,7 +14,17 @@ from app.models.scenario import Scenario
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
+from app.models.fixation_result import FixationResult
+from app.services.employment_service import EmploymentService as LegacyEmploymentService
+from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
 from app.services.retirement import RetirementScenariosBuilder
+from app.routers.rights_fixation import (
+    calculate_and_save_fixation_for_client,
+    update_fixation_exempt_pension_fields,
+)
+from app.services.retirement.services.commutation_exemption_service import (
+    CommutationExemptionService,
+)
 from ..schemas import RetirementScenariosRequest
 
 logger = logging.getLogger(__name__)
@@ -229,6 +240,12 @@ def execute_retirement_scenario(
         # ===== שלב 1: שחזור מצב מקורי - מחיקת כל התוצאות מתרחישים קודמים =====
         cleanup_count = 0
         
+        # 0. מחיקת תוצאות קיבוע זכויות קודמות עבור הלקוח
+        deleted_fixations = db.query(FixationResult).filter(
+            FixationResult.client_id == client_id
+        ).delete(synchronize_session=False)
+        cleanup_count += deleted_fixations
+        
         # 1. מחיקת קצבאות שנוצרו מהמרות (יש להן pension_amount אבל נוצרו מתרחיש)
         # זיהוי: אם conversion_source מכיל "source": "termination_event" או יש להן pension_amount שהוגדר על ידי תרחיש
         scenario_pensions = db.query(PensionFund).filter(
@@ -252,6 +269,29 @@ def execute_retirement_scenario(
         for pf in portfolio_pensions:
             if pf.pension_amount:
                 logger.info(f"  🔄 Resetting pension_amount for: {pf.fund_name} (keeping balance)")
+                # אם ה-balance אופס במהלך התרחיש, נשחזר אותו מה-conversion_source (original_balance/amount)
+                try:
+                    if pf.balance is None and pf.conversion_source:
+                        source_data = json.loads(pf.conversion_source)
+                        if isinstance(source_data, dict):
+                            original_balance = (
+                                source_data.get("original_balance")
+                                or source_data.get("amount")
+                            )
+                            if original_balance is not None:
+                                pf.balance = float(original_balance)
+                                logger.info(
+                                    "    🔁 Restored original balance for %s from conversion_source: %.2f",
+                                    pf.fund_name,
+                                    pf.balance,
+                                )
+                except Exception as e:
+                    logger.warning(
+                        "  ⚠️ Failed to restore original balance for %s: %s",
+                        pf.fund_name,
+                        e,
+                    )
+
                 pf.pension_amount = None
                 pf.pension_start_date = None
                 cleanup_count += 1
@@ -296,7 +336,15 @@ def execute_retirement_scenario(
             logger.info(f"  📦 Found {len(pension_portfolio_data)} pension accounts in saved scenario")
         
         # בניית התרחיש בפועל (ללא שחזור מצב)
-        builder = RetirementScenariosBuilder(db, client_id, retirement_age, pension_portfolio_data)
+        # כאן אנו מפעילים את דגל use_current_employer_termination כדי שבתהליך הביצוע בפועל
+        # עזיבת המעסיק תטופל דרך שירות המעסיק הנוכחי (process_termination) ולא רק בלוגיקה המקוצרת.
+        builder = RetirementScenariosBuilder(
+            db,
+            client_id,
+            retirement_age,
+            pension_portfolio_data,
+            use_current_employer_termination=True,
+        )
         
         # בחירת הפונקציה המתאימה
         if scenario_type == "scenario_1_max_pension":
@@ -307,8 +355,103 @@ def execute_retirement_scenario(
             result = builder._build_max_npv_scenario()
         else:
             raise ValueError(f"סוג תרחיש לא ידוע: {scenario_type}")
-        
-        # שמירת השינויים בפועל
+
+        try:
+            if db_client and db_client.birth_date and retirement_age:
+                retirement_year_for_termination = db_client.birth_date.year + int(retirement_age)
+                actual_termination_date = date(retirement_year_for_termination, 1, 1)
+
+                # 1) אישור עזיבה בזרימה ה"ישנה" (Employment / TerminationEvent)
+                try:
+                    termination_event = LegacyEmploymentService.confirm_termination(
+                        db=db,
+                        client_id=client_id,
+                        actual_date=actual_termination_date,
+                    )
+                    logger.info(
+                        "  ✅ Employment termination confirmed during scenario execution (termination_event_id=%s, date=%s)",
+                        getattr(termination_event, "id", None),
+                        actual_termination_date.isoformat(),
+                    )
+                except ValueError as e:
+                    logger.info(
+                        "  ℹ️ Skipping legacy Employment termination confirmation (business rule): %s",
+                        str(e),
+                    )
+                except Exception as e:
+                    logger.error(
+                        "  ⚠️ Failed to confirm legacy Employment termination during scenario execution: %s",
+                        str(e),
+                    )
+
+                # 2) עדכון מעסיק נוכחי (CurrentEmployer) עם תאריך סיום העסקה
+                try:
+                    ce_service = CurrentEmployerEmploymentService(db)
+                    current_employer = ce_service.get_employer(client_id)
+                    ce_service.update_employer_end_date(current_employer, actual_termination_date)
+                    logger.info(
+                        "  ✅ CurrentEmployer end_date updated during scenario execution (employer_id=%s, date=%s)",
+                        getattr(current_employer, "id", None),
+                        actual_termination_date.isoformat(),
+                    )
+                except ValueError as e:
+                    logger.info(
+                        "  ℹ️ Skipping CurrentEmployer termination update: %s",
+                        str(e),
+                    )
+                except Exception as e:
+                    logger.error(
+                        "  ⚠️ Failed to update CurrentEmployer termination during scenario execution: %s",
+                        str(e),
+                    )
+            else:
+                logger.info(
+                    "  ℹ️ Skipping employment termination confirmation: missing birth_date or retirement_age"
+                )
+        except Exception as e:
+            logger.error(
+                "  ⚠️ Unexpected error during employment termination handling in scenario execution: %s",
+                str(e),
+            )
+
+        # שלב 2.5: חישוב ושמירת קיבוע זכויות אוטומטי לאחר יישום התרחיש
+        fixation_record = None
+        try:
+            fixation_record = calculate_and_save_fixation_for_client(db, client_id)
+            if fixation_record:
+                logger.info(
+                    "  ✅ Auto rights fixation saved during scenario execution (fixation_id=%s)",
+                    fixation_record.id,
+                )
+            else:
+                logger.info("  ℹ️ Auto rights fixation skipped (client not eligible or no grants)")
+        except Exception as fixation_error:
+            logger.error(f"  ⚠️ Failed to auto-calculate rights fixation: {fixation_error}")
+
+        # שלב 2.6: בתרחיש מקסימום הון – ניצול הון פטור על היוונים מהתרחיש
+        if scenario_type == "scenario_2_max_capital" and fixation_record is not None:
+            try:
+                commutation_service = CommutationExemptionService(db, client_id)
+                commutation_service.apply_exempt_capital_to_scenario_commutations(
+                    fixation_record
+                )
+            except Exception as e:
+                logger.error(
+                    "  ⚠️ Failed to apply exempt capital to scenario commutations: %s",
+                    e,
+                )
+
+        # שלב 2.7: עדכון שדות קצבה פטורה בקיבוע הזכויות עבור כל סוגי התרחישים
+        if fixation_record is not None:
+            try:
+                update_fixation_exempt_pension_fields(fixation_record)
+            except Exception as e:
+                logger.error(
+                    "  ⚠️ Failed to update exempt pension fields on fixation result: %s",
+                    e,
+                )
+
+        # שמירת השינויים בפועל (כולל קיבוע זכויות, התאמת מס על היוונים וקצבה פטורה אם בוצעו)
         db.commit()
         
         actions_count = len(result.get('execution_plan', []))

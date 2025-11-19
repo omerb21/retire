@@ -21,12 +21,23 @@ class MaxCapitalScenario(BaseScenarioBuilder):
     def build_scenario(self) -> Dict:
         """בניית תרחיש מקסימום הון"""
         logger.info("📊 Building Scenario 2: Maximum Capital (with minimum pension)")
+        self._log_scenario_start("מקסימום הון (קצבת מינימום: 5,500)")
         
         # Step 0: Import pension portfolio if provided
         self._import_pension_portfolio_if_needed()
         
+        # Step 0.1: Apply 4% compound projection up to retirement date (if > ~6 months away)
+        self._apply_retirement_projection_if_needed()
+        
         # Step 0.5: Handle termination event - convert to capital
-        self.termination_service.handle_termination_for_capital()
+        if self.use_current_employer_termination:
+            # תרחיש 2: מקסימום הון – פדיון החלק הפטור והחייב כמענק/הון (עם פריסת מס לחלק החייב)
+            self.termination_service.run_current_employer_termination(
+                exempt_choice="redeem_with_exemption",
+                taxable_choice="redeem_no_exemption",
+            )
+        else:
+            self.termination_service.handle_termination_for_capital()
         
         # Step 1: Convert all pension funds to pensions first (excluding education funds)
         self._convert_pension_funds_to_pension_first()
@@ -71,7 +82,9 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         self.conversion_service.verify_fixation_and_exempt_pension()
         
         # Step 7: Calculate and return
-        return self._calculate_scenario_results("מקסימום הון (קצבת מינימום: 5,500)")
+        results = self._calculate_scenario_results("מקסימום הון (קצבת מינימום: 5,500)")
+        self._log_scenario_complete("מקסימום הון (קצבת מינימום: 5,500)")
+        return results
     
     def _convert_pension_funds_to_pension_first(self):
         """המרת קרנות פנסיה לקצבה בשלב ראשון"""
@@ -133,6 +146,7 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         
         if ca:
             self.db.add(ca)
+            # היוון מלא – הקצבה נמחקת, אך היתרה נשמרת ברמת ה-Portfolio והדוחות
             self.db.delete(pf)
     
     def _capitalize_partial_pension(self, pf, capitalize_amount):
@@ -143,9 +157,14 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         
         capital_value = capitalize_amount * pf.annuity_factor
         
-        # Create capital asset for capitalized part
+        # Create capital asset for capitalized part – מסומן כהיוון (COMMUTATION)
         from decimal import Decimal
         import json
+
+        remarks = None
+        if getattr(pf, "id", None) is not None:
+            remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={capital_value}"
+
         ca = CapitalAsset(
             client_id=self.client_id,
             asset_name=f"הון מהיוון חלקי {pf.fund_name}",
@@ -157,6 +176,7 @@ class MaxCapitalScenario(BaseScenarioBuilder):
             start_date=date(self._get_retirement_year(), 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
+            remarks=remarks,
             conversion_source=json.dumps({
                 "source": "scenario_conversion",
                 "scenario_type": "retirement",
@@ -166,6 +186,9 @@ class MaxCapitalScenario(BaseScenarioBuilder):
             })
         )
         self.db.add(ca)
+        
+        if pf.balance is not None:
+            pf.balance = max(0.0, (pf.balance or 0) - float(capital_value))
         
         # Update pension to keep minimum
         pf.pension_amount = keep_amount

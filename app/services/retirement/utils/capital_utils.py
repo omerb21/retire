@@ -44,6 +44,12 @@ def create_capital_asset_from_pension(
     tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
     
     asset_name = f"הון מהיוון {'חלקי ' if partial else ''}{pf.fund_name}"
+
+    # סימון הנכס ההוני כהיוון (COMMUTATION) כדי שיופיע במסך הקצבאות והיוונים
+    pension_fund_id = getattr(pf, "id", None)
+    remarks = None
+    if pension_fund_id is not None:
+        remarks = f"COMMUTATION:pension_fund_id={pension_fund_id}&amount={capital_value}"
     
     ca = CapitalAsset(
         client_id=client_id,
@@ -56,6 +62,7 @@ def create_capital_asset_from_pension(
         start_date=date(retirement_year, 1, 1),
         indexation_method="none",
         tax_treatment=tax_treatment,
+        remarks=remarks,
         conversion_source=json.dumps({
             "source": "scenario_conversion",
             "scenario_type": "retirement",

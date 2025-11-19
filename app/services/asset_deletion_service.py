@@ -43,20 +43,27 @@ def restore_balance_from_pension_fund(
                 }
             
             # Check if this was from pension portfolio conversion
-            if source_data.get("type") == "pension_portfolio":
+            source_type = source_data.get("type") or source_data.get("source")
+            if source_type == "pension_portfolio":
                 account_number = source_data.get("account_number") or pension_fund.deduction_file
                 logger.info(f"  📋 Pension fund from portfolio (account: {account_number})")
                 logger.info(f"  ⚠️ Balance restoration to pension portfolio must be handled by client-side")
 
                 # החזרת מידע מפורט על הרכיבים שהומרו (אם קיים), כדי שהלקוח יחזיר לטורי המשנה הנכונים
                 specific_amounts = source_data.get("specific_amounts", {})
+
+                # סכום לשחזור: קודם ננסה balance חי, ואם הוא איפוס בתרחיש – נשתמש ב-amount/original_balance
+                balance_raw = pension_fund.balance
+                if balance_raw is None:
+                    balance_raw = source_data.get("amount") or source_data.get("original_balance")
+                balance_to_restore = float(balance_raw or 0)
                 
                 return {
                     "restored": False,
                     "reason": "pension_portfolio",
                     "account_number": account_number,
-                    "balance_to_restore": float(pension_fund.balance or 0),
-                    "message": f"יש להחזיר ₪{float(pension_fund.balance or 0):,.0f} לחשבון {account_number} בתיק הפנסיוני",
+                    "balance_to_restore": balance_to_restore,
+                    "message": f"יש להחזיר ₪{balance_to_restore:,.0f} לחשבון {account_number} בתיק הפנסיוני",
                     "specific_amounts": specific_amounts,
                 }
         except Exception as e:

@@ -44,17 +44,14 @@ def compute_pension_start_date_from_funds(db: Session, client) -> Optional[date]
 
 
 def get_effective_pension_start_date(db: Session, client) -> Optional[date]:
-    """Return the effective pension start date for a client.
+    """Return the effective pension start date for a client based on real pensions.
 
-    If the client already has a pension_start_date stored, it is returned. Otherwise
-    the date is derived from the client's pension funds.
+    The date is always derived from the client's PensionFund records. If there are
+    no pension funds with a non-null pension_start_date, the function returns None
+    even if a client-level pension_start_date field was set manually.
     """
     if not client:
         return None
-
-    pension_start_date = getattr(client, "pension_start_date", None)
-    if pension_start_date:
-        return pension_start_date
 
     return compute_pension_start_date_from_funds(db, client)
 
@@ -93,9 +90,6 @@ def convert_balance_to_pension(
             to_asset=f"קצבה: {pf.pension_amount:,.0f} ₪/חודש ({tax_status})",
             amount=float(original_balance or 0)
         )
-    
-    # ✅ איפוס balance אחרי המרה לקצבה!
-    pf.balance = None
 
 
 def convert_capital_to_pension(
@@ -177,13 +171,16 @@ def convert_education_fund_to_pension(
         logger.warning(f"  Education fund {ef.fund_name} has no balance, skipping")
         return
     
+    # שימוש במקדם דינמי אם קיים, אחרת נפילה לברירת המחדל
+    annuity_factor = float(ef.annuity_factor) if getattr(ef, "annuity_factor", None) else PENSION_COEFFICIENT
+    
     # המרה לקצבה פטורה
-    pension_amount = float(original_balance) / PENSION_COEFFICIENT
+    pension_amount = float(original_balance) / float(annuity_factor)
     
     # עדכון הקרן הקיימת במקום יצירת חדשה
     ef.pension_amount = pension_amount
     ef.pension_start_date = date(retirement_year, 1, 1)
-    ef.annuity_factor = PENSION_COEFFICIENT
+    ef.annuity_factor = annuity_factor
     ef.fund_type = "education_fund_pension"
     
     logger.info(f"  Converted education fund '{ef.fund_name}': {original_balance} → Exempt PENSION {pension_amount} ₪/month")

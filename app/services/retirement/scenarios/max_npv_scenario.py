@@ -22,12 +22,23 @@ class MaxNPVScenario(BaseScenarioBuilder):
     def build_scenario(self) -> Dict:
         """בניית תרחיש מאוזן"""
         logger.info("📊 Building Scenario 3: Balanced (50/50 Split)")
+        self._log_scenario_start("מאוזן (50% קצבה, 50% הון)")
         
         # Step 0: Import pension portfolio if provided
         self._import_pension_portfolio_if_needed()
         
+        # Step 0.1: Apply 4% compound projection up to retirement date (if > ~6 months away)
+        self._apply_retirement_projection_if_needed()
+        
         # Step 0.5: Handle termination event - convert to capital first
-        self.termination_service.handle_termination_for_capital()
+        if self.use_current_employer_termination:
+            # תרחיש 3: מאוזן – חלק פטור כהון, חלק חייב כקצבה
+            self.termination_service.run_current_employer_termination(
+                exempt_choice="redeem_with_exemption",
+                taxable_choice="annuity",
+            )
+        else:
+            self.termination_service.handle_termination_for_capital()
         
         # Step 1: Convert education funds to capital (keep as exempt capital)
         self.conversion_service.convert_education_funds_to_capital()
@@ -49,7 +60,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
         self.conversion_service.verify_fixation_and_exempt_pension()
         
         # Step 6: Calculate and return
-        return self._calculate_scenario_results("מאוזן (50% קצבה, 50% הון)")
+        results = self._calculate_scenario_results("מאוזן (50% קצבה, 50% הון)")
+        self._log_scenario_complete("מאוזן (50% קצבה, 50% הון)")
+        return results
     
     def _convert_pension_funds_to_pension(self):
         """המרת קרנות פנסיה לקצבה"""
@@ -140,6 +153,10 @@ class MaxNPVScenario(BaseScenarioBuilder):
         tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
         
+        remarks = None
+        if getattr(pf, "id", None) is not None:
+            remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={pf_value}"
+
         ca = CapitalAsset(
             client_id=self.client_id,
             asset_name=f"הון מהיוון {pf.fund_name}",
@@ -151,6 +168,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
             start_date=date(self._get_retirement_year(), 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
+            remarks=remarks,
             conversion_source=json.dumps({
                 "source": "scenario_conversion",
                 "scenario_type": "retirement",
@@ -176,6 +194,10 @@ class MaxNPVScenario(BaseScenarioBuilder):
         tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
         
+        remarks = None
+        if getattr(pf, "id", None) is not None:
+            remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={need_to_capitalize}"
+
         ca = CapitalAsset(
             client_id=self.client_id,
             asset_name=f"הון מהיוון חלקי {pf.fund_name}",
@@ -187,6 +209,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
             start_date=date(self._get_retirement_year(), 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
+            remarks=remarks,
             conversion_source=json.dumps({
                 "source": "scenario_conversion",
                 "scenario_type": "retirement",
@@ -195,6 +218,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
             })
         )
         self.db.add(ca)
+        
+        if pf.balance is not None:
+            pf.balance = max(0.0, remaining_pension_value)
         
         original_pension_amount = pf.pension_amount
         pf.pension_amount = new_pension_amount

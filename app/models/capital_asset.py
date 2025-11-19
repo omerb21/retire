@@ -23,6 +23,7 @@ class AssetType(str, Enum):
     DEPOSITS = "deposits"
     PROVIDENT_FUND = "provident_fund"  # קופת גמל
     EDUCATION_FUND = "education_fund"  # קרן השתלמות
+    SEVERANCE = "severance"            # פיצויי פרישה / עזיבת עבודה
     OTHER = "other"
 
 

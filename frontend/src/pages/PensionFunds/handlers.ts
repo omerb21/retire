@@ -5,7 +5,6 @@ import {
   loadPensionFunds,
   savePensionFund,
   computePensionFund,
-  deletePensionFund,
   deleteCommutation,
   createCapitalAsset,
   updatePensionFund,
@@ -199,27 +198,29 @@ export async function handleCommutationSubmitLogic(
   console.log('🟢 Creating capital asset with data:', capitalAssetData);
   const createdAsset = await createCapitalAsset(clientId, capitalAssetData);
   console.log('🟢 Capital asset created:', createdAsset);
+  // חישוב יתרה חדשה לאחר ההיוון – גם אם ההיוון מלא, לא מוחקים את הקצבה אלא
+  // משאירים אותה עם יתרה 0 כדי לאפשר מחיקת ההיוון והחזרת הקצבה.
+  const newCommutableBalance = fundBalance - commutationForm.exempt_amount;
+  const isFullCommutation = newCommutableBalance <= 0;
 
-  const shouldDeleteFund = commutationForm.exempt_amount >= fundBalance;
-  
-  if (shouldDeleteFund) {
-    await deletePensionFund(clientId, selectedFund.id!);
-  } else {
-    const newCommutableBalance = fundBalance - commutationForm.exempt_amount;
-    const annuityFactor = selectedFund.annuity_factor || 200;
-    const newMonthlyAmount = Math.round(newCommutableBalance / annuityFactor);
-    
-    await updatePensionFund(selectedFund.id!, {
-      fund_name: selectedFund.fund_name,
-      fund_type: selectedFund.fund_type,
-      input_mode: selectedFund.input_mode,
-      balance: newCommutableBalance,
-      pension_amount: newMonthlyAmount,
-      annuity_factor: annuityFactor,
-      pension_start_date: selectedFund.pension_start_date,
-      indexation_method: selectedFund.indexation_method || "none"
-    });
-  }
+  const annuityFactor = selectedFund.annuity_factor || 200;
+  const safeNewBalance = Math.max(0, newCommutableBalance);
+  const newMonthlyAmount = safeNewBalance > 0 ? Math.round(safeNewBalance / annuityFactor) : 0;
+
+  await updatePensionFund(selectedFund.id!, {
+    fund_name: selectedFund.fund_name,
+    fund_type: selectedFund.fund_type,
+    input_mode: selectedFund.input_mode,
+    balance: safeNewBalance,
+    pension_amount: newMonthlyAmount,
+    annuity_factor: annuityFactor,
+    pension_start_date: selectedFund.pension_start_date,
+    indexation_method: selectedFund.indexation_method || "none"
+  });
+
+  // נשמר את השדה shouldDeleteFund רק לצורך הודעת UI (מציין שהיתרה הגיעה ל-0),
+  // אך הקצבה עצמה לא נמחקת בפועל.
+  const shouldDeleteFund = isFullCommutation;
 
   return { shouldDeleteFund, fundBalance, createdAsset };
 }

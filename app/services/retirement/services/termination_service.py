@@ -14,6 +14,9 @@ from app.models.capital_asset import CapitalAsset
 from app.models.termination_event import TerminationEvent
 from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
 from app.services.current_employer_service import CurrentEmployerService
+from app.services.current_employer import TerminationService as CurrentEmployerTerminationService
+from app.schemas.current_employer import TerminationDecisionCreate
+from app.services.tax_data import TaxDataService
 from app.services.annuity_coefficient import get_annuity_coefficient
 from ..constants import PENSION_COEFFICIENT
 
@@ -28,12 +31,14 @@ class TerminationService:
         db: Session,
         client_id: int,
         retirement_age: int,
-        add_action_callback: Optional[Callable] = None
+        add_action_callback: Optional[Callable] = None,
+        use_current_employer_termination: bool = False,
     ):
         self.db = db
         self.client_id = client_id
         self.retirement_age = retirement_age
         self.add_action = add_action_callback
+        self.use_current_employer_termination = use_current_employer_termination
     
     def _get_retirement_year(self, client: Client) -> int:
         """מחשב שנת פרישה"""
@@ -41,119 +46,328 @@ class TerminationService:
             raise ValueError("תאריך לידה חסר")
         return client.birth_date.year + self.retirement_age
     
+    def _calculate_max_spread_years(self, service_years: float) -> int:
+        """חישוב שנות פריסת מס מקסימליות לפי שנות ותק (כמו בפרונט)"""
+        if service_years >= 22:
+            return 6
+        if service_years >= 18:
+            return 5
+        if service_years >= 14:
+            return 4
+        if service_years >= 10:
+            return 3
+        if service_years >= 6:
+            return 2
+        if service_years >= 2:
+            return 1
+        return 0
+    
+    def _calculate_severance_breakdown(
+        self,
+        employer: CurrentEmployer,
+        termination_date: date,
+    ) -> Optional[dict]:
+        """חישוב פיצויים, חלק פטור/חייב ושנות פריסה לתרחיש, לפי הלוגיקה של מסך מעסיק נוכחי.
+
+        הלוגיקה מתיישרת עם הפרונט:
+        - שנות ותק: CurrentEmployerService.calculate_service_years
+        - סכום פיצויים: מקסימום בין expectedGrant (שכר אחרון * שנות ותק) לבין severance_accrued
+        - תקרת פטור: תקרת פטור חודשית * שנות ותק (TaxDataService.get_current_severance_cap)
+        - חלוקה לפטור/חייב + שנות פריסה מקסימליות
+        """
+        if not employer.start_date or not employer.last_salary:
+            logger.info(
+                "  ℹ️ Missing start_date or last_salary on CurrentEmployer, "
+                "skipping severance calculation for scenario termination",
+            )
+            return None
+
+        service_years = CurrentEmployerService.calculate_service_years(
+            start_date=employer.start_date,
+            end_date=termination_date,
+            non_continuous_periods=employer.non_continuous_periods or [],
+            continuity_years=getattr(employer, "continuity_years", 0.0),
+        )
+
+        max_spread_years = self._calculate_max_spread_years(service_years)
+
+        severance_accrued = float(employer.severance_accrued or 0.0)
+        expected_grant = float(employer.last_salary or 0.0) * float(service_years)
+
+        # בתרחישי פרישה החלטנו שתמיד יש השלמת מעסיק (use_employer_completion=True)
+        severance_amount = max(expected_grant, severance_accrued)
+
+        termination_year = termination_date.year
+        try:
+            monthly_cap = float(TaxDataService.get_current_severance_cap(termination_year))
+        except Exception as e:
+            logger.warning(
+                "  ⚠️ Failed to get severance cap for year %s: %s, using fallback 13,750",
+                termination_year,
+                e,
+            )
+            monthly_cap = 13750.0
+
+        exempt_cap_total = monthly_cap * float(service_years)
+        exempt_amount = min(severance_amount, exempt_cap_total)
+        taxable_amount = max(0.0, severance_amount - exempt_amount)
+
+        logger.info(
+            "  📊 Severance breakdown for scenario termination: "
+            "service_years=%.2f, severance_amount=%.0f, exempt_amount=%.0f, "
+            "taxable_amount=%.0f, max_spread_years=%d",
+            service_years,
+            severance_amount,
+            exempt_amount,
+            taxable_amount,
+            max_spread_years,
+        )
+
+        return {
+            "service_years": service_years,
+            "severance_amount": severance_amount,
+            "exempt_amount": exempt_amount,
+            "taxable_amount": taxable_amount,
+            "max_spread_years": max_spread_years,
+        }
+
+    def _build_termination_decision(
+        self,
+        employer: CurrentEmployer,
+        termination_date: date,
+        exempt_choice: str,
+        taxable_choice: str,
+        use_employer_completion: bool = True,
+        source_accounts: Optional[str] = None,
+        plan_details: Optional[str] = None,
+    ) -> Optional[TerminationDecisionCreate]:
+        """בניית TerminationDecisionCreate לתרחיש פרישה אחד.
+
+        ההחלטה מבוססת על חישוב פיצויים (_calculate_severance_breakdown) ועל בחירות התרחיש
+        (exempt_choice / taxable_choice). הטיפול בפועל יתבצע ע"י CurrentEmployerTerminationService.
+        """
+        breakdown = self._calculate_severance_breakdown(employer, termination_date)
+        if not breakdown:
+            return None
+
+        severance_amount = float(breakdown["severance_amount"])
+        exempt_amount = float(breakdown["exempt_amount"])
+        taxable_amount = float(breakdown["taxable_amount"])
+        max_spread_years = int(breakdown["max_spread_years"])
+
+        decision = TerminationDecisionCreate(
+            termination_date=termination_date,
+            use_employer_completion=use_employer_completion,
+            severance_amount=severance_amount,
+            exempt_amount=exempt_amount,
+            taxable_amount=taxable_amount,
+            exempt_choice=exempt_choice,
+            taxable_choice=taxable_choice,
+            tax_spread_years=max_spread_years,
+            max_spread_years=max_spread_years,
+            confirmed=True,
+            source_accounts=source_accounts,
+            plan_details=plan_details,
+        )
+
+        logger.info(
+            "  🧾 Built TerminationDecisionCreate for scenario: "
+            "severance_amount=%.0f, exempt_amount=%.0f, taxable_amount=%.0f, "
+            "exempt_choice=%s, taxable_choice=%s, spread_years=%d",
+            severance_amount,
+            exempt_amount,
+            taxable_amount,
+            exempt_choice,
+            taxable_choice,
+            max_spread_years,
+        )
+
+        return decision
+
+    def run_current_employer_termination(
+        self,
+        exempt_choice: str,
+        taxable_choice: str,
+    ) -> None:
+        """הרצת תהליך עזיבה מלא דרך שירות המעסיק הנוכחי עבור תרחיש פרישה.
+
+        הפונקציה בונה החלטת עזיבה (TerminationDecisionCreate) על בסיס נתוני CurrentEmployer
+        וחלוקת פטור/חייב, ומעבירה אותה לשירות המלא של current_employer.
+        """
+        # שליפת לקוח ומעסיק נוכחי
+        client = self.db.query(Client).filter(Client.id == self.client_id).first()
+        if not client:
+            logger.info("  ℹ️ Client not found for termination scenario, skipping")
+            return
+
+        current_employer = (
+            self.db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == self.client_id)
+            .order_by(CurrentEmployer.id.desc())
+            .first()
+        )
+
+        if not current_employer:
+            logger.info("  ℹ️ No current employer found for scenario termination, skipping")
+            return
+
+        # קביעת תאריך עזיבה לפי שנת הפרישה של התרחיש (1 בינואר של שנת הפרישה)
+        try:
+            retirement_year = self._get_retirement_year(client)
+            termination_date = date(retirement_year, 1, 1)
+        except Exception as e:
+            logger.warning(
+                "  ⚠️ Failed to compute termination date for scenario termination: %s",
+                e,
+            )
+            return
+
+        decision = self._build_termination_decision(
+            employer=current_employer,
+            termination_date=termination_date,
+            exempt_choice=exempt_choice,
+            taxable_choice=taxable_choice,
+            use_employer_completion=True,
+            source_accounts=None,
+            plan_details=None,
+        )
+
+        if not decision:
+            logger.info("  ℹ️ Scenario termination decision could not be built, skipping")
+            return
+
+        termination_service = CurrentEmployerTerminationService(self.db)
+
+        try:
+            result = termination_service.process_termination(client, current_employer, decision)
+            logger.info(
+                "  ✅ CurrentEmployer termination processed for scenario "
+                "(grant_id=%s, pension_id=%s, capital_id=%s)",
+                result.get("created_grant_id"),
+                result.get("created_pension_id"),
+                result.get("created_capital_asset_id"),
+            )
+        except Exception as e:
+            logger.error(
+                "  ⚠️ Failed to process CurrentEmployer termination for scenario: %s",
+                e,
+            )
+
     def handle_termination_for_pension(self) -> None:
         """טיפול בעזיבת עבודה - בחירה בקצבה"""
+        # ננסה קודם למצוא אירוע עזיבה (זרימה ישנה) – אך הלוגיקה מבוססת תמיד על CurrentEmployer + EmployerGrant
         termination = self.db.query(TerminationEvent).filter(
             TerminationEvent.client_id == self.client_id
         ).first()
-        
-        if not termination:
-            logger.info("  ℹ️ No termination event found, skipping")
-            return
-        
-        logger.info("  📝 Processing termination event for pension choice")
-        
-        # מציאת המעביד הנוכחי
-        current_employer = self.db.query(CurrentEmployer).filter(
-            CurrentEmployer.client_id == self.client_id,
-            CurrentEmployer.id == termination.employment_id
-        ).first()
-        
+
+        # מציאת מעביד נוכחי/אחרון עבור הלקוח (תומך גם בזרימה החדשה של מעסיק נוכחי)
+        current_employer = (
+            self.db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == self.client_id)
+            .order_by(CurrentEmployer.id.desc())
+            .first()
+        )
+
         if not current_employer:
-            logger.warning("  ⚠️ Current employer not found for termination event")
+            logger.info("  ℹ️ No current employer found for termination, skipping")
             return
-        
-        # מציאת כל המענקים של המעביד
+
+        # מציאת כל מענקי הפיצויים של המעביד הנוכחי
         grants = self.db.query(EmployerGrant).filter(
-            EmployerGrant.current_employer_id == current_employer.id
+            EmployerGrant.employer_id == current_employer.id,
+            EmployerGrant.grant_type == GrantType.severance
         ).all()
-        
+
         if not grants:
-            logger.info("  ℹ️ No grants found for termination")
+            logger.info("  ℹ️ No severance grants found for termination")
             return
-        
+
+        logger.info("  📝 Processing termination event for pension choice")
+
         # קבלת נתוני לקוח לחישוב מקדם
         client = self.db.query(Client).filter(Client.id == self.client_id).first()
         retirement_year = self._get_retirement_year(client)
         pension_start_date = date(retirement_year, 1, 1)
-        
+
         # קיבוץ מענקים לפי תכנית
         grants_by_plan = self._group_grants_by_plan(grants)
-        
+
         if not grants_by_plan:
             logger.info("  ℹ️ No severance grants to process")
             return
-        
+
         # יצירת קצבה נפרדת לכל תכנית
         total_pensions_created = 0
+        termination_id = termination.id if termination else None
         for plan_key, plan_data in grants_by_plan.items():
             pension_created = self._create_pension_from_plan(
                 plan_data,
                 current_employer,
                 client,
                 pension_start_date,
-                termination.id
+                termination_id,
             )
             if pension_created:
                 total_pensions_created += 1
-        
+
         logger.info(f"  🎯 Total pensions created: {total_pensions_created}")
         self.db.flush()
     
     def handle_termination_for_capital(self) -> None:
         """טיפול בעזיבת עבודה - בחירה בהון"""
+        # ננסה קודם למצוא אירוע עזיבה (אם קיים), אך נבסס את ההיוון על CurrentEmployer + EmployerGrant
         termination = self.db.query(TerminationEvent).filter(
             TerminationEvent.client_id == self.client_id
         ).first()
-        
-        if not termination:
-            logger.info("  ℹ️ No termination event found, skipping")
-            return
-        
-        logger.info("  📝 Processing termination event for capital choice")
-        
-        # מציאת המעביד הנוכחי
-        current_employer = self.db.query(CurrentEmployer).filter(
-            CurrentEmployer.client_id == self.client_id,
-            CurrentEmployer.id == termination.employment_id
-        ).first()
-        
+
+        # מציאת מעביד נוכחי/אחרון עבור הלקוח
+        current_employer = (
+            self.db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == self.client_id)
+            .order_by(CurrentEmployer.id.desc())
+            .first()
+        )
+
         if not current_employer:
-            logger.warning("  ⚠️ Current employer not found for termination event")
+            logger.info("  ℹ️ No current employer found for termination, skipping")
             return
-        
-        # מציאת כל המענקים של המעביד
+
+        # מציאת כל מענקי הפיצויים של המעביד הנוכחי
         grants = self.db.query(EmployerGrant).filter(
-            EmployerGrant.current_employer_id == current_employer.id
+            EmployerGrant.employer_id == current_employer.id,
+            EmployerGrant.grant_type == GrantType.severance
         ).all()
-        
+
         if not grants:
-            logger.info("  ℹ️ No grants found for termination")
+            logger.info("  ℹ️ No severance grants found for termination")
             return
-        
+
+        logger.info("  📝 Processing termination event for capital choice")
+
         # קיבוץ מענקים לפי תכנית
         grants_by_plan = self._group_grants_by_plan(grants)
-        
+
         if not grants_by_plan:
             logger.info("  ℹ️ No severance grants to process")
             return
-        
+
         # קבלת נתוני לקוח
         client = self.db.query(Client).filter(Client.id == self.client_id).first()
         retirement_year = self._get_retirement_year(client)
-        
+
         # יצירת נכס הון נפרד לכל תכנית
         total_assets_created = 0
+        termination_id = termination.id if termination else None
         for plan_key, plan_data in grants_by_plan.items():
             asset_created = self._create_capital_from_plan(
                 plan_data,
                 current_employer,
                 retirement_year,
-                termination.id
+                termination_id,
             )
             if asset_created:
                 total_assets_created += 1
-        
+
         logger.info(f"  🎯 Total capital assets created: {total_assets_created}")
         self.db.flush()
     

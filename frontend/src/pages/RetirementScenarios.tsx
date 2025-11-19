@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
 import { formatCurrency } from "../lib/validation";
+import {
+  saveSeveranceDistribution,
+  setTerminationConfirmed,
+} from "./SimpleCurrentEmployer/utils/storageHelpers";
 
 interface ExecutionAction {
   type: string;
@@ -33,6 +37,70 @@ interface ScenariosResponse {
     scenario_3_max_npv: ScenarioResult;
   };
 }
+
+// מנקה את כל טורי היתרות בתיק הפנסיוני ב-localStorage לאחר ביצוע תרחיש בפועל,
+// כך שניתן לראות שהיתרות הומרו, אך לשמור את החשבונות עצמם לתיעוד.
+const clearPensionPortfolioBalancesAfterScenario = (clientId: string) => {
+  const storageKey = `pensionData_${clientId}`;
+  const stored = localStorage.getItem(storageKey);
+
+  if (!stored) {
+    return;
+  }
+
+  try {
+    const pensionData = JSON.parse(stored);
+
+    const numericFields = [
+      "יתרה",
+      "פיצויים_מעסיק_נוכחי",
+      "פיצויים_לאחר_התחשבנות",
+      "פיצויים_שלא_עברו_התחשבנות",
+      "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+      "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+      "תגמולי_עובד_עד_2000",
+      "תגמולי_עובד_אחרי_2000",
+      "תגמולי_עובד_אחרי_2008_לא_משלמת",
+      "תגמולי_מעביד_עד_2000",
+      "תגמולי_מעביד_אחרי_2000",
+      "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+      "תגמולים",
+    ];
+
+    const summaryFields = [
+      "סך_תגמולים",
+      "סך_פיצויים",
+      "סך_רכיבים",
+      "פער_יתרה_מול_רכיבים",
+    ];
+
+    const updated = (Array.isArray(pensionData) ? pensionData : []).map((account: any) => {
+      const updatedAccount = { ...account };
+
+      numericFields.forEach((field) => {
+        if (field in updatedAccount) {
+          updatedAccount[field] = 0;
+        }
+      });
+
+      summaryFields.forEach((field) => {
+        if (field in updatedAccount) {
+          updatedAccount[field] = 0;
+        }
+      });
+
+      // איפוס סימונים ידניים לאחר ביצוע בפועל
+      updatedAccount.selected = false;
+      updatedAccount.selected_amounts = {};
+
+      return updatedAccount;
+    });
+
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  } catch (e) {
+    console.error("Failed to clear pension portfolio balances after scenario execution", e);
+  }
+};
 
 export default function RetirementScenarios() {
   const { id: clientId } = useParams<{ id: string }>();
@@ -69,6 +137,66 @@ export default function RetirementScenarios() {
     }
   };
 
+  const restoreSnapshotBeforeScenario = async (): Promise<boolean> => {
+    if (!clientId) {
+      setError("מזהה לקוח חסר");
+      return false;
+    }
+
+    const storageKey = `snapshot_client_${clientId}`;
+    const stored = localStorage.getItem(storageKey);
+
+    if (!stored) {
+      setError("לא נמצא מצב שמור (snapshot). אנא שמור מצב לפני ביצוע תרחיש.");
+      return false;
+    }
+
+    let snapshotData: any;
+    try {
+      snapshotData = JSON.parse(stored);
+    } catch (e) {
+      console.error("Failed to parse snapshot from localStorage before scenario execution", e);
+      setError("שגיאה בקריאת מצב שמור. אנא שמור מצב מחדש לפני ביצוע תרחיש.");
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(snapshotData),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `שגיאה בשחזור מצב לפני ביצוע התרחיש: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch {
+          const textError = await response.text();
+          errorMessage = textError || errorMessage;
+        }
+        setError(errorMessage);
+        return false;
+      }
+
+      // נזרוק את התוכן – מספיק לדעת שהשחזור הצליח
+      try {
+        await response.json();
+      } catch {
+        // אם אין גוף JSON זה לא קריטי
+      }
+
+      return true;
+    } catch (err: any) {
+      console.error("Snapshot restore before scenario execution failed:", err);
+      setError(err.message || "שגיאה בשחזור מצב לפני ביצוע התרחיש");
+      return false;
+    }
+  };
+
   const handleExecuteScenario = async (scenarioId: number, scenarioName: string) => {
     if (!clientId) {
       setError("מזהה לקוח חסר");
@@ -84,6 +212,17 @@ export default function RetirementScenarios() {
     setSuccessMessage("");
 
     try {
+      // לפני ביצוע התרחיש בפועל, לבצע שחזור מצב מלא בדיוק כמו כפתור "שחזר מצב"
+      const restored = await restoreSnapshotBeforeScenario();
+      if (!restored) {
+        setExecuting(null);
+        return;
+      }
+
+      // שמירת התפלגות הפיצויים מתיק פנסיוני לפני ביצוע תרחיש בפועל,
+      // כדי לאפשר החזרת היתרות במקרה של מחיקת העזיבה (delete-termination).
+      saveSeveranceDistribution(clientId);
+
       const response = await fetch(
         `${API_BASE}/clients/${clientId}/retirement-scenarios/${scenarioId}/execute`,
         {
@@ -108,7 +247,15 @@ export default function RetirementScenarios() {
 
       const data = await response.json();
       setSuccessMessage(`✅ ${data.message || 'התרחיש בוצע בהצלחה!'}`);
-      
+
+      // איפוס כל טורי היתרות בתיק הפנסיוני עבור הלקוח לאחר ביצוע התרחיש בפועל,
+      // כדי להראות שהיתרות הומרו במערכת ולא ניתנות להמרה פעם נוספת מהטבלה.
+      clearPensionPortfolioBalancesAfterScenario(clientId);
+
+      // סימון העזיבה כמאושרת גם ב-localStorage, כדי שמסך המעסיק
+      // יוכל לאפשר מחיקה והחזרת היתרות (restoreSeveranceToPension).
+      setTerminationConfirmed(clientId, true);
+
       // ניווט חזרה למסך פרטי הלקוח במקום רענון מלא של הדף
       navigate(`/clients/${clientId}`);
     } catch (err: any) {

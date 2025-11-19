@@ -21,12 +21,14 @@ class RetirementScenariosBuilder:
         db: Session,
         client_id: int,
         retirement_age: int,
-        pension_portfolio: Optional[List[Dict]] = None
+        pension_portfolio: Optional[List[Dict]] = None,
+        use_current_employer_termination: bool = False,
     ):
         self.db = db
         self.client_id = client_id
         self.retirement_age = retirement_age
         self.pension_portfolio = pension_portfolio or []
+        self.use_current_employer_termination = use_current_employer_termination
         
         # State service for saving/restoring state
         self.state_service = StateService(db, client_id)
@@ -45,7 +47,8 @@ class RetirementScenariosBuilder:
                 self.db,
                 self.client_id,
                 self.retirement_age,
-                self.pension_portfolio
+                self.pension_portfolio,
+                self.use_current_employer_termination,
             )
             scenario1 = scenario1_builder.build_scenario()
             
@@ -58,7 +61,8 @@ class RetirementScenariosBuilder:
                 self.db,
                 self.client_id,
                 self.retirement_age,
-                self.pension_portfolio
+                self.pension_portfolio,
+                self.use_current_employer_termination,
             )
             scenario2 = scenario2_builder.build_scenario()
             
@@ -71,7 +75,8 @@ class RetirementScenariosBuilder:
                 self.db,
                 self.client_id,
                 self.retirement_age,
-                self.pension_portfolio
+                self.pension_portfolio,
+                self.use_current_employer_termination,
             )
             scenario3 = scenario3_builder.build_scenario()
             
@@ -99,7 +104,8 @@ class RetirementScenariosBuilder:
             self.db,
             self.client_id,
             self.retirement_age,
-            self.pension_portfolio
+            self.pension_portfolio,
+            self.use_current_employer_termination,
         )
         return scenario_builder.build_scenario()
     
@@ -109,7 +115,8 @@ class RetirementScenariosBuilder:
             self.db,
             self.client_id,
             self.retirement_age,
-            self.pension_portfolio
+            self.pension_portfolio,
+            self.use_current_employer_termination,
         )
         return scenario_builder.build_scenario()
     
@@ -119,6 +126,7 @@ class RetirementScenariosBuilder:
             self.db,
             self.client_id,
             self.retirement_age,
-            self.pension_portfolio
+            self.pension_portfolio,
+            self.use_current_employer_termination,
         )
         return scenario_builder.build_scenario()
