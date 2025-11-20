@@ -157,6 +157,22 @@ class MaxNPVScenario(BaseScenarioBuilder):
         if getattr(pf, "id", None) is not None:
             remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={pf_value}"
 
+        # צילום מלא של הקצבה לפני ההיוון – לשחזור מדויק ממסך הקצבאות
+        original_pension_snapshot = {
+            "id": getattr(pf, "id", None),
+            "fund_name": getattr(pf, "fund_name", None),
+            "fund_type": getattr(pf, "fund_type", None),
+            "input_mode": str(getattr(pf, "input_mode", None)) if getattr(pf, "input_mode", None) is not None else None,
+            "balance": float(pf.balance) if getattr(pf, "balance", None) is not None else None,
+            "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
+            "pension_amount": float(pf.pension_amount) if getattr(pf, "pension_amount", None) is not None else None,
+            "pension_start_date": pf.pension_start_date.isoformat() if getattr(pf, "pension_start_date", None) else None,
+            "indexation_method": str(getattr(pf, "indexation_method", None)) if getattr(pf, "indexation_method", None) is not None else None,
+            "tax_treatment": getattr(pf, "tax_treatment", None),
+            "deduction_file": getattr(pf, "deduction_file", None),
+            "remarks": getattr(pf, "remarks", None),
+        }
+
         ca = CapitalAsset(
             client_id=self.client_id,
             asset_name=f"הון מהיוון {pf.fund_name}",
@@ -170,14 +186,18 @@ class MaxNPVScenario(BaseScenarioBuilder):
             tax_treatment=tax_treatment,
             remarks=remarks,
             conversion_source=json.dumps({
-                "source": "scenario_conversion",
+                "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
                 "scenario_type": "retirement",
-                "tax_treatment": tax_treatment
+                "source_type": "pension_fund",
+                "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
+                "pension_fund_id": getattr(pf, "id", None),
+                "tax_treatment": tax_treatment,
+                "original_pension": original_pension_snapshot,
             })
         )
         self.db.add(ca)
         
-        logger.info(f"  💼 Full capitalization: {pf.fund_name} → {pf_value} ₪ capital ({tax_status})")
+        logger.info(f"  Full capitalization: {pf.fund_name} → {pf_value} ₪ capital ({tax_status})")
         self._add_action(
             "capitalization",
             f"היוון מלא (50%): {pf.fund_name} ({tax_status})",
@@ -185,7 +205,11 @@ class MaxNPVScenario(BaseScenarioBuilder):
             to_asset=f"הון: {pf_value:,.0f} ₪ ({tax_status})",
             amount=pf_value
         )
-        self.db.delete(pf)
+
+        # בתרחיש מאוזן – כמו במסך הקצבאות: הקצבה נשארת אך היתרה והקצבה החודשית מאופסות
+        if pf.balance is not None:
+            pf.balance = 0.0
+        pf.pension_amount = 0.0
     
     def _capitalize_partial_fund(self, pf, need_to_capitalize):
         """היוון חלקי של קרן"""
@@ -197,6 +221,22 @@ class MaxNPVScenario(BaseScenarioBuilder):
         remarks = None
         if getattr(pf, "id", None) is not None:
             remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={need_to_capitalize}"
+
+        # צילום מלא של הקצבה לפני ההיוון החלקי – לשחזור מדויק במידת הצורך
+        original_pension_snapshot = {
+            "id": getattr(pf, "id", None),
+            "fund_name": getattr(pf, "fund_name", None),
+            "fund_type": getattr(pf, "fund_type", None),
+            "input_mode": str(getattr(pf, "input_mode", None)) if getattr(pf, "input_mode", None) is not None else None,
+            "balance": float(pf.balance) if getattr(pf, "balance", None) is not None else None,
+            "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
+            "pension_amount": float(pf.pension_amount) if getattr(pf, "pension_amount", None) is not None else None,
+            "pension_start_date": pf.pension_start_date.isoformat() if getattr(pf, "pension_start_date", None) else None,
+            "indexation_method": str(getattr(pf, "indexation_method", None)) if getattr(pf, "indexation_method", None) is not None else None,
+            "tax_treatment": getattr(pf, "tax_treatment", None),
+            "deduction_file": getattr(pf, "deduction_file", None),
+            "remarks": getattr(pf, "remarks", None),
+        }
 
         ca = CapitalAsset(
             client_id=self.client_id,
@@ -211,10 +251,14 @@ class MaxNPVScenario(BaseScenarioBuilder):
             tax_treatment=tax_treatment,
             remarks=remarks,
             conversion_source=json.dumps({
-                "source": "scenario_conversion",
+                "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
                 "scenario_type": "retirement",
+                "source_type": "pension_fund",
+                "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
+                "pension_fund_id": getattr(pf, "id", None),
                 "partial": True,
-                "tax_treatment": tax_treatment
+                "tax_treatment": tax_treatment,
+                "original_pension": original_pension_snapshot,
             })
         )
         self.db.add(ca)

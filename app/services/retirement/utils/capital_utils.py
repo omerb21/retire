@@ -38,7 +38,23 @@ def create_capital_asset_from_pension(
         return None
     
     capital_value = pf.pension_amount * pf.annuity_factor
-    
+
+    # צילום הקצבה המקורית לפני ההיוון – לצורך שחזור מדויק במקרה של מחיקת ההיוון
+    original_pension_snapshot = {
+        "id": getattr(pf, "id", None),
+        "fund_name": getattr(pf, "fund_name", None),
+        "fund_type": getattr(pf, "fund_type", None),
+        "input_mode": str(getattr(pf, "input_mode", None)) if getattr(pf, "input_mode", None) is not None else None,
+        "balance": float(pf.balance) if getattr(pf, "balance", None) is not None else None,
+        "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
+        "pension_amount": float(pf.pension_amount) if getattr(pf, "pension_amount", None) is not None else None,
+        "pension_start_date": pf.pension_start_date.isoformat() if getattr(pf, "pension_start_date", None) else None,
+        "indexation_method": str(getattr(pf, "indexation_method", None)) if getattr(pf, "indexation_method", None) is not None else None,
+        "tax_treatment": getattr(pf, "tax_treatment", None),
+        "deduction_file": getattr(pf, "deduction_file", None),
+        "remarks": getattr(pf, "remarks", None),
+    }
+
     # שימור יחס מס מהקרן המקורית
     tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
     tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
@@ -64,14 +80,17 @@ def create_capital_asset_from_pension(
         tax_treatment=tax_treatment,
         remarks=remarks,
         conversion_source=json.dumps({
-            "source": "scenario_conversion",
+            "source": "scenario_conversion",  # מאפשר זיהוי בתרחישים
             "scenario_type": "retirement",
             "source_type": "pension_fund",
+            "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
+            "pension_fund_id": getattr(pf, "id", None),
             "source_id": getattr(pf, 'id', None),
             "source_name": pf.fund_name,
-            "annuity_factor": float(pf.annuity_factor),
+            "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
             "partial": partial,
-            "tax_treatment": tax_treatment
+            "tax_treatment": tax_treatment,
+            "original_pension": original_pension_snapshot,
         })
     )
     

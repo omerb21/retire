@@ -32,4 +32,5 @@ export type Commutation = {
   exempt_amount?: number;
   commutation_date?: string;
   commutation_type?: "exempt" | "taxable"; // פטור ממס או חייב במס
+  original_pension?: PensionFund; // צילום של הקצבה המקורית לצורך שחזור מדויק
 };

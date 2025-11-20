@@ -8,7 +8,8 @@ import {
   deleteCommutation,
   createCapitalAsset,
   updatePensionFund,
-  updateClientPensionStartDate
+  updateClientPensionStartDate,
+  getCapitalAsset
 } from './api';
 import { convertDDMMYYToISO } from '../../utils/dateUtils';
 
@@ -164,8 +165,12 @@ export async function handleCommutationSubmitLogic(
   }
 
   const fundBalance = calculateOriginalBalance(selectedFund);
-  
-  if (commutationForm.exempt_amount > fundBalance) {
+
+  // השוואה עם עיגול לשתי ספרות כדי למנוע שגיאות מעיגול מסכום זהה
+  const roundedAmount = Math.round((commutationForm.exempt_amount || 0) * 100) / 100;
+  const roundedBalance = Math.round(fundBalance * 100) / 100;
+
+  if (roundedAmount > roundedBalance) {
     throw new Error(`סכום ההיוון (${formatCurrency(commutationForm.exempt_amount)}) גדול מהיתרה המקורית של הקצבה (${formatCurrency(fundBalance)})`);
   }
 
@@ -177,6 +182,24 @@ export async function handleCommutationSubmitLogic(
   
   const taxTreatment = commutationForm.commutation_type === "exempt" ? "exempt" : "taxable";
   console.log(`🔍 Pension tax: ${pensionTaxTreatment}, User selected: ${commutationForm.commutation_type} → Capital asset will be: ${taxTreatment}`);
+  
+  // צילום הקצבה כפי שהייתה לפני ההיוון – ישמש לשחזור מדויק אם הקצבה תימחק בעתיד
+  const originalPensionSnapshot: PensionFund = {
+    id: selectedFund.id,
+    fund_name: selectedFund.fund_name,
+    fund_type: selectedFund.fund_type,
+    input_mode: selectedFund.input_mode || selectedFund.calculation_mode || "calculated",
+    balance: selectedFund.balance ?? selectedFund.current_balance ?? fundBalance,
+    annuity_factor: selectedFund.annuity_factor,
+    pension_amount:
+      selectedFund.pension_amount ??
+      selectedFund.monthly ??
+      selectedFund.monthly_amount,
+    pension_start_date: selectedFund.pension_start_date || selectedFund.start_date,
+    indexation_method: selectedFund.indexation_method || "none",
+    tax_treatment: selectedFund.tax_treatment || "taxable",
+    deduction_file: selectedFund.deduction_file || "",
+  };
   
   const capitalAssetData = {
     client_id: parseInt(clientId),
@@ -192,7 +215,12 @@ export async function handleCommutationSubmitLogic(
     payment_frequency: "annually" as const,
     start_date: commutationForm.commutation_date,
     indexation_method: "none" as const,
-    tax_treatment: taxTreatment
+    tax_treatment: taxTreatment,
+    conversion_source: JSON.stringify({
+      type: "pension_commutation",
+      pension_fund_id: selectedFund.id,
+      original_pension: originalPensionSnapshot,
+    }),
   };
 
   console.log('🟢 Creating capital asset with data:', capitalAssetData);
@@ -223,4 +251,108 @@ export async function handleCommutationSubmitLogic(
   const shouldDeleteFund = isFullCommutation;
 
   return { shouldDeleteFund, fundBalance, createdAsset };
+}
+
+export async function restorePensionFromCommutation(
+  clientId: string,
+  commutation: Commutation
+): Promise<void> {
+  let snapshot = commutation.original_pension;
+  const amount = commutation.exempt_amount || 0;
+  if (amount <= 0) {
+    return;
+  }
+  // אם אין צילום בקומוטציה עצמה, ננסה לטעון אותו מנכס ההון בבקאנד
+  if (!snapshot && commutation.id) {
+    try {
+      const asset = await getCapitalAsset(clientId, commutation.id);
+      if (asset?.conversion_source) {
+        const sourceData = JSON.parse(asset.conversion_source);
+        if (sourceData && sourceData.type === 'pension_commutation' && sourceData.original_pension) {
+          snapshot = sourceData.original_pension as PensionFund;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading capital asset for commutation restore:', e);
+    }
+  }
+
+  // אם יש צילום של הקצבה המקורית – נשחזר לפיו אחד‑לאחד
+  if (snapshot) {
+    const balance =
+      snapshot.balance ??
+      snapshot.current_balance ??
+      snapshot.commutable_balance ??
+      amount;
+
+    const annuityFactor =
+      snapshot.annuity_factor && snapshot.annuity_factor > 0
+        ? snapshot.annuity_factor
+        : balance > 0 && snapshot.pension_amount
+        ? Math.round(balance / snapshot.pension_amount)
+        : 200;
+
+    const pensionAmount =
+      snapshot.pension_amount ??
+      snapshot.monthly ??
+      snapshot.monthly_amount ??
+      (annuityFactor > 0 ? Math.round(balance / annuityFactor) : 0);
+
+    const pensionStartDate =
+      snapshot.pension_start_date ||
+      snapshot.start_date ||
+      (commutation.commutation_date && commutation.commutation_date.length === 10
+        ? commutation.commutation_date
+        : new Date().toISOString().slice(0, 10));
+
+    const inputMode = snapshot.input_mode || snapshot.calculation_mode || "manual";
+
+    const taxTreatment = snapshot.tax_treatment ||
+      (commutation.commutation_type === "exempt" ? "exempt" : "taxable");
+
+    const payload: Record<string, any> = {
+      client_id: Number(clientId),
+      fund_name: snapshot.fund_name?.trim() || "קצבה",
+      fund_type: snapshot.fund_type || "pension",
+      input_mode: inputMode,
+      balance,
+      pension_amount: pensionAmount,
+      annuity_factor: annuityFactor,
+      pension_start_date: pensionStartDate,
+      indexation_method: snapshot.indexation_method || "none",
+      tax_treatment: taxTreatment,
+      deduction_file: snapshot.deduction_file || "",
+    };
+
+    await savePensionFund(clientId, payload, null);
+    return;
+  }
+
+  // Fallback ישן – רק אם אין בכלל צילום, משתמשים בנתוני ההיוון עצמו
+  const fallbackAnnuityFactor = 200;
+  const fallbackPensionAmount = Math.round(amount / fallbackAnnuityFactor);
+
+  const fallbackDateString =
+    commutation.commutation_date && commutation.commutation_date.length === 10
+      ? commutation.commutation_date
+      : new Date().toISOString().slice(0, 10);
+
+  const fallbackTaxTreatment =
+    commutation.commutation_type === "exempt" ? "exempt" : "taxable";
+
+  const fallbackPayload: Record<string, any> = {
+    client_id: Number(clientId),
+    fund_name: "קצבה משוחזרת מהיוון",
+    fund_type: "pension",
+    input_mode: "manual",
+    balance: amount,
+    pension_amount: fallbackPensionAmount,
+    annuity_factor: fallbackAnnuityFactor,
+    pension_start_date: fallbackDateString,
+    indexation_method: "none",
+    tax_treatment: fallbackTaxTreatment,
+    deduction_file: "",
+  };
+
+  await savePensionFund(clientId, fallbackPayload, null);
 }

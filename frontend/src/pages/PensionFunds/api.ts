@@ -42,13 +42,27 @@ export async function loadPensionFunds(clientId: string): Promise<{
         // חילוץ amount מה-remarks
         const amountMatch = asset.remarks.match(/amount=([\d.]+)/);
         const amount = amountMatch ? parseFloat(amountMatch[1]) : asset.current_value;
+
+        // ניסיון לקרוא צילום קצבה מקורית מתוך conversion_source (אם קיים)
+        let originalPension: PensionFund | undefined;
+        if (asset.conversion_source) {
+          try {
+            const sourceData = JSON.parse(asset.conversion_source);
+            if (sourceData && sourceData.type === 'pension_commutation' && sourceData.original_pension) {
+              originalPension = sourceData.original_pension as PensionFund;
+            }
+          } catch (e) {
+            console.error('Error parsing conversion_source for commutation asset:', e);
+          }
+        }
         
         return {
           id: asset.id,
           pension_fund_id: pensionFundId,
           exempt_amount: amount,
           commutation_date: asset.start_date || asset.purchase_date,
-          commutation_type: asset.tax_treatment === "exempt" ? "exempt" : "taxable"
+          commutation_type: asset.tax_treatment === "exempt" ? "exempt" : "taxable",
+          original_pension: originalPension
         };
       });
       
@@ -142,6 +156,13 @@ export async function createCapitalAsset(clientId: string, data: any): Promise<a
     method: 'POST',
     body: JSON.stringify(data)
   });
+}
+
+/**
+ * שליפת נכס הוני בודד (לצורך שחזור קצבה מהמרה)
+ */
+export async function getCapitalAsset(clientId: string, assetId: number): Promise<any> {
+  return await apiFetch<any>(`/clients/${clientId}/capital-assets/${assetId}`);
 }
 
 /**

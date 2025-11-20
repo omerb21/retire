@@ -11,7 +11,7 @@ import {
   deleteCommutation,
   updatePensionFund
 } from './api';
-import { handleSubmitPensionFund, handleCommutationSubmitLogic, recalculateClientPensionStartDate } from './handlers';
+import { handleSubmitPensionFund, handleCommutationSubmitLogic, recalculateClientPensionStartDate, restorePensionFromCommutation } from './handlers';
 import { PensionFundForm } from './components/PensionFundForm';
 import { PensionFundList } from './components/PensionFundList';
 import { CommutationForm } from './components/CommutationForm';
@@ -413,8 +413,22 @@ export default function PensionFunds() {
       }
       
       const relatedFund = funds.find(f => f.id === commutationToDelete.pension_fund_id);
+      
       if (!relatedFund) {
-        throw new Error("הקצבה המקורית לא נמצאה");
+        // הקצבה המקורית נמחקה בעבר – נשחזר קצבה חדשה מהנתונים של ההיוון
+        await restorePensionFromCommutation(clientId, commutationToDelete);
+
+        await deleteCommutation(clientId, commutationId);
+
+        setCommutations(commutations.filter(c => c.id !== commutationId));
+
+        await loadFunds();
+
+        if (!options?.suppressAlert) {
+          alert('ההיוון נמחק והקצבה שוחזרה כקצבה חדשה במערכת מתוך נתוני ההיוון.');
+        }
+
+        return;
       }
       
       const currentBalance = relatedFund.balance || 0;

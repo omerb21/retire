@@ -146,8 +146,11 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         
         if ca:
             self.db.add(ca)
-            # היוון מלא – הקצבה נמחקת, אך היתרה נשמרת ברמת ה-Portfolio והדוחות
-            self.db.delete(pf)
+
+            # היוון מלא בתרחיש – כמו במסך הקצבאות: הקצבה נשארת אך היתרה והקצבה החודשית מאופסות
+            if pf.balance is not None:
+                pf.balance = 0.0
+            pf.pension_amount = 0.0
     
     def _capitalize_partial_pension(self, pf, capitalize_amount):
         """היוון חלקי של קצבה"""
@@ -165,6 +168,22 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         if getattr(pf, "id", None) is not None:
             remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={capital_value}"
 
+        # צילום הקצבה המקורית לפני ההיוון החלקי – לצורך שחזור מדויק במידת הצורך
+        original_pension_snapshot = {
+            "id": getattr(pf, "id", None),
+            "fund_name": getattr(pf, "fund_name", None),
+            "fund_type": getattr(pf, "fund_type", None),
+            "input_mode": str(getattr(pf, "input_mode", None)) if getattr(pf, "input_mode", None) is not None else None,
+            "balance": float(pf.balance) if getattr(pf, "balance", None) is not None else None,
+            "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
+            "pension_amount": float(pf.pension_amount) if getattr(pf, "pension_amount", None) is not None else None,
+            "pension_start_date": pf.pension_start_date.isoformat() if getattr(pf, "pension_start_date", None) else None,
+            "indexation_method": str(getattr(pf, "indexation_method", None)) if getattr(pf, "indexation_method", None) is not None else None,
+            "tax_treatment": getattr(pf, "tax_treatment", None),
+            "deduction_file": getattr(pf, "deduction_file", None),
+            "remarks": getattr(pf, "remarks", None),
+        }
+
         ca = CapitalAsset(
             client_id=self.client_id,
             asset_name=f"הון מהיוון חלקי {pf.fund_name}",
@@ -178,11 +197,15 @@ class MaxCapitalScenario(BaseScenarioBuilder):
             tax_treatment=tax_treatment,
             remarks=remarks,
             conversion_source=json.dumps({
-                "source": "scenario_conversion",
+                "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
                 "scenario_type": "retirement",
+                "source_type": "pension_fund",
+                "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
+                "pension_fund_id": getattr(pf, "id", None),
                 "pension_fund": pf.fund_name,
                 "partial": True,
-                "tax_treatment": tax_treatment
+                "tax_treatment": tax_treatment,
+                "original_pension": original_pension_snapshot,
             })
         )
         self.db.add(ca)
