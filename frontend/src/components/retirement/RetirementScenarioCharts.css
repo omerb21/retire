@@ -1,0 +1,21 @@
+.retirement-charts-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.retirement-chart-card {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.retirement-chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #003366;
+}
+
+.retirement-chart-wrapper {
+  width: 100%;
+  height: 320px;
+}

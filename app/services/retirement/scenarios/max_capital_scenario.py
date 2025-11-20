@@ -119,10 +119,15 @@ class MaxCapitalScenario(BaseScenarioBuilder):
                 # Check how much we can capitalize
                 can_capitalize = remaining_pension - MINIMUM_PENSION
                 
-                if pf.pension_amount <= can_capitalize:
+                # חשוב: לשמור את הקצבה המקורית לפני ההיוון, כי פונקציית ההיוון המלא
+                # מאפסת את pf.pension_amount לצורך שיקוף המצב החדש בטבלה.
+                original_pension_amount = pf.pension_amount or 0
+
+                if original_pension_amount <= can_capitalize:
                     # Capitalize entire fund
                     self._capitalize_full_pension(pf)
-                    remaining_pension -= pf.pension_amount
+                    # להפחתת הקצבה שנותרה משתמשים בערך המקורי לפני ההיוון
+                    remaining_pension -= original_pension_amount
                 else:
                     # Partial capitalization
                     self._capitalize_partial_pension(pf, can_capitalize)

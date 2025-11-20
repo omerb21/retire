@@ -13,7 +13,7 @@ import { useTerminationActions } from './SimpleCurrentEmployer/hooks/useTerminat
 import { SavedDataDisplay } from './SimpleCurrentEmployer/components/SavedDataDisplay';
 import { EmployerDetailsForm } from './SimpleCurrentEmployer/components/EmployerDetailsForm';
 import { TerminationSteps } from './SimpleCurrentEmployer/components/TerminationSteps';
-import { clearTerminationState, isTerminationConfirmed, setTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
+import { clearTerminationState, isTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
 
 const SimpleCurrentEmployer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +55,7 @@ const SimpleCurrentEmployer: React.FC = () => {
   const { handleTerminationSubmit, handleDeleteTermination } = useTerminationActions(
     id,
     employer,
+    setEmployer,
     terminationDecision,
     setTerminationDecision,
     setLoading,
@@ -71,15 +72,6 @@ const SimpleCurrentEmployer: React.FC = () => {
       }
     }
   }, [id]);
-
-  // Sync confirmed state from server: אם לשרת יש end_date, ננעל גם בצד ה-UI
-  useEffect(() => {
-    if (id && employer.end_date && !terminationDecision.confirmed) {
-      setTerminationDecision(prev => ({ ...prev, confirmed: true }));
-      setTerminationConfirmed(id, true);
-      console.log('✅ Synced termination confirmed state from server (employer.end_date)');
-    }
-  }, [id, employer.end_date, terminationDecision.confirmed]);
 
   // Sync termination_date with employer.end_date
   useEffect(() => {

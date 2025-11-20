@@ -19,6 +19,7 @@ import {
 export const useTerminationActions = (
   clientId: string | undefined,
   employer: SimpleEmployer,
+  setEmployer: React.Dispatch<React.SetStateAction<SimpleEmployer>>,
   terminationDecision: TerminationDecision,
   setTerminationDecision: React.Dispatch<React.SetStateAction<TerminationDecision>>,
   setLoading: (loading: boolean) => void,
@@ -90,6 +91,12 @@ export const useTerminationActions = (
       // Restore severance to pension portfolio
       console.log('🔄 מחזיר פיצויים לתיק פנסיוני');
       const severanceToRestore = restoreSeveranceToPension(clientId);
+
+      // Clear employer end_date in local state so UI doesn't think termination still exists
+      setEmployer(prev => ({
+        ...prev,
+        end_date: undefined
+      }));
 
       // Reset local state
       setTerminationDecision({

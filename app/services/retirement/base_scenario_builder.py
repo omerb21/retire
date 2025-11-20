@@ -16,6 +16,7 @@ from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
 from .services import ConversionService, TerminationService, PortfolioImportService
 from .utils.calculation_utils import calculate_npv_dcf, calculate_years_to_age
+from .constants import DEFAULT_DISCOUNT_RATE
 
 logger = logging.getLogger("app.scenarios.base")
 
@@ -229,13 +230,16 @@ class BaseScenarioBuilder:
 
         # סך הון חד-פעמי (מוצג בנפרד, לא נכלל ב-NPV של התזרים)
         total_capital = 0.0
+        capital_income_monthly = 0.0
         for ca in capital_assets:
-            value = 0.0
+            # הון חד-פעמי: רק current_value>0
             if ca.current_value is not None and float(ca.current_value) > 0:
-                value = float(ca.current_value)
-            elif ca.monthly_income is not None:
-                value = float(ca.monthly_income)
-            total_capital += value
+                total_capital += float(ca.current_value)
+                # הכנסה חודשית מנכסי הון לצורך NPV נלקחת רק מנכסים שיש להם גם ערך נוכחי חיובי
+                if ca.monthly_income is not None:
+                    income_value = float(ca.monthly_income or 0)
+                    if income_value > 0:
+                        capital_income_monthly += income_value
 
         # הכנסה חודשית נוספת (תזרימית)
         total_additional_income_monthly = 0.0
@@ -252,6 +256,9 @@ class BaseScenarioBuilder:
                 monthly = amount
             total_additional_income_monthly += monthly
 
+        # הוספת הכנסות חודשיות מנכסי הון לתזרים החודשי לצורך NPV
+        total_additional_income_monthly += capital_income_monthly
+
         # NPV מחושב על בסיס תזרימי הקצבאות + הכנסות נוספות בלבד (ללא הון חד-פעמי),
         # כדי ליישר את המספרים עם מסך הדוחות שבו ה-NPV מתייחס לתזרים בלבד.
         years_for_npv = calculate_years_to_age(client, self.retirement_age)
@@ -261,6 +268,27 @@ class BaseScenarioBuilder:
             capital=0.0,
             years=years_for_npv,
         )
+
+        # התאמה חשובה: ההכנסות מהקצבאות מתחילות רק בגיל הפרישה, ולכן צריך להוון
+        # גם את השנים שנותרו עד הפרישה (retirement_age - current_age).
+        years_until_retirement = 0
+        if client and getattr(client, "birth_date", None):
+            try:
+                current_age = client.get_age()
+                if current_age is not None and self.retirement_age is not None:
+                    diff = self.retirement_age - current_age
+                    if diff > 0:
+                        years_until_retirement = diff
+            except Exception:
+                years_until_retirement = 0
+
+        if years_until_retirement > 0:
+            try:
+                discount_factor = (1 + DEFAULT_DISCOUNT_RATE) ** years_until_retirement
+                estimated_npv = round(estimated_npv / discount_factor, 2)
+            except Exception:
+                # אם יש בעיה כלשהי בחישוב, נשאיר את ה-NPV ללא התאמה כדי לא לשבור את התרחישים
+                pass
         
         results = {
             "scenario_name": scenario_name,

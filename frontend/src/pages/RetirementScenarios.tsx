@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { API_BASE } from "../lib/api";
 import { formatCurrency } from "../lib/validation";
+import RetirementScenarioCharts from "../components/retirement/RetirementScenarioCharts";
 import {
   saveSeveranceDistribution,
   setTerminationConfirmed,
@@ -414,7 +415,7 @@ export default function RetirementScenarios() {
 
             <div>
               <div style={{ fontSize: "12px", color: "#6c757d" }}>
-                NPV משוער
+                NPV משוער (ברוטו - לפני מס וקיבוע זכויות)
               </div>
               <div
                 style={{
@@ -641,7 +642,7 @@ export default function RetirementScenarios() {
                     סך הון
                   </th>
                   <th style={{ padding: "10px", textAlign: "right", border: "1px solid #dee2e6" }}>
-                    NPV משוער
+                    NPV משוער (ברוטו - לפני מס וקיבוע זכויות)
                   </th>
                 </tr>
               </thead>
@@ -716,10 +717,17 @@ export default function RetirementScenarios() {
               fontSize: "14px",
             }}
           >
-            <strong>💡 הערה:</strong> NPV (Net Present Value) הוא ערך נוכחי נקי המשקלל
-            את כל תזרימי המזומנים העתידיים. התרחיש עם ה-NPV הגבוה ביותר הוא התרחיש
-            המומלץ מבחינה כלכלית.
+            <strong>💡 הערה:</strong> NPV (Net Present Value) המוצג כאן הוא NPV ברוטו
+            (לפני מס, קיבוע זכויות וקצבה פטורה) המשקלל את כל תזרימי המזומנים העתידיים
+            ברמת ברוטו. בדוחות הכספיים NPV מחושב על תזרים נטו אחרי מס וקיבוע זכויות,
+            ולכן הערך שם עשוי להיות נמוך יותר, אך ההשוואה בין התרחישים כאן עדיין
+            מראה איזה תרחיש עדיף מבחינה כלכלית ברמת ברוטו.
           </div>
+
+          <RetirementScenarioCharts
+            scenarios={results.scenarios}
+            formatCurrency={formatCurrency}
+          />
         </div>
       )}
     </div>

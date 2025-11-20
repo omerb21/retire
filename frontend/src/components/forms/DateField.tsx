@@ -32,7 +32,8 @@ const DateField: React.FC<DateFieldProps> = ({
   minDate,
   maxDate,
 }) => {
-  const handleChange = (newValue: Dayjs | null) => {
+  const handleChange = (value: unknown, _keyboardInputValue?: string) => {
+    const newValue = value as Dayjs | null;
     if (newValue) {
       onChange(newValue.format('YYYY-MM-DD'));
     } else {
@@ -54,16 +55,19 @@ const DateField: React.FC<DateFieldProps> = ({
           disabled={disabled}
           minDate={minDayjs}
           maxDate={maxDayjs}
-          format="DD/MM/YYYY"
-          slotProps={{
-            textField: {
-              required,
-              error: !!error,
-              variant: 'outlined',
-              InputLabelProps: {
+          inputFormat="DD/MM/YYYY"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              required={required}
+              error={!!error}
+              variant="outlined"
+              InputLabelProps={{
+                ...(params.InputLabelProps || {}),
                 shrink: true,
-              },
-              sx: {
+              }}
+              sx={{
+                ...(params.sx || {}),
                 '& .MuiInputLabel-root': {
                   right: 14,
                   left: 'auto',
@@ -74,9 +78,9 @@ const DateField: React.FC<DateFieldProps> = ({
                     textAlign: 'right',
                   },
                 },
-              },
-            },
-          }}
+              }}
+            />
+          )}
         />
         {(error || helperText) && (
           <FormHelperText>

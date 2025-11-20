@@ -55,11 +55,19 @@ def generate_retirement_scenarios(
             detail=f"לקוח {client_id} לא נמצא"
         )
     
-    # Validate retirement age
+    # Validate retirement age range
     if retirement_age < 50 or retirement_age > 80:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="גיל פרישה חייב להיות בין 50 ל-80"
+        )
+
+    # Additional validation: retirement age cannot be in the past relative to client's current age
+    current_age = db_client.get_age()
+    if retirement_age < current_age:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="לא ניתן להפיק תרחיש לגיל עבר. ניתן להפיק תרחישים רק לגיל נוכחי או עתידי."
         )
     
     try:
