@@ -4,6 +4,7 @@ System Health Router - בדיקת תקינות המערכת
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
 from typing import Dict, Any
 from app.database import get_db
 from app.core.system_validator import SystemValidator
@@ -135,22 +136,18 @@ def get_table_info(table_name: str, db: Session = Depends(get_db)) -> Dict[str, 
             "sample_data": List[Dict]  # 5 שורות לדוגמה
         }
     """
-    from sqlalchemy import text
-    
     try:
-        # בדוק אם הטבלה קיימת
-        result = db.execute(text(
-            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
-        )).fetchone()
-        
-        if not result:
+        engine = db.get_bind()
+        inspector = inspect(engine)
+
+        if not inspector.has_table(table_name):
             return {
                 "table_name": table_name,
                 "exists": False,
                 "row_count": 0,
                 "sample_data": []
             }
-        
+
         # ספור שורות
         count_result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).fetchone()
         row_count = count_result[0] if count_result else 0

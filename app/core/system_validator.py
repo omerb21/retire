@@ -2,7 +2,7 @@
 System Validator - מנגנון אימות מרכזי למערכת
 מוודא שכל הטבלאות והנתונים הקריטיים קיימים ותקינים
 """
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
 from typing import Dict, List, Tuple
 import logging
@@ -85,18 +85,18 @@ class SystemValidator:
             (is_valid, error_message)
         """
         try:
-            # בדוק אם הטבלה קיימת
-            result = self.db.execute(text(
-                f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
-            )).fetchone()
-            
+            engine = self.db.get_bind()
+            inspector = inspect(engine)
+
+            table_exists = inspector.has_table(table_name)
+
             # אם זו טבלה שאין לה קובץ CSV, נחזיר הצלחה
             if not config.get('csv_file'):
                 return True, ""
-            
-            if not result:
+
+            if not table_exists:
                 return False, f"טבלה '{table_name}' לא קיימת במסד הנתונים"
-            
+
             # בדוק כמה שורות יש בטבלה
             count_result = self.db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).fetchone()
             row_count = count_result[0] if count_result else 0
