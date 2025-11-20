@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { API_BASE } from "../lib/api";
+import { API_BASE, apiFetch } from "../lib/api";
 import { formatCurrency } from "../lib/validation";
 import RetirementScenarioCharts from "../components/retirement/RetirementScenarioCharts";
 import {
   saveSeveranceDistribution,
   setTerminationConfirmed,
+  isTerminationConfirmed,
+  restoreSeveranceToPension,
+  clearTerminationState,
 } from "./SimpleCurrentEmployer/utils/storageHelpers";
+import { loadPensionFunds, deleteCommutation, deletePensionFund, updatePensionFund } from "./PensionFunds/api";
+import { restorePensionFromCommutation, recalculateClientPensionStartDate } from "./PensionFunds/handlers";
+import { CapitalAsset } from "../types/capitalAsset";
 
 interface ExecutionAction {
   type: string;
@@ -182,18 +188,193 @@ export default function RetirementScenarios() {
         setError(errorMessage);
         return false;
       }
-
-      // נזרוק את התוכן – מספיק לדעת שהשחזור הצליח
       try {
         await response.json();
       } catch {
-        // אם אין גוף JSON זה לא קריטי
+      }
+
+      const pensionPortfolio = snapshotData.pension_portfolio;
+      if (Array.isArray(pensionPortfolio)) {
+        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(pensionPortfolio));
+      } else {
+        localStorage.removeItem(`pensionData_${clientId}`);
+      }
+
+      if (snapshotData.converted_accounts) {
+        localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(snapshotData.converted_accounts));
+      } else {
+        localStorage.removeItem(`convertedAccounts_${clientId}`);
       }
 
       return true;
     } catch (err: any) {
       console.error("Snapshot restore before scenario execution failed:", err);
       setError(err.message || "שגיאה בשחזור מצב לפני ביצוע התרחיש");
+      return false;
+    }
+  };
+
+  const resetStateWithoutSnapshot = async (): Promise<boolean> => {
+    if (!clientId) {
+      setError("מזהה לקוח חסר");
+      return false;
+    }
+
+    try {
+      if (isTerminationConfirmed(clientId)) {
+        await apiFetch(`/clients/${clientId}/delete-termination`, {
+          method: "DELETE",
+        });
+
+        restoreSeveranceToPension(clientId);
+        clearTerminationState(clientId);
+      }
+
+      const { funds, commutations } = await loadPensionFunds(clientId);
+
+      for (const commutation of commutations) {
+        if (!commutation.id) {
+          continue;
+        }
+
+        const relatedFund = funds.find((f) => f.id === commutation.pension_fund_id);
+
+        if (!relatedFund) {
+          await restorePensionFromCommutation(clientId, commutation);
+          await deleteCommutation(clientId, commutation.id);
+          continue;
+        }
+
+        const currentBalance = relatedFund.balance || 0;
+        const commutationAmount = commutation.exempt_amount || 0;
+        const newBalance = currentBalance + commutationAmount;
+        const annuityFactor = relatedFund.annuity_factor || 200;
+        const newMonthlyAmount = Math.round(newBalance / annuityFactor);
+
+        await updatePensionFund(relatedFund.id!, {
+          fund_name: relatedFund.fund_name,
+          fund_type: relatedFund.fund_type,
+          input_mode: relatedFund.input_mode,
+          balance: newBalance,
+          pension_amount: newMonthlyAmount,
+          annuity_factor: annuityFactor,
+          pension_start_date: relatedFund.pension_start_date,
+          indexation_method: relatedFund.indexation_method || "none",
+        });
+
+        await deleteCommutation(clientId, commutation.id);
+      }
+
+      const { funds: fundsAfterCommutations } = await loadPensionFunds(clientId);
+
+      for (const fund of fundsAfterCommutations) {
+        if (!fund.id) {
+          continue;
+        }
+
+        const deleteResponse = await deletePensionFund(clientId, fund.id);
+        const restoration = deleteResponse?.restoration;
+
+        if (restoration && restoration.reason === "pension_portfolio") {
+          const accountNumber = restoration.account_number;
+          const balanceToRestore = restoration.balance_to_restore;
+          const storageKey = `pensionData_${clientId}`;
+          const storedData = localStorage.getItem(storageKey);
+
+          if (storedData) {
+            try {
+              const pensionData = JSON.parse(storedData);
+              const accountIndex = pensionData.findIndex((acc: any) => acc.מספר_חשבון === accountNumber);
+
+              if (accountIndex !== -1) {
+                const account = pensionData[accountIndex];
+
+                if (restoration.specific_amounts && Object.keys(restoration.specific_amounts).length > 0) {
+                  Object.entries(restoration.specific_amounts).forEach(([field, amount]: [string, any]) => {
+                    if (Object.prototype.hasOwnProperty.call(account, field)) {
+                      account[field] = (parseFloat(account[field]) || 0) + parseFloat(amount);
+                    }
+                  });
+                } else {
+                  account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
+                }
+
+                const restoreAmount = Number(balanceToRestore) || 0;
+                if (restoreAmount > 0) {
+                  account.יתרה = (Number(account.יתרה) || 0) + restoreAmount;
+                }
+
+                localStorage.setItem(storageKey, JSON.stringify(pensionData));
+                window.dispatchEvent(new Event("storage"));
+              }
+            } catch (e) {
+              console.error("Error restoring balance to localStorage for pension fund:", e);
+            }
+          }
+        }
+      }
+
+      try {
+        await recalculateClientPensionStartDate(clientId);
+      } catch (updateError) {
+        console.error("Error updating client pension start date after reset:", updateError);
+      }
+
+      const assets = await apiFetch<CapitalAsset[]>(`/clients/${clientId}/capital-assets/`);
+
+      for (const asset of assets) {
+        if (!asset.id) {
+          continue;
+        }
+
+        const deleteResponse = await apiFetch<any>(`/clients/${clientId}/capital-assets/${asset.id}`, {
+          method: "DELETE",
+        });
+
+        const restoration = deleteResponse?.restoration;
+        if (restoration && restoration.reason === "pension_portfolio") {
+          const accountNumber = restoration.account_number;
+          const balanceToRestore = restoration.balance_to_restore;
+          const storageKey = `pensionData_${clientId}`;
+          const storedData = localStorage.getItem(storageKey);
+
+          if (storedData && asset) {
+            try {
+              const pensionData = JSON.parse(storedData);
+              const accountIndex = pensionData.findIndex((acc: any) => acc.מספר_חשבון === accountNumber);
+
+              if (accountIndex !== -1) {
+                const account = pensionData[accountIndex];
+
+                if (restoration.specific_amounts && Object.keys(restoration.specific_amounts).length > 0) {
+                  Object.entries(restoration.specific_amounts).forEach(([field, amount]: [string, any]) => {
+                    if (Object.prototype.hasOwnProperty.call(account, field)) {
+                      account[field] = (parseFloat(account[field]) || 0) + parseFloat(amount);
+                    }
+                  });
+                } else {
+                  account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
+                }
+
+                const restoreAmount = Number(balanceToRestore) || 0;
+                if (restoreAmount > 0) {
+                  account.יתרה = (Number(account.יתרה) || 0) + restoreAmount;
+                }
+
+                localStorage.setItem(storageKey, JSON.stringify(pensionData));
+                window.dispatchEvent(new Event("storage"));
+              }
+            } catch (e) {
+              console.error("Error restoring balance to localStorage from capital asset:", e);
+            }
+          }
+        }
+      }
+
+      return true;
+    } catch (err: any) {
+      console.error("State reset before scenarios failed:", err);
+      setError(err.message || "שגיאה באיפוס המצב לפני חישוב תרחישים");
       return false;
     }
   };
@@ -273,12 +454,28 @@ export default function RetirementScenarios() {
       return;
     }
 
-    setLoading(true);
-    setError("");
-    setSuccessMessage("");
-    setResults(null);
-
     try {
+      setError("");
+      setSuccessMessage("");
+      setResults(null);
+
+      // אם קיים snapshot שמור, נבצע שחזור אוטומטי לפני חישוב התרחישים
+      const snapshotKey = `snapshot_client_${clientId}`;
+      const storedSnapshot = localStorage.getItem(snapshotKey);
+      if (storedSnapshot) {
+        const restored = await restoreSnapshotBeforeScenario();
+        if (!restored) {
+          return;
+        }
+      } else {
+        const resetOk = await resetStateWithoutSnapshot();
+        if (!resetOk) {
+          return;
+        }
+      }
+
+      setLoading(true);
+
       // קריאת נתוני תיק פנסיוני מ-localStorage
       const pensionDataStr = localStorage.getItem(`pensionData_${clientId}`);
       let pensionPortfolio = null;
