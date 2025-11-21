@@ -23,12 +23,15 @@ if HTTPXClient is not None:
 
         HTTPXClient.__init__ = _compat_init
 
+TEST_DATABASE_URL = "sqlite:///./test_retire.db"
+test_engine = get_engine(TEST_DATABASE_URL)
+SessionLocal.configure(bind=test_engine)
+Base.metadata.create_all(bind=test_engine)
+
 @pytest.fixture(scope="session")
 def engine():
-    engine = get_engine()
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
+    yield test_engine
+    Base.metadata.drop_all(bind=test_engine)
 
 @pytest.fixture(scope="function")
 def db_session():

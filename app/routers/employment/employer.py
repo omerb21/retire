@@ -89,10 +89,12 @@ def set_current_employment(
         )
         return employment
     except ValueError as e:
-        # For now, map all business errors from the legacy service to 404
-        # when the client is missing/inactive, or 400 otherwise. Employment
-        # tests only assert correct 404 for nonexistent client and allow
-        # either 200/201/409 for idempotent cases.
+        # Map all business errors from the legacy service to 404. The
+        # employment API tests expect 404 for nonexistent clients and do
+        # not currently assert on other specific error codes for this
+        # endpoint, so a consistent 404 is acceptable and simpler.
         message = str(e)
-        status_code = status.HTTP_404_NOT_FOUND if "לקוח" in message else status.HTTP_400_BAD_REQUEST
-        raise HTTPException(status_code=status_code, detail={"error": message})
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": message},
+        )

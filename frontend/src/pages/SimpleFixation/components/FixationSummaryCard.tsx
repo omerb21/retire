@@ -18,6 +18,16 @@ interface FixationSummaryCardProps {
   grantsSummary: GrantSummary[];
   exemptionSummary: ExemptionSummary | null;
   commutations: Commutation[];
+  continuesWorking: boolean;
+  setContinuesWorking: (value: boolean) => void;
+  workingEmployerName: string;
+  setWorkingEmployerName: (value: string) => void;
+  workingStartDate: string;
+  setWorkingStartDate: (value: string) => void;
+  workingEndDate: string;
+  setWorkingEndDate: (value: string) => void;
+  workingLastSalary: number;
+  setWorkingLastSalary: (value: number) => void;
   onCalculateFixation: () => void;
   onDeleteFixation: () => void;
 }
@@ -32,6 +42,16 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
   grantsSummary,
   exemptionSummary,
   commutations,
+  continuesWorking,
+  setContinuesWorking,
+  workingEmployerName,
+  setWorkingEmployerName,
+  workingStartDate,
+  setWorkingStartDate,
+  workingEndDate,
+  setWorkingEndDate,
+  workingLastSalary,
+  setWorkingLastSalary,
   onCalculateFixation,
   onDeleteFixation
 }) => {
@@ -77,6 +97,65 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
           border: '1px solid #ffc107'
         }}
       >
+        <div className="form-group">
+          <label className="form-label">
+            <input
+              type="checkbox"
+              checked={continuesWorking}
+              onChange={(e) => setContinuesWorking(e.target.checked)}
+            />{' '}
+            האם ממשיך לעבוד
+          </label>
+        </div>
+
+        {continuesWorking && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="form-group">
+              <label className="form-label">שם מעסיק</label>
+              <input
+                type="text"
+                className="form-input"
+                value={workingEmployerName}
+                onChange={(e) => setWorkingEmployerName(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">תאריך תחילת עבודה</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="DD/MM/YYYY"
+                value={workingStartDate}
+                onChange={(e) => setWorkingStartDate(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">תאריך סיום עבודה</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="DD/MM/YYYY"
+                value={workingEndDate}
+                onChange={(e) => setWorkingEndDate(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">משכורת אחרונה</label>
+              <input
+                type="number"
+                className="form-input"
+                value={workingLastSalary || ''}
+                onChange={(e) =>
+                  setWorkingLastSalary(e.target.value ? parseFloat(e.target.value) || 0 : 0)
+                }
+              />
+            </div>
+          </div>
+        )}
+
         <label
           style={{
             display: 'block',

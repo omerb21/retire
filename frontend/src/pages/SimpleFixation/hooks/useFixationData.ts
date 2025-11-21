@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE } from '../../../lib/api';
-import { formatDateToDDMMYY, formatDateToDDMMYYYY } from '../../../utils/dateUtils';
+import {
+  formatDateToDDMMYY,
+  formatDateToDDMMYYYY,
+  convertISOToDDMMYY,
+  convertDDMMYYToISO
+} from '../../../utils/dateUtils';
 import {
   FixationData,
   GrantSummary,
@@ -23,6 +28,16 @@ interface UseFixationDataResult {
   commutations: Commutation[];
   futureGrantReserved: number;
   setFutureGrantReserved: (value: number) => void;
+  continuesWorking: boolean;
+  setContinuesWorking: (value: boolean) => void;
+  workingEmployerName: string;
+  setWorkingEmployerName: (value: string) => void;
+  workingStartDate: string;
+  setWorkingStartDate: (value: string) => void;
+  workingEndDate: string;
+  setWorkingEndDate: (value: string) => void;
+  workingLastSalary: number;
+  setWorkingLastSalary: (value: number) => void;
   retirementAge: string;
   savedEffectivePensionDate: string | null;
   currentPensionStartDate: string | null;
@@ -43,6 +58,11 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
   const [clientData, setClientData] = useState<any>(null);
   const [commutations, setCommutations] = useState<Commutation[]>([]);
   const [futureGrantReserved, setFutureGrantReserved] = useState<number>(0);
+  const [continuesWorking, setContinuesWorking] = useState<boolean>(false);
+  const [workingEmployerName, setWorkingEmployerName] = useState<string>('');
+  const [workingStartDate, setWorkingStartDate] = useState<string>('');
+  const [workingEndDate, setWorkingEndDate] = useState<string>('');
+  const [workingLastSalary, setWorkingLastSalary] = useState<number>(0);
   const [retirementAge, setRetirementAge] = useState<string>('לא ניתן לחשב');
   const [savedEffectivePensionDate, setSavedEffectivePensionDate] = useState<string | null>(null);
   const [currentPensionStartDate, setCurrentPensionStartDate] = useState<string | null>(null);
@@ -84,18 +104,78 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
 
         try {
           const savedFixation = await axios.get(`${API_BASE}/rights-fixation/client/${id}`);
-          if (savedFixation.data.success && savedFixation.data.raw_payload) {
-            const savedFutureGrant = savedFixation.data.raw_payload.future_grant_reserved || 0;
+          if (
+            savedFixation.data.success &&
+            (savedFixation.data.raw_payload || savedFixation.data.raw_result)
+          ) {
+            const rawPayload = savedFixation.data.raw_payload || {};
+            const rawResult = savedFixation.data.raw_result || {};
+
+            const savedFutureGrant = rawPayload.future_grant_reserved || 0;
             setFutureGrantReserved(savedFutureGrant);
             console.log('Loaded saved future grant:', savedFutureGrant);
 
-            const savedEffective = savedFixation.data.raw_payload.effective_pension_start_date || null;
+            const savedEffective = rawPayload.effective_pension_start_date || null;
             setSavedEffectivePensionDate(savedEffective);
+
+            const employerSnapshot =
+              rawPayload.current_employer_snapshot || rawResult.current_employer_snapshot;
+            if (employerSnapshot) {
+              setContinuesWorking(!!employerSnapshot.continues_working);
+              setWorkingEmployerName(employerSnapshot.employer_name || '');
+
+              const startIso = employerSnapshot.work_start_date || employerSnapshot.start_date;
+              const endIso = employerSnapshot.work_end_date || employerSnapshot.end_date;
+
+              setWorkingStartDate(startIso ? convertISOToDDMMYY(startIso) : '');
+              setWorkingEndDate(endIso ? convertISOToDDMMYY(endIso) : '');
+
+              const lastSalaryRaw =
+                typeof employerSnapshot.last_salary === 'number'
+                  ? employerSnapshot.last_salary
+                  : Number(employerSnapshot.last_salary || 0);
+              setWorkingLastSalary(isNaN(lastSalaryRaw) ? 0 : lastSalaryRaw);
+            }
           }
         } catch (err: any) {
           if (err.response?.status !== 404) {
             console.error('Error loading saved fixation:', err);
           }
+        }
+
+        try {
+          if (!workingEmployerName) {
+            const employerResponse = await axios.get(
+              `${API_BASE}/clients/${id}/current-employer`
+            );
+
+            let employerData: any = null;
+            if (Array.isArray(employerResponse.data) && employerResponse.data.length > 0) {
+              employerData = employerResponse.data[0];
+            } else if (
+              employerResponse.data &&
+              typeof employerResponse.data === 'object' &&
+              employerResponse.data.employer_name
+            ) {
+              employerData = employerResponse.data;
+            }
+
+            if (employerData) {
+              setWorkingEmployerName(employerData.employer_name || '');
+              setWorkingStartDate(
+                employerData.start_date ? convertISOToDDMMYY(employerData.start_date) : ''
+              );
+              setWorkingEndDate(
+                employerData.end_date ? convertISOToDDMMYY(employerData.end_date) : ''
+              );
+              const lastSalary = Number(
+                employerData.monthly_salary || employerData.last_salary || employerData.average_salary || 0
+              );
+              setWorkingLastSalary(isNaN(lastSalary) ? 0 : lastSalary);
+            }
+          }
+        } catch (err) {
+          console.error('Error preloading current employer for fixation:', err);
         }
 
         try {
@@ -316,30 +396,55 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         fixationData
       );
 
+      const employerSnapshot =
+        continuesWorking &&
+        (workingEmployerName || workingStartDate || workingEndDate || workingLastSalary)
+          ? {
+              continues_working: true,
+              employer_name: workingEmployerName || '',
+              work_start_date: workingStartDate ? convertDDMMYYToISO(workingStartDate) : null,
+              work_end_date: workingEndDate ? convertDDMMYYToISO(workingEndDate) : null,
+              last_salary: workingLastSalary || 0,
+              first_pension_date: currentPensionStartDate || null
+            }
+          : null;
+
+      const calculationResult: any = {
+        grants: fixationData.grants,
+        exemption_summary: {
+          ...fixationData.exemption_summary,
+          future_grant_reserved: futureGrantReserved,
+          future_grant_impact: futureGrantReserved * 1.35,
+          total_commutations: pensionSummary.total_discounts,
+          final_remaining_exemption: pensionSummary.remaining_exemption,
+          remaining_exempt_capital: pensionSummary.remaining_exemption,
+          remaining_monthly_exemption: pensionSummary.exempt_pension_calculated.base_amount,
+          exempt_pension_percentage:
+            pensionSummary.exempt_pension_calculated.percentage / 100
+        },
+        eligibility_date: fixationData.eligibility_date,
+        eligibility_year: fixationData.eligibility_year
+      };
+
+      if (employerSnapshot) {
+        calculationResult.current_employer_snapshot = employerSnapshot;
+      }
+
+      const formattedData: any = {
+        id: parseInt(id!),
+        eligibility_date: fixationData.eligibility_date,
+        eligibility_year: fixationData.eligibility_year,
+        future_grant_reserved: futureGrantReserved
+      };
+
+      if (employerSnapshot) {
+        formattedData.current_employer_snapshot = employerSnapshot;
+      }
+
       const saveResponse = await axios.post(`${API_BASE}/rights-fixation/save`, {
         client_id: parseInt(id!),
-        calculation_result: {
-          grants: fixationData.grants,
-          exemption_summary: {
-            ...fixationData.exemption_summary,
-            future_grant_reserved: futureGrantReserved,
-            future_grant_impact: futureGrantReserved * 1.35,
-            total_commutations: pensionSummary.total_discounts,
-            final_remaining_exemption: pensionSummary.remaining_exemption,
-            remaining_exempt_capital: pensionSummary.remaining_exemption,
-            remaining_monthly_exemption: pensionSummary.exempt_pension_calculated.base_amount,
-            exempt_pension_percentage:
-              pensionSummary.exempt_pension_calculated.percentage / 100
-          },
-          eligibility_date: fixationData.eligibility_date,
-          eligibility_year: fixationData.eligibility_year
-        },
-        formatted_data: {
-          id: parseInt(id!),
-          eligibility_date: fixationData.eligibility_date,
-          eligibility_year: fixationData.eligibility_year,
-          future_grant_reserved: futureGrantReserved
-        }
+        calculation_result: calculationResult,
+        formatted_data: formattedData
       });
 
       alert(
@@ -404,6 +509,16 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
     commutations,
     futureGrantReserved,
     setFutureGrantReserved,
+     continuesWorking,
+     setContinuesWorking,
+     workingEmployerName,
+     setWorkingEmployerName,
+     workingStartDate,
+     setWorkingStartDate,
+     workingEndDate,
+     setWorkingEndDate,
+     workingLastSalary,
+     setWorkingLastSalary,
     retirementAge,
     savedEffectivePensionDate,
     currentPensionStartDate,

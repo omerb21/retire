@@ -20,8 +20,33 @@ logger = logging.getLogger(__name__)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.routers import fixation, files, employment, pension_fund, additional_income, capital_asset, income_integration, cashflow_generation, report_generation, scenario_compare, case_detection, clients, grant, tax_data, indexation, rights_fixation, tax_calculation, pension_portfolio, snapshot, retirement_age, annuity_coefficient, system_health, calculation
+from app.routers import (
+    fixation,
+    files,
+    employment,
+    pension_fund,
+    additional_income,
+    capital_asset,
+    income_integration,
+    cashflow_generation,
+    report_generation,
+    scenario_compare,
+    case_detection,
+    clients,
+    grant,
+    tax_data,
+    indexation,
+    rights_fixation,
+    tax_calculation,
+    pension_portfolio,
+    snapshot,
+    retirement_age,
+    annuity_coefficient,
+    system_health,
+    calculation,
+)
 from app.routers.employment import router as employment_router
+from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
 
 @asynccontextmanager
@@ -81,6 +106,7 @@ app.add_middleware(
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
 app.include_router(employment.router)  # employment router already has /api/v1/clients prefix
 app.include_router(employment_router, prefix="/api/v1", tags=["current_employer"])
+app.include_router(employment_api_router)  # legacy Employment API (/api/v1/clients/.../employment/...)
 app.include_router(fixation.router,   prefix="/api/v1", tags=["fixation"])
 app.include_router(pension_fund.router)
 app.include_router(additional_income.router, prefix="/api/v1")

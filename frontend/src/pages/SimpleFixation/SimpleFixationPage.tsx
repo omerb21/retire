@@ -21,6 +21,16 @@ const SimpleFixationPage: React.FC = () => {
     futureGrantReserved,
     setFutureGrantReserved,
     retirementAge,
+    continuesWorking,
+    setContinuesWorking,
+    workingEmployerName,
+    setWorkingEmployerName,
+    workingStartDate,
+    setWorkingStartDate,
+    workingEndDate,
+    setWorkingEndDate,
+    workingLastSalary,
+    setWorkingLastSalary,
     isFixationStale,
     handleCalculateFixation,
     handleDeleteFixation
@@ -76,6 +86,16 @@ const SimpleFixationPage: React.FC = () => {
             grantsSummary={grantsSummary}
             exemptionSummary={exemptionSummary}
             commutations={commutations}
+            continuesWorking={continuesWorking}
+            setContinuesWorking={setContinuesWorking}
+            workingEmployerName={workingEmployerName}
+            setWorkingEmployerName={setWorkingEmployerName}
+            workingStartDate={workingStartDate}
+            setWorkingStartDate={setWorkingStartDate}
+            workingEndDate={workingEndDate}
+            setWorkingEndDate={setWorkingEndDate}
+            workingLastSalary={workingLastSalary}
+            setWorkingLastSalary={setWorkingLastSalary}
             onCalculateFixation={handleCalculateFixation}
             onDeleteFixation={handleDeleteFixation}
           />

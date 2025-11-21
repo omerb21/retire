@@ -86,6 +86,42 @@ export const useEmployerData = (clientId: string | undefined) => {
     fetchEmployer();
   }, [clientId]);
 
+  // Sync severance balance with pension portfolio when returning to the page
+  useEffect(() => {
+    if (!clientId) return;
+
+    const refreshSeveranceFromPension = () => {
+      const severanceFromPension = getSeveranceFromPension(clientId);
+      setEmployer((prev) => {
+        if (prev.severance_accrued === severanceFromPension) {
+          return prev;
+        }
+        return {
+          ...prev,
+          severance_accrued: severanceFromPension
+        };
+      });
+    };
+
+    const handleFocus = () => {
+      refreshSeveranceFromPension();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshSeveranceFromPension();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [clientId]);
+
   // Save employer data
   const saveEmployer = async (): Promise<boolean> => {
     if (!clientId) return false;
