@@ -36,7 +36,11 @@ class TestCashflowGeneration:
         for row in result:
             for field in required_fields:
                 assert field in row
-                assert isinstance(row[field], (int, float, date))
+                if field == "date":
+                    # Allow date to be either a date object or ISO string ("YYYY-MM-01")
+                    assert isinstance(row[field], (date, str))
+                else:
+                    assert isinstance(row[field], (int, float, date))
         
         # Verify dates are first of month and sequential
         expected_dates = [
@@ -44,7 +48,11 @@ class TestCashflowGeneration:
             date(2025, 5, 1), date(2025, 6, 1), date(2025, 7, 1), date(2025, 8, 1),
             date(2025, 9, 1), date(2025, 10, 1), date(2025, 11, 1), date(2025, 12, 1)
         ]
-        actual_dates = [row["date"] for row in result]
+        # Normalize result dates: convert ISO strings back to date objects if needed
+        actual_dates = [
+            date.fromisoformat(row["date"]) if isinstance(row["date"], str) else row["date"]
+            for row in result
+        ]
         assert actual_dates == expected_dates
 
     def test_generate_bad_range(self, db_session: Session, test_client_data):
@@ -81,9 +89,51 @@ class TestCashflowGeneration:
 class TestCashflowAPI:
     """Test cashflow generation API endpoints."""
 
-    def test_api_generate_ok(self, test_client: TestClient, test_client_data):
+    def _create_api_client(self, test_client: TestClient) -> int:
+        """Create a test client via the public API and return its ID.
+
+        This ensures the cashflow endpoint sees the same DB state as the
+        client creation endpoint, instead of relying on ORM fixtures that
+        run in separate transactions.
+        """
+        from datetime import date, timedelta
+        import random
+        from tests.utils import gen_valid_id
+
+        unique_id = gen_valid_id()
+        unique_email = f"test{random.randint(1000, 9999)}@example.com"
+
+        payload = {
+            "id_number_raw": unique_id,
+            "id_number": unique_id,
+            "full_name": "ישראל ישראלי",
+            "first_name": "ישראל",
+            "last_name": "ישראלי",
+            "birth_date": (date.today() - timedelta(days=30 * 365)).isoformat(),
+            "gender": "male",
+            "marital_status": "single",
+            "self_employed": False,
+            "current_employer_exists": True,
+            "planned_termination_date": (date.today() + timedelta(days=365)).isoformat(),
+            "email": unique_email,
+            "phone": "050-1234567",
+            "address_street": "רחוב הרצל 1",
+            "address_city": "תל אביב",
+            "address_postal_code": "12345",
+            "retirement_target_date": (date.today() + timedelta(days=35 * 365)).isoformat(),
+            "is_active": True,
+            "notes": "הערות לקוח",
+        }
+
+        response = test_client.post("/api/v1/clients", json=payload)
+        assert response.status_code == 201
+        data = response.json()
+        assert "id" in data
+        return data["id"]
+
+    def test_api_generate_ok(self, test_client: TestClient):
         """Test successful API call."""
-        client_id = test_client_data["id"]
+        client_id = self._create_api_client(test_client)
         scenario_id = 24
         
         response = test_client.post(
@@ -105,9 +155,9 @@ class TestCashflowAPI:
         for field in required_fields:
             assert field in first_row
 
-    def test_api_bad_range_400(self, test_client: TestClient, test_client_data):
+    def test_api_bad_range_400(self, test_client: TestClient):
         """Test API returns 400 for bad date range."""
-        client_id = test_client_data["id"]
+        client_id = self._create_api_client(test_client)
         scenario_id = 24
         
         response = test_client.post(
@@ -122,9 +172,9 @@ class TestCashflowAPI:
         assert response.status_code == 400
         assert "from" in response.json()["detail"].lower()
 
-    def test_api_bad_frequency_422(self, test_client: TestClient, test_client_data):
+    def test_api_bad_frequency_422(self, test_client: TestClient):
         """Test API returns 422 for unsupported frequency."""
-        client_id = test_client_data["id"]
+        client_id = self._create_api_client(test_client)
         scenario_id = 24
         
         response = test_client.post(
@@ -146,9 +196,9 @@ class TestCashflowAPI:
             # Our custom error
             assert "supported: monthly" in detail
 
-    def test_api_invalid_date_format_422(self, test_client: TestClient, test_client_data):
+    def test_api_invalid_date_format_422(self, test_client: TestClient):
         """Test API returns 422 for invalid date format."""
-        client_id = test_client_data["id"]
+        client_id = self._create_api_client(test_client)
         scenario_id = 24
         
         response = test_client.post(

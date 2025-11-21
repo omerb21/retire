@@ -4,7 +4,7 @@ Client entity schemas for API request/response validation
 from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from app.services.client_service import validate_id_number, normalize_id_number
+from app.services.client_service import validate_id_number, normalize_id_number, validate_birth_date
 
 
 class ClientBase(BaseModel):
@@ -64,6 +64,10 @@ class ClientCreate(ClientBase):
             normalized = normalize_id_number(v)
             if not validate_id_number(normalized):
                 raise ValueError("תעודת זהות אינה תקינה")
+            # If only id_number_raw was provided, also populate id_number
+            # so that the DB layer gets a non-null unique key.
+            if values.data.get("id_number") is None:
+                values.data["id_number"] = normalized
             return v
         return v
         
@@ -85,6 +89,14 @@ class ClientCreate(ClientBase):
         """Set full_name from first_name and last_name if not provided"""
         if v is None and values.data.get('first_name') and values.data.get('last_name'):
             return f"{values.data['first_name']} {values.data['last_name']}"
+        return v
+
+    @field_validator('birth_date')
+    @classmethod
+    def validate_birth_date_create(cls, v):
+        """Validate birth date age range for new client"""
+        if v is not None and not validate_birth_date(v):
+            raise ValueError("תאריך לידה אינו בטווח הגילאים המותר (18-120)")
         return v
 
 
@@ -140,6 +152,14 @@ class ClientUpdate(BaseModel):
             normalized = normalize_id_number(v)
             if not validate_id_number(normalized):
                 raise ValueError("תעודת זהות אינה תקינה")
+        return v
+
+    @field_validator('birth_date')
+    @classmethod
+    def validate_birth_date_update(cls, v):
+        """Validate birth date age range on update if provided"""
+        if v is not None and not validate_birth_date(v):
+            raise ValueError("תאריך לידה אינו בטווח הגילאים המותר (18-120)")
         return v
 
 

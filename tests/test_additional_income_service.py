@@ -136,8 +136,9 @@ def test_calculate_tax_exempt(db_session: Session):
         tax_treatment=TaxTreatment.EXEMPT
     )
     
-    tax_amount = service.calculate_tax(Decimal('5000'), income)
+    tax_amount, include_in_total = service.calculate_tax(Decimal('5000'), income)
     assert tax_amount == Decimal('0')
+    assert include_in_total is False
 
 
 def test_calculate_tax_fixed_rate(db_session: Session):
@@ -156,11 +157,12 @@ def test_calculate_tax_fixed_rate(db_session: Session):
         start_date=date(2024, 1, 1),
         indexation_method=IndexationMethod.NONE,
         tax_treatment=TaxTreatment.FIXED_RATE,
-        tax_rate=Decimal('0.25')  # 25%
+        tax_rate=Decimal('25')  # 25%
     )
     
-    tax_amount = service.calculate_tax(Decimal('5000'), income)
+    tax_amount, include_in_total = service.calculate_tax(Decimal('5000'), income)
     assert tax_amount == Decimal('1250')  # 5000 * 0.25
+    assert include_in_total is False
 
 
 def test_project_cashflow(db_session: Session):
@@ -180,7 +182,7 @@ def test_project_cashflow(db_session: Session):
         end_date=date(2024, 3, 31),
         indexation_method=IndexationMethod.NONE,
         tax_treatment=TaxTreatment.FIXED_RATE,
-        tax_rate=Decimal('0.25')
+        tax_rate=Decimal('25')
     )
     
     cashflow = service.project_cashflow(
@@ -230,7 +232,7 @@ def test_generate_combined_cashflow(db_session: Session):
         end_date=date(2024, 2, 29),
         indexation_method=IndexationMethod.NONE,
         tax_treatment=TaxTreatment.FIXED_RATE,
-        tax_rate=Decimal('0.20')
+        tax_rate=Decimal('20')
     )
     
     db_session.add_all([income1, income2])

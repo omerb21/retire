@@ -105,7 +105,31 @@ class Client(Base):
         for alias, canonical in alias_map.items():
             if alias in kwargs and canonical not in kwargs:
                 kwargs[canonical] = kwargs.pop(alias)
-        super().__init__(*args, **kwargs)
+        # Extract commonly used ID fields explicitly
+        id_number_raw_value = kwargs.pop("id_number_raw", None)
+        id_number_value = kwargs.pop("id_number", None)
+
+        # Some legacy paths may pass an "app" kwarg – ignore it safely
+        kwargs.pop("app", None)
+
+        # Capture any remaining kwargs to be assigned as plain attributes
+        extra_attrs = dict(kwargs)
+
+        # Call the base SQLAlchemy constructor without user kwargs to avoid
+        # TypeError for unknown keywords when mappers are in a reset state
+        super().__init__(*args)
+
+        # Re-apply core identity fields
+        if id_number_value is not None:
+            self.id_number = id_number_value
+        if id_number_raw_value is not None:
+            # Only override if not already set by events or other logic
+            if not getattr(self, "id_number_raw", None):
+                self.id_number_raw = id_number_raw_value
+
+        # Assign any remaining attributes (address, email, flags, etc.)
+        for key, value in extra_attrs.items():
+            setattr(self, key, value)
     
     def get_age(self, reference_date: date = None) -> int:
         """

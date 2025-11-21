@@ -30,8 +30,8 @@ class CashflowGenerateRequest(BaseModel):
     
     @validator('to')
     def validate_date_range(cls, v, values):
-        if 'from_' in values and v < values['from_']:
-            raise ValueError("'to' date must be greater than or equal to 'from' date")
+        # Range validation is handled in the service layer (generate_cashflow),
+        # which raises ValueError mapped to HTTP 400. Here we only accept format.
         return v
 
 

@@ -12,6 +12,8 @@ class TaxParameters(BaseModel):
     # ׳׳¢׳ ׳§׳™׳: ׳×׳§׳¨׳× ׳₪׳˜׳•׳¨, ׳׳“׳¨׳’׳•׳× ׳׳¡ ׳׳׳¨׳›׳™׳‘ ׳”׳—׳™׳™׳‘ (׳“׳•׳’׳׳” ׳₪׳©׳˜׳ ׳™׳×)
     grant_exemption_cap: float = 0.0
     grant_tax_brackets: List[TaxBracket] = Field(default_factory=list)
+    # מדרגות מס הכנסה כלליות לנכסי הון/הכנסות אחרות
+    income_tax_brackets: List[TaxBracket] = Field(default_factory=list)
     # ׳§׳¦׳‘׳׳•׳×: ׳׳§׳“׳ ׳”׳׳¨׳” ׳”׳™׳₪׳•׳×׳˜׳™ (׳₪׳©׳˜׳ ׳™ ׳׳©׳׳‘ ׳–׳”)
     annuity_factor: float = 200.0  # ׳”׳•׳ / 200 = ׳₪׳ ׳¡׳™׳” ׳—׳•׳“׳©׳™׳× ׳׳©׳•׳¢׳¨׳×
 

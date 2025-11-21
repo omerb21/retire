@@ -50,8 +50,11 @@ export function useClients() {
       try {
         const data = await listClients();
         console.log('Clients loaded successfully:', data);
-        setItems(data || []);
-        setMsg(`✅ טעינה הצליחה! נמצאו ${data?.length || 0} לקוחות`);
+
+        // API now returns a paginated object: { items, total, page, page_size }
+        const list = (data as any)?.items ?? data ?? [];
+        setItems(list);
+        setMsg(`✅ טעינה הצליחה! נמצאו ${Array.isArray(list) ? list.length : 0} לקוחות`);
       } catch (apiError: any) {
         console.error('Error with listClients API:', apiError);
 
@@ -71,8 +74,11 @@ export function useClients() {
               try {
                 const jsonData = JSON.parse(testData);
                 console.log('Parsed JSON data:', jsonData);
-                setItems(jsonData || []);
-                setMsg(`✅ טעינה הצליחה! נמצאו ${jsonData?.length || 0} לקוחות`);
+
+                // Same paginated shape as the main API helper
+                const list = (jsonData as any)?.items ?? jsonData ?? [];
+                setItems(list);
+                setMsg(`✅ טעינה הצליחה! נמצאו ${Array.isArray(list) ? list.length : 0} לקוחות`);
               } catch (jsonError) {
                 console.error('JSON parsing error:', jsonError);
                 setMsg('שגיאה בפענוח תגובת השרת: תגובה לא תקינה');

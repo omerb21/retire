@@ -44,7 +44,15 @@ def add_grant_to_current_employer(
         )
         
     except ValueError as e:
+        message = str(e)
+        # Map known business errors to 404 as expected by tests
+        not_found_messages = {
+            "לקוח לא נמצא",
+            "אין מעסיק נוכחי רשום ללקוח",
+            "מעסיק נוכחי לא נמצא",
+        }
+        status_code = status.HTTP_404_NOT_FOUND if ("לא נמצא" in message or message in not_found_messages) else status.HTTP_400_BAD_REQUEST
         raise HTTPException(
-            status_code=404 if "לא נמצא" in str(e) else 400,
-            detail={"error": str(e)}
+            status_code=status_code,
+            detail={"error": message},
         )
