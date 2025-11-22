@@ -3,6 +3,7 @@ Maximum Capital Scenario
 תרחיש מקסימום הון
 """
 import logging
+import json
 from typing import Dict
 from datetime import date
 from app.models.pension_fund import PensionFund
@@ -82,7 +83,7 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         self.conversion_service.verify_fixation_and_exempt_pension()
         
         # Step 7: Calculate and return
-        results = self._calculate_scenario_results("מקסימום הון (קצבת מינימום: 5,500)")
+        results = self._calculate_scenario_results_with_capital("מקסימום הון (קצבת מינימום: 5,500)")
         self._log_scenario_complete("מקסימום הון (קצבת מינימום: 5,500)")
         return results
     
@@ -99,42 +100,174 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         
         self.db.flush()
     
+    def _calculate_scenario_results_with_capital(self, scenario_name: str) -> Dict:
+        """Calculate scenario results with adjusted capital aggregation for Max Capital."""
+        # השתמש בלוגיקה הבסיסית לחישוב קצבאות, הכנסות נוספות ו-NPV
+        results = self._calculate_scenario_results(scenario_name)
+
+        # חישוב סך הון בפועל לפי נכסי הון הקיימים לאחר התרחיש
+        capital_assets = self.db.query(CapitalAsset).filter(
+            CapitalAsset.client_id == self.client_id
+        ).all()
+
+        total_capital = 0.0
+        for ca in capital_assets:
+            value = 0.0
+
+            # עדיפות לערך הון חד-פעמי אם קיים
+            if ca.current_value is not None:
+                try:
+                    current_val = float(ca.current_value or 0)
+                except (TypeError, ValueError):
+                    current_val = 0.0
+                if current_val > 0:
+                    value = current_val
+
+            # אם אין current_value חיובי – עבור לנכסי הון שמיוצגים כהכנסה חודשית
+            if value <= 0 and ca.monthly_income is not None:
+                try:
+                    monthly_val = float(ca.monthly_income or 0)
+                except (TypeError, ValueError):
+                    monthly_val = 0.0
+                if monthly_val > 0:
+                    value = monthly_val
+
+            total_capital += value
+
+        results["total_capital"] = total_capital
+        self.scenario_results = results
+        return results
+    
+    def _get_max_capitalizable_pension(self, pf: PensionFund) -> float:
+        """חישוב חלק הקצבה המקסימלי שניתן להוון להון לפי רכיבים מתיק פנסיוני"""
+        pension_amount = float(pf.pension_amount or 0)
+        if pension_amount <= 0:
+            return 0.0
+
+        conv_source = getattr(pf, "conversion_source", None)
+        if not conv_source:
+            # אם אין מידע על רכיבים – נאפשר היוון מלא של הקצבה
+            return pension_amount
+
+        try:
+            source_data = json.loads(conv_source)
+        except (TypeError, ValueError):
+            return pension_amount
+
+        source_type = source_data.get("type") or source_data.get("source")
+        if source_type != "pension_portfolio":
+            # קצבאות שלא יובאו מתיק פנסיוני אינן מוגבלות ברמת רכיב בתרחיש
+            return pension_amount
+
+        specific_amounts = source_data.get("specific_amounts") or {}
+        if not isinstance(specific_amounts, dict):
+            return 0.0
+
+        # החלק המותר להמרה להון לפי הרכיבים שניתן להמיר להון בצד הפרונט:
+        # - פיצויים לאחר התחשבנות (הוני)
+        # - תגמולי עובד עד 2000 (הוני)
+        # - תגמולי מעביד עד 2000 (הוני)
+        convertible_balance = 0.0
+        for field in (
+            "פיצויים_לאחר_התחשבנות",
+            "תגמולי_עובד_עד_2000",
+            "תגמולי_מעביד_עד_2000",
+        ):
+            value = specific_amounts.get(field)
+            try:
+                convertible_balance += float(value or 0)
+            except (TypeError, ValueError):
+                continue
+
+        if convertible_balance <= 0:
+            return 0.0
+
+        total_balance = float(
+            source_data.get("original_balance")
+            or source_data.get("amount")
+            or pf.balance
+            or 0.0
+        )
+        if total_balance <= 0:
+            return 0.0
+
+        ratio = convertible_balance / total_balance
+        if ratio <= 0:
+            return 0.0
+        if ratio > 1:
+            ratio = 1.0
+
+        return pension_amount * ratio
+    
     def _capitalize_pensions_keeping_minimum(self, sorted_pensions, total_pension_available):
         """היוון קצבאות תוך שמירת מינימום"""
-        remaining_pension = total_pension_available
-        
-        for pf in sorted_pensions:
-            if remaining_pension <= MINIMUM_PENSION:
-                # Keep this pension
-                tax_status = "פטור ממס" if pf.tax_treatment == "exempt" else "חייב במס"
-                logger.info(f"  ✅ Keeping pension: {pf.fund_name} ({pf.pension_amount} ₪) ({tax_status})")
+        # סך הקצבה הזמינה לאחר כל ההמרות הראשוניות
+        total_pension = float(total_pension_available or 0)
+
+        # אם אין מספיק קצבה להגיע למינימום – לא מהוונים כלל
+        if total_pension <= MINIMUM_PENSION:
+            logger.info(
+                f"  ℹ️ Total pension ({total_pension}) <= minimum ({MINIMUM_PENSION}), "
+                "skipping capitalization of pensions"
+            )
+            return
+
+        # כמה קצבה צריך להשאיר בסך הכול
+        remaining_to_keep = float(MINIMUM_PENSION)
+
+        # כדי לשמור את הקצבאות האיכותיות ביותר, נמיין לפי מקדם (מקדם נמוך יותר = קצבה טובה יותר)
+        pensions_by_quality = sorted(
+            sorted_pensions,
+            key=lambda p: float(p.annuity_factor or 0) if getattr(p, "annuity_factor", None) is not None else 999999.0,
+        )
+
+        for pf in pensions_by_quality:
+            pension_amount = float(pf.pension_amount or 0)
+            if pension_amount <= 0:
+                continue
+
+            tax_status = "פטור ממס" if pf.tax_treatment == "exempt" else "חייב במס"
+
+            if remaining_to_keep <= 0:
+                # כבר הגענו לקצבת המינימום – את כל הקצבאות הנוספות מהוונים במלואן
+                logger.info(
+                    f"  💼 Capitalizing full pension above minimum: {pf.fund_name} "
+                    f"({pension_amount} ₪) ({tax_status})"
+                )
+                self._capitalize_full_pension(pf)
+                continue
+
+            if pension_amount <= remaining_to_keep:
+                # קצבה זו כולה דרושה כדי להגיע למינימום – נשאיר אותה כקצבה
+                remaining_to_keep -= pension_amount
+                logger.info(
+                    f"  ✅ Keeping pension towards minimum: {pf.fund_name} "
+                    f"({pension_amount} ₪) ({tax_status}), remaining_to_keep={remaining_to_keep}"
+                )
                 self._add_action(
                     "keep",
                     f"שמירת קצבה מינימום: {pf.fund_name} ({tax_status})",
                     from_asset="",
-                    to_asset=f"קצבה: {pf.pension_amount:,.0f} ₪/חודש ({tax_status})",
-                    amount=0
+                    to_asset=f"קצבה: {pension_amount:,.0f} ₪/חודש ({tax_status})",
+                    amount=0,
                 )
             else:
-                # Check how much we can capitalize
-                can_capitalize = remaining_pension - MINIMUM_PENSION
-                
-                # חשוב: לשמור את הקצבה המקורית לפני ההיוון, כי פונקציית ההיוון המלא
-                # מאפסת את pf.pension_amount לצורך שיקוף המצב החדש בטבלה.
-                original_pension_amount = pf.pension_amount or 0
+                # צריך רק חלק מהקצבה הזו; שארית הקצבה תהוון להון
+                capitalize_amount = pension_amount - remaining_to_keep
+                logger.info(
+                    f"  ⚖️ Partial capitalization to reach minimum: {pf.fund_name} - "
+                    f"capitalize {capitalize_amount} ₪, keep {remaining_to_keep} ₪ ({tax_status})"
+                )
+                self._capitalize_partial_pension(pf, capitalize_amount)
+                remaining_to_keep = 0.0
 
-                if original_pension_amount <= can_capitalize:
-                    # Capitalize entire fund
-                    self._capitalize_full_pension(pf)
-                    # להפחתת הקצבה שנותרה משתמשים בערך המקורי לפני ההיוון
-                    remaining_pension -= original_pension_amount
-                else:
-                    # Partial capitalization
-                    self._capitalize_partial_pension(pf, can_capitalize)
-                    remaining_pension = MINIMUM_PENSION
-        
+        # חישוב קצבה סופית לאחר כל ההיוונים
+        final_pension = sum(float(pf.pension_amount or 0) for pf in pensions_by_quality)
         self.db.flush()
-        logger.info(f"  ✅ Final pension amount: {remaining_pension} ₪ (minimum: {MINIMUM_PENSION})")
+        logger.info(
+            f"  ✅ Final pension amount after capitalization: {final_pension} ₪ "
+            f"(target minimum: {MINIMUM_PENSION})"
+        )
     
     def _capitalize_full_pension(self, pf):
         """היוון מלא של קצבה"""

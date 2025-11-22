@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { API_BASE, apiFetch } from "../lib/api";
+import { API_BASE, apiFetch, handleApiError } from "../lib/api";
 import { formatCurrency } from "../lib/validation";
 import RetirementScenarioCharts from "../components/retirement/RetirementScenarioCharts";
 import {
@@ -47,7 +47,10 @@ interface ScenariosResponse {
 
 // מנקה את כל טורי היתרות בתיק הפנסיוני ב-localStorage לאחר ביצוע תרחיש בפועל,
 // כך שניתן לראות שהיתרות הומרו, אך לשמור את החשבונות עצמם לתיעוד.
-const clearPensionPortfolioBalancesAfterScenario = (clientId: string) => {
+const clearPensionPortfolioBalancesAfterScenario = (
+  clientId: string,
+  options?: { includeCurrentEmployerTermination?: boolean }
+) => {
   const storageKey = `pensionData_${clientId}`;
   const stored = localStorage.getItem(storageKey);
 
@@ -57,6 +60,9 @@ const clearPensionPortfolioBalancesAfterScenario = (clientId: string) => {
 
   try {
     const pensionData = JSON.parse(stored);
+
+    const includeCurrentEmployerTermination =
+      options?.includeCurrentEmployerTermination ?? false;
 
     const numericFields = [
       "יתרה",
@@ -85,6 +91,9 @@ const clearPensionPortfolioBalancesAfterScenario = (clientId: string) => {
       const updatedAccount = { ...account };
 
       numericFields.forEach((field) => {
+        if (field === "פיצויים_מעסיק_נוכחי" && !includeCurrentEmployerTermination) {
+          return;
+        }
         if (field in updatedAccount) {
           updatedAccount[field] = 0;
         }
@@ -430,13 +439,19 @@ export default function RetirementScenarios() {
       const data = await response.json();
       setSuccessMessage(`✅ ${data.message || 'התרחיש בוצע בהצלחה!'}`);
 
+      const includeTermination = !!data.include_current_employer_termination;
+
       // איפוס כל טורי היתרות בתיק הפנסיוני עבור הלקוח לאחר ביצוע התרחיש בפועל,
       // כדי להראות שהיתרות הומרו במערכת ולא ניתנות להמרה פעם נוספת מהטבלה.
-      clearPensionPortfolioBalancesAfterScenario(clientId);
+      clearPensionPortfolioBalancesAfterScenario(clientId, {
+        includeCurrentEmployerTermination: includeTermination,
+      });
 
       // סימון העזיבה כמאושרת גם ב-localStorage, כדי שמסך המעסיק
       // יוכל לאפשר מחיקה והחזרת היתרות (restoreSeveranceToPension).
-      setTerminationConfirmed(clientId, true);
+      if (includeTermination) {
+        setTerminationConfirmed(clientId, true);
+      }
 
       // ניווט חזרה למסך פרטי הלקוח במקום רענון מלא של הדף
       navigate(`/clients/${clientId}`);
@@ -489,6 +504,60 @@ export default function RetirementScenarios() {
         }
       }
 
+      if (Array.isArray(pensionPortfolio)) {
+        const unresolvedSeveranceTotal = pensionPortfolio.reduce((sum: number, account: any) => {
+          return sum + (Number(account["פיצויים_שלא_עברו_התחשבנות"]) || 0);
+        }, 0);
+
+        const rightsSequenceTotal = pensionPortfolio.reduce((sum: number, account: any) => {
+          return sum + (Number(account["פיצויים_ממעסיקים_קודמים_רצף_זכויות"]) || 0);
+        }, 0);
+
+        if (unresolvedSeveranceTotal > 0 || rightsSequenceTotal > 0) {
+          setError(
+            "לא ניתן להמשיך בתרחישי פרישה כל עוד קיימות יתרות בעמודות 'פיצויים שלא עברו התחשבנות' או 'רצף פיצויים מעסיקים קודמים (זכויות)' בתיק הפנסיוני. נא לבצע התחשבנות ולרוקן עמודות אלו לפני חישוב התרחישים."
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      // שאלת המשתמש האם לכלול בתרחישים סיום עבודה מהמעסיק הנוכחי
+      let includeCurrentEmployerTermination = false;
+      try {
+        const includeTerminationAnswer = window.confirm(
+          "האם לכלול בתרחישי הפרישה סיום עבודה מהמעסיק הנוכחי?\n\nלחיצה על 'אישור' תחשב תרחישים כולל מימוש פיצויים דרך מסך מעסיק נוכחי.\nלחיצה על 'ביטול' תחשב תרחישים מבלי לבצע כעת סיום עבודה בפועל."
+        );
+
+        if (includeTerminationAnswer) {
+          includeCurrentEmployerTermination = true;
+
+          // ולידציה בסיסית: קיום מעסיק נוכחי במערכת
+          try {
+            await apiFetch(`/clients/${clientId}/current-employer`, {
+              method: "GET",
+            });
+          } catch (error: any) {
+            console.error("Current employer validation failed before scenarios:", error);
+            setError(handleApiError(error));
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (promptError) {
+        console.error("Error during termination inclusion prompt:", promptError);
+      }
+
+      // במידה ולא בוצע סיום עבודה (includeCurrentEmployerTermination=false), נשלח לשרת עותק של התיק
+      // שבו עמודת 'פיצויים_מעסיק_נוכחי' מאופסת, מבלי לשנות את ה-localStorage בפועל.
+      let requestPensionPortfolio = pensionPortfolio;
+      if (!includeCurrentEmployerTermination && Array.isArray(pensionPortfolio)) {
+        requestPensionPortfolio = pensionPortfolio.map((account: any) => ({
+          ...account,
+          ["פיצויים_מעסיק_נוכחי"]: 0,
+        }));
+      }
+
       const response = await fetch(
         `${API_BASE}/clients/${clientId}/retirement-scenarios`,
         {
@@ -498,7 +567,8 @@ export default function RetirementScenarios() {
           },
           body: JSON.stringify({
             retirement_age: retirementAge,
-            pension_portfolio: pensionPortfolio,
+            pension_portfolio: requestPensionPortfolio,
+            include_current_employer_termination: includeCurrentEmployerTermination,
           }),
         }
       );

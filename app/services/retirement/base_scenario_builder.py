@@ -85,6 +85,7 @@ class BaseScenarioBuilder:
             self.client_id,
             self.retirement_age,
             self._add_action,
+            ignore_current_employer_severance=self.use_current_employer_termination,
         )
     
     def build_scenario(self) -> Dict:
@@ -235,11 +236,12 @@ class BaseScenarioBuilder:
             # הון חד-פעמי: רק current_value>0
             if ca.current_value is not None and float(ca.current_value) > 0:
                 total_capital += float(ca.current_value)
-                # הכנסה חודשית מנכסי הון לצורך NPV נלקחת רק מנכסים שיש להם גם ערך נוכחי חיובי
-                if ca.monthly_income is not None:
-                    income_value = float(ca.monthly_income or 0)
-                    if income_value > 0:
-                        capital_income_monthly += income_value
+
+            # הכנסה חודשית מנכסי הון לצורך NPV
+            if ca.monthly_income is not None:
+                income_value = float(ca.monthly_income or 0)
+                if income_value > 0:
+                    capital_income_monthly += income_value
 
         # הכנסה חודשית נוספת (תזרימית)
         total_additional_income_monthly = 0.0

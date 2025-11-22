@@ -58,3 +58,7 @@ class RetirementScenariosRequest(BaseModel):
     """Request schema for retirement scenarios"""
     retirement_age: int = Field(..., ge=50, le=80, description="גיל פרישה מבוקש")
     pension_portfolio: Optional[List[dict]] = Field(default=None, description="נתוני תיק פנסיוני (אופציונלי)")
+    include_current_employer_termination: Optional[bool] = Field(
+        default=False,
+        description="האם לכלול סיום עבודה מהמעסיק הנוכחי בתרחישים",
+    )

@@ -22,12 +22,16 @@ class PortfolioImportService:
         db: Session,
         client_id: int,
         retirement_age: int,
-        add_action_callback: Optional[Callable] = None
+        add_action_callback: Optional[Callable] = None,
+        ignore_current_employer_severance: bool = False,
     ):
         self.db = db
         self.client_id = client_id
         self.retirement_age = retirement_age
         self.add_action = add_action_callback
+        # כאשר מופעל, לא נכליל את רכיב "פיצויים מעסקי נוכחי" בייבוא מהתיק הפנסיוני,
+        # כדי למנוע ספירה כפולה כאשר סיום עבודה מטופל דרך שירות המעסיק הנוכחי.
+        self.ignore_current_employer_severance = ignore_current_employer_severance
     
     def import_pension_portfolio(self, pension_portfolio: List[Dict]) -> None:
         """ייבוא נתוני תיק פנסיוני והמרתם ל-PensionFund זמניים"""
@@ -58,34 +62,44 @@ class PortfolioImportService:
         for account in pension_portfolio:
             # חישוב יתרה כוללת מכל הרכיבים
             raw_balance = float(account.get('יתרה', 0) or 0)
+            current_employer_severance = float(account.get('פיצויים_מעסיק_נוכחי', 0) or 0)
+
+            # ברירת מחדל: כוללים גם את רכיב "פיצויים_מעסיק_נוכחי" כחלק מהרכיבים,
+            # אלא אם ignore_current_employer_severance מופעל (ראו בהמשך).
             component_fields = [
-                'פיצויים_מעסיק_נוכחי', 'פיצויים_לאחר_התחשבנות', 
+                'פיצויים_מעסיק_נוכחי',
+                'פיצויים_לאחר_התחשבנות',
                 'פיצויים_שלא_עברו_התחשבנות', 'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
                 'פיצויים_ממעסיקים_קודמים_רצף_קצבה', 'תגמולי_עובד_עד_2000',
                 'תגמולי_עובד_אחרי_2000', 'תגמולי_עובד_אחרי_2008_לא_משלמת',
                 'תגמולי_מעביד_עד_2000', 'תגמולי_מעביד_אחרי_2000',
                 'תגמולי_מעביד_אחרי_2008_לא_משלמת'
             ]
-            balance = raw_balance
-            
-            # אם יש פירוט סכומים, נחבר את כל הרכיבים
-            if balance == 0:
-                balance = sum(float(account.get(comp, 0) or 0) for comp in component_fields)
+
+            # כאשר סיום עבודה מטופל דרך שירות המעסיק הנוכחי, לא נייבא את רכיב
+            # "פיצויים מעסקי נוכחי" כחלק מהיתרה, כדי למנוע ספירה כפולה של אותם כספים.
+            if getattr(self, "ignore_current_employer_severance", False):
+                component_fields = [
+                    field for field in component_fields
+                    if field != 'פיצויים_מעסיק_נוכחי'
+                ]
+
+            # בתרחישי פרישה איננו ממירים את טור "יתרה" עצמו אלא רק סכומים מפורטים לפי רכיבים.
+            # לכן היתרה לתרחיש תחושב תמיד כסכום הרכיבים הרלוונטיים, ללא שימוש בערך הגולמי מטור "יתרה".
+            balance = sum(float(account.get(comp, 0) or 0) for comp in component_fields)
             
             if balance <= 0:
                 logger.warning(f"  ⚠️ Skipping account {account.get('שם_תכנית')} - zero balance")
                 continue
             
-            # בניית פירוט רכיבים לצורך שחזור עתידי (התאם ללוגיקה בפרונט)
+            # בניית פירוט רכיבים לצורך שחזור עתידי ובהמשך לצורך המרות לפי רכיב.
+            # כאן נשמור את כל הרכיבים הרלוונטיים (למשל תגמולי_* ופיצויים_*), גם אם קיימת
+            # יתרה כללית, כדי לא לאבד מידע על התפלגות הסכומים בין הטורים.
             specific_amounts: Dict[str, float] = {}
-            if raw_balance > 0:
-                # אם יש יתרה כללית, נשתמש בה בתור רכיב יחיד
-                specific_amounts['יתרה'] = raw_balance
-            else:
-                for field in component_fields:
-                    value = float(account.get(field, 0) or 0)
-                    if value > 0:
-                        specific_amounts[field] = value
+            for field in component_fields:
+                value = float(account.get(field, 0) or 0)
+                if value > 0:
+                    specific_amounts[field] = value
 
             # קביעת סוג מוצר ויחס מס בסיסי
             product_type = account.get('סוג_מוצר', '') or ''

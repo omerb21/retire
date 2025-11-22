@@ -62,6 +62,21 @@ export function usePensionConversion(
   const convertSelectedAccounts = async () => {
     if (!clientId) return;
 
+    const unresolvedSeveranceTotal = pensionData.reduce((sum, account) => {
+      return sum + (Number((account as any).פיצויים_שלא_עברו_התחשבנות) || 0);
+    }, 0);
+
+    const rightsSequenceTotal = pensionData.reduce((sum, account) => {
+      return sum + (Number((account as any).פיצויים_ממעסיקים_קודמים_רצף_זכויות) || 0);
+    }, 0);
+
+    if (unresolvedSeveranceTotal > 0 || rightsSequenceTotal > 0) {
+      setError(
+        "לא ניתן להמשיך בתרחיש כל עוד קיימות יתרות בעמודות 'פיצויים שלא עברו התחשבנות' או 'רצף פיצויים מעסיקים קודמים (זכויות)'. נא לבצע התחשבנות ולרוקן עמודות אלו לפני המשך התרחיש."
+      );
+      return;
+    }
+
     const pensionConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
     const capitalAssetConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
     const validationErrors: string[] = [];

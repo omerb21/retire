@@ -77,6 +77,63 @@ class MaxNPVScenario(BaseScenarioBuilder):
         
         self.db.flush()
     
+    def _get_max_capitalizable_pension(self, pf: PensionFund) -> float:
+        """חישוב חלק הקצבה המקסימלי שניתן להוון להון לפי רכיבים מתיק פנסיוני"""
+        pension_amount = float(pf.pension_amount or 0)
+        if pension_amount <= 0:
+            return 0.0
+
+        conv_source = getattr(pf, "conversion_source", None)
+        if not conv_source:
+            # אם אין מידע על רכיבים – נאפשר היוון מלא של הקצבה
+            return pension_amount
+
+        try:
+            source_data = json.loads(conv_source)
+        except (TypeError, ValueError):
+            return pension_amount
+
+        source_type = source_data.get("type") or source_data.get("source")
+        if source_type != "pension_portfolio":
+            # קצבאות שלא יובאו מתיק פנסיוני אינן מוגבלות ברמת רכיב בתרחיש
+            return pension_amount
+
+        specific_amounts = source_data.get("specific_amounts") or {}
+        if not isinstance(specific_amounts, dict):
+            return 0.0
+
+        # החלק המותר להמרה להון: תגמולי עובד/מעביד עד 2000 מתיק פנסיוני
+        convertible_balance = 0.0
+        for field in (
+            "תגמולי_עובד_עד_2000",
+            "תגמולי_מעביד_עד_2000",
+        ):
+            value = specific_amounts.get(field)
+            try:
+                convertible_balance += float(value or 0)
+            except (TypeError, ValueError):
+                continue
+
+        if convertible_balance <= 0:
+            return 0.0
+
+        total_balance = float(
+            source_data.get("original_balance")
+            or source_data.get("amount")
+            or pf.balance
+            or 0.0
+        )
+        if total_balance <= 0:
+            return 0.0
+
+        ratio = convertible_balance / total_balance
+        if ratio <= 0:
+            return 0.0
+        if ratio > 1:
+            ratio = 1.0
+
+        return pension_amount * ratio
+    
     def _capitalize_half_of_pensions(self):
         """היוון חצי מהקצבאות"""
         all_pensions = self.db.query(PensionFund).filter(
@@ -132,19 +189,30 @@ class MaxNPVScenario(BaseScenarioBuilder):
             # Check if we can capitalize without going below minimum
             can_capitalize_amount = min(pf.pension_amount, remaining_pension - MINIMUM_PENSION)
             
-            if can_capitalize_amount <= 0:
-                logger.info(f"  ✅ Keeping pension: {pf.fund_name} (at minimum)")
+            # מגבלה נוספת: רק החלק שניתן להוון לפי רכיבים (תגמולים עד 2000 וכו')
+            max_by_components_monthly = self._get_max_capitalizable_pension(pf)
+            max_by_components_value = max_by_components_monthly * pf.annuity_factor
+
+            allowed_value_for_fund = min(
+                need_to_capitalize,
+                max_by_components_value,
+                can_capitalize_amount * pf.annuity_factor,
+                pf_value,
+            )
+
+            if allowed_value_for_fund <= 0:
+                logger.info(f"  ✅ Keeping pension (no convertible components left): {pf.fund_name} ({pf.pension_amount} ₪)")
                 continue
-            
-            if pf_value <= need_to_capitalize and can_capitalize_amount >= pf.pension_amount:
-                # Capitalize entire fund
+
+            if pf_value <= allowed_value_for_fund:
+                # Capitalize entire fund במסגרת המגבלות
                 self._capitalize_full_fund(pf, pf_value)
                 capitalized_value += pf_value
                 remaining_pension -= pf.pension_amount
             else:
-                # Partial capitalization
-                self._capitalize_partial_fund(pf, need_to_capitalize)
-                capitalized_value += need_to_capitalize
+                # Partial capitalization – רק עד החלק המותר לפי רכיבים ומינימום קצבה
+                self._capitalize_partial_fund(pf, allowed_value_for_fund)
+                capitalized_value += allowed_value_for_fund
         
         logger.info(f"  ✅ Capitalized {capitalized_value} ₪ (target: {target_capitalize_value})")
     

@@ -42,8 +42,6 @@ class MaxPensionScenario(BaseScenarioBuilder):
                 exempt_choice="annuity",
                 taxable_choice="annuity",
             )
-        else:
-            self.termination_service.handle_termination_for_pension()
         
         # 5. Verify fixation and exempt pension
         self.conversion_service.verify_fixation_and_exempt_pension()

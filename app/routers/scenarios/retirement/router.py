@@ -72,7 +72,13 @@ def generate_retirement_scenarios(
     
     try:
         # Build all scenarios
-        builder = RetirementScenariosBuilder(db, client_id, retirement_age, request.pension_portfolio)
+        builder = RetirementScenariosBuilder(
+            db,
+            client_id,
+            retirement_age,
+            request.pension_portfolio,
+            request.include_current_employer_termination or False,
+        )
         scenarios = builder.build_all_scenarios()
         
         # שמירת התרחישים במסד הנתונים
@@ -92,7 +98,8 @@ def generate_retirement_scenarios(
                 parameters=json.dumps({
                     "retirement_age": retirement_age,
                     "scenario_type": scenario_key,
-                    "pension_portfolio": request.pension_portfolio  # שמירת נתוני תיק פנסיוני
+                    "pension_portfolio": request.pension_portfolio,  # שמירת נתוני תיק פנסיוני
+                    "include_current_employer_termination": request.include_current_employer_termination or False,
                 }),
                 summary_results=json.dumps(scenario_data),
                 cashflow_projection=None  # ניתן להוסיף בעתיד
@@ -239,6 +246,7 @@ def execute_retirement_scenario(
         
         retirement_age = params.get("retirement_age")
         scenario_type = params.get("scenario_type")
+        include_current_employer_termination = bool(params.get("include_current_employer_termination") or False)
         
         if not retirement_age:
             raise ValueError("גיל פרישה חסר בתרחיש")
@@ -351,7 +359,7 @@ def execute_retirement_scenario(
             client_id,
             retirement_age,
             pension_portfolio_data,
-            use_current_employer_termination=True,
+            use_current_employer_termination=include_current_employer_termination,
         )
         
         # בחירת הפונקציה המתאימה
@@ -364,66 +372,72 @@ def execute_retirement_scenario(
         else:
             raise ValueError(f"סוג תרחיש לא ידוע: {scenario_type}")
 
-        try:
-            if db_client and db_client.birth_date and retirement_age:
-                retirement_year_for_termination = db_client.birth_date.year + int(retirement_age)
-                actual_termination_date = date(retirement_year_for_termination, 1, 1)
+        if include_current_employer_termination:
+            try:
+                if db_client and db_client.birth_date and retirement_age:
+                    retirement_year_for_termination = db_client.birth_date.year + int(retirement_age)
+                    actual_termination_date = date(retirement_year_for_termination, 1, 1)
 
-                # 1) אישור עזיבה בזרימה ה"ישנה" (Employment / TerminationEvent)
-                try:
-                    termination_event = LegacyEmploymentService.confirm_termination(
-                        db=db,
-                        client_id=client_id,
-                        actual_date=actual_termination_date,
-                    )
-                    logger.info(
-                        "  ✅ Employment termination confirmed during scenario execution (termination_event_id=%s, date=%s)",
-                        getattr(termination_event, "id", None),
-                        actual_termination_date.isoformat(),
-                    )
-                except ValueError as e:
-                    logger.info(
-                        "  ℹ️ Skipping legacy Employment termination confirmation (business rule): %s",
-                        str(e),
-                    )
-                except Exception as e:
-                    logger.error(
-                        "  ⚠️ Failed to confirm legacy Employment termination during scenario execution: %s",
-                        str(e),
-                    )
+                    # 1) אישור עזיבה בזרימה ה"ישנה" (Employment / TerminationEvent)
+                    try:
+                        termination_event = LegacyEmploymentService.confirm_termination(
+                            db=db,
+                            client_id=client_id,
+                            actual_date=actual_termination_date,
+                        )
+                        logger.info(
+                            "  ✅ Employment termination confirmed during scenario execution (termination_event_id=%s, date=%s)",
+                            getattr(termination_event, "id", None),
+                            actual_termination_date.isoformat(),
+                        )
+                    except ValueError as e:
+                        logger.info(
+                            "  ℹ️ Skipping legacy Employment termination confirmation (business rule): %s",
+                            str(e),
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "  ⚠️ Failed to confirm legacy Employment termination during scenario execution: %s",
+                            str(e),
+                        )
 
-                # 2) עדכון מעסיק נוכחי (CurrentEmployer) עם תאריך סיום העסקה
-                try:
-                    ce_service = CurrentEmployerEmploymentService(db)
-                    current_employer = ce_service.get_employer(client_id)
-                    ce_service.update_employer_end_date(current_employer, actual_termination_date)
+                    # 2) עדכון מעסיק נוכחי (CurrentEmployer) עם תאריך סיום העסקה
+                    try:
+                        ce_service = CurrentEmployerEmploymentService(db)
+                        current_employer = ce_service.get_employer(client_id)
+                        ce_service.update_employer_end_date(current_employer, actual_termination_date)
+                        logger.info(
+                            "  ✅ CurrentEmployer end_date updated during scenario execution (employer_id=%s, date=%s)",
+                            getattr(current_employer, "id", None),
+                            actual_termination_date.isoformat(),
+                        )
+                    except ValueError as e:
+                        logger.info(
+                            "  ℹ️ Skipping CurrentEmployer termination update: %s",
+                            str(e),
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "  ⚠️ Failed to update CurrentEmployer termination during scenario execution: %s",
+                            str(e),
+                        )
+                else:
                     logger.info(
-                        "  ✅ CurrentEmployer end_date updated during scenario execution (employer_id=%s, date=%s)",
-                        getattr(current_employer, "id", None),
-                        actual_termination_date.isoformat(),
+                        "  ℹ️ Skipping employment termination confirmation: missing birth_date or retirement_age"
                     )
-                except ValueError as e:
-                    logger.info(
-                        "  ℹ️ Skipping CurrentEmployer termination update: %s",
-                        str(e),
-                    )
-                except Exception as e:
-                    logger.error(
-                        "  ⚠️ Failed to update CurrentEmployer termination during scenario execution: %s",
-                        str(e),
-                    )
-            else:
-                logger.info(
-                    "  ℹ️ Skipping employment termination confirmation: missing birth_date or retirement_age"
+            except Exception as e:
+                logger.error(
+                    "  ⚠️ Unexpected error during employment termination handling in scenario execution: %s",
+                    str(e),
                 )
-        except Exception as e:
-            logger.error(
-                "  ⚠️ Unexpected error during employment termination handling in scenario execution: %s",
-                str(e),
+        else:
+            logger.info(
+                "  ℹ️ Skipping employment termination handling during scenario execution (include_current_employer_termination=False)"
             )
 
         # שלב 2.5: חישוב ושמירת קיבוע זכויות אוטומטי לאחר יישום התרחיש
         fixation_record = None
+        fixation_npv_effect: Optional[float] = None
         try:
             fixation_record = calculate_and_save_fixation_for_client(db, client_id)
             if fixation_record:
@@ -436,16 +450,19 @@ def execute_retirement_scenario(
         except Exception as fixation_error:
             logger.error(f"  ⚠️ Failed to auto-calculate rights fixation: {fixation_error}")
 
-        # שלב 2.6: בתרחיש מקסימום הון – ניצול הון פטור על היוונים מהתרחיש
+        # שלב 2.6: בתרחיש מקסימום הון – ניצול הון פטור על היוונים מהתרחיש וחישוב השפעתו על NPV
         if scenario_type == "scenario_2_max_capital" and fixation_record is not None:
             try:
                 commutation_service = CommutationExemptionService(db, client_id)
                 commutation_service.apply_exempt_capital_to_scenario_commutations(
                     fixation_record
                 )
+
+                # לאחר החלת הפטור על ההיוונים, נחשב את NPV של ההטבה ממס על ההיוונים הפטורים
+                fixation_npv_effect = commutation_service.calculate_exempt_commutations_npv()
             except Exception as e:
                 logger.error(
-                    "  ⚠️ Failed to apply exempt capital to scenario commutations: %s",
+                    "  ⚠️ Failed to apply exempt capital to scenario commutations or calculate NPV effect: %s",
                     e,
                 )
 
@@ -456,6 +473,21 @@ def execute_retirement_scenario(
             except Exception as e:
                 logger.error(
                     "  ⚠️ Failed to update exempt pension fields on fixation result: %s",
+                    e,
+                )
+
+        # שלב 2.8: הוספת השפעת קיבוע הזכויות על ההיוונים לתוצאות התרחיש (אם חושב)
+        if fixation_npv_effect is not None and isinstance(result, dict):
+            try:
+                base_npv = float(result.get("estimated_npv", 0.0) or 0.0)
+                total_npv_with_fixation = round(base_npv + float(fixation_npv_effect), 2)
+
+                result["fixation_npv_effect"] = round(float(fixation_npv_effect), 2)
+                result["estimated_npv_with_fixation"] = total_npv_with_fixation
+            except Exception as e:
+                logger.error(
+                    "  ⚠️ Failed to enrich scenario result with fixation NPV effect for scenario %s: %s",
+                    scenario_id,
                     e,
                 )
 
@@ -478,7 +510,8 @@ def execute_retirement_scenario(
             "scenario_name": scenario.scenario_name,
             "cleanup_count": cleanup_count,
             "actions_count": actions_count,
-            "result": result
+            "result": result,
+            "include_current_employer_termination": include_current_employer_termination,
         }
     
     except Exception as e:
