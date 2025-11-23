@@ -6,6 +6,7 @@ Base Scenario Builder
 import logging
 from datetime import date
 from decimal import Decimal
+import json
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -214,7 +215,30 @@ class BaseScenarioBuilder:
                 )
         
         self.db.flush()
-    
+
+    def _is_lump_sum_capital(self, ca: CapitalAsset) -> bool:
+        try:
+            src_raw = getattr(ca, "conversion_source", None)
+            if src_raw:
+                src = json.loads(src_raw)
+                if isinstance(src, dict):
+                    if src.get("scenario_type") == "retirement":
+                        return True
+                    if src.get("source") == "scenario_conversion":
+                        return True
+        except Exception:
+            pass
+
+        name = ca.asset_name or ""
+        if "מענק פיצויים" in name:
+            return True
+
+        remarks = ca.remarks or ""
+        if "COMMUTATION:" in remarks:
+            return True
+
+        return False
+
     def _calculate_scenario_results(self, scenario_name: str) -> Dict:
         """Calculate and return the scenario results"""
         client = self._client or self.db.query(Client).filter(Client.id == self.client_id).first()
@@ -242,7 +266,7 @@ class BaseScenarioBuilder:
             # הכנסה חודשית מנכסי הון לצורך NPV
             if ca.monthly_income is not None:
                 income_value = float(ca.monthly_income or 0)
-                if income_value > 0:
+                if income_value > 0 and not self._is_lump_sum_capital(ca):
                     capital_income_monthly += income_value
 
         # הכנסה חודשית נוספת (תזרימית)

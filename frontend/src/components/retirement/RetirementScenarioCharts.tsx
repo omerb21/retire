@@ -55,6 +55,11 @@ const RetirementScenarioCharts: React.FC<RetirementScenarioChartsProps> = ({
     additionalMonthly: s.total_additional_income_monthly || 0,
   }));
 
+  const npvData = items.map((s) => ({
+    name: s.scenario_name,
+    npv: s.estimated_npv || 0,
+  }));
+
   const currencyFormatter = (value: number) => formatCurrency(value || 0);
 
   return (
@@ -74,6 +79,26 @@ const RetirementScenarioCharts: React.FC<RetirementScenarioChartsProps> = ({
                 <Legend />
                 <Bar dataKey="pensionMonthly" name="קצבה חודשית" fill="#007bff" />
                 <Bar dataKey="additionalMonthly" name="הכנסה נוספת חודשית" fill="#28a745" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="retirement-chart-card">
+        <CardContent>
+          <Typography className="retirement-chart-title" gutterBottom>
+            השוואת NPV (לפני מס) בין תרחישים
+          </Typography>
+          <div className="retirement-chart-wrapper">
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={npvData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip formatter={(value) => currencyFormatter(value as number)} />
+                <Legend />
+                <Bar dataKey="npv" name="NPV משוער (לפני מס)" fill="#ffc107" />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -646,6 +646,15 @@ export default function RetirementScenarios() {
                 {formatCurrency(scenario.total_additional_income_monthly)}
               </div>
             </div>
+
+            <div>
+              <div style={{ fontSize: "12px", color: "#6c757d" }}>
+                NPV משוער (לפני מס)
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: "bold" }}>
+                {formatCurrency(scenario.estimated_npv)}
+              </div>
+            </div>
           </div>
 
           <div
@@ -860,6 +869,9 @@ export default function RetirementScenarios() {
                   <th style={{ padding: "10px", textAlign: "right", border: "1px solid #dee2e6" }}>
                     סך הון
                   </th>
+                  <th style={{ padding: "10px", textAlign: "right", border: "1px solid #dee2e6" }}>
+                    NPV משוער (לפני מס)
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -877,6 +889,11 @@ export default function RetirementScenarios() {
                       results.scenarios.scenario_1_max_pension.total_capital
                     )}
                   </td>
+                  <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
+                    {formatCurrency(
+                      results.scenarios.scenario_1_max_pension.estimated_npv
+                    )}
+                  </td>
                 </tr>
                 <tr>
                   <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
@@ -892,6 +909,11 @@ export default function RetirementScenarios() {
                       results.scenarios.scenario_2_max_capital.total_capital
                     )}
                   </td>
+                  <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
+                    {formatCurrency(
+                      results.scenarios.scenario_2_max_capital.estimated_npv
+                    )}
+                  </td>
                 </tr>
                 <tr>
                   <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
@@ -904,6 +926,11 @@ export default function RetirementScenarios() {
                   </td>
                   <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
                     {formatCurrency(results.scenarios.scenario_3_max_npv.total_capital)}
+                  </td>
+                  <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
+                    {formatCurrency(
+                      results.scenarios.scenario_3_max_npv.estimated_npv
+                    )}
                   </td>
                 </tr>
               </tbody>
