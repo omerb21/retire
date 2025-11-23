@@ -13,7 +13,7 @@ import { useTerminationActions } from './SimpleCurrentEmployer/hooks/useTerminat
 import { SavedDataDisplay } from './SimpleCurrentEmployer/components/SavedDataDisplay';
 import { EmployerDetailsForm } from './SimpleCurrentEmployer/components/EmployerDetailsForm';
 import { TerminationSteps } from './SimpleCurrentEmployer/components/TerminationSteps';
-import { clearTerminationState, isTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
+import { isTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
 
 const SimpleCurrentEmployer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,7 +52,7 @@ const SimpleCurrentEmployer: React.FC = () => {
     grantDetails
   );
 
-  const { handleTerminationSubmit, handleDeleteTermination } = useTerminationActions(
+  const { handleTerminationSubmit, handleDeleteTermination, handleClearAllState } = useTerminationActions(
     id,
     employer,
     setEmployer,
@@ -100,13 +100,11 @@ const SimpleCurrentEmployer: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>מעסיק נוכחי</h2>
         
-        {/* כפתור נקה מצב - למקרי חירום */}
+        {/* כפתור נקה מצב - למקרי חירום: מחיקת עזיבה ונתוני מעסיק נוכחי */}
         <button
           onClick={() => {
             if (!id) return;
-            clearTerminationState(id);
-            setTerminationDecision(prev => ({ ...prev, confirmed: false }));
-            alert('מצב העזיבה והתפלגות הפיצויים נוקו. רענן את הדף.');
+            handleClearAllState();
           }}
           style={{
             padding: '5px 10px',

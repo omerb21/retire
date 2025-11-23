@@ -147,8 +147,100 @@ export const useTerminationActions = (
     }
   };
 
+  const handleClearAllState = async (): Promise<void> => {
+    if (!clientId) return;
+
+    if (!confirm('האם אתה בטוח שברצונך לנקות את כל הנתונים של המעסיק הנוכחי?\nפעולה זו תמחק את עזיבת העבודה (אם קיימת), את כל המענקים/הקצבאות/נכסי ההון שנוצרו ממנה, תחזיר פיצויים לתיק הפנסיוני ותמחק גם את נתוני המעסיק הנוכחי עצמו.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      let severanceToRestore = 0;
+
+      // מחיקת עזיבת עבודה והישויות שנוצרו ממנה (אם קיימות)
+      try {
+        const response = await axios.delete(`${API_BASE}/clients/${clientId}/delete-termination`);
+        console.log('✅ CLEAR STATE - DELETE TERMINATION RESPONSE:', response.data);
+
+        console.log('🔄 CLEAR STATE - מחזיר פיצויים לתיק פנסיוני');
+        severanceToRestore = restoreSeveranceToPension(clientId);
+      } catch (err: any) {
+        console.error('❌ CLEAR STATE - ERROR DELETING TERMINATION:', err);
+        const status = err?.response?.status;
+        // אם אין עזיבה שמורה (404) נמשיך בכל זאת לנקות את נתוני המעסיק
+        if (status !== 404) {
+          throw err;
+        }
+      }
+
+      // מחיקת רשומת המעסיק הנוכחי מהשרת (אם קיימת)
+      try {
+        if (employer?.id) {
+          await axios.delete(`${API_BASE}/clients/${clientId}/current-employer/${employer.id}`);
+          console.log('✅ CLEAR STATE - Current employer deleted');
+        }
+      } catch (err) {
+        console.error('❌ CLEAR STATE - ERROR DELETING CURRENT EMPLOYER:', err);
+        // לא נעצור את כל התהליך בגלל כישלון במחיקת המעסיק, רק נדווח בלוג
+      }
+
+      // איפוס סטייט של המעסיק בצד הקליינט
+      setEmployer({
+        employer_name: '',
+        start_date: '',
+        last_salary: 0,
+        severance_accrued: 0
+      });
+
+      // איפוס סטייט של החלטת העזיבה
+      setTerminationDecision({
+        termination_date: '',
+        use_employer_completion: false,
+        severance_amount: 0,
+        exempt_amount: 0,
+        taxable_amount: 0,
+        exempt_choice: 'redeem_with_exemption',
+        taxable_choice: 'redeem_no_exemption',
+        tax_spread_years: 0,
+        max_spread_years: 0,
+        confirmed: false
+      });
+
+      // ניקוי מצב העזיבה מה-localStorage
+      clearTerminationState(clientId);
+
+      const severanceMsg = severanceToRestore ? `\nהוחזרו ${formatCurrency(severanceToRestore)} לתיק הפנסיוני (אם היו פיצויים שנמשכו).` : '';
+      alert('מצב המעסיק הנוכחי נוקה בהצלחה.\nנמחקו נתוני עזיבת העבודה (אם היו) ופרטי המעסיק הנוכחי.' + severanceMsg);
+
+      setLoading(false);
+    } catch (err: any) {
+      console.error('❌ CLEAR CURRENT EMPLOYER STATE ERROR:', err);
+
+      let errorMessage = 'שגיאה לא ידועה';
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === 'string') {
+          errorMessage = err.response.data.detail;
+        } else if (err.response.data.detail.error) {
+          errorMessage = err.response.data.detail.error;
+        } else {
+          errorMessage = JSON.stringify(err.response.data.detail);
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError('שגיאה בניקוי מצב המעסיק הנוכחי: ' + errorMessage);
+      alert('שגיאה בניקוי מצב המעסיק הנוכחי: ' + errorMessage);
+      setLoading(false);
+    }
+  };
+
   return {
     handleTerminationSubmit,
-    handleDeleteTermination
+    handleDeleteTermination,
+    handleClearAllState
   };
 };

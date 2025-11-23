@@ -59,7 +59,7 @@ class MaxCapitalScenario(BaseScenarioBuilder):
             self.conversion_service.convert_all_pension_funds_to_pension()
             self.conversion_service.convert_taxable_capital_to_pension()
             self.conversion_service.convert_exempt_capital_to_pension()
-            return self._calculate_scenario_results("מקסימום הון (לא ניתן להיוון)")
+            return self._calculate_scenario_results("מקסימום הון")
         
         # Step 3: Sort by annuity factor - capitalize worst quality first
         sorted_pensions = sorted(

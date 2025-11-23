@@ -45,7 +45,21 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
 
   const handleDateChange = (field: 'work_start_date' | 'work_end_date' | 'grant_date', value: string) => {
     const formatted = formatDateInput(value);
-    setFormData(prev => ({ ...prev, [field]: formatted }));
+
+    setFormData(prev => {
+      const updated = { ...prev, [field]: formatted };
+
+      // כאשר המשתמש מזין תאריך סיום עבודה, נעדכן כברירת מחדל גם את תאריך קבלת המענק
+      // רק אם תאריך קבלת המענק עדיין ריק (לא הוזן ידנית).
+      if (field === 'work_end_date') {
+        const currentGrantDate = (prev.grant_date || '').trim();
+        if (!currentGrantDate) {
+          updated.grant_date = formatted;
+        }
+      }
+
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

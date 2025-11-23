@@ -97,25 +97,6 @@ export default function PensionPortfolioMain() {
             </div>
             
             {/* כפתור חוקי המרה */}
-            <div style={{ marginBottom: 16 }}>
-              <button
-                onClick={() => pensionDataHook.setShowConversionRules(!pensionDataHook.showConversionRules)}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#17a2b8",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold"
-                }}
-                title="הצג/הסתר חוקי המרה לפי חוק"
-              >
-                📋 {pensionDataHook.showConversionRules ? 'הסתר חוקי המרה' : 'חוקי המרה לפי חוק'}
-              </button>
-            </div>
-            
             {/* הצגת חוקי המרה */}
             {pensionDataHook.showConversionRules && (
               <div style={{ 
@@ -134,25 +115,6 @@ export default function PensionPortfolioMain() {
             )}
             
             {/* כפתור הוספה ידנית */}
-            <div style={{ marginBottom: 16 }}>
-              <button
-                onClick={pensionDataHook.addManualAccount}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#28a745",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold"
-                }}
-                title="הוסף תכנית פנסיונית חדשה ידנית"
-              >
-                + הוסף תכנית חדשה
-              </button>
-            </div>
-            
             {/* שדה תאריך מימוש */}
             <div style={{ marginBottom: 16, padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '4px', border: '1px solid #007bff' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#004085' }}>
@@ -183,6 +145,42 @@ export default function PensionPortfolioMain() {
 
             {/* כפתורי פעולה */}
             <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {/* כפתור חוקי המרה */}
+              <button
+                onClick={() => pensionDataHook.setShowConversionRules(!pensionDataHook.showConversionRules)}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#17a2b8",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "bold"
+                }}
+                title="הצג/הסתר חוקי המרה לפי חוק"
+              >
+                📋 {pensionDataHook.showConversionRules ? 'הסתר חוקי המרה' : 'חוקי המרה לפי חוק'}
+              </button>
+
+              {/* כפתור הוספה ידנית */}
+              <button
+                onClick={pensionDataHook.addManualAccount}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "bold"
+                }}
+                title="הוסף תכנית פנסיונית חדשה ידנית"
+              >
+                + הוסף תכנית חדשה
+              </button>
+
               <button
                 onClick={pensionDataHook.toggleAllAccountsSelection}
                 style={{
