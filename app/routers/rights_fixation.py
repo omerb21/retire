@@ -18,10 +18,13 @@ from app.services.rights_fixation import (
     calculate_eligibility_age,
     get_monthly_cap,
     get_exemption_percentage,
-    calc_exempt_capital
+    calc_exempt_capital,
 )
 from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
 from app.services.retirement_age_service import calc_eligibility_date
+from app.services.retirement.services.commutation_exemption_service import (
+    CommutationExemptionService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -598,9 +601,12 @@ async def get_saved_fixation(client_id: int):
         from app.services.retirement_age_service import calc_eligibility_date
         
         with SessionLocal() as db:
-            result = db.query(FixationResult).filter(
-                FixationResult.client_id == client_id
-            ).order_by(FixationResult.created_at.desc()).first()
+            result = (
+                db.query(FixationResult)
+                .filter(FixationResult.client_id == client_id)
+                .order_by(FixationResult.created_at.desc())
+                .first()
+            )
             
             if not result:
                 raise HTTPException(status_code=404, detail="לא נמצאו תוצאות קיבוע זכויות שמורות")

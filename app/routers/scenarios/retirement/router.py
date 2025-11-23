@@ -437,7 +437,6 @@ def execute_retirement_scenario(
 
         # שלב 2.5: חישוב ושמירת קיבוע זכויות אוטומטי לאחר יישום התרחיש
         fixation_record = None
-        fixation_npv_effect: Optional[float] = None
         try:
             fixation_record = calculate_and_save_fixation_for_client(db, client_id)
             if fixation_record:
@@ -450,22 +449,19 @@ def execute_retirement_scenario(
         except Exception as fixation_error:
             logger.error(f"  ⚠️ Failed to auto-calculate rights fixation: {fixation_error}")
 
-        # שלב 2.6: בתרחיש מקסימום הון – ניצול הון פטור על היוונים מהתרחיש וחישוב השפעתו על NPV
+        # שלב 2.6: בתרחיש מקסימום הון – ניצול הון פטור על היוונים מהתרחיש
         if scenario_type == "scenario_2_max_capital" and fixation_record is not None:
             try:
                 commutation_service = CommutationExemptionService(db, client_id)
                 commutation_service.apply_exempt_capital_to_scenario_commutations(
                     fixation_record
                 )
-
-                # לאחר החלת הפטור על ההיוונים, נחשב את NPV של ההטבה ממס על ההיוונים הפטורים
-                fixation_npv_effect = commutation_service.calculate_exempt_commutations_npv()
             except Exception as e:
                 logger.error(
                     "  ⚠️ Failed to apply exempt capital to scenario commutations or calculate NPV effect: %s",
                     e,
                 )
-
+        
         # שלב 2.7: עדכון שדות קצבה פטורה בקיבוע הזכויות עבור כל סוגי התרחישים
         if fixation_record is not None:
             try:
@@ -473,21 +469,6 @@ def execute_retirement_scenario(
             except Exception as e:
                 logger.error(
                     "  ⚠️ Failed to update exempt pension fields on fixation result: %s",
-                    e,
-                )
-
-        # שלב 2.8: הוספת השפעת קיבוע הזכויות על ההיוונים לתוצאות התרחיש (אם חושב)
-        if fixation_npv_effect is not None and isinstance(result, dict):
-            try:
-                base_npv = float(result.get("estimated_npv", 0.0) or 0.0)
-                total_npv_with_fixation = round(base_npv + float(fixation_npv_effect), 2)
-
-                result["fixation_npv_effect"] = round(float(fixation_npv_effect), 2)
-                result["estimated_npv_with_fixation"] = total_npv_with_fixation
-            except Exception as e:
-                logger.error(
-                    "  ⚠️ Failed to enrich scenario result with fixation NPV effect for scenario %s: %s",
-                    scenario_id,
                     e,
                 )
 

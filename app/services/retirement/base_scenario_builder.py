@@ -85,7 +85,9 @@ class BaseScenarioBuilder:
             self.client_id,
             self.retirement_age,
             self._add_action,
-            ignore_current_employer_severance=self.use_current_employer_termination,
+            # בתרחישי פרישה איננו משתמשים לעולם בעמודת "פיצויים_מעסיק_נוכחי" מתיק פנסיוני.
+            # העמודה הזו מטופלת רק דרך זרימת "מעסיק נוכחי" (CurrentEmployer) ולא דרך תרחישים.
+            ignore_current_employer_severance=True,
         )
     
     def build_scenario(self) -> Dict:

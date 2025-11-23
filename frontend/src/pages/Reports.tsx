@@ -25,8 +25,28 @@ const ReportsPage: React.FC = () => {
     fixationData
   } = useReportData(id);
 
+  // גרסה "ללא קיבוע" של נכסי ההון: היוונים פטורים (COMMUTATION) ייחשבו כחייבים במס
+  const capitalAssetsWithoutFixation = useMemo(
+    () =>
+      capitalAssets.map(asset => {
+        if (
+          asset &&
+          asset.tax_treatment === 'exempt' &&
+          typeof asset.remarks === 'string' &&
+          asset.remarks.includes('COMMUTATION:')
+        ) {
+          return {
+            ...asset,
+            tax_treatment: 'taxable',
+          };
+        }
+        return asset;
+      }),
+    [capitalAssets]
+  );
+
   // חישוב תחזית שנתית באמצעות הפונקציה המפוצלת
-  const yearlyProjection = useMemo(() => {
+  const yearlyProjectionWithExemption = useMemo(() => {
     if (!client) {
       return [];
     }
@@ -45,15 +65,51 @@ const ReportsPage: React.FC = () => {
       additionalIncomes,
       capitalAssets,
       client,
-      fixationData
+      fixationData,
+      false
     );
   }, [pensionFunds, additionalIncomes, capitalAssets, client, fixationData]);
 
+  // תחזית שנייה ללא קצבה פטורה (לצרכי השוואת NPV מדויקת)
+  const yearlyProjectionWithoutExemption = useMemo(() => {
+    if (!client) {
+      return [];
+    }
+
+    if (
+      pensionFunds.length === 0 &&
+      additionalIncomes.length === 0 &&
+      capitalAssets.length === 0
+    ) {
+      return [];
+    }
+
+    return generateYearlyProjection(
+      pensionFunds,
+      additionalIncomes,
+      capitalAssetsWithoutFixation,
+      client,
+      fixationData,
+      true
+    );
+  }, [pensionFunds, additionalIncomes, capitalAssetsWithoutFixation, client, fixationData]);
+
   // חישוב NPV
   const npvComparison = useMemo(() => {
-    if (yearlyProjection.length === 0) return null;
-    return calculateNPVComparison(yearlyProjection, 0.03);
-  }, [yearlyProjection]);
+    if (
+      yearlyProjectionWithExemption.length === 0 ||
+      yearlyProjectionWithoutExemption.length === 0
+    ) {
+      return null;
+    }
+
+    return calculateNPVComparison(
+      yearlyProjectionWithExemption,
+      yearlyProjectionWithoutExemption,
+      0.03,
+      fixationData
+    );
+  }, [yearlyProjectionWithExemption, yearlyProjectionWithoutExemption, fixationData]);
 
   // חישוב סיכומים
   const totalPensionBalance = useMemo(() => 
@@ -90,7 +146,7 @@ const ReportsPage: React.FC = () => {
     const htmlContent = generateHTMLReport(
       client,
       fixationData,
-      yearlyProjection,
+      yearlyProjectionWithExemption,
       pensionFunds,
       additionalIncomes,
       capitalAssets,
@@ -187,7 +243,7 @@ const ReportsPage: React.FC = () => {
       <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>תיק פרישה - {client?.name}</h2>
         <ExportControls
-          yearlyProjection={yearlyProjection}
+          yearlyProjection={yearlyProjectionWithExemption}
           pensionFunds={pensionFunds}
           additionalIncomes={additionalIncomes}
           capitalAssets={capitalAssets}
@@ -201,7 +257,7 @@ const ReportsPage: React.FC = () => {
       <ReportHeader client={client} fixationData={fixationData} />
 
       <YearlyBreakdown
-        yearlyProjection={yearlyProjection}
+        yearlyProjection={yearlyProjectionWithExemption}
         pensionFunds={pensionFunds}
         additionalIncomes={additionalIncomes}
         capitalAssets={capitalAssets}

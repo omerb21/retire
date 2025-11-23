@@ -37,8 +37,6 @@ class MaxCapitalScenario(BaseScenarioBuilder):
                 exempt_choice="redeem_with_exemption",
                 taxable_choice="redeem_no_exemption",
             )
-        else:
-            self.termination_service.handle_termination_for_capital()
         
         # Step 1: Convert all pension funds to pensions first (excluding education funds)
         self._convert_pension_funds_to_pension_first()

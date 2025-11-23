@@ -16,42 +16,33 @@ export function calculateNPV(cashFlows: number[], discountRate: number): number 
 
 // ======= פונקציה לחישוב NPV עם ובלי פטורים =======
 export function calculateNPVComparison(
-  yearlyProjection: any[],
-  discountRate: number = 0.03
+  yearlyProjectionWithExemption: any[],
+  yearlyProjectionWithoutExemption: any[],
+  discountRate: number = 0.03,
+  fixationData?: any
 ): { withExemption: number; withoutExemption: number; savings: number } {
-  // NPV עם פטור (מצב נוכחי - המס כבר מחושב עם קיזוז הקצבה הפטורה)
-  const withExemption = yearlyProjection.reduce((sum, yearData, year) => {
-    const annualNet = yearData.netMonthlyIncome * 12;
-    return sum + (annualNet / Math.pow(1 + discountRate, year));
-  }, 0);
-  
-  // NPV ללא פטור - חישוב מחדש של המס ללא קיזוז הקצבה הפטורה
-  const withoutExemption = yearlyProjection.reduce((sum, yearData, year) => {
-    const grossIncome = yearData.totalMonthlyIncome;
-    const currentTax = yearData.totalMonthlyTax;
-    const exemptPension = yearData.exemptPension || 0; // הקצבה הפטורה שמקזזת מההכנסה החייבת
-    
-    // אם אין פטור בשנה זו, ה-NPV זהה
-    if (exemptPension === 0) {
+  // NPV עם קיבוע זכויות – התזרים המלא לאחר קיבוע (קצבאות, הכנסות נוספות והיוונים פטורים)
+  const withExemption = yearlyProjectionWithExemption.reduce(
+    (sum, yearData, yearIndex) => {
       const annualNet = yearData.netMonthlyIncome * 12;
-      return sum + (annualNet / Math.pow(1 + discountRate, year));
-    }
-    
-    // חישוב מס נוסף על הקצבה הפטורה (שלא שולם בגלל הפטור)
-    // הפטור גרם להפחתת ההכנסה החייבת, כלומר חסכנו מס על הסכום הזה
-    // נניח מס שולי ממוצע של 31% (מדרגה רביעית)
-    const additionalTax = exemptPension * 0.31;
-    
-    // הכנסה נטו ללא פטור = הכנסה נטו נוכחית - המס הנוסף שהיינו משלמים
-    const netWithoutExemption = yearData.netMonthlyIncome - additionalTax;
-    const annualNet = netWithoutExemption * 12;
-    
-    return sum + (annualNet / Math.pow(1 + discountRate, year));
-  }, 0);
-  
+      return sum + annualNet / Math.pow(1 + discountRate, yearIndex);
+    },
+    0
+  );
+
+  // NPV ללא קיבוע זכויות – אותה תחזית אבל ללא קצבה פטורה וללא הטבה ממס על היוונים
+  const withoutExemption = yearlyProjectionWithoutExemption.reduce(
+    (sum, yearData, yearIndex) => {
+      const annualNet = yearData.netMonthlyIncome * 12;
+      return sum + annualNet / Math.pow(1 + discountRate, yearIndex);
+    },
+    0
+  );
+
   return {
     withExemption,
     withoutExemption,
-    savings: withExemption - withoutExemption
+    // חיסכון מקיבוע = NPV(עם קיבוע מלא) - NPV(בלי קיבוע כלל)
+    savings: withExemption - withoutExemption,
   };
 }

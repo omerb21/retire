@@ -11,7 +11,8 @@ export function generateYearlyProjection(
   additionalIncomes: any[],
   capitalAssets: any[],
   client: any,
-  fixationData: any
+  fixationData: any,
+  disableExemptPension: boolean = false
 ): YearlyProjection[] {
   console.log('generateYearlyProjection called');
   console.log('Available data:', { 
@@ -128,7 +129,7 @@ export function generateYearlyProjection(
     
     // חישוב קצבה פטורה לפי הלוגיקה הנכונה מהגדרות המערכת:
     // קצבה פטורה = אחוז פטור מקיבוע × תקרת קצבה של השנה הראשונה בתזרים
-    if (fixationData && fixationData.exemption_summary) {
+    if (!disableExemptPension && fixationData && fixationData.exemption_summary) {
       const eligibilityYear = fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year;
       
       if (year >= eligibilityYear) {
@@ -173,7 +174,11 @@ export function generateYearlyProjection(
       if (index >= pensionFunds.length + additionalIncomes.length) {
         const capitalAssetIndex = index - pensionFunds.length - additionalIncomes.length;
         const capitalAsset = capitalAssets[capitalAssetIndex];
-        if (capitalAsset && (capitalAsset.tax_treatment === 'exempt' || capitalAsset.tax_treatment === 'fixed_rate')) {
+        if (capitalAsset && (
+          capitalAsset.tax_treatment === 'exempt' ||
+          capitalAsset.tax_treatment === 'fixed_rate' ||
+          capitalAsset.tax_treatment === 'tax_spread'
+        )) {
           shouldExclude = true;
         }
       }
@@ -334,21 +339,14 @@ export function generateYearlyProjection(
         taxBreakdown.push(Math.round(monthlyTax));
         totalMonthlyTax += monthlyTax;
       } else if (asset.tax_treatment === 'taxable') {
-        const annualPayment = annualIncome * 12;
-        const totalIncomeWithAsset = baseAnnualIncome + annualPayment;
-        let taxWithAsset = calculateTaxByBrackets(totalIncomeWithAsset, year);
-        let taxWithoutAsset = baseAnnualIncome > 0 ? calculateTaxByBrackets(baseAnnualIncome, year) : 0;
-        
-        if (client?.tax_credit_points) {
-          const creditAmount = client.tax_credit_points * 2904;
-          taxWithAsset = Math.max(0, taxWithAsset - creditAmount);
-          taxWithoutAsset = Math.max(0, taxWithoutAsset - creditAmount);
-        }
-        
-        const marginalTax = taxWithAsset - taxWithoutAsset;
-        const monthlyTax = marginalTax / 12;
-        taxBreakdown.push(Math.round(monthlyTax));
-        totalMonthlyTax += monthlyTax;
+        // עבור נכסי הון חייבים במס רגיל, המס כבר כלול ב-regularMonthlyTax.
+        // כאן רק מחלקים את חלקם במס הכולל באופן פרופורציונלי להכנסה החודשית שלהם,
+        // מבלי לשנות את totalMonthlyTax (כדי להימנע ממס כפול).
+        const incomeAmount = annualIncome; // זהו בפועל הסכום החודשי מהנכס
+        const taxPortion = taxableTotalMonthlyIncome > 0
+          ? (incomeAmount / taxableTotalMonthlyIncome) * regularMonthlyTax
+          : 0;
+        taxBreakdown.push(Math.round(taxPortion));
       }
     });
     

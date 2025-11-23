@@ -68,13 +68,10 @@ export function useReportData(clientId: string | undefined) {
         const capitalAssetsData = capitalAssetsResponse.data || [];
         
         // Extract raw_result from the fixation response
-        let fixationDataResponse = fixationResponse?.data?.raw_result || null;
-
-        // אם הלקוח אינו זכאי כיום לקיבוע זכויות – נתוני הקיבוע השמורים לא ישמשו לדוח
-        const fixationEligible = fixationResponse?.data?.eligible;
-        if (fixationEligible === false) {
-          fixationDataResponse = null;
-        }
+        // בשלב זה אנחנו תמיד משתמשים ב-raw_result אם הוא קיים,
+        // גם אם הדגל eligible הוא false, כדי לאפשר ניתוח תרחישים
+        // תאורטיים של קיבוע זכויות במסך הדוחות.
+        const fixationDataResponse = fixationResponse?.data?.raw_result || null;
         
         // עדכון remaining_exempt_capital עם הערך הסופי ששמרנו ב-DB
         // הערכים הסופיים (אחרי כל הקיזוזים) נשמרים ב-raw_result.exemption_summary

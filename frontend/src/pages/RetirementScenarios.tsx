@@ -597,38 +597,6 @@ export default function RetirementScenarios() {
   };
 
   const renderScenarioCard = (scenario: ScenarioResult, rank: number) => {
-    const getBestBadge = () => {
-      if (!results) return null;
-
-      const scenarios = [
-        results.scenarios.scenario_1_max_pension,
-        results.scenarios.scenario_2_max_capital,
-        results.scenarios.scenario_3_max_npv,
-      ];
-
-      const maxNPV = Math.max(...scenarios.map((s) => s.estimated_npv));
-      if (scenario.estimated_npv === maxNPV) {
-        return (
-          <div
-            style={{
-              position: "absolute",
-              top: "10px",
-              right: "10px",
-              backgroundColor: "#28a745",
-              color: "white",
-              padding: "4px 12px",
-              borderRadius: "12px",
-              fontSize: "12px",
-              fontWeight: "bold",
-            }}
-          >
-            ⭐ מומלץ
-          </div>
-        );
-      }
-      return null;
-    };
-
     return (
       <div
         key={rank}
@@ -641,7 +609,6 @@ export default function RetirementScenarios() {
           boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
-        {getBestBadge()}
         <h3 style={{ marginTop: 0, color: "#0066cc", fontSize: "18px" }}>
           {scenario.scenario_name}
         </h3>
@@ -677,21 +644,6 @@ export default function RetirementScenarios() {
               </div>
               <div style={{ fontSize: "18px", fontWeight: "bold" }}>
                 {formatCurrency(scenario.total_additional_income_monthly)}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: "12px", color: "#6c757d" }}>
-                NPV משוער (ברוטו - לפני מס וקיבוע זכויות)
-              </div>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  color: "#28a745",
-                }}
-              >
-                {formatCurrency(scenario.estimated_npv)}
               </div>
             </div>
           </div>
@@ -908,9 +860,6 @@ export default function RetirementScenarios() {
                   <th style={{ padding: "10px", textAlign: "right", border: "1px solid #dee2e6" }}>
                     סך הון
                   </th>
-                  <th style={{ padding: "10px", textAlign: "right", border: "1px solid #dee2e6" }}>
-                    NPV משוער (ברוטו - לפני מס וקיבוע זכויות)
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -928,11 +877,6 @@ export default function RetirementScenarios() {
                       results.scenarios.scenario_1_max_pension.total_capital
                     )}
                   </td>
-                  <td style={{ padding: "10px", border: "1px solid #dee2e6", fontWeight: "bold" }}>
-                    {formatCurrency(
-                      results.scenarios.scenario_1_max_pension.estimated_npv
-                    )}
-                  </td>
                 </tr>
                 <tr>
                   <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
@@ -948,11 +892,6 @@ export default function RetirementScenarios() {
                       results.scenarios.scenario_2_max_capital.total_capital
                     )}
                   </td>
-                  <td style={{ padding: "10px", border: "1px solid #dee2e6", fontWeight: "bold" }}>
-                    {formatCurrency(
-                      results.scenarios.scenario_2_max_capital.estimated_npv
-                    )}
-                  </td>
                 </tr>
                 <tr>
                   <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
@@ -966,29 +905,9 @@ export default function RetirementScenarios() {
                   <td style={{ padding: "10px", border: "1px solid #dee2e6" }}>
                     {formatCurrency(results.scenarios.scenario_3_max_npv.total_capital)}
                   </td>
-                  <td style={{ padding: "10px", border: "1px solid #dee2e6", fontWeight: "bold" }}>
-                    {formatCurrency(results.scenarios.scenario_3_max_npv.estimated_npv)}
-                  </td>
                 </tr>
               </tbody>
             </table>
-          </div>
-
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "15px",
-              backgroundColor: "#e7f3ff",
-              border: "1px solid #b3d9ff",
-              borderRadius: "4px",
-              fontSize: "14px",
-            }}
-          >
-            <strong>💡 הערה:</strong> NPV (Net Present Value) המוצג כאן הוא NPV ברוטו
-            (לפני מס, קיבוע זכויות וקצבה פטורה) המשקלל את כל תזרימי המזומנים העתידיים
-            ברמת ברוטו. בדוחות הכספיים NPV מחושב על תזרים נטו אחרי מס וקיבוע זכויות,
-            ולכן הערך שם עשוי להיות נמוך יותר, אך ההשוואה בין התרחישים כאן עדיין
-            מראה איזה תרחיש עדיף מבחינה כלכלית ברמת ברוטו.
           </div>
 
           <RetirementScenarioCharts
