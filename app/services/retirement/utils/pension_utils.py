@@ -135,7 +135,7 @@ def convert_capital_to_pension(
             "source_name": ca.asset_name,
             "original_value": capital_value,
             "tax_treatment": tax_treatment
-        })
+        }, ensure_ascii=False)
     )
     
     logger.info(f"  Converted capital asset '{ca.asset_name}': {capital_value} → {tax_status} Pension {pension_amount}")
@@ -239,7 +239,7 @@ def convert_education_fund_to_capital(
             "source_name": ef.fund_name,
             "original_balance": float(original_balance),
             "tax_treatment": "exempt"
-        })
+        }, ensure_ascii=False)
     )
     
     logger.info(f"  Converted education fund '{ef.fund_name}': {original_balance} → Exempt CAPITAL {original_balance} ₪")

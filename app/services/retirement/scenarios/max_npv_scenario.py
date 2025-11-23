@@ -495,7 +495,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
                 "pension_fund_id": getattr(pf, "id", None),
                 "tax_treatment": tax_treatment,
                 "original_pension": original_pension_snapshot,
-            })
+            }, ensure_ascii=False)
         )
         self.db.add(ca)
         
@@ -561,7 +561,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
                 "partial": True,
                 "tax_treatment": tax_treatment,
                 "original_pension": original_pension_snapshot,
-            })
+            }, ensure_ascii=False)
         )
         self.db.add(ca)
         

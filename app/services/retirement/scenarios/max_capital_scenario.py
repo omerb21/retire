@@ -342,7 +342,7 @@ class MaxCapitalScenario(BaseScenarioBuilder):
                 "partial": True,
                 "tax_treatment": tax_treatment,
                 "original_pension": original_pension_snapshot,
-            })
+            }, ensure_ascii=False)
         )
         self.db.add(ca)
         

@@ -124,7 +124,7 @@ class CommutationExemptionService:
                     src["partial_exemption"] = True
                     src["exempt_amount"] = use_amount
                     src["taxable_remainder"] = taxable_remainder
-                    asset.conversion_source = json.dumps(src)
+                    asset.conversion_source = json.dumps(src, ensure_ascii=False)
         except Exception:
             # לא נכשיל בגלל בעיית JSON
             pass
@@ -162,7 +162,7 @@ class CommutationExemptionService:
             spread_years=asset.spread_years,
             original_principal=asset.original_principal,
             remarks=exempt_remarks,
-            conversion_source=json.dumps(src_for_exempt) if isinstance(src_for_exempt, dict) else asset.conversion_source,
+            conversion_source=json.dumps(src_for_exempt, ensure_ascii=False) if isinstance(src_for_exempt, dict) else asset.conversion_source,
         )
 
         self.db.add(exempt_asset)

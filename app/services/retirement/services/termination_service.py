@@ -461,7 +461,7 @@ class TerminationService:
                 "plan_exempt": plan_exempt,
                 "annuity_factor": annuity_factor,
                 "factor_source": factor_source
-            })
+            }, ensure_ascii=False)
         )
         self.db.add(pf)
         
@@ -525,7 +525,7 @@ class TerminationService:
                 "plan_start_date": plan_start_date.isoformat() if plan_start_date else None,
                 "plan_severance": plan_severance,
                 "plan_exempt": plan_exempt
-            })
+            }, ensure_ascii=False)
         )
         self.db.add(ca)
         

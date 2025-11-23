@@ -196,7 +196,7 @@ class PortfolioImportService:
                         "conversion_date": date.today().isoformat(),
                         "tax_treatment": tax_treatment,
                         "original_balance": balance,
-                    })
+                    }, ensure_ascii=False)
                 )
                 
                 self.db.add(pf)

@@ -91,7 +91,7 @@ def create_capital_asset_from_pension(
             "partial": partial,
             "tax_treatment": tax_treatment,
             "original_pension": original_pension_snapshot,
-        })
+        }, ensure_ascii=False)
     )
     
     logger.info(f"  💼 {'Partial' if partial else 'Full'} capitalization: {pf.fund_name} → {capital_value} ₪ capital ({tax_status})")
@@ -151,7 +151,7 @@ def capitalize_pension_with_factor(
             "annuity_factor": annuity_factor,
             "partial": partial,
             "tax_treatment": tax_treatment
-        })
+        }, ensure_ascii=False)
     )
     
     return ca
