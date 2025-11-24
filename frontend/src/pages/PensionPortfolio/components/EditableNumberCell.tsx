@@ -34,16 +34,16 @@ export const EditableNumberCell: React.FC<EditableNumberCellProps> = ({
   const value = (account as any)[field] || 0;
   
   return (
-    <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <td className="pension-table-cell-number">
+      <div className="pension-table-number-wrapper">
         <input
           type="checkbox"
           checked={(account.selected_amounts as any)?.[field] || false}
           onChange={(e) => toggleAmountSelection(index, field, e.target.checked)}
-          style={{ transform: "scale(0.8)" }}
+          className="pension-table-checkbox-small"
         />
         <div 
-          style={{ flex: 1, cursor: 'pointer' }} 
+          className="pension-table-number-input-wrapper"
           onClick={(e) => { 
             e.stopPropagation(); 
             setEditingCell({row: index, field}); 
@@ -56,7 +56,7 @@ export const EditableNumberCell: React.FC<EditableNumberCellProps> = ({
               onBlur={(e) => updateCellValue(index, field, e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, field, e.currentTarget.value)}
               autoFocus
-              style={{ width: '100%', padding: 2, fontSize: '12px', textAlign: 'right' }}
+              className="pension-table-number-input"
             />
           ) : (value > 0 ? formatMoney(value) : '-')}
         </div>

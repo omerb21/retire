@@ -14,6 +14,7 @@ import { SavedDataDisplay } from './SimpleCurrentEmployer/components/SavedDataDi
 import { EmployerDetailsForm } from './SimpleCurrentEmployer/components/EmployerDetailsForm';
 import { TerminationSteps } from './SimpleCurrentEmployer/components/TerminationSteps';
 import { isTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
+import './SimpleCurrentEmployer/SimpleCurrentEmployer.css';
 
 const SimpleCurrentEmployer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -90,15 +91,15 @@ const SimpleCurrentEmployer: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <Link to={`/clients/${id}`} style={{ color: '#007bff', textDecoration: 'none' }}>
+    <div className="simple-current-employer-container">
+      <div className="simple-current-employer-back-row">
+        <Link to={`/clients/${id}`} className="simple-current-employer-back-link">
           ← חזרה לפרטי לקוח
         </Link>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0 }}>מעסיק נוכחי</h2>
+      <div className="simple-current-employer-header-row">
+        <h2>מעסיק נוכחי</h2>
         
         {/* כפתור נקה מצב - למקרי חירום: מחיקת עזיבה ונתוני מעסיק נוכחי */}
         <button
@@ -106,39 +107,23 @@ const SimpleCurrentEmployer: React.FC = () => {
             if (!id) return;
             handleClearAllState();
           }}
-          style={{
-            padding: '5px 10px',
-            fontSize: '12px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-          title="לחץ אם השדות מוקפאים בטעות"
+          className="simple-current-employer-clear-button"
+          title="לחץ רק אם המסך תקוע בטעות: פעולה זו תמחק את עזיבת העבודה (אם קיימת), את נתוני המעסיק הנוכחי ותשחזר פיצויים לתיק הפנסיוני"
         >
           🔧 נקה מצב
         </button>
       </div>
 
       {error && (
-        <div style={{ padding: '15px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px', marginBottom: '20px', border: '1px solid #f5c6cb' }}>
+        <div className="simple-current-employer-error-banner">
           {error}
         </div>
       )}
 
-      <div style={{ marginBottom: '20px', borderBottom: '2px solid #ddd' }}>
+      <div className="simple-current-employer-tab-bar">
         <button
           onClick={() => setActiveTab('details')}
-          style={{
-            padding: '10px 20px',
-            marginLeft: '5px',
-            border: 'none',
-            borderBottom: activeTab === 'details' ? '3px solid #007bff' : 'none',
-            backgroundColor: activeTab === 'details' ? '#f8f9fa' : 'transparent',
-            cursor: 'pointer',
-            fontWeight: activeTab === 'details' ? 'bold' : 'normal'
-          }}
+          className={`simple-current-employer-tab-button ${activeTab === 'details' ? 'simple-current-employer-tab-button--active' : ''}`}
         >
           פרטי מעסיק
         </button>
@@ -151,18 +136,23 @@ const SimpleCurrentEmployer: React.FC = () => {
             setTerminationDecision(prev => ({ ...prev, termination_date: employer.end_date || '' }));
             setActiveTab('termination');
           }}
-          style={{
-            padding: '10px 20px',
-            border: 'none',
-            borderBottom: activeTab === 'termination' ? '3px solid #007bff' : 'none',
-            backgroundColor: activeTab === 'termination' ? '#f8f9fa' : 'transparent',
-            cursor: 'pointer',
-            fontWeight: activeTab === 'termination' ? 'bold' : 'normal'
-          }}
+          className={`simple-current-employer-tab-button ${activeTab === 'termination' ? 'simple-current-employer-tab-button--active' : ''}`}
         >
           עזיבת עבודה
         </button>
       </div>
+
+      {terminationDecision.confirmed && (
+        <div className="termination-warning-box">
+          <p className="termination-warning-title">
+            ⚠️ קיימת עזיבת עבודה שמורה למעסיק זה
+          </p>
+          <p className="termination-warning-text">
+            לעריכת החלטות חדשות או למחיקת העזיבה הקיימת, עבור לטאב "עזיבת עבודה".
+            במקרים חריגים בלבד, כשמסך העזיבה תקוע או במצב לא עקבי, ניתן להשתמש בכפתור "נקה מצב" כדי לאפס את הנתונים.
+          </p>
+        </div>
+      )}
 
       {/* Employer Details Tab */}
       {activeTab === 'details' && (
@@ -170,13 +160,7 @@ const SimpleCurrentEmployer: React.FC = () => {
           <SavedDataDisplay employer={employer} />
           
           {error && (
-            <div style={{ 
-              color: 'red', 
-              marginBottom: '20px', 
-              padding: '10px', 
-              backgroundColor: '#fee', 
-              borderRadius: '4px' 
-            }}>
+            <div className="simple-current-employer-error-banner">
               {error}
             </div>
           )}

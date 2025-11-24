@@ -1,0 +1,423 @@
+.simple-current-employer-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.simple-current-employer-back-row {
+  margin-bottom: 20px;
+}
+
+.simple-current-employer-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.simple-current-employer-back-link {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.simple-current-employer-clear-button {
+  padding: 5px 10px;
+  font-size: 12px;
+  background-color: #6c757d;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.simple-current-employer-error-banner {
+  padding: 15px;
+  background-color: #f8d7da;
+  color: #721c24;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border: 1px solid #f5c6cb;
+}
+
+.simple-current-employer-tab-bar {
+  margin-bottom: 20px;
+  border-bottom: 2px solid #ddd;
+}
+
+.simple-current-employer-tab-button {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.simple-current-employer-tab-button--active {
+  border-bottom: 3px solid #007bff;
+  background-color: #f8f9fa;
+  font-weight: bold;
+}
+
+.saved-data-container {
+  margin-bottom: 20px;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.saved-data-container--empty {
+  border: 1px solid #ffc107;
+  background-color: #fff3cd;
+}
+
+.saved-data-container--filled {
+  border: 1px solid #28a745;
+  background-color: #f8fff9;
+}
+
+.saved-data-title {
+  color: #28a745;
+  margin-bottom: 15px;
+}
+
+.saved-data-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.saved-data-employer-completion {
+  color: #0066cc;
+  font-weight: bold;
+  grid-column: 1 / -1;
+}
+
+.saved-data-empty-text {
+  margin: 0;
+  color: #856404;
+}
+
+.employer-form-field {
+  margin-bottom: 20px;
+}
+
+.employer-form-label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.employer-form-input,
+.employer-form-input--number {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.employer-form-input--number {
+  min-width: 0;
+}
+
+.employer-form-helper-text {
+  color: #666666;
+  display: block;
+  margin-top: 5px;
+}
+
+.employer-form-severance-box {
+  padding: 12px;
+  background-color: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 4px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #495057;
+}
+
+.employer-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.employer-form-button-cancel {
+  padding: 10px 20px;
+  background-color: #6c757d;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.employer-form-button-submit {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.employer-form-button-submit--disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.termination-warning-box {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+}
+
+.termination-warning-title {
+  color: #856404;
+  font-size: 14px;
+  margin: 0;
+  font-weight: bold;
+}
+
+.termination-warning-text {
+  color: #856404;
+  font-size: 12px;
+  margin: 5px 0 0 0;
+}
+
+.termination-step {
+  margin-bottom: 30px;
+  padding: 20px;
+  border-radius: 4px;
+}
+
+.termination-step--green {
+  border: 1px solid #28a745;
+  background-color: #f8fff9;
+}
+
+.termination-step--yellow {
+  border: 1px solid #ffc107;
+  background-color: #fffdf5;
+}
+
+.termination-step--info {
+  border: 1px solid #17a2b8;
+  background-color: #f0f9fc;
+}
+
+.termination-step--danger {
+  border: 1px solid #dc3545;
+  background-color: #fff5f5;
+}
+
+.termination-step-header {
+  margin-bottom: 15px;
+}
+
+.termination-step-enddate-box {
+  padding: 15px;
+  background-color: #d4edda;
+  border-radius: 4px;
+}
+
+.termination-step-enddate-text {
+  margin: 0;
+  font-weight: bold;
+  color: #155724;
+}
+
+.termination-warning-secondary {
+  margin: 10px 0 0 0;
+  font-size: 14px;
+  color: #856404;
+}
+
+.termination-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.termination-checkbox-label {
+  display: flex;
+  align-items: center;
+}
+
+.termination-checkbox-label--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.termination-checkbox-input {
+  margin-left: 10px;
+  width: 20px;
+  height: 20px;
+}
+
+.termination-completion-box {
+  padding: 10px;
+  background-color: #e8f4f8;
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.termination-tax-info-box {
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #fff3cd;
+  border-radius: 4px;
+  font-size: 12px;
+  border: 1px solid #ffc107;
+}
+
+.termination-tax-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.termination-tax-exempt-card {
+  padding: 15px;
+  background-color: #d4edda;
+  border-radius: 4px;
+}
+
+.termination-tax-taxable-card {
+  padding: 15px;
+  background-color: #f8d7da;
+  border-radius: 4px;
+}
+
+.termination-tax-exempt-title {
+  color: #155724;
+}
+
+.termination-tax-taxable-title {
+  color: #721c24;
+}
+
+.termination-tax-amount {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.termination-choice-group {
+  margin-bottom: 30px;
+}
+
+.termination-radio-label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.termination-radio-label--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.termination-radio-input {
+  margin-left: 10px;
+  width: 18px;
+  height: 18px;
+}
+
+.termination-spread-info-box {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff3cd;
+  border-radius: 4px;
+  border: 1px solid #ffc107;
+}
+
+.termination-spread-explanation {
+  margin-bottom: 15px;
+  padding: 12px;
+  background-color: #e7f3ff;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.termination-spread-description {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+}
+
+.termination-spread-note {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: #555555;
+}
+
+.termination-spread-input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.termination-spread-input--disabled {
+  background-color: #f0f0f0;
+  cursor: not-allowed;
+}
+
+.termination-no-spread-box {
+  padding: 10px;
+  background-color: #f8d7da;
+  border-radius: 4px;
+  color: #721c24;
+}
+
+.termination-actions {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.termination-button-primary,
+.termination-button-secondary,
+.termination-button-danger {
+  border: none;
+  padding: 15px 40px;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.termination-button-primary {
+  background-color: #28a745;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.termination-button-secondary {
+  background-color: #6c757d;
+  color: #ffffff;
+}
+
+.termination-button-danger {
+  background-color: #dc3545;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.termination-confirm-box {
+  background-color: #fff3cd;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border: 1px solid #ffeaa7;
+}
+
+.termination-confirm-title {
+  font-weight: bold;
+  color: #856404;
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.termination-confirm-text {
+  color: #856404;
+  margin-bottom: 15px;
+  font-size: 14px;
+}

@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, Integer, String, Numeric, Date, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, Numeric, Date, ForeignKey, CheckConstraint, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -87,7 +87,7 @@ class CapitalAsset(Base):
     remarks = Column(String(500), nullable=True)
     
     # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
-    conversion_source = Column(String(1000), nullable=True)  # JSON עם פרטי המקור
+    conversion_source = Column(Text, nullable=True)  # JSON עם פרטי המקור
     
     # Relationships
     client = relationship("Client", back_populates="capital_assets")

@@ -2,9 +2,8 @@
  * Custom hook for termination calculation logic
  */
 
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API_BASE } from '../../../lib/api';
+import { useEffect } from 'react';
+import { apiFetch } from '../../../lib/api';
 import { SimpleEmployer, TerminationDecision, GrantDetails } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import {
@@ -75,9 +74,9 @@ export const useTerminationCalculation = (
       let monthlyCap = 13750; // Default for 2024-2025
       
       try {
-        const response = await axios.get(`${API_BASE}/tax-data/severance-cap?year=${terminationYear}`);
-        if (response.data && response.data.monthly_cap) {
-          monthlyCap = response.data.monthly_cap;
+        const data = await apiFetch<{ monthly_cap?: number }>(`/tax-data/severance-cap?year=${terminationYear}`);
+        if (data && typeof data.monthly_cap === 'number') {
+          monthlyCap = data.monthly_cap;
         }
       } catch (err) {
         console.warn('Failed to fetch severance cap, using default:', err);

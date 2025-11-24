@@ -7,6 +7,7 @@ import { usePensionConversion } from '../hooks/usePensionConversion';
 import { FileUploadSection } from './FileUploadSection';
 import { PensionTable } from './PensionTable';
 import { generateExcelReport } from '../utils/exportUtils';
+import '../PensionPortfolio.css';
 
 /**
  * קומפוננטה ראשית לניהול תיק פנסיוני
@@ -30,6 +31,11 @@ export default function PensionPortfolioMain() {
     pensionDataHook.setProcessingStatus,
     pensionDataHook.redemptionDate,
     pensionDataHook.clientData
+  );
+
+  const canSave = !pensionDataHook.saving && pensionDataHook.pensionData.some(a => a.selected);
+  const canConvert = !pensionDataHook.loading && pensionDataHook.pensionData.some(a => 
+    a.selected || Object.values(a.selected_amounts || {}).some(Boolean)
   );
 
   // פונקציה לטיפול בייצוא Excel
@@ -59,13 +65,13 @@ export default function PensionPortfolioMain() {
         </div>
 
         {pensionDataHook.error && (
-          <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
+          <div className="pension-portfolio-error-banner">
             {pensionDataHook.error}
           </div>
         )}
 
         {pensionDataHook.processingStatus && (
-          <div style={{ color: "blue", marginBottom: 16, padding: 8, backgroundColor: "#e7f3ff" }}>
+          <div className="pension-portfolio-status-banner">
             {pensionDataHook.processingStatus}
           </div>
         )}
@@ -82,13 +88,13 @@ export default function PensionPortfolioMain() {
 
         {/* טבלת נתונים */}
         {pensionDataHook.pensionData.length > 0 && (
-          <section style={{ marginBottom: 32 }}>
+          <section className="pension-portfolio-section">
             <h3>נתוני התיק הפנסיוני ({pensionDataHook.pensionData.length} חשבונות)</h3>
             
             {/* הוראות שימוש */}
-            <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#fff3cd", borderRadius: 4, border: "1px solid #ffeaa7" }}>
-              <h4 style={{ margin: "0 0 8px 0", color: "#856404" }}>הוראות שימוש:</h4>
-              <ol style={{ margin: 0, paddingRight: 20, fontSize: "14px", color: "#856404" }}>
+            <div className="pension-portfolio-instructions">
+              <h4 className="pension-portfolio-instructions-title">הוראות שימוש:</h4>
+              <ol className="pension-portfolio-instructions-list">
                 <li><strong>שמירת תכניות:</strong> סמן תכניות בעמודה "בחר" ולחץ "שמור תכניות נבחרות" לשמירה בטבלת התכניות הפנסיוניות</li>
                 <li><strong>מחיקת תכנית:</strong> לחץ "מחק" בעמודת הפעולות להסרת תכנית מהרשימה</li>
                 <li><strong>המרה לקצבאות/נכסים:</strong> סמן חשבונות או סכומים ספציפיים, בחר סוג המרה ולחץ "המר חשבונות/סכומים נבחרים"</li>
@@ -99,25 +105,16 @@ export default function PensionPortfolioMain() {
             {/* כפתור חוקי המרה */}
             {/* הצגת חוקי המרה */}
             {pensionDataHook.showConversionRules && (
-              <div style={{ 
-                marginBottom: 16, 
-                padding: 16, 
-                backgroundColor: "#e7f3ff", 
-                borderRadius: 4, 
-                border: "2px solid #007bff",
-                whiteSpace: "pre-wrap",
-                fontSize: "13px",
-                lineHeight: "1.6"
-              }}>
-                <h4 style={{ marginTop: 0, color: "#007bff" }}>חוקי המרת יתרות מתיק פנסיוני</h4>
+              <div className="pension-portfolio-rules">
+                <h4 className="pension-portfolio-rules-title">חוקי המרת יתרות מתיק פנסיוני</h4>
                 {getConversionRulesExplanation()}
               </div>
             )}
             
             {/* כפתור הוספה ידנית */}
             {/* שדה תאריך מימוש */}
-            <div style={{ marginBottom: 16, padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '4px', border: '1px solid #007bff' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#004085' }}>
+            <div className="pension-portfolio-redemption-box">
+              <label className="pension-portfolio-redemption-label">
                 תאריך מימוש (אופציונלי):
               </label>
               <input
@@ -129,35 +126,20 @@ export default function PensionPortfolioMain() {
                   pensionDataHook.setRedemptionDate(formatted);
                 }}
                 maxLength={10}
-                style={{
-                  width: '200px',
-                  padding: '8px',
-                  border: '1px solid #007bff',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
+                className="pension-portfolio-redemption-input"
               />
-              <div style={{ marginTop: '8px', fontSize: '13px', color: '#004085' }}>
+              <div className="pension-portfolio-redemption-help">
                 💡 <strong>הסבר:</strong> אם תזין תאריך מימוש, כל ההמרות ייווצרו עם תאריך תשלום = תאריך המימוש.<br/>
                 אם השדה ריק, ההמרות ייווצרו עם תאריך תשלום = תאריך גיל הפרישה של הלקוח.
               </div>
             </div>
 
             {/* כפתורי פעולה */}
-            <div style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div className="pension-portfolio-actions">
               {/* כפתור חוקי המרה */}
               <button
                 onClick={() => pensionDataHook.setShowConversionRules(!pensionDataHook.showConversionRules)}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#17a2b8",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold"
-                }}
+                className="pension-portfolio-btn pension-portfolio-btn--rules"
                 title="הצג/הסתר חוקי המרה לפי חוק"
               >
                 📋 {pensionDataHook.showConversionRules ? 'הסתר חוקי המרה' : 'חוקי המרה לפי חוק'}
@@ -166,16 +148,7 @@ export default function PensionPortfolioMain() {
               {/* כפתור הוספה ידנית */}
               <button
                 onClick={pensionDataHook.addManualAccount}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#28a745",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold"
-                }}
+                className="pension-portfolio-btn pension-portfolio-btn--add"
                 title="הוסף תכנית פנסיונית חדשה ידנית"
               >
                 + הוסף תכנית חדשה
@@ -183,58 +156,30 @@ export default function PensionPortfolioMain() {
 
               <button
                 onClick={pensionDataHook.toggleAllAccountsSelection}
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontSize: "14px"
-                }}
+                className="pension-portfolio-btn pension-portfolio-btn--toggle"
               >
                 {pensionDataHook.pensionData.every(a => a.selected) ? "בטל בחירת הכל" : "בחר הכל"}
               </button>
               
               <button
                 onClick={pensionDataHook.saveSelectedAccounts}
-                disabled={pensionDataHook.saving || !pensionDataHook.pensionData.some(a => a.selected)}
-                style={{
-                  padding: "10px 16px",
-                  backgroundColor: !pensionDataHook.saving && pensionDataHook.pensionData.some(a => a.selected) ? "#007bff" : "#ccc",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: !pensionDataHook.saving && pensionDataHook.pensionData.some(a => a.selected) ? "pointer" : "not-allowed"
-                }}
+                disabled={!canSave}
+                className={`pension-portfolio-btn ${canSave ? 'pension-portfolio-btn--save' : 'pension-portfolio-btn--save-disabled'}`}
               >
                 {pensionDataHook.saving ? "שומר..." : "שמור תכניות נבחרות"}
               </button>
               
               <button
                 onClick={conversionHook.convertSelectedAccounts}
-                disabled={pensionDataHook.loading || !pensionDataHook.pensionData.some(a => 
-                  a.selected || Object.values(a.selected_amounts || {}).some(Boolean)
-                )}
-                style={{
-                  padding: "10px 16px",
-                  backgroundColor: !pensionDataHook.loading && pensionDataHook.pensionData.some(a => 
-                    a.selected || Object.values(a.selected_amounts || {}).some(Boolean)
-                  ) ? "#28a745" : "#ccc",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: !pensionDataHook.loading && pensionDataHook.pensionData.some(a => 
-                    a.selected || Object.values(a.selected_amounts || {}).some(Boolean)
-                  ) ? "pointer" : "not-allowed"
-                }}
+                disabled={!canConvert}
+                className={`pension-portfolio-btn ${canConvert ? 'pension-portfolio-btn--convert' : 'pension-portfolio-btn--convert-disabled'}`}
               >
                 המר חשבונות/סכומים נבחרים
               </button>
             </div>
 
             {/* טבלה מורחבת */}
-            <div style={{ marginBottom: 8, padding: 8, backgroundColor: "#e7f3ff", borderRadius: 4, fontSize: "13px" }}>
+            <div className="pension-portfolio-tip">
               💡 <strong>טיפ:</strong> לחץ על כל תא בטבלה כדי לערוך את הערך ישירות. לחץ Enter או לחץ מחוץ לתא לשמור.
             </div>
             
@@ -254,7 +199,7 @@ export default function PensionPortfolioMain() {
         )}
 
         {pensionDataHook.pensionData.length === 0 && !pensionDataHook.loading && (
-          <div style={{ padding: 16, backgroundColor: "#f8f9fa", borderRadius: 4, textAlign: "center" }}>
+          <div className="pension-portfolio-empty">
             אין נתוני תיק פנסיוני. אנא טען קבצי מסלקה לעיבוד.
           </div>
         )}

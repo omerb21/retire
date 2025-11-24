@@ -29,14 +29,14 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
 }) => {
   // Step 1: End date display
   const renderStep1 = () => (
-    <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
-      <h4>שלב 1: תאריך סיום עבודה</h4>
-      <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
-        <p style={{ margin: 0, fontWeight: 'bold', color: '#155724' }}>
+    <div className="termination-step termination-step--green">
+      <h4 className="termination-step-header">שלב 1: תאריך סיום עבודה</h4>
+      <div className="termination-step-enddate-box">
+        <p className="termination-step-enddate-text">
           תאריך סיום עבודה: <strong>{employer.end_date || 'לא הוזן'}</strong>
         </p>
         {!employer.end_date && (
-          <p style={{ margin: '10px 0 0 0', fontSize: '14px', color: '#856404' }}>
+          <p className="termination-warning-secondary">
             יש להזין תאריך סיום עבודה בטאב "פרטי מעסיק" לפני המשך התהליך
           </p>
         )}
@@ -53,9 +53,9 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
     const expectedGrant = Math.max(expectedFromSalary, employer.severance_accrued);
 
     return (
-      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
-        <h4>שלב 2: סיכום זכויות</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+      <div className="termination-step termination-step--green">
+        <h4 className="termination-step-header">שלב 2: סיכום זכויות</h4>
+        <div className="termination-summary-grid">
           <div><strong>שנות וותק:</strong> {serviceYears.toFixed(2)} שנים</div>
           <div><strong>פיצויים צבורים:</strong> {formatCurrency(employer.severance_accrued)}</div>
           <div><strong>פיצויים צפויים:</strong> {formatCurrency(expectedGrant)}</div>
@@ -73,20 +73,22 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
     const completion = Math.max(0, expectedGrant - employer.severance_accrued);
 
     return (
-      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ffc107', borderRadius: '4px', backgroundColor: '#fffdf5' }}>
-        <h4>שלב 3: השלמת מעסיק</h4>
-        <label style={{ display: 'flex', alignItems: 'center', cursor: terminationDecision.confirmed ? 'not-allowed' : 'pointer', opacity: terminationDecision.confirmed ? 0.6 : 1 }}>
+      <div className="termination-step termination-step--yellow">
+        <h4 className="termination-step-header">שלב 3: השלמת מעסיק</h4>
+        <label
+          className={`termination-checkbox-label ${terminationDecision.confirmed ? 'termination-checkbox-label--disabled' : ''}`}
+        >
           <input
             type="checkbox"
             checked={terminationDecision.use_employer_completion}
             onChange={(e) => setTerminationDecision(prev => ({ ...prev, use_employer_completion: e.target.checked }))}
             disabled={terminationDecision.confirmed}
-            style={{ marginLeft: '10px', width: '20px', height: '20px', cursor: terminationDecision.confirmed ? 'not-allowed' : 'pointer' }}
+            className="termination-checkbox-input"
           />
           תבוצע השלמת מעסיק
         </label>
         {terminationDecision.use_employer_completion && (
-          <div style={{ padding: '10px', backgroundColor: '#e8f4f8', borderRadius: '4px', marginTop: '10px' }}>
+          <div className="termination-completion-box">
             <p><strong>גובה השלמת המעסיק:</strong> {formatCurrency(completion)}</p>
             <small>ההפרש בין המענק הצפוי ליתרת הפיצויים הנצברת</small>
           </div>
@@ -104,24 +106,24 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
       : terminationDecision.termination_date;
 
     return (
-      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #17a2b8', borderRadius: '4px', backgroundColor: '#f0f9fc' }}>
-        <h4>שלב 4: חלוקה לפטור/חייב במס</h4>
+      <div className="termination-step termination-step--info">
+        <h4 className="termination-step-header">שלב 4: חלוקה לפטור/חייב במס</h4>
         
-        <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '12px', border: '1px solid #ffc107' }}>
+        <div className="termination-tax-info-box">
           <strong>🔍 פרטי חישוב:</strong>
           <div>תאריך עזיבה מקורי: <strong>{terminationDecision.termination_date}</strong></div>
           <div>שנת עזיבה מחושבת: <strong>{new Date(endISO || '').getFullYear()}</strong></div>
           <div>סכום פיצויים: <strong>{formatCurrency(terminationDecision.severance_amount || 0)}</strong></div>
         </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-          <div style={{ padding: '15px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
-            <strong style={{ color: '#155724' }}>חלק פטור ממס:</strong>
-            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>{formatCurrency(terminationDecision.exempt_amount || 0)}</p>
+        <div className="termination-tax-grid">
+          <div className="termination-tax-exempt-card">
+            <strong className="termination-tax-exempt-title">חלק פטור ממס:</strong>
+            <p className="termination-tax-amount">{formatCurrency(terminationDecision.exempt_amount || 0)}</p>
           </div>
-          <div style={{ padding: '15px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
-            <strong style={{ color: '#721c24' }}>חלק חייב במס:</strong>
-            <p style={{ fontSize: '20px', fontWeight: 'bold', margin: '10px 0' }}>{formatCurrency(terminationDecision.taxable_amount || 0)}</p>
+          <div className="termination-tax-taxable-card">
+            <strong className="termination-tax-taxable-title">חלק חייב במס:</strong>
+            <p className="termination-tax-amount">{formatCurrency(terminationDecision.taxable_amount || 0)}</p>
           </div>
         </div>
       </div>
@@ -133,17 +135,20 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
     if ((terminationDecision.exempt_amount || 0) <= 0) return null;
 
     return (
-      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#f8fff9' }}>
-        <h4>שלב 5א: בחירת אפשרות לחלק הפטור ממס</h4>
+      <div className="termination-step termination-step--green termination-choice-group">
+        <h4 className="termination-step-header">שלב 5א: בחירת אפשרות לחלק הפטור ממס</h4>
         {['redeem_with_exemption', 'redeem_no_exemption', 'annuity'].map(choice => (
-          <label key={choice} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', cursor: terminationDecision.confirmed ? 'not-allowed' : 'pointer', opacity: terminationDecision.confirmed ? 0.6 : 1 }}>
+          <label
+            key={choice}
+            className={`termination-radio-label ${terminationDecision.confirmed ? 'termination-radio-label--disabled' : ''}`}
+          >
             <input
               type="radio"
               value={choice}
               checked={terminationDecision.exempt_choice === choice}
               onChange={(e) => setTerminationDecision(prev => ({ ...prev, exempt_choice: e.target.value as any }))}
               disabled={terminationDecision.confirmed}
-              style={{ marginLeft: '10px', width: '18px', height: '18px', cursor: terminationDecision.confirmed ? 'not-allowed' : 'pointer' }}
+              className="termination-radio-input"
             />
             {choice === 'redeem_with_exemption' ? 'פדיון הסכום עם שימוש בפטור' :
              choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור (עם פריסת מס)' : 'סימון כקצבה'}
@@ -151,9 +156,9 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
         ))}
         
         {terminationDecision.exempt_choice === 'redeem_no_exemption' && (terminationDecision.max_spread_years || 0) > 0 && (
-          <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+          <div className="termination-spread-info-box">
             <strong>📋 פריסת מס אוטומטית</strong>
-            <p style={{ fontSize: '14px', margin: '8px 0' }}>
+            <p className="termination-spread-description">
               הסכום יפרס על פני <strong>{terminationDecision.max_spread_years} שנים</strong> (שנה לכל 4 שנות וותק)
             </p>
           </div>
@@ -167,41 +172,44 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
     if ((terminationDecision.taxable_amount || 0) <= 0) return null;
 
     return (
-      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #dc3545', borderRadius: '4px', backgroundColor: '#fff5f5' }}>
-        <h4>שלב 5ב: בחירת אפשרות לחלק החייב במס</h4>
+      <div className="termination-step termination-step--danger termination-choice-group">
+        <h4 className="termination-step-header">שלב 5ב: בחירת אפשרות לחלק החייב במס</h4>
         {['redeem_no_exemption', 'annuity'].map(choice => (
-          <label key={choice} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', cursor: terminationDecision.confirmed ? 'not-allowed' : 'pointer', opacity: terminationDecision.confirmed ? 0.6 : 1 }}>
+          <label
+            key={choice}
+            className={`termination-radio-label ${terminationDecision.confirmed ? 'termination-radio-label--disabled' : ''}`}
+          >
             <input
               type="radio"
               value={choice}
               checked={terminationDecision.taxable_choice === choice}
               onChange={(e) => setTerminationDecision(prev => ({ ...prev, taxable_choice: e.target.value as any }))}
               disabled={terminationDecision.confirmed}
-              style={{ marginLeft: '10px', width: '18px', height: '18px', cursor: terminationDecision.confirmed ? 'not-allowed' : 'pointer' }}
+              className="termination-radio-input"
             />
             {choice === 'redeem_no_exemption' ? 'פדיון הסכום ללא שימוש בפטור (עם פריסת מס)' : 'סימון כקצבה'}
           </label>
         ))}
-
+        
         {terminationDecision.taxable_choice === 'redeem_no_exemption' && (
-          <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+          <div className="termination-spread-info-box">
             <h5>זכאות לפריסת פיצויים</h5>
             
-            <div style={{ marginBottom: '15px', padding: '12px', backgroundColor: '#e7f3ff', borderRadius: '4px', fontSize: '14px' }}>
+            <div className="termination-spread-explanation">
               <strong>📘 מה זה פריסת פיצויים?</strong>
-              <p style={{ margin: '8px 0 0 0' }}>
+              <p className="termination-spread-description">
                 פריסת פיצויים מאפשרת לפרוס את החלק החייב במס של המענק על פני מספר שנות מס.
                 הזכאות נקבעת לפי <strong>שנת פריסה אחת לכל 4 שנות וותק מלאות</strong>.
                 פריסה עשויה להקטין את המס הכולל על המענק בזכות מדרגות המס השנתיות.
               </p>
-              <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#555' }}>
+              <p className="termination-spread-note">
                 <strong>תשלום המס:</strong> בשנה הראשונה משולם כל סכום המענק, אך המס מחושב בהתחשב 
                 בפריסה על פני כל השנים. בשאר השנים, המס מוצג רק ויזואלית ולא משולם בפועל.
               </p>
             </div>
             
             <p><strong>זכאות מקסימלית:</strong> {terminationDecision.max_spread_years || 0} שנים<br/>
-            <small style={{ color: '#666' }}>(שנת פריסה אחת לכל 4 שנות וותק מלאות)</small></p>
+            <small className="termination-spread-note">(שנת פריסה אחת לכל 4 שנות וותק מלאות)</small></p>
             {(terminationDecision.max_spread_years || 0) > 0 ? (
               <div>
                 <label>בחר מספר שנות פריסה:</label>
@@ -215,24 +223,16 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
                     tax_spread_years: Math.min(parseInt(e.target.value) || 0, terminationDecision.max_spread_years || 0)
                   }))}
                   disabled={terminationDecision.confirmed}
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px', 
-                    marginTop: '5px', 
-                    border: '1px solid #ddd', 
-                    borderRadius: '4px',
-                    backgroundColor: terminationDecision.confirmed ? '#f0f0f0' : 'white',
-                    cursor: terminationDecision.confirmed ? 'not-allowed' : 'text'
-                  }}
+                  className={`termination-spread-input ${terminationDecision.confirmed ? 'termination-spread-input--disabled' : ''}`}
                 />
-                <small style={{ display: 'block', marginTop: '5px', color: '#666' }}>
+                <small className="termination-spread-note">
                   המערכת ממליצה על פריסה מלאה של {terminationDecision.max_spread_years} שנים לחיסכון מרבי במס
                 </small>
               </div>
             ) : (
-              <div style={{ padding: '10px', backgroundColor: '#f8d7da', borderRadius: '4px', color: '#721c24' }}>
+              <div className="termination-no-spread-box">
                 <strong>אין זכאות לפריסה</strong>
-                <p style={{ marginTop: '5px', fontSize: '14px' }}>נדרשות לפחות 4 שנות וותק מלאות לזכאות לפריסת מס</p>
+                <p className="termination-spread-description">נדרשות לפחות 4 שנות וותק מלאות לזכאות לפריסת מס</p>
               </div>
             )}
           </div>
@@ -246,49 +246,31 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
     if (!terminationDecision.termination_date) return null;
 
     return (
-      <div style={{ marginTop: '30px', textAlign: 'center' }}>
+      <div className="termination-actions">
         {!terminationDecision.confirmed ? (
           <>
             <button
               type="button"
               onClick={onSubmit}
               disabled={loading}
-              style={{
-                backgroundColor: loading ? '#6c757d' : '#28a745',
-                color: 'white',
-                border: 'none',
-                padding: '15px 40px',
-                borderRadius: '4px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                marginLeft: '10px'
-              }}
+              className="termination-button-primary"
             >
               {loading ? 'שומר...' : 'שמור החלטות ועדכן מערכת'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              style={{
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                padding: '15px 40px',
-                borderRadius: '4px',
-                fontSize: '16px',
-                cursor: 'pointer'
-              }}
+              className="termination-button-secondary"
             >
               ביטול
             </button>
           </>
         ) : (
-          <div style={{ backgroundColor: '#fff3cd', padding: '20px', borderRadius: '4px', marginBottom: '20px', border: '1px solid #ffeaa7' }}>
-            <p style={{ fontWeight: 'bold', color: '#856404', marginBottom: '10px', fontSize: '18px' }}>
+          <div className="termination-confirm-box">
+            <p className="termination-confirm-title">
               ⚠️ קיימת עזיבת עבודה שמורה במערכת
             </p>
-            <p style={{ color: '#856404', marginBottom: '15px', fontSize: '14px' }}>
+            <p className="termination-confirm-text">
               כדי לערוך החלטות עזיבה חדשות, יש למחוק תחילה את העזיבה הקיימת. 
               פעולה זו תמחק את כל המענקים, הקצבאות ונכסי ההון שנוצרו מהעזיבה הקודמת.
             </p>
@@ -296,16 +278,7 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
               type="button"
               onClick={onDelete}
               disabled={loading}
-              style={{
-                backgroundColor: loading ? '#6c757d' : '#dc3545',
-                color: 'white',
-                border: 'none',
-                padding: '15px 40px',
-                borderRadius: '4px',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                cursor: loading ? 'not-allowed' : 'pointer'
-              }}
+              className="termination-button-danger"
             >
               {loading ? 'מוחק...' : '🗑️ מחק עזיבה ואפשר עריכה מחדש'}
             </button>
@@ -316,7 +289,7 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
   };
 
   return (
-    <div>
+    <div className="termination-steps-container">
       <h3>מסך עזיבת עבודה</h3>
       {renderStep1()}
       {renderStep2()}

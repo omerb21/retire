@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event
+from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 import traceback
@@ -36,7 +36,7 @@ class PensionFund(Base):
     deduction_file = Column(String(200), nullable=True)  # תיק ניכויים
     
     # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
-    conversion_source = Column(String(1000), nullable=True)  # JSON עם פרטי המקור
+    conversion_source = Column(Text, nullable=True)  # JSON עם פרטי המקור
 
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())

@@ -45,8 +45,8 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
 
   return (
     <form onSubmit={onSubmit}>
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+      <div className="employer-form-field">
+        <label className="employer-form-label">
           שם מעסיק *
         </label>
         <input
@@ -55,18 +55,12 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
           value={employer.employer_name}
           onChange={handleInputChange}
           required
-          style={{
-            width: '100%',
-            padding: '10px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '16px'
-          }}
+          className="employer-form-input"
         />
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+      <div className="employer-form-field">
+        <label className="employer-form-label">
           תאריך התחלת עבודה *
         </label>
         <input
@@ -80,18 +74,12 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
           }}
           maxLength={10}
           required
-          style={{
-            width: '100%',
-            padding: '10px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '16px'
-          }}
+          className="employer-form-input"
         />
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+      <div className="employer-form-field">
+        <label className="employer-form-label">
           שכר חודשי (₪) *
         </label>
         <input
@@ -102,18 +90,12 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
           required
           min="0"
           step="0.01"
-          style={{
-            width: '100%',
-            padding: '10px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '16px'
-          }}
+          className="employer-form-input employer-form-input--number"
         />
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+      <div className="employer-form-field">
+        <label className="employer-form-label">
           תאריך סיום עבודה (אופציונלי)
         </label>
         <input
@@ -130,69 +112,41 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
             setTerminationDecision(prev => ({ ...prev, confirmed: false }));
           }}
           maxLength={10}
-          style={{
-            width: '100%',
-            padding: '10px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '16px'
-          }}
+          className="employer-form-input"
         />
-        <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+        <small className="employer-form-helper-text">
           יש להזין רק אם העבודה כבר הסתיימה. אם השדה ריק, תתבקש להזין תאריך בעת מעבר לעזיבת עבודה.
         </small>
         {terminationDecision.confirmed && (
-          <div style={{ 
-            marginTop: '10px', 
-            padding: '10px', 
-            backgroundColor: '#fff3cd', 
-            border: '1px solid #ffeaa7', 
-            borderRadius: '4px' 
-          }}>
-            <p style={{ color: '#856404', fontSize: '14px', margin: 0, fontWeight: 'bold' }}>
+          <div className="termination-warning-box">
+            <p className="termination-warning-title">
               ⚠️ קיימת עזיבת עבודה שמורה במערכת מתאריך {employer.end_date}
             </p>
-            <p style={{ color: '#856404', fontSize: '12px', margin: '5px 0 0 0' }}>
+            <p className="termination-warning-text">
               לעריכת החלטות חדשות, עבור לטאב "עזיבת עבודה" ומחק את העזיבה הקיימת
             </p>
           </div>
         )}
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+      <div className="employer-form-field">
+        <label className="employer-form-label">
           יתרת פיצויים נצברת (₪)
         </label>
-        <div style={{ 
-          padding: '12px', 
-          backgroundColor: '#f8f9fa',
-          border: '2px solid #e9ecef',
-          borderRadius: '4px',
-          fontSize: '18px',
-          fontWeight: 'bold',
-          color: '#495057'
-        }}>
+        <div className="employer-form-severance-box">
           {formatCurrency(employer.severance_accrued)}
         </div>
-        <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+        <small className="employer-form-helper-text">
           שדה מחושב: סה"כ יתרות פיצויים מתיק פנסיוני של מעסיק נוכחי
         </small>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+      <div className="employer-form-actions">
         <button
           type="button"
           onClick={() => navigate(`/clients/${clientId}`)}
           disabled={loading}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px'
-          }}
+          className="employer-form-button-cancel"
         >
           ביטול
         </button>
@@ -200,15 +154,7 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
         <button
           type="submit"
           disabled={loading}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: loading ? '#ccc' : '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px'
-          }}
+          className={`employer-form-button-submit ${loading ? 'employer-form-button-submit--disabled' : ''}`}
         >
           {loading ? 'שומר...' : 'שמור'}
         </button>

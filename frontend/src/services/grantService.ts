@@ -3,8 +3,7 @@
  * שירות למענקים - קריאות API
  */
 
-import axios from 'axios';
-import { API_BASE } from '../lib/api';
+import { apiFetch } from '../lib/api';
 import { Grant, GrantFormData } from '../types/grant.types';
 import { convertDDMMYYToISO } from '../utils/dateUtils';
 
@@ -14,8 +13,7 @@ export class GrantService {
    */
   static async fetchGrants(clientId: string): Promise<Grant[]> {
     try {
-      const response = await axios.get(`${API_BASE}/clients/${clientId}/grants`);
-      const grantsData = response.data || [];
+      const grantsData = (await apiFetch<Grant[]>(`/clients/${clientId}/grants`)) || [];
       
       // התאמת שדות - סנכרון בין amount ו-grant_amount
       return grantsData.map((grant: Grant) => {
@@ -53,11 +51,14 @@ export class GrantService {
     }
 
     try {
-      await axios.post(`${API_BASE}/clients/${clientId}/grants`, {
-        ...grantData,
-        work_start_date: workStartDateISO,
-        work_end_date: workEndDateISO,
-        grant_date: grantDateISO
+      await apiFetch<void>(`/clients/${clientId}/grants`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...grantData,
+          work_start_date: workStartDateISO,
+          work_end_date: workEndDateISO,
+          grant_date: grantDateISO
+        })
       });
     } catch (error: any) {
       console.error('Error creating grant:', error);
@@ -70,7 +71,9 @@ export class GrantService {
    */
   static async deleteGrant(clientId: string, grantId: number): Promise<void> {
     try {
-      await axios.delete(`${API_BASE}/clients/${clientId}/grants/${grantId}`);
+      await apiFetch<void>(`/clients/${clientId}/grants/${grantId}`, {
+        method: 'DELETE'
+      });
     } catch (error: any) {
       console.error('Error deleting grant:', error);
       throw new Error('שגיאה במחיקת מענק: ' + (error.message || 'שגיאה לא ידועה'));
@@ -82,10 +85,8 @@ export class GrantService {
    */
   static async getSeveranceExemption(serviceYears: number): Promise<number> {
     try {
-      const response = await axios.get(`${API_BASE}/tax-data/severance-exemption`, {
-        params: { service_years: serviceYears }
-      });
-      return response.data.total_exemption;
+      const data = await apiFetch<{ total_exemption: number }>(`/tax-data/severance-exemption?service_years=${serviceYears}`);
+      return data.total_exemption;
     } catch (error) {
       console.error('Error fetching tax data:', error);
       // Fallback: תקרה חודשית לשנת 2025 (13,750 ₪) × 12 חודשים × שנות ותק

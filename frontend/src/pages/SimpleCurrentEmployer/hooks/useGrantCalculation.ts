@@ -3,12 +3,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { apiFetch } from '../../../lib/api';
 import { SimpleEmployer, GrantDetails } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import { calculateServiceYears, calculateEmployerCompletion } from '../utils/calculations';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
 export const useGrantCalculation = (employer: SimpleEmployer) => {
   const [grantDetails, setGrantDetails] = useState<GrantDetails>({
@@ -48,12 +46,13 @@ export const useGrantCalculation = (employer: SimpleEmployer) => {
       
       try {
         // Call the severance calculation API
-        const response = await axios.post(`${API_BASE}/current-employer/calculate-severance`, {
-          start_date: employer.start_date,
-          last_salary: employer.last_salary
+        const calculation = await apiFetch<any>(`/current-employer/calculate-severance`, {
+          method: 'POST',
+          body: JSON.stringify({
+            start_date: employer.start_date,
+            last_salary: employer.last_salary
+          })
         });
-
-        const calculation = response.data;
         
         // If severance accrued is higher than expected grant, use accrued amount
         const actualExpectedGrant = Math.max(calculation.severance_amount, employer.severance_accrued);

@@ -38,51 +38,54 @@ export const PensionTable: React.FC<PensionTableProps> = ({
   deleteAccount
 }) => {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+    <div className="pension-table-container">
+      <table className="pension-table">
         <thead>
-          <tr style={{ backgroundColor: "#f8f9fa" }}>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 50 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <tr>
+            <th className="pension-table-header-select">
+              <div className="pension-table-select-all-wrapper">
                 <input
                   type="checkbox"
                   checked={pensionData.length > 0 && pensionData.every(a => a.selected)}
                   onChange={toggleAllAccountsSelection}
-                  style={{ transform: "scale(0.9)" }}
+                  className="pension-table-checkbox"
                 />
                 <span>בחר</span>
               </div>
             </th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>מספר חשבון</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 150 }}>שם תכנית</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>חברה מנהלת</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80, backgroundColor: "#f0f8ff" }}>יתרה</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים מעסיק נוכחי</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים לאחר התחשבנות</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים שלא עברו התחשבנות</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים מעסיקים קודמים (זכויות)</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>פיצויים מעסיקים קודמים (קצבה)</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי עובד עד 2000</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי עובד אחרי 2000</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי עובד אחרי 2008 (לא משלמת)</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד עד 2000</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד אחרי 2000</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תגמולי מעביד אחרי 2008 (לא משלמת)</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 110 }}>סך תגמולים</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 110 }}>סך פיצויים</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>סה"כ רכיבים</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 120 }}>פער יתרה מול רכיבים</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>סוג מוצר</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>תאריך התחלה</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 150 }}>מעסיקים היסטוריים</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 100 }}>המר ל...</th>
-            <th style={{ border: "1px solid #ddd", padding: 6, minWidth: 80 }}>פעולות</th>
+            <th className="pension-table-header-account">מספר חשבון</th>
+            <th className="pension-table-header-plan">שם תכנית</th>
+            <th className="pension-table-header-company">חברה מנהלת</th>
+            <th className="pension-table-header-balance">יתרה</th>
+            <th className="pension-table-header-generic">פיצויים מעסיק נוכחי</th>
+            <th className="pension-table-header-generic">פיצויים לאחר התחשבנות</th>
+            <th className="pension-table-header-generic">פיצויים שלא עברו התחשבנות</th>
+            <th className="pension-table-header-generic">פיצויים מעסיקים קודמים (זכויות)</th>
+            <th className="pension-table-header-generic">פיצויים מעסיקים קודמים (קצבה)</th>
+            <th className="pension-table-header-generic">תגמולי עובד עד 2000</th>
+            <th className="pension-table-header-generic">תגמולי עובד אחרי 2000</th>
+            <th className="pension-table-header-generic">תגמולי עובד אחרי 2008 (לא משלמת)</th>
+            <th className="pension-table-header-generic">תגמולי מעביד עד 2000</th>
+            <th className="pension-table-header-generic">תגמולי מעביד אחרי 2000</th>
+            <th className="pension-table-header-generic">תגמולי מעביד אחרי 2008 (לא משלמת)</th>
+            <th className="pension-table-header-generic">סך תגמולים</th>
+            <th className="pension-table-header-generic">סך פיצויים</th>
+            <th className="pension-table-header-generic">סה"כ רכיבים</th>
+            <th className="pension-table-header-generic">פער יתרה מול רכיבים</th>
+            <th className="pension-table-header-generic">סוג מוצר</th>
+            <th className="pension-table-header-generic">תאריך התחלה</th>
+            <th className="pension-table-header-generic">מעסיקים היסטוריים</th>
+            <th className="pension-table-header-generic">המר ל...</th>
+            <th className="pension-table-header-generic">פעולות</th>
           </tr>
         </thead>
         <tbody>
           {pensionData.map((account, index) => (
-            <tr key={index} style={{ backgroundColor: account.selected ? "#e7f3ff" : "white" }}>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }}>
+            <tr
+              key={index}
+              className={account.selected ? 'pension-table-row pension-table-row--selected' : 'pension-table-row'}
+            >
+              <td className="pension-table-select-cell">
                 <input
                   type="checkbox"
                   checked={account.selected || false}
@@ -92,7 +95,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               
               {/* מספר חשבון - עריכה */}
               <td 
-                style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
+                className="pension-table-editable-text"
                 onClick={() => setEditingCell({row: index, field: 'מספר_חשבון'})}
               >
                 {editingCell?.row === index && editingCell?.field === 'מספר_חשבון' ? (
@@ -102,14 +105,14 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onBlur={(e) => updateCellValue(index, 'מספר_חשבון', e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'מספר_חשבון', e.currentTarget.value)}
                     autoFocus
-                    style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                    className="pension-table-text-input"
                   />
                 ) : account.מספר_חשבון}
               </td>
               
               {/* שם תכנית - עריכה */}
               <td 
-                style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
+                className="pension-table-editable-text"
                 onClick={() => setEditingCell({row: index, field: 'שם_תכנית'})}
               >
                 {editingCell?.row === index && editingCell?.field === 'שם_תכנית' ? (
@@ -119,14 +122,14 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onBlur={(e) => updateCellValue(index, 'שם_תכנית', e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'שם_תכנית', e.currentTarget.value)}
                     autoFocus
-                    style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                    className="pension-table-text-input"
                   />
                 ) : account.שם_תכנית}
               </td>
               
               {/* חברה מנהלת - עריכה */}
               <td 
-                style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
+                className="pension-table-editable-text"
                 onClick={() => setEditingCell({row: index, field: 'חברה_מנהלת'})}
               >
                 {editingCell?.row === index && editingCell?.field === 'חברה_מנהלת' ? (
@@ -136,13 +139,13 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onBlur={(e) => updateCellValue(index, 'חברה_מנהלת', e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'חברה_מנהלת', e.currentTarget.value)}
                     autoFocus
-                    style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                    className="pension-table-text-input"
                   />
                 ) : account.חברה_מנהלת}
               </td>
               
               {/* יתרה - ערך מקור מהקובץ (לא ניתנת לעריכה) */}
-              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f0f8ff", fontWeight: "bold" }}>
+              <td className="pension-table-balance-cell">
                 {formatMoney(account.יתרה)}
               </td>
 
@@ -158,24 +161,17 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2000" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               <EditableNumberCell account={account} index={index} field="תגמולי_מעביד_אחרי_2008_לא_משלמת" editingCell={editingCell} setEditingCell={setEditingCell} updateCellValue={updateCellValue} toggleAmountSelection={toggleAmountSelection} />
               
-              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f7fbff" }}>
+              <td className="pension-table-components-total-cell">
                 {formatMoney(account.סך_תגמולים)}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#f7fbff" }}>
+              <td className="pension-table-components-total-cell">
                 {formatMoney(account.סך_פיצויים)}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 4, textAlign: "right", backgroundColor: "#eef7ff", fontWeight: "bold" }}>
+              <td className="pension-table-components-total-cell pension-table-components-total-cell--strong">
                 {formatMoney(account.סך_רכיבים)}
               </td>
               <td
-                style={{
-                  border: "1px solid #ddd",
-                  padding: 4,
-                  textAlign: "right",
-                  color: (account.פער_יתרה_מול_רכיבים || 0) === 0 ? "#155724" : "#721c24",
-                  backgroundColor: (account.פער_יתרה_מול_רכיבים || 0) === 0 ? "#d4edda" : "#f8d7da",
-                  fontWeight: "bold"
-                }}
+                className={`pension-table-diff-cell ${(account.פער_יתרה_מול_רכיבים || 0) === 0 ? 'pension-table-diff-cell--ok' : 'pension-table-diff-cell--mismatch'}`}
                 title="פער בין יתרה מדווחת לסכום הרכיבים שהתקבלו מה-XML"
               >
                 {formatMoney(account.פער_יתרה_מול_רכיבים || 0)}
@@ -183,7 +179,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
 
               {/* סוג מוצר - עריכה */}
               <td 
-                style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
+                className="pension-table-editable-text"
                 onClick={() => setEditingCell({row: index, field: 'סוג_מוצר'})}
               >
                 {editingCell?.row === index && editingCell?.field === 'סוג_מוצר' ? (
@@ -193,14 +189,14 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onBlur={(e) => updateCellValue(index, 'סוג_מוצר', e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'סוג_מוצר', e.currentTarget.value)}
                     autoFocus
-                    style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                    className="pension-table-text-input"
                   />
                 ) : account.סוג_מוצר}
               </td>
               
               {/* תאריך התחלה - עריכה */}
               <td 
-                style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
+                className="pension-table-editable-text"
                 onClick={() => setEditingCell({row: index, field: 'תאריך_התחלה'})}
               >
                 {editingCell?.row === index && editingCell?.field === 'תאריך_התחלה' ? (
@@ -210,7 +206,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onBlur={(e) => updateCellValue(index, 'תאריך_התחלה', e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'תאריך_התחלה', e.currentTarget.value)}
                     autoFocus
-                    style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                    className="pension-table-text-input"
                     placeholder="DD/MM/YYYY"
                   />
                 ) : (account.תאריך_התחלה || 'לא ידוע')}
@@ -218,7 +214,7 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               
               {/* מעסיקים היסטוריים - עריכה */}
               <td 
-                style={{ border: "1px solid #ddd", padding: 4, cursor: 'pointer' }} 
+                className="pension-table-editable-text"
                 onClick={() => setEditingCell({row: index, field: 'מעסיקים_היסטוריים'})}
               >
                 {editingCell?.row === index && editingCell?.field === 'מעסיקים_היסטוריים' ? (
@@ -228,18 +224,18 @@ export const PensionTable: React.FC<PensionTableProps> = ({
                     onBlur={(e) => updateCellValue(index, 'מעסיקים_היסטוריים', e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && updateCellValue(index, 'מעסיקים_היסטוריים', e.currentTarget.value)}
                     autoFocus
-                    style={{ width: '100%', padding: 2, fontSize: '12px' }}
+                    className="pension-table-text-input"
                   />
                 ) : account.מעסיקים_היסטוריים}
               </td>
               
               {/* סוג המרה */}
-              <td style={{ border: "1px solid #ddd", padding: 6 }}>
+              <td className="pension-table-conversion-cell">
                 {(account.selected || Object.values(account.selected_amounts || {}).some(Boolean)) && (
                   <select
                     value={conversionTypes[index] || ''}
                     onChange={(e) => setConversionType(index, e.target.value as 'pension' | 'capital_asset')}
-                    style={{ width: "100%" }}
+                    className="pension-table-conversion-select"
                   >
                     <option value="">בחר סוג המרה</option>
                     <option value="pension">קצבה</option>
@@ -249,18 +245,10 @@ export const PensionTable: React.FC<PensionTableProps> = ({
               </td>
               
               {/* עמודת פעולות */}
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }}>
+              <td className="pension-table-actions-cell">
                 <button
                   onClick={() => deleteAccount(index)}
-                  style={{
-                    padding: "4px 8px",
-                    backgroundColor: "#dc3545",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 3,
-                    cursor: "pointer",
-                    fontSize: "12px"
-                  }}
+                  className="pension-table-delete-button"
                   title="מחק תכנית זו מהרשימה"
                 >
                   מחק
@@ -271,48 +259,48 @@ export const PensionTable: React.FC<PensionTableProps> = ({
 
           {/* שורת סה"כ */}
           {pensionData.length > 0 && (
-            <tr style={{ backgroundColor: "#fff8e1", fontWeight: "bold", borderTop: "3px solid #ff9800" }}>
-              <td style={{ border: "1px solid #ddd", padding: 6 }}></td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "center" }} colSpan={3}>
+            <tr className="pension-table-summary-row">
+              <td></td>
+              <td className="pension-table-summary-label-cell" colSpan={3}>
                 סה"כ
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right", backgroundColor: "#f0f8ff" }}>
+              <td className="pension-table-summary-balance-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.יתרה) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_מעסיק_נוכחי) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_לאחר_התחשבנות) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_שלא_עברו_התחשבנות) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_זכויות) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.פיצויים_ממעסיקים_קודמים_רצף_קצבה) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_עד_2000) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2000) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_עובד_אחרי_2008_לא_משלמת) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_עד_2000) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2000) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6, textAlign: "right" }}>
+              <td className="pension-table-summary-cell">
                 {formatMoney(pensionData.reduce((sum, acc) => sum + (Number(acc.תגמולי_מעביד_אחרי_2008_לא_משלמת) || 0), 0))}
               </td>
-              <td style={{ border: "1px solid #ddd", padding: 6 }} colSpan={4}></td>
+              <td colSpan={4}></td>
             </tr>
           )}
         </tbody>

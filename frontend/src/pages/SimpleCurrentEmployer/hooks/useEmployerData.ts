@@ -3,8 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API_BASE } from '../../../lib/api';
+import { apiFetch } from '../../../lib/api';
 import { SimpleEmployer } from '../types';
 import { getSeveranceFromPension, isTerminationConfirmed } from '../utils/storageHelpers';
 import { convertISOToDDMMYY, convertDDMMYYToISO } from '../../../utils/dateUtils';
@@ -26,25 +25,25 @@ export const useEmployerData = (clientId: string | undefined) => {
       
       try {
         setLoading(true);
-        const response = await axios.get(`${API_BASE}/clients/${clientId}/current-employer`);
+        const data = await apiFetch<any>(`/clients/${clientId}/current-employer`);
         
         // Handle response - can be array or object
         let employerData = null;
-        if (Array.isArray(response.data) && response.data.length > 0) {
-          employerData = response.data[0];
-        } else if (typeof response.data === 'object' && response.data.employer_name) {
-          employerData = response.data;
+        if (Array.isArray(data) && data.length > 0) {
+          employerData = data[0];
+        } else if (typeof data === 'object' && (data as any)?.employer_name) {
+          employerData = data;
         }
         
         // Check if termination is confirmed
         const isConfirmed = isTerminationConfirmed(clientId);
         
         console.log('🔍 בדיקת מצב עזיבה:', {
-          is_array: Array.isArray(response.data),
+          is_array: Array.isArray(data),
           end_date_value: employerData?.end_date,
           is_confirmed_in_storage: isConfirmed,
           client_id: clientId,
-          full_response: response.data
+          full_response: data
         });
         
         // Load severance balance from pension portfolio
@@ -76,8 +75,10 @@ export const useEmployerData = (clientId: string | undefined) => {
         }
         setLoading(false);
       } catch (err: any) {
-        if (err.response?.status !== 404) {
-          setError('שגיאה בטעינת נתוני מעסיק: ' + err.message);
+        const message = err?.message || '';
+        // 404 ("לא נמצא") אינו נחשב כשגיאה לוגית במסך זה
+        if (!message.includes('404')) {
+          setError('שגיאה בטעינת נתוני מעסיק: ' + message);
         }
         setLoading(false);
       }
@@ -158,27 +159,33 @@ export const useEmployerData = (clientId: string | undefined) => {
           end_date: employerData.end_date,
           last_salary: employerData.last_salary
         });
-        const response = await axios.put(`${API_BASE}/clients/${clientId}/current-employer/${employer.id}`, employerData);
-        
+        const updatedEmployer = await apiFetch<any>(`/clients/${clientId}/current-employer/${employer.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(employerData)
+        });
+
         const newEmployerData = { 
-          id: response.data.id,
-          employer_name: response.data.employer_name,
-          start_date: convertISOToDDMMYY(response.data.start_date),
-          end_date: response.data.end_date ? convertISOToDDMMYY(response.data.end_date) : undefined,
-          last_salary: Number(response.data.monthly_salary || response.data.last_salary || 0),
+          id: updatedEmployer.id,
+          employer_name: updatedEmployer.employer_name,
+          start_date: convertISOToDDMMYY(updatedEmployer.start_date),
+          end_date: updatedEmployer.end_date ? convertISOToDDMMYY(updatedEmployer.end_date) : undefined,
+          last_salary: Number(updatedEmployer.monthly_salary || updatedEmployer.last_salary || 0),
           severance_accrued: employer.severance_accrued
         };
         setEmployer(newEmployerData);
       } else {
         console.log('🔍 Sending POST request with data:', employerData);
-        const response = await axios.post(`${API_BASE}/clients/${clientId}/current-employer`, employerData);
-        
+        const createdEmployer = await apiFetch<any>(`/clients/${clientId}/current-employer`, {
+          method: 'POST',
+          body: JSON.stringify(employerData)
+        });
+
         const newEmployerData = { 
-          id: response.data.id,
-          employer_name: response.data.employer_name,
-          start_date: convertISOToDDMMYY(response.data.start_date),
-          end_date: response.data.end_date ? convertISOToDDMMYY(response.data.end_date) : undefined,
-          last_salary: Number(response.data.monthly_salary || response.data.last_salary || 0),
+          id: createdEmployer.id,
+          employer_name: createdEmployer.employer_name,
+          start_date: convertISOToDDMMYY(createdEmployer.start_date),
+          end_date: createdEmployer.end_date ? convertISOToDDMMYY(createdEmployer.end_date) : undefined,
+          last_salary: Number(createdEmployer.monthly_salary || createdEmployer.last_salary || 0),
           severance_accrued: employer.severance_accrued
         };
         setEmployer(newEmployerData);

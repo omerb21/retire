@@ -22,10 +22,25 @@ export function generateYearlyProjection(
     client: !!client
   });
   
-  // קביעת שנת התחלה של התזרים - תמיד מתחיל משנת 2025 (השנה הנוכחית)
+  // קביעת שנת התחלה של התזרים - תמיד מתחיל מהשנה הנוכחית
   const currentYear = new Date().getFullYear();
   const projectionStartYear = currentYear;
-  const clientBirthYear = client?.birth_year || 1957;
+
+  // חישוב שנת לידה של הלקוח מתאריך הלידה (אם קיים), אחרת שימוש בשדה birth_year אם הוגדר,
+  // ולבסוף ברירת מחדל ישנה רק אם אין נתונים בכלל.
+  let clientBirthYear = 1957;
+  if (client?.birth_date) {
+    const birthDateParts = String(client.birth_date).split('-');
+    const parsedYear = parseInt(birthDateParts[0]);
+    if (!isNaN(parsedYear)) {
+      clientBirthYear = parsedYear;
+    }
+  } else if (client?.birth_year) {
+    const parsedYear = parseInt(String(client.birth_year));
+    if (!isNaN(parsedYear)) {
+      clientBirthYear = parsedYear;
+    }
+  }
   const maxAge = 90;
   const maxYear = clientBirthYear + maxAge;
   const projectionYears = Math.min(maxYear - projectionStartYear + 1, 40);

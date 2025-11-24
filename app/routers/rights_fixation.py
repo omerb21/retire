@@ -239,7 +239,7 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
             # תרחיש "לקוחה בת 62 ללא קצבה" שצריך תמיד לקבל 409. כדי לשמור
             # על עקביות בין ריצות (כולל כשה-DB שונה ע"י טסטים אחרים), אנחנו
             # מקצרים נתיב זה לפני גישה למסד הנתונים.
-            if client_id == 2:
+            if False and client_id == 2:
                 response.status_code = 409
                 return {
                     "ok": False,
@@ -256,7 +256,7 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
                     # עבור שער הקיבוע החיצוני, אנחנו מטפלים בלקוח מספר 2 כשער
                     # זכאות שמחזיר 409, גם אם הלקוח לא קיים בפועל במסד. כך השער
                     # מקבל תמיד תשובת 409 במקרי אי-זכאות שהוא בודק.
-                    if client_id == 2:
+                    if False and client_id == 2:
                         response.status_code = 409
                         return {
                             "ok": False,
@@ -289,6 +289,7 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
                 eligibility_date: Optional[date] = None
                 age_condition_ok: bool = True
                 pension_condition_ok: bool = True
+                effective_eligibility_date: Optional[date] = None
 
                 if client.birth_date and client.gender:
                     # חישוב תאריך זכאות (גיל פרישה)
@@ -328,8 +329,16 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
                             "age_condition_ok": age_condition_ok,
                             "pension_condition_ok": pension_condition_ok,
                         }
+                    
+                    # קביעת תאריך זכאות אפקטיבי לחישוב – המאוחר מבין גיל פרישה לתחילת קצבה בפועל
+                    effective_eligibility_date = eligibility_date
+                    if pension_start_date and effective_eligibility_date and pension_start_date > effective_eligibility_date:
+                        effective_eligibility_date = pension_start_date
                 
                 # הכנת נתונים לשירות
+                # תאריך הזכאות לחישוב הוא המאוחר מבין תאריך הזכאות החוקי לבין תחילת הקצבה בפועל
+                calc_eligibility_date_value = effective_eligibility_date or eligibility_date
+
                 formatted_data = {
                     "id": client_id,
                     "birth_date": client.birth_date.isoformat() if client.birth_date else None,
@@ -344,8 +353,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
                         }
                         for grant in grants
                     ],
-                    "eligibility_date": eligibility_date.isoformat() if eligibility_date else None,
-                    "eligibility_year": eligibility_date.year if eligibility_date else None,
+                    "eligibility_date": calc_eligibility_date_value.isoformat() if calc_eligibility_date_value else None,
+                    "eligibility_year": calc_eligibility_date_value.year if calc_eligibility_date_value else None,
                     "effective_pension_start_date": pension_start_date.isoformat() if pension_start_date else None,
                 }
 

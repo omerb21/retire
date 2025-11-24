@@ -2,9 +2,7 @@
  * Custom hook for termination actions (submit, delete)
  */
 
-import { useState } from 'react';
-import axios from 'axios';
-import { API_BASE } from '../../../lib/api';
+import { apiFetch } from '../../../lib/api';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import { formatCurrency } from '../../../lib/validation';
@@ -15,6 +13,11 @@ import {
   setTerminationConfirmed,
   clearTerminationState
 } from '../utils/storageHelpers';
+
+const isNotFoundError = (err: unknown): boolean => {
+  const message = (err as any)?.message?.toString() || '';
+  return message.includes('404') || message.includes('Not Found') || message.includes('לא נמצא');
+};
 
 export const useTerminationActions = (
   clientId: string | undefined,
@@ -46,10 +49,13 @@ export const useTerminationActions = (
       };
       
       console.log('🚀 SENDING TERMINATION PAYLOAD:', JSON.stringify(payload, null, 2));
-      
-      const response = await axios.post(`${API_BASE}/clients/${clientId}/current-employer/termination`, payload);
-      
-      console.log('✅ TERMINATION RESPONSE:', JSON.stringify(response.data, null, 2));
+
+      const response = await apiFetch<any>(`/clients/${clientId}/current-employer/termination`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      console.log('✅ TERMINATION RESPONSE:', JSON.stringify(response, null, 2));
 
       // Clear severance from pension portfolio
       clearSeveranceFromPension(clientId);
@@ -84,9 +90,11 @@ export const useTerminationActions = (
       setError(null);
 
       // Delete termination decisions from server
-      const response = await axios.delete(`${API_BASE}/clients/${clientId}/delete-termination`);
+      const response = await apiFetch<{ deleted_count: number }>(`/clients/${clientId}/delete-termination`, {
+        method: 'DELETE'
+      });
       
-      console.log('✅ DELETE RESPONSE:', response.data);
+      console.log('✅ DELETE RESPONSE:', response);
       
       // Restore severance to pension portfolio
       console.log('🔄 מחזיר פיצויים לתיק פנסיוני');
@@ -115,32 +123,14 @@ export const useTerminationActions = (
       // Clear termination state from localStorage
       clearTerminationState(clientId);
 
-      alert(`החלטות העזיבה נמחקו בהצלחה!\n- נמחקו ${response.data.deleted_count} אלמנטים\n- הוחזרו ${formatCurrency(severanceToRestore)} לתיק הפנסיוני`);
+      alert(`החלטות העזיבה נמחקו בהצלחה!\n- נמחקו ${response.deleted_count} אלמנטים\n- הוחזרו ${formatCurrency(severanceToRestore)} לתיק הפנסיוני`);
       
       // Reload page
       
       setLoading(false);
     } catch (err: any) {
       console.error('❌ DELETE TERMINATION ERROR:', err);
-      console.error('Error details:', {
-        status: err.response?.status,
-        data: err.response?.data,
-        detail: err.response?.data?.detail
-      });
-      
-      let errorMessage = 'שגיאה לא ידועה';
-      if (err.response?.data?.detail) {
-        if (typeof err.response.data.detail === 'string') {
-          errorMessage = err.response.data.detail;
-        } else if (err.response.data.detail.error) {
-          errorMessage = err.response.data.detail.error;
-        } else {
-          errorMessage = JSON.stringify(err.response.data.detail);
-        }
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
+      const errorMessage = err?.message || 'שגיאה לא ידועה';
       setError('שגיאה במחיקת החלטות עזיבה: ' + errorMessage);
       alert('שגיאה במחיקת החלטות עזיבה: ' + errorMessage);
       setLoading(false);
@@ -162,16 +152,17 @@ export const useTerminationActions = (
 
       // מחיקת עזיבת עבודה והישויות שנוצרו ממנה (אם קיימות)
       try {
-        const response = await axios.delete(`${API_BASE}/clients/${clientId}/delete-termination`);
-        console.log('✅ CLEAR STATE - DELETE TERMINATION RESPONSE:', response.data);
+        const response = await apiFetch<any>(`/clients/${clientId}/delete-termination`, {
+          method: 'DELETE'
+        });
+        console.log('✅ CLEAR STATE - DELETE TERMINATION RESPONSE:', response);
 
         console.log('🔄 CLEAR STATE - מחזיר פיצויים לתיק פנסיוני');
         severanceToRestore = restoreSeveranceToPension(clientId);
       } catch (err: any) {
         console.error('❌ CLEAR STATE - ERROR DELETING TERMINATION:', err);
-        const status = err?.response?.status;
         // אם אין עזיבה שמורה (404) נמשיך בכל זאת לנקות את נתוני המעסיק
-        if (status !== 404) {
+        if (!isNotFoundError(err)) {
           throw err;
         }
       }
@@ -179,7 +170,9 @@ export const useTerminationActions = (
       // מחיקת רשומת המעסיק הנוכחי מהשרת (אם קיימת)
       try {
         if (employer?.id) {
-          await axios.delete(`${API_BASE}/clients/${clientId}/current-employer/${employer.id}`);
+          await apiFetch<void>(`/clients/${clientId}/current-employer/${employer.id}`, {
+            method: 'DELETE'
+          });
           console.log('✅ CLEAR STATE - Current employer deleted');
         }
       } catch (err) {
@@ -219,18 +212,7 @@ export const useTerminationActions = (
     } catch (err: any) {
       console.error('❌ CLEAR CURRENT EMPLOYER STATE ERROR:', err);
 
-      let errorMessage = 'שגיאה לא ידועה';
-      if (err.response?.data?.detail) {
-        if (typeof err.response.data.detail === 'string') {
-          errorMessage = err.response.data.detail;
-        } else if (err.response.data.detail.error) {
-          errorMessage = err.response.data.detail.error;
-        } else {
-          errorMessage = JSON.stringify(err.response.data.detail);
-        }
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
+      const errorMessage = err?.message || 'שגיאה לא ידועה';
 
       setError('שגיאה בניקוי מצב המעסיק הנוכחי: ' + errorMessage);
       alert('שגיאה בניקוי מצב המעסיק הנוכחי: ' + errorMessage);
