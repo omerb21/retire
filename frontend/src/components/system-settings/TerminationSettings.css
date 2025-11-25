@@ -1,0 +1,192 @@
+.termination-settings-container {
+  margin-bottom: 40px;
+}
+
+.termination-settings-title {
+  color: #2c3e50;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.termination-card-warning {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #fff3cd;
+  border-radius: 8px;
+  border: 2px solid #ffc107;
+}
+
+.termination-card-warning-title {
+  color: #856404;
+  margin-top: 0;
+}
+
+.termination-card-warning-text {
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.termination-tenure-table {
+  width: 100%;
+  margin-top: 15px;
+}
+
+.termination-tenure-header-row {
+  background-color: #f8f9fa;
+}
+
+.termination-tenure-header-cell {
+  padding: 12px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.termination-tenure-header-cell-right {
+  text-align: right;
+}
+
+.termination-tenure-header-cell-center {
+  text-align: center;
+}
+.termination-tenure-body-row-alt {
+  background-color: #f8f9fa;
+}
+
+.termination-tenure-cell {
+  padding: 10px;
+}
+
+.termination-tenure-cell-center {
+  text-align: center;
+}
+
+.termination-tenure-cell-bold {
+  font-weight: bold;
+}
+
+.termination-tenure-cell-green {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.termination-tenure-cell-red {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.termination-tenure-note {
+  color: #6c757d;
+}
+
+.termination-examples-card {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #d1ecf1;
+  border-radius: 8px;
+  border: 2px solid #bee5eb;
+}
+
+.termination-examples-title {
+  color: #0c5460;
+  margin-top: 0;
+}
+
+.termination-example-block {
+  margin-bottom: 15px;
+}
+
+.termination-example-detail {
+  margin-left: 20px;
+  margin-top: 5px;
+  color: #0c5460;
+}
+
+.termination-types-card {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.termination-types-section {
+  margin-bottom: 20px;
+}
+
+.termination-types-title {
+  color: #2c3e50;
+  margin-top: 0;
+}
+
+.termination-types-section-title {
+  color: #495057;
+  margin-bottom: 10px;
+}
+
+.termination-types-list {
+  line-height: 1.8;
+  color: #495057;
+}
+
+.termination-spread-card {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #e7f3ff;
+  border-radius: 8px;
+  border: 2px solid #b3d9ff;
+}
+
+.termination-spread-title {
+  color: #004085;
+  margin-top: 0;
+}
+
+.termination-spread-text {
+  font-size: 16px;
+  line-height: 1.8;
+  margin-bottom: 15px;
+}
+
+.termination-spread-example {
+  padding: 15px;
+  background-color: #ffffff;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.termination-spread-example-list {
+  margin-top: 10px;
+  line-height: 1.8;
+}
+
+.termination-spread-example-title {
+  color: #004085;
+}
+
+.termination-spread-highlight {
+  color: #28a745;
+}
+
+.termination-spread-tip {
+  font-size: 14px;
+  color: #004085;
+  margin: 0;
+}
+
+.termination-notes-card {
+  padding: 20px;
+  background-color: #fff3cd;
+  border-radius: 8px;
+  border: 2px solid #ffc107;
+}
+
+.termination-notes-title {
+  color: #856404;
+  margin-top: 0;
+}
+
+.termination-notes-list {
+  line-height: 1.8;
+  color: #856404;
+  margin-bottom: 0;
+}

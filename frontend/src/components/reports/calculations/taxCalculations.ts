@@ -38,6 +38,14 @@ export const getTaxBrackets = (): TaxBracket[] => {
   return DEFAULT_TAX_BRACKETS;
 };
 
+export const saveTaxBrackets = (brackets: TaxBracket[]): void => {
+  try {
+    localStorage.setItem('taxBrackets', JSON.stringify(brackets));
+  } catch (error) {
+    console.warn('שגיאה בשמירת מדרגות המס להגדרות:', error);
+  }
+};
+
 /**
  * המרת מדרגות המס לפורמט הישן לתאימות לאחור
  */

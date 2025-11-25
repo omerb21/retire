@@ -9,9 +9,9 @@ interface ClientExtraDataSectionProps {
 export const ClientExtraDataSection: React.FC<ClientExtraDataSectionProps> = ({ form, setForm }) => {
   return (
     <section>
-      <h3 style={{ marginBottom: '1rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>נתונים נוספים</h3>
-      <div className="grid" style={{ gap: '1rem' }}>
-        <div className="form-group" style={{ marginBottom: 0 }}>
+      <h3 className="clients-section-title">נתונים נוספים</h3>
+      <div className="grid clients-grid">
+        <div className="form-group clients-form-group-inline">
           <label className="form-label">מצב משפחתי:</label>
           <select
             value={form.marital_status}
@@ -26,7 +26,7 @@ export const ClientExtraDataSection: React.FC<ClientExtraDataSectionProps> = ({ 
           </select>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0 }}>
+        <div className="form-group clients-form-group-inline">
           <label className="form-label">נקודות זיכוי:</label>
           <input
             type="number"

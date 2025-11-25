@@ -6,6 +6,7 @@ import { ClientExtraDataSection } from './components/ClientExtraDataSection';
 import { ClientsMessageAlert } from './components/ClientsMessageAlert';
 import { ClientsTable } from './components/ClientsTable';
 import { EditClientModal } from './components/EditClientModal';
+import './Clients.css';
 
 const ClientsPage: React.FC = () => {
   const {
@@ -34,14 +35,7 @@ const ClientsPage: React.FC = () => {
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 16,
-            alignItems: 'start'
-          }}
-        >
+        <div className="clients-page-grid">
           <NewClientForm form={form} setForm={setForm} onSubmit={onCreate} />
           <ClientAddressSection form={form} setForm={setForm} />
           <ClientExtraDataSection form={form} setForm={setForm} />

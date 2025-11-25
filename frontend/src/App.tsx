@@ -6,9 +6,13 @@ import "./styles/modern-theme.css";
 // Lazy-loaded page components for better bundle splitting
 const Clients = React.lazy(() => import("./pages/Clients/ClientsPage"));
 const PensionFunds = React.lazy(() => import("./pages/PensionFunds"));
-const AdditionalIncome = React.lazy(() => import("./pages/AdditionalIncome"));
+const AdditionalIncome = React.lazy(
+  () => import("./pages/AdditionalIncome/components/AdditionalIncomePage")
+);
 const CapitalAssets = React.lazy(() => import("./pages/CapitalAssets"));
-const RetirementScenarios = React.lazy(() => import("./pages/RetirementScenarios"));
+const RetirementScenarios = React.lazy(
+  () => import("./pages/RetirementScenarios/components/RetirementScenariosPage")
+);
 const SimpleFixation = React.lazy(() => import("./pages/SimpleFixation/SimpleFixationPage"));
 const SimpleCurrentEmployer = React.lazy(() => import("./pages/SimpleCurrentEmployer"));
 const SimpleGrants = React.lazy(() => import("./pages/SimpleGrants"));

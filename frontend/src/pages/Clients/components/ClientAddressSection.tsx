@@ -9,8 +9,8 @@ interface ClientAddressSectionProps {
 export const ClientAddressSection: React.FC<ClientAddressSectionProps> = ({ form, setForm }) => {
   return (
     <section>
-      <h3 style={{ marginBottom: '1rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>כתובת</h3>
-      <div className="grid" style={{ gap: '1rem' }}>
+      <h3 className="clients-section-title">כתובת</h3>
+      <div className="grid clients-grid">
         <input
           placeholder="רחוב (אופציונלי)"
           value={form.address_street}

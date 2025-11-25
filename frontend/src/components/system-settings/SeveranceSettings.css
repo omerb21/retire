@@ -1,0 +1,159 @@
+.severance-settings-container {
+  margin-bottom: 40px;
+}
+
+.severance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.severance-title {
+  color: #2c3e50;
+  font-size: 24px;
+  margin: 0;
+}
+
+.severance-edit-button,
+.severance-save-button,
+.severance-cancel-button,
+.severance-add-button {
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.severance-edit-button {
+  background-color: #007bff;
+}
+
+.severance-save-button {
+  background-color: #28a745;
+}
+
+.severance-cancel-button {
+  background-color: #6c757d;
+}
+
+.severance-add-button {
+  padding: 8px 16px;
+  background-color: #17a2b8;
+}
+
+.severance-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.severance-error {
+  color: red;
+  margin-bottom: 16px;
+  padding: 8px;
+  background-color: #ffeeee;
+}
+
+.severance-loading {
+  padding: 16px;
+  text-align: center;
+}
+
+.severance-table-container {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #ffffff;
+}
+
+.severance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.severance-table-header-row {
+  background-color: #f8f9fa;
+}
+
+.severance-table-header-cell {
+  padding: 15px;
+  text-align: center;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.severance-table-row {
+  border-bottom: 1px solid #dee2e6;
+}
+
+.severance-table-row-alt {
+  background-color: #f8f9fa;
+}
+
+.severance-table-cell {
+  padding: 12px;
+}
+
+.severance-table-cell-center {
+  text-align: center;
+}
+
+.severance-monthly-cell {
+  text-align: center;
+  font-weight: bold;
+  color: #007bff;
+}
+
+.severance-input-year {
+  width: 80px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.severance-input-number {
+  width: 100px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.severance-input-annual {
+  width: 120px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+  background-color: #f8f9fa;
+}
+
+.severance-input-description {
+  width: 200px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.severance-add-row {
+  padding: 15px;
+  text-align: center;
+}
+
+.severance-note-box {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #e7f3ff;
+  border-radius: 4px;
+  border: 1px solid #b3d9ff;
+}
+
+.severance-note-text {
+  margin: 0;
+  font-size: 14px;
+  color: #0056b3;
+}

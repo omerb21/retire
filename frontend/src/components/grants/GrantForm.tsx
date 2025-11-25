@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { GrantFormData, GRANT_TYPE_LABELS } from '../../types/grant.types';
 import { formatDateInput } from '../../utils/dateUtils';
+import './GrantForm.css';
 
 interface GrantFormProps {
   onSubmit: (grantData: GrantFormData) => Promise<boolean>;
@@ -75,21 +76,15 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
   };
 
   return (
-    <div style={{ 
-      marginTop: '2rem', 
-      padding: '1.5rem', 
-      backgroundColor: 'var(--gray-50)', 
-      borderRadius: 'var(--radius-lg)', 
-      border: '1px solid var(--gray-200)' 
-    }}>
-      <h3 style={{ marginBottom: '1.5rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>
+    <div className="grant-form-container">
+      <h3 className="grant-form-title">
         ➕ הוספת מענק חדש
       </h3>
       
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+        <div className="grant-form-grid-two-columns">
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label className="grant-form-label">
               שם מעסיק:
             </label>
             <input
@@ -103,7 +98,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label className="grant-form-label">
               סוג מענק:
             </label>
             <select
@@ -119,9 +114,9 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+        <div className="grant-form-grid-two-columns">
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label className="grant-form-label">
               תאריך התחלת עבודה:
             </label>
             <input
@@ -137,7 +132,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label className="grant-form-label">
               תאריך סיום עבודה:
             </label>
             <input
@@ -153,9 +148,9 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+        <div className="grant-form-grid-two-columns">
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label className="grant-form-label">
               תאריך קבלת מענק:
             </label>
             <input
@@ -171,7 +166,7 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            <label className="grant-form-label">
               סכום מענק (₪):
             </label>
             <input
@@ -186,8 +181,8 @@ export const GrantForm: React.FC<GrantFormProps> = ({ onSubmit, loading }) => {
           </div>
         </div>
 
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+        <div className="grant-form-notes-section">
+          <label className="grant-form-label">
             הערות (אופציונלי):
           </label>
           <textarea

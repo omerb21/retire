@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import './SystemHealthMonitor.css';
 
 interface TableValidation {
   valid: boolean;
@@ -81,8 +82,8 @@ const SystemHealthMonitor: React.FC = () => {
 
   if (loading && !health) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
+      <div className="system-health-loading">
+        <div className="system-health-loading-icon">⏳</div>
         <div>בודק תקינות מערכת...</div>
       </div>
     );
@@ -90,20 +91,12 @@ const SystemHealthMonitor: React.FC = () => {
 
   if (!health) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center', color: '#dc3545' }}>
-        <div style={{ fontSize: '24px', marginBottom: '10px' }}>❌</div>
+      <div className="system-health-error">
+        <div className="system-health-error-icon">❌</div>
         <div>שגיאה בבדיקת תקינות המערכת</div>
         <button
           onClick={checkHealth}
-          style={{
-            marginTop: '15px',
-            padding: '10px 20px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
+          className="system-health-try-again-button"
         >
           נסה שוב
         </button>
@@ -114,29 +107,16 @@ const SystemHealthMonitor: React.FC = () => {
   const isHealthy = health.status === 'healthy';
 
   return (
-    <div style={{ marginBottom: '40px' }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px'
-      }}>
-        <h2 style={{ color: '#2c3e50', fontSize: '24px', margin: 0 }}>
+    <div className="system-health-container">
+      <div className="system-health-header">
+        <h2 className="system-health-title">
           🏥 מוניטור תקינות מערכת
         </h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="system-health-actions">
           <button
             onClick={checkHealth}
             disabled={loading}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1
-            }}
+            className={`system-health-refresh-button${loading ? ' system-health-refresh-button--loading' : ''}`}
           >
             {loading ? '⏳ בודק...' : '🔄 רענן'}
           </button>
@@ -144,16 +124,7 @@ const SystemHealthMonitor: React.FC = () => {
             <button
               onClick={autoFix}
               disabled={fixing}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#ffc107',
-                color: '#000',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: fixing ? 'not-allowed' : 'pointer',
-                opacity: fixing ? 0.6 : 1,
-                fontWeight: 'bold'
-              }}
+              className={`system-health-fix-button${fixing ? ' system-health-fix-button--fixing' : ''}`}
             >
               {fixing ? '⏳ מתקן...' : '🔧 תקן אוטומטית'}
             </button>
@@ -162,72 +133,39 @@ const SystemHealthMonitor: React.FC = () => {
       </div>
 
       {/* סטטוס כללי */}
-      <div style={{
-        padding: '20px',
-        backgroundColor: isHealthy ? '#d4edda' : '#f8d7da',
-        borderRadius: '8px',
-        border: `2px solid ${isHealthy ? '#28a745' : '#dc3545'}`,
-        marginBottom: '20px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '15px',
-          marginBottom: '15px'
-        }}>
-          <div style={{ fontSize: '48px' }}>
+      <div className={`system-health-status-card ${isHealthy ? 'system-health-status-card--healthy' : 'system-health-status-card--unhealthy'}`}>
+        <div className="system-health-status-row">
+          <div className="system-health-status-icon">
             {isHealthy ? '✅' : '⚠️'}
           </div>
           <div>
-            <h3 style={{
-              margin: 0,
-              color: isHealthy ? '#155724' : '#721c24',
-              fontSize: '20px'
-            }}>
+            <h3
+              className={`system-health-status-title ${isHealthy ? 'system-health-status-title--healthy' : 'system-health-status-title--unhealthy'}`}
+            >
               {isHealthy ? 'המערכת תקינה' : 'המערכת דורשת תשומת לב'}
             </h3>
-            <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+            <div className="system-health-status-subtitle">
               בדיקה אחרונה: {lastCheck?.toLocaleTimeString('he-IL')}
             </div>
           </div>
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '15px',
-          fontSize: '14px'
-        }}>
-          <div style={{
-            padding: '10px',
-            backgroundColor: 'white',
-            borderRadius: '4px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>סה"כ טבלאות</div>
-            <div style={{ fontSize: '24px', color: '#007bff' }}>
+        <div className="system-health-summary-grid">
+          <div className="system-health-summary-card">
+            <div className="system-health-summary-label">סה"כ טבלאות</div>
+            <div className="system-health-summary-value system-health-summary-value--total">
               {health.summary.total_tables}
             </div>
           </div>
-          <div style={{
-            padding: '10px',
-            backgroundColor: 'white',
-            borderRadius: '4px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>תקינות</div>
-            <div style={{ fontSize: '24px', color: '#28a745' }}>
+          <div className="system-health-summary-card">
+            <div className="system-health-summary-label">תקינות</div>
+            <div className="system-health-summary-value system-health-summary-value--valid">
               {health.summary.valid_tables}
             </div>
           </div>
-          <div style={{
-            padding: '10px',
-            backgroundColor: 'white',
-            borderRadius: '4px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>דורשות תיקון</div>
-            <div style={{ fontSize: '24px', color: '#dc3545' }}>
+          <div className="system-health-summary-card">
+            <div className="system-health-summary-label">דורשות תיקון</div>
+            <div className="system-health-summary-value system-health-summary-value--invalid">
               {health.summary.invalid_tables}
             </div>
           </div>
@@ -235,47 +173,27 @@ const SystemHealthMonitor: React.FC = () => {
       </div>
 
       {/* רשימת טבלאות */}
-      <div style={{
-        padding: '20px',
-        backgroundColor: '#fff',
-        borderRadius: '8px',
-        border: '1px solid #dee2e6'
-      }}>
-        <h3 style={{ marginTop: 0, marginBottom: '20px' }}>📋 סטטוס טבלאות</h3>
+      <div className="system-health-tables-card">
+        <h3 className="system-health-tables-title">📋 סטטוס טבלאות</h3>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="system-health-tables-list">
           {Object.entries(health.tables).map(([tableName, validation]) => (
             <div
               key={tableName}
-              style={{
-                padding: '15px',
-                backgroundColor: validation.valid ? '#f8f9fa' : '#fff3cd',
-                borderRadius: '4px',
-                border: `1px solid ${validation.valid ? '#dee2e6' : '#ffc107'}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px'
-              }}
+              className={`system-health-table-item ${validation.valid ? 'system-health-table-item--valid' : 'system-health-table-item--invalid'}`}
             >
-              <div style={{ fontSize: '24px' }}>
+              <div className="system-health-table-icon">
                 {validation.valid ? '✅' : '⚠️'}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+              <div className="system-health-table-content">
+                <div className="system-health-table-description">
                   {validation.description}
                 </div>
-                <div style={{ fontSize: '13px', color: '#666', fontFamily: 'monospace' }}>
+                <div className="system-health-table-name">
                   {tableName}
                 </div>
                 {!validation.valid && validation.error && (
-                  <div style={{
-                    marginTop: '8px',
-                    padding: '8px',
-                    backgroundColor: '#fff',
-                    borderRadius: '4px',
-                    fontSize: '13px',
-                    color: '#856404'
-                  }}>
+                  <div className="system-health-table-error">
                     <strong>שגיאה:</strong> {validation.error}
                   </div>
                 )}
@@ -286,17 +204,9 @@ const SystemHealthMonitor: React.FC = () => {
       </div>
 
       {/* הסבר */}
-      <div style={{
-        marginTop: '20px',
-        padding: '15px',
-        backgroundColor: '#e7f3ff',
-        borderRadius: '8px',
-        border: '1px solid #007bff',
-        fontSize: '14px',
-        lineHeight: '1.6'
-      }}>
+      <div className="system-health-info-card">
         <strong>💡 מה זה אומר?</strong>
-        <ul style={{ marginTop: '10px', marginBottom: 0, paddingRight: '20px' }}>
+        <ul className="system-health-info-list">
           <li>טבלאות תקינות (✅) - מכילות נתונים ופועלות כראוי</li>
           <li>טבלאות בעייתיות (⚠️) - חסרות נתונים או ריקות</li>
           <li>לחץ על "תקן אוטומטית" כדי לנסות לטעון נתונים מקבצי CSV</li>

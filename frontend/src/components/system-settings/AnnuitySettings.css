@@ -1,0 +1,165 @@
+.annuity-settings-container {
+  margin-bottom: 40px;
+}
+
+.annuity-settings-title {
+  color: #2c3e50;
+  font-size: 24px;
+  margin-bottom: 30px;
+}
+
+.annuity-card {
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+}
+
+.annuity-card-info {
+  background-color: #e7f3ff;
+  border: 2px solid #007bff;
+}
+
+.annuity-card-success {
+  background-color: #d4edda;
+  border: 2px solid #28a745;
+}
+
+.annuity-card-outline {
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+  margin-bottom: 20px;
+}
+
+.annuity-card-warning {
+  padding: 20px;
+  background-color: #fff3cd;
+  border-radius: 8px;
+  border: 2px solid #ffc107;
+}
+
+.annuity-subtitle {
+  margin-top: 0;
+}
+
+.annuity-subtitle-info {
+  color: #004085;
+}
+
+.annuity-subtitle-success {
+  color: #155724;
+}
+
+.annuity-subtitle-warning {
+  color: #856404;
+}
+
+.annuity-text {
+  line-height: 1.8;
+  margin-bottom: 15px;
+}
+
+.annuity-text-last {
+  margin-bottom: 0;
+}
+
+.annuity-text-small {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.annuity-list {
+  line-height: 1.8;
+  margin-bottom: 15px;
+}
+
+.annuity-list-tight {
+  margin-bottom: 0;
+  padding-right: 20px;
+}
+
+.annuity-helper-box {
+  padding: 12px;
+  background-color: #fff;
+  border-radius: 4px;
+  font-size: 14px;
+  border: 1px solid #28a745;
+}
+
+.annuity-example-box {
+  margin-top: 10px;
+  padding: 8px;
+  background-color: #e7f3ff;
+  border-radius: 4px;
+}
+
+.annuity-table-wrapper {
+  margin-bottom: 25px;
+}
+
+.annuity-table-title {
+  color: #007bff;
+}
+
+.annuity-table-description {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.annuity-table-note {
+  padding: 10px;
+  background-color: #fff3cd;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  border: 1px solid #ffc107;
+}
+
+.annuity-table {
+  font-size: 13px;
+  width: 100%;
+}
+
+.annuity-table thead tr {
+  background-color: #f8f9fa;
+}
+
+.annuity-table th {
+  padding: 10px;
+}
+
+.annuity-table th.annuity-table-header-right {
+  text-align: right;
+}
+
+.annuity-table th.annuity-table-header-center {
+  text-align: center;
+}
+
+.annuity-table-cell {
+  padding: 8px;
+}
+
+.annuity-table-cell-center {
+  text-align: center;
+}
+
+.annuity-table-cell-note {
+  padding: 8px;
+  text-align: center;
+  font-style: italic;
+  color: #666;
+}
+
+.annuity-warning-list {
+  line-height: 1.8;
+}
+
+.annuity-warning-footer {
+  font-size: 14px;
+  color: #856404;
+  margin-top: 15px;
+  margin-bottom: 0;
+}

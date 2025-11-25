@@ -21,43 +21,40 @@ export const FileUploadSection: React.FC<FileUploadSectionProps> = ({
   onGenerateExcel
 }) => {
   return (
-    <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+    <section className="pension-portfolio-upload-section">
       <h3>קליטת נתוני מסלקה</h3>
       
       {/* הוראות שימוש */}
-      <div style={{ marginBottom: 16, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
-        <h4 style={{ margin: "0 0 8px 0", color: "#495057" }}>אפשרויות עיבוד:</h4>
-        <ul style={{ margin: 0, paddingRight: 20, fontSize: "14px", color: "#666" }}>
+      <div className="pension-portfolio-upload-instructions">
+        <h4 className="pension-portfolio-upload-instructions-title">אפשרויות עיבוד:</h4>
+        <ul className="pension-portfolio-upload-instructions-list">
           <li><strong>עיבוד ידני:</strong> בחר קבצי XML או DAT ולחץ "עבד קבצי מסלקה"</li>
           <li><strong>תמיכה בפורמטים:</strong> המערכת תומכת בקבצי XML ו-DAT (קבצי מסלקה לאחר מניפולציה)</li>
         </ul>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div className="pension-portfolio-upload-input-group">
         <input
           type="file"
           multiple
           accept=".xml,.dat"
           onChange={(e) => setSelectedFiles(e.target.files)}
-          style={{ marginBottom: 10 }}
+          className="pension-portfolio-upload-input"
         />
-        <div style={{ fontSize: "14px", color: "#666" }}>
+        <div className="pension-portfolio-upload-help">
           בחר קבצי XML או DAT של המסלקה לעיבוד ידני (תמיכה בשני הפורמטים)
         </div>
       </div>
       
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="pension-portfolio-upload-actions">
         <button
           onClick={onProcessFiles}
           disabled={!selectedFiles || loading}
-          style={{
-            padding: "10px 16px",
-            backgroundColor: selectedFiles && !loading ? "#007bff" : "#ccc",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: selectedFiles && !loading ? "pointer" : "not-allowed"
-          }}
+          className={`pension-portfolio-btn ${
+            selectedFiles && !loading
+              ? 'pension-portfolio-btn--upload-process'
+              : 'pension-portfolio-btn--upload-process-disabled'
+          }`}
         >
           {loading ? "מעבד..." : "עבד קבצי מסלקה"}
         </button>
@@ -65,14 +62,11 @@ export const FileUploadSection: React.FC<FileUploadSectionProps> = ({
         <button
           onClick={onGenerateExcel}
           disabled={pensionDataLength === 0}
-          style={{
-            padding: "10px 16px",
-            backgroundColor: pensionDataLength > 0 ? "#28a745" : "#ccc",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: pensionDataLength > 0 ? "pointer" : "not-allowed"
-          }}
+          className={`pension-portfolio-btn ${
+            pensionDataLength > 0
+              ? 'pension-portfolio-btn--upload-export'
+              : 'pension-portfolio-btn--upload-export-disabled'
+          }`}
         >
           יצא דוח Excel
         </button>

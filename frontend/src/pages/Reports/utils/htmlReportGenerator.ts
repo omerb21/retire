@@ -52,23 +52,46 @@ export const generateHTMLReport = (
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>דוח פנסיוני - ${client?.name || 'לקוח'}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; direction: rtl; }
-    h1, h2, h3 { color: #007bff; }
+    :root {
+      --brand-primary: #007bff;
+      --brand-secondary: #6c757d;
+      --brand-success: #28a745;
+      --brand-warning: #ffc107;
+      --brand-danger: #dc3545;
+      --brand-info: #17a2b8;
+      --gray-100: #f8f9fa;
+      --gray-700: #495057;
+      --radius: 8px;
+      --radius-sm: 4px;
+    }
+    body { font-family: Arial, sans-serif; margin: 20px; direction: rtl; color: var(--gray-700); }
+    h1, h2, h3 { color: var(--brand-primary); margin-top: 0; }
     table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { border: 1px solid #dee2e6; padding: 10px; text-align: right; }
-    th { background-color: #007bff; color: white; }
-    tr:nth-child(even) { background-color: #f8f9fa; }
-    .summary { background-color: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0; }
-    .client-info { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; }
+    th, td { border: 1px solid #dee2e6; padding: 8px 10px; text-align: right; }
+    th { background-color: var(--brand-primary); color: white; }
+    tr:nth-child(even) { background-color: var(--gray-100); }
+    .summary { background-color: #e7f3ff; padding: 16px; border-radius: var(--radius); margin: 20px 0; }
+    .client-info { background-color: #f8f9fa; padding: 15px; border-radius: var(--radius); margin: 20px 0; }
+    .npv-note { font-size: 12px; color: var(--brand-secondary); }
+    .detailed-cashflow-table { font-size: 10px; }
+    .th-pension-group-header { background-color: var(--brand-primary); }
+    .th-additional-income-group-header { background-color: var(--brand-success); }
+    .th-capital-asset-group-header { background-color: var(--brand-warning); }
+    .th-pension-income-header { background-color: var(--brand-primary); }
+    .th-pension-tax-header { background-color: #0056b3; }
+    .th-additional-income-header { background-color: var(--brand-success); }
+    .th-additional-tax-header { background-color: #1e7e34; }
+    .th-asset-income-header { background-color: var(--brand-warning); }
+    .th-asset-tax-header { background-color: #e0a800; }
     .print-button {
       position: fixed;
       top: 20px;
       left: 20px;
-      background-color: #007bff;
+      background-color: var(--brand-primary);
       color: white;
       border: none;
       padding: 10px 18px;
-      border-radius: 6px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 14px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
@@ -222,41 +245,40 @@ export const generateHTMLReport = (
     <h3>ערך נוכחי נכסי הון</h3>
     <p><strong>סך נכסי הון:</strong> ${formatCurrency(totalCapitalValue)}</p>
     <p><strong>סה"כ ערך כולל (תזרים + נכסים):</strong> ${formatCurrency(npvComparison.withExemption + totalCapitalValue)}</p>
-    <p style="font-size: 12px; color: #6c757d;">נכסים אלו לא מופיעים בתזרים החודשי</p>
+    <p class="npv-note">נכסים אלו לא מופיעים בתזרים החודשי</p>
     ` : ''}
   </div>
   ` : ''}
-
   <h2>תחזית תזרים מפורט - פירוט לפי מקור</h2>
-  <table style="font-size: 11px;">
+  <table class="detailed-cashflow-table">
     <thead>
       <tr>
         <th>שנה</th>
         <th>גיל</th>
         ${pensionFunds.map(fund => `
-          <th colspan="2" style="background-color: #007bff;">${fund.fund_name}</th>
+          <th colspan="2" class="th-pension-group-header">${fund.fund_name}</th>
         `).join('')}
         ${additionalIncomes.map(income => `
-          <th colspan="2" style="background-color: #28a745;">${income.description}</th>
+          <th colspan="2" class="th-additional-income-group-header">${income.description}</th>
         `).join('')}
         ${capitalAssets.filter(asset => parseFloat(asset.monthly_income) > 0).map(asset => `
-          <th colspan="2" style="background-color: #ffc107;">${asset.asset_name || asset.description}</th>
+          <th colspan="2" class="th-capital-asset-group-header">${asset.asset_name || asset.description}</th>
         `).join('')}
       </tr>
       <tr>
         <th></th>
         <th></th>
         ${pensionFunds.map(() => `
-          <th style="background-color: #007bff;">הכנסה</th>
-          <th style="background-color: #0056b3;">מס</th>
+          <th class="th-pension-income-header">הכנסה</th>
+          <th class="th-pension-tax-header">מס</th>
         `).join('')}
         ${additionalIncomes.map(() => `
-          <th style="background-color: #28a745;">הכנסה</th>
-          <th style="background-color: #1e7e34;">מס</th>
+          <th class="th-additional-income-header">הכנסה</th>
+          <th class="th-additional-tax-header">מס</th>
         `).join('')}
         ${capitalAssets.filter(asset => parseFloat(asset.monthly_income) > 0).map(() => `
-          <th style="background-color: #ffc107;">הכנסה</th>
-          <th style="background-color: #e0a800;">מס</th>
+          <th class="th-asset-income-header">הכנסה</th>
+          <th class="th-asset-tax-header">מס</th>
         `).join('')}
       </tr>
     </thead>

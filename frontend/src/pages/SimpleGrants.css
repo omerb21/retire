@@ -1,0 +1,7 @@
+.simple-grants-explanation {
+  margin-top: 30px;
+  padding: 15px;
+  background-color: #e9ecef;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}

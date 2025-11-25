@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../lib/api';
 import { CapitalAsset } from '../types/capitalAsset';
+import { restoreBalanceToPensionPortfolio } from '../pages/PensionPortfolio/services/pensionPortfolioStorageService';
 
 export function useCapitalAssets(clientId: string | undefined) {
   const [assets, setAssets] = useState<CapitalAsset[]>([]);
@@ -86,72 +87,13 @@ export function useCapitalAssets(clientId: string | undefined) {
         const balanceToRestore = deleteResponse.restoration.balance_to_restore;
         
         console.log(`📋 ✅ RESTORING ₪${balanceToRestore} to account ${accountNumber}`);
+        console.log('🔍 Specific amounts to restore:', deleteResponse.restoration.specific_amounts);
         
-        // עדכון localStorage - החזרת היתרה לטבלה
-        const storageKey = `pensionData_${clientId}`;
-        const storedData = localStorage.getItem(storageKey);
-        
-        console.log(`🔍 Storage key: ${storageKey}`);
-        console.log(`🔍 Stored data exists: ${!!storedData}`);
-        
-        if (storedData && asset) {
-          try {
-            const pensionData = JSON.parse(storedData);
-            console.log(`🔍 Parsed pension data (${pensionData.length} accounts):`, pensionData);
-            
-            // חיפוש החשבון לפי מספר חשבון
-            const accountIndex = pensionData.findIndex((acc: any) => 
-              acc.מספר_חשבון === accountNumber
-            );
-            
-            console.log(`🔍 Looking for account: ${accountNumber}`);
-            console.log(`🔍 Account found at index: ${accountIndex}`);
-            
-            if (accountIndex !== -1) {
-              // החזרת היתרה לשדות הספציפיים שהומרו
-              const account = pensionData[accountIndex];
-              
-              console.log(`🔍 Account before restore:`, account);
-              console.log(`🔍 Specific amounts to restore:`, deleteResponse.restoration.specific_amounts);
-              
-              // אם יש specific_amounts, נחזיר לשדות הספציפיים
-              if (deleteResponse.restoration.specific_amounts && 
-                  Object.keys(deleteResponse.restoration.specific_amounts).length > 0) {
-                Object.entries(deleteResponse.restoration.specific_amounts).forEach(([field, amount]: [string, any]) => {
-                  if (account.hasOwnProperty(field)) {
-                    account[field] = (parseFloat(account[field]) || 0) + parseFloat(amount);
-                    console.log(`✅ Restored ₪${amount} to ${field}`);
-                  }
-                });
-              } else {
-                // אם אין specific_amounts, נחזיר לתגמולים (ברירת מחדל)
-                account.תגמולים = (parseFloat(account.תגמולים) || 0) + balanceToRestore;
-                console.log(`✅ Restored ₪${balanceToRestore} to תגמולים (default)`);
-              }
-
-              // עדכון יתרה כללית בתיק הפנסיוני
-              const restoreAmount = Number(balanceToRestore) || 0;
-              if (restoreAmount > 0) {
-                account.יתרה = (Number(account.יתרה) || 0) + restoreAmount;
-              }
-              
-              console.log(`🔍 Account after restore:`, account);
-              localStorage.setItem(storageKey, JSON.stringify(pensionData));
-              console.log('✅ Updated pension portfolio in localStorage');
-              
-              // הפעלת אירוע כדי לעדכן את הטבלה
-              window.dispatchEvent(new Event('storage'));
-              console.log('✅ Dispatched storage event to refresh table');
-            } else {
-              console.warn(`⚠️ Account ${accountNumber} not found in pension portfolio`);
-              console.warn(`🔍 Available accounts:`, pensionData.map((acc: any) => acc.מספר_חשבון));
-            }
-          } catch (e) {
-            console.error('❌ Error restoring balance to localStorage:', e);
-          }
-        } else {
-          console.warn(`⚠️ No stored data or asset info. storedData=${!!storedData}, asset=${!!asset}`);
-        }
+        restoreBalanceToPensionPortfolio(clientId, {
+          account_number: accountNumber,
+          balance_to_restore: balanceToRestore,
+          specific_amounts: deleteResponse.restoration.specific_amounts,
+        });
       }
       
       // Reload assets after deletion (unless part of bulk delete)

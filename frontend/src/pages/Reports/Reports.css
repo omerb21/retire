@@ -1,0 +1,370 @@
+.reports-page-container {
+  padding: 20px;
+  direction: rtl;
+}
+
+.reports-page-header {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reports-loading,
+.reports-error,
+.reports-no-data {
+  padding: 20px;
+}
+
+.reports-loading {
+  text-align: center;
+}
+
+.reports-error-message {
+  color: red;
+  margin-bottom: 20px;
+}
+
+.reports-no-data {
+  text-align: center;
+}
+
+.reports-no-data-links {
+  margin-top: 10px;
+}
+
+.reports-no-data-link {
+  color: var(--brand-primary);
+  margin-right: 15px;
+}
+
+.reports-back-wrapper {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.reports-back-link {
+  padding: 10px 20px;
+  background-color: var(--brand-secondary);
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+.report-export-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.report-export-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.report-export-button--excel {
+  background-color: var(--brand-success);
+}
+
+.report-export-button--pdf {
+  background-color: #ff0000;
+}
+
+.report-export-button--fixation {
+  background-color: #6f42c1;
+}
+
+.report-header-client {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+}
+
+.report-header-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.report-header-fixation {
+  background-color: #fff3cd;
+  padding: 20px;
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  border: 2px solid var(--brand-warning);
+}
+
+.reports-section {
+  margin-bottom: 30px;
+}
+
+.reports-table-wrapper {
+  overflow-x: auto;
+}
+
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+}
+
+.reports-table--summary,
+.reports-table--detailed {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.reports-table--detailed {
+  font-size: 12px;
+}
+
+.reports-table-header-row--summary,
+.reports-table-header-row--detailed {
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+.reports-table-header-cell {
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  text-align: right;
+}
+
+.reports-table-header-cell--small {
+  padding: 8px;
+}
+
+.reports-table-header-cell--pension-title {
+  min-width: 100px;
+  background-color: var(--brand-primary);
+  color: #ffffff;
+}
+
+.reports-table-header-cell--pension-tax {
+  min-width: 80px;
+  background-color: #0056b3;
+  color: #ffffff;
+}
+
+.reports-table-header-cell--income-title {
+  min-width: 100px;
+  background-color: var(--brand-success);
+  color: #ffffff;
+}
+
+.reports-table-header-cell--income-tax {
+  min-width: 80px;
+  background-color: #1e7e34;
+  color: #ffffff;
+}
+
+.reports-table-header-cell--asset-title {
+  min-width: 100px;
+  background-color: var(--brand-warning);
+  color: #000000;
+}
+
+.reports-table-header-cell--asset-tax {
+  min-width: 80px;
+  background-color: #e0a800;
+  color: #000000;
+}
+
+.reports-table-header-cell--total-income {
+  background-color: var(--brand-info);
+  color: #ffffff;
+}
+
+.reports-table-header-cell--total-tax {
+  background-color: var(--brand-danger);
+  color: #ffffff;
+}
+
+.reports-table-header-cell--total-net {
+  background-color: var(--brand-success);
+  color: #ffffff;
+}
+
+.reports-table-header-cell--sticky-year {
+  position: sticky;
+  right: 0;
+  background-color: var(--brand-primary);
+}
+
+.reports-table-header-cell--sticky-age {
+  position: sticky;
+  right: 60px;
+  background-color: var(--brand-primary);
+}
+
+.reports-table-row {
+  background-color: #ffffff;
+}
+
+.reports-table-row--alt {
+  background-color: #f8f9fa;
+}
+
+.reports-table-cell {
+  padding: 10px;
+  border: 1px solid #dee2e6;
+}
+
+.reports-table-cell--small {
+  padding: 6px;
+}
+
+.reports-table-cell--center {
+  text-align: center;
+}
+
+.reports-table-cell--left {
+  text-align: left;
+}
+
+.reports-table-cell--right {
+  text-align: right;
+}
+
+.reports-table-cell--bold {
+  font-weight: bold;
+}
+
+.reports-table-cell--tax {
+  color: var(--brand-danger);
+}
+
+.reports-table-cell--net {
+  color: var(--brand-success);
+}
+
+.reports-table-cell--sticky-year {
+  position: sticky;
+  right: 0;
+}
+
+.reports-table-cell--sticky-age {
+  position: sticky;
+  right: 60px;
+}
+
+.reports-color-legend {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--brand-secondary);
+}
+
+.reports-color-legend-item {
+  margin-right: 15px;
+}
+
+.reports-section--npv {
+  margin-bottom: 30px;
+}
+
+.reports-card {
+  padding: 20px;
+  border-radius: var(--radius);
+  margin-bottom: 15px;
+}
+
+.reports-card--npv-flow {
+  background-color: #e7f3ff;
+}
+
+.reports-card--npv-capital {
+  background-color: #fff3cd;
+}
+
+.reports-card-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.reports-card-grid--npv-main {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.reports-card-grid--npv-capital {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.reports-card-value {
+  font-size: 20px;
+}
+
+.reports-card-value--positive {
+  color: var(--brand-success);
+}
+
+.reports-card-value--negative {
+  color: var(--brand-danger);
+}
+
+.reports-card-value--primary {
+  color: var(--brand-primary);
+}
+
+.reports-card-note {
+  font-size: 12px;
+  color: var(--brand-secondary);
+  margin-top: 5px;
+}
+
+.reports-section--income-details {
+  margin-bottom: 30px;
+}
+
+.reports-income-group {
+  margin-bottom: 20px;
+}
+
+.reports-table--income {
+  background-color: #ffffff;
+}
+
+.reports-table-header-row--income {
+  background-color: #f8f9fa;
+}
+
+.reports-table-header-cell--income {
+  padding: 10px;
+  border: 1px solid #dee2e6;
+  text-align: right;
+}
+
+.reports-table-cell--income {
+  padding: 10px;
+  border: 1px solid #dee2e6;
+}
+
+@media (max-width: 768px) {
+  .reports-page-container {
+    padding: 12px;
+  }
+
+  .reports-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .report-export-controls {
+    width: 100%;
+  }
+
+  .report-export-button {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .reports-card-grid--npv-main,
+  .reports-card-grid--npv-capital {
+    grid-template-columns: 1fr;
+  }
+}

@@ -39,14 +39,9 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({ client, fixationData
   return (
     <>
       {/* פרטי לקוח */}
-      <div style={{ 
-        backgroundColor: '#f8f9fa', 
-        padding: '20px', 
-        borderRadius: '8px',
-        marginBottom: '20px'
-      }}>
+      <div className="report-header-client">
         <h3>פרטי לקוח</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+        <div className="report-header-grid">
           <div><strong>שם:</strong> {clientName}</div>
           <div><strong>תעודת זהות:</strong> {client.id_number || '-'}</div>
           <div><strong>שנת לידה:</strong> {birthYear}</div>
@@ -56,15 +51,9 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({ client, fixationData
 
       {/* פרטי קיבוע זכויות */}
       {fixationData && fixationData.exemption_summary && (
-        <div style={{ 
-          backgroundColor: '#fff3cd', 
-          padding: '20px', 
-          borderRadius: '8px',
-          marginBottom: '20px',
-          border: '2px solid #ffc107'
-        }}>
+        <div className="report-header-fixation">
           <h3>פרטי קיבוע זכויות</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+          <div className="report-header-grid">
             <div>
               <strong>שנת קיבוע:</strong> {fixationData.fixation_year || fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || '-'}
             </div>

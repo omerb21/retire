@@ -16,17 +16,17 @@
 }
 
 .simple-current-employer-back-link {
-  color: #007bff;
+  color: var(--brand-primary);
   text-decoration: none;
 }
 
 .simple-current-employer-clear-button {
   padding: 5px 10px;
   font-size: 12px;
-  background-color: #6c757d;
+  background-color: var(--brand-secondary);
   color: #ffffff;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -34,7 +34,7 @@
   padding: 15px;
   background-color: #f8d7da;
   color: #721c24;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin-bottom: 20px;
   border: 1px solid #f5c6cb;
 }
@@ -52,7 +52,7 @@
 }
 
 .simple-current-employer-tab-button--active {
-  border-bottom: 3px solid #007bff;
+  border-bottom: 3px solid var(--brand-primary);
   background-color: #f8f9fa;
   font-weight: bold;
 }
@@ -60,21 +60,21 @@
 .saved-data-container {
   margin-bottom: 20px;
   padding: 15px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .saved-data-container--empty {
-  border: 1px solid #ffc107;
+  border: 1px solid var(--brand-warning);
   background-color: #fff3cd;
 }
 
 .saved-data-container--filled {
-  border: 1px solid #28a745;
+  border: 1px solid var(--brand-success);
   background-color: #f8fff9;
 }
 
 .saved-data-title {
-  color: #28a745;
+  color: var(--brand-success);
   margin-bottom: 15px;
 }
 
@@ -110,7 +110,7 @@
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
 }
 
@@ -128,7 +128,7 @@
   padding: 12px;
   background-color: #f8f9fa;
   border: 2px solid #e9ecef;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 18px;
   font-weight: bold;
   color: #495057;
@@ -142,19 +142,19 @@
 
 .employer-form-button-cancel {
   padding: 10px 20px;
-  background-color: #6c757d;
+  background-color: var(--brand-secondary);
   color: #ffffff;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
 }
 
 .employer-form-button-submit {
   padding: 10px 20px;
-  background-color: #007bff;
+  background-color: var(--brand-primary);
   color: #ffffff;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
 }
 
@@ -168,7 +168,7 @@
   padding: 10px;
   background-color: #fff3cd;
   border: 1px solid #ffeaa7;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .termination-warning-title {
@@ -187,26 +187,26 @@
 .termination-step {
   margin-bottom: 30px;
   padding: 20px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .termination-step--green {
-  border: 1px solid #28a745;
+  border: 1px solid var(--brand-success);
   background-color: #f8fff9;
 }
 
 .termination-step--yellow {
-  border: 1px solid #ffc107;
+  border: 1px solid var(--brand-warning);
   background-color: #fffdf5;
 }
 
 .termination-step--info {
-  border: 1px solid #17a2b8;
+  border: 1px solid var(--brand-info);
   background-color: #f0f9fc;
 }
 
 .termination-step--danger {
-  border: 1px solid #dc3545;
+  border: 1px solid var(--brand-danger);
   background-color: #fff5f5;
 }
 
@@ -217,7 +217,7 @@
 .termination-step-enddate-box {
   padding: 15px;
   background-color: #d4edda;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .termination-step-enddate-text {
@@ -257,7 +257,7 @@
 .termination-completion-box {
   padding: 10px;
   background-color: #e8f4f8;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin-top: 10px;
 }
 
@@ -265,9 +265,9 @@
   margin-bottom: 15px;
   padding: 10px;
   background-color: #fff3cd;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
-  border: 1px solid #ffc107;
+  border: 1px solid var(--brand-warning);
 }
 
 .termination-tax-grid {
@@ -279,13 +279,13 @@
 .termination-tax-exempt-card {
   padding: 15px;
   background-color: #d4edda;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .termination-tax-taxable-card {
   padding: 15px;
   background-color: #f8d7da;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .termination-tax-exempt-title {
@@ -327,15 +327,15 @@
   margin-top: 20px;
   padding: 15px;
   background-color: #fff3cd;
-  border-radius: 4px;
-  border: 1px solid #ffc107;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brand-warning);
 }
 
 .termination-spread-explanation {
   margin-bottom: 15px;
   padding: 12px;
   background-color: #e7f3ff;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
 }
 
@@ -355,7 +355,7 @@
   padding: 8px;
   margin-top: 5px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .termination-spread-input--disabled {
@@ -366,7 +366,7 @@
 .termination-no-spread-box {
   padding: 10px;
   background-color: #f8d7da;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: #721c24;
 }
 
@@ -380,23 +380,23 @@
 .termination-button-danger {
   border: none;
   padding: 15px 40px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
 }
 
 .termination-button-primary {
-  background-color: #28a745;
+  background-color: var(--brand-success);
   color: #ffffff;
   font-weight: bold;
 }
 
 .termination-button-secondary {
-  background-color: #6c757d;
+  background-color: var(--brand-secondary);
   color: #ffffff;
 }
 
 .termination-button-danger {
-  background-color: #dc3545;
+  background-color: var(--brand-danger);
   color: #ffffff;
   font-weight: bold;
 }
@@ -404,7 +404,7 @@
 .termination-confirm-box {
   background-color: #fff3cd;
   padding: 20px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin-bottom: 20px;
   border: 1px solid #ffeaa7;
 }
@@ -420,4 +420,35 @@
   color: #856404;
   margin-bottom: 15px;
   font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .simple-current-employer-container {
+    padding: 12px;
+  }
+
+  .simple-current-employer-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .saved-data-grid,
+  .termination-summary-grid,
+  .termination-tax-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .termination-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .termination-button-primary,
+  .termination-button-secondary,
+  .termination-button-danger {
+    width: 100%;
+  }
 }

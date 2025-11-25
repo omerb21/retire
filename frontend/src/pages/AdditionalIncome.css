@@ -1,0 +1,140 @@
+.additional-income-header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.additional-income-delete-all-button {
+  background-color: var(--brand-danger);
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.additional-income-error {
+  color: red;
+  margin-bottom: 16px;
+  padding: 8px;
+  background-color: #ffeeee;
+  border-radius: var(--radius-sm);
+}
+
+.additional-income-form-section {
+  margin-bottom: 32px;
+  padding: 16px;
+  border: 1px solid #dddddd;
+  border-radius: var(--radius-sm);
+}
+
+.additional-income-form {
+  display: grid;
+  gap: 12px;
+  max-width: 500px;
+}
+
+.additional-income-input {
+  padding: 8px;
+}
+
+.additional-income-input--full {
+  width: 100%;
+}
+
+.additional-income-select {
+  padding: 8px;
+}
+
+.additional-income-select--full {
+  width: 100%;
+}
+
+.additional-income-submit-row {
+  display: flex;
+  gap: 10px;
+}
+
+.additional-income-submit-button {
+  padding: 10px 16px;
+  background-color: var(--brand-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  flex: 1;
+  cursor: pointer;
+}
+
+.additional-income-cancel-button {
+  padding: 10px 16px;
+  background-color: var(--brand-secondary);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.additional-income-empty {
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: var(--radius-sm);
+}
+
+.additional-income-list {
+  display: grid;
+  gap: 16px;
+}
+
+.additional-income-card {
+  padding: 16px;
+  border: 1px solid #dddddd;
+  border-radius: var(--radius-sm);
+}
+
+.additional-income-card-content {
+  display: grid;
+  gap: 8px;
+}
+
+.additional-income-computed {
+  color: green;
+  font-weight: bold;
+}
+
+.additional-income-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.additional-income-card-button {
+  padding: 8px 12px;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.additional-income-card-button--edit {
+  background-color: var(--brand-primary);
+}
+
+.additional-income-card-button--delete {
+  background-color: var(--brand-danger);
+}
+
+@media (max-width: 768px) {
+  .additional-income-header-actions {
+    flex-wrap: wrap;
+  }
+
+  .additional-income-submit-row {
+    flex-direction: column;
+  }
+
+  .additional-income-delete-all-button,
+  .additional-income-submit-button,
+  .additional-income-cancel-button {
+    width: 100%;
+  }
+}

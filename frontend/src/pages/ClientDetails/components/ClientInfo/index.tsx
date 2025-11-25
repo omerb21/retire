@@ -8,7 +8,7 @@ interface ClientInfoProps {
 
 export const ClientInfo: React.FC<ClientInfoProps> = ({ client }) => {
   return (
-    <div className="client-info" style={{ marginBottom: '20px' }}>
+    <div className="client-info">
       <p><strong>ת"ז:</strong> {client.id_number}</p>
       <p><strong>תאריך לידה:</strong> {client.birth_date}</p>
       <p><strong>מין:</strong> {client.gender === 'male' ? 'זכר' : client.gender === 'female' ? 'נקבה' : 'לא צוין'}</p>
@@ -16,10 +16,10 @@ export const ClientInfo: React.FC<ClientInfoProps> = ({ client }) => {
       <p><strong>טלפון:</strong> {client.phone || 'לא הוזן'}</p>
       
       {/* תאריך קבלת קצבה ראשונה - תצוגה בלבד */}
-      <div style={{ marginTop: '15px' }}>
+      <div className="client-info-pension-start-wrapper">
         <p>
           <strong>תאריך קבלת קצבה ראשונה:</strong>{' '}
-          <span style={{ color: client.pension_start_date ? '#28a745' : '#dc3545' }}>
+          <span className={client.pension_start_date ? 'client-info-pension-start--has-date' : 'client-info-pension-start--missing'}>
             {client.pension_start_date
               ? formatDateToDDMMYY(new Date(client.pension_start_date))
               : 'טרם הוזן תאריך קבלת קצבה'}

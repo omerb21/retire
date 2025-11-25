@@ -11,6 +11,10 @@ import {
   saveSeveranceCapsToAPI, 
   getDefaultSeveranceCaps 
 } from '../services/systemSettingsService';
+import {
+  loadSeveranceCapsFromStorage,
+  saveSeveranceCapsToStorage,
+} from '../services/systemSettingsStorageService';
 
 export const useSystemSettings = () => {
   // Tax brackets state
@@ -52,28 +56,17 @@ export const useSystemSettings = () => {
       try {
         const caps = await loadSeveranceCapsFromAPI();
         setSeveranceCaps(caps);
-        localStorage.setItem('severanceCaps', JSON.stringify(caps));
+        saveSeveranceCapsToStorage(caps);
         return;
       } catch (apiError) {
         console.log("API error, falling back to local data:", apiError);
       }
-      
-      const savedCaps = localStorage.getItem('severanceCaps');
-      if (savedCaps) {
-        setSeveranceCaps(JSON.parse(savedCaps));
-      } else {
-        const defaultCaps = getDefaultSeveranceCaps();
-        setSeveranceCaps(defaultCaps);
-        localStorage.setItem('severanceCaps', JSON.stringify(defaultCaps));
-      }
+
+      const storedCaps = loadSeveranceCapsFromStorage();
+      setSeveranceCaps(storedCaps);
     } catch (e: any) {
       console.error("Error loading severance caps:", e);
       setCapsError(`שגיאה בטעינת תקרות פיצויים: ${e?.message || e}`);
-      
-      const savedCaps = localStorage.getItem('severanceCaps');
-      if (savedCaps) {
-        setSeveranceCaps(JSON.parse(savedCaps));
-      }
     } finally {
       setCapsLoading(false);
     }
@@ -84,7 +77,7 @@ export const useSystemSettings = () => {
     try {
       await saveSeveranceCapsToAPI(caps);
       setSeveranceCaps([...caps]);
-      localStorage.setItem('severanceCaps', JSON.stringify(caps));
+      saveSeveranceCapsToStorage(caps);
       setIsEditingCaps(false);
       return true;
     } catch (e: any) {

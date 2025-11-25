@@ -33,20 +33,45 @@ export default function PensionPortfolioMain() {
     pensionDataHook.clientData
   );
 
-  const canSave = !pensionDataHook.saving && pensionDataHook.pensionData.some(a => a.selected);
-  const canConvert = !pensionDataHook.loading && pensionDataHook.pensionData.some(a => 
-    a.selected || Object.values(a.selected_amounts || {}).some(Boolean)
+  const canSave = React.useMemo(
+    () => !pensionDataHook.saving && pensionDataHook.pensionData.some((a) => a.selected),
+    [pensionDataHook.saving, pensionDataHook.pensionData]
+  );
+
+  const canConvert = React.useMemo(
+    () =>
+      !pensionDataHook.loading &&
+      pensionDataHook.pensionData.some(
+        (a) => a.selected || Object.values(a.selected_amounts || {}).some(Boolean)
+      ),
+    [pensionDataHook.loading, pensionDataHook.pensionData]
   );
 
   // פונקציה לטיפול בייצוא Excel
-  const handleGenerateExcel = () => {
+  const handleGenerateExcel = React.useCallback(() => {
     try {
       generateExcelReport(pensionDataHook.pensionData, clientId || '');
-      pensionDataHook.setProcessingStatus(`יוצא דוח Excel עם ${pensionDataHook.pensionData.length} תכניות פנסיוניות`);
+      pensionDataHook.setProcessingStatus(
+        `יוצא דוח Excel עם ${pensionDataHook.pensionData.length} תכניות פנסיוניות`
+      );
     } catch (error: any) {
       pensionDataHook.setError(error.message);
     }
-  };
+  }, [pensionDataHook.pensionData, pensionDataHook.setProcessingStatus, pensionDataHook.setError, clientId]);
+
+  const handleProcessFiles = React.useCallback(() => {
+    if (pensionDataHook.selectedFiles) {
+      pensionDataHook.processXMLFiles(pensionDataHook.selectedFiles);
+    }
+  }, [pensionDataHook.selectedFiles, pensionDataHook.processXMLFiles]);
+
+  const handleRedemptionDateChange = React.useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const formatted = formatDateInput(e.target.value);
+      pensionDataHook.setRedemptionDate(formatted);
+    },
+    [pensionDataHook.setRedemptionDate]
+  );
 
   return (
     <div>
@@ -82,7 +107,7 @@ export default function PensionPortfolioMain() {
           setSelectedFiles={pensionDataHook.setSelectedFiles}
           loading={pensionDataHook.loading}
           pensionDataLength={pensionDataHook.pensionData.length}
-          onProcessFiles={() => pensionDataHook.selectedFiles && pensionDataHook.processXMLFiles(pensionDataHook.selectedFiles)}
+          onProcessFiles={handleProcessFiles}
           onGenerateExcel={handleGenerateExcel}
         />
 
@@ -121,10 +146,7 @@ export default function PensionPortfolioMain() {
                 type="text"
                 placeholder="DD/MM/YYYY"
                 value={pensionDataHook.redemptionDate}
-                onChange={(e) => {
-                  const formatted = formatDateInput(e.target.value);
-                  pensionDataHook.setRedemptionDate(formatted);
-                }}
+                onChange={handleRedemptionDateChange}
                 maxLength={10}
                 className="pension-portfolio-redemption-input"
               />

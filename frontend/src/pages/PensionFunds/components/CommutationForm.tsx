@@ -17,15 +17,15 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
   funds
 }) => {
   return (
-    <section style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+    <section className="pension-funds-section-card">
       <h3>הוסף היוון</h3>
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
+      <form onSubmit={onSubmit} className="pension-funds-commutation-form-grid">
         <div>
           <label>קצבה:</label>
           <select
             value={commutationForm.pension_fund_id || ""}
             onChange={(e) => setCommutationForm({ ...commutationForm, pension_fund_id: parseInt(e.target.value) })}
-            style={{ padding: 8, width: "100%" }}
+            className="pension-funds-select"
             required
           >
             <option value="">בחר קצבה</option>
@@ -42,7 +42,7 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
           placeholder="סכום היוון"
           value={commutationForm.exempt_amount || ""}
           onChange={(e) => setCommutationForm({ ...commutationForm, exempt_amount: parseFloat(e.target.value) || 0 })}
-          style={{ padding: 8 }}
+          className="pension-funds-input"
           required
         />
         
@@ -51,7 +51,7 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
           placeholder="תאריך היוון"
           value={commutationForm.commutation_date || ""}
           onChange={(e) => setCommutationForm({ ...commutationForm, commutation_date: e.target.value })}
-          style={{ padding: 8 }}
+          className="pension-funds-input"
           required
         />
         
@@ -66,19 +66,14 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
                 <select
                   value={commutationForm.commutation_type}
                   onChange={(e) => setCommutationForm({ ...commutationForm, commutation_type: e.target.value as "exempt" | "taxable" })}
-                  style={{ 
-                    padding: 8, 
-                    width: "100%",
-                    backgroundColor: isExemptPension ? "#f0f0f0" : "white",
-                    cursor: isExemptPension ? "not-allowed" : "pointer"
-                  }}
+                  className={`pension-funds-select ${isExemptPension ? 'pension-funds-select--disabled' : ''}`}
                   disabled={isExemptPension}
                 >
                   <option value="taxable">חייב במס</option>
                   <option value="exempt">פטור ממס</option>
                 </select>
                 {isExemptPension && (
-                  <div style={{ fontSize: "12px", color: "#856404", marginTop: "4px", fontStyle: "italic" }}>
+                  <div className="pension-funds-commutation-warning">
                     קצבה פטורה ממס - ההיוון חייב להיות פטור ממס
                   </div>
                 )}
@@ -87,7 +82,7 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
           })()}
         </div>
         
-        <button type="submit" style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}>
+        <button type="submit" className="pension-funds-commutation-submit">
           הוסף היוון
         </button>
       </form>

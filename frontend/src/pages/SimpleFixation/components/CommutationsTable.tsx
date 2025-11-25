@@ -9,40 +9,26 @@ interface CommutationsTableProps {
 
 export const CommutationsTable: React.FC<CommutationsTableProps> = ({ commutations }) => {
   return (
-    <div
-      style={{
-        marginBottom: '30px',
-        padding: '20px',
-        border: '1px solid #28a745',
-        borderRadius: '4px',
-        backgroundColor: '#f0fff4'
-      }}
-    >
+    <div className="fixation-commutations-card">
       <h3>טבלת היוונים פטורים</h3>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            marginBottom: '15px'
-          }}
-        >
+      <div className="fixation-table-wrapper">
+        <table className="fixation-commutations-table">
           <thead>
-            <tr style={{ backgroundColor: '#d4edda' }}>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+            <tr className="fixation-commutations-header-row">
+              <th className="fixation-table-header-cell">
                 שם המשלם
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 תיק ניכויים
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 תאריך היוון
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 סכום היוון
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 סוג ההיוון
               </th>
             </tr>
@@ -50,27 +36,21 @@ export const CommutationsTable: React.FC<CommutationsTableProps> = ({ commutatio
           <tbody>
             {commutations.map((commutation) => (
               <tr key={commutation.id}>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                <td className="fixation-table-cell">
                   {commutation.fund_name}
                 </td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                <td className="fixation-table-cell">
                   {commutation.deduction_file || '-'}
                 </td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                <td className="fixation-table-cell">
                   {commutation.commutation_date
                     ? formatDateToDDMMYYYY(new Date(commutation.commutation_date))
                     : '-'}
                 </td>
-                <td
-                  style={{
-                    padding: '10px',
-                    border: '1px solid #ddd',
-                    textAlign: 'left'
-                  }}
-                >
+                <td className="fixation-table-cell fixation-table-cell--left">
                   ₪{formatMoney(commutation.exempt_amount)}
                 </td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                <td className="fixation-table-cell">
                   {commutation.commutation_type === 'exempt' ? 'פטור ממס' : 'חייב במס'}
                 </td>
               </tr>

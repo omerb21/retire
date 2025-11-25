@@ -8,6 +8,7 @@ import React from 'react';
 import { CapitalAsset, ASSET_TYPES } from '../../../types/capitalAsset';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { formatCurrency } from '../../../lib/validation';
+import './AssetItem.css';
 
 const formatMoney = (value: number | null | undefined): string => {
   const numeric = value ?? 0;
@@ -23,15 +24,15 @@ interface AssetItemProps {
 
 export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
   return (
-    <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4, backgroundColor: "#f9f9f9" }}>
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ fontSize: "18px", fontWeight: "bold", color: "#0056b3", marginBottom: "8px" }}>
+    <div className="asset-item-container">
+      <div className="asset-item-grid">
+        <div className="asset-item-header">
           {asset.asset_name || asset.description || "נכס ללא שם"}
         </div>
         
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-          <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>פרטי נכס</div>
+        <div className="asset-item-columns">
+          <div className="asset-item-card">
+            <div className="asset-item-card-title">פרטי נכס</div>
             <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
             <div><strong>תשלום:</strong> ₪{formatMoney(asset.monthly_income || 0)}</div>
             <div><strong>ערך נוכחי:</strong> ₪{formatMoney(asset.current_value || 0)}</div>
@@ -42,8 +43,8 @@ export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
             }%</div>
           </div>
           
-          <div style={{ backgroundColor: "#fff", padding: "8px", borderRadius: "4px", border: "1px solid #eee" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>תאריך ומס</div>
+          <div className="asset-item-card">
+            <div className="asset-item-card-title">תאריך ומס</div>
             <div><strong>תאריך תשלום:</strong> {asset.start_date ? formatDateToDDMMYY(new Date(asset.start_date)) : "לא צוין"}</div>
             <div><strong>הצמדה:</strong> {
               asset.indexation_method === "none" ? "ללא" :
@@ -53,8 +54,8 @@ export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
           </div>
         </div>
         
-        <div style={{ backgroundColor: "#f0f8ff", padding: "8px", borderRadius: "4px", border: "1px solid #d1e7ff" }}>
-          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>מיסוי</div>
+        <div className="asset-item-tax-card">
+          <div className="asset-item-tax-title">מיסוי</div>
           <div><strong>יחס מס:</strong> {
             asset.tax_treatment === "exempt" ? "פטור ממס" :
             asset.tax_treatment === "taxable" ? "חייב במס רגיל" :
@@ -65,12 +66,12 @@ export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
           }</div>
         </div>
         
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <div className="asset-item-actions">
           {asset.id && (
             <button
               type="button"
               onClick={() => onEdit(asset)}
-              style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
+              className="asset-item-edit-button"
             >
               ערוך
             </button>
@@ -80,7 +81,7 @@ export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
             <button
               type="button"
               onClick={() => onDelete(asset.id!)}
-              style={{ padding: "8px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: 4 }}
+              className="asset-item-delete-button"
             >
               מחק
             </button>

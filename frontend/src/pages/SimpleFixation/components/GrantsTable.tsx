@@ -9,46 +9,32 @@ interface GrantsTableProps {
 
 export const GrantsTable: React.FC<GrantsTableProps> = ({ grantsSummary }) => {
   return (
-    <div
-      style={{
-        marginBottom: '30px',
-        padding: '20px',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        backgroundColor: '#f9f9f9'
-      }}
-    >
+    <div className="fixation-grants-card">
       <h3>טבלת מענקים</h3>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            marginBottom: '15px'
-          }}
-        >
+      <div className="fixation-table-wrapper">
+        <table className="fixation-grants-table">
           <thead>
-            <tr style={{ backgroundColor: '#e9ecef' }}>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+            <tr className="fixation-grants-header-row">
+              <th className="fixation-table-header-cell">
                 שם מעסיק
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 תאריך קבלת המענק
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 מענק נומינאלי ששולם
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 סכום רלוונטי לקיזוז פטור
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 סכום רלוונטי לאחר הצמדה
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 פגיעה בפטור
               </th>
-              <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'right' }}>
+              <th className="fixation-table-header-cell">
                 סטטוס
               </th>
             </tr>
@@ -61,8 +47,8 @@ export const GrantsTable: React.FC<GrantsTableProps> = ({ grantsSummary }) => {
 
               return (
                 <tr key={index}>
-                  <td style={{ padding: '10px', border: '1px solid #ddd' }}>{grant.employer_name}</td>
-                  <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                  <td className="fixation-table-cell">{grant.employer_name}</td>
+                  <td className="fixation-table-cell">
                     {grant.grant_date ? (
                       grant.grant_date.includes('-')
                         ? formatDateToDDMMYYYY(new Date(grant.grant_date))
@@ -71,57 +57,36 @@ export const GrantsTable: React.FC<GrantsTableProps> = ({ grantsSummary }) => {
                       ''
                     )}
                   </td>
-                  <td
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      textAlign: 'left'
-                    }}
-                  >
+                  <td className="fixation-table-cell fixation-table-cell--left">
                     ₪{formatMoney(grant.grant_amount)}
                   </td>
-                  <td
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      textAlign: 'left'
-                    }}
-                  >
+                  <td className="fixation-table-cell fixation-table-cell--left">
                     {isExcluded
                       ? 'הוחרג'
                       : `₪${formatMoney(grant.grant_amount * (grant.ratio_32y || 0))}`}
                   </td>
                   <td
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      textAlign: 'left',
-                      color: isExcluded ? '#6c757d' : '#007bff'
-                    }}
+                    className={`fixation-table-cell fixation-table-cell--left ${
+                      isExcluded ? 'fixation-table-cell--muted' : 'fixation-table-cell--primary'
+                    }`}
                   >
                     {isExcluded
                       ? 'הוחרג'
                       : `₪${formatMoney(grant.limited_indexed_amount || 0)}`}
                   </td>
                   <td
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      textAlign: 'left',
-                      color: isExcluded ? '#6c757d' : '#dc3545'
-                    }}
+                    className={`fixation-table-cell fixation-table-cell--left ${
+                      isExcluded ? 'fixation-table-cell--muted' : 'fixation-table-cell--danger'
+                    }`}
                   >
                     {isExcluded
                       ? 'הוחרג'
                       : `₪${formatMoney(grant.impact_on_exemption || 0)}`}
                   </td>
                   <td
-                    style={{
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      textAlign: 'right',
-                      color: isExcluded ? '#dc3545' : '#28a745'
-                    }}
+                    className={`fixation-table-cell fixation-table-cell--right ${
+                      isExcluded ? 'fixation-table-cell--danger' : 'fixation-table-cell--success'
+                    }`}
                   >
                     {grant.exclusion_reason
                       ? grant.exclusion_reason

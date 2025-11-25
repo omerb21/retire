@@ -57,7 +57,16 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
     today = date.today()
 
     # Build formatted data similar to the /calculate endpoint (client_id branch)
-    eligibility_date_to_use = eligibility_date or today
+    # Effective eligibility date for calculation is the later of statutory eligibility
+    # and actual pension start date, falling back to statutory eligibility or today's
+    # date when needed.
+    effective_eligibility_date: Optional[date] = None
+    if eligibility_date:
+        effective_eligibility_date = eligibility_date
+        if pension_start_date and pension_start_date > effective_eligibility_date:
+            effective_eligibility_date = pension_start_date
+
+    eligibility_date_to_use = effective_eligibility_date or eligibility_date or today
     formatted_data: Dict[str, Any] = {
         "id": client_id,
         "birth_date": client.birth_date.isoformat() if client.birth_date else None,

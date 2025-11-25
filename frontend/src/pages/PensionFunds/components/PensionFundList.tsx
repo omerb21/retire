@@ -19,31 +19,23 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
 }) => {
   if (funds.length === 0) {
     return (
-      <div style={{ padding: 16, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
+      <div className="pension-funds-empty-card">
         אין קצבאות
       </div>
     );
   }
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div className="pension-funds-list-grid">
       {funds.map((fund, index) => (
-        <div key={fund.id || index} style={{ padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
-          <div style={{ display: "grid", gap: 8 }}>
+        <div key={fund.id || index} className="pension-funds-card">
+          <div className="pension-funds-card-grid">
             <div><strong>שם המשלם:</strong> {fund.fund_name || "קצבה"}</div>
             {fund.deduction_file && <div><strong>תיק ניכויים:</strong> {fund.deduction_file}</div>}
             <div><strong>מצב:</strong> {fund.input_mode === "calculated" ? "מחושב" : "ידני"}</div>
             
             {/* הצגת יתרה שעליה מבוססת הקצבה - תמיד */}
-            <div style={{ 
-              backgroundColor: "#fff3cd", 
-              padding: "8px", 
-              borderRadius: "4px", 
-              border: "1px solid #ffc107",
-              marginTop: "8px",
-              marginBottom: "8px",
-              fontSize: "1.05em"
-            }}>
+            <div className="pension-funds-balance-box">
               <strong>יתרה שעליה מבוססת הקצבה:</strong> {formatCurrency(calculateOriginalBalance(fund))}
             </div>
             
@@ -55,7 +47,7 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
                 {(fund.balance === 0 || fund.balance === undefined) && 
                  (fund.current_balance === 0 || fund.current_balance === undefined) && 
                  (fund.computed_monthly_amount || 0) > 0 && (
-                  <div style={{ color: "green", fontWeight: "bold" }}>
+                  <div className="pension-funds-converted-message">
                     <strong>היתרה הומרה לקצבה חודשית</strong>
                   </div>
                 )}
@@ -75,36 +67,26 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
             }</div>
             
             {/* הצגת סכום חודשי בכל מקרה - מודגש ובולט */}
-            <div style={{ 
-              color: "green", 
-              fontWeight: "bold", 
-              backgroundColor: "#f0fff0", 
-              padding: "12px", 
-              borderRadius: "4px", 
-              border: "1px solid #28a745",
-              marginTop: "10px",
-              marginBottom: "10px",
-              fontSize: "1.1em"
-            }}>
+            <div className="pension-funds-monthly-box">
               <strong>סכום חודשי:</strong> {formatCurrency(
                 // השרת מחזיר את הסכום החודשי הנכון
                 fund.monthly || fund.computed_monthly_amount || fund.pension_amount || fund.monthly_amount || 0
               )}
               {fund.annuity_factor && (
-                <span style={{ marginRight: "15px", fontSize: "0.9em", color: "#155724" }}>
+                <span className="pension-funds-annuity-factor-hint">
                   {' '}| <strong>מקדם קצבה:</strong> {fund.annuity_factor}
                 </span>
               )}
             </div>
             
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <div className="pension-funds-actions-row">
               {/* כפתור חישוב - רק למצב מחושב עם יתרה */}
               {fund.id && (fund.input_mode === "calculated" || fund.calculation_mode === "calculated") && 
                ((fund.balance || 0) > 0 || (fund.current_balance || 0) > 0) && (
                 <button
                   type="button"
                   onClick={() => onCompute(fund.id!)}
-                  style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: 4 }}
+                  className="pension-funds-button-compute"
                 >
                   חשב ושמור
                 </button>
@@ -114,7 +96,7 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
               <button
                 type="button"
                 onClick={() => onEdit(fund)}
-                style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: 4 }}
+                className="pension-funds-button-edit"
               >
                 ערוך
               </button>
@@ -124,7 +106,7 @@ export const PensionFundList: React.FC<PensionFundListProps> = ({
                 <button
                   type="button"
                   onClick={() => onDelete(fund.id!)}
-                  style={{ padding: "8px 12px", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: 4 }}
+                  className="pension-funds-button-delete"
                 >
                   מחק
                 </button>

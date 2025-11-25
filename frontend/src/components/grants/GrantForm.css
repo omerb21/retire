@@ -1,0 +1,30 @@
+.grant-form-container {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: var(--gray-50);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gray-200);
+}
+
+.grant-form-title {
+  margin-bottom: 1.5rem;
+  color: var(--gray-700);
+  font-size: 1.25rem;
+}
+
+.grant-form-grid-two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.grant-form-label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.grant-form-notes-section {
+  margin-bottom: 15px;
+}

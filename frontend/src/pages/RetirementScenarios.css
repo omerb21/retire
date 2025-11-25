@@ -1,0 +1,249 @@
+.retirement-scenarios-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.retirement-scenarios-back-row {
+  margin-bottom: 20px;
+}
+
+.retirement-scenarios-back-link {
+  color: #0066cc;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.retirement-scenarios-title {
+  margin-bottom: 10px;
+}
+
+.retirement-scenarios-subtitle {
+  color: var(--brand-secondary);
+  margin-bottom: 30px;
+}
+
+.retirement-scenarios-input-card {
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.retirement-scenarios-input-row {
+  margin-bottom: 20px;
+}
+
+.retirement-scenarios-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.retirement-scenarios-age-input {
+  width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.retirement-scenarios-age-hint {
+  margin-right: 10px;
+  color: var(--brand-secondary);
+  font-size: 12px;
+}
+
+.retirement-scenarios-primary-button {
+  background-color: #0066cc;
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.retirement-scenarios-primary-button:disabled {
+  background-color: var(--brand-secondary);
+  cursor: not-allowed;
+}
+
+.retirement-scenarios-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.retirement-scenarios-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 20px;
+}
+
+.retirement-scenarios-results-title {
+  margin-bottom: 20px;
+}
+
+.retirement-scenarios-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.retirement-scenarios-card {
+  position: relative;
+  border: 2px solid #dee2e6;
+  border-radius: var(--radius);
+  padding: 20px;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.retirement-scenarios-card-title {
+  margin-top: 0;
+  color: #0066cc;
+  font-size: 18px;
+}
+
+.retirement-scenarios-card-body {
+  margin-top: 15px;
+}
+
+.retirement-scenarios-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.retirement-scenarios-card-label {
+  font-size: 12px;
+  color: var(--brand-secondary);
+}
+
+.retirement-scenarios-card-value {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.retirement-scenarios-card-footer {
+  border-top: 1px solid #dee2e6;
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--brand-secondary);
+}
+
+.retirement-scenarios-execution-details {
+  margin-top: 15px;
+  font-size: 13px;
+}
+
+.retirement-scenarios-execution-summary {
+  cursor: pointer;
+  font-weight: bold;
+  color: #0066cc;
+}
+
+.retirement-scenarios-execution-list {
+  margin-top: 10px;
+  background-color: #f1f3f5;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.retirement-scenarios-execution-item {
+  margin-bottom: 8px;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 8px;
+}
+
+.retirement-scenarios-execution-item-title {
+  font-weight: bold;
+}
+
+.retirement-scenarios-execution-item-meta {
+  font-size: 12px;
+  color: var(--brand-secondary);
+}
+
+.retirement-scenarios-execute-button {
+  margin-top: 15px;
+  width: 100%;
+  background-color: var(--brand-success);
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.retirement-scenarios-execute-button--executing {
+  background-color: var(--brand-secondary);
+}
+
+.retirement-scenarios-execute-button:disabled {
+  cursor: not-allowed;
+}
+
+.retirement-scenarios-summary-card {
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.retirement-scenarios-summary-title {
+  margin-top: 0;
+}
+
+.retirement-scenarios-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.retirement-scenarios-summary-header-row {
+  background-color: #f8f9fa;
+}
+
+.retirement-scenarios-summary-header-cell {
+  padding: 10px;
+  text-align: right;
+  border: 1px solid #dee2e6;
+}
+
+.retirement-scenarios-summary-cell {
+  padding: 10px;
+  border: 1px solid #dee2e6;
+}
+
+@media (max-width: 768px) {
+  .retirement-scenarios-container {
+    padding: 12px;
+  }
+
+  .retirement-scenarios-age-input {
+    width: 100%;
+  }
+
+  .retirement-scenarios-primary-button,
+  .retirement-scenarios-execute-button {
+    width: 100%;
+  }
+
+  .retirement-scenarios-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

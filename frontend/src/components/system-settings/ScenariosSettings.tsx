@@ -2,67 +2,44 @@ import React from 'react';
 
 const ScenariosSettings: React.FC = () => {
   return (
-    <div style={{ marginBottom: '40px' }}>
-      <h2 style={{ color: '#2c3e50', fontSize: '24px', marginBottom: '20px' }}>
+    <div className="system-settings-section">
+      <h2 className="system-settings-section-title">
         לוגיקת תרחישי פרישה
       </h2>
       
-      <div style={{ 
-        backgroundColor: '#f8f9fa', 
-        border: '1px solid #dee2e6', 
-        borderRadius: '8px', 
-        padding: '20px', 
-        marginBottom: '20px' 
-      }}>
-        <h3 style={{ color: '#495057', marginTop: 0 }}>🎯 עקרונות כלליים</h3>
-        <ul style={{ lineHeight: '1.8' }}>
+      <div className="system-settings-card system-settings-card-neutral">
+        <h3 className="system-settings-card-title-muted">🎯 עקרונות כלליים</h3>
+        <ul className="system-settings-list-spaced">
           <li><strong>בסיס הלוגיקה:</strong> כל ההמרות בתרחישי הפרישה חייבות לפעול לפי חוקי ההמרה המוגדרים במערכת</li>
           <li><strong>מחיקת יתרות:</strong> כל יתרה שעוברת המרה חייבת להימחק מהטבלה המקורית</li>
           <li><strong>שימור נתונים מקוריים:</strong> כל תרחיש רץ על snapshot של הנתונים המקוריים</li>
         </ul>
       </div>
       
-      <div style={{ 
-        backgroundColor: '#fff3cd', 
-        border: '1px solid #ffc107', 
-        borderRadius: '8px', 
-        padding: '20px', 
-        marginBottom: '20px' 
-      }}>
-        <h3 style={{ color: '#856404', marginTop: 0 }}>🎁 קרן השתלמות - יוצאת מן הכלל</h3>
+      <div className="system-settings-card system-settings-card-warning">
+        <h3 className="system-settings-card-title-warning">🎁 קרן השתלמות - יוצאת מן הכלל</h3>
         <p><strong>מיקום יתרה:</strong> טור "תגמולים"</p>
         <p><strong>מצב מס:</strong> פטור ממס (tax_treatment="exempt")</p>
         <p><strong>ייחודיות:</strong> טור תגמולים בדרך כלל לא ניתן להמרה להון, אבל קרן השתלמות היא יוצאת מן הכלל</p>
         
         <h4>אפשרויות המרה:</h4>
-        <ol style={{ lineHeight: '1.8' }}>
+        <ol className="system-settings-list-spaced">
           <li><strong>המרה לקצבה פטורה:</strong> יוצר PensionFund עם tax_treatment="exempt" (לא להכנסה נוספת!)</li>
           <li><strong>המרה לנכס הוני פטור:</strong> יוצר CapitalAsset עם tax_treatment="exempt"</li>
           <li><strong>לא הגיוני:</strong> להמיר לקצבה ואז להוון (זה שווה להמרה ישירה להון)</li>
         </ol>
       </div>
       
-      <div style={{ 
-        backgroundColor: '#d4edda', 
-        border: '1px solid #28a745', 
-        borderRadius: '8px', 
-        padding: '20px', 
-        marginBottom: '20px' 
-      }}>
-        <h3 style={{ color: '#155724', marginTop: 0 }}>📋 מוצרים פנסיוניים רגילים</h3>
+      <div className="system-settings-card system-settings-card-success">
+        <h3 className="system-settings-card-title-success">📋 מוצרים פנסיוניים רגילים</h3>
         
         <h4>טור "פיצויים מעסיק נוכחי":</h4>
-        <p style={{ 
-          backgroundColor: '#fff', 
-          padding: '10px', 
-          borderRadius: '4px', 
-          border: '1px solid #c3e6cb' 
-        }}>
+        <p className="system-settings-inline-note system-settings-inline-note-success">
           ⛔ <strong>אין לגעת בו בתרחישים!</strong> ההמרות שלו מתבצעות במסך "עזיבת עבודה"
         </p>
         
         <h4>יתרות אחרות - ליצירת נכסים הוניים:</h4>
-        <ol style={{ lineHeight: '1.8' }}>
+        <ol className="system-settings-list-spaced">
           <li>
             <strong>יתרות הניתנות להמרה ישירה להון</strong> (פיצויים לאחר התחשבנות, תגמולי עובד/מעביד עד 2000):
             <br/>→ המרה ישירה לנכס הוני (לא להמיר לקצבה ואז להוון!)
@@ -77,14 +54,8 @@ const ScenariosSettings: React.FC = () => {
         <p>המרה לקצבה לפי חוקי ההמרה (יחס מס נשמר מהטור המקורי)</p>
       </div>
       
-      <div style={{ 
-        backgroundColor: '#d1ecf1', 
-        border: '1px solid #17a2b8', 
-        borderRadius: '8px', 
-        padding: '20px', 
-        marginBottom: '20px' 
-      }}>
-        <h3 style={{ color: '#0c5460', marginTop: 0 }}>🔄 המרות רכיבים אחרים</h3>
+      <div className="system-settings-card system-settings-card-info">
+        <h3 className="system-settings-card-title-info">🔄 המרות רכיבים אחרים</h3>
         
         <h4>קצבאות (PensionFund):</h4>
         <ul>
@@ -94,12 +65,7 @@ const ScenariosSettings: React.FC = () => {
         </ul>
         
         <h4>הכנסות נוספות (AdditionalIncome):</h4>
-        <p style={{ 
-          backgroundColor: '#fff', 
-          padding: '10px', 
-          borderRadius: '4px', 
-          border: '1px solid #bee5eb' 
-        }}>
+        <p className="system-settings-inline-note system-settings-inline-note-info">
           ⛔ <strong>אין לגעת בהן!</strong> לא ניתנות להמרה, נשארות תמיד כמו שהן
         </p>
         
@@ -117,35 +83,24 @@ const ScenariosSettings: React.FC = () => {
         </ul>
       </div>
       
-      <div style={{ 
-        backgroundColor: '#f8d7da', 
-        border: '1px solid #dc3545', 
-        borderRadius: '8px', 
-        padding: '20px' 
-      }}>
-        <h3 style={{ color: '#721c24', marginTop: 0 }}>⚠️ מעסיק נוכחי ועזיבת עבודה</h3>
+      <div className="system-settings-card system-settings-card-danger">
+        <h3 className="system-settings-card-title-danger">⚠️ מעסיק נוכחי ועזיבת עבודה</h3>
         
         <p><strong>אם אין עזיבת עבודה:</strong> אין צורך בטיפול - המערכת עובדת נכון</p>
         
         <p><strong>אם קיימת עזיבת עבודה:</strong></p>
-        <ul style={{ lineHeight: '1.8' }}>
+        <ul className="system-settings-list-spaced">
           <li><strong>תרחיש 1 (מקסימום קצבה):</strong> סימון "קצבה" על הסכום הפטור והחייב</li>
           <li><strong>תרחיש 2 (מקסימום הון):</strong> פדיון + בדיקה האם שימוש בפטור (פריסת מס) נותן ערך נוכחי גבוה יותר</li>
           <li><strong>תרחיש 3 (מאוזן):</strong> שילוב של קצבה והון (50/50 או אופטימיזציה)</li>
         </ul>
       </div>
       
-      <div style={{ 
-        marginTop: '20px', 
-        padding: '15px', 
-        backgroundColor: '#e7f3ff', 
-        borderRadius: '4px',
-        border: '1px solid #b3d9ff'
-      }}>
-        <p style={{ margin: 0, fontSize: '14px', color: '#0056b3' }}>
+      <div className="system-settings-note-box">
+        <p className="system-settings-note-text">
           <strong>📚 לתיעוד מלא:</strong> ראה קובץ SCENARIOS_LOGIC.md בתיקיית המערכת
         </p>
-        <p style={{ margin: '10px 0 0 0', fontSize: '13px', color: '#0056b3' }}>
+        <p className="system-settings-note-subtext">
           <strong>תאריך עדכון אחרון:</strong> 18/10/2025
         </p>
       </div>

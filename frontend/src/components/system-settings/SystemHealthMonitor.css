@@ -1,0 +1,242 @@
+.system-health-container {
+  margin-bottom: 40px;
+}
+
+.system-health-loading,
+.system-health-error {
+  padding: 20px;
+  text-align: center;
+}
+
+.system-health-loading-icon,
+.system-health-error-icon {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.system-health-error {
+  color: #dc3545;
+}
+
+.system-health-try-again-button {
+  margin-top: 15px;
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.system-health-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.system-health-title {
+  color: #2c3e50;
+  font-size: 24px;
+  margin: 0;
+}
+
+.system-health-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.system-health-refresh-button,
+.system-health-fix-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.system-health-refresh-button {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+.system-health-refresh-button--loading {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.system-health-fix-button {
+  background-color: #ffc107;
+  color: #000;
+  font-weight: bold;
+}
+
+.system-health-fix-button--fixing {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.system-health-status-card {
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-width: 2px;
+  border-style: solid;
+}
+
+.system-health-status-card--healthy {
+  background-color: #d4edda;
+  border-color: #28a745;
+}
+
+.system-health-status-card--unhealthy {
+  background-color: #f8d7da;
+  border-color: #dc3545;
+}
+
+.system-health-status-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.system-health-status-icon {
+  font-size: 48px;
+}
+
+.system-health-status-title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.system-health-status-title--healthy {
+  color: #155724;
+}
+
+.system-health-status-title--unhealthy {
+  color: #721c24;
+}
+
+.system-health-status-subtitle {
+  font-size: 14px;
+  color: #666;
+  margin-top: 5px;
+}
+
+.system-health-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  font-size: 14px;
+}
+
+.system-health-summary-card {
+  padding: 10px;
+  background-color: #fff;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.system-health-summary-label {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.system-health-summary-value {
+  font-size: 24px;
+}
+
+.system-health-summary-value--total {
+  color: #007bff;
+}
+
+.system-health-summary-value--valid {
+  color: #28a745;
+}
+
+.system-health-summary-value--invalid {
+  color: #dc3545;
+}
+
+.system-health-tables-card {
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.system-health-tables-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.system-health-tables-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.system-health-table-item {
+  padding: 15px;
+  border-radius: 4px;
+  border-width: 1px;
+  border-style: solid;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.system-health-table-item--valid {
+  background-color: #f8f9fa;
+  border-color: #dee2e6;
+}
+
+.system-health-table-item--invalid {
+  background-color: #fff3cd;
+  border-color: #ffc107;
+}
+
+.system-health-table-icon {
+  font-size: 24px;
+}
+
+.system-health-table-content {
+  flex: 1;
+}
+
+.system-health-table-description {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.system-health-table-name {
+  font-size: 13px;
+  color: #666;
+  font-family: monospace;
+}
+
+.system-health-table-error {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #856404;
+}
+
+.system-health-info-card {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #e7f3ff;
+  border-radius: 8px;
+  border: 1px solid #007bff;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.system-health-info-list {
+  margin-top: 10px;
+  margin-bottom: 0;
+  padding-right: 20px;
+}

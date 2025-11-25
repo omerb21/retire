@@ -1,0 +1,70 @@
+.asset-item-container {
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.asset-item-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.asset-item-header {
+  font-size: 18px;
+  font-weight: bold;
+  color: #0056b3;
+  margin-bottom: 8px;
+}
+
+.asset-item-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.asset-item-card {
+  background-color: #fff;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #eee;
+}
+
+.asset-item-card-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.asset-item-tax-card {
+  background-color: #f0f8ff;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #d1e7ff;
+}
+
+.asset-item-tax-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.asset-item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.asset-item-edit-button {
+  padding: 8px 12px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+}
+
+.asset-item-delete-button {
+  padding: 8px 12px;
+  background-color: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+}

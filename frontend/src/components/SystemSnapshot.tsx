@@ -8,6 +8,18 @@ import SaveIcon from '@mui/icons-material/Save';
 import RestoreIcon from '@mui/icons-material/Restore';
 import InfoIcon from '@mui/icons-material/Info';
 import { API_BASE } from '../lib/api';
+import {
+  loadPensionDataFromStorage,
+  savePensionDataToStorage,
+  removePensionDataFromStorage,
+  loadConvertedAccountsFromStorage,
+  saveConvertedAccountsToStorage,
+  removeConvertedAccountsFromStorage,
+} from '../pages/PensionPortfolio/services/pensionPortfolioStorageService';
+import {
+  loadSnapshotRawFromStorage,
+  saveSnapshotRawToStorage,
+} from '../services/snapshotStorageService';
 
 interface SystemSnapshotProps {
   clientId: number;
@@ -31,7 +43,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
 
   // טעינת snapshot שמור מ-localStorage
   React.useEffect(() => {
-    const stored = localStorage.getItem(`snapshot_client_${clientId}`);
+    const stored = loadSnapshotRawFromStorage(clientId);
     if (stored) {
       try {
         setSavedSnapshot(JSON.parse(stored));
@@ -63,18 +75,17 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
 
       const data = await response.json();
       
-      // שמירת נתוני PensionPortfolio מ-localStorage
-      const pensionData = localStorage.getItem(`pensionData_${clientId}`);
-      const convertedAccounts = localStorage.getItem(`convertedAccounts_${clientId}`);
+      const pensionPortfolio = loadPensionDataFromStorage(String(clientId)) || [];
+      const convertedAccountsSet = loadConvertedAccountsFromStorage(String(clientId));
+      const convertedAccounts = Array.from(convertedAccountsSet);
       
-      // שמירה ב-localStorage כולל נתוני PensionPortfolio
       const snapshotData = {
         ...data.snapshot,
-        pension_portfolio: pensionData ? JSON.parse(pensionData) : [],
-        converted_accounts: convertedAccounts ? JSON.parse(convertedAccounts) : []
+        pension_portfolio: pensionPortfolio,
+        converted_accounts: convertedAccounts,
       };
-      
-      localStorage.setItem(`snapshot_client_${clientId}`, JSON.stringify(snapshotData));
+
+      saveSnapshotRawToStorage(clientId, JSON.stringify(snapshotData));
       setSavedSnapshot(snapshotData);
 
       setMessage({
@@ -129,19 +140,24 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
 
       // שחזור נתוני PensionPortfolio מה-snapshot
       if (savedSnapshot.pension_portfolio && Array.isArray(savedSnapshot.pension_portfolio)) {
-        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(savedSnapshot.pension_portfolio));
+        savePensionDataToStorage(String(clientId), savedSnapshot.pension_portfolio as any[]);
         console.log(`✅ Restored ${savedSnapshot.pension_portfolio.length} pension accounts to localStorage`);
         console.log('Sample account:', savedSnapshot.pension_portfolio[0]);
       } else {
-        // אם אין נתונים ב-snapshot, נקה את ה-localStorage
-        localStorage.removeItem(`pensionData_${clientId}`);
+        removePensionDataFromStorage(String(clientId));
         console.log('⚠️ No pension portfolio data in snapshot');
       }
 
       if (savedSnapshot.converted_accounts) {
-        localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(savedSnapshot.converted_accounts));
+        const convertedSet = new Set<string>(
+          (Array.isArray(savedSnapshot.converted_accounts)
+            ? savedSnapshot.converted_accounts
+            : [savedSnapshot.converted_accounts]
+          ).map((id: any) => String(id))
+        );
+        saveConvertedAccountsToStorage(String(clientId), convertedSet);
       } else {
-        localStorage.removeItem(`convertedAccounts_${clientId}`);
+        removeConvertedAccountsFromStorage(String(clientId));
       }
 
       // קריאה לפונקציית callback אם קיימת

@@ -1,0 +1,10 @@
+.asset-list-empty {
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.asset-list-grid {
+  display: grid;
+  gap: 16px;
+}

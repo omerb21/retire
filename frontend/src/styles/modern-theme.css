@@ -12,6 +12,14 @@
   --secondary-dark: #059669;
   --secondary-light: #34d399;
   
+  /* Legacy Bootstrap-inspired Brand Palette (used across older screens) */
+  --brand-primary: #007bff;
+  --brand-secondary: #6c757d;
+  --brand-success: #28a745;
+  --brand-warning: #ffc107;
+  --brand-danger: #dc3545;
+  --brand-info: #17a2b8;
+  
   /* Neutral Colors */
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;

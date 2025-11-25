@@ -3,29 +3,31 @@
  */
 
 import { PlanDetail } from '../types';
+import {
+  loadPensionDataFromStorage,
+  updatePensionDataInStorage,
+} from '../../PensionPortfolio/services/pensionPortfolioStorageService';
 
 /**
  * Get severance from pension portfolio localStorage
  */
 export const getSeveranceFromPension = (clientId: string): number => {
-  const pensionStorageKey = `pensionData_${clientId}`;
-  const storedPensionData = localStorage.getItem(pensionStorageKey);
-  
-  if (!storedPensionData) {
+  const pensionData = loadPensionDataFromStorage(clientId);
+
+  if (!pensionData || pensionData.length === 0) {
     console.log('לא נמצא תיק פנסיוני ב-localStorage עבור לקוח:', clientId);
     return 0;
   }
-  
+
   try {
-    const pensionData = JSON.parse(storedPensionData);
     const severanceFromPension = pensionData.reduce((sum: number, account: any) => {
       const currentEmployerSeverance = Number(account.פיצויים_מעסיק_נוכחי || 0);
       return sum + currentEmployerSeverance;
     }, 0);
-    
+
     console.log('יתרת פיצויים מתיק פנסיוני:', severanceFromPension);
     console.log('מספר חשבונות:', pensionData.length);
-    
+
     return severanceFromPension;
   } catch (e) {
     console.error('שגיאה בטעינת נתוני תיק פנסיוני:', e);
@@ -40,16 +42,16 @@ export const saveSeveranceDistribution = (clientId: string): {
   sourceAccountNames: string[];
   planDetails: PlanDetail[];
 } => {
-  const pensionStorageKey = `pensionData_${clientId}`;
-  const storedPensionData = localStorage.getItem(pensionStorageKey);
-  
   const sourceAccountNames: string[] = [];
   const planDetails: PlanDetail[] = [];
   
-  if (!storedPensionData) return { sourceAccountNames, planDetails };
+  const pensionData = loadPensionDataFromStorage(clientId);
+
+  if (!pensionData || pensionData.length === 0) {
+    return { sourceAccountNames, planDetails };
+  }
   
   try {
-    const pensionData = JSON.parse(storedPensionData);
     const distribution: { [key: string]: number } = {};
     let totalSeverance = 0;
     
@@ -89,19 +91,15 @@ export const saveSeveranceDistribution = (clientId: string): {
  * Clear severance from pension portfolio
  */
 export const clearSeveranceFromPension = (clientId: string): void => {
-  const pensionStorageKey = `pensionData_${clientId}`;
-  const storedPensionData = localStorage.getItem(pensionStorageKey);
-  
-  if (!storedPensionData) return;
-  
   try {
-    const pensionData = JSON.parse(storedPensionData);
-    const updatedPensionData = pensionData.map((account: any) => ({
-      ...account,
-      פיצויים_מעסיק_נוכחי: 0
-    }));
-    
-    localStorage.setItem(pensionStorageKey, JSON.stringify(updatedPensionData));
+    updatePensionDataInStorage(clientId, (pensionData) => {
+      const updatedPensionData = pensionData.map((account: any) => ({
+        ...account,
+        פיצויים_מעסיק_נוכחי: 0,
+      }));
+
+      return updatedPensionData;
+    });
     console.log('✅ פיצויים מעסיק נוכחי אופסו בתיק הפנסיוני');
   } catch (e) {
     console.error('שגיאה במחיקת פיצויים מתיק פנסיוני:', e);
@@ -112,37 +110,38 @@ export const clearSeveranceFromPension = (clientId: string): void => {
  * Restore severance to pension portfolio
  */
 export const restoreSeveranceToPension = (clientId: string): number => {
-  const pensionStorageKey = `pensionData_${clientId}`;
-  const storedPensionData = localStorage.getItem(pensionStorageKey);
   const savedDistribution = localStorage.getItem(`severanceDistribution_${clientId}`);
   
   let severanceToRestore = 0;
   
-  if (!storedPensionData || !savedDistribution) {
+  if (!savedDistribution) {
     console.log('⚠️ לא נמצאה התפלגות שמורה');
     return 0;
   }
   
   try {
-    const pensionData = JSON.parse(storedPensionData);
     const distribution = JSON.parse(savedDistribution);
     
     console.log('📦 התפלגות מקורית:', distribution);
-    
-    const updatedPensionData = pensionData.map((account: any, idx: number) => {
-      const accountKey = account.מספר_חשבון || `account_${idx}`;
-      const originalAmount = distribution[accountKey] || 0;
-      
-      console.log(`  חשבון ${account.שם_תכנית} (${accountKey}): ${account.פיצויים_מעסיק_נוכחי || 0} → ${originalAmount}`);
-      severanceToRestore += originalAmount;
-      
-      return {
-        ...account,
-        פיצויים_מעסיק_נוכחי: originalAmount
-      };
+
+    updatePensionDataInStorage(clientId, (pensionData) => {
+      const updatedPensionData = pensionData.map((account: any, idx: number) => {
+        const accountKey = account.מספר_חשבון || `account_${idx}`;
+        const originalAmount = distribution[accountKey] || 0;
+
+        console.log(
+          `  חשבון ${account.שם_תכנית} (${accountKey}): ${account.פיצויים_מעסיק_נוכחי || 0} → ${originalAmount}`
+        );
+        severanceToRestore += originalAmount;
+
+        return {
+          ...account,
+          פיצויים_מעסיק_נוכחי: originalAmount,
+        };
+      });
+
+      return updatedPensionData;
     });
-    
-    localStorage.setItem(pensionStorageKey, JSON.stringify(updatedPensionData));
     console.log('✅ פיצויים מעסיק נוכחי הוחזרו לתיק הפנסיוני:', severanceToRestore);
   } catch (e) {
     console.error('שגיאה בהחזרת פיצויים לתיק פנסיוני:', e);
@@ -182,4 +181,21 @@ export const clearTerminationState = (clientId: string): void => {
   localStorage.removeItem(terminationStorageKey);
   localStorage.removeItem(severanceStorageKey);
   localStorage.removeItem(distributionKey);
+};
+
+/**
+ * Save original severance amount
+ */
+export const saveOriginalSeveranceAmount = (clientId: string, amount: number): void => {
+  const severanceStorageKey = `originalSeverance_${clientId}`;
+  localStorage.setItem(severanceStorageKey, amount.toString());
+};
+
+/**
+ * Load original severance amount
+ */
+export const loadOriginalSeveranceAmount = (clientId: string): number => {
+  const severanceStorageKey = `originalSeverance_${clientId}`;
+  const stored = localStorage.getItem(severanceStorageKey);
+  return stored ? Number(stored) : 0;
 };

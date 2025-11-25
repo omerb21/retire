@@ -1,5 +1,6 @@
 import React from 'react';
 import { TaxBracket } from '../../types/system-settings.types';
+import './TaxSettings.css';
 
 interface TaxSettingsProps {
   taxBrackets: TaxBracket[];
@@ -25,14 +26,9 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
   const currentBrackets = isEditing ? editedBrackets : taxBrackets;
 
   return (
-    <div style={{ marginBottom: '40px' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '20px' 
-      }}>
-        <h2 style={{ color: '#2c3e50', fontSize: '24px', margin: 0 }}>
+    <div className="tax-settings-container">
+      <div className="tax-header">
+        <h2 className="tax-title">
           מדרגות מס הכנסה לשנת 2025
         </h2>
         
@@ -41,7 +37,7 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
             ✏️ ערוך מדרגות מס
           </button>
         ) : (
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="tax-actions">
             <button onClick={onSave} className="btn btn-success">
               ✅ שמור
             </button>
@@ -55,80 +51,48 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
       <div>
         <table className="modern-table">
           <thead>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <th style={{ 
-                padding: '15px', 
-                textAlign: 'center', 
-                borderBottom: '2px solid #dee2e6',
-                fontWeight: 'bold',
-                color: '#2c3e50'
-              }}>
+            <tr className="tax-table-header-row">
+              <th className="tax-table-header-cell">
                 שיעור מס
               </th>
-              <th style={{ 
-                padding: '15px', 
-                textAlign: 'center', 
-                borderBottom: '2px solid #dee2e6',
-                fontWeight: 'bold',
-                color: '#2c3e50'
-              }}>
+              <th className="tax-table-header-cell">
                 הכנסה חודשית
               </th>
-              <th style={{ 
-                padding: '15px', 
-                textAlign: 'center', 
-                borderBottom: '2px solid #dee2e6',
-                fontWeight: 'bold',
-                color: '#2c3e50'
-              }}>
+              <th className="tax-table-header-cell">
                 הכנסה שנתית
               </th>
             </tr>
           </thead>
           <tbody>
             {currentBrackets.map((bracket, index) => (
-              <tr key={bracket.id} style={{ 
-                backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa',
-                borderBottom: '1px solid #dee2e6'
-              }}>
-                <td style={{ 
-                  padding: '12px', 
-                  textAlign: 'center', 
-                  fontWeight: 'bold',
-                  color: '#007bff',
-                  fontSize: '16px'
-                }}>
+              <tr
+                key={bracket.id}
+                className={
+                  index % 2 === 0
+                    ? 'tax-table-row'
+                    : 'tax-table-row tax-table-row-alt'
+                }
+              >
+                <td className="tax-rate-cell">
                   {isEditing ? (
                     <input
                       type="number"
                       value={bracket.rate}
                       onChange={(e) => onBracketChange(index, 'rate', parseInt(e.target.value))}
-                      style={{
-                        width: '60px',
-                        padding: '5px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        textAlign: 'center'
-                      }}
+                      className="tax-input-rate"
                     />
                   ) : (
                     `${bracket.rate}%`
                   )}
                 </td>
-                <td style={{ padding: '12px', textAlign: 'center' }}>
+                <td className="tax-range-cell">
                   {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                    <div className="tax-range-editor">
                       <input
                         type="number"
                         value={bracket.minMonthly}
                         onChange={(e) => onBracketChange(index, 'minMonthly', parseInt(e.target.value))}
-                        style={{
-                          width: '80px',
-                          padding: '5px',
-                          border: '1px solid #ccc',
-                          borderRadius: '4px',
-                          textAlign: 'center'
-                        }}
+                        className="tax-input-monthly"
                       />
                       <span>-</span>
                       {bracket.maxMonthly === Infinity ? (
@@ -138,13 +102,7 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
                           type="number"
                           value={bracket.maxMonthly}
                           onChange={(e) => onBracketChange(index, 'maxMonthly', parseInt(e.target.value))}
-                          style={{
-                            width: '80px',
-                            padding: '5px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            textAlign: 'center'
-                          }}
+                          className="tax-input-monthly"
                         />
                       )}
                     </div>
@@ -154,20 +112,14 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
                       `${formatCurrency(bracket.minMonthly)} - ${formatCurrency(bracket.maxMonthly)}`
                   )}
                 </td>
-                <td style={{ padding: '12px', textAlign: 'center' }}>
+                <td className="tax-annual-cell">
                   {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                    <div className="tax-range-editor">
                       <input
                         type="number"
                         value={bracket.minAnnual}
                         onChange={(e) => onBracketChange(index, 'minAnnual', parseInt(e.target.value))}
-                        style={{
-                          width: '100px',
-                          padding: '5px',
-                          border: '1px solid #ccc',
-                          borderRadius: '4px',
-                          textAlign: 'center'
-                        }}
+                        className="tax-input-annual-wide"
                       />
                       <span>-</span>
                       {bracket.maxAnnual === Infinity ? (
@@ -177,13 +129,7 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
                           type="number"
                           value={bracket.maxAnnual}
                           onChange={(e) => onBracketChange(index, 'maxAnnual', parseInt(e.target.value))}
-                          style={{
-                            width: '100px',
-                            padding: '5px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            textAlign: 'center'
-                          }}
+                          className="tax-input-annual-wide"
                         />
                       )}
                     </div>
@@ -199,14 +145,8 @@ const TaxSettings: React.FC<TaxSettingsProps> = ({
         </table>
       </div>
 
-      <div style={{ 
-        marginTop: '15px', 
-        padding: '15px', 
-        backgroundColor: '#e7f3ff', 
-        borderRadius: '4px',
-        border: '1px solid #b3d9ff'
-      }}>
-        <p style={{ margin: 0, fontSize: '14px', color: '#0056b3' }}>
+      <div className="tax-note-box">
+        <p className="tax-note-text">
           <strong>הערה:</strong> מדרגות המס מתעדכנות אוטומטית בכל חישובי המס במערכת. 
           שינויים נשמרים במחשב המקומי ויישמרו עד לעדכון הבא.
         </p>

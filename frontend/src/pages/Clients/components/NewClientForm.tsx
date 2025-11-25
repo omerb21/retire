@@ -11,8 +11,8 @@ interface NewClientFormProps {
 export const NewClientForm: React.FC<NewClientFormProps> = ({ form, setForm, onSubmit }) => {
   return (
     <section>
-      <h3 style={{ marginBottom: '1rem', color: 'var(--gray-700)', fontSize: '1.25rem' }}>פתיחת לקוח חדש</h3>
-      <form onSubmit={onSubmit} className="grid" style={{ gap: '1rem' }}>
+      <h3 className="clients-section-title">פתיחת לקוח חדש</h3>
+      <form onSubmit={onSubmit} className="grid clients-grid">
         <input
           placeholder={"ת\"ז (למשל 123456782)"}
           value={form.id_number}
@@ -63,7 +63,7 @@ export const NewClientForm: React.FC<NewClientFormProps> = ({ form, setForm, onS
           className="form-input"
         />
 
-        <button type="submit" className="btn btn-success" style={{ marginTop: '0.5rem' }}>
+        <button type="submit" className="btn btn-success clients-new-client-submit">
           שמור לקוח
         </button>
       </form>

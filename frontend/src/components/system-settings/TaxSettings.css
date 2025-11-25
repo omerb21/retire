@@ -1,0 +1,74 @@
+.tax-settings-container {
+  margin-bottom: 40px;
+}
+
+.tax-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.tax-title {
+  color: #2c3e50;
+  font-size: 24px;
+  margin: 0;
+}
+
+.tax-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.tax-rate-cell {
+  padding: 12px;
+  text-align: center;
+  font-weight: bold;
+  color: #007bff;
+  font-size: 16px;
+}
+
+.tax-range-cell,
+.tax-annual-cell {
+  padding: 12px;
+  text-align: center;
+}
+
+.tax-input-rate {
+  width: 60px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.tax-input-monthly,
+.tax-input-annual {
+  width: 80px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.tax-input-annual-wide {
+  width: 100px;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.tax-note-box {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #e7f3ff;
+  border-radius: 4px;
+  border: 1px solid #b3d9ff;
+}
+
+.tax-note-text {
+  margin: 0;
+  font-size: 14px;
+  color: #0056b3;
+}

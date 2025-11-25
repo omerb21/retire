@@ -14,33 +14,33 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
   capitalAssets
 }) => {
   return (
-    <div style={{ marginBottom: '30px' }}>
+    <div className="reports-section reports-section--income-details">
       <h3>פירוט מקורות הכנסה</h3>
       
       {/* קצבאות */}
       {pensionFunds.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
+        <div className="reports-income-group">
           <h4>קצבאות ({pensionFunds.length})</h4>
-          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+          <table className="reports-table reports-table--income">
             <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>שם הקרן</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>מקדם קצבה</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>קצבה חודשית</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תאריך התחלה</th>
+              <tr className="reports-table-header-row--income">
+                <th className="reports-table-header-cell--income">שם הקרן</th>
+                <th className="reports-table-header-cell--income">מקדם קצבה</th>
+                <th className="reports-table-header-cell--income">קצבה חודשית</th>
+                <th className="reports-table-header-cell--income">תאריך התחלה</th>
               </tr>
             </thead>
             <tbody>
               {pensionFunds.map((fund, index) => (
                 <tr key={index}>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>{fund.fund_name}</td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">{fund.fund_name}</td>
+                  <td className="reports-table-cell--income">
                     {fund.annuity_factor || fund.pension_coefficient || fund.coefficient || '-'}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {formatCurrency(parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0)}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {fund.pension_start_date ? formatDateToDDMMYY(fund.pension_start_date) : fund.start_date ? formatDateToDDMMYY(fund.start_date) : '-'}
                   </td>
                 </tr>
@@ -52,22 +52,22 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
 
       {/* הכנסות נוספות */}
       {additionalIncomes.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
+        <div className="reports-income-group">
           <h4>הכנסות נוספות ({additionalIncomes.length})</h4>
-          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+          <table className="reports-table reports-table--income">
             <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תיאור</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>סכום חודשי</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תאריך התחלה</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תאריך סיום</th>
+              <tr className="reports-table-header-row--income">
+                <th className="reports-table-header-cell--income">תיאור</th>
+                <th className="reports-table-header-cell--income">סכום חודשי</th>
+                <th className="reports-table-header-cell--income">תאריך התחלה</th>
+                <th className="reports-table-header-cell--income">תאריך סיום</th>
               </tr>
             </thead>
             <tbody>
               {additionalIncomes.map((income, index) => (
                 <tr key={index}>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>{income.description}</td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">{income.description}</td>
+                  <td className="reports-table-cell--income">
                     {formatCurrency((() => {
                       const amount = parseFloat(income.amount) || 0;
                       if (income.frequency === 'monthly') return amount;
@@ -76,10 +76,10 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
                       return amount;
                     })())}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {income.start_date ? formatDateToDDMMYY(income.start_date) : '-'}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {income.end_date ? formatDateToDDMMYY(income.end_date) : 'ללא הגבלה'}
                   </td>
                 </tr>
@@ -91,30 +91,30 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
 
       {/* נכסי הון */}
       {capitalAssets.length > 0 && (
-        <div style={{ marginBottom: '20px' }}>
+        <div className="reports-income-group">
           <h4>נכסי הון ({capitalAssets.length})</h4>
-          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
+          <table className="reports-table reports-table--income">
             <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תיאור</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>ערך נוכחי</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תשלום חד פעמי</th>
-                <th style={{ padding: '10px', border: '1px solid #dee2e6', textAlign: 'right' }}>תאריך תשלום</th>
+              <tr className="reports-table-header-row--income">
+                <th className="reports-table-header-cell--income">תיאור</th>
+                <th className="reports-table-header-cell--income">ערך נוכחי</th>
+                <th className="reports-table-header-cell--income">תשלום חד פעמי</th>
+                <th className="reports-table-header-cell--income">תאריך תשלום</th>
               </tr>
             </thead>
             <tbody>
               {capitalAssets.map((asset, index) => (
                 <tr key={index}>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {asset.asset_name || asset.description}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {formatCurrency(parseFloat(asset.current_value) || 0)}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {formatCurrency(parseFloat(asset.monthly_income) || 0)}
                   </td>
-                  <td style={{ padding: '10px', border: '1px solid #dee2e6' }}>
+                  <td className="reports-table-cell--income">
                     {asset.start_date ? formatDateToDDMMYY(asset.start_date) : '-'}
                   </td>
                 </tr>

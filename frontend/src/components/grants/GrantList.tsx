@@ -8,6 +8,7 @@ import { Grant, GrantDetails } from '../../types/grant.types';
 import { formatDateToDDMMYY } from '../../utils/dateUtils';
 import { getGrantAmount } from '../../utils/grantCalculations';
 import { formatCurrency } from '../../lib/validation';
+import './GrantList.css';
 
 interface GrantListProps {
   grants: Grant[];
@@ -18,20 +19,14 @@ interface GrantListProps {
 export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDelete }) => {
   if (grants.length === 0) {
     return (
-      <div style={{ 
-        padding: '20px', 
-        backgroundColor: '#f8f9fa', 
-        borderRadius: '4px',
-        textAlign: 'center',
-        color: '#666'
-      }}>
+      <div className="grant-list-empty">
         אין מענקים רשומים
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'grid', gap: '15px' }}>
+    <div className="grant-list-grid">
       {grants.map((grant, index) => {
         const details = grant.id ? grantDetails[grant.id] : null;
         const amount = getGrantAmount(grant);
@@ -39,16 +34,11 @@ export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDe
         return (
           <div 
             key={grant.id || index}
-            style={{ 
-              padding: '20px', 
-              border: '1px solid #ddd', 
-              borderRadius: '4px',
-              backgroundColor: 'white'
-            }}
+            className="grant-list-item"
           >
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '15px', alignItems: 'start' }}>
+            <div className="grant-list-item-inner">
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                <div className="grant-list-item-meta-grid">
                   <div>
                     <strong>מעסיק:</strong> {grant.employer_name}
                   </div>
@@ -60,25 +50,20 @@ export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDe
                   </div>
                 </div>
                 
-                <div style={{ marginBottom: '10px' }}>
+                <div className="grant-list-amount-section">
                   <div>
                     <strong>סכום מענק:</strong> {formatCurrency(amount)}
                   </div>
                 </div>
 
                 {details && (
-                  <div style={{ 
-                    padding: '10px', 
-                    backgroundColor: '#f8fff9', 
-                    borderRadius: '4px',
-                    border: '1px solid #d4edda'
-                  }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                  <div className="grant-list-details">
+                    <div className="grant-list-details-grid">
                       <div>
                         <strong>תקופת עבודה:</strong> {details.serviceYears} שנים
                       </div>
                       {details.taxDue > 0 && (
-                        <div style={{ color: '#dc3545' }}>
+                        <div className="grant-list-tax-warning">
                           <strong>מס משוער:</strong> {formatCurrency(details.taxDue)}
                         </div>
                       )}
@@ -87,7 +72,7 @@ export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDe
                 )}
 
                 {grant.reason && (
-                  <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                  <div className="grant-list-notes">
                     <strong>הערות:</strong> {grant.reason}
                   </div>
                 )}
@@ -95,15 +80,7 @@ export const GrantList: React.FC<GrantListProps> = ({ grants, grantDetails, onDe
 
               <button
                 onClick={() => grant.id && onDelete(grant.id)}
-                style={{
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 12px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
+                className="grant-list-delete-button"
               >
                 מחק
               </button>

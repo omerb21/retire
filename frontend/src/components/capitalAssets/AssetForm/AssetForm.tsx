@@ -8,6 +8,7 @@ import React from 'react';
 import { CapitalAsset, ASSET_TYPES } from '../../../types/capitalAsset';
 import { formatDateInput } from '../../../utils/dateUtils';
 import { formatCurrency } from '../../../lib/validation';
+import './AssetForm.css';
 
 interface AssetFormProps {
   form: Partial<CapitalAsset>;
@@ -19,33 +20,26 @@ interface AssetFormProps {
 
 export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }: AssetFormProps) {
   return (
-    <section style={{ marginBottom: 32, padding: 16, border: "1px solid #ddd", borderRadius: 4 }}>
+    <section className="asset-form-section">
       <h3>{editingAssetId ? 'ערוך נכס הון' : 'הוסף נכס הון'}</h3>
       
       {/* הסבר על לוגיקת נכסי הון */}
-      <div style={{ 
-        marginBottom: 16, 
-        padding: 12, 
-        backgroundColor: '#e7f3ff', 
-        borderRadius: 4,
-        border: '1px solid #b3d9ff',
-        fontSize: '14px'
-      }}>
+      <div className="asset-form-info">
         <strong>💡 איך נכסי הון מוצגים במערכת:</strong>
-        <ul style={{ marginTop: 8, marginBottom: 0, paddingRight: 20 }}>
+        <ul className="asset-form-info-list">
           <li><strong>תשלום חד פעמי:</strong> אם שדה "ערך נוכחי" {'>'} 0, הנכס יוצג בתזרים בתאריך התשלום החד פעמי</li>
           <li><strong>הכנסה חודשית:</strong> אם שדה "תשלום" {'>'} 0, הנכס יוצג כהכנסה חודשית קבועה</li>
           <li><strong>פריסת מס:</strong> עבור תשלום חד-פעמי עם פריסה, המס יחושב על פי הפריסה אך ישולם בחד-פעמיות בתאריך התשלום</li>
         </ul>
       </div>
       
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, maxWidth: 500 }}>
+      <form onSubmit={onSubmit} className="asset-form">
         <input
           type="text"
           placeholder="שם הנכס"
           value={form.asset_name || ""}
           onChange={(e) => setForm({ ...form, asset_name: e.target.value })}
-          style={{ padding: 8 }}
+          className="asset-form-input"
           required
         />
 
@@ -54,7 +48,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
           <select
             value={form.asset_type}
             onChange={(e) => setForm({ ...form, asset_type: e.target.value })}
-            style={{ padding: 8, width: "100%" }}
+            className="asset-form-input asset-form-input-full"
           >
             {ASSET_TYPES.map(type => (
               <option key={type.value} value={type.value}>{type.label}</option>
@@ -72,7 +66,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
               const value = e.target.value;
               setForm({ ...form, monthly_income: value === "" ? 0 : parseFloat(value) });
             }}
-            style={{ padding: 8, width: "100%" }}
+            className="asset-form-input asset-form-input-full"
             min="0"
           />
         </div>
@@ -84,7 +78,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
             placeholder="0"
             value={form.current_value || ""}
             onChange={(e) => setForm({ ...form, current_value: parseFloat(e.target.value) || 0 })}
-            style={{ padding: 8, width: "100%" }}
+            className="asset-form-input asset-form-input-full"
             min="0"
           />
         </div>
@@ -95,7 +89,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
           placeholder="שיעור תשואה שנתי (%) - לחישוב מס רווח הון"
           value={form.annual_return_rate || ""}
           onChange={(e) => setForm({ ...form, annual_return_rate: parseFloat(e.target.value) || 0 })}
-          style={{ padding: 8 }}
+          className="asset-form-input"
         />
 
         <div>
@@ -108,7 +102,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
               const formatted = formatDateInput(e.target.value);
               setForm({ ...form, start_date: formatted });
             }}
-            style={{ padding: 8, width: "100%" }}
+            className="asset-form-input asset-form-input-full"
             maxLength={10}
             required
           />
@@ -119,7 +113,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
           <select
             value={form.indexation_method}
             onChange={(e) => setForm({ ...form, indexation_method: e.target.value as "none" | "fixed" | "cpi" })}
-            style={{ padding: 8, width: "100%" }}
+            className="asset-form-input asset-form-input-full"
           >
             <option value="none">ללא הצמדה</option>
             <option value="fixed">הצמדה קבועה</option>
@@ -134,7 +128,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
             placeholder="שיעור הצמדה קבוע (%)"
             value={form.fixed_rate || ""}
             onChange={(e) => setForm({ ...form, fixed_rate: parseFloat(e.target.value) || 0 })}
-            style={{ padding: 8 }}
+            className="asset-form-input"
           />
         )}
 
@@ -143,7 +137,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
           <select
             value={form.tax_treatment}
             onChange={(e) => setForm({ ...form, tax_treatment: e.target.value as "exempt" | "taxable" | "capital_gains" | "tax_spread" })}
-            style={{ padding: 8, width: "100%" }}
+            className="asset-form-input asset-form-input-full"
           >
             <option value="exempt">פטור ממס</option>
             <option value="taxable">חייב במס רגיל</option>
@@ -153,16 +147,16 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
         </div>
 
         {form.tax_treatment === "capital_gains" && (
-          <div style={{ padding: 15, backgroundColor: "#e7f3ff", borderRadius: 4, border: "1px solid #007bff" }}>
+          <div className="asset-form-capital-gains-box">
             <strong>💰 מס רווח הון (25%)</strong>
-            <p style={{ fontSize: "14px", marginTop: "8px", color: "#666", lineHeight: "1.6" }}>
+            <p className="asset-form-help-text">
               <strong>איך עובד חישוב מס רווח הון:</strong><br/>
               • המס מחושב על הרווח בלבד (תשלום - הפקדה נומינלית)<br/>
               • שיעור המס: 25% מהרווח<br/>
               • התשלום המעודכן: תשלום - 0.25 × (תשלום - הפקדה נומינלית)<br/>
               • הנכס יישמר כ"פטור ממס" עם התשלום המעודכן
             </p>
-            <div style={{ marginTop: "10px" }}>
+            <div className="asset-form-field-group">
               <label>סכום ההפקדה הנומינאלי (₪):</label>
               <input
                 type="number"
@@ -170,14 +164,14 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
                 placeholder="סכום ההפקדה הנומינאלי"
                 value={form.nominal_principal !== undefined && form.nominal_principal > 0 ? form.nominal_principal : (form.monthly_income || 0)}
                 onChange={(e) => setForm({ ...form, nominal_principal: parseFloat(e.target.value) || 0 })}
-                style={{ padding: 8, width: "100%", marginTop: "5px" }}
+                className="asset-form-input asset-form-input-full asset-form-input-with-margin"
                 required
               />
-              <div style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
+              <div className="asset-form-default-text">
                 ברירת מחדל: {formatCurrency(form.monthly_income || 0)} (סכום התשלום)
               </div>
               {form.monthly_income && form.monthly_income > 0 && (
-                <div style={{ marginTop: "10px", padding: "8px", backgroundColor: "#fff", borderRadius: "4px", border: "1px solid #ddd" }}>
+                <div className="asset-form-calculation-box">
                   <strong>חישוב:</strong><br/>
                   רווח: {formatCurrency((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0))}<br/>
                   מס (25%): {formatCurrency(((form.monthly_income || 0) - (form.nominal_principal && form.nominal_principal > 0 ? form.nominal_principal : form.monthly_income || 0)) * 0.25)}<br/>
@@ -189,16 +183,16 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
         )}
 
         {form.tax_treatment === "tax_spread" && (
-          <div style={{ padding: 15, backgroundColor: "#fff3cd", borderRadius: 4, border: "1px solid #ffc107" }}>
+          <div className="asset-form-tax-spread-box">
             <strong>📋 פריסת מס על מספר שנים</strong>
-            <p style={{ fontSize: "14px", marginTop: "8px", color: "#666", lineHeight: "1.6" }}>
+            <p className="asset-form-tax-spread-text">
               <strong>איך עובדת פריסת מס:</strong><br/>
               • הסכום מתחלק שווה על מספר השנים<br/>
               • לכל שנה מחושב המס לפי מדרגות (הכנסה רגילה + חלק שנתי מהמענק)<br/>
               • <strong>בשנה הראשונה משולם כל המס המצטבר</strong><br/>
               • בשנים הבאות - המס מוצג רק ויזואלית, לא בפועל
             </p>
-            <div style={{ marginTop: "10px" }}>
+            <div className="asset-form-field-group">
               <label>מספר שנות פריסה (בד"כ 1-6 לפי וותק):</label>
               <input
                 type="number"
@@ -207,24 +201,17 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
                 placeholder="מספר שנות פריסה"
                 value={form.spread_years || ""}
                 onChange={(e) => setForm({ ...form, spread_years: parseInt(e.target.value) || 0 })}
-                style={{ padding: 8, width: "100%", marginTop: "5px" }}
+                className="asset-form-tax-spread-years-input"
                 required
               />
             </div>
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="asset-form-actions">
           <button 
             type="submit" 
-            style={{ 
-              padding: "10px 16px", 
-              backgroundColor: "#007bff", 
-              color: "white", 
-              border: "none", 
-              borderRadius: 4,
-              flex: 1
-            }}
+            className="asset-form-submit-btn"
           >
             {editingAssetId ? 'שמור שינויים' : 'צור נכס הון'}
           </button>
@@ -233,13 +220,7 @@ export function AssetForm({ form, setForm, editingAssetId, onSubmit, onCancel }:
             <button 
               type="button" 
               onClick={onCancel}
-              style={{ 
-                padding: "10px 16px", 
-                backgroundColor: "#6c757d", 
-                color: "white", 
-                border: "none", 
-                borderRadius: 4 
-              }}
+              className="asset-form-cancel-btn"
             >
               בטל עריכה
             </button>

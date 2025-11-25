@@ -180,6 +180,22 @@ export function loadConversionRules(): ComponentConversionRule[] {
   return [...DEFAULT_COMPONENT_CONVERSION_RULES];
 }
 
+export function saveConversionRules(rules: ComponentConversionRule[]): void {
+  try {
+    localStorage.setItem('conversion_rules', JSON.stringify(rules));
+  } catch (error) {
+    console.warn('Failed to save conversion rules to localStorage:', error);
+  }
+}
+
+export function clearConversionRules(): void {
+  try {
+    localStorage.removeItem('conversion_rules');
+  } catch (error) {
+    console.warn('Failed to clear conversion rules from localStorage:', error);
+  }
+}
+
 /**
  * חוקי המרה פעילים (לטעינה דינמית)
  */
@@ -347,7 +363,7 @@ export function validateAccountConversion(
  */
 export function calculateTaxTreatment(
   account: any,
-  selectedAmounts: Record<string, boolean>,
+  selectedAmounts: Record<string, boolean | number>,
   conversionType: ConversionType
 ): 'taxable' | 'exempt' | 'capital_gains' {
   const productType = account.סוג_מוצר || '';

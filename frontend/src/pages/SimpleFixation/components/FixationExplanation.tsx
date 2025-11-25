@@ -2,17 +2,9 @@ import React from 'react';
 
 export const FixationExplanation: React.FC = () => {
   return (
-    <div
-      style={{
-        marginTop: '30px',
-        padding: '15px',
-        backgroundColor: '#e9ecef',
-        borderRadius: '4px',
-        fontSize: '14px'
-      }}
-    >
+    <div className="fixation-explanation">
       <strong>הסבר על טבלת הסיכום:</strong>
-      <ul style={{ marginTop: '10px', paddingRight: '20px' }}>
+      <ul className="fixation-explanation-list">
         <li>
           <strong>יתרת הון פטורה לשנת הזכאות:</strong> הסכום הכולל הזכאי לפטור ממס לפי חוק מס
           הכנסה
@@ -52,7 +44,7 @@ export const FixationExplanation: React.FC = () => {
           <strong>קצבה פטורה מחושבת:</strong> יתרת הפטור חלקי 180 (בסכום ובאחוזים מהתקרה)
         </li>
       </ul>
-      <div style={{ marginTop: '10px', fontSize: '12px', color: '#6c757d' }}>
+      <div className="fixation-explanation-footnote">
         * החישוב מבוסס על כלל 32 השנים האחרונות לפני גיל הזכאות והצמדה למדד המחירים לצרכן
       </div>
     </div>

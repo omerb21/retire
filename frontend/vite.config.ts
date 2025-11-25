@@ -23,4 +23,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          mui: ["@mui/material"],
+          charts: ["recharts"],
+          reports_vendor: ["jspdf", "jspdf-autotable", "xlsx"],
+        },
+      },
+    },
+  },
 });

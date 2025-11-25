@@ -64,19 +64,11 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
   );
 
   return (
-    <div
-      style={{
-        marginBottom: '30px',
-        padding: '20px',
-        border: '1px solid #007bff',
-        borderRadius: '4px',
-        backgroundColor: '#f8f9ff'
-      }}
-    >
-      <div style={{ marginBottom: '20px' }}>
+    <div className="fixation-summary-card">
+      <div className="fixation-summary-header">
         <h3>סיכום קיבוע זכויות</h3>
         {clientData && (
-          <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+          <div className="fixation-summary-client-info">
             <strong>לקוח:</strong>{' '}
             {clientData.full_name || `${clientData.first_name} ${clientData.last_name}` || 'לא צוין'} |
             <strong> ת.ז:</strong> {clientData.id_number} |
@@ -88,15 +80,7 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
         )}
       </div>
 
-      <div
-        style={{
-          marginBottom: '20px',
-          padding: '15px',
-          backgroundColor: '#fff3cd',
-          borderRadius: '4px',
-          border: '1px solid #ffc107'
-        }}
-      >
+      <div className="fixation-working-box">
         <div className="form-group">
           <label className="form-label">
             <input
@@ -156,14 +140,7 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
           </div>
         )}
 
-        <label
-          style={{
-            display: 'block',
-            marginBottom: '8px',
-            fontWeight: 'bold',
-            color: '#856404'
-          }}
-        >
+        <label className="fixation-future-grant-label">
           מענק עתידי משוריין (נומינלי):
         </label>
         <input
@@ -171,278 +148,103 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
           value={futureGrantReserved || ''}
           onChange={(e) => setFutureGrantReserved(parseFloat(e.target.value) || 0)}
           placeholder="הזן סכום מענק עתידי"
-          style={{
-            width: '100%',
-            padding: '10px',
-            fontSize: '16px',
-            border: '2px solid #ffc107',
-            borderRadius: '4px',
-            backgroundColor: 'white',
-            fontFamily: 'monospace'
-          }}
+          className="fixation-future-grant-input"
         />
-        <div
-          style={{
-            marginTop: '8px',
-            fontSize: '13px',
-            color: '#856404',
-            fontStyle: 'italic'
-          }}
-        >
+        <div className="fixation-future-grant-note">
           הערך יוכפל ב-1.35 ויופחת מיתרת ההון הפטורה
         </div>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: 'white',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}
-        >
+      <div>
+        <table className="fixation-summary-table">
           <thead>
-            <tr style={{ backgroundColor: '#343a40', color: 'white' }}>
-              <th
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'right',
-                  fontWeight: 'bold'
-                }}
-              >
+            <tr className="fixation-summary-table-header-row">
+              <th className="fixation-summary-header-cell fixation-summary-header-cell--right">
                 תיאור
               </th>
-              <th
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontWeight: 'bold'
-                }}
-              >
+              <th className="fixation-summary-header-cell fixation-summary-header-cell--left">
                 סכום (₪)
               </th>
             </tr>
           </thead>
           <tbody>
-            <tr style={{ backgroundColor: '#d1ecf1' }}>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 'bold'
-                }}
-              >
+            <tr className="fixation-summary-row fixation-summary-row--blue">
+              <td className="fixation-summary-cell fixation-summary-cell--label-strong">
                 יתרת הון פטורה לשנת הזכאות
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontWeight: 'bold',
-                  fontFamily: 'monospace'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value fixation-summary-cell--value-strong">
                 {formatMoney(summary.exempt_amount)}
               </td>
             </tr>
-            <tr>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500
-                }}
-              >
+            <tr className="fixation-summary-row">
+              <td className="fixation-summary-cell fixation-summary-cell--label">
                 סך נומינאלי של מענקי הפרישה
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value">
                 {formatMoney(summary.total_grants)}
               </td>
             </tr>
-            <tr>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500
-                }}
-              >
+            <tr className="fixation-summary-row">
+              <td className="fixation-summary-cell fixation-summary-cell--label">
                 סך המענקים הרלוונטים לאחר הוצמדה
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value">
                 {formatMoney(summary.total_indexed)}
               </td>
             </tr>
-            <tr>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500
-                }}
-              >
+            <tr className="fixation-summary-row">
+              <td className="fixation-summary-cell fixation-summary-cell--label">
                 סך הכל פגיעה בפטור בגין מענקים פטורים
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value">
                 {formatMoney(summary.used_exemption)}
               </td>
             </tr>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500,
-                  color: '#6c757d'
-                }}
-              >
+            <tr className="fixation-summary-row fixation-summary-row--gray">
+              <td className="fixation-summary-cell fixation-summary-cell--label fixation-summary-cell--muted">
                 מענק עתידי משוריין (נומינלי)
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
-                  color: '#6c757d'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value fixation-summary-cell--muted">
                 {formatMoney(summary.future_grant_reserved)}
               </td>
             </tr>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500,
-                  color: '#6c757d'
-                }}
-              >
+            <tr className="fixation-summary-row fixation-summary-row--gray">
+              <td className="fixation-summary-cell fixation-summary-cell--label fixation-summary-cell--muted">
                 השפעת מענק עתידי (×1.35)
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
-                  color: '#6c757d'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value fixation-summary-cell--muted">
                 {formatMoney(summary.future_grant_impact)}
               </td>
             </tr>
-            <tr style={{ backgroundColor: '#f8f9fa' }}>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500,
-                  color: '#6c757d'
-                }}
-              >
+            <tr className="fixation-summary-row fixation-summary-row--gray">
+              <td className="fixation-summary-cell fixation-summary-cell--label fixation-summary-cell--muted">
                 סך היוונים
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
-                  color: '#6c757d'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value fixation-summary-cell--muted">
                 {formatMoney(summary.total_discounts)}
               </td>
             </tr>
-            <tr>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500
-                }}
-              >
+            <tr className="fixation-summary-row">
+              <td className="fixation-summary-cell fixation-summary-cell--label">
                 יתרת הון פטורה לאחר קיזוזים
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
-                  color: '#28a745'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value fixation-summary-cell--success">
                 {formatMoney(summary.remaining_exemption)}
               </td>
             </tr>
-            <tr style={{ backgroundColor: '#fff3cd' }}>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 500
-                }}
-              >
+            <tr className="fixation-summary-row fixation-summary-row--yellow">
+              <td className="fixation-summary-cell fixation-summary-cell--label">
                 תקרת קצבה מזכה
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value">
                 {formatMoney(summary.pension_ceiling)}
               </td>
             </tr>
-            <tr style={{ backgroundColor: '#d4edda' }}>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  fontWeight: 'bold'
-                }}
-              >
+            <tr className="fixation-summary-row fixation-summary-row--green">
+              <td className="fixation-summary-cell fixation-summary-cell--label-strong">
                 קצבה פטורה מחושבת
               </td>
-              <td
-                style={{
-                  padding: '12px',
-                  border: '1px solid #ddd',
-                  textAlign: 'left',
-                  fontFamily: 'monospace',
-                  fontWeight: 'bold'
-                }}
-              >
+              <td className="fixation-summary-cell fixation-summary-cell--value fixation-summary-cell--value-strong">
                 {formatMoney(summary.exempt_pension_calculated.base_amount)} ₪ ({
                   summary.exempt_pension_calculated.percentage.toFixed(1)
                 }
@@ -454,74 +256,40 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
       </div>
 
       {exemptionSummary && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '20px',
-            marginBottom: '20px',
-            padding: '15px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '4px'
-          }}
-        >
+        <div className="fixation-exemption-details">
           <div>
-            <div style={{ marginBottom: '8px', fontSize: '14px' }}>
+            <div className="fixation-exemption-details-row">
               <strong>שנת זכאות:</strong> {fixationData.eligibility_year}
             </div>
-            <div style={{ marginBottom: '8px', fontSize: '14px' }}>
+            <div className="fixation-exemption-details-row">
               <strong>תאריך זכאות:</strong>{' '}
               {formatDateToDDMMYYYY(fixationData.eligibility_date)}
             </div>
           </div>
 
           <div>
-            <div style={{ marginBottom: '8px', fontSize: '14px' }}>
+            <div className="fixation-exemption-details-row">
               <strong>גיל פרישה:</strong> {retirementAge}
             </div>
-            <div style={{ marginBottom: '8px', fontSize: '14px' }}>
+            <div className="fixation-exemption-details-row">
               <strong>תאריך חישוב:</strong> {'9.10.2025'}
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', gap: '12px' }}>
+      <div className="fixation-summary-actions">
         <button
           onClick={onCalculateFixation}
           disabled={loading}
-          style={{
-            backgroundColor: loading ? '#6c757d' : '#28a745',
-            color: 'white',
-            border: 'none',
-            padding: '12px 40px',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            transition: 'all 0.3s ease'
-          }}
-          onMouseOver={(e) => {
-            if (!loading) e.currentTarget.style.transform = 'translateY(-2px)';
-          }}
-          onMouseOut={(e) => {
-            if (!loading) e.currentTarget.style.transform = 'translateY(0)';
-          }}
+          className="fixation-button fixation-button--primary"
         >
           {loading ? 'שומר...' : '💾 שמור קיבוע זכויות'}
         </button>
         <button
           onClick={onDeleteFixation}
           disabled={loading}
-          style={{
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            padding: '12px 24px',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            fontSize: '16px'
-          }}
+          className="fixation-button fixation-button--danger"
         >
           🗑 מחק קיבוע זכויות שמור
         </button>

@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGrants } from '../hooks/useGrants';
 import { GrantForm } from '../components/grants/GrantForm';
 import { GrantList } from '../components/grants/GrantList';
+import './SimpleGrants.css';
 
 const SimpleGrants: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -54,13 +55,7 @@ const SimpleGrants: React.FC = () => {
           />
         </div>
 
-        <div style={{ 
-          marginTop: '30px', 
-          padding: '15px', 
-          backgroundColor: '#e9ecef', 
-          borderRadius: '4px',
-          fontSize: '14px'
-        }}>
+        <div className="simple-grants-explanation">
           <strong>הסבר:</strong> המענקים הפטורים שהתקבלו ממעסיקים קודמים. 
           משמשים לחישוב סה"כ הפטור שנוצל ויקוזז מיתרת ההון הפטורה.
           הסכומים הפטורים יופיעו בטבלת המענקים, בעמוד קיבוע הזכויות, ממודדים ומוכפלים בפקטור ההכפלה.

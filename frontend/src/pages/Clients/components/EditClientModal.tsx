@@ -22,49 +22,27 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          minWidth: '400px',
-          maxWidth: '500px',
-          direction: 'rtl'
-        }}
-      >
+    <div className="clients-edit-modal-overlay">
+      <div className="clients-edit-modal">
         <h3>עריכת פרטי לקוח</h3>
-        <div style={{ display: 'grid', gap: '12px' }}>
+        <div className="clients-edit-modal-grid">
           <input
-            placeholder={"ת\"ז"}
+            placeholder={'ת"ז'}
             value={editForm.id_number}
             onChange={(e) => setEditForm({ ...editForm, id_number: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
           <input
             placeholder="שם פרטי"
             value={editForm.first_name}
             onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
           <input
             placeholder="שם משפחה"
             value={editForm.last_name}
             onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
           <input
             type="text"
@@ -74,13 +52,13 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
               const formatted = formatDateInput(e.target.value);
               setEditForm({ ...editForm, birth_date: formatted });
             }}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
             maxLength={10}
           />
           <select
             value={editForm.gender}
             onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-select"
           >
             <option value="male">זכר</option>
             <option value="female">נקבה</option>
@@ -89,42 +67,42 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
             placeholder="Email (אופציונלי)"
             value={editForm.email}
             onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
           <input
             placeholder="טלפון (אופציונלי)"
             value={editForm.phone}
             onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
-          <h4 style={{ marginTop: 16, marginBottom: 8 }}>כתובת</h4>
+          <h4 className="clients-edit-section-title">כתובת</h4>
           <input
             placeholder="רחוב (אופציונלי)"
             value={editForm.address_street}
             onChange={(e) => setEditForm({ ...editForm, address_street: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
           <input
             placeholder="עיר (אופציונלי)"
             value={editForm.address_city}
             onChange={(e) => setEditForm({ ...editForm, address_city: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
           <input
             placeholder="מיקוד (אופציונלי)"
             value={editForm.address_postal_code}
             onChange={(e) => setEditForm({ ...editForm, address_postal_code: e.target.value })}
-            style={{ padding: 8 }}
+            className="clients-edit-input"
           />
 
-          <h4 style={{ marginTop: 16, marginBottom: 8 }}>נתונים נוספים</h4>
+          <h4 className="clients-edit-section-title">נתונים נוספים</h4>
 
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-            <label style={{ marginLeft: 8, minWidth: 100 }}>מצב משפחתי:</label>
+          <div className="clients-edit-row">
+            <label className="clients-edit-label-inline clients-edit-label-inline--wide">מצב משפחתי:</label>
             <select
               value={editForm.marital_status}
               onChange={(e) => setEditForm({ ...editForm, marital_status: e.target.value })}
-              style={{ padding: 8, flexGrow: 1 }}
+              className="clients-edit-select clients-edit-input--grow"
             >
               <option value="">בחר מצב משפחתי</option>
               <option value="single">רווק/ה</option>
@@ -134,8 +112,8 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-            <label style={{ marginLeft: 8 }}>נקודות זיכוי:</label>
+          <div className="clients-edit-row">
+            <label className="clients-edit-label-inline">נקודות זיכוי:</label>
             <input
               type="number"
               placeholder="נקודות זיכוי"
@@ -145,34 +123,20 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
               }
               min="0"
               step="0.01"
-              style={{ padding: 8, flexGrow: 1 }}
+              className="clients-edit-input clients-edit-input--grow"
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: 16 }}>
+          <div className="clients-edit-actions">
             <button
               onClick={onCancel}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
+              className="clients-edit-button clients-edit-button--cancel"
             >
               ביטול
             </button>
             <button
               onClick={onSave}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
+              className="clients-edit-button clients-edit-button--save"
             >
               שמור
             </button>

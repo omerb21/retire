@@ -12,12 +12,12 @@ interface ClientsTableProps {
 
 export const ClientsTable: React.FC<ClientsTableProps> = ({ items, loading, onStartEdit, onDeleteClient }) => {
   return (
-    <div className="modern-card" style={{ marginTop: '2rem' }}>
+    <div className="modern-card clients-table-card">
       <div className="card-header">
         <h3 className="card-title">רשימת לקוחות</h3>
       </div>
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+        <div className="clients-table-loading">
           <div className="spinner"></div>
         </div>
       ) : items.length === 0 ? (
@@ -39,41 +39,38 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ items, loading, onSt
           <tbody>
             {items.map((c, i) => (
               <tr key={`${c.id}-${i}`}>
-                <td style={td}>{c.id ?? ''}</td>
-                <td style={td}>{c.id_number ?? ''}</td>
-                <td style={td}>
-                  <Link to={`/clients/${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <td className="clients-table-cell">{c.id ?? ''}</td>
+                <td className="clients-table-cell">{c.id_number ?? ''}</td>
+                <td className="clients-table-cell">
+                  <Link to={`/clients/${c.id}`} className="clients-table-link">
                     {c.first_name ?? ''}
                   </Link>
                 </td>
-                <td style={td}>
-                  <Link to={`/clients/${c.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <td className="clients-table-cell">
+                  <Link to={`/clients/${c.id}`} className="clients-table-link">
                     {c.last_name ?? ''}
                   </Link>
                 </td>
-                <td style={td}>{c.birth_date ? formatDateToDDMMYY(new Date(c.birth_date)) : ''}</td>
-                <td style={td}>{c.gender === 'male' ? 'זכר' : 'נקבה'}</td>
-                <td style={td}>{c.email ?? ''}</td>
+                <td className="clients-table-cell">{c.birth_date ? formatDateToDDMMYY(new Date(c.birth_date)) : ''}</td>
+                <td className="clients-table-cell">{c.gender === 'male' ? 'זכר' : 'נקבה'}</td>
+                <td className="clients-table-cell">{c.email ?? ''}</td>
                 <td>
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                  <div className="clients-table-actions">
                     <Link
                       to={`/clients/${c.id}`}
-                      className="btn btn-primary"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                      className="btn btn-primary clients-table-action-button"
                     >
                       פתח
                     </Link>
                     <button
                       onClick={() => onStartEdit(c)}
-                      className="btn btn-secondary"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                      className="btn btn-secondary clients-table-action-button"
                     >
                       ערוך
                     </button>
                     <button
                       onClick={() => onDeleteClient(c.id!)}
-                      className="btn btn-danger"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                      className="btn btn-danger clients-table-action-button"
                     >
                       מחק
                     </button>
@@ -87,5 +84,3 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({ items, loading, onSt
     </div>
   );
 };
-
-const td: React.CSSProperties = { textAlign: 'right', borderBottom: '1px solid #f0f0f0', padding: 8 };

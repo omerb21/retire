@@ -1,20 +1,16 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useReportData } from '../components/reports/hooks/useReportData';
-import { generateYearlyProjection } from '../components/reports/calculations/cashflowCalculations';
-import { calculateNPVComparison } from '../components/reports/calculations/npvCalculations';
 import { ReportHeader } from './Reports/components/ReportHeader';
 import { ExportControls } from './Reports/components/ExportControls';
 import { YearlyBreakdown } from './Reports/components/YearlyBreakdown';
 import { NPVAnalysis } from './Reports/components/NPVAnalysis';
 import { IncomeDetails } from './Reports/components/IncomeDetails';
-import { generateHTMLReport } from './Reports/utils/htmlReportGenerator';
-import { API_BASE } from '../lib/api';
+import { useReportsPage } from './Reports/hooks/useReportsPage';
+import './Reports/Reports.css';
 
 const ReportsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  
-  // שימוש ב-hook המפוצל לטעינת נתונים
+
   const {
     loading,
     error,
@@ -22,186 +18,18 @@ const ReportsPage: React.FC = () => {
     additionalIncomes,
     capitalAssets,
     client,
-    fixationData
-  } = useReportData(id);
-
-  // גרסה "ללא קיבוע" של נכסי ההון: היוונים פטורים (COMMUTATION) ייחשבו כחייבים במס
-  const capitalAssetsWithoutFixation = useMemo(
-    () =>
-      capitalAssets.map(asset => {
-        if (
-          asset &&
-          asset.tax_treatment === 'exempt' &&
-          typeof asset.remarks === 'string' &&
-          asset.remarks.includes('COMMUTATION:')
-        ) {
-          return {
-            ...asset,
-            tax_treatment: 'taxable',
-          };
-        }
-        return asset;
-      }),
-    [capitalAssets]
-  );
-
-  // חישוב תחזית שנתית באמצעות הפונקציה המפוצלת
-  const yearlyProjectionWithExemption = useMemo(() => {
-    if (!client) {
-      return [];
-    }
-
-    // מחזירים תחזית גם אם אין קצבאות, כל עוד יש לפחות מקור הכנסה אחד (הכנסות נוספות / נכסי הון)
-    if (
-      pensionFunds.length === 0 &&
-      additionalIncomes.length === 0 &&
-      capitalAssets.length === 0
-    ) {
-      return [];
-    }
-
-    return generateYearlyProjection(
-      pensionFunds,
-      additionalIncomes,
-      capitalAssets,
-      client,
-      fixationData,
-      false
-    );
-  }, [pensionFunds, additionalIncomes, capitalAssets, client, fixationData]);
-
-  // תחזית שנייה ללא קצבה פטורה (לצרכי השוואת NPV מדויקת)
-  const yearlyProjectionWithoutExemption = useMemo(() => {
-    if (!client) {
-      return [];
-    }
-
-    if (
-      pensionFunds.length === 0 &&
-      additionalIncomes.length === 0 &&
-      capitalAssets.length === 0
-    ) {
-      return [];
-    }
-
-    return generateYearlyProjection(
-      pensionFunds,
-      additionalIncomes,
-      capitalAssetsWithoutFixation,
-      client,
-      fixationData,
-      true
-    );
-  }, [pensionFunds, additionalIncomes, capitalAssetsWithoutFixation, client, fixationData]);
-
-  // חישוב NPV
-  const npvComparison = useMemo(() => {
-    if (
-      yearlyProjectionWithExemption.length === 0 ||
-      yearlyProjectionWithoutExemption.length === 0
-    ) {
-      return null;
-    }
-
-    return calculateNPVComparison(
-      yearlyProjectionWithExemption,
-      yearlyProjectionWithoutExemption,
-      0.03,
-      fixationData
-    );
-  }, [yearlyProjectionWithExemption, yearlyProjectionWithoutExemption, fixationData]);
-
-  // חישוב סיכומים
-  const totalPensionBalance = useMemo(() => 
-    pensionFunds.reduce((sum, fund) => sum + (parseFloat(fund.balance) || 0), 0),
-    [pensionFunds]
-  );
-
-  const totalMonthlyPension = useMemo(() => 
-    pensionFunds.reduce((sum, fund) => 
-      sum + (parseFloat(fund.pension_amount) || parseFloat(fund.computed_monthly_amount) || parseFloat(fund.monthly_amount) || 0), 0),
-    [pensionFunds]
-  );
-
-  const totalAdditionalIncome = useMemo(() => 
-    additionalIncomes.reduce((sum, income) => {
-      const amount = parseFloat(income.amount) || 0;
-      let monthlyAmount = amount;
-      if (income.frequency === 'quarterly') monthlyAmount = amount / 3;
-      else if (income.frequency === 'annually') monthlyAmount = amount / 12;
-      return sum + monthlyAmount;
-    }, 0),
-    [additionalIncomes]
-  );
-
-  const totalCapitalValue = useMemo(() => 
-    capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0),
-    [capitalAssets]
-  );
-
-  const totalMonthlyIncome = totalMonthlyPension + totalAdditionalIncome;
-
-  // פונקציות ייצוא
-  const handleGenerateHTML = () => {
-    const htmlContent = generateHTMLReport(
-      client,
-      fixationData,
-      yearlyProjectionWithExemption,
-      pensionFunds,
-      additionalIncomes,
-      capitalAssets,
-      npvComparison,
-      totalPensionBalance,
-      totalCapitalValue,
-      totalMonthlyIncome
-    );
-    
-    const reportWindow = window.open('', '_blank');
-
-    if (!reportWindow) {
-      alert('יש לאפשר פתיחת חלונות קופצים להצגת הדוח');
-      return;
-    }
-
-    reportWindow.document.open();
-    reportWindow.document.write(htmlContent);
-    reportWindow.document.close();
-    reportWindow.focus();
-  };
-
-  const handleGenerateFixationDocuments = async () => {
-    if (!fixationData || !client) {
-      alert('אין נתוני קיבוע זכויות');
-      return;
-    }
-    try {
-      const response = await fetch(`${API_BASE}/fixation/${client.id}/package`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `מסמכי_קיבוע_${client?.name || 'לקוח'}.zip`;
-        link.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const errorText = await response.text();
-        console.error('Server error:', errorText);
-        alert('שגיאה בהפקת מסמכי קיבוע: ' + errorText);
-      }
-    } catch (error) {
-      console.error('Error generating fixation documents:', error);
-      alert('שגיאה בהפקת מסמכי קיבוע');
-    }
-  };
+    fixationData,
+    yearlyProjectionWithExemption,
+    npvComparison,
+    totalCapitalValue,
+    handleGenerateHTML,
+    handleGenerateFixationDocuments,
+  } = useReportsPage(id);
 
   // טעינה
   if (loading) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
+      <div className="reports-loading">
         <div>טוען נתונים...</div>
       </div>
     );
@@ -210,8 +38,8 @@ const ReportsPage: React.FC = () => {
   // שגיאה
   if (error) {
     return (
-      <div style={{ padding: '20px' }}>
-        <div style={{ color: 'red', marginBottom: '20px' }}>שגיאה: {error}</div>
+      <div className="reports-error">
+        <div className="reports-error-message">שגיאה: {error}</div>
         <Link to={`/clients/${id}`}>חזרה לפרטי לקוח</Link>
       </div>
     );
@@ -220,17 +48,17 @@ const ReportsPage: React.FC = () => {
   // אם אין נתונים
   if (!pensionFunds.length && !additionalIncomes.length && !capitalAssets.length) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
+      <div className="reports-no-data">
         <h3>אין מספיק נתונים ליצירת דוח</h3>
         <p>אנא הוסף קצבאות, הכנסות נוספות או נכסי הון</p>
-        <div style={{ marginTop: '10px' }}>
-          <Link to={`/clients/${id}/pension-funds`} style={{ color: '#007bff', marginRight: '15px' }}>
+        <div className="reports-no-data-links">
+          <Link to={`/clients/${id}/pension-funds`} className="reports-no-data-link">
             הוסף קצבאות ←
           </Link>
-          <Link to={`/clients/${id}/additional-incomes`} style={{ color: '#007bff', marginRight: '15px' }}>
+          <Link to={`/clients/${id}/additional-incomes`} className="reports-no-data-link">
             הוסף הכנסות נוספות ←
           </Link>
-          <Link to={`/clients/${id}/capital-assets`} style={{ color: '#007bff' }}>
+          <Link to={`/clients/${id}/capital-assets`} className="reports-no-data-link">
             הוסף נכסי הון ←
           </Link>
         </div>
@@ -239,8 +67,8 @@ const ReportsPage: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '20px', direction: 'rtl' }}>
-      <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="reports-page-container">
+      <div className="reports-page-header">
         <h2>תיק פרישה - {client?.name}</h2>
         <ExportControls
           yearlyProjection={yearlyProjectionWithExemption}
@@ -274,15 +102,8 @@ const ReportsPage: React.FC = () => {
         capitalAssets={capitalAssets}
       />
 
-      <div style={{ marginTop: '30px', textAlign: 'center' }}>
-        <Link to={`/clients/${id}`} style={{ 
-          padding: '10px 20px', 
-          backgroundColor: '#6c757d', 
-          color: 'white', 
-          textDecoration: 'none',
-          borderRadius: '4px',
-          display: 'inline-block'
-        }}>
+      <div className="reports-back-wrapper">
+        <Link to={`/clients/${id}`} className="reports-back-link">
           חזרה לפרטי לקוח
         </Link>
       </div>

@@ -4,35 +4,39 @@
 
 import { SimpleEmployer, PensionAccount } from '../types/employerTypes';
 import { convertISOToDDMMYY } from '../../../utils/dateUtils';
+import { loadPensionDataFromStorage } from '../../../pages/PensionPortfolio/services/pensionPortfolioStorageService';
+import {
+  isTerminationConfirmed as baseIsTerminationConfirmed,
+  setTerminationConfirmed as baseSetTerminationConfirmed,
+  saveOriginalSeveranceAmount as baseSaveOriginalSeveranceAmount,
+  loadOriginalSeveranceAmount as baseLoadOriginalSeveranceAmount,
+} from '../../../pages/SimpleCurrentEmployer/utils/storageHelpers';
 
 /**
  * טוען יתרת פיצויים מתיק פנסיוני מ-localStorage
  */
 export const loadSeveranceFromPension = (clientId: string): number => {
-  const pensionStorageKey = `pensionData_${clientId}`;
-  const storedPensionData = localStorage.getItem(pensionStorageKey);
-  
-  if (!storedPensionData) {
+  const pensionData = loadPensionDataFromStorage(clientId);
+
+  if (!pensionData || pensionData.length === 0) {
     console.log('לא נמצא תיק פנסיוני ב-localStorage עבור לקוח:', clientId);
     return 0;
   }
 
   try {
-    const pensionData: PensionAccount[] = JSON.parse(storedPensionData);
-    
     // Sum all severance amounts from "פיצויים מעסיק נוכחי" column
     const severanceFromPension = pensionData.reduce((sum: number, account: PensionAccount) => {
       const currentEmployerSeverance = Number(account.פיצויים_מעסיק_נוכחי || 0);
       return sum + currentEmployerSeverance;
     }, 0);
-    
+
     console.log('יתרת פיצויים מתיק פנסיוני:', severanceFromPension);
     console.log('מספר חשבונות:', pensionData.length);
-    
+
     pensionData.forEach((acc: PensionAccount, idx: number) => {
       console.log(`חשבון ${idx + 1}: פיצויים מעסיק נוכחי = ${acc.פיצויים_מעסיק_נוכחי || 0}`);
     });
-    
+
     return severanceFromPension;
   } catch (e) {
     console.error('שגיאה בטעינת נתוני תיק פנסיוני:', e);
@@ -44,28 +48,21 @@ export const loadSeveranceFromPension = (clientId: string): number => {
  * בדיקה אם עזיבה אושרה
  */
 export const isTerminationConfirmed = (clientId: string): boolean => {
-  const terminationStorageKey = `terminationConfirmed_${clientId}`;
-  return localStorage.getItem(terminationStorageKey) === 'true';
+  return baseIsTerminationConfirmed(clientId);
 };
 
 /**
  * סימון עזיבה כמאושרת
  */
 export const setTerminationConfirmed = (clientId: string, confirmed: boolean): void => {
-  const terminationStorageKey = `terminationConfirmed_${clientId}`;
-  if (confirmed) {
-    localStorage.setItem(terminationStorageKey, 'true');
-  } else {
-    localStorage.removeItem(terminationStorageKey);
-  }
+  baseSetTerminationConfirmed(clientId, confirmed);
 };
 
 /**
  * שמירת סכום פיצויים מקורי
  */
 export const saveOriginalSeveranceAmount = (clientId: string, amount: number): void => {
-  const storageKey = `originalSeverance_${clientId}`;
-  localStorage.setItem(storageKey, amount.toString());
+  baseSaveOriginalSeveranceAmount(clientId, amount);
   console.log(`💾 שמירת סכום פיצויים מקורי: ${amount}`);
 };
 
@@ -73,9 +70,7 @@ export const saveOriginalSeveranceAmount = (clientId: string, amount: number): v
  * טעינת סכום פיצויים מקורי
  */
 export const loadOriginalSeveranceAmount = (clientId: string): number => {
-  const storageKey = `originalSeverance_${clientId}`;
-  const stored = localStorage.getItem(storageKey);
-  return stored ? Number(stored) : 0;
+  return baseLoadOriginalSeveranceAmount(clientId);
 };
 
 /**

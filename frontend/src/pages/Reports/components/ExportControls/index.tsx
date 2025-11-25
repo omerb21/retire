@@ -1,6 +1,4 @@
 import React from 'react';
-import { generatePDFReport } from '../../../../components/reports/generators/PDFGenerator';
-import { generateExcelReport } from '../../../../components/reports/generators/ExcelGenerator';
 import { YearlyProjection } from '../../../../components/reports/types/reportTypes';
 
 interface ExportControlsProps {
@@ -26,7 +24,16 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
 }) => {
   const handleGeneratePDF = async () => {
     try {
-      await generatePDFReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
+      const { generatePDFReport } = await import(
+        '../../../../components/reports/generators/PDFGenerator'
+      );
+      await generatePDFReport(
+        yearlyProjection,
+        pensionFunds,
+        additionalIncomes,
+        capitalAssets,
+        client
+      );
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('שגיאה ביצירת דוח PDF');
@@ -35,7 +42,16 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
 
   const handleGenerateExcel = async () => {
     try {
-      await generateExcelReport(yearlyProjection, pensionFunds, additionalIncomes, capitalAssets, client);
+      const { generateExcelReport } = await import(
+        '../../../../components/reports/generators/ExcelGenerator'
+      );
+      await generateExcelReport(
+        yearlyProjection,
+        pensionFunds,
+        additionalIncomes,
+        capitalAssets,
+        client
+      );
     } catch (error) {
       console.error('Error generating Excel:', error);
       alert('שגיאה ביצירת דוח Excel');
@@ -43,48 +59,28 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', gap: '10px' }}>
+    <div className="report-export-controls">
       <button 
         onClick={handleGenerateExcel}
-        style={{ 
-          padding: '10px 20px', 
-          backgroundColor: '#28a745', 
-          color: 'white', 
-          border: 'none', 
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
+        className="report-export-button report-export-button--excel"
       >
         📊 דוח Excel
       </button>
       <button 
         onClick={onGenerateHTML}
-        style={{ 
-          padding: '10px 20px', 
-          backgroundColor: '#FF0000', 
-          color: 'white', 
-          border: 'none', 
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
+        className="report-export-button report-export-button--pdf"
       >
         🌐 דוח PDF מלא
       </button>
       {fixationData && onGenerateFixationDocuments && (
         <button 
           onClick={onGenerateFixationDocuments}
-          style={{ 
-            padding: '10px 20px', 
-            backgroundColor: '#6f42c1', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
+          className="report-export-button report-export-button--fixation"
         >
           📋 מסמכי קיבוע
         </button>
       )}
     </div>
   );
-};
+}
+;

@@ -12,6 +12,7 @@ import { useCapitalAssets } from '../../hooks/useCapitalAssets';
 import { useAssetForm } from '../../hooks/useAssetForm';
 import { AssetForm } from '../../components/capitalAssets/AssetForm/AssetForm';
 import { AssetList } from '../../components/capitalAssets/AssetList/AssetList';
+import './CapitalAssets.css';
 
 export default function CapitalAssets() {
   const { id: clientId } = useParams<{ id: string }>();
@@ -55,19 +56,10 @@ export default function CapitalAssets() {
             <h1 className="card-title">🏠 נכסי הון</h1>
             <p className="card-subtitle">ניהול נכסים - תשלום חד פעמי או חישוב NPV</p>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="capital-assets-header-actions">
             <button 
               onClick={deleteAllAssets}
-              className="btn"
-              style={{ 
-                backgroundColor: '#dc3545', 
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              }}
+              className="btn capital-assets-delete-all-button"
               disabled={assets.length === 0}
             >
               🗑️ מחק הכל
@@ -77,9 +69,8 @@ export default function CapitalAssets() {
             </Link>
           </div>
         </div>
-
         {error && (
-          <div style={{ color: "red", marginBottom: 16, padding: 8, backgroundColor: "#fee" }}>
+          <div className="capital-assets-error">
             {error}
           </div>
         )}

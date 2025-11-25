@@ -7,6 +7,7 @@
 import React from 'react';
 import { CapitalAsset } from '../../../types/capitalAsset';
 import { AssetItem } from './AssetItem';
+import './AssetList.css';
 
 interface AssetListProps {
   assets: CapitalAsset[];
@@ -19,7 +20,7 @@ export function AssetList({ assets, onEdit, onDelete }: AssetListProps) {
     return (
       <section>
         <h3>רשימת נכסי הון</h3>
-        <div style={{ padding: 16, backgroundColor: "#f8f9fa", borderRadius: 4 }}>
+        <div className="asset-list-empty">
           אין נכסי הון
         </div>
       </section>
@@ -29,7 +30,7 @@ export function AssetList({ assets, onEdit, onDelete }: AssetListProps) {
   return (
     <section>
       <h3>רשימת נכסי הון</h3>
-      <div style={{ display: "grid", gap: 16 }}>
+      <div className="asset-list-grid">
         {assets.map((asset, index) => (
           <AssetItem
             key={asset.id || index}

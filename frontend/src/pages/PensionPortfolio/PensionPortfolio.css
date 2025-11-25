@@ -20,7 +20,7 @@
   margin-bottom: 16px;
   padding: 12px;
   background-color: #fff3cd;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid #ffeaa7;
 }
 
@@ -40,8 +40,8 @@
   margin-bottom: 16px;
   padding: 16px;
   background-color: #e7f3ff;
-  border-radius: 4px;
-  border: 2px solid #007bff;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--brand-primary);
   white-space: pre-wrap;
   font-size: 13px;
   line-height: 1.6;
@@ -49,15 +49,15 @@
 
 .pension-portfolio-rules-title {
   margin-top: 0;
-  color: #007bff;
+  color: var(--brand-primary);
 }
 
 .pension-portfolio-redemption-box {
   margin-bottom: 16px;
   padding: 15px;
   background-color: #e7f3ff;
-  border-radius: 4px;
-  border: 1px solid #007bff;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brand-primary);
 }
 
 .pension-portfolio-redemption-label {
@@ -70,8 +70,8 @@
 .pension-portfolio-redemption-input {
   width: 200px;
   padding: 8px;
-  border: 1px solid #007bff;
-  border-radius: 4px;
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-sm);
   font-size: 14px;
 }
 
@@ -91,7 +91,7 @@
 .pension-portfolio-btn {
   padding: 10px 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 14px;
   font-weight: bold;
@@ -99,20 +99,20 @@
 }
 
 .pension-portfolio-btn--rules {
-  background-color: #17a2b8;
+  background-color: var(--brand-info);
 }
 
 .pension-portfolio-btn--add {
-  background-color: #28a745;
+  background-color: var(--brand-success);
 }
 
 .pension-portfolio-btn--toggle {
   padding: 8px 12px;
-  background-color: #6c757d;
+  background-color: var(--brand-secondary);
 }
 
 .pension-portfolio-btn--save {
-  background-color: #007bff;
+  background-color: var(--brand-primary);
 }
 
 .pension-portfolio-btn--save-disabled {
@@ -121,7 +121,7 @@
 }
 
 .pension-portfolio-btn--convert {
-  background-color: #28a745;
+  background-color: var(--brand-success);
 }
 
 .pension-portfolio-btn--convert-disabled {
@@ -133,15 +133,77 @@
   margin-bottom: 8px;
   padding: 8px;
   background-color: #e7f3ff;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
 }
 
 .pension-portfolio-empty {
   padding: 16px;
   background-color: #f8f9fa;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   text-align: center;
+}
+
+.pension-portfolio-upload-section {
+  margin-bottom: 32px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: var(--radius-sm);
+}
+
+.pension-portfolio-upload-instructions {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: var(--radius-sm);
+}
+
+.pension-portfolio-upload-instructions-title {
+  margin: 0 0 8px 0;
+  color: #495057;
+}
+
+.pension-portfolio-upload-instructions-list {
+  margin: 0;
+  padding-right: 20px;
+  font-size: 14px;
+  color: #666666;
+}
+
+.pension-portfolio-upload-input-group {
+  margin-bottom: 16px;
+}
+
+.pension-portfolio-upload-input {
+  margin-bottom: 10px;
+}
+
+.pension-portfolio-upload-help {
+  font-size: 14px;
+  color: #666666;
+}
+
+.pension-portfolio-upload-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pension-portfolio-btn--upload-process {
+  background-color: var(--brand-primary);
+}
+
+.pension-portfolio-btn--upload-process-disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.pension-portfolio-btn--upload-export {
+  background-color: var(--brand-success);
+}
+
+.pension-portfolio-btn--upload-export-disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .pension-table-container {
@@ -313,10 +375,30 @@
 
 .pension-table-delete-button {
   padding: 4px 8px;
-  background-color: #dc3545;
+  background-color: var(--brand-danger);
   color: #ffffff;
   border: none;
   border-radius: 3px;
   cursor: pointer;
   font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .pension-portfolio-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pension-portfolio-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .pension-portfolio-upload-actions {
+    flex-direction: column;
+  }
+
+  .pension-portfolio-redemption-input {
+    width: 100%;
+  }
 }

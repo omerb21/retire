@@ -1,0 +1,147 @@
+.clients-page-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.clients-section-title {
+  margin-bottom: 1rem;
+  color: var(--gray-700);
+  font-size: 1.25rem;
+}
+
+.clients-grid {
+  gap: 1rem;
+}
+
+.clients-new-client-submit {
+  margin-top: 0.5rem;
+}
+
+.clients-form-group-inline {
+  margin-bottom: 0;
+}
+
+.clients-table-card {
+  margin-top: 2rem;
+}
+
+.clients-table-loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.clients-table-cell {
+  text-align: right;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 8px;
+}
+
+.clients-table-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.clients-table-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.clients-table-action-button {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.clients-edit-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.clients-edit-modal {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: var(--radius);
+  min-width: 400px;
+  max-width: 500px;
+  direction: rtl;
+}
+
+.clients-edit-modal-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.clients-edit-input,
+.clients-edit-select {
+  padding: 8px;
+}
+
+.clients-edit-section-title {
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.clients-edit-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.clients-edit-label-inline {
+  margin-left: 8px;
+}
+
+.clients-edit-label-inline--wide {
+  min-width: 100px;
+}
+
+.clients-edit-input--grow {
+  flex-grow: 1;
+}
+
+.clients-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.clients-edit-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.clients-edit-button--cancel {
+  background-color: var(--brand-secondary);
+  color: #ffffff;
+}
+
+.clients-edit-button--save {
+  background-color: var(--brand-success);
+  color: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .clients-page-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clients-edit-modal {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 10px;
+  }
+}

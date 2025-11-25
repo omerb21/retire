@@ -3,6 +3,13 @@ import { PensionAccount, EditingCell } from '../types';
 import { apiFetch } from '../../../lib/api';
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
 import { calculateInitialTagmulim } from '../utils/pensionCalculations';
+import { promptForManualAccount } from '../services/manualAccountService';
+import {
+  loadPensionDataFromStorage,
+  savePensionDataToStorage,
+  removePensionDataFromStorage,
+  loadConvertedAccountsFromStorage,
+} from '../services/pensionPortfolioStorageService';
 
 /**
  * Hook לניהול נתוני תיק פנסיוני
@@ -29,7 +36,7 @@ export function usePensionData(clientId: string | undefined) {
     
     // מחיקת כל הנתונים הקיימים מה-state ומה-localStorage
     setPensionData([]);
-    localStorage.removeItem(`pensionData_${clientId}`);
+    removePensionDataFromStorage(clientId);
 
     try {
       const formData = new FormData();
@@ -51,7 +58,7 @@ export function usePensionData(clientId: string | undefined) {
 
       if (accounts.length > 0) {
         setPensionData(accounts);
-        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(accounts));
+        savePensionDataToStorage(clientId, accounts);
         setProcessingStatus(`הושלם עיבוד ${accounts.length} חשבונות פנסיוניים`);
       } else {
         setProcessingStatus("לא נמצאו חשבונות פנסיוניים בקבצים שנבחרו");
@@ -117,7 +124,7 @@ export function usePensionData(clientId: string | undefined) {
     setError("");
 
     try {
-      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(pensionData));
+      savePensionDataToStorage(clientId, pensionData);
       setProcessingStatus(`✅ נשמרו בהצלחה ${selectedAccounts.length} תכניות בתיק הפנסיוני!`);
       
       setPensionData(prev => prev.map(account => ({
@@ -153,7 +160,7 @@ export function usePensionData(clientId: string | undefined) {
       setPensionData(updatedData);
       
       if (clientId) {
-        localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(updatedData));
+        savePensionDataToStorage(clientId, updatedData);
       }
       
     } catch (error: any) {
@@ -179,7 +186,7 @@ export function usePensionData(clientId: string | undefined) {
         }
         return acc;
       });
-      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(updated));
+      savePensionDataToStorage(clientId, updated);
       return updated;
     });
     setEditingCell(null);
@@ -187,46 +194,12 @@ export function usePensionData(clientId: string | undefined) {
 
   // פונקציה להוספת תכנית ידנית
   const addManualAccount = () => {
-    const name = prompt('שם התכנית:');
-    if (!name) return;
-    
-    const balance = prompt('יתרה:', '0');
-    if (balance === null) return;
-    
-    const startDate = prompt('תאריך התחלה (DD/MM/YYYY):', formatDateToDDMMYY(new Date()));
-    if (startDate === null) return;
-    
-    const productType = prompt('סוג מוצר (קרן השתלמות / קופת גמל):', 'קופת גמל');
-    if (productType === null) return;
-    
-    const baseAccount: PensionAccount = {
-      מספר_חשבון: `MANUAL-${Date.now()}`,
-      שם_תכנית: name,
-      חברה_מנהלת: 'הוסף ידני',
-      קוד_חברה_מנהלת: '',
-      יתרה: parseFloat(balance) || 0,
-      תאריך_נכונות_יתרה: formatDateToDDMMYY(new Date()),
-      תאריך_התחלה: startDate,
-      סוג_מוצר: productType,
-      מעסיקים_היסטוריים: '',
-      פיצויים_מעסיק_נוכחי: 0,
-      פיצויים_לאחר_התחשבנות: 0,
-      פיצויים_שלא_עברו_התחשבנות: 0,
-      פיצויים_ממעסיקים_קודמים_רצף_זכויות: 0,
-      פיצויים_ממעסיקים_קודמים_רצף_קצבה: 0,
-      תגמולי_עובד_עד_2000: 0,
-      תגמולי_עובד_אחרי_2000: 0,
-      תגמולי_עובד_אחרי_2008_לא_משלמת: 0,
-      תגמולי_מעביד_עד_2000: 0,
-      תגמולי_מעביד_אחרי_2000: 0,
-      תגמולי_מעביד_אחרי_2008_לא_משלמת: 0,
-      selected: false,
-      selected_amounts: {}
-    };
-    
-    const newAccount = calculateInitialTagmulim(baseAccount);
-    setPensionData(prev => [...prev, newAccount]);
-    setProcessingStatus(`תכנית "${name}" נוספה בהצלחה`);
+    const result = promptForManualAccount();
+    if (!result) return;
+
+    const { account, message } = result;
+    setPensionData(prev => [...prev, account]);
+    setProcessingStatus(message);
   };
 
   // פונקציה לסימון/ביטול סימון סכום ספציפי
@@ -253,12 +226,11 @@ export function usePensionData(clientId: string | undefined) {
   // פונקציה לטעינת נתונים קיימים מ-localStorage
   const loadExistingData = async () => {
     try {
-      const savedData = localStorage.getItem(`pensionData_${clientId}`);
-      const savedConvertedAccounts = localStorage.getItem(`convertedAccounts_${clientId}`);
-      
-      if (savedData) {
-        const parsedData = JSON.parse(savedData);
-        const dataWithComputed = parsedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
+      const savedData = loadPensionDataFromStorage(clientId);
+      const savedConvertedAccounts = loadConvertedAccountsFromStorage(clientId);
+
+      if (savedData && savedData.length > 0) {
+        const dataWithComputed = savedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
         const currentDataStr = JSON.stringify(pensionData);
         const newDataStr = JSON.stringify(dataWithComputed);
         if (currentDataStr !== newDataStr) {
@@ -267,13 +239,12 @@ export function usePensionData(clientId: string | undefined) {
           setProcessingStatus(`נטענו ${dataWithComputed.length} תכניות פנסיוניות שמורות`);
         }
       }
-      
-      if (savedConvertedAccounts) {
-        const parsedConverted = JSON.parse(savedConvertedAccounts);
-        setConvertedAccounts(new Set(parsedConverted));
+
+      if (savedConvertedAccounts && savedConvertedAccounts.size > 0) {
+        setConvertedAccounts(savedConvertedAccounts);
       }
-      
-      if (!savedData && pensionData.length === 0) {
+
+      if ((!savedData || savedData.length === 0) && pensionData.length === 0) {
         setProcessingStatus("טען קבצי XML כדי לראות את התיק הפנסיוני");
       }
     } catch (e) {
@@ -303,10 +274,9 @@ export function usePensionData(clientId: string | undefined) {
   useEffect(() => {
     const handleFocus = () => {
       console.log('Window focused, checking for updates...');
-      const savedData = localStorage.getItem(`pensionData_${clientId}`);
+      const savedData = loadPensionDataFromStorage(clientId);
       if (savedData) {
-        const parsedData = JSON.parse(savedData);
-        const dataWithComputed = parsedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
+        const dataWithComputed = savedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
         setPensionData(dataWithComputed);
       }
     };
@@ -314,10 +284,9 @@ export function usePensionData(clientId: string | undefined) {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         console.log('Page became visible, checking for updates...');
-        const savedData = localStorage.getItem(`pensionData_${clientId}`);
+        const savedData = loadPensionDataFromStorage(clientId);
         if (savedData) {
-          const parsedData = JSON.parse(savedData);
-          const dataWithComputed = parsedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
+          const dataWithComputed = savedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
           setPensionData(dataWithComputed);
         }
       }

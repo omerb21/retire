@@ -4,6 +4,7 @@ import { useClientData } from './hooks/useClientData';
 import { ClientInfo } from './components/ClientInfo';
 import { ClientNavigation } from './components/ClientNavigation';
 import { ClientSystemSnapshot } from './components/ClientSystemSnapshot';
+import './ClientDetails.css';
 
 export default function ClientDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,32 +15,18 @@ export default function ClientDetailsPage() {
   if (!client) return <div>לקוח לא נמצא</div>;
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      minHeight: 'calc(100vh - 100px)' /* Adjust 100px based on your header height */
-    }}>
-      <div className="client-details" style={{ flex: 1, position: 'relative' }}>
+    <div className="client-details-page">
+      {/* Adjust 100px based on your header height */}
+      <div className="client-details client-details-main">
         {/* Back to clients link - positioned top-left */}
         <Link 
           to="/clients" 
-          style={{
-            position: 'absolute',
-            left: '20px',
-            top: '10px',
-            textDecoration: 'none',
-            color: '#007bff',
-            fontWeight: 'bold',
-            padding: '5px 10px',
-            borderRadius: '4px',
-            border: '1px solid #dee2e6',
-            backgroundColor: '#f8f9fa'
-          }}
+          className="client-details-back-link"
         >
           ← חזרה לרשימת לקוחות
         </Link>
         
-        <h2 style={{ marginBottom: '30px', textAlign: 'center' }}>
+        <h2 className="client-details-title">
           תהליך פרישה - {client.first_name} {client.last_name} (ת"ז: {client.id_number})
         </h2>
 
@@ -48,14 +35,8 @@ export default function ClientDetailsPage() {
       </div>
       
       {/* System Snapshot - שמירה ושחזור מצב - Fixed at bottom */}
-      <div style={{ 
-        marginTop: 'auto',
-        padding: '20px', 
-        backgroundColor: '#f8f9fa', 
-        borderRadius: '8px 8px 0 0',
-        borderBottom: 'none'
-      }}>
-            <ClientSystemSnapshot 
+      <div className="client-details-snapshot-wrapper">
+        <ClientSystemSnapshot 
           clientId={parseInt(id!)} 
           onSnapshotRestored={refreshClient}
         />

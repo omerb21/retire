@@ -5,6 +5,7 @@ import { FixationSummaryCard } from './components/FixationSummaryCard';
 import { GrantsTable } from './components/GrantsTable';
 import { CommutationsTable } from './components/CommutationsTable';
 import { FixationExplanation } from './components/FixationExplanation';
+import './SimpleFixation.css';
 
 const SimpleFixationPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +38,7 @@ const SimpleFixationPage: React.FC = () => {
   } = useFixationData(id);
 
   if (loading && !fixationData) {
-    return <div style={{ padding: '20px' }}>טוען נתוני קיבוע זכויות...</div>;
+    return <div className="simple-fixation-loading">טוען נתוני קיבוע זכויות...</div>;
   }
 
   return (
@@ -62,15 +63,7 @@ const SimpleFixationPage: React.FC = () => {
         )}
 
         {error && (
-          <div
-            style={{
-              color: 'red',
-              marginBottom: '20px',
-              padding: '10px',
-              backgroundColor: '#fee',
-              borderRadius: '4px'
-            }}
-          >
+          <div className="simple-fixation-error">
             {error}
           </div>
         )}

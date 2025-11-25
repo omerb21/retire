@@ -1,0 +1,187 @@
+.conversion-settings-container {
+  margin-bottom: 40px;
+}
+
+.conversion-settings-title {
+  color: #2c3e50;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.conversion-saved-alert {
+  padding: 12px;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  color: #155724;
+}
+
+.conversion-description {
+  margin-bottom: 20px;
+}
+
+.conversion-description-text {
+  font-size: 14px;
+  color: #666666;
+}
+
+.conversion-actions {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 10px;
+}
+
+.conversion-save-button {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.conversion-reset-button {
+  padding: 10px 20px;
+  background-color: #dc3545;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.conversion-table-container {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #ffffff;
+}
+
+.conversion-table-scroll {
+  overflow-x: auto;
+}
+
+.conversion-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.conversion-table-header-row {
+  background-color: #f8f9fa;
+}
+
+.conversion-table-header-cell {
+  padding: 15px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.conversion-table-header-cell-right {
+  text-align: right;
+  min-width: 200px;
+}
+
+.conversion-table-header-cell-center {
+  text-align: center;
+}
+
+.conversion-table-header-cell-center-narrow {
+  text-align: center;
+  min-width: 100px;
+}
+
+.conversion-table-header-cell-center-wide {
+  text-align: center;
+  min-width: 120px;
+}
+
+.conversion-table-header-cell-error {
+  text-align: right;
+  min-width: 300px;
+}
+
+.conversion-table-row {
+  border-bottom: 1px solid #dee2e6;
+}
+
+.conversion-table-row-alt {
+  background-color: #f8f9fa;
+}
+
+.conversion-table-cell {
+  padding: 12px;
+}
+
+.conversion-table-cell-right {
+  text-align: right;
+}
+
+.conversion-table-cell-center {
+  text-align: center;
+}
+
+.conversion-rule-field-hint {
+  font-size: 11px;
+  color: #666666;
+}
+
+.conversion-checkbox {
+  transform: scale(1.2);
+  cursor: pointer;
+}
+
+.conversion-select {
+  width: 100%;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #cccccc;
+}
+
+.conversion-textarea {
+  width: 100%;
+  padding: 6px;
+  min-height: 40px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #cccccc;
+}
+
+.conversion-summary-row {
+  background-color: #fffbe6;
+  border-top: 2px solid #ffc107;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.conversion-summary-title {
+  padding: 12px;
+}
+
+.conversion-summary-subtitle {
+  font-size: 11px;
+  color: #666666;
+}
+
+.conversion-info-card {
+  margin-top: 20px;
+  padding: 16px;
+  background-color: #e7f3ff;
+  border-radius: 4px;
+  border: 1px solid #b3d9ff;
+}
+
+.conversion-info-title {
+  color: #0056b3;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.conversion-info-list {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #0056b3;
+  margin: 0;
+}

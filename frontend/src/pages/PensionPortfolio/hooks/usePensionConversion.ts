@@ -1,11 +1,16 @@
 import { PensionAccount, ConversionSourceData } from '../types';
 import { formatCurrency } from '../../../lib/validation';
 import { 
-  validateAccountConversion, 
   validateComponentConversion,
   calculateTaxTreatment 
 } from '../../../config/conversionRules';
 import { apiFetch } from '../../../lib/api';
+import { calculateRetirementDateForClient } from '../services/retirementDateService';
+import { preparePensionConversions } from '../services/pensionConversionPreparationService';
+import {
+  savePensionDataToStorage,
+  saveConvertedAccountsToStorage,
+} from '../services/pensionPortfolioStorageService';
 
 /**
  * Hook ללוגיקת המרת חשבונות פנסיוניים
@@ -25,38 +30,6 @@ export function usePensionConversion(
   clientData: any
 ) {
   
-  // פונקציה לחישוב תאריך פרישה
-  const calculateRetirementDate = async () => {
-    if (!clientData?.birth_date) return null;
-    
-    try {
-      const response: any = await apiFetch('/retirement-age/calculate-simple', {
-        method: 'POST',
-        body: JSON.stringify({
-          birth_date: clientData.birth_date,
-          gender: clientData.gender
-        })
-      });
-      
-      if (response && response.retirement_date) {
-        return response.retirement_date;
-      }
-      
-      const birthDate = new Date(clientData.birth_date);
-      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 65 : 67;
-      const retirementDate = new Date(birthDate);
-      retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-      return retirementDate.toISOString().split('T')[0];
-    } catch (error) {
-      console.error('Error calculating retirement date:', error);
-      const birthDate = new Date(clientData.birth_date);
-      const retirementAge = clientData.gender?.toLowerCase() === 'female' ? 65 : 67;
-      const retirementDate = new Date(birthDate);
-      retirementDate.setFullYear(birthDate.getFullYear() + retirementAge);
-      return retirementDate.toISOString().split('T')[0];
-    }
-  };
-
   // פונקציה להמרת חשבונות נבחרים
   const convertSelectedAccounts = async () => {
     if (!clientId) return;
@@ -76,88 +49,11 @@ export function usePensionConversion(
       return;
     }
 
-    const pensionConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
-    const capitalAssetConversions: Array<{account: any, index: number, amountToConvert: number, specificAmounts: any}> = [];
-    const validationErrors: string[] = [];
-    
-    pensionData.forEach((account, index) => {
-      const isPensionConversion = conversionTypes[index] === 'pension';
-      const isCapitalAssetConversion = conversionTypes[index] === 'capital_asset';
-      
-      if (!isPensionConversion && !isCapitalAssetConversion) return;
-
-      // בדיקה האם קיימים טורי תגמולים מפורטים (עובד/מעביד לפי תקופות)
-      const hasDetailedTagmulim = (
-        (Number((account as any).תגמולי_עובד_עד_2000) || 0) > 0 ||
-        (Number((account as any).תגמולי_עובד_אחרי_2000) || 0) > 0 ||
-        (Number((account as any).תגמולי_עובד_אחרי_2008_לא_משלמת) || 0) > 0 ||
-        (Number((account as any).תגמולי_מעביד_עד_2000) || 0) > 0 ||
-        (Number((account as any).תגמולי_מעביד_אחרי_2000) || 0) > 0 ||
-        (Number((account as any).תגמולי_מעביד_אחרי_2008_לא_משלמת) || 0) > 0
-      );
-      
-      let amountToConvert = 0;
-      let specificAmounts: any = {};
-      let selectedForValidation: any = {};
-      
-      if (account.selected) {
-        // המרה של כל החשבון - משתמשים ביתרה הכללית, אך מפלחים רק לרכיבים הרלוונטיים
-        amountToConvert = account.יתרה || 0;
-        specificAmounts = {};
-        selectedForValidation = {};
-        Object.keys(account).forEach(key => {
-          if (
-            typeof (account as any)[key] === 'number' &&
-            key !== 'יתרה' &&
-            key !== 'סך_תגמולים' &&
-            key !== 'סך_פיצויים' &&
-            key !== 'סך_רכיבים' &&
-            key !== 'פער_יתרה_מול_רכיבים' &&
-            // אם יש פירוט תגמולים, לא נכלול את שדה "תגמולים" הכללי כדי לא לספור פעמיים
-            !(key === 'תגמולים' && hasDetailedTagmulim)
-          ) {
-            const fieldAmount = (account as any)[key];
-            if (fieldAmount && fieldAmount > 0) {
-              specificAmounts[key] = fieldAmount;
-              selectedForValidation[key] = true;
-            }
-          }
-        });
-        if (Object.keys(selectedForValidation).length === 0) {
-          selectedForValidation['יתרה'] = true;
-        }
-      } else {
-        // המרה לפי טורים נבחרים (selected_amounts)
-        const selectedAmounts = account.selected_amounts || {};
-        Object.entries(selectedAmounts).forEach(([key, isSelected]) => {
-          if (!isSelected) return;
-          // במקרה שקיימים טורי תגמולים מפורטים, נתעלם משדה "תגמולים" כללי גם אם סומן בעבר
-          if (key === 'תגמולים' && hasDetailedTagmulim) return;
-
-          if ((account as any)[key]) {
-            const fieldAmount = parseFloat((account as any)[key]) || 0;
-            amountToConvert += fieldAmount;
-            specificAmounts[key] = fieldAmount;
-            selectedForValidation[key] = true;
-          }
-        });
-      }
-      
-      if (amountToConvert > 0) {
-        const conversionType = isPensionConversion ? 'pension' : 'capital_asset';
-        const validation = validateAccountConversion(account, selectedForValidation, conversionType);
-        
-        if (!validation.valid) {
-          validationErrors.push(`${account.שם_תכנית}: ${validation.errors.join(', ')}`);
-        } else {
-          if (isPensionConversion) {
-            pensionConversions.push({account, index, amountToConvert, specificAmounts});
-          } else if (isCapitalAssetConversion) {
-            capitalAssetConversions.push({account, index, amountToConvert, specificAmounts});
-          }
-        }
-      }
-    });
+    const {
+      pensionConversions,
+      capitalAssetConversions,
+      validationErrors,
+    } = preparePensionConversions(pensionData, conversionTypes);
 
     if (validationErrors.length > 0) {
       setError("שגיאות ולידציה:\n" + validationErrors.join('\n'));
@@ -185,7 +81,7 @@ export function usePensionConversion(
       }
       
       if (!paymentDateISO) {
-        paymentDateISO = await calculateRetirementDate() || '';
+        paymentDateISO = (await calculateRetirementDateForClient(clientData)) || '';
       }
 
       // טיפול בהמרות לקצבה
@@ -487,8 +383,8 @@ export function usePensionConversion(
       
       setConversionTypes({});
       
-      localStorage.setItem(`pensionData_${clientId}`, JSON.stringify(updatedPensionData));
-      localStorage.setItem(`convertedAccounts_${clientId}`, JSON.stringify(Array.from(updatedConvertedAccounts)));
+      savePensionDataToStorage(clientId, updatedPensionData);
+      saveConvertedAccountsToStorage(clientId, updatedConvertedAccounts);
       
       let successMessage = "הומרה בהצלחה!\n";
       if (pensionConversions.length > 0) {
