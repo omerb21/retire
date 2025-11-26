@@ -159,6 +159,29 @@ export const isTerminationConfirmed = (clientId: string): boolean => {
 };
 
 /**
+ * Get employer completion preference for scenarios and termination
+ */
+export const getEmployerCompletionPreference = (clientId: string): boolean => {
+  const key = `employerCompletion_${clientId}`;
+  return localStorage.getItem(key) === 'true';
+};
+
+/**
+ * Set employer completion preference for scenarios and termination
+ */
+export const setEmployerCompletionPreference = (
+  clientId: string,
+  useCompletion: boolean
+): void => {
+  const key = `employerCompletion_${clientId}`;
+  if (useCompletion) {
+    localStorage.setItem(key, 'true');
+  } else {
+    localStorage.removeItem(key);
+  }
+};
+
+/**
  * Set termination confirmed status
  */
 export const setTerminationConfirmed = (clientId: string, confirmed: boolean): void => {

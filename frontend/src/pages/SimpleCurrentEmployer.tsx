@@ -13,7 +13,10 @@ import { useTerminationActions } from './SimpleCurrentEmployer/hooks/useTerminat
 import { SavedDataDisplay } from './SimpleCurrentEmployer/components/SavedDataDisplay';
 import { EmployerDetailsForm } from './SimpleCurrentEmployer/components/EmployerDetailsForm';
 import { TerminationSteps } from './SimpleCurrentEmployer/components/TerminationSteps';
-import { isTerminationConfirmed } from './SimpleCurrentEmployer/utils/storageHelpers';
+import {
+  isTerminationConfirmed,
+  getEmployerCompletionPreference,
+} from './SimpleCurrentEmployer/utils/storageHelpers';
 import './SimpleCurrentEmployer/SimpleCurrentEmployer.css';
 
 const SimpleCurrentEmployer: React.FC = () => {
@@ -67,8 +70,15 @@ const SimpleCurrentEmployer: React.FC = () => {
   useEffect(() => {
     if (id) {
       const isConfirmed = isTerminationConfirmed(id);
+      const useCompletion = getEmployerCompletionPreference(id);
+
+      setTerminationDecision(prev => ({
+        ...prev,
+        confirmed: isConfirmed,
+        use_employer_completion: useCompletion,
+      }));
+
       if (isConfirmed) {
-        setTerminationDecision(prev => ({ ...prev, confirmed: true }));
         console.log('✅ Loaded confirmed state from localStorage: true');
       }
     }

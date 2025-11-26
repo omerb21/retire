@@ -11,6 +11,7 @@ import {
 import {
   saveSeveranceDistribution,
   setTerminationConfirmed,
+  getEmployerCompletionPreference,
 } from "../../SimpleCurrentEmployer/utils/storageHelpers";
 import { loadSnapshotRawFromStorage } from "../../../services/snapshotStorageService";
 
@@ -181,15 +182,12 @@ export function useRetirementScenarios(clientId: string | undefined) {
         }
       }
 
+      // קביעת הכללת עזיבת המעסיק הנוכחי לפי העדפה שנקבעה במסך המעסיק
       let includeCurrentEmployerTermination = false;
       try {
-        const includeTerminationAnswer = window.confirm(
-          "האם לכלול בתרחישי הפרישה סיום עבודה מהמעסיק הנוכחי?\n\nלחיצה על 'אישור' תחשב תרחישים כולל מימוש פיצויים דרך מסך מעסיק נוכחי.\nלחיצה על 'ביטול' תחשב תרחישים מבלי לבצע כעת סיום עבודה בפועל."
-        );
+        includeCurrentEmployerTermination = getEmployerCompletionPreference(clientId);
 
-        if (includeTerminationAnswer) {
-          includeCurrentEmployerTermination = true;
-
+        if (includeCurrentEmployerTermination) {
           try {
             await apiFetch(`/clients/${clientId}/current-employer`, {
               method: "GET",
@@ -204,8 +202,8 @@ export function useRetirementScenarios(clientId: string | undefined) {
             return;
           }
         }
-      } catch (promptError) {
-        console.error("Error during termination inclusion prompt:", promptError);
+      } catch (prefError) {
+        console.error("Error loading employer completion preference:", prefError);
       }
 
       let requestPensionPortfolio = pensionPortfolio;

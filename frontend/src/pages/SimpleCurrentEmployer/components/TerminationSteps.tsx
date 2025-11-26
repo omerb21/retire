@@ -75,17 +75,15 @@ export const TerminationSteps: React.FC<TerminationStepsProps> = ({
     return (
       <div className="termination-step termination-step--yellow">
         <h4 className="termination-step-header">שלב 3: השלמת מעסיק</h4>
-        <label
-          className={`termination-checkbox-label ${terminationDecision.confirmed ? 'termination-checkbox-label--disabled' : ''}`}
-        >
+        <label className="termination-checkbox-label termination-checkbox-label--disabled">
           <input
             type="checkbox"
             checked={terminationDecision.use_employer_completion}
-            onChange={(e) => setTerminationDecision(prev => ({ ...prev, use_employer_completion: e.target.checked }))}
-            disabled={terminationDecision.confirmed}
+            readOnly
+            disabled
             className="termination-checkbox-input"
           />
-          תבוצע השלמת מעסיק
+          תבוצע השלמת מעסיק (ההחלטה נקבעת בלשונית "פרטי מעסיק")
         </label>
         {terminationDecision.use_employer_completion && (
           <div className="termination-completion-box">

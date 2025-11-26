@@ -6,7 +6,10 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { formatDateInput } from '../../../utils/dateUtils';
-import { clearTerminationState } from '../utils/storageHelpers';
+import {
+  clearTerminationState,
+  setEmployerCompletionPreference,
+} from '../utils/storageHelpers';
 import { formatCurrency } from '../../../lib/validation';
 
 interface EmployerDetailsFormProps {
@@ -127,6 +130,36 @@ export const EmployerDetailsForm: React.FC<EmployerDetailsFormProps> = ({
             </p>
           </div>
         )}
+      </div>
+
+      <div className="employer-form-field">
+        <label className="employer-form-label">
+          השלמת מעסיק
+        </label>
+        <label className="employer-form-checkbox-label">
+          <input
+            type="checkbox"
+            checked={!!terminationDecision.use_employer_completion}
+            onChange={(e) => {
+              const useCompletion = e.target.checked;
+              // עדכון החלטת העזיבה בזיכרון
+              setTerminationDecision(prev => ({
+                ...prev,
+                use_employer_completion: useCompletion,
+                confirmed: false,
+              }));
+
+              // שמירת העדפה ב-localStorage
+              setEmployerCompletionPreference(clientId, useCompletion);
+
+              // שינוי החלטה מחייב ניקוי מצב עזיבה קודם
+              clearTerminationState(clientId);
+            }}
+            disabled={loading}
+            className="employer-form-checkbox-input"
+          />
+          תבוצע השלמת מעסיק (בתהליכי עזיבה ותרחישי פרישה)
+        </label>
       </div>
 
       <div className="employer-form-field">
