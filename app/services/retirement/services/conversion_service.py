@@ -128,7 +128,11 @@ class ConversionService:
             )
             if ca:
                 self.db.add(ca)
-                self.db.delete(ef)
+                # אל תמחק את קרן ההשתלמות המקורית – אפס את היתרה/קצבה שלה
+                if ef.balance is not None:
+                    ef.balance = 0.0
+                if getattr(ef, "pension_amount", None) is not None:
+                    ef.pension_amount = 0.0
         
         self.db.flush()
     

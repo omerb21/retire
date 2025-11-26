@@ -71,7 +71,25 @@ export function useCapitalAssets(clientId: string | undefined) {
     try {
       // קבלת פרטי הנכס מהרשימה המקומית
       const asset = assets.find(a => a.id === assetId);
-      
+
+      // חסימה של מחיקת נכס הון שנוצר מהיוון – יש למחוק ממסך הקצבאות
+      const isCommutationAsset =
+        asset &&
+        (
+          asset.asset_type === 'deposits' ||
+          (asset.description && asset.description.includes('היוון')) ||
+          (asset.remarks && asset.remarks.includes('COMMUTATION:')) ||
+          ((asset as any).conversion_source && (asset as any).conversion_source.includes('"pension_commutation"'))
+        );
+
+      if (isCommutationAsset) {
+        alert(
+          'לא ניתן למחוק נכס הון שנוצר מהיוון מתוך מסך נכסי הון.\n' +
+          'אנא מחק את ההיוון ממסך הקצבאות (טבלת ההיוונים), כדי שהקצבה תשוחזר כראוי.'
+        );
+        return;
+      }
+
       // מחיקת הנכס והחזרת מידע על שחזור
       const deleteResponse = await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
         method: 'DELETE'
