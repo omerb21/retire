@@ -182,28 +182,38 @@ export function useRetirementScenarios(clientId: string | undefined) {
         }
       }
 
-      // קביעת הכללת עזיבת המעסיק הנוכחי לפי העדפה שנקבעה במסך המעסיק
+      // קביעת הכללת עזיבת המעסיק הנוכחי: העדפה + בחירה מפורשת של המשתמש בלחיצה על הכפתור
       let includeCurrentEmployerTermination = false;
       try {
         includeCurrentEmployerTermination = getEmployerCompletionPreference(clientId);
-
-        if (includeCurrentEmployerTermination) {
-          try {
-            await apiFetch(`/clients/${clientId}/current-employer`, {
-              method: "GET",
-            });
-          } catch (error: any) {
-            console.error(
-              "Current employer validation failed before scenarios:",
-              error
-            );
-            setError(handleApiError(error));
-            setLoading(false);
-            return;
-          }
-        }
       } catch (prefError) {
         console.error("Error loading employer completion preference:", prefError);
+      }
+
+      const includeByUserChoice = window.confirm(
+        "האם לכלול בתרחישי הפרישה סיום עבודה מהמעסיק הנוכחי?"
+      );
+
+      if (!includeByUserChoice) {
+        includeCurrentEmployerTermination = false;
+      } else {
+        includeCurrentEmployerTermination = true;
+      }
+
+      if (includeCurrentEmployerTermination) {
+        try {
+          await apiFetch(`/clients/${clientId}/current-employer`, {
+            method: "GET",
+          });
+        } catch (error: any) {
+          console.error(
+            "Current employer validation failed before scenarios:",
+            error
+          );
+          setError(handleApiError(error));
+          setLoading(false);
+          return;
+        }
       }
 
       let requestPensionPortfolio = pensionPortfolio;
