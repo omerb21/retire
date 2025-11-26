@@ -139,20 +139,23 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
             </div>
           </div>
         )}
-
-        <label className="fixation-future-grant-label">
-          מענק עתידי משוריין (נומינלי):
-        </label>
-        <input
-          type="number"
-          value={futureGrantReserved || ''}
-          onChange={(e) => setFutureGrantReserved(parseFloat(e.target.value) || 0)}
-          placeholder="הזן סכום מענק עתידי"
-          className="fixation-future-grant-input"
-        />
-        <div className="fixation-future-grant-note">
-          הערך יוכפל ב-1.35 ויופחת מיתרת ההון הפטורה
-        </div>
+        {continuesWorking && (
+          <div>
+            <label className="fixation-future-grant-label">
+              מענק עתידי משוריין (נומינלי):
+            </label>
+            <input
+              type="number"
+              value={futureGrantReserved || ''}
+              onChange={(e) => setFutureGrantReserved(parseFloat(e.target.value) || 0)}
+              placeholder="הזן סכום מענק עתידי"
+              className="fixation-future-grant-input"
+            />
+            <div className="fixation-future-grant-note">
+              הערך יוכפל ב-1.35 ויופחת מיתרת ההון הפטורה
+            </div>
+          </div>
+        )}
       </div>
 
       <div>
