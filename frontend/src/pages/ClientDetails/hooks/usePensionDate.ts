@@ -22,10 +22,18 @@ export const usePensionDate = (client: ClientItem | null, onUpdate: () => void) 
       setSaving(true);
       setError(null);
       setSuccessMessage(null);
-      
-      await axios.put(`${API_BASE}/clients/${client.id}`, {
-        pension_start_date: pensionStartDate || null
-      });
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      await axios.put(
+        `${API_BASE}/clients/${client.id}`,
+        {
+          pension_start_date: pensionStartDate || null,
+        },
+        {
+          headers: systemPassword
+            ? { 'X-System-Password': systemPassword }
+            : undefined,
+        }
+      );
       
       setSuccessMessage('תאריך קבלת קצבה עודכן בהצלחה');
       setEditMode(false);

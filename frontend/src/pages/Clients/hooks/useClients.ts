@@ -59,7 +59,12 @@ export function useClients() {
         console.error('Error with listClients API:', apiError);
 
         try {
-          const testResponse = await fetch(`${API_BASE}/clients`);
+          const systemPassword = window.localStorage.getItem('systemAccessPassword');
+          const testResponse = await fetch(`${API_BASE}/clients`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          });
           console.log('Direct fetch status:', testResponse.status);
 
           if (!testResponse.ok) {
@@ -114,11 +119,17 @@ export function useClients() {
 
     try {
       setMsg('');
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(`${API_BASE}/clients/${clientId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers,
       });
 
       if (!response.ok) {
@@ -173,11 +184,17 @@ export function useClients() {
         throw new Error('תאריך לידה לא תקין - יש להזין בפורמט DD/MM/YYYY');
       }
 
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(`${API_BASE}/clients/${editingClient.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({
           id_number: editForm.id_number.trim(),
           first_name: editForm.first_name.trim(),

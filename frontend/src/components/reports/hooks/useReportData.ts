@@ -49,18 +49,46 @@ export function useReportData(clientId: string | undefined) {
       try {
         setLoading(true);
         setError(null);
+        const systemPassword = window.localStorage.getItem('systemAccessPassword');
 
         // Get client info
-        const clientResponse = await axios.get(`${API_BASE}/clients/${clientId}`);
+        const clientResponse = await axios.get(`${API_BASE}/clients/${clientId}`, {
+          headers: systemPassword
+            ? { 'X-System-Password': systemPassword }
+            : undefined,
+        });
         const clientData = clientResponse.data;
         setClient(clientData);
 
         // Get financial data
-        const [pensionFundsResponse, additionalIncomesResponse, capitalAssetsResponse, fixationResponse] = await Promise.all([
-          axios.get(`${API_BASE}/clients/${clientId}/pension-funds`),
-          axios.get(`${API_BASE}/clients/${clientId}/additional-incomes`),
-          axios.get(`${API_BASE}/clients/${clientId}/capital-assets/`),
-          axios.get(`${API_BASE}/rights-fixation/client/${clientId}`).catch(() => ({ data: null }))
+        const [
+          pensionFundsResponse,
+          additionalIncomesResponse,
+          capitalAssetsResponse,
+          fixationResponse,
+        ] = await Promise.all([
+          axios.get(`${API_BASE}/clients/${clientId}/pension-funds`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          }),
+          axios.get(`${API_BASE}/clients/${clientId}/additional-incomes`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          }),
+          axios.get(`${API_BASE}/clients/${clientId}/capital-assets/`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          }),
+          axios
+            .get(`${API_BASE}/rights-fixation/client/${clientId}`, {
+              headers: systemPassword
+                ? { 'X-System-Password': systemPassword }
+                : undefined,
+            })
+            .catch(() => ({ data: null })),
         ]);
         
         const pensionFundsData = pensionFundsResponse.data || [];

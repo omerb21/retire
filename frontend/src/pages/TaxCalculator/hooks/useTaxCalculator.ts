@@ -94,7 +94,12 @@ export function useTaxCalculator(clientId?: string) {
     if (!clientId) return;
 
     try {
-      const response = await axios.get(`${API_BASE}/clients/${clientId}`);
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const response = await axios.get(`${API_BASE}/clients/${clientId}`, {
+        headers: systemPassword
+          ? { 'X-System-Password': systemPassword }
+          : undefined,
+      });
       const client = response.data;
 
       setFormData((prev) => ({
@@ -150,7 +155,12 @@ export function useTaxCalculator(clientId?: string) {
       setLoading(true);
       setError(null);
 
-      const response = await axios.post(`${API_BASE}/tax/calculate`, formData);
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const response = await axios.post(`${API_BASE}/tax/calculate`, formData, {
+        headers: systemPassword
+          ? { 'X-System-Password': systemPassword }
+          : undefined,
+      });
       setResult(response.data);
     } catch (err: any) {
       setError('שגיאה בחישוב מס: ' + (err.response?.data?.detail || err.message));
@@ -163,7 +173,10 @@ export function useTaxCalculator(clientId?: string) {
     if (!clientId) return;
 
     try {
-      await axios.put(`${API_BASE}/clients/${clientId}`, {
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      await axios.put(
+        `${API_BASE}/clients/${clientId}`,
+        {
         num_children: formData.personal_details.num_children,
         is_new_immigrant: formData.personal_details.is_new_immigrant,
         is_veteran: formData.personal_details.is_veteran,
@@ -176,7 +189,13 @@ export function useTaxCalculator(clientId?: string) {
         study_fund_contributions: formData.study_fund_contributions,
         insurance_premiums: formData.insurance_premiums,
         charitable_donations: formData.charitable_donations,
-      });
+        },
+        {
+          headers: systemPassword
+            ? { 'X-System-Password': systemPassword }
+            : undefined,
+        }
+      );
 
       alert('נתוני המס נשמרו בהצלחה');
     } catch (err) {

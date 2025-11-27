@@ -89,18 +89,31 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
       try {
         setLoading(true);
         setError(null);
+        const systemPassword = window.localStorage.getItem('systemAccessPassword');
 
         try {
-          const clientResponse = await axios.get(`${API_BASE}/clients/${id}`);
+          const clientResponse = await axios.get(`${API_BASE}/clients/${id}`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          });
           setClientData(clientResponse.data);
           setCurrentPensionStartDate(clientResponse.data?.pension_start_date || null);
 
           if (clientResponse.data?.birth_date && clientResponse.data?.gender) {
             try {
-              const retirementResponse = await axios.post(`${API_BASE}/retirement-age/calculate-simple`, {
-                birth_date: clientResponse.data.birth_date,
-                gender: clientResponse.data.gender
-              });
+              const retirementResponse = await axios.post(
+                `${API_BASE}/retirement-age/calculate-simple`,
+                {
+                  birth_date: clientResponse.data.birth_date,
+                  gender: clientResponse.data.gender,
+                },
+                {
+                  headers: systemPassword
+                    ? { 'X-System-Password': systemPassword }
+                    : undefined,
+                }
+              );
 
               if (retirementResponse.data?.retirement_age) {
                 setRetirementAge(retirementResponse.data.retirement_age.toString());
@@ -119,7 +132,11 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         }
 
         try {
-          const savedFixation = await axios.get(`${API_BASE}/rights-fixation/client/${id}`);
+          const savedFixation = await axios.get(`${API_BASE}/rights-fixation/client/${id}`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          });
           if (
             savedFixation.data.success &&
             (savedFixation.data.raw_payload || savedFixation.data.raw_result)
@@ -205,7 +222,12 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         try {
           if (!workingEmployerName) {
             const employerResponse = await axios.get(
-              `${API_BASE}/clients/${id}/current-employer`
+              `${API_BASE}/clients/${id}/current-employer`,
+              {
+                headers: systemPassword
+                  ? { 'X-System-Password': systemPassword }
+                  : undefined,
+              }
             );
 
             let employerData: any = null;
@@ -238,8 +260,19 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         }
 
         try {
-          const capitalAssets = await axios.get(`${API_BASE}/clients/${id}/capital-assets/`);
-          const pensionFunds = await axios.get(`${API_BASE}/clients/${id}/pension-funds`);
+          const capitalAssets = await axios.get(
+            `${API_BASE}/clients/${id}/capital-assets/`,
+            {
+              headers: systemPassword
+                ? { 'X-System-Password': systemPassword }
+                : undefined,
+            }
+          );
+          const pensionFunds = await axios.get(`${API_BASE}/clients/${id}/pension-funds`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          });
           const fundsMap = new Map(pensionFunds.data.map((f: any) => [f.id, f]));
 
           // שלב 1: בוחרים רק נכסים הוניים שהם היוונים פטורים (COMMUTATION + tax_treatment === 'exempt')
@@ -292,7 +325,11 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
 
         let grants: any[] = [];
         try {
-          const grantsResponse = await axios.get(`${API_BASE}/clients/${id}/grants`);
+          const grantsResponse = await axios.get(`${API_BASE}/clients/${id}/grants`, {
+            headers: systemPassword
+              ? { 'X-System-Password': systemPassword }
+              : undefined,
+          });
           grants = grantsResponse.data || [];
           setHasGrants(grants.length > 0);
         } catch (err: any) {
@@ -311,9 +348,17 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         console.log('DEBUG: grants.length:', grants.length);
 
         try {
-          const fixationResponse = await axios.post(`${API_BASE}/rights-fixation/calculate`, {
-            client_id: parseInt(id!)
-          });
+          const fixationResponse = await axios.post(
+            `${API_BASE}/rights-fixation/calculate`,
+            {
+              client_id: parseInt(id!),
+            },
+            {
+              headers: systemPassword
+                ? { 'X-System-Password': systemPassword }
+                : undefined,
+            }
+          );
 
           console.log('DEBUG: Full API response:', fixationResponse.data);
 
@@ -548,11 +593,20 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         formattedData.idf_security_forces = idfSecurityForces;
       }
 
-      const saveResponse = await axios.post(`${API_BASE}/rights-fixation/save`, {
-        client_id: parseInt(id!),
-        calculation_result: calculationResult,
-        formatted_data: formattedData
-      });
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const saveResponse = await axios.post(
+        `${API_BASE}/rights-fixation/save`,
+        {
+          client_id: parseInt(id!),
+          calculation_result: calculationResult,
+          formatted_data: formattedData,
+        },
+        {
+          headers: systemPassword
+            ? { 'X-System-Password': systemPassword }
+            : undefined,
+        }
+      );
 
       alert(
         `קיבוע זכויות נשמר בהצלחה!\nתאריך חישוב: ${formatDateToDDMMYYYY(
@@ -564,7 +618,12 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
       // (idf_security_forces_impact וכו') ונמזג אותם אל סיכום הפטור הקיים, בלי לדרוס
       // את remaining_exempt_capital ושדות הבסיס שהגיעו מחישוב הזכאות הרגיל.
       try {
-        const refreshed = await axios.get(`${API_BASE}/rights-fixation/client/${id}`);
+        const systemPassword = window.localStorage.getItem('systemAccessPassword');
+        const refreshed = await axios.get(`${API_BASE}/rights-fixation/client/${id}`, {
+          headers: systemPassword
+            ? { 'X-System-Password': systemPassword }
+            : undefined,
+        });
         const rawResult = refreshed.data?.raw_result || {};
         if (rawResult && typeof rawResult === 'object') {
           const refreshedExemption: any = rawResult.exemption_summary || {};
@@ -638,7 +697,12 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
       setLoading(true);
       setError(null);
 
-      await axios.delete(`${API_BASE}/rights-fixation/client/${id}`);
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      await axios.delete(`${API_BASE}/rights-fixation/client/${id}`, {
+        headers: systemPassword
+          ? { 'X-System-Password': systemPassword }
+          : undefined,
+      });
 
       setFixationData((prev) => prev);
       setFutureGrantReserved(0);
