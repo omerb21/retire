@@ -6,6 +6,19 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './SystemHealthMonitor.css';
 
+const SYSTEM_ACCESS_STORAGE_KEY = 'systemAccessPassword';
+
+function getSystemAccessPassword(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(SYSTEM_ACCESS_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 interface TableValidation {
   valid: boolean;
   error: string;
@@ -40,7 +53,12 @@ const SystemHealthMonitor: React.FC = () => {
   const checkHealth = async () => {
     setLoading(true);
     try {
-      const response = await axios.get<SystemHealthResponse>('http://localhost:8005/api/v1/system/health');
+      const systemPassword = getSystemAccessPassword();
+      const response = await axios.get<SystemHealthResponse>('http://localhost:8005/api/v1/system/health', {
+        headers: systemPassword
+          ? { 'X-System-Password': systemPassword }
+          : undefined,
+      });
       setHealth(response.data);
       setLastCheck(new Date());
     } catch (error) {
@@ -53,7 +71,12 @@ const SystemHealthMonitor: React.FC = () => {
   const autoFix = async () => {
     setFixing(true);
     try {
-      const response = await axios.post<AutoFixResponse>('http://localhost:8005/api/v1/system/health/fix');
+      const systemPassword = getSystemAccessPassword();
+      const response = await axios.post<AutoFixResponse>('http://localhost:8005/api/v1/system/health/fix', undefined, {
+        headers: systemPassword
+          ? { 'X-System-Password': systemPassword }
+          : undefined,
+      });
       
       if (response.data.success) {
         alert(`✅ ${response.data.message}\n\nטבלאות שתוקנו: ${response.data.fixed_tables.join(', ') || 'אין'}`);

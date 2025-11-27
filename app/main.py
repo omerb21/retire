@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
+from app.core.system_access import SystemAccessMiddleware
 from app.routers import (
     fixation,
     files,
@@ -101,6 +102,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# System-wide access protection (single password header)
+app.add_middleware(SystemAccessMiddleware)
 
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix

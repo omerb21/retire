@@ -1,7 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { HashRouter, Routes, Route, NavLink } from "react-router-dom";
 import { getTaxBrackets } from "./components/reports/calculations/taxCalculations";
 import "./styles/modern-theme.css";
+import SystemAccessGate from "./components/SystemAccess/SystemAccessGate";
 
 // Lazy-loaded page components for better bundle splitting
 const Clients = React.lazy(() => import("./pages/Clients/ClientsPage"));
@@ -24,13 +25,32 @@ const ClientDetailsPage = React.lazy(() => import("./pages/ClientDetails"));
 // Import module components (placeholders until implemented)
 // All modules now imported from separate files
 
+const SYSTEM_ACCESS_STORAGE_KEY = "systemAccessPassword";
+
 export default function App() {
   // טעינת מדרגות מס מ-API בעת טעינת האפליקציה
+  const [hasAccess, setHasAccess] = useState(false);
+
+  const handleAccessGranted = useCallback(() => {
+    setHasAccess(true);
+  }, []);
+
   useEffect(() => {
     // כרגע getTaxBrackets היא סינכרונית, נטען את המדרגות מיד
     const brackets = getTaxBrackets();
     console.log('✅ מדרגות מס אותחלו בהצלחה:', brackets.length, 'מדרגות');
   }, []);
+
+  useEffect(() => {
+    const existing = window.localStorage.getItem(SYSTEM_ACCESS_STORAGE_KEY);
+    if (existing) {
+      setHasAccess(true);
+    }
+  }, []);
+
+  if (!hasAccess) {
+    return <SystemAccessGate onAccessGranted={handleAccessGranted} />;
+  }
 
   return (
     <HashRouter>

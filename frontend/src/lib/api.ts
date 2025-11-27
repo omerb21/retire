@@ -1,5 +1,18 @@
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
+const SYSTEM_ACCESS_STORAGE_KEY = "systemAccessPassword";
+
+function getSystemAccessPassword(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(SYSTEM_ACCESS_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 function extractMessage(body: any): string | undefined {
   if (!body) return;
   if (typeof body === "string") return body;
@@ -35,6 +48,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
     if (!isFormData && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
+    }
+
+    const systemPassword = getSystemAccessPassword();
+    if (systemPassword && !headers.has("X-System-Password")) {
+      headers.set("X-System-Password", systemPassword);
     }
 
     const res = await fetch(`${API_BASE}${path}`, {
@@ -344,9 +362,18 @@ export const calculationApi = {
 // ===== Reports API (PDF export used in Results.tsx) =====
 
 async function downloadBlob(path: string, init?: RequestInit) {
+  const customHeaders = init?.headers;
+  const headers = new Headers(customHeaders as HeadersInit | undefined);
+
+  const systemPassword = getSystemAccessPassword();
+  if (systemPassword && !headers.has("X-System-Password")) {
+    headers.set("X-System-Password", systemPassword);
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "omit",
     ...init,
+    headers,
   });
 
   if (!res.ok) {
