@@ -18,6 +18,7 @@ export interface ExemptionSummary {
   remaining_monthly_exemption: number;
   eligibility_year: number;
   exemption_percentage: number;
+  idf_security_forces_impact?: number;
 }
 
 export interface PensionSummary {
@@ -34,6 +35,7 @@ export interface PensionSummary {
     base_amount: number;
     percentage: number;
   };
+  idf_security_forces_impact?: number;
 }
 
 export interface Commutation {

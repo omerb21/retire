@@ -31,7 +31,8 @@ export const calculatePensionSummary = (
   exemptionSummary: ExemptionSummary | null,
   futureGrantReserved: number,
   commutations: Commutation[],
-  fixationData: FixationData | null
+  fixationData: FixationData | null,
+  idfCommutationId?: number | null
 ): PensionSummary => {
   console.log('DEBUG: calculatePensionSummary called');
   console.log('DEBUG: grantsSummary:', grantsSummary);
@@ -41,6 +42,10 @@ export const calculatePensionSummary = (
   const exemptAmount = exemptionSummary?.exempt_capital_initial || 0;
   const remainingExemptCapital = exemptionSummary?.remaining_exempt_capital || 0;
   const exemptionPercentage = exemptionSummary?.exemption_percentage || 0;
+  const idfImpact =
+    typeof exemptionSummary?.idf_security_forces_impact === 'number'
+      ? exemptionSummary!.idf_security_forces_impact
+      : 0;
 
   const includedGrants = grantsSummary.filter((grant) =>
     !(grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) &&
@@ -64,13 +69,21 @@ export const calculatePensionSummary = (
   const usedExemption = totalImpact;
   const futureGrantImpact = futureGrantReserved * 1.35;
 
-  const totalDiscounts = commutations.reduce(
+  // לפורשי צה״ל: ההיוון הצה״לי לא נכלל ב"סך היוונים" הרגילים
+  // הפגיעה שלו מחושבת בנפרד לפי נוסחת צה״ל (idf_security_forces_impact)
+  const filteredCommutations = idfCommutationId
+    ? commutations.filter((c) => c.id !== idfCommutationId)
+    : commutations;
+
+  const totalDiscounts = filteredCommutations.reduce(
     (sum, commutation) => sum + (commutation.exempt_amount || 0),
     0
   );
-  console.log('DEBUG: totalDiscounts from commutations:', totalDiscounts);
+  console.log('DEBUG: totalDiscounts from commutations (excluding IDF):', totalDiscounts);
 
-  const remainingExemption = remainingExemptCapital - futureGrantImpact - totalDiscounts;
+  // לפורשי צה״ל: הפגיעה מחושבת לפי נוסחת צה״ל (idfImpact) במקום הקיזוז הרגיל של ההיוון
+  // היתרה מופחתת ב: מענק עתידי + היוונים רגילים (לא כולל צה״ל) + פגיעת צה״ל (אם יש)
+  const remainingExemption = remainingExemptCapital - futureGrantImpact - totalDiscounts - idfImpact;
 
   const eligibilityYear = fixationData?.eligibility_year || new Date().getFullYear();
   const pensionCeiling = getPensionCeiling(eligibilityYear);
@@ -91,6 +104,7 @@ export const calculatePensionSummary = (
     exempt_pension_calculated: {
       base_amount: baseAmount,
       percentage: percentage
-    }
+    },
+    idf_security_forces_impact: idfImpact
   };
 };

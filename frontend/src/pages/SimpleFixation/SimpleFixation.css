@@ -36,6 +36,21 @@
   border: 1px solid var(--brand-warning);
 }
 
+.fixation-idf-box {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #e8f5e9;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brand-success);
+}
+
+.fixation-working-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
 .fixation-future-grant-label {
   display: block;
   margin-bottom: 8px;
@@ -294,5 +309,10 @@
   .fixation-grants-table,
   .fixation-commutations-table {
     font-size: 12px;
+  }
+
+  .fixation-working-header-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

@@ -16,6 +16,10 @@
   margin-bottom: 40px;
 }
 
+.fixation-idf-section {
+  margin-bottom: 40px;
+}
+
 .fixation-section-header {
   display: flex;
   justify-content: space-between;
@@ -140,6 +144,12 @@
 
 .fixation-input-full {
   width: 100%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.fixation-idf-gender-select {
   padding: 5px;
   border: 1px solid #ccc;
   border-radius: 4px;

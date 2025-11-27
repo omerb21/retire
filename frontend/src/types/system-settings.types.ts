@@ -28,6 +28,14 @@ export interface ExemptCapitalPercentage {
   description: string;
 }
 
+export interface IdfPromoterRow {
+  gender: 'male' | 'female';
+  age_at_commutation: number;
+  promoter_age_years: number;
+  promoter_age_months: number;
+  description?: string;
+}
+
 export type TabType = 
   | 'tax' 
   | 'severance' 

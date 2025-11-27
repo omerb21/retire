@@ -14,6 +14,7 @@ import {
   SeveranceCap,
   PensionCeiling,
   ExemptCapitalPercentage,
+  IdfPromoterRow,
 } from '../../../types/system-settings.types';
 import {
   loadPensionCeilingsFromStorage,
@@ -21,6 +22,8 @@ import {
   loadExemptCapitalPercentagesFromStorage,
   saveExemptCapitalPercentagesToStorage,
   saveMaleRetirementAgeToStorage,
+  loadIdfPromoterTableFromStorage,
+  saveIdfPromoterTableToStorage,
 } from '../../../services/systemSettingsStorageService';
 
 export const useSystemSettingsPage = () => {
@@ -33,6 +36,10 @@ export const useSystemSettingsPage = () => {
 
   const [maleRetirementAge, setMaleRetirementAge] = useState(67);
   const [retirementSaved, setRetirementSaved] = useState(false);
+
+  const [idfPromoterTable, setIdfPromoterTable] = useState<IdfPromoterRow[]>([]);
+  const [isEditingIdfPromoterTable, setIsEditingIdfPromoterTable] = useState(false);
+  const [editedIdfPromoterTable, setEditedIdfPromoterTable] = useState<IdfPromoterRow[]>([]);
 
   const {
     // Tax brackets
@@ -79,6 +86,7 @@ export const useSystemSettingsPage = () => {
     loadSeveranceCaps();
     loadPensionCeilings();
     loadExemptCapitalPercentages();
+    loadIdfPromoterTable();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -247,6 +255,11 @@ export const useSystemSettingsPage = () => {
     setExemptCapitalPercentages(percentages);
   };
 
+  const loadIdfPromoterTable = () => {
+    const rows = loadIdfPromoterTableFromStorage();
+    setIdfPromoterTable(rows);
+  };
+
   const handleEditPercentages = () => {
     setEditedPercentages([...exemptCapitalPercentages]);
     setIsEditingPercentages(true);
@@ -291,6 +304,52 @@ export const useSystemSettingsPage = () => {
       description: `אחוז הון פטור לשנת ${currentYear + 1}`,
     };
     setEditedPercentages([newPercentage, ...editedPercentages]);
+  };
+
+  const handleEditIdfPromoterTable = () => {
+    setEditedIdfPromoterTable([...idfPromoterTable]);
+    setIsEditingIdfPromoterTable(true);
+  };
+
+  const handleSaveIdfPromoterTable = () => {
+    setIdfPromoterTable([...editedIdfPromoterTable]);
+    saveIdfPromoterTableToStorage(editedIdfPromoterTable);
+    setIsEditingIdfPromoterTable(false);
+    alert('טבלת גיל מקדם לפורשי צה"ל נשמרה בהצלחה!');
+  };
+
+  const handleCancelIdfPromoterTable = () => {
+    setEditedIdfPromoterTable([]);
+    setIsEditingIdfPromoterTable(false);
+  };
+
+  const handleIdfPromoterRowChange = (
+    index: number,
+    field: keyof IdfPromoterRow,
+    value: any
+  ) => {
+    const updated = [...editedIdfPromoterTable];
+    updated[index] = {
+      ...updated[index],
+      [field]:
+        field === 'age_at_commutation' ||
+        field === 'promoter_age_years' ||
+        field === 'promoter_age_months'
+          ? parseFloat(value)
+          : value,
+    };
+    setEditedIdfPromoterTable(updated);
+  };
+
+  const handleAddIdfPromoterRow = () => {
+    const newRow: IdfPromoterRow = {
+      gender: 'male',
+      age_at_commutation: 50,
+      promoter_age_years: 70,
+      promoter_age_months: 0,
+      description: '',
+    };
+    setEditedIdfPromoterTable([newRow, ...editedIdfPromoterTable]);
   };
 
   // Retirement age handlers
@@ -342,6 +401,14 @@ export const useSystemSettingsPage = () => {
     handleCancelPercentages,
     handlePercentageChange,
     handleAddPercentage,
+    idfPromoterTable,
+    isEditingIdfPromoterTable,
+    editedIdfPromoterTable,
+    handleEditIdfPromoterTable,
+    handleSaveIdfPromoterTable,
+    handleCancelIdfPromoterTable,
+    handleIdfPromoterRowChange,
+    handleAddIdfPromoterRow,
     maleRetirementAge,
     setMaleRetirementAge,
     retirementSaved,

@@ -40,6 +40,11 @@ from .eligibility import (
     calculate_eligibility_age
 )
 
+from .idf_fixation import (
+    IdfFixationResult,
+    compute_idf_fixation_impact,
+)
+
 from .core import (
     process_grant,
     calculate_full_fixation
@@ -66,6 +71,10 @@ __all__ = [
     # Grant Impact
     'compute_grant_effect',
     'compute_client_exemption',
+    
+    # IDF Security Forces fixation helpers
+    'IdfFixationResult',
+    'compute_idf_fixation_impact',
     
     # Eligibility
     'calculate_eligibility_age',

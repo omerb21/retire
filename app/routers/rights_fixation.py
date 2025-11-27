@@ -19,6 +19,7 @@ from app.services.rights_fixation import (
     get_monthly_cap,
     get_exemption_percentage,
     calc_exempt_capital,
+    compute_idf_fixation_impact,
 )
 from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
 from app.services.retirement_age_service import calc_eligibility_date
@@ -467,6 +468,76 @@ async def save_rights_fixation(data: Dict[str, Any]):
         # Ensure formatted_data is a mutable dict
         if not isinstance(formatted_data, dict):
             formatted_data = dict(formatted_data)
+
+        # הזרקת חישוב פגיעה בפטור לפורשי צה"ל (אם סומן במסך הקיבוע)
+        try:
+            if isinstance(result, dict):
+                exemption_summary = result.get("exemption_summary") or {}
+                if not isinstance(exemption_summary, dict):
+                    exemption_summary = {}
+
+                # איתור נתוני צה"ל מהתוצאה או מה-payload המעוצב
+                idf_data = result.get("idf_security_forces") or formatted_data.get("idf_security_forces")
+
+                if isinstance(idf_data, dict) and idf_data.get("retired_from_security_forces"):
+                    eligibility_year_val = (
+                        result.get("eligibility_year")
+                        or exemption_summary.get("eligibility_year")
+                        or formatted_data.get("eligibility_year")
+                    )
+                    try:
+                        eligibility_year_int = int(eligibility_year_val) if eligibility_year_val is not None else None
+                    except (TypeError, ValueError):
+                        eligibility_year_int = None
+
+                    eligibility_date_val = (
+                        result.get("eligibility_date")
+                        or formatted_data.get("eligibility_date")
+                    )
+
+                    if eligibility_year_int is not None and eligibility_date_val:
+                        monthly_cap = get_monthly_cap(eligibility_year_int)
+
+                        commutation_date_val = idf_data.get("commutation_date") or eligibility_date_val
+                        promoter_age_date_val = idf_data.get("promoter_age_date") or eligibility_date_val
+
+                        idf_result = compute_idf_fixation_impact(
+                            reduction_amount=idf_data.get("reduction_amount"),
+                            original_commutation_percent=idf_data.get("original_commutation_percent"),
+                            current_commutation_percent=idf_data.get("current_commutation_percent"),
+                            monthly_cap=monthly_cap,
+                            eligibility_date=eligibility_date_val,
+                            commutation_date=commutation_date_val,
+                            promoter_age_date=promoter_age_date_val,
+                        )
+
+                        # שמירת פירוט החישוב באובייקט צה"ל עצמו
+                        idf_data["impact_on_exemption"] = idf_result.impact
+                        idf_data["overlap_months"] = idf_result.overlap_months
+                        idf_data["base_reduction"] = idf_result.base_reduction
+                        idf_data["monthly_reduction_for_calc"] = idf_result.monthly_reduction_for_calc
+                        if idf_result.error:
+                            idf_data["error"] = idf_result.error
+
+                        # שמירת סיכום ברמת ה-exemption_summary, בלי לשנות את שדה remaining_exempt_capital.
+                        # חשוב: הפגיעה לא אמורה להצטבר בין לחיצות "שמור" – בכל שמירה נחשב מחדש
+                        # את הפגיעה ונדרוס את הערך הקיים במקום להוסיף עליו.
+                        try:
+                            idf_impact_value = float(idf_result.impact or 0.0)
+                        except (TypeError, ValueError):
+                            idf_impact_value = 0.0
+
+                        exemption_summary["idf_security_forces_impact"] = idf_impact_value
+                        if idf_result.error:
+                            exemption_summary["idf_security_forces_error"] = idf_result.error
+
+                        # עדכון האובייקטים בחזרה לתוצאה ול-payload לשמירה מלאה
+                        result["idf_security_forces"] = idf_data
+                        result["exemption_summary"] = exemption_summary
+                        formatted_data["idf_security_forces"] = idf_data
+        except Exception as e:
+            # שגיאה בלוגיקת צה"ל לא אמורה להפיל שמירה של קיבוע – רק נרשום ל-log ונמשיך
+            logger.error("שגיאה בחישוב פגיעה בפטור לפורשי צה\"ל בעת שמירת קיבוע: %s", e)
         
         with SessionLocal() as db:
             # Compute effective pension start date on save, so it's always present in the payload

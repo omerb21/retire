@@ -19,6 +19,16 @@ const SimpleFixationPage: React.FC = () => {
     exemptionSummary,
     clientData,
     commutations,
+    retiredFromSecurityForces,
+    setRetiredFromSecurityForces,
+    reductionAmount,
+    setReductionAmount,
+    originalCommutationPercent,
+    setOriginalCommutationPercent,
+    currentCommutationPercent,
+    setCurrentCommutationPercent,
+    selectedCommutationId,
+    setSelectedCommutationId,
     futureGrantReserved,
     setFutureGrantReserved,
     retirementAge,
@@ -79,6 +89,16 @@ const SimpleFixationPage: React.FC = () => {
             grantsSummary={grantsSummary}
             exemptionSummary={exemptionSummary}
             commutations={commutations}
+            retiredFromSecurityForces={retiredFromSecurityForces}
+            setRetiredFromSecurityForces={setRetiredFromSecurityForces}
+            reductionAmount={reductionAmount}
+            setReductionAmount={setReductionAmount}
+            originalCommutationPercent={originalCommutationPercent}
+            setOriginalCommutationPercent={setOriginalCommutationPercent}
+            currentCommutationPercent={currentCommutationPercent}
+            setCurrentCommutationPercent={setCurrentCommutationPercent}
+            selectedCommutationId={selectedCommutationId}
+            setSelectedCommutationId={setSelectedCommutationId}
             continuesWorking={continuesWorking}
             setContinuesWorking={setContinuesWorking}
             workingEmployerName={workingEmployerName}

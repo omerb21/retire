@@ -1,5 +1,9 @@
 import React from 'react';
-import { PensionCeiling, ExemptCapitalPercentage } from '../../types/system-settings.types';
+import {
+  PensionCeiling,
+  ExemptCapitalPercentage,
+  IdfPromoterRow,
+} from '../../types/system-settings.types';
 import { formatCurrency } from '../../lib/validation';
 import './FixationSettings.css';
 
@@ -20,6 +24,18 @@ interface FixationSettingsProps {
   onCancelPercentages: () => void;
   onPercentageChange: (index: number, field: keyof ExemptCapitalPercentage, value: any) => void;
   onAddPercentage: () => void;
+  idfPromoterTable: IdfPromoterRow[];
+  isEditingIdfPromoterTable: boolean;
+  editedIdfPromoterTable: IdfPromoterRow[];
+  onEditIdfPromoterTable: () => void;
+  onSaveIdfPromoterTable: () => void;
+  onCancelIdfPromoterTable: () => void;
+  onIdfPromoterRowChange: (
+    index: number,
+    field: keyof IdfPromoterRow,
+    value: any
+  ) => void;
+  onAddIdfPromoterRow: () => void;
 }
 
 const FixationSettings: React.FC<FixationSettingsProps> = ({
@@ -39,6 +55,14 @@ const FixationSettings: React.FC<FixationSettingsProps> = ({
   onCancelPercentages,
   onPercentageChange,
   onAddPercentage,
+  idfPromoterTable,
+  isEditingIdfPromoterTable,
+  editedIdfPromoterTable,
+  onEditIdfPromoterTable,
+  onSaveIdfPromoterTable,
+  onCancelIdfPromoterTable,
+  onIdfPromoterRowChange,
+  onAddIdfPromoterRow,
 }) => {
   return (
     <div className="fixation-settings-container">
@@ -264,6 +288,183 @@ const FixationSettings: React.FC<FixationSettingsProps> = ({
         <div className="fixation-info-box">
           <p className="fixation-info-text">
             <strong>הערה:</strong> אחוזי ההון הפטור משמשים לחישוב יתרת ההון הפטורה בקיבוע זכויות.
+          </p>
+        </div>
+      </div>
+
+      <div className="fixation-idf-section">
+        <div className="fixation-section-header">
+          <h3 className="fixation-section-title">
+            טבלת גיל מקדם לפורשי צה"ל וכוחות ביטחון
+          </h3>
+          {!isEditingIdfPromoterTable ? (
+            <button
+              onClick={onEditIdfPromoterTable}
+              className="fixation-button-primary"
+            >
+              ערוך טבלת מקדמים
+            </button>
+          ) : (
+            <div className="fixation-actions">
+              <button
+                onClick={onSaveIdfPromoterTable}
+                className="fixation-button-success"
+              >
+                שמור
+              </button>
+              <button
+                onClick={onCancelIdfPromoterTable}
+                className="fixation-button-secondary"
+              >
+                ביטול
+              </button>
+            </div>
+          )}
+        </div>
+        
+        <div className="fixation-table-container">
+          <table className="fixation-table">
+            <thead>
+              <tr className="fixation-table-header-row">
+                <th className="fixation-table-header-cell fixation-table-header-cell-center">
+                  מגדר
+                </th>
+                <th className="fixation-table-header-cell fixation-table-header-cell-center">
+                  גיל בעת היוון (שנים)
+                </th>
+                <th className="fixation-table-header-cell fixation-table-header-cell-center">
+                  גיל מקדם (שנים)
+                </th>
+                <th className="fixation-table-header-cell fixation-table-header-cell-center">
+                  גיל מקדם (חודשים)
+                </th>
+                <th className="fixation-table-header-cell fixation-table-header-cell-right">
+                  תיאור
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(isEditingIdfPromoterTable ? editedIdfPromoterTable : idfPromoterTable).map(
+                (row, index) => (
+                  <tr
+                    key={index}
+                    className={
+                      index % 2 === 0
+                        ? 'fixation-table-row'
+                        : 'fixation-table-row fixation-table-row-alt'
+                    }
+                  >
+                    <td className="fixation-table-cell fixation-table-cell-center">
+                      {isEditingIdfPromoterTable ? (
+                        <select
+                          className="fixation-idf-gender-select"
+                          value={row.gender}
+                          onChange={(e) =>
+                            onIdfPromoterRowChange(index, 'gender', e.target.value)
+                          }
+                        >
+                          <option value="male">זכר</option>
+                          <option value="female">נקבה</option>
+                        </select>
+                      ) : row.gender === 'female' ? (
+                        'נקבה'
+                      ) : (
+                        'זכר'
+                      )}
+                    </td>
+                    <td className="fixation-table-cell fixation-table-cell-center">
+                      {isEditingIdfPromoterTable ? (
+                        <input
+                          type="number"
+                          className="fixation-input-number"
+                          value={row.age_at_commutation}
+                          onChange={(e) =>
+                            onIdfPromoterRowChange(
+                              index,
+                              'age_at_commutation',
+                              e.target.value
+                            )
+                          }
+                        />
+                      ) : (
+                        row.age_at_commutation
+                      )}
+                    </td>
+                    <td className="fixation-table-cell fixation-table-cell-center">
+                      {isEditingIdfPromoterTable ? (
+                        <input
+                          type="number"
+                          className="fixation-input-number"
+                          value={row.promoter_age_years}
+                          onChange={(e) =>
+                            onIdfPromoterRowChange(
+                              index,
+                              'promoter_age_years',
+                              e.target.value
+                            )
+                          }
+                        />
+                      ) : (
+                        row.promoter_age_years
+                      )}
+                    </td>
+                    <td className="fixation-table-cell fixation-table-cell-center">
+                      {isEditingIdfPromoterTable ? (
+                        <input
+                          type="number"
+                          className="fixation-input-number"
+                          value={row.promoter_age_months}
+                          onChange={(e) =>
+                            onIdfPromoterRowChange(
+                              index,
+                              'promoter_age_months',
+                              e.target.value
+                            )
+                          }
+                        />
+                      ) : (
+                        row.promoter_age_months
+                      )}
+                    </td>
+                    <td className="fixation-table-cell">
+                      {isEditingIdfPromoterTable ? (
+                        <input
+                          type="text"
+                          className="fixation-input-full"
+                          value={row.description || ''}
+                          onChange={(e) =>
+                            onIdfPromoterRowChange(
+                              index,
+                              'description',
+                              e.target.value
+                            )
+                          }
+                        />
+                      ) : (
+                        row.description || ''
+                      )}
+                    </td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+          
+          {isEditingIdfPromoterTable && (
+            <div className="fixation-add-row">
+              <button
+                onClick={onAddIdfPromoterRow}
+                className="fixation-add-button"
+              >
+                הוסף שורת מקדם חדשה
+              </button>
+            </div>
+          )}
+        </div>
+        
+        <div className="fixation-info-box">
+          <p className="fixation-info-text">
+            הערכים בטבלה זו ישמשו לחישוב גיל מקדם עבור פורשי צה"ל וכוחות ביטחון.
           </p>
         </div>
       </div>

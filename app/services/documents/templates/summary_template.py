@@ -33,6 +33,7 @@ class SummaryHTMLTemplate:
         future_grant_reserved = self.exemption_summary.get('future_grant_reserved', 0)
         future_grant_impact = self.exemption_summary.get('future_grant_impact', 0)
         total_commutations = self.exemption_summary.get('total_commutations', 0)
+        idf_security_forces_impact = self.exemption_summary.get('idf_security_forces_impact', 0)
         pension_ceiling = 9430
         exemption_percentage = (exempt_pension / pension_ceiling * 100) if pension_ceiling > 0 else 0
         
@@ -44,6 +45,7 @@ class SummaryHTMLTemplate:
             'future_grant_reserved': future_grant_reserved,
             'future_grant_impact': future_grant_impact,
             'total_commutations': total_commutations,
+            'idf_security_forces_impact': idf_security_forces_impact,
             'remaining_exempt_capital': remaining_exempt_capital,
             'pension_ceiling': pension_ceiling,
             'exempt_pension': exempt_pension,
@@ -89,6 +91,10 @@ class SummaryHTMLTemplate:
             <tr>
                 <td>סך הכל פגיעה בפטור בגין מענקים פטורים</td>
                 <td>{values['total_impact']:,.2f}</td>
+            </tr>
+            <tr>
+                <td>פגיעה בפטור בגלל היוון צה"ל</td>
+                <td>{values['idf_security_forces_impact']:,.2f}</td>
             </tr>
             <tr style="background-color: #f8f9fa; color: #6c757d;">
                 <td>מענק עתידי משוריין (נומינלי)</td>

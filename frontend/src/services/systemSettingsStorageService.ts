@@ -1,4 +1,4 @@
-import { PensionCeiling, ExemptCapitalPercentage, SeveranceCap } from '../types/system-settings.types';
+import { PensionCeiling, ExemptCapitalPercentage, SeveranceCap, IdfPromoterRow } from '../types/system-settings.types';
 import { getDefaultSeveranceCaps } from './systemSettingsService';
 
 export const loadPensionCeilingsFromStorage = (): PensionCeiling[] => {
@@ -126,4 +126,27 @@ export const loadSeveranceCapsFromStorage = (): SeveranceCap[] => {
 
 export const saveSeveranceCapsToStorage = (caps: SeveranceCap[]): void => {
   localStorage.setItem('severanceCaps', JSON.stringify(caps));
+};
+
+export const loadIdfPromoterTableFromStorage = (): IdfPromoterRow[] => {
+  const saved = localStorage.getItem('idfPromoterTable');
+
+  if (saved) {
+    try {
+      const parsed: IdfPromoterRow[] = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Error parsing idfPromoterTable from localStorage, using default empty table instead', e);
+    }
+  }
+
+  const defaultTable: IdfPromoterRow[] = [];
+  localStorage.setItem('idfPromoterTable', JSON.stringify(defaultTable));
+  return defaultTable;
+};
+
+export const saveIdfPromoterTableToStorage = (rows: IdfPromoterRow[]): void => {
+  localStorage.setItem('idfPromoterTable', JSON.stringify(rows));
 };

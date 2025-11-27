@@ -14,6 +14,7 @@ import {
   Commutation
 } from '../types';
 import { calculatePensionSummary } from '../utils/fixationCalculations';
+import { calculatePromoterAgeDate } from '../utils/idfFixation';
 
 interface UseFixationDataResult {
   loading: boolean;
@@ -26,6 +27,16 @@ interface UseFixationDataResult {
   hasGrants: boolean;
   clientData: any;
   commutations: Commutation[];
+  retiredFromSecurityForces: boolean;
+  setRetiredFromSecurityForces: (value: boolean) => void;
+  reductionAmount: number;
+  setReductionAmount: (value: number) => void;
+  originalCommutationPercent: number;
+  setOriginalCommutationPercent: (value: number) => void;
+  currentCommutationPercent: number;
+  setCurrentCommutationPercent: (value: number) => void;
+  selectedCommutationId: number | null;
+  setSelectedCommutationId: (value: number | null) => void;
   futureGrantReserved: number;
   setFutureGrantReserved: (value: number) => void;
   continuesWorking: boolean;
@@ -57,6 +68,11 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
   const [hasGrants, setHasGrants] = useState<boolean>(false);
   const [clientData, setClientData] = useState<any>(null);
   const [commutations, setCommutations] = useState<Commutation[]>([]);
+  const [retiredFromSecurityForces, setRetiredFromSecurityForces] = useState<boolean>(false);
+  const [reductionAmount, setReductionAmount] = useState<number>(0);
+  const [originalCommutationPercent, setOriginalCommutationPercent] = useState<number>(0);
+  const [currentCommutationPercent, setCurrentCommutationPercent] = useState<number>(0);
+  const [selectedCommutationId, setSelectedCommutationId] = useState<number | null>(null);
   const [futureGrantReserved, setFutureGrantReserved] = useState<number>(0);
   const [continuesWorking, setContinuesWorking] = useState<boolean>(false);
   const [workingEmployerName, setWorkingEmployerName] = useState<string>('');
@@ -114,6 +130,49 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
             const savedFutureGrant = rawPayload.future_grant_reserved || 0;
             setFutureGrantReserved(savedFutureGrant);
             console.log('Loaded saved future grant:', savedFutureGrant);
+
+            const idfSecurityForces =
+              rawPayload.idf_security_forces || rawResult.idf_security_forces;
+            if (idfSecurityForces) {
+              setRetiredFromSecurityForces(
+                !!idfSecurityForces.retired_from_security_forces
+              );
+
+              const savedReduction = Number(idfSecurityForces.reduction_amount || 0);
+              setReductionAmount(isNaN(savedReduction) ? 0 : savedReduction);
+
+              const savedOriginalPercent = Number(
+                idfSecurityForces.original_commutation_percent || 0
+              );
+              setOriginalCommutationPercent(
+                isNaN(savedOriginalPercent) ? 0 : savedOriginalPercent
+              );
+
+              const savedCurrentPercent = Number(
+                idfSecurityForces.current_commutation_percent || 0
+              );
+              setCurrentCommutationPercent(
+                isNaN(savedCurrentPercent) ? 0 : savedCurrentPercent
+              );
+
+              const rawCommutationId =
+                typeof idfSecurityForces.commutation_id === 'number'
+                  ? idfSecurityForces.commutation_id
+                  : idfSecurityForces.commutation_id
+                  ? Number(idfSecurityForces.commutation_id)
+                  : null;
+              setSelectedCommutationId(
+                rawCommutationId !== null && !isNaN(Number(rawCommutationId))
+                  ? Number(rawCommutationId)
+                  : null
+              );
+            } else {
+              setRetiredFromSecurityForces(false);
+              setReductionAmount(0);
+              setOriginalCommutationPercent(0);
+              setCurrentCommutationPercent(0);
+              setSelectedCommutationId(null);
+            }
 
             const savedEffective = rawPayload.effective_pension_start_date || null;
             setSavedEffectivePensionDate(savedEffective);
@@ -388,12 +447,17 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
       setLoading(true);
       setError(null);
 
+      // לפורשי צה״ל: ההיוון שנבחר לא ייכלל בסך היוונים רגילים
+      // הפגיעה שלו מחושבת לפי נוסחת צה״ל בלבד
+      const idfCommutationIdForCalc = retiredFromSecurityForces ? selectedCommutationId : null;
+
       const pensionSummary = calculatePensionSummary(
         grantsSummary,
         exemptionSummary,
         futureGrantReserved,
         commutations,
-        fixationData
+        fixationData,
+        idfCommutationIdForCalc
       );
 
       const employerSnapshot =
@@ -406,6 +470,41 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
               work_end_date: workingEndDate ? convertDDMMYYToISO(workingEndDate) : null,
               last_salary: workingLastSalary || 0,
               first_pension_date: currentPensionStartDate || null
+            }
+          : null;
+
+      let commutationDateIso: string | null = null;
+      let promoterAgeDateIso: string | null = null;
+
+      if (
+        retiredFromSecurityForces &&
+        selectedCommutationId !== null &&
+        clientData?.birth_date &&
+        clientData?.gender
+      ) {
+        const selectedCommutation = commutations.find(
+          (c) => c.id === selectedCommutationId
+        );
+
+        commutationDateIso = selectedCommutation?.commutation_date || null;
+
+        promoterAgeDateIso = calculatePromoterAgeDate({
+          birthDateIso: clientData.birth_date,
+          gender: clientData.gender,
+          commutationDateIso,
+        });
+      }
+
+      const idfSecurityForces =
+        retiredFromSecurityForces
+          ? {
+              retired_from_security_forces: true,
+              commutation_id: selectedCommutationId,
+              reduction_amount: reductionAmount,
+              original_commutation_percent: originalCommutationPercent,
+              current_commutation_percent: currentCommutationPercent,
+              commutation_date: commutationDateIso,
+              promoter_age_date: promoterAgeDateIso,
             }
           : null;
 
@@ -430,6 +529,10 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
         calculationResult.current_employer_snapshot = employerSnapshot;
       }
 
+      if (idfSecurityForces) {
+        calculationResult.idf_security_forces = idfSecurityForces;
+      }
+
       const formattedData: any = {
         id: parseInt(id!),
         eligibility_date: fixationData.eligibility_date,
@@ -439,6 +542,10 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
 
       if (employerSnapshot) {
         formattedData.current_employer_snapshot = employerSnapshot;
+      }
+
+      if (idfSecurityForces) {
+        formattedData.idf_security_forces = idfSecurityForces;
       }
 
       const saveResponse = await axios.post(`${API_BASE}/rights-fixation/save`, {
@@ -452,6 +559,62 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
           new Date(saveResponse.data.calculation_date)
         )}\n\nהנתונים נשמרו במערכת`
       );
+
+      // לאחר השמירה בשרת נטען מחדש את קיבוע הזכויות השמור כדי לקבל את נתוני צה"ל
+      // (idf_security_forces_impact וכו') ונמזג אותם אל סיכום הפטור הקיים, בלי לדרוס
+      // את remaining_exempt_capital ושדות הבסיס שהגיעו מחישוב הזכאות הרגיל.
+      try {
+        const refreshed = await axios.get(`${API_BASE}/rights-fixation/client/${id}`);
+        const rawResult = refreshed.data?.raw_result || {};
+        if (rawResult && typeof rawResult === 'object') {
+          const refreshedExemption: any = rawResult.exemption_summary || {};
+
+          setExemptionSummary((prev) => {
+            const base = (prev || fixationData?.exemption_summary || {}) as any;
+            return {
+              ...base,
+              idf_security_forces_impact:
+                typeof refreshedExemption.idf_security_forces_impact === 'number'
+                  ? refreshedExemption.idf_security_forces_impact
+                  : base.idf_security_forces_impact,
+              idf_security_forces_error:
+                typeof refreshedExemption.idf_security_forces_error === 'string'
+                  ? refreshedExemption.idf_security_forces_error
+                  : base.idf_security_forces_error
+            };
+          });
+
+          setFixationData((prev) => {
+            if (!prev) {
+              return prev;
+            }
+
+            const baseSummary: any = prev.exemption_summary || {};
+            const mergedSummary: any = {
+              ...baseSummary,
+              idf_security_forces_impact:
+                typeof refreshedExemption.idf_security_forces_impact === 'number'
+                  ? refreshedExemption.idf_security_forces_impact
+                  : baseSummary.idf_security_forces_impact,
+              idf_security_forces_error:
+                typeof refreshedExemption.idf_security_forces_error === 'string'
+                  ? refreshedExemption.idf_security_forces_error
+                  : baseSummary.idf_security_forces_error
+            };
+
+            return {
+              ...prev,
+              grants: rawResult.grants || prev.grants,
+              exemption_summary: mergedSummary,
+              eligibility_date: prev.eligibility_date,
+              eligibility_year: prev.eligibility_year,
+              status: 'calculated'
+            };
+          });
+        }
+      } catch (refreshErr) {
+        console.error('Error reloading saved fixation after save:', refreshErr);
+      }
     } catch (err: any) {
       setError('שגיאה בשמירת קיבוע זכויות: ' + err.message);
     } finally {
@@ -507,18 +670,28 @@ export const useFixationData = (id: string | undefined): UseFixationDataResult =
     hasGrants,
     clientData,
     commutations,
+    retiredFromSecurityForces,
+    setRetiredFromSecurityForces,
+    reductionAmount,
+    setReductionAmount,
+    originalCommutationPercent,
+    setOriginalCommutationPercent,
+    currentCommutationPercent,
+    setCurrentCommutationPercent,
+    selectedCommutationId,
+    setSelectedCommutationId,
     futureGrantReserved,
     setFutureGrantReserved,
-     continuesWorking,
-     setContinuesWorking,
-     workingEmployerName,
-     setWorkingEmployerName,
-     workingStartDate,
-     setWorkingStartDate,
-     workingEndDate,
-     setWorkingEndDate,
-     workingLastSalary,
-     setWorkingLastSalary,
+    continuesWorking,
+    setContinuesWorking,
+    workingEmployerName,
+    setWorkingEmployerName,
+    workingStartDate,
+    setWorkingStartDate,
+    workingEndDate,
+    setWorkingEndDate,
+    workingLastSalary,
+    setWorkingLastSalary,
     retirementAge,
     savedEffectivePensionDate,
     currentPensionStartDate,

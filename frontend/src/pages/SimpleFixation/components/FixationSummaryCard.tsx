@@ -18,6 +18,16 @@ interface FixationSummaryCardProps {
   grantsSummary: GrantSummary[];
   exemptionSummary: ExemptionSummary | null;
   commutations: Commutation[];
+  retiredFromSecurityForces: boolean;
+  setRetiredFromSecurityForces: (value: boolean) => void;
+  reductionAmount: number;
+  setReductionAmount: (value: number) => void;
+  originalCommutationPercent: number;
+  setOriginalCommutationPercent: (value: number) => void;
+  currentCommutationPercent: number;
+  setCurrentCommutationPercent: (value: number) => void;
+  selectedCommutationId: number | null;
+  setSelectedCommutationId: (value: number | null) => void;
   continuesWorking: boolean;
   setContinuesWorking: (value: boolean) => void;
   workingEmployerName: string;
@@ -42,6 +52,16 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
   grantsSummary,
   exemptionSummary,
   commutations,
+  retiredFromSecurityForces,
+  setRetiredFromSecurityForces,
+  reductionAmount,
+  setReductionAmount,
+  originalCommutationPercent,
+  setOriginalCommutationPercent,
+  currentCommutationPercent,
+  setCurrentCommutationPercent,
+  selectedCommutationId,
+  setSelectedCommutationId,
   continuesWorking,
   setContinuesWorking,
   workingEmployerName,
@@ -55,12 +75,17 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
   onCalculateFixation,
   onDeleteFixation
 }) => {
+  // לפורשי צה״ל: ההיוון שנבחר לא ייכלל בסך היוונים רגילים
+  // הפגיעה שלו מחושבת לפי נוסחת צה״ל בלבד
+  const idfCommutationIdForCalc = retiredFromSecurityForces ? selectedCommutationId : null;
+
   const summary = calculatePensionSummary(
     grantsSummary,
     exemptionSummary,
     futureGrantReserved,
     commutations,
-    fixationData
+    fixationData,
+    idfCommutationIdForCalc
   );
 
   return (
@@ -81,15 +106,28 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
       </div>
 
       <div className="fixation-working-box">
-        <div className="form-group">
-          <label className="form-label">
-            <input
-              type="checkbox"
-              checked={continuesWorking}
-              onChange={(e) => setContinuesWorking(e.target.checked)}
-            />{' '}
-            האם ממשיך לעבוד
-          </label>
+        <div className="fixation-working-header-row">
+          <div className="form-group">
+            <label className="form-label">
+              <input
+                type="checkbox"
+                checked={continuesWorking}
+                onChange={(e) => setContinuesWorking(e.target.checked)}
+              />{' '}
+              האם ממשיך לעבוד
+            </label>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">
+              <input
+                type="checkbox"
+                checked={retiredFromSecurityForces}
+                onChange={(e) => setRetiredFromSecurityForces(e.target.checked)}
+              />{' '}
+              הייתה פרישה מכוחות ביטחון / צה"ל
+            </label>
+          </div>
         </div>
 
         {continuesWorking && (
@@ -158,6 +196,75 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
         )}
       </div>
 
+      {retiredFromSecurityForces && (
+        <div className="fixation-idf-box">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="form-group">
+              <label className="form-label">בחר היוון לצה"ל / כוחות ביטחון</label>
+              <select
+                className="form-input"
+                value={selectedCommutationId ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const id = value ? parseInt(value, 10) : NaN;
+                  setSelectedCommutationId(!isNaN(id) ? id : null);
+                }}
+              >
+                <option value="">בחר היוון</option>
+                {commutations.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.fund_name || 'לא ידוע'}{' '}
+                    {c.commutation_date ? `(${c.commutation_date})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">סכום הפחתת קצבה חודשית (₪)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={reductionAmount || ''}
+                onChange={(e) =>
+                  setReductionAmount(
+                    e.target.value ? parseFloat(e.target.value) || 0 : 0
+                  )
+                }
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">אחוז היוון מקורי (%)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={originalCommutationPercent || ''}
+                onChange={(e) =>
+                  setOriginalCommutationPercent(
+                    e.target.value ? parseFloat(e.target.value) || 0 : 0
+                  )
+                }
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">אחוז היוון נוכחי (%)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={currentCommutationPercent || ''}
+                onChange={(e) =>
+                  setCurrentCommutationPercent(
+                    e.target.value ? parseFloat(e.target.value) || 0 : 0
+                  )
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <table className="fixation-summary-table">
           <thead>
@@ -203,6 +310,17 @@ export const FixationSummaryCard: React.FC<FixationSummaryCardProps> = ({
                 {formatMoney(summary.used_exemption)}
               </td>
             </tr>
+            {retiredFromSecurityForces &&
+              typeof summary.idf_security_forces_impact === 'number' && (
+              <tr className="fixation-summary-row">
+                <td className="fixation-summary-cell fixation-summary-cell--label">
+                  פגיעה בפטור בגלל היוון צה"ל
+                </td>
+                <td className="fixation-summary-cell fixation-summary-cell--value">
+                  {formatMoney(summary.idf_security_forces_impact || 0)}
+                </td>
+              </tr>
+              )}
             <tr className="fixation-summary-row fixation-summary-row--gray">
               <td className="fixation-summary-cell fixation-summary-cell--label fixation-summary-cell--muted">
                 מענק עתידי משוריין (נומינלי)

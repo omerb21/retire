@@ -61,6 +61,14 @@ const SystemSettings: React.FC = () => {
     handleCancelPercentages,
     handlePercentageChange,
     handleAddPercentage,
+    idfPromoterTable,
+    isEditingIdfPromoterTable,
+    editedIdfPromoterTable,
+    handleEditIdfPromoterTable,
+    handleSaveIdfPromoterTable,
+    handleCancelIdfPromoterTable,
+    handleIdfPromoterRowChange,
+    handleAddIdfPromoterRow,
     maleRetirementAge,
     setMaleRetirementAge,
     retirementSaved,
@@ -209,6 +217,14 @@ const SystemSettings: React.FC = () => {
             onCancelPercentages={handleCancelPercentages}
             onPercentageChange={handlePercentageChange}
             onAddPercentage={handleAddPercentage}
+            idfPromoterTable={idfPromoterTable}
+            isEditingIdfPromoterTable={isEditingIdfPromoterTable}
+            editedIdfPromoterTable={editedIdfPromoterTable}
+            onEditIdfPromoterTable={handleEditIdfPromoterTable}
+            onSaveIdfPromoterTable={handleSaveIdfPromoterTable}
+            onCancelIdfPromoterTable={handleCancelIdfPromoterTable}
+            onIdfPromoterRowChange={handleIdfPromoterRowChange}
+            onAddIdfPromoterRow={handleAddIdfPromoterRow}
           />
         )}
         
