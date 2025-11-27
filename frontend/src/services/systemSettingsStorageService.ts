@@ -129,20 +129,110 @@ export const saveSeveranceCapsToStorage = (caps: SeveranceCap[]): void => {
 };
 
 export const loadIdfPromoterTableFromStorage = (): IdfPromoterRow[] => {
+  const defaultTable: IdfPromoterRow[] = [
+    // לוח 1 - גברים
+    { gender: 'male', age_at_commutation: 40.0, promoter_age_years: 71, promoter_age_months: 6 },
+    { gender: 'male', age_at_commutation: 40.5, promoter_age_years: 71, promoter_age_months: 7 },
+    { gender: 'male', age_at_commutation: 41.0, promoter_age_years: 71, promoter_age_months: 8 },
+    { gender: 'male', age_at_commutation: 41.5, promoter_age_years: 71, promoter_age_months: 9 },
+    { gender: 'male', age_at_commutation: 42.0, promoter_age_years: 71, promoter_age_months: 10 },
+    { gender: 'male', age_at_commutation: 42.5, promoter_age_years: 71, promoter_age_months: 11 },
+    { gender: 'male', age_at_commutation: 43.0, promoter_age_years: 72, promoter_age_months: 0 },
+    { gender: 'male', age_at_commutation: 43.5, promoter_age_years: 72, promoter_age_months: 1 },
+    { gender: 'male', age_at_commutation: 44.0, promoter_age_years: 72, promoter_age_months: 2 },
+    { gender: 'male', age_at_commutation: 44.5, promoter_age_years: 72, promoter_age_months: 4 },
+    { gender: 'male', age_at_commutation: 45.0, promoter_age_years: 72, promoter_age_months: 5 },
+    { gender: 'male', age_at_commutation: 45.5, promoter_age_years: 72, promoter_age_months: 6 },
+    { gender: 'male', age_at_commutation: 46.0, promoter_age_years: 72, promoter_age_months: 7 },
+    { gender: 'male', age_at_commutation: 46.5, promoter_age_years: 72, promoter_age_months: 9 },
+    { gender: 'male', age_at_commutation: 47.0, promoter_age_years: 72, promoter_age_months: 9 },
+    { gender: 'male', age_at_commutation: 47.5, promoter_age_years: 73, promoter_age_months: 1 },
+    { gender: 'male', age_at_commutation: 48.0, promoter_age_years: 73, promoter_age_months: 0 },
+    { gender: 'male', age_at_commutation: 48.5, promoter_age_years: 73, promoter_age_months: 1 },
+    { gender: 'male', age_at_commutation: 49.0, promoter_age_years: 73, promoter_age_months: 3 },
+    { gender: 'male', age_at_commutation: 49.5, promoter_age_years: 73, promoter_age_months: 4 },
+    { gender: 'male', age_at_commutation: 50.0, promoter_age_years: 73, promoter_age_months: 5 },
+    { gender: 'male', age_at_commutation: 50.5, promoter_age_years: 73, promoter_age_months: 7 },
+    { gender: 'male', age_at_commutation: 51.0, promoter_age_years: 73, promoter_age_months: 8 },
+    { gender: 'male', age_at_commutation: 51.5, promoter_age_years: 73, promoter_age_months: 10 },
+    { gender: 'male', age_at_commutation: 52.0, promoter_age_years: 73, promoter_age_months: 11 },
+    { gender: 'male', age_at_commutation: 52.5, promoter_age_years: 74, promoter_age_months: 1 },
+    { gender: 'male', age_at_commutation: 53.0, promoter_age_years: 74, promoter_age_months: 2 },
+    { gender: 'male', age_at_commutation: 53.5, promoter_age_years: 74, promoter_age_months: 4 },
+    { gender: 'male', age_at_commutation: 54.0, promoter_age_years: 74, promoter_age_months: 5 },
+    { gender: 'male', age_at_commutation: 54.5, promoter_age_years: 74, promoter_age_months: 7 },
+    { gender: 'male', age_at_commutation: 55.0, promoter_age_years: 74, promoter_age_months: 9 },
+    { gender: 'male', age_at_commutation: 55.5, promoter_age_years: 74, promoter_age_months: 10 },
+    { gender: 'male', age_at_commutation: 56.0, promoter_age_years: 75, promoter_age_months: 0 },
+    { gender: 'male', age_at_commutation: 56.5, promoter_age_years: 75, promoter_age_months: 2 },
+    { gender: 'male', age_at_commutation: 57.0, promoter_age_years: 75, promoter_age_months: 4 },
+    { gender: 'male', age_at_commutation: 57.5, promoter_age_years: 75, promoter_age_months: 5 },
+    { gender: 'male', age_at_commutation: 58.0, promoter_age_years: 75, promoter_age_months: 7 },
+    { gender: 'male', age_at_commutation: 58.5, promoter_age_years: 75, promoter_age_months: 9 },
+    { gender: 'male', age_at_commutation: 59.0, promoter_age_years: 75, promoter_age_months: 11 },
+    { gender: 'male', age_at_commutation: 59.5, promoter_age_years: 76, promoter_age_months: 1 },
+    { gender: 'male', age_at_commutation: 60.0, promoter_age_years: 76, promoter_age_months: 3 },
+
+    // לוח 2 - נשים
+    { gender: 'female', age_at_commutation: 40.0, promoter_age_years: 75, promoter_age_months: 4 },
+    { gender: 'female', age_at_commutation: 40.5, promoter_age_years: 75, promoter_age_months: 5 },
+    { gender: 'female', age_at_commutation: 41.0, promoter_age_years: 75, promoter_age_months: 6 },
+    { gender: 'female', age_at_commutation: 41.5, promoter_age_years: 75, promoter_age_months: 7 },
+    { gender: 'female', age_at_commutation: 42.0, promoter_age_years: 75, promoter_age_months: 8 },
+    { gender: 'female', age_at_commutation: 42.5, promoter_age_years: 75, promoter_age_months: 9 },
+    { gender: 'female', age_at_commutation: 43.0, promoter_age_years: 75, promoter_age_months: 10 },
+    { gender: 'female', age_at_commutation: 43.5, promoter_age_years: 75, promoter_age_months: 11 },
+    { gender: 'female', age_at_commutation: 44.0, promoter_age_years: 76, promoter_age_months: 1 },
+    { gender: 'female', age_at_commutation: 44.5, promoter_age_years: 76, promoter_age_months: 2 },
+    { gender: 'female', age_at_commutation: 45.0, promoter_age_years: 76, promoter_age_months: 3 },
+    { gender: 'female', age_at_commutation: 45.5, promoter_age_years: 76, promoter_age_months: 4 },
+    { gender: 'female', age_at_commutation: 46.0, promoter_age_years: 76, promoter_age_months: 5 },
+    { gender: 'female', age_at_commutation: 46.5, promoter_age_years: 76, promoter_age_months: 6 },
+    { gender: 'female', age_at_commutation: 47.0, promoter_age_years: 76, promoter_age_months: 7 },
+    { gender: 'female', age_at_commutation: 47.5, promoter_age_years: 76, promoter_age_months: 8 },
+    { gender: 'female', age_at_commutation: 48.0, promoter_age_years: 76, promoter_age_months: 10 },
+    { gender: 'female', age_at_commutation: 48.5, promoter_age_years: 76, promoter_age_months: 11 },
+    { gender: 'female', age_at_commutation: 49.0, promoter_age_years: 77, promoter_age_months: 0 },
+    { gender: 'female', age_at_commutation: 49.5, promoter_age_years: 77, promoter_age_months: 1 },
+    { gender: 'female', age_at_commutation: 50.0, promoter_age_years: 77, promoter_age_months: 2 },
+    { gender: 'female', age_at_commutation: 50.5, promoter_age_years: 77, promoter_age_months: 4 },
+    { gender: 'female', age_at_commutation: 51.0, promoter_age_years: 77, promoter_age_months: 5 },
+    { gender: 'female', age_at_commutation: 51.5, promoter_age_years: 77, promoter_age_months: 6 },
+    { gender: 'female', age_at_commutation: 52.0, promoter_age_years: 77, promoter_age_months: 8 },
+    { gender: 'female', age_at_commutation: 52.5, promoter_age_years: 77, promoter_age_months: 9 },
+    { gender: 'female', age_at_commutation: 53.0, promoter_age_years: 77, promoter_age_months: 10 },
+    { gender: 'female', age_at_commutation: 53.5, promoter_age_years: 77, promoter_age_months: 11 },
+    { gender: 'female', age_at_commutation: 54.0, promoter_age_years: 78, promoter_age_months: 1 },
+    { gender: 'female', age_at_commutation: 54.5, promoter_age_years: 78, promoter_age_months: 2 },
+    { gender: 'female', age_at_commutation: 55.0, promoter_age_years: 78, promoter_age_months: 4 },
+    { gender: 'female', age_at_commutation: 55.5, promoter_age_years: 78, promoter_age_months: 5 },
+    { gender: 'female', age_at_commutation: 56.0, promoter_age_years: 78, promoter_age_months: 6 },
+    { gender: 'female', age_at_commutation: 56.5, promoter_age_years: 78, promoter_age_months: 8 },
+    { gender: 'female', age_at_commutation: 57.0, promoter_age_years: 78, promoter_age_months: 9 },
+    { gender: 'female', age_at_commutation: 57.5, promoter_age_years: 78, promoter_age_months: 11 },
+    { gender: 'female', age_at_commutation: 58.0, promoter_age_years: 79, promoter_age_months: 0 },
+    { gender: 'female', age_at_commutation: 58.5, promoter_age_years: 79, promoter_age_months: 1 },
+    { gender: 'female', age_at_commutation: 59.0, promoter_age_years: 79, promoter_age_months: 3 },
+    { gender: 'female', age_at_commutation: 59.5, promoter_age_years: 79, promoter_age_months: 5 },
+    { gender: 'female', age_at_commutation: 60.0, promoter_age_years: 79, promoter_age_months: 6 },
+  ];
+
   const saved = localStorage.getItem('idfPromoterTable');
 
   if (saved) {
     try {
       const parsed: IdfPromoterRow[] = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed;
       }
     } catch (e) {
-      console.error('Error parsing idfPromoterTable from localStorage, using default empty table instead', e);
+      console.error(
+        'Error parsing idfPromoterTable from localStorage, using default table instead',
+        e
+      );
     }
   }
 
-  const defaultTable: IdfPromoterRow[] = [];
   localStorage.setItem('idfPromoterTable', JSON.stringify(defaultTable));
   return defaultTable;
 };

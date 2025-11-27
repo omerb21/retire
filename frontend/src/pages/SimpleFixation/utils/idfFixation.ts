@@ -14,12 +14,23 @@ const isValidIsoDate = (value: string | null | undefined): value is string => {
 };
 
 const calculateAgeAtDate = (birth: Date, ref: Date): number => {
-  let age = ref.getFullYear() - birth.getFullYear();
-  const m = ref.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && ref.getDate() < birth.getDate())) {
-    age -= 1;
+  // גיל מלא + חצי שנה לפי מספר החודשים השלמים שעברו מאז יום ההולדת האחרון
+  let totalMonths = (ref.getFullYear() - birth.getFullYear()) * 12 + (ref.getMonth() - birth.getMonth());
+
+  // אם יום בחודש של התאריך הנוכחי קטן מיום ההולדת – החודש הנוכחי עוד לא הושלם
+  if (ref.getDate() < birth.getDate()) {
+    totalMonths -= 1;
   }
-  return age;
+
+  if (totalMonths < 0) {
+    return 0;
+  }
+
+  const fullYears = Math.floor(totalMonths / 12);
+  const remainingMonths = totalMonths % 12;
+
+  // פחות מ-6 חודשים → גיל שלם, 6 חודשים ומעלה → חצי שנה (n.5)
+  return remainingMonths >= 6 ? fullYears + 0.5 : fullYears;
 };
 
 const addYearsAndMonths = (birth: Date, years: number, months: number): Date => {

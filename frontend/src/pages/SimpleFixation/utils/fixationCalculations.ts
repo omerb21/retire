@@ -6,6 +6,7 @@ import {
   Commutation,
   FixationData
 } from '../types';
+import { loadPensionCeilingsFromStorage } from '../../../services/systemSettingsStorageService';
 
 export const formatMoney = (value: number): string => {
   const formatted = formatCurrency(value);
@@ -13,7 +14,24 @@ export const formatMoney = (value: number): string => {
 };
 
 export const getPensionCeiling = (year: number): number => {
-  const ceilings: { [key: number]: number } = {
+  try {
+    const ceilings = loadPensionCeilingsFromStorage();
+
+    if (Array.isArray(ceilings) && ceilings.length > 0) {
+      const exactMatch = ceilings.find((item) => item.year === year);
+
+      if (exactMatch) {
+        return exactMatch.monthly_ceiling;
+      }
+
+      const sortedByYearDesc = [...ceilings].sort((a, b) => b.year - a.year);
+      return sortedByYearDesc[0].monthly_ceiling;
+    }
+  } catch (e) {
+    console.error('Error loading pensionCeilings from storage in fixationCalculations:', e);
+  }
+
+  const fallbackCeilings: { [key: number]: number } = {
     2025: 9430,
     2024: 9430,
     2023: 9120,
@@ -23,7 +41,8 @@ export const getPensionCeiling = (year: number): number => {
     2019: 8480,
     2018: 8380
   };
-  return ceilings[year] || 9430;
+
+  return fallbackCeilings[year] || 9430;
 };
 
 export const calculatePensionSummary = (
