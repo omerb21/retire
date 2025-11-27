@@ -7,16 +7,27 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 
-SYSTEM_PASSWORD_ENV = "SYSTEM_ACCESS_PASSWORD"
+SYSTEM_PASSWORD_MAIN_ENV = "SYSTEM_ACCESS_PASSWORD"
+SYSTEM_PASSWORD_DEMO_ENV = "SYSTEM_ACCESS_PASSWORD_DEMO"
 
 
 def is_protection_enabled() -> bool:
-    password = os.getenv(SYSTEM_PASSWORD_ENV)
-    return bool(password)
+    """Return True if at least one system password is configured."""
+    main_password = os.getenv(SYSTEM_PASSWORD_MAIN_ENV)
+    demo_password = os.getenv(SYSTEM_PASSWORD_DEMO_ENV)
+    return bool(main_password or demo_password)
 
 
-def get_expected_password() -> str:
-    return os.getenv(SYSTEM_PASSWORD_ENV, "")
+def get_expected_passwords():
+    """Return list of all configured valid passwords (main and demo)."""
+    passwords = []
+    main_password = os.getenv(SYSTEM_PASSWORD_MAIN_ENV)
+    demo_password = os.getenv(SYSTEM_PASSWORD_DEMO_ENV)
+    if main_password:
+        passwords.append(main_password)
+    if demo_password:
+        passwords.append(demo_password)
+    return passwords
 
 
 class SystemAccessMiddleware(BaseHTTPMiddleware):
@@ -33,9 +44,9 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         header_password = request.headers.get("X-System-Password")
-        expected = get_expected_password()
+        expected_passwords = get_expected_passwords()
 
-        if not header_password or not hmac.compare_digest(header_password, expected):
+        if not header_password or not any(hmac.compare_digest(header_password, p) for p in expected_passwords):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Unauthorized: invalid or missing system access password"},
