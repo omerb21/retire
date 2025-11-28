@@ -58,11 +58,17 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
     setMessage(null);
 
     try {
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/save`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           snapshot_name: `שמירה ידנית ${new Date().toLocaleString('he-IL')}`
         })
@@ -118,11 +124,17 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
     setConfirmDialogOpen(false);
 
     try {
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(savedSnapshot)
       });
 
