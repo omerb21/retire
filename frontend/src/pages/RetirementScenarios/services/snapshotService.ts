@@ -50,11 +50,17 @@ export async function restoreSnapshotBeforeScenario(
   }
 
   try {
+    const systemPassword = window.localStorage.getItem('systemAccessPassword');
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (systemPassword) {
+      (headers as any)['X-System-Password'] = systemPassword;
+    }
+
     const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(snapshotData),
     });
 
