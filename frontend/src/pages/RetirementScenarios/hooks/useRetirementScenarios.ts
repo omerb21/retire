@@ -31,8 +31,15 @@ export function useRetirementScenarios(clientId: string | undefined) {
     }
 
     try {
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {};
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(
-        `${API_BASE}/clients/${clientId}/retirement-scenarios?retirement_age=${retirementAge}`
+        `${API_BASE}/clients/${clientId}/retirement-scenarios?retirement_age=${retirementAge}`,
+        { headers }
       );
 
       if (response.ok) {
@@ -82,13 +89,19 @@ export function useRetirementScenarios(clientId: string | undefined) {
 
       saveSeveranceDistribution(clientId);
 
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(
         `${API_BASE}/clients/${clientId}/retirement-scenarios/${scenarioId}/execute`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
         }
       );
 
@@ -224,11 +237,17 @@ export function useRetirementScenarios(clientId: string | undefined) {
         }));
       }
 
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
       const response = await fetch(`${API_BASE}/clients/${clientId}/retirement-scenarios`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           retirement_age: retirementAge,
           pension_portfolio: requestPensionPortfolio,
