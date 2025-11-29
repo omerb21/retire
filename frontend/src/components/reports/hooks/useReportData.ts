@@ -99,7 +99,23 @@ export function useReportData(clientId: string | undefined) {
         // בשלב זה אנחנו תמיד משתמשים ב-raw_result אם הוא קיים,
         // גם אם הדגל eligible הוא false, כדי לאפשר ניתוח תרחישים
         // תאורטיים של קיבוע זכויות במסך הדוחות.
-        const fixationDataResponse = fixationResponse?.data?.raw_result || null;
+        const hasPositivePension = pensionFundsData.some((fund: any) => {
+          const monthlyAmount =
+            parseFloat(fund.pension_amount) ||
+            parseFloat(fund.computed_monthly_amount) ||
+            parseFloat(fund.monthly_amount) ||
+            0;
+          return monthlyAmount > 0;
+        });
+
+        const fixationApiData = fixationResponse?.data;
+        const fixationDataResponse =
+          fixationApiData &&
+          fixationApiData.raw_result &&
+          fixationApiData.eligible &&
+          hasPositivePension
+            ? fixationApiData.raw_result
+            : null;
         
         // עדכון remaining_exempt_capital עם הערך הסופי ששמרנו ב-DB
         // הערכים הסופיים (אחרי כל הקיזוזים) נשמרים ב-raw_result.exemption_summary

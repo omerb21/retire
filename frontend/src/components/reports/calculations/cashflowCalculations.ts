@@ -207,6 +207,10 @@ export function generateYearlyProjection(
         }
       }
     });
+
+    if (totalPensionAnnualIncome <= 0) {
+      monthlyExemptPension = 0;
+    }
     
     // שלב 2: ניכוי הקצבה הפטורה רק מהכנסה מפנסיה
     const annualExemptPension = monthlyExemptPension * 12;
