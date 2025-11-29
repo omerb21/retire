@@ -2,6 +2,7 @@ import React from 'react';
 import { Commutation, PensionFund } from '../types';
 import { calculateOriginalBalance } from '../utils';
 import { formatCurrency } from '../../../lib/validation';
+import DateField from '../../../components/forms/DateField';
 
 interface CommutationFormProps {
   commutationForm: Commutation;
@@ -41,17 +42,25 @@ export const CommutationForm: React.FC<CommutationFormProps> = ({
           type="number"
           placeholder="סכום היוון"
           value={commutationForm.exempt_amount || ""}
-          onChange={(e) => setCommutationForm({ ...commutationForm, exempt_amount: parseFloat(e.target.value) || 0 })}
+          onChange={(e) =>
+            setCommutationForm({
+              ...commutationForm,
+              exempt_amount: parseFloat(e.target.value) || 0,
+            })
+          }
           className="pension-funds-input"
           required
         />
-        
-        <input
-          type="date"
-          placeholder="תאריך היוון"
-          value={commutationForm.commutation_date || ""}
-          onChange={(e) => setCommutationForm({ ...commutationForm, commutation_date: e.target.value })}
-          className="pension-funds-input"
+
+        <DateField
+          label="תאריך היוון"
+          value={commutationForm.commutation_date || null}
+          onChange={(newValue) =>
+            setCommutationForm({
+              ...commutationForm,
+              commutation_date: newValue || '',
+            })
+          }
           required
         />
         

@@ -1,5 +1,6 @@
 import React from 'react';
 import { TaxCalculationInput } from '../hooks/useTaxCalculator';
+import DateField from '../../../components/forms/DateField';
 
 interface TaxCalculatorFormProps {
   clientId?: string;
@@ -24,11 +25,12 @@ export const TaxCalculatorForm: React.FC<TaxCalculatorFormProps> = ({
       <div className="tax-calculator-panel">
         <div className="tax-calculator-field">
           <label>תאריך לידה:</label>
-          <input
-            type="date"
-            value={formData.personal_details.birth_date}
-            onChange={(e) => handleInputChange('birth_date', e.target.value, true)}
-            className="tax-calculator-input"
+          <DateField
+            label=""
+            value={formData.personal_details.birth_date || null}
+            onChange={(newValue) =>
+              handleInputChange('birth_date', newValue || null, true)
+            }
           />
         </div>
 

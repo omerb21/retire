@@ -11,6 +11,7 @@ import {
   Typography
 } from '@mui/material';
 import { ScenarioFormData } from '../../../types/scenario';
+import DateField from '../../forms/DateField';
 
 interface ScenarioFormProps {
   formData: ScenarioFormData;
@@ -55,13 +56,12 @@ export const ScenarioForm: React.FC<ScenarioFormProps> = ({
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
+              <DateField
                 label="תאריך פרישה מתוכנן"
-                type="date"
-                value={formData.planned_termination_date}
-                onChange={(e) => onFormChange('planned_termination_date', e.target.value)}
-                InputLabelProps={{ shrink: true }}
+                value={formData.planned_termination_date || null}
+                onChange={(newValue) =>
+                  onFormChange('planned_termination_date', newValue || '')
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>

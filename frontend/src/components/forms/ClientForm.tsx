@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createClient, ClientItem } from '../../lib/api';
+import DateField from './DateField';
 
 interface ClientFormProps {
   onSuccess?: (clientId: number) => void;
@@ -215,13 +216,16 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
       <div>
         <label className="block text-sm font-medium mb-1">
           תאריך לידה *
-          <input
-            type="date"
-            name="birth_date"
-            value={formData.birth_date}
-            onChange={handleChange}
+          <DateField
+            label=""
+            value={formData.birth_date || null}
+            onChange={(newValue) =>
+              setFormData((prev) => ({
+                ...prev,
+                birth_date: newValue || '',
+              }))
+            }
             required
-            className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
           />
         </label>
       </div>
@@ -255,12 +259,15 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
       <div>
         <label className="block text-sm font-medium mb-1">
           תאריך פרישה צפוי
-          <input
-            type="date"
-            name="retirement_date"
-            value={formData.retirement_date || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
+          <DateField
+            label=""
+            value={formData.retirement_date || null}
+            onChange={(newValue) =>
+              setFormData((prev) => ({
+                ...prev,
+                retirement_date: newValue || null,
+              }))
+            }
           />
         </label>
       </div>
@@ -557,12 +564,15 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
           <div>
             <label className="block text-sm font-medium mb-1">
               תאריך עלייה (לעולים חדשים)
-              <input
-                type="date"
-                name="immigration_date"
-                value={formData.immigration_date || ''}
-                onChange={handleChange}
-                className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
+              <DateField
+                label=""
+                value={formData.immigration_date || null}
+                onChange={(newValue) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    immigration_date: newValue || null,
+                  }))
+                }
               />
             </label>
           </div>
@@ -570,12 +580,15 @@ const ClientForm: React.FC<ClientFormProps> = ({ onSuccess }) => {
           <div>
             <label className="block text-sm font-medium mb-1">
               תאריך שחרור מצה"ל
-              <input
-                type="date"
-                name="military_discharge_date"
-                value={formData.military_discharge_date || ''}
-                onChange={handleChange}
-                className="mt-1 block w-full border rounded-md shadow-sm py-2 px-3"
+              <DateField
+                label=""
+                value={formData.military_discharge_date || null}
+                onChange={(newValue) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    military_discharge_date: newValue || null,
+                  }))
+                }
               />
             </label>
           </div>
