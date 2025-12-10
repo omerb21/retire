@@ -3,6 +3,7 @@
  * כפתורי שמירה ואיפוס מצב מערכת
  */
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Box, Typography, Alert, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -36,6 +37,7 @@ interface SnapshotData {
 }
 
 const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRestored }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -227,6 +229,16 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
         disabled={loading || !savedSnapshot}
       >
         ♻️ שחזר מצב
+      </Button>
+
+      <Button
+        variant="outlined"
+        color="secondary"
+        onClick={() => navigate(`/clients/${clientId}/llm-chat`)}
+        disabled={loading}
+        sx={{ marginInlineStart: 'auto' }}
+      >
+        🤖 יועץ פרישה
       </Button>
 
       {/* מידע על snapshot שמור */}

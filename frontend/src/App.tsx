@@ -21,6 +21,7 @@ const ReportsPage = React.lazy(() => import("./pages/Reports"));
 const SystemSettings = React.lazy(() => import("./pages/SystemSettings"));
 const PensionPortfolio = React.lazy(() => import("./pages/PensionPortfolio"));
 const ClientDetailsPage = React.lazy(() => import("./pages/ClientDetails"));
+const LlmPensionChat = React.lazy(() => import("./pages/LlmPensionChat"));
 
 // Import module components (placeholders until implemented)
 // All modules now imported from separate files
@@ -102,6 +103,7 @@ export default function App() {
               <Route path="/clients/:id/retirement-scenarios" element={<RetirementScenarios />} />
               <Route path="/clients/:id/fixation" element={<SimpleFixation />} />
               <Route path="/clients/:id/reports" element={<ReportsPage />} />
+              <Route path="/clients/:id/llm-chat" element={<LlmPensionChat />} />
               <Route path="/system-settings" element={<SystemSettings />} />
               <Route path="/" element={<Clients />} />
               <Route path="*" element={<Clients />} />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE, apiFetch, handleApiError } from "../../../lib/api";
+import { API_BASE, apiFetch, handleApiError, getClient } from "../../../lib/api";
 import { ScenariosResponse } from "../types";
 import { clearPensionPortfolioBalancesAfterScenario } from "../services/pensionPortfolioStorage";
 import { loadPensionDataFromStorage } from "../../PensionPortfolio/services/pensionPortfolioStorageService";
@@ -25,7 +25,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
   const [results, setResults] = useState<ScenariosResponse | null>(null);
   const [successMessage, setSuccessMessage] = useState<string>("");
 
-  const loadSavedScenarios = async () => {
+  const loadSavedScenarios = async (ageOverride?: number) => {
     if (!clientId) {
       return;
     }
@@ -37,8 +37,11 @@ export function useRetirementScenarios(clientId: string | undefined) {
         (headers as any)['X-System-Password'] = systemPassword;
       }
 
+      const effectiveAge =
+        typeof ageOverride === "number" ? ageOverride : retirementAge;
+
       const response = await fetch(
-        `${API_BASE}/clients/${clientId}/retirement-scenarios?retirement_age=${retirementAge}`,
+        `${API_BASE}/clients/${clientId}/retirement-scenarios?retirement_age=${effectiveAge}`,
         { headers }
       );
 
@@ -55,9 +58,51 @@ export function useRetirementScenarios(clientId: string | undefined) {
   };
 
   useEffect(() => {
-    if (clientId) {
-      void loadSavedScenarios();
+    if (!clientId) {
+      return;
     }
+
+    const initializeAgeAndScenarios = async () => {
+      try {
+        const client = await getClient(parseInt(clientId, 10));
+
+        let effectiveDefaultAge = retirementAge;
+
+        if (client && client.birth_date) {
+          const birth = new Date(client.birth_date);
+          if (!isNaN(birth.getTime())) {
+            const today = new Date();
+            let age = today.getFullYear() - birth.getFullYear();
+            const monthDiff = today.getMonth() - birth.getMonth();
+
+            if (
+              monthDiff < 0 ||
+              (monthDiff === 0 && today.getDate() < birth.getDate())
+            ) {
+              age -= 1;
+            }
+
+            // ברירת מחדל: הגיל המאוחר מבין 67 לבין הגיל הנוכחי בפועל
+            const safeAge = Math.max(67, age);
+            // שמירה על תחום הקלט המותר (50-80)
+            effectiveDefaultAge = Math.min(Math.max(safeAge, 50), 80);
+
+            setRetirementAge(effectiveDefaultAge);
+          }
+        }
+
+        await loadSavedScenarios(effectiveDefaultAge);
+      } catch (err) {
+        console.error(
+          "Failed to initialize retirement age from client data:",
+          err
+        );
+        // במקרה של שגיאה, נמשיך עם גיל ברירת המחדל הקיים
+        await loadSavedScenarios();
+      }
+    };
+
+    void initializeAgeAndScenarios();
   }, [clientId]);
 
   const handleExecuteScenario = async (

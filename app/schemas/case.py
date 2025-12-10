@@ -1,7 +1,7 @@
 from enum import Enum
 from datetime import datetime
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ClientCase(str, Enum):
@@ -21,35 +21,37 @@ class CaseDetectionResult(BaseModel):
     case_name: str = Field(..., description="Case name")
     reasons: List[str] = Field([], description="Reasons for case detection")
     detected_at: datetime = Field(default_factory=datetime.utcnow, description="Detection timestamp")
-
-    class Config:
-        schema_extra = {
+    
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "client_id": 1,
                 "case_id": 5,
                 "case_name": "REGULAR_WITH_LEAVE",
                 "reasons": ["has_current_employer", "planned_leave_detected_or_default"],
-                "detected_at": "2025-09-03T12:34:56Z"
+                "detected_at": "2025-09-03T12:34:56Z",
             }
         }
+    )
 
 
 class CaseDetectionResponse(BaseModel):
     """API response wrapper for case detection"""
     result: CaseDetectionResult
-
-    class Config:
-        schema_extra = {
+    
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "result": {
                     "client_id": 1,
                     "case_id": 5,
                     "case_name": "REGULAR_WITH_LEAVE",
                     "reasons": ["has_current_employer", "planned_leave_detected_or_default"],
-                    "detected_at": "2025-09-03T13:25:00Z"
+                    "detected_at": "2025-09-03T13:25:00Z",
                 }
             }
         }
+    )
 
 
 class CaseDetectResponse(BaseModel):

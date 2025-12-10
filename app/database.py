@@ -5,8 +5,11 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Get database URL from environment variable or use default SQLite for development
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./retire.db")
+# Get database URL from dedicated env var or use default SQLite for development
+# IMPORTANT: We intentionally ignore generic DATABASE_URL to avoid accidental
+# sharing of a database with other systems (e.g. external CRM).
+PLANNING_DATABASE_URL = os.getenv("PLANNING_DATABASE_URL")
+DATABASE_URL = PLANNING_DATABASE_URL or "sqlite:///./retire.db"
 
 # Create base class for declarative models
 Base = declarative_base()

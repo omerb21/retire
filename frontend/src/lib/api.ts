@@ -421,6 +421,136 @@ export const reportsApi = {
   exportReportPdf,
 };
 
+// ===== LLM Pension Chat API =====
+
+export type LlmChatMessageDto = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};
+
+export type LlmChatResponseDto = {
+  reply: string;
+};
+
+export type LlmStatusDto = {
+  provider: string | null;
+  backend: string | null;
+  model_name: string | null;
+};
+
+// סוג לחשבון פנסיוני מהתיק (לשליחה ל-LLM)
+export type LlmPensionPortfolioAccount = {
+  מספר_חשבון?: string;
+  שם_תכנית?: string;
+  חברה_מנהלת?: string;
+  סוג_מוצר?: string;
+  יתרה?: number;
+  תאריך_התחלה?: string;
+  פיצויים_מעסיק_נוכחי?: number;
+  פיצויים_ממעסיקים_קודמים_רצף_קצבה?: number;
+  תגמולי_עובד_עד_2000?: number;
+  תגמולי_עובד_אחרי_2000?: number;
+  תגמולי_מעביד_עד_2000?: number;
+  תגמולי_מעביד_אחרי_2000?: number;
+  תגמולים?: number;
+  סך_תגמולים?: number;
+  סך_פיצויים?: number;
+  [key: string]: unknown;
+};
+
+export async function sendPensionChat(
+  messages: LlmChatMessageDto[],
+  clientId?: number,
+  pensionPortfolio?: LlmPensionPortfolioAccount[],
+): Promise<LlmChatResponseDto> {
+  const body: any = { messages };
+  if (typeof clientId === "number" && !Number.isNaN(clientId)) {
+    body.client_id = clientId;
+  }
+  if (pensionPortfolio && pensionPortfolio.length > 0) {
+    body.pension_portfolio = pensionPortfolio;
+  }
+
+  return apiFetch<LlmChatResponseDto>("/llm/pension-chat", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getLlmStatus(): Promise<LlmStatusDto> {
+  return apiFetch<LlmStatusDto>("/llm/status");
+}
+
+export async function updateLlmProvider(
+  provider: string,
+  modelName?: string,
+): Promise<LlmStatusDto> {
+  const body: any = { provider };
+  if (modelName && modelName.trim()) {
+    body.model_name = modelName.trim();
+  }
+
+  return apiFetch<LlmStatusDto>("/llm/provider", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function* sendPensionChatStream(
+  messages: LlmChatMessageDto[],
+  clientId?: number,
+  pensionPortfolio?: LlmPensionPortfolioAccount[],
+): AsyncGenerator<string, void, unknown> {
+  const body: any = { messages };
+  if (typeof clientId === "number" && !Number.isNaN(clientId)) {
+    body.client_id = clientId;
+  }
+  if (pensionPortfolio && pensionPortfolio.length > 0) {
+    body.pension_portfolio = pensionPortfolio;
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const password = localStorage.getItem("systemAccessPassword");
+  if (password) {
+    headers["X-System-Password"] = password;
+  }
+
+  const response = await fetch(`${API_BASE}/llm/pension-chat-stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`שגיאה בשרת: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("לא ניתן לקרוא את התשובה");
+  }
+
+  const decoder = new TextDecoder("utf-8");
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value, { stream: true });
+    if (text) {
+      yield text;
+    }
+  }
+}
+
+export const llmApi = {
+  chat: sendPensionChat,
+  chatStream: sendPensionChatStream,
+  status: getLlmStatus,
+  updateProvider: updateLlmProvider,
+};
+
 export function handleApiError(error: any): string {
   if (error instanceof Error) {
     return error.message;
