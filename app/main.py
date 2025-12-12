@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 import logging
 import sys
 
-# הגדרת לוגר
+# הגדרת לוגר בסיסית (קונסול)
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,6 +17,13 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# הפעלת לוגינג מתקדם לקבצים (app.log, app.json, fixation.log)
+try:
+    from app.logging_config import setup_logging
+    setup_logging()
+except Exception as e:
+    logger.warning("Could not initialize advanced logging: %s", e)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base

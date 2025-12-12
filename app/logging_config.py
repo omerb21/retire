@@ -106,8 +106,11 @@ def setup_logging():
         # Try to use python-json-logger if available
         import pythonjsonlogger  # noqa
     except ImportError:
-        # Fall back to standard formatter if not available
+        # Fall back to standard formatter if not available.
+        # Important: dictConfig configures ALL declared formatters.
+        # If we keep the 'json' formatter with a missing class, dictConfig will fail.
         LOGGING_CONFIG["handlers"]["json_file"]["formatter"] = "standard"
+        LOGGING_CONFIG["formatters"].pop("json", None)
         print("python-json-logger not found, using standard formatter for JSON logs")
     
     logging.config.dictConfig(LOGGING_CONFIG)

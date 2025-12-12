@@ -102,33 +102,10 @@ class TaxCalculator:
         Returns:
             סכום ביטוח לאומי שנתי
         """
-        if annual_income <= 0:
-            return 0.0
-        
-        # בדיקת גיל פרישה - ביטוח לאומי לא חל אחרי גיל פרישה
-        if personal_details and personal_details.get_age() >= 67:
-            logger.info(f"ביטוח לאומי לא חל - מעל גיל פרישה ({personal_details.get_age()})")
-            return 0.0
-        
-        monthly_income = annual_income / 12
-        ni_rates = self.national_insurance
-        
-        if monthly_income <= ni_rates['low_threshold_monthly']:
-            # עד התקרה הנמוכה
-            monthly_ni = monthly_income * ni_rates['employee_rate_low']
-        else:
-            # מעל התקרה הנמוכה
-            low_part = ni_rates['low_threshold_monthly'] * ni_rates['employee_rate_low']
-            high_part = min(
-                monthly_income - ni_rates['low_threshold_monthly'],
-                ni_rates['high_threshold_monthly'] - ni_rates['low_threshold_monthly']
-            ) * ni_rates['employee_rate_high']
-            monthly_ni = low_part + high_part
-        
-        # הגבלה לתשלום מקסימלי
-        monthly_ni = min(monthly_ni, ni_rates['max_monthly_payment'])
-        
-        return round(monthly_ni * 12, 2)
+        # במערכת זו איננו מחשבים בפועל ביטוח לאומי כחלק מחישוב המס.
+        # כל חישובי המס מבוססים על מס הכנסה בלבד.
+        logger.info("חישוב ביטוח לאומי נוטרל במערכת – מוחזר 0.0")
+        return 0.0
     
     def calculate_health_tax(self, annual_income: float, personal_details=None) -> float:
         """
@@ -141,37 +118,10 @@ class TaxCalculator:
         Returns:
             סכום מס בריאות שנתי
         """
-        if annual_income <= 0:
-            return 0.0
-        
-        # בדיקת גיל פרישה - מס בריאות מופחת אחרי גיל פרישה
-        # לפנסיונרים מעל גיל 67 יש שיעור מופחת
-        if personal_details and personal_details.get_age() >= 67:
-            logger.info(f"מס בריאות מופחת - מעל גיל פרישה ({personal_details.get_age()})")
-            # שיעור מופחת לפנסיונרים: 3.1% על כל ההכנסה
-            monthly_income = annual_income / 12
-            monthly_health = monthly_income * 0.031  # 3.1% קבוע לפנסיונרים
-            return round(monthly_health * 12, 2)
-        
-        monthly_income = annual_income / 12
-        health_rates = self.health_tax
-        
-        if monthly_income <= health_rates['low_threshold_monthly']:
-            # עד התקרה הנמוכה
-            monthly_health = monthly_income * health_rates['rate_low']
-        else:
-            # מעל התקרה הנמוכה
-            low_part = health_rates['low_threshold_monthly'] * health_rates['rate_low']
-            high_part = min(
-                monthly_income - health_rates['low_threshold_monthly'],
-                health_rates['high_threshold_monthly'] - health_rates['low_threshold_monthly']
-            ) * health_rates['rate_high']
-            monthly_health = low_part + high_part
-        
-        # הגבלה לתשלום מקסימלי
-        monthly_health = min(monthly_health, health_rates['max_monthly_payment'])
-        
-        return round(monthly_health * 12, 2)
+        # במערכת זו איננו מחשבים בפועל מס בריאות כחלק מחישוב המס.
+        # כל חישובי המס מבוססים על מס הכנסה בלבד.
+        logger.info("חישוב מס בריאות נוטרל במערכת – מוחזר 0.0")
+        return 0.0
     
     def calculate_applicable_credits(self, input_data: TaxCalculationInput) -> Tuple[float, List[TaxCreditInput]]:
         """

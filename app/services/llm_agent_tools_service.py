@@ -25,6 +25,8 @@ from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.tax_calculator import TaxCalculator
 from app.schemas.tax_schemas import TaxCalculationInput, PersonalDetails
 from app.services.rights_fixation.exemption_caps import get_monthly_cap, get_exemption_percentage
+from app.services.commutation_service import CommutationService
+from app.services.capital_withdrawal_service import CapitalWithdrawalService
 from datetime import date
 
 logger = logging.getLogger("app.llm_agent_tools")
@@ -1822,40 +1824,86 @@ class AgentToolsService:
             for acc in self.pension_portfolio_data:
                 balance = float(acc.יתרה or 0)
                 product_type_raw = acc.סוג_מוצר or ""
-                product_type_lower = product_type_raw.lower()
                 name = acc.שם_תכנית or "ללא שם"
 
-                # ===== לוגיקת סיווג משופרת (Run 22) =====
-                # מוצרים שהם תמיד הוניים (לא קצבתיים):
-                is_pure_capital = (
-                    "קרן השתלמות" in product_type_lower
-                    or "גמל להשקעה" in product_type_lower
-                    or "חיסכון פיננסי" in product_type_lower
-                )
+                if balance <= 0:
+                    continue
 
-                # מוצרים שהם תמיד קצבתיים (גם אם מכילים 'חיסכון' או 'ביטוח'):
-                is_pension_or_annuity = (
-                    product_type_raw == "פוליסת ביטוח חיים משולב חיסכון"  # המוצר הספציפי עם 6M
-                    or "קצבה" in product_type_lower
-                    or "ביטוח מנהלים" in product_type_lower
-                    or "קרן פנסיה" in product_type_lower
-                    or "פנסיה" in product_type_lower
-                    or "ביטוח חיים" in product_type_lower  # פוליסות ביטוח חיים הן קצבתיות
-                )
+                # סייגי מוצר בעדיפות עליונה
+                is_study_fund = "קרן השתלמות" in product_type_raw
+                is_investment_gemel = "גמל להשקעה" in product_type_raw
+                is_gemel_fund = ("קופת גמל" in product_type_raw) and not is_investment_gemel
 
-                # לוגיקת הסיווג הסופית:
-                # אם זה מוצר קצבתי מובהק - תמיד pension_fund
-                # אם זה מוצר הוני טהור ולא קצבתי - capital_asset
-                # אחרת (ברירת מחדל) - pension_fund
-                if is_pension_or_annuity:
-                    is_capital = False
-                elif is_pure_capital:
-                    is_capital = True
+                classification: str | None = None  # "pension", "capital", "unspecified"
+
+                if is_study_fund or is_investment_gemel:
+                    classification = "capital"
                 else:
-                    # ברירת מחדל: מוצר פנסיוני (לא הוני)
-                    is_capital = False
+                    # קריאת טורי פיצויים ותגמולים אם קיימים
+                    pitz_current = float(getattr(acc, "פיצויים_מעסיק_נוכחי", 0) or 0)
+                    pitz_after_settlement = float(getattr(acc, "פיצויים_לאחר_התחשבנות", 0) or 0)
+                    pitz_not_settled = float(getattr(acc, "פיצויים_שלא_עברו_התחשבנות", 0) or 0)
+                    pitz_prev_rights = float(getattr(acc, "פיצויים_ממעסיקים_קודמים_רצף_זכויות", 0) or 0)
+                    pitz_prev_pension = float(getattr(acc, "פיצויים_ממעסיקים_קודמים_רצף_קצבה", 0) or 0)
 
-                classification = "capital_asset" if is_capital else "pension_fund"
+                    emp_before_2000 = float(getattr(acc, "תגמולי_עובד_עד_2000", 0) or 0)
+                    emp_after_2000 = float(getattr(acc, "תגמולי_עובד_אחרי_2000", 0) or 0)
+                    emp_after_2008_np = float(getattr(acc, "תגמולי_עובד_אחרי_2008_לא_משלמת", 0) or 0)
+                    empr_before_2000 = float(getattr(acc, "תגמולי_מעביד_עד_2000", 0) or 0)
+                    empr_after_2000 = float(getattr(acc, "תגמולי_מעביד_אחרי_2000", 0) or 0)
+                    empr_after_2008_np = float(getattr(acc, "תגמולי_מעביד_אחרי_2008_לא_משלמת", 0) or 0)
+
+                    capital_sum = 0.0
+                    pension_sum = 0.0
+                    unspecified_sum = 0.0
+
+                    # טורי "ללא סיווג": פיצויים שלא עברו התחשבנות + רצף זכויות
+                    unspecified_sum += pitz_not_settled + pitz_prev_rights
+
+                    # פיצויים לאחר התחשבנות – הון
+                    capital_sum += pitz_after_settlement
+
+                    # פיצויים מעסיק נוכחי – גמיש, ברירת מחדל הון
+                    capital_sum += pitz_current
+
+                    # פיצויים ממעסיקים קודמים ברצף קצבה – קצבה
+                    pension_sum += pitz_prev_pension
+
+                    # תגמולי עובד/מעביד אחרי 2000 – קצבה, למעט קופת גמל = הון
+                    if emp_after_2000 > 0:
+                        if is_gemel_fund:
+                            capital_sum += emp_after_2000
+                        else:
+                            pension_sum += emp_after_2000
+                    if empr_after_2000 > 0:
+                        if is_gemel_fund:
+                            capital_sum += empr_after_2000
+                        else:
+                            pension_sum += empr_after_2000
+
+                    # תגמולי עובד/מעביד אחרי 2008 (לא משלמת) – קצבה
+                    pension_sum += emp_after_2008_np + empr_after_2008_np
+
+                    # תגמולי עובד/מעביד עד 2000 – גמיש, ברירת מחדל הון
+                    capital_sum += emp_before_2000 + empr_before_2000
+
+                    total_cols = capital_sum + pension_sum + unspecified_sum
+
+                    if total_cols > 0:
+                        if capital_sum == 0 and pension_sum == 0:
+                            classification = "unspecified"
+                        elif pension_sum >= capital_sum:
+                            classification = "pension"
+                        else:
+                            classification = "capital"
+
+                if classification is None:
+                    # fallback: קופת גמל כהון, אחרת קצבה
+                    if is_gemel_fund or is_study_fund or is_investment_gemel:
+                        classification = "capital"
+                    else:
+                        classification = "pension"
+
                 logger.info(
                     "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Injected account classified as %s - name=%s, type=%s, balance=%.2f",
                     classification,
@@ -1864,17 +1912,19 @@ class AgentToolsService:
                     balance,
                 )
 
-                if is_capital:
+                if classification == "unspecified":
+                    # לא נכנס לחישוב הון/קצבה, דורש החלטה נפרדת
+                    continue
+
+                if classification == "capital":
                     ca = CapitalAsset(
                         client_id=self.client_id,
                         asset_name=name,
                         asset_type=acc.סוג_מוצר,
-                        current_value=balance,  # Fixed: current_balance -> current_value
-                        # Required fields defaults
+                        current_value=balance,
                         annual_return_rate=0,
                         payment_frequency='monthly',
                         start_date=date.today(),
-                        # Removed managing_company as it is not in the model
                     )
                     capital_assets.append(ca)
                 else:
@@ -1883,9 +1933,8 @@ class AgentToolsService:
                         fund_name=name,
                         fund_type=acc.סוג_מוצר,
                         balance=balance,
-                        pension_amount=0,  # הנחה: בנתוני מסלקה גולמיים אין שדה קצבה חודשית מפורש לרוב
-                        input_mode="manual",  # Required field
-                        # Removed managing_company as it is not in the model
+                        pension_amount=0,
+                        input_mode="manual",
                     )
                     pension_funds.append(pf)
 
@@ -2105,7 +2154,7 @@ class AgentToolsService:
         total_guaranteed_income = total_guaranteed_income_gross  # לשמירה על תאימות לאחור
 
         # 5. ניתוח גירעון (Gap Analysis) - מבוסס על נטו
-        gap = desired_monthly_income - total_guaranteed_income
+        gap = desired_monthly_income - total_guaranteed_income_net
         
         # 6. חישוב הון זמין
         # שימוש ברשימה המסוננת שכבר יצרנו
@@ -2160,10 +2209,8 @@ class AgentToolsService:
 
         explanation_lines.extend([
             f"",
-            f"📊 **ניתוח מס:**",
-            f"   מס הכנסה: {monthly_income_tax:,.0f} ₪/חודש",
-            f"   מס בריאות: {monthly_health_tax:,.0f} ₪/חודש",
-            f"   סה\"כ ניכויי מס: {monthly_tax_deduction:,.0f} ₪/חודש",
+            f"📊 **ניתוח מס הכנסה:**",
+            f"   מס הכנסה חודשי על הקצבה: {monthly_income_tax:,.0f} ₪",
             f"",
             f"✅ **הכנסה נטו חודשית:** {total_guaranteed_income_net:,.0f} ₪",
             f"   (פנסיה נטו: {monthly_net_pension:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
@@ -2211,4 +2258,235 @@ class AgentToolsService:
                 "is_sustainable": is_sustainable
             },
             "explanation": "\n".join(explanation_lines)
+        }
+
+    def calculate_pension_commutation(
+        self,
+        target_monthly_pension_reduction: float,
+        retirement_date: str,
+    ) -> Dict[str, Any]:
+        """
+        מחשב היוון קצבה - המרת חלק מהקצבה החודשית לסכום חד-פעמי.
+        
+        Args:
+            target_monthly_pension_reduction: הסכום החודשי שהלקוח מוכן להפחית מהקצבה (ברוטו)
+            retirement_date: תאריך הפרישה (YYYY-MM-DD)
+            
+        Returns:
+            Dict עם סכום ההיוון ברוטו, מס, ונטו
+        """
+        client = self.client
+        if not client:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_PENSION_COMMUTATION",
+                "result": {},
+                "explanation": "לא נמצא לקוח עם המזהה שסופק.",
+            }
+
+        if not client.birth_date:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_PENSION_COMMUTATION",
+                "result": {},
+                "explanation": "חסר תאריך לידה ללקוח - לא ניתן לחשב מקדמי קצבה.",
+            }
+
+        # פרסור תאריך פרישה
+        try:
+            ret_date = date.fromisoformat(retirement_date)
+        except ValueError:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_PENSION_COMMUTATION",
+                "result": {},
+                "explanation": f"תאריך פרישה לא תקין: {retirement_date}. יש להזין בפורמט YYYY-MM-DD.",
+            }
+
+        # חישוב גיל פרישה
+        age_at_retirement = ret_date.year - client.birth_date.year
+        if (ret_date.month, ret_date.day) < (client.birth_date.month, client.birth_date.day):
+            age_at_retirement -= 1
+
+        current_age = client.get_age() if hasattr(client, 'get_age') else None
+        if current_age and age_at_retirement < current_age:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_PENSION_COMMUTATION",
+                "result": {},
+                "explanation": f"גיל הפרישה ({age_at_retirement}) לא יכול להיות נמוך מהגיל הנוכחי ({current_age}).",
+            }
+
+        # קבלת מקדם קצבה ממוצע
+        gender = client.gender or 'זכר'
+        try:
+            coeff_result = get_annuity_coefficient(
+                product_type='קרן פנסיה',
+                start_date=date.today(),
+                gender=gender,
+                retirement_age=age_at_retirement,
+                survivors_option='תקנוני',
+                birth_date=client.birth_date,
+                pension_start_date=ret_date,
+            )
+            annuity_factor = float(coeff_result.get('factor_value', 200))
+        except Exception:
+            annuity_factor = 200.0
+
+        # חישוב הכנסה שנתית אחרת (אם יש)
+        other_annual_income = 0.0
+        if client.annual_salary:
+            other_annual_income = float(client.annual_salary)
+
+        # ביצוע חישוב ההיוון
+        commutation_service = CommutationService(self.db, self.client_id)
+        result = commutation_service.calculate(
+            monthly_pension_reduction=target_monthly_pension_reduction,
+            annuity_factor=annuity_factor,
+            client_age=current_age or age_at_retirement,
+            retirement_age=age_at_retirement,
+            gender=gender,
+            other_annual_income=other_annual_income,
+        )
+
+        if not result.get('success'):
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_PENSION_COMMUTATION",
+                "result": {},
+                "explanation": result.get('error', 'שגיאה בחישוב ההיוון'),
+            }
+
+        # בניית הסבר מפורט
+        explanation_lines = [
+            f"💰 **חישוב היוון קצבה**",
+            f"",
+            f"**פרטי ההיוון:**",
+            f"  • הפחתה חודשית מהקצבה: {result['monthly_pension_reduction']:,.0f} ₪",
+            f"  • מקדם קצבה: {result['annuity_factor']:.1f}",
+            f"  • גיל פרישה: {age_at_retirement}",
+            f"",
+            f"**סכום ההיוון:**",
+            f"  • סכום ברוטו: {result['lump_sum_gross']:,.0f} ₪",
+            f"  • מס הכנסה על ההיוון: {result['tax_on_lump_sum']:,.0f} ₪ ({result['effective_tax_rate']:.1f}%)",
+            f"  • **סכום נטו: {result['lump_sum_net']:,.0f} ₪**",
+            f"",
+            f"**השוואה כלכלית:**",
+            f"  • קצבה שנתית שתאבד: {result['annual_pension_lost']:,.0f} ₪",
+            f"  • סה\"כ קצבה שתאבד ב-30 שנה: {result['total_pension_lost_30_years']:,.0f} ₪",
+            f"  • ערך נוכחי (NPV) של הקצבה שתאבד: {result['npv_pension_lost']:,.0f} ₪",
+            f"",
+        ]
+
+        comparison = result.get('comparison', {})
+        if comparison.get('recommendation') == 'lump_sum':
+            explanation_lines.append(f"✅ **המלצה:** ההיוון משתלם כלכלית (הפרש: {comparison['difference']:,.0f} ₪ לטובתך)")
+        else:
+            explanation_lines.append(f"⚠️ **המלצה:** הקצבה משתלמת יותר כלכלית (הפרש: {abs(comparison['difference']):,.0f} ₪)")
+
+        explanation_lines.extend([
+            f"",
+            f"**💡 שים לב:**",
+            f"  • ההיוון מתאים למי שצריך סכום גדול מיידי (למשל לפירעון משכנתא)",
+            f"  • הקצבה מתאימה למי שמעדיף הכנסה קבועה לכל החיים",
+        ])
+
+        return {
+            "success": True,
+            "tool_name": "CALCULATE_PENSION_COMMUTATION",
+            "result": {
+                "retirement_date": retirement_date,
+                "retirement_age": age_at_retirement,
+                "monthly_pension_reduction": result['monthly_pension_reduction'],
+                "annuity_factor": result['annuity_factor'],
+                "lump_sum_gross": result['lump_sum_gross'],
+                "tax_on_lump_sum": result['tax_on_lump_sum'],
+                "lump_sum_net": result['lump_sum_net'],
+                "effective_tax_rate": result['effective_tax_rate'],
+                "annual_pension_lost": result['annual_pension_lost'],
+                "npv_pension_lost": result['npv_pension_lost'],
+                "recommendation": comparison.get('recommendation', 'unknown'),
+            },
+            "explanation": "\n".join(explanation_lines),
+        }
+
+    def calculate_capital_withdrawal_tax(
+        self,
+        withdrawal_amount_gross: float,
+        withdrawal_year: int = 2025,
+    ) -> Dict[str, Any]:
+        """
+        מחשב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים).
+        
+        Args:
+            withdrawal_amount_gross: סכום המשיכה ברוטו
+            withdrawal_year: שנת המשיכה המתוכננת
+            
+        Returns:
+            Dict עם סכום המס, הסכום נטו, ושיעור המס האפקטיבי
+        """
+        client = self.client
+        if not client:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+                "result": {},
+                "explanation": "לא נמצא לקוח עם המזהה שסופק.",
+            }
+
+        # הכנסה שנתית אחרת (אם יש)
+        other_annual_income = 0.0
+        if client.annual_salary:
+            other_annual_income = float(client.annual_salary)
+
+        # ביצוע חישוב המס
+        withdrawal_service = CapitalWithdrawalService(self.db, self.client_id)
+        result = withdrawal_service.calculate(
+            withdrawal_amount_gross=withdrawal_amount_gross,
+            withdrawal_year=withdrawal_year,
+            other_annual_income=other_annual_income,
+        )
+
+        # בניית הסבר מפורט
+        explanation_lines = [
+            f"💰 **חישוב מס על משיכת כספי הון**",
+            f"",
+            f"**פרטי המשיכה:**",
+            f"  • סכום המשיכה ברוטו: {result['withdrawal_amount_gross']:,.0f} ₪",
+            f"  • שנת המשיכה: {result['withdrawal_year']}",
+        ]
+
+        if other_annual_income > 0:
+            explanation_lines.append(f"  • הכנסה שנתית אחרת: {other_annual_income:,.0f} ₪")
+
+        explanation_lines.extend([
+            f"",
+            f"**חישוב המס:**",
+            f"  • מס הכנסה: {result['tax_amount']:,.0f} ₪",
+            f"  • שיעור מס אפקטיבי: {result['effective_tax_rate']:.1f}%",
+            f"  • מדרגת מס שולית: {result['marginal_tax_rate']:.0f}%",
+            f"",
+            f"**סכום נטו:**",
+            f"  • **תקבל לידיים: {result['net_amount']:,.0f} ₪**",
+            f"",
+            f"**💡 שים לב:**",
+            f"  • החישוב מתייחס למס הכנסה בלבד (ללא ביטוח לאומי/בריאות)",
+            f"  • המס מחושב לפי מדרגות המס לשנת {result['withdrawal_year']}",
+        ])
+
+        if other_annual_income > 0:
+            explanation_lines.append(f"  • המס מחושב בהתחשב בהכנסה השנתית הנוספת שלך")
+
+        return {
+            "success": True,
+            "tool_name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+            "result": {
+                "withdrawal_amount_gross": result['withdrawal_amount_gross'],
+                "withdrawal_year": result['withdrawal_year'],
+                "tax_amount": result['tax_amount'],
+                "net_amount": result['net_amount'],
+                "effective_tax_rate": result['effective_tax_rate'],
+                "marginal_tax_rate": result['marginal_tax_rate'],
+            },
+            "explanation": "\n".join(explanation_lines),
         }

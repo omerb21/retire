@@ -31,6 +31,8 @@ from app.services.documents.data_fetchers.client_data import fetch_client_data
 from app.services.tax_data import TaxBracketsService
 from app.services.llm_agent_tools_service import AgentToolsService
 from app.services.retirement_age_service import calculate_retirement_age
+from app.utils.llm_chat_log import generate_request_id, log_llm_event
+from app.utils.playbook_loader import get_relevant_example, get_condensed_workflow_example, format_example_as_few_shot
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -275,20 +277,60 @@ def _get_tools_definitions() -> str:
         },
         {
             "name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-            "description": "Runs a comprehensive retirement cash flow analysis based on a specified retirement date, calculating projected pension income, social security, and analyzing capital sufficiency against a desired monthly income.",
+            "description": "כלי מרכזי לניתוח תזרים פרישה. מחשב קצבה ברוטו, מס הכנסה, קצבה נטו, ופטור מקיבוע זכויות. השתמש בכלי זה כאשר הלקוח שואל 'כמה אקבל נטו', 'אחרי מס', 'פטור מקסימלי' או 'קיבוע זכויות'. דוגמה: ###TOOL_CALL### {\"name\": \"RUN_RETIREMENT_CASHFLOW_ANALYSIS\", \"arguments\": {\"retirement_date\": \"2028-01-01\", \"apply_max_exemption\": true}}",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "retirement_date": {
                         "type": "string",
-                        "description": "Target retirement date in YYYY-MM-DD format."
+                        "description": "תאריך פרישה בפורמט YYYY-MM-DD. אם הלקוח נתן רק שנה (למשל 2028), השתמש ב-01-01 של אותה שנה."
                     },
                     "desired_monthly_income": {
                         "type": "integer",
-                        "description": "The monthly net income goal in NIS (optional, defaults to 70% of salary)."
+                        "description": "יעד הכנסה חודשית נטו בשקלים (אופציונלי, ברירת מחדל: 70% מהשכר)."
+                    },
+                    "apply_max_exemption": {
+                        "type": "boolean",
+                        "description": "הפעל פטור מקסימלי מקיבוע זכויות. חובה להפעיל (true) כאשר הלקוח מבקש 'פטור מקסימלי' או 'קיבוע זכויות'."
                     }
                 },
                 "required": ["retirement_date"]
+            }
+        },
+        {
+            "name": "CALCULATE_PENSION_COMMUTATION",
+            "description": "כלי לחישוב היוון קצבה - המרת חלק מהקצבה החודשית לסכום חד-פעמי (Lump Sum). השתמש בכלי זה כאשר הלקוח שואל 'כמה כסף אקבל אם אוותר על X שקל מהקצבה', 'היוון קצבה', 'לקבל סכום חד-פעמי במקום קצבה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_PENSION_COMMUTATION\", \"arguments\": {\"target_monthly_pension_reduction\": 2000, \"retirement_date\": \"2028-01-01\"}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_monthly_pension_reduction": {
+                        "type": "number",
+                        "description": "הסכום החודשי שהלקוח מוכן להפחית מהקצבה העתידית (ברוטו) בתמורה לסכום חד-פעמי."
+                    },
+                    "retirement_date": {
+                        "type": "string",
+                        "description": "תאריך פרישה בפורמט YYYY-MM-DD."
+                    }
+                },
+                "required": ["target_monthly_pension_reduction", "retirement_date"]
+            }
+        },
+        {
+            "name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+            "description": "כלי לחישוב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים). השתמש בכלי זה כאשר הלקוח שואל 'כמה מס אשלם אם אמשוך X שקל מהקופה', 'משיכה מקופת גמל', 'משיכה מקרן השתלמות', 'כמה נשאר לי נטו אחרי משיכה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_CAPITAL_WITHDRAWAL_TAX\", \"arguments\": {\"withdrawal_amount_gross\": 100000, \"withdrawal_year\": 2025}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "withdrawal_amount_gross": {
+                        "type": "number",
+                        "description": "סכום המשיכה ברוטו מכספי ההון."
+                    },
+                    "withdrawal_year": {
+                        "type": "integer",
+                        "description": "שנת המשיכה המתוכננת (לקביעת מדרגות המס). ברירת מחדל: 2025."
+                    }
+                },
+                "required": ["withdrawal_amount_gross"]
             }
         }
     ]
@@ -410,6 +452,50 @@ def _prepare_messages_with_context(
     """
     messages = list(request.messages)
     computed_pension_data: ComputedPensionData | None = None
+
+    # הנחיית בסיס גלובלית לסוכן (אישיות, שימוש בכלים, פורמט תשובה)
+    global_system_prompt = (
+        "אתה יועץ פרישה פנסיוני דיגיטלי. אתה מדבר תמיד בעברית פשוטה ומסביר ללקוח קצה את מצב הפרישה שלו. "
+        "המערכת מחשבת ומציגה מס הכנסה בלבד על קצבאות והכנסות רלוונטיות – אין לכלול או להסביר ללקוח ביטוח לאומי, מס בריאות או כל ניכוי אחר שאינו מס הכנסה ישיר. "
+        "אל תחזיר לעולם JSON גולמי או מבני נתונים טכניים – תמיד סכם אותם לטקסט קריא.\n\n"
+        "כאשר בשאלה נדרשים מספרים (לדוגמה קצבה נטו, אחרי מס, או השוואת שנות פרישה) עליך להסתמך רק על נתונים מהמערכת: "
+        "או מתוצאות הכלים שנמצאות בהודעות system (Tool Result …) או באמצעות הרצת כלים דרך ###TOOL_CALL###. "
+        "אסור להמציא מספרים שלא הופקו מהמערכת.\n\n"
+        "כאשר יש לך נתונים מ‑RUN_RETIREMENT_CASHFLOW_ANALYSIS ו/או GET_TAX_PROJECTION, עליך לבנות תשובה אחת מאוחדת שמציגה: "
+        "קצבה ברוטו, מס הכנסה, קצבה נטו, וכל פטור מקיבוע זכויות (אחוז הפטור וסכום הקצבה הפטורה). "
+        "אם תוצאות הכלים כוללות שדות של ביטוח לאומי, מס בריאות או 'סך כל המס' – עליך להתעלם מהם לחלוטין, לא להשתמש בהם בחישוב שאתה מסביר, ולא להציג אותם ללקוח. "
+        "אם הופעל פטור מקסימלי (apply_max_exemption או נתוני פטור אחרים), הדגש במפורש את השפעתו על מס ההכנסה ועל הנטו.\n\n"
+        "כאשר אתה מסביר כמה זמן ההון הנזיל יספיק לכיסוי הגירעון החודשי, תמיד הצג במפורש את החישוב החודשי (לדוגמה: הון נזיל ÷ גירעון חודשי = מספר חודשים), "
+        "לאחר מכן המר את מספר החודשים לשנים (עם עיגול סביר), והסבר את שתי התוצאות במילים פשוטות ללקוח.\n\n"
+        "כלל קונטקסט קריטי: כאשר לקוח מגיב לניתוח שביצעת (לדוגמה שאלה על פער, קיימות הון או בקשת תרחישים), עליך להישאר צמוד לנתוני הניתוח האחרון "
+        "ולפרמטרים העיקריים שלו (גיל פרישה, תאריך פרישה, קצבה מובטחת). אסור לשנות את גיל הפרישה או רמת הקצבה רק כדי 'להעלים' את הפער, אלא אם הלקוח ביקש במפורש "
+        "לבחון גיל פרישה אחר או רמת קצבה אחרת. כאשר אתה מציע דרכים לסגירת פער, התמקד בשינויים ביעד ההכנסה החודשית, בשימוש או מכירת נכסים הוניים אחרים, או באופטימיזציה של מיסוי, "
+        "תוך הישארות צמוד לנתונים שהופקו מהכלים בניתוח האחרון.\n\n"
+        "בעת הצגת מס, התייחס תמיד רק למס הכנסה. מבחינתך 'מס' הוא מס ההכנסה על הקצבה בלבד. גם אם הלקוח שואל במפורש על ביטוח לאומי או מס בריאות, "
+        "הסבר שהמערכת הנוכחית ממוקדת במס הכנסה בלבד, ולכן אינה מחשבת או מציגה בנפרד את רכיבי ביטוח לאומי ומס בריאות.\n\n"
+        "לעולם אל תענה ללקוח שעליך 'להריץ חישוב' – החישובים מבוצעים על‑ידי הכלים. תפקידך הוא לפרש את התוצאות ולהסביר אותן בפשטות.\n\n"
+        "תסריטי פעולה (Playbooks) עיקריים:\n"
+        "1. חישוב קצבה נטו לתאריך פרישה – הרץ RUN_RETIREMENT_CASHFLOW_ANALYSIS (עם apply_max_exemption=True אם הלקוח מבקש פטור מקסימלי).\n"
+        "2. השוואת תאריכי פרישה – הרץ RUN_RETIREMENT_CASHFLOW_ANALYSIS פעמיים (לכל תאריך) והשווה ברוטו, מס הכנסה ונטו.\n"
+        "3. שאלות הסבר (מה זה קיבוע זכויות? וכו') – ענה מהידע התיאורטי ללא הפעלת כלים, והצע סימולציה אישית אם הלקוח רוצה.\n"
+        "4. היוון קצבה – הרץ CALCULATE_PENSION_COMMUTATION כאשר הלקוח שואל על המרת קצבה לסכום חד-פעמי.\n"
+        "5. משיכת כספי הון – הרץ CALCULATE_CAPITAL_WITHDRAWAL_TAX כאשר הלקוח שואל על משיכה מקופת גמל/קרן השתלמות.\n"
+        "6. דו\"ח סיכום מובנה – כאשר הלקוח מבקש 'סכם את הנתונים', 'הפק דו\"ח', 'מה המסקנה הסופית?' או 'תן לי סיכום', הצג את התשובה בפורמט דו\"ח מובנה עם כותרת, מסקנות, טבלת תוצאות והמלצות."
+    )
+    
+    # הוספת דוגמת Workflow קומפקטית לכל שיחה
+    workflow_example = get_condensed_workflow_example()
+    global_system_prompt += workflow_example
+
+    messages.insert(0, ChatMessage(role="system", content=global_system_prompt))
+    
+    # הזרקת דוגמה רלוונטית לפי סוג השאלה (אם זוהי שאלה מורכבת)
+    last_user_msg = _find_last_user_message(request.messages)
+    if last_user_msg:
+        relevant_example = get_relevant_example(last_user_msg)
+        if relevant_example:
+            example_msg = format_example_as_few_shot(relevant_example)
+            messages.insert(1, ChatMessage(role="system", content=example_msg))
 
     if request.client_id is not None:
         client = fetch_client_data(db, request.client_id)
@@ -987,6 +1073,78 @@ def _execute_tool_call(
             
             return json.dumps(result.get("result"), ensure_ascii=False)
 
+        elif tool_name == "CALCULATE_PENSION_COMMUTATION":
+            reduction = args.get("target_monthly_pension_reduction")
+            date_str = args.get("retirement_date")
+            
+            if reduction is None:
+                return "Error: Missing argument 'target_monthly_pension_reduction'"
+            if not date_str:
+                return "Error: Missing argument 'retirement_date'"
+            
+            result = agent_tools.calculate_pension_commutation(
+                target_monthly_pension_reduction=float(reduction),
+                retirement_date=date_str,
+            )
+            
+            if not result.get("success"):
+                return f"Tool Error: {result.get('explanation')}"
+            
+            commutation_result = result.get("result", {})
+            
+            # === Force Chaining: הפעלת RUN_RETIREMENT_CASHFLOW_ANALYSIS אוטומטית ===
+            # מטרה: לספק ללקוח תמונה מלאה - מה הקצבה הנטו המלאה ללא היוון
+            try:
+                cashflow_result = agent_tools.run_retirement_cashflow_analysis(
+                    retirement_date=date_str,
+                    desired_monthly_income=None,
+                    apply_max_exemption=True,
+                )
+                
+                if cashflow_result.get("success"):
+                    cashflow_data = cashflow_result.get("result", {})
+                    
+                    # הוספת נתוני הקצבה המלאה לתוצאה המשולבת
+                    combined_result = {
+                        "commutation": commutation_result,
+                        "full_pension_comparison": {
+                            "total_gross_pension": cashflow_data.get("total_guaranteed_income", 0),
+                            "income_tax": cashflow_data.get("income_tax", 0),
+                            "net_pension": cashflow_data.get("net_income", 0),
+                            "exemption_percentage": cashflow_data.get("exemption_percentage", 0),
+                        },
+                        "comparison_summary": {
+                            "lump_sum_net": commutation_result.get("lump_sum_net", 0),
+                            "monthly_pension_lost": commutation_result.get("target_monthly_pension_reduction", 0),
+                            "full_net_pension_without_commutation": cashflow_data.get("net_income", 0),
+                            "recommendation": commutation_result.get("recommendation", "unknown"),
+                        },
+                        "_force_chained": True,
+                    }
+                    return json.dumps(combined_result, ensure_ascii=False)
+            except Exception as chain_err:
+                logger.warning("Force chaining failed for CALCULATE_PENSION_COMMUTATION: %s", chain_err)
+            
+            # אם השרשור נכשל, מחזירים רק את תוצאת ההיוון
+            return json.dumps(commutation_result, ensure_ascii=False)
+
+        elif tool_name == "CALCULATE_CAPITAL_WITHDRAWAL_TAX":
+            amount = args.get("withdrawal_amount_gross")
+            year = args.get("withdrawal_year", 2025)
+            
+            if amount is None:
+                return "Error: Missing argument 'withdrawal_amount_gross'"
+            
+            result = agent_tools.calculate_capital_withdrawal_tax(
+                withdrawal_amount_gross=float(amount),
+                withdrawal_year=int(year),
+            )
+            
+            if not result.get("success"):
+                return f"Tool Error: {result.get('explanation')}"
+            
+            return json.dumps(result.get("result"), ensure_ascii=False)
+
         else:
             return f"Error: Tool '{tool_name}' not found."
 
@@ -999,11 +1157,22 @@ def _execute_tool_call(
 async def pension_chat(request: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     """נקודת קצה לצ'אט עם סוכן ה-LLM הפנסיוני - כולל לולאת הרצה (Execution Loop)."""
     
+    # Generate unique request_id for this conversation turn
+    request_id = generate_request_id()
+    
     # 1. הכנת הודעות התחלתיות עם קונטקסט
     messages, computed_data = _prepare_messages_with_context(request, db)
     original_user_msg = _find_last_user_message(request.messages)
     is_net_request = _is_net_pension_request(original_user_msg)
     force_max_exemption = _is_max_exemption_request(original_user_msg)
+    
+    # Log user message
+    log_llm_event(
+        request_id=request_id,
+        event_type="user_message",
+        payload=original_user_msg,
+        client_id=request.client_id,
+    )
     
     # 2. לולאת הרצה (Max 5 steps)
     max_steps = 5
@@ -1036,7 +1205,15 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db)) -> C
                 tool_call_data = json.loads(tool_json_str)
                 tool_name = tool_call_data.get("name")
                 tool_args = tool_call_data.get("arguments", {})
-
+                
+                # Log tool call
+                log_llm_event(
+                    request_id=request_id,
+                    event_type="tool_call",
+                    payload={"name": tool_name, "arguments": tool_args},
+                    client_id=request.client_id,
+                )
+                
                 # אם המשתמש ביקש במפורש פטור מקסימלי, נוודא שה-LLM מפעיל apply_max_exemption
                 if force_max_exemption and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
                     tool_args["apply_max_exemption"] = True
@@ -1055,8 +1232,21 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db)) -> C
                     force_max_exemption=force_max_exemption,
                 )
                 
+                # Log tool result
+                log_llm_event(
+                    request_id=request_id,
+                    event_type="tool_result",
+                    payload={"tool_name": tool_name, "result": tool_result},
+                    client_id=request.client_id,
+                )
+                
                 # הזרקת התוצאה חזרה ל-LLM כהודעת System
-                result_msg = f"🔧 **Tool Result ({tool_name}):**\n{tool_result}\n\nהמשך בטיפול על בסיס תוצאה זו."
+                result_msg = (
+                    f"🔧 **Tool Result ({tool_name}):**\n"
+                    f"{tool_result}\n\n"
+                    "הנחיות למודל: השתמש בנתוני הכלי האלה (ברוטו, נטו, מס, ופרטי פטור אם קיימים) כדי לבנות תשובה אחת סופית וברורה למשתמש על הקצבה נטו אחרי מס. "
+                    "אל תחזור על ה-JSON הגולמי ואל תיתן תשובה נפרדת רק עבור הכלי עצמו."
+                )
                 messages.append(ChatMessage(role="system", content=result_msg))
                 
                 # === FORCE CHAINING: אכיפת שרשור ניתוח -> מס (BUILD/CASHFLOW -> TAX) ===
@@ -1088,7 +1278,8 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db)) -> C
                     )
                     tax_msg = (
                         f"🔧 **Tool Result (GET_TAX_PROJECTION - Auto-chained):**\n{tax_result}\n\n"
-                        "עכשיו יש לך גם את הברוטו וגם את הנטו. גבש תשובה סופית למשתמש."
+                        "הנחיות למודל: שלב את תוצאת GET_TAX_PROJECTION (שיעור מס אפקטיבי, מס חודשי וכו') יחד עם נתוני RUN_RETIREMENT_CASHFLOW_ANALYSIS שכבר קיבלת. "
+                        "עליך להסביר ללקוח קצבה ברוטו, מס, וקצבה נטו, ולהדגיש את השפעת הפטור המקסימלי (אם הופעל) על המס והנטו. אל תחזיר פלט כפול או לא מאוחד."
                     )
                     messages.append(ChatMessage(role="system", content=tax_msg))
                 
@@ -1107,6 +1298,14 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db)) -> C
             final_reply = raw_reply
             break
     
+    # Log final answer
+    log_llm_event(
+        request_id=request_id,
+        event_type="final_answer",
+        payload=final_reply,
+        client_id=request.client_id,
+    )
+    
     if current_step >= max_steps:
         final_reply += "\n\n(הערה: עצרתי את רצף הפעולות האוטומטי כדי למנוע לולאה אינסופית)"
 
@@ -1122,13 +1321,24 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
     
     כרגע תומך רק במחזור אחד (ללא לולאת סוכן מלאה), אך מזהה TOOL_CALL ומריץ אותו.
     """
-    print("WINDSURF FIX 32 LOADED!")
+    # Generate unique request_id for this conversation turn
+    stream_request_id = generate_request_id()
+    
     messages, computed_data = _prepare_messages_with_context(request, db)
     original_user_msg = _find_last_user_message(request.messages)
     is_net_request = _is_net_pension_request(original_user_msg)
     force_max_exemption = _is_max_exemption_request(original_user_msg)
+    
+    # Log user message
+    log_llm_event(
+        request_id=stream_request_id,
+        event_type="user_message",
+        payload=original_user_msg,
+        client_id=request.client_id,
+        extra={"endpoint": "stream"},
+    )
 
-    def generate(force_max_exemption_val: bool):
+    def generate(force_max_exemption_val: bool, req_id: str):
         # שלח נתונים מחושבים מהמערכת לפני תשובת ה-LLM
         if computed_data is not None:
             computed_json = json.dumps({
@@ -1169,6 +1379,14 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                     continue
 
                 # אחרת – זו תשובה סופית, נחזיר אותה למשתמש
+                # Log final answer (stream)
+                log_llm_event(
+                    request_id=req_id,
+                    event_type="final_answer",
+                    payload=full_response,
+                    client_id=request.client_id,
+                    extra={"endpoint": "stream"},
+                )
                 yield full_response
                 break
 
@@ -1185,6 +1403,15 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                 tool_data = json.loads(tool_json_str)
                 tool_name = tool_data.get("name")
                 tool_args = tool_data.get("arguments", {})
+                
+                # Log tool call (stream)
+                log_llm_event(
+                    request_id=req_id,
+                    event_type="tool_call",
+                    payload={"name": tool_name, "arguments": tool_args},
+                    client_id=request.client_id,
+                    extra={"endpoint": "stream"},
+                )
 
                 # אם המשתמש ביקש במפורש פטור מקסימלי, נוודא שה-LLM מפעיל apply_max_exemption
                 if force_max_exemption_val and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
@@ -1209,14 +1436,62 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                         force_max_exemption=force_max_exemption_val,
                     )
 
-                    # שליחת תוצאת הכלי ללקוח לשקיפות
-                    yield f"\n\n🔧 **Tool Output ({tool_name}):**\n{tool_result}"
+                    # שליחת תוצאת הכלי ללקוח לשקיפות (ללא JSON גולמי עבור ניתוח פרישה)
+                    user_tool_output = tool_result
+                    if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
+                        try:
+                            data = json.loads(tool_result)
+                            gross = data.get("total_guaranteed_income") or data.get("projected_pension")
+                            net = data.get("total_guaranteed_income_net") or data.get("projected_pension_net")
+                            income_tax = data.get("monthly_income_tax")
+                            health_tax = data.get("monthly_health_tax")
+                            total_tax = data.get("monthly_tax_deduction")
+                            exempt_pct = data.get("exemption_percentage")
+                            exempt_amount = data.get("exempt_pension_monthly")
+
+                            lines: list[str] = []
+                            lines.append("ניתוח פרישה – עיקרי התוצאות (חודשיות):")
+                            if gross is not None:
+                                lines.append(f"• קצבה ברוטו: {gross:,.0f} ₪")
+                            if income_tax is not None or total_tax is not None:
+                                tax_to_show = income_tax if income_tax is not None else total_tax
+                                if tax_to_show is not None:
+                                    lines.append(f"• מס הכנסה חודשי על הקצבה: {tax_to_show:,.0f} ₪")
+                            if net is not None:
+                                lines.append(f"• קצבה נטו לאחר מס: {net:,.0f} ₪")
+                            if exempt_pct is not None or exempt_amount is not None:
+                                extra_parts: list[str] = []
+                                if exempt_pct is not None:
+                                    extra_parts.append(f"אחוז קצבה פטורה: {exempt_pct:.1f}%")
+                                if exempt_amount is not None:
+                                    extra_parts.append(f"סכום קצבה פטורה חודשי: {exempt_amount:,.0f} ₪")
+                                if extra_parts:
+                                    lines.append("• פטור מקסימלי מקיבוע זכויות: " + " | ".join(extra_parts))
+
+                            user_tool_output = "\n".join(lines)
+                        except Exception:
+                            user_tool_output = tool_result
+
+                    yield f"\n\n🔧 **Tool Output ({tool_name}):**\n{user_tool_output}"
+                    
+                    # Log tool result (stream)
+                    log_llm_event(
+                        request_id=req_id,
+                        event_type="tool_result",
+                        payload={"tool_name": tool_name, "result": tool_result},
+                        client_id=request.client_id,
+                        extra={"endpoint": "stream"},
+                    )
 
                     # הזרקת תוצאת הכלי חזרה להיסטוריה כהודעת System
                     history_messages.append(
                         ChatMessage(
                             role="system",
-                            content=f"Tool Result ({tool_name}): {tool_result}",
+                            content=(
+                                f"Tool Result ({tool_name}): {tool_result}\n\n"
+                                "הנחיות למודל: שלב את נתוני הכלי (ברוטו, נטו, מס ופרטי פטור) בתוך תשובה אחת סופית וברורה ללקוח על הקצבה נטו, "
+                                "ואל תחזור על ה-JSON עצמו כלשונו."
+                            ),
                         )
                     )
 
@@ -1259,7 +1534,11 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                         history_messages.append(
                             ChatMessage(
                                 role="system",
-                                content=f"Tool Result (GET_TAX_PROJECTION): {tax_result}",
+                                content=(
+                                    f"Tool Result (GET_TAX_PROJECTION): {tax_result}\n\n"
+                                    "הנחיות למודל: שלב את נתוני המס (שיעור מס אפקטיבי, מס חודשי וכו') יחד עם תוצאת ניתוח הפרישה הקודמת, "
+                                    "ונתֵח עבור הלקוח את הקצבה ברוטו, המס והקצבה נטו, תוך הדגשת תרומת הפטור המקסימלי אם הופעל."
+                                ),
                             )
                         )
 
@@ -1271,4 +1550,4 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                 yield f"\n\n(Error executing tool: {str(e)})"
                 break
 
-    return StreamingResponse(generate(force_max_exemption), media_type="text/plain; charset=utf-8")
+    return StreamingResponse(generate(force_max_exemption, stream_request_id), media_type="text/plain; charset=utf-8")
