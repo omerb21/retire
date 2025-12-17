@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+import logging
 from app.database import get_db
 from app.models.client import Client
 from app.models.fixation_result import FixationResult
 
 router = APIRouter()  # ללא prefix כאן
+logger = logging.getLogger("app.fixation")
 
 @router.get("/clients/{client_id}/fixation")
 def get_fixation(client_id: int, db: Session = Depends(get_db)):
@@ -43,7 +45,9 @@ def compute_fixation(client_id: int, payload: dict | None = None, db: Session = 
         raw_result={"status": "ok"},
         notes=None,
     )
-    db.add(row); db.commit(); db.refresh(row)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
     return {
         "client_id": client_id,
         "client_name": client.full_name,
@@ -119,25 +123,22 @@ def package(client_id: int, db: Session = Depends(get_db)):
     מייצר חבילת מסמכים מלאה ללקוח
     כולל: טופס 161ד, נספח מענקים, נספח קצבאות
     """
-    print(f"🔵🔵🔵 PACKAGE ENDPOINT CALLED FOR CLIENT {client_id} 🔵🔵🔵")
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"🔵 Package endpoint called for client {client_id}")
+    logger.info("Package endpoint called for client %s", client_id)
     
     client = db.get(Client, client_id)
     if not client:
-        logger.error(f"❌ Client {client_id} not found")
+        logger.error("Client %s not found", client_id)
         raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
     
     if client.is_active is False:
-        logger.error(f"❌ Client {client_id} is not active")
+        logger.error("Client %s is not active", client_id)
         raise HTTPException(status_code=400, detail={"error": "לקוח אינו פעיל"})
     
-    logger.info(f"✅ Client {client_id} found: {client.first_name} {client.last_name}")
+    logger.info("Client %s found", client_id)
     
     # ייצור החבילה
     from app.services.document_generator import generate_document_package
-    logger.info(f"📋 Starting document generation for client {client_id}")
+    logger.info("Starting document generation for client %s", client_id)
     result = generate_document_package(db, client_id)
     
     if not result.get("success"):
@@ -172,9 +173,9 @@ def package(client_id: int, db: Session = Depends(get_db)):
                 file_path = os.path.join(folder_path, file_name)
                 if os.path.exists(file_path):
                     zipf.write(file_path, file_name)
-                    logger.info(f"✅ Added to ZIP: {file_name}")
+                    logger.debug("Added to ZIP: %s", file_name)
         
-        logger.info(f"✅ ZIP created: {temp_zip_path}")
+        logger.info("ZIP created: %s", temp_zip_path)
         
         # החזרת הקובץ
         from urllib.parse import quote
@@ -191,7 +192,7 @@ def package(client_id: int, db: Session = Depends(get_db)):
             }
         )
     except Exception as e:
-        logger.error(f"❌ Error creating ZIP: {e}")
+        logger.error("Error creating ZIP: %s", e)
         if os.path.exists(temp_zip_path):
             os.unlink(temp_zip_path)
         raise HTTPException(

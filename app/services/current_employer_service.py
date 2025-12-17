@@ -247,3 +247,59 @@ class CurrentEmployerService:
         db.refresh(grant)
         
         return grant, calculation
+
+    @staticmethod
+    def get_current_employer_by_id_for_client(
+        db: Session,
+        client_id: int,
+        employer_id: int,
+    ) -> Optional[CurrentEmployer]:
+        """Get a specific CurrentEmployer ensuring it belongs to client_id"""
+        return (
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.id == employer_id, CurrentEmployer.client_id == client_id)
+            .first()
+        )
+
+    @staticmethod
+    def update_current_employer_for_client(
+        db: Session,
+        client_id: int,
+        employer_id: int,
+        employer_data: CurrentEmployerUpdate,
+    ) -> Optional[CurrentEmployer]:
+        """Update a CurrentEmployer ensuring it belongs to client_id"""
+        current_employer = CurrentEmployerService.get_current_employer_by_id_for_client(
+            db=db,
+            client_id=client_id,
+            employer_id=employer_id,
+        )
+        if not current_employer:
+            return None
+
+        update_data = employer_data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(current_employer, field, value)
+
+        db.commit()
+        db.refresh(current_employer)
+        return current_employer
+
+    @staticmethod
+    def delete_current_employer_for_client(
+        db: Session,
+        client_id: int,
+        employer_id: int,
+    ) -> bool:
+        """Delete a CurrentEmployer ensuring it belongs to client_id"""
+        current_employer = CurrentEmployerService.get_current_employer_by_id_for_client(
+            db=db,
+            client_id=client_id,
+            employer_id=employer_id,
+        )
+        if not current_employer:
+            return False
+
+        db.delete(current_employer)
+        db.commit()
+        return True

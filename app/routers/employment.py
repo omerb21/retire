@@ -219,46 +219,11 @@ def generate_fixation_package_for_client_background(db: Session, client_id: int)
         db: Database session
         client_id: Client ID
     """
-    from anyio import to_thread
-    import os
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    
-    # Use the same connection parameters as the provided session
-    # This ensures tests will use the test database
-    db_url = str(db.bind.url)
-    
-    # Function to run in background thread with its own DB session
-    def _generate_fixation_package_in_bg(db_url: str, client_id: int):
-        try:
-            # Create new session in background thread using the same connection URL
-            engine = create_engine(db_url)
-            SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            bg_db = SessionLocal()
-            
-            # Import here to avoid circular imports
-            from app.routers.fixation import generate_fixation_package_for_client
-            
-            # Generate complete package
-            result = generate_fixation_package_for_client(db=bg_db, client_id=client_id)
-            if result.get("success", False):
-                logger.info(f"Background fixation package generated for client {client_id}: {len(result.get('files', []))} files")
-            else:
-                logger.warning(f"Background fixation package generation failed for client {client_id}: {result.get('message', 'Unknown error')}")
-                
-            # Close session
-            bg_db.close()
-        except Exception as e:
-            logger.exception(f"fixation_bg_trigger_error: {e}")
-    
-    # Run in background thread without awaiting
-    try:
-        import threading
-        thread = threading.Thread(target=_generate_fixation_package_in_bg, args=(db_url, client_id))
-        thread.daemon = True
-        thread.start()
-    except Exception:
-        logger.exception("fixation_bg_trigger_error")  # ׳׳ ׳׳₪׳™׳ ׳׳× ׳”-API
+    from app.services.fixation_background_service import (
+        trigger_fixation_package_for_client_background,
+    )
+
+    trigger_fixation_package_for_client_background(db=db, client_id=client_id)
 
 
 @router.post("/{client_id}/employment/termination/confirm", response_model=TerminationEventOut)

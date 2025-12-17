@@ -1,9 +1,9 @@
 import React, { useState, FormEvent, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, handleApiError } from "../lib/api";
 import { useClientData } from "./ClientDetails/hooks/useClientData";
 import { loadLlmChatFromStorage, saveLlmChatToStorage, clearLlmChatFromStorage } from "../services/llmChatStorageService";
-import { loadPensionDataFromStorage } from "./PensionPortfolio/services/pensionPortfolioStorageService";
+import { loadPensionDataFromStorage, updatePensionDataInStorage } from "./PensionPortfolio/services/pensionPortfolioStorageService";
 import "./LlmPensionChat.css";
 
 const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
@@ -179,6 +179,7 @@ function loadPensionPortfolioForLlm(clientId: string | undefined): LlmPensionPor
 
 const LlmPensionChat: React.FC = () => {
   const { id: clientId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { client } = useClientData(clientId);
   const [messages, setMessages] = useState<LlmChatMessageDto[]>([]);
   const [input, setInput] = useState("");
@@ -326,6 +327,7 @@ const LlmPensionChat: React.FC = () => {
       
       let fullContent = "";
       let extractedComputedData: ComputedPensionData | null = null;
+      const pendingUiActions: any[] = [];
 
       // Use streaming API with pension portfolio
       for await (const chunk of llmApi.chatStream(newMessages, numericClientId, pensionPortfolio)) {
@@ -356,6 +358,60 @@ const LlmPensionChat: React.FC = () => {
                         fullContent.substring(endIdx + computedEndMarker.length);
         }
         
+        // D3.11: חפש וטפל באיפוס פיצויים מהפורטפוליו
+        const severanceResetMarker = "###SEVERANCE_RESET###";
+        const severanceResetEndMarker = "###END_SEVERANCE_RESET###";
+        
+        if (fullContent.includes(severanceResetMarker) && fullContent.includes(severanceResetEndMarker)) {
+          const resetStartIdx = fullContent.indexOf(severanceResetMarker) + severanceResetMarker.length;
+          const resetEndIdx = fullContent.indexOf(severanceResetEndMarker);
+          const resetJsonStr = fullContent.substring(resetStartIdx, resetEndIdx).trim();
+          
+          try {
+            const resetInfo = JSON.parse(resetJsonStr);
+            if (resetInfo.portfolio_severance_to_reset) {
+              console.log("📋 D3.11: Resetting severance in pension portfolio", resetInfo);
+              // אפס את פיצויים_מעסיק_נוכחי בכל החשבונות ב-localStorage
+              updatePensionDataInStorage(clientId, (accounts) => {
+                return accounts.map(acc => ({
+                  ...acc,
+                  פיצויים_מעסיק_נוכחי: 0
+                }));
+              });
+              console.log("✅ D3.11: Severance reset in localStorage completed");
+            }
+          } catch (parseErr) {
+            console.warn("Failed to parse severance reset JSON:", parseErr);
+          }
+          
+          // הסר את הסמנים מהתוכן המוצג
+          fullContent = fullContent.substring(0, fullContent.indexOf(severanceResetMarker)) +
+                        fullContent.substring(resetEndIdx + severanceResetEndMarker.length);
+        }
+
+        // UI actions from system (open download URL / navigate)
+        const uiActionMarker = "###UI_ACTION###";
+        const uiActionEndMarker = "###END_UI_ACTION###";
+
+        if (fullContent.includes(uiActionMarker) && fullContent.includes(uiActionEndMarker)) {
+          const actionStartIdx = fullContent.indexOf(uiActionMarker) + uiActionMarker.length;
+          const actionEndIdx = fullContent.indexOf(uiActionEndMarker);
+          const actionJsonStr = fullContent.substring(actionStartIdx, actionEndIdx).trim();
+
+          try {
+            const parsed = JSON.parse(actionJsonStr);
+            if (parsed?.type === "ui_actions" && Array.isArray(parsed.actions)) {
+              pendingUiActions.push(...parsed.actions);
+            }
+          } catch (parseErr) {
+            console.warn("Failed to parse UI_ACTION JSON:", parseErr);
+          }
+
+          // remove markers from displayed content
+          fullContent = fullContent.substring(0, fullContent.indexOf(uiActionMarker)) +
+                        fullContent.substring(actionEndIdx + uiActionEndMarker.length);
+        }
+        
         // הצג רק את התוכן ללא סמני הנתונים המחושבים
         setStreamingContent(fullContent);
       }
@@ -368,6 +424,27 @@ const LlmPensionChat: React.FC = () => {
       const finalMessages = [...newMessages, assistantMessage];
       setMessages(finalMessages);
       setStreamingContent("");
+
+      if (clientId) {
+        try {
+          saveLlmChatToStorage(clientId, finalMessages);
+        } catch (e) {
+          console.warn("Failed to persist LLM chat before UI actions:", e);
+        }
+      }
+
+      pendingUiActions.forEach((action: any) => {
+        if (!action || typeof action !== "object") return;
+
+        if (action.type === "open_url" && typeof action.url === "string" && action.url.trim()) {
+          window.open(action.url.trim(), "_blank");
+          return;
+        }
+
+        if (action.type === "navigate" && typeof action.path === "string" && action.path.trim()) {
+          navigate(action.path.trim());
+        }
+      });
 
       // הערכת צריכת טוקנים ועלות להודעת היועץ
       const effectiveProvider = llmStatus?.provider || "ollama";

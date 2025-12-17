@@ -1601,6 +1601,8 @@ class AgentToolsService:
         logger.info("GET_PENSION_PRODUCTS: client %s loaded", self.client_id)
 
         products: list[dict[str, Any]] = []
+        pension_products: list[dict[str, Any]] = []
+        capital_products: list[dict[str, Any]] = []
 
         # 1. קרנות פנסיה וקופות גמל
         pension_funds = self.db.query(PensionFund).filter(
@@ -1620,46 +1622,71 @@ class AgentToolsService:
         )
 
         for pf in pension_funds:
-            products.append({
-                "Product Name": pf.fund_name,
-                "Managing Company": pf.managing_company or "לא ידוע",
-                "Type": f"פנסיוני ({pf.fund_type or 'כללי'})",
-                "Accumulated Balance": pf.balance or 0,
-                "Monthly Deposit": pf.monthly_deposit or 0,
-                "Management Fee": f"{pf.management_fee_accumulation or 0}% מצבירה",
-                "Status": "פעיל" if pf.is_active else "לא פעיל",
-            })
+            pf_created_at = getattr(pf, "created_at", None)
+            pf_updated_at = getattr(pf, "updated_at", None)
+            item = {
+                "category": "pension",
+                "id": pf.id,
+                "fund_name": pf.fund_name,
+                "fund_type": pf.fund_type,
+                "input_mode": pf.input_mode,
+                "balance": float(pf.balance or 0),
+                "annuity_factor": float(pf.annuity_factor) if pf.annuity_factor else None,
+                "pension_amount": float(pf.pension_amount) if pf.pension_amount else None,
+                "pension_start_date": pf.pension_start_date.isoformat() if pf.pension_start_date else None,
+                "tax_treatment": pf.tax_treatment,
+                "deduction_file": pf.deduction_file,
+                "conversion_source": pf.conversion_source,
+                "remarks": pf.remarks,
+                "created_at": pf_created_at.isoformat() if pf_created_at else None,
+                "updated_at": pf_updated_at.isoformat() if pf_updated_at else None,
+            }
+            pension_products.append(item)
+            products.append(item)
 
         for ca in capital_assets:
-            products.append({
-                "Product Name": ca.asset_name,
-                "Managing Company": ca.managing_company or "לא ידוע",
-                "Type": f"הוני ({ca.asset_type or 'כללי'})",
-                "Accumulated Balance": ca.current_balance or 0,
-                "Monthly Deposit": ca.monthly_deposit or 0,
-                "Management Fee": f"{ca.management_fee_accumulation or 0}% מצבירה",
-                "Status": "פעיל" if ca.is_active else "לא פעיל",
-            })
+            ca_created_at = getattr(ca, "created_at", None)
+            ca_updated_at = getattr(ca, "updated_at", None)
+            item = {
+                "category": "capital",
+                "id": ca.id,
+                "asset_name": ca.asset_name,
+                "asset_type": ca.asset_type,
+                "current_value": float(ca.current_value or 0),
+                "monthly_income": float(ca.monthly_income) if ca.monthly_income else None,
+                "start_date": ca.start_date.isoformat() if ca.start_date else None,
+                "end_date": ca.end_date.isoformat() if ca.end_date else None,
+                "tax_treatment": ca.tax_treatment,
+                "conversion_source": ca.conversion_source,
+                "remarks": ca.remarks,
+                "description": ca.description,
+                "created_at": ca_created_at.isoformat() if ca_created_at else None,
+                "updated_at": ca_updated_at.isoformat() if ca_updated_at else None,
+            }
+            capital_products.append(item)
+            products.append(item)
 
         # מיון לפי יתרה יורדת
-        products.sort(key=lambda x: x["Accumulated Balance"], reverse=True)
+        products.sort(
+            key=lambda x: float(x.get("balance") or x.get("current_value") or 0),
+            reverse=True,
+        )
 
-        total_balance = sum(p["Accumulated Balance"] for p in products)
-        total_deposit = sum(p["Monthly Deposit"] for p in products)
+        total_balance = sum(
+            float(p.get("balance") or p.get("current_value") or 0) for p in products
+        )
 
         logger.info(
-            "GET_PENSION_PRODUCTS: returning %d products (total_balance=%s, total_monthly_deposit=%s) for client %s",
+            "GET_PENSION_PRODUCTS: returning %d products (total_balance=%s) for client %s",
             len(products),
             total_balance,
-            total_deposit,
             self.client_id,
         )
 
         # יצירת הסבר טקסטואלי קצר לשימוש המודל
         explanation = (
             f"נמצאו {len(products)} מוצרים בתיק.\n"
-            f"סה\"כ צבירה: {total_balance:,.0f} ₪.\n"
-            f"סה\"כ הפקדה חודשית: {total_deposit:,.0f} ₪."
+            f"סה\"כ צבירה: {total_balance:,.0f} ₪."
         )
 
         return {
@@ -1667,8 +1694,9 @@ class AgentToolsService:
             "tool_name": "GET_PENSION_PRODUCTS",
             "result": {
                 "products": products,
+                "pension_funds": pension_products,
+                "capital_assets": capital_products,
                 "total_balance": total_balance,
-                "total_monthly_deposit": total_deposit,
                 "count": len(products),
             },
             "explanation": explanation,
@@ -1812,8 +1840,28 @@ class AgentToolsService:
         pension_funds = []
         capital_assets = []
         
-        # אם הוזרקו נתוני תיק פנסיוני מה-UI, נשתמש בהם בלבד
-        if self.pension_portfolio_data and len(self.pension_portfolio_data) > 0:
+        # בדיקה האם יש נכסים בבסיס הנתונים (לאחר המרה)
+        # אם יש - נעדיף אותם על פני נתונים מוזרקים כדי למנוע כפילויות
+        db_pension_count = self.db.query(PensionFund).filter(PensionFund.client_id == self.client_id).count()
+        db_capital_count = self.db.query(CapitalAsset).filter(CapitalAsset.client_id == self.client_id).count()
+        has_db_assets = (db_pension_count + db_capital_count) > 0
+        
+        if has_db_assets:
+            logger.info(
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Found %d pension funds and %d capital assets in DB for client %s - using DB records",
+                db_pension_count, db_capital_count, self.client_id
+            )
+        
+        # אם יש נכסים ב-DB, נשתמש בהם. אחרת, נשתמש בנתונים המוזרקים
+        if has_db_assets:
+            # שימוש בנכסים מבסיס הנתונים (לאחר TRANSFORM_FUNDS_TO_ASSETS)
+            pension_funds = list(self.db.query(PensionFund).filter(PensionFund.client_id == self.client_id).all())
+            capital_assets = list(self.db.query(CapitalAsset).filter(CapitalAsset.client_id == self.client_id).all())
+            logger.info(
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Loaded %d pension funds and %d capital assets from DB",
+                len(pension_funds), len(capital_assets)
+            )
+        elif self.pension_portfolio_data and len(self.pension_portfolio_data) > 0:
             # שלב 1: שימוש בנתונים המוזרקים מה-Request (Pydantic models)
             # המרה לאובייקטי מודל כדי שהלוגיקה בהמשך תעבוד
             logger.info(
@@ -1986,8 +2034,8 @@ class AgentToolsService:
                     getattr(ca, "id", None),
                     getattr(ca, "asset_name", None),
                     getattr(ca, "asset_type", None),
-                    (ca.current_value or 0.0),
-                    (ca.monthly_income or 0.0),
+                    float(ca.current_value or 0),
+                    float(ca.monthly_income or 0),
                     getattr(ca, "start_date", None),
                 )
 
@@ -2093,9 +2141,11 @@ class AgentToolsService:
 
         # ===== חישוב פטור קיבוע זכויות (Run 25) =====
         # אם apply_max_exemption=True, נחשב את הפטור המקסימלי לפי שנת הפרישה
+        # ונשמור את תוצאות הקיבוע ל-DB כדי שיהיו זמינות לדוחות ולממשק
         exempt_pension_monthly = 0.0
         exemption_percentage = 0.0
         monthly_cap = 0.0
+        fixation_saved = False
 
         if apply_max_exemption:
             # חישוב פטור מקסימלי לפי שנת הזכאות
@@ -2112,6 +2162,35 @@ class AgentToolsService:
                 tax_year, monthly_cap, exemption_percentage * 100, exempt_pension_monthly
             )
 
+            # שמירת קיבוע זכויות ל-DB כדי שיהיה זמין לדוחות ולממשק
+            try:
+                from app.routers.rights_fixation import (
+                    calculate_and_save_fixation_for_client,
+                    update_fixation_exempt_pension_fields,
+                )
+                fixation_result = calculate_and_save_fixation_for_client(self.db, self.client_id)
+                if fixation_result:
+                    try:
+                        update_fixation_exempt_pension_fields(fixation_result)
+                    except Exception as update_err:
+                        logger.warning(
+                            "RIGHTS FIXATION: Failed updating exempt pension fields: %s",
+                            update_err,
+                        )
+
+                    self.db.commit()
+                    self.db.refresh(fixation_result)
+                    fixation_saved = True
+                    logger.info(
+                        "RIGHTS FIXATION: Auto-saved fixation for client %s (exempt_capital_remaining=%.2f)",
+                        self.client_id, fixation_result.exempt_capital_remaining or 0
+                    )
+                else:
+                    logger.warning("RIGHTS FIXATION: Failed to auto-save fixation for client %s", self.client_id)
+            except Exception as fix_err:
+                self.db.rollback()
+                logger.warning("RIGHTS FIXATION: Error auto-saving fixation: %s", fix_err)
+
         try:
             tax_calculator = TaxCalculator(tax_year=tax_year)
             
@@ -2126,16 +2205,16 @@ class AgentToolsService:
 
             tax_result = tax_calculator.calculate_comprehensive_tax(tax_input)
 
-            # חישוב נטו חודשי
-            annual_net_income = tax_result.net_income
+            # חישוב נטו חודשי - המרה מפורשת ל-float למניעת שגיאת Decimal serialization
+            annual_net_income = float(tax_result.net_income)
             monthly_net_pension = annual_net_income / 12
-            monthly_tax_deduction = (tax_result.net_tax / 12)
-            monthly_health_tax = (tax_result.health_tax / 12)
-            monthly_income_tax = (tax_result.income_tax / 12)
+            monthly_tax_deduction = float(tax_result.net_tax) / 12
+            monthly_health_tax = float(tax_result.health_tax) / 12
+            monthly_income_tax = float(tax_result.income_tax) / 12
 
             logger.info(
                 "TAX ANALYSIS: Gross annual pension=%.2f, Net annual=%.2f, Tax=%.2f, Health=%.2f",
-                annual_pension_gross, annual_net_income, tax_result.income_tax, tax_result.health_tax
+                annual_pension_gross, annual_net_income, float(tax_result.income_tax), float(tax_result.health_tax)
             )
             logger.info(
                 "TAX ANALYSIS: Monthly gross=%.2f, Monthly net=%.2f, Monthly tax deduction=%.2f, Exempt=%.2f",
@@ -2159,7 +2238,8 @@ class AgentToolsService:
         # 6. חישוב הון זמין
         # שימוש ברשימה המסוננת שכבר יצרנו
         # capital_assets כבר חושב למעלה
-        total_capital_available = sum((ca.current_value or 0) for ca in capital_assets)
+        # המרה ל-float כדי למנוע שגיאת Decimal serialization
+        total_capital_available = float(sum(float(ca.current_value or 0) for ca in capital_assets))
         # נניח שגם קרנות השתלמות נזילות בפרישה
         
         # 7. חישוב משך כיסוי (Sufficiency)
@@ -2487,6 +2567,151 @@ class AgentToolsService:
                 "net_amount": result['net_amount'],
                 "effective_tax_rate": result['effective_tax_rate'],
                 "marginal_tax_rate": result['marginal_tax_rate'],
+            },
+            "explanation": "\n".join(explanation_lines),
+        }
+
+    def calculate_tax_spread_benefit(
+        self,
+        gross_amount: float,
+        spread_years: int,
+    ) -> Dict[str, Any]:
+        """
+        מחשב את הטבת המס בפריסה על מספר שנים.
+        משווה בין משיכה מיידית (מס מלא) לבין פריסת מס על מספר שנים.
+        
+        Args:
+            gross_amount: סכום ברוטו חייב במס
+            spread_years: מספר שנות פריסה (1-6)
+            
+        Returns:
+            Dict עם השוואת מס מיידי מול פריסה והטבת המס
+        """
+        from decimal import Decimal
+        from app.services.capital_asset.tax_calculator import TaxCalculator
+        
+        client = self.client
+        if not client:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_TAX_SPREAD_BENEFIT",
+                "result": {},
+                "explanation": "לא נמצא לקוח עם המזהה שסופק.",
+            }
+
+        # וידוא שנות פריסה תקינות
+        if spread_years < 1 or spread_years > 6:
+            return {
+                "success": False,
+                "tool_name": "CALCULATE_TAX_SPREAD_BENEFIT",
+                "result": {},
+                "explanation": f"מספר שנות פריסה לא תקין ({spread_years}). יש לבחור בין 1 ל-6 שנים.",
+            }
+
+        # יצירת מחשבון מס
+        tax_calculator = TaxCalculator()
+        
+        # חישוב מס מיידי (ללא פריסה)
+        from app.models.capital_asset import TaxTreatment
+        immediate_result = tax_calculator.calculate(
+            gross_amount=Decimal(str(gross_amount)),
+            tax_treatment=TaxTreatment.TAXABLE,
+        )
+        
+        # חישוב מס עם פריסה
+        spread_result = tax_calculator.calculate(
+            gross_amount=Decimal(str(gross_amount)),
+            tax_treatment=TaxTreatment.TAX_SPREAD,
+            spread_years=spread_years,
+        )
+        
+        # חישוב מס מיידי לפי מדרגות (כי TAXABLE מחזיר 0)
+        from app.services.tax_data.tax_brackets import TaxBracketsService
+        current_year = date.today().year
+        tax_brackets = TaxBracketsService.get_tax_brackets(current_year)
+        
+        # חישוב מס מיידי לפי מדרגות
+        immediate_tax = 0.0
+        remaining = float(gross_amount)
+        for bracket in tax_brackets:
+            if remaining <= 0:
+                break
+            bracket_min = bracket["min_income"]
+            bracket_max = bracket["max_income"]
+            rate = bracket["rate"]
+            taxable_in_bracket = min(remaining, bracket_max - bracket_min + 1)
+            if taxable_in_bracket > 0:
+                immediate_tax += taxable_in_bracket * rate
+                remaining -= taxable_in_bracket
+        
+        # חישוב מס עם פריסה לפי מדרגות
+        annual_portion = float(gross_amount) / spread_years
+        annual_tax = 0.0
+        remaining = annual_portion
+        for bracket in tax_brackets:
+            if remaining <= 0:
+                break
+            bracket_min = bracket["min_income"]
+            bracket_max = bracket["max_income"]
+            rate = bracket["rate"]
+            taxable_in_bracket = min(remaining, bracket_max - bracket_min + 1)
+            if taxable_in_bracket > 0:
+                annual_tax += taxable_in_bracket * rate
+                remaining -= taxable_in_bracket
+        
+        spread_total_tax = annual_tax * spread_years
+        
+        # חישוב הטבת המס
+        tax_benefit = immediate_tax - spread_total_tax
+        benefit_percentage = (tax_benefit / immediate_tax * 100) if immediate_tax > 0 else 0
+        
+        # חישוב שיעורי מס אפקטיביים
+        immediate_effective_rate = (immediate_tax / float(gross_amount) * 100) if gross_amount > 0 else 0
+        spread_effective_rate = (spread_total_tax / float(gross_amount) * 100) if gross_amount > 0 else 0
+        
+        # בניית הסבר מפורט
+        explanation_lines = [
+            f"📊 **ניתוח פריסת מס**",
+            f"",
+            f"**פרטי הסכום:**",
+            f"  • סכום ברוטו חייב במס: {gross_amount:,.0f} ₪",
+            f"  • שנות פריסה: {spread_years}",
+            f"  • חלק שנתי: {annual_portion:,.0f} ₪",
+            f"",
+            f"**השוואת מס:**",
+            f"",
+            f"| אופציה | מס כולל | שיעור אפקטיבי | נטו |",
+            f"|--------|---------|---------------|-----|",
+            f"| משיכה מיידית | {immediate_tax:,.0f} ₪ | {immediate_effective_rate:.1f}% | {gross_amount - immediate_tax:,.0f} ₪ |",
+            f"| פריסה ל-{spread_years} שנים | {spread_total_tax:,.0f} ₪ | {spread_effective_rate:.1f}% | {gross_amount - spread_total_tax:,.0f} ₪ |",
+            f"",
+            f"**💰 הטבת המס בפריסה:**",
+            f"  • חיסכון במס: **{tax_benefit:,.0f} ₪** ({benefit_percentage:.1f}%)",
+            f"  • תוספת נטו: **{tax_benefit:,.0f} ₪**",
+            f"",
+        ]
+        
+        if tax_benefit > 0:
+            explanation_lines.append(f"**💡 המלצה:** פריסה ל-{spread_years} שנים חוסכת {tax_benefit:,.0f} ₪ במס.")
+        else:
+            explanation_lines.append(f"**💡 הערה:** אין הטבה משמעותית בפריסה במקרה זה.")
+        
+        return {
+            "success": True,
+            "tool_name": "CALCULATE_TAX_SPREAD_BENEFIT",
+            "result": {
+                "gross_amount": gross_amount,
+                "spread_years": spread_years,
+                "annual_portion": annual_portion,
+                "immediate_tax": immediate_tax,
+                "immediate_net": gross_amount - immediate_tax,
+                "immediate_effective_rate": immediate_effective_rate,
+                "spread_total_tax": spread_total_tax,
+                "spread_net": gross_amount - spread_total_tax,
+                "spread_effective_rate": spread_effective_rate,
+                "annual_tax": annual_tax,
+                "tax_benefit": tax_benefit,
+                "benefit_percentage": benefit_percentage,
             },
             "explanation": "\n".join(explanation_lines),
         }

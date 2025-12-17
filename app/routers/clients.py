@@ -13,6 +13,9 @@ from app.models.current_employment import CurrentEmployer
 from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
 from app.services.client_service import normalize_id_number
 from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
+from app.services.current_employer_service import CurrentEmployerService
+from app.services.client_crud_service import ClientCrudService
+from app.services.fixation_result_service import get_client_fixation_response
 # ייבוא סכמות הלקוח
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientList
 
@@ -64,83 +67,46 @@ router = APIRouter(
 def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     """Create a new client"""
     try:
-        # Normalize ID number from either id_number or id_number_raw
-        normalized_id = client.id_number
-        if not normalized_id and client.id_number_raw:
-            normalized_id = normalize_id_number(client.id_number_raw)
-
-        # Check if client with this ID number already exists
-        existing_client = db.query(Client).filter(Client.id_number == normalized_id).first()
-        if existing_client:
+        return ClientCrudService.create_client(db=db, client=client)
+    except ValueError as e:
+        if str(e) == "duplicate_id_number":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Client with this ID number already exists"
+                detail="Client with this ID number already exists",
             )
-        
-        # Create new client
-        client_data = client.model_dump()
-        if normalized_id:
-            client_data["id_number"] = normalized_id
-        db_client = Client(**client_data)
-        db.add(db_client)
-        db.commit()
-        db.refresh(db_client)
-        
-        return db_client
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Client with this ID number already exists"
-        )
+        raise
 
 
 @router.get("/{client_id}", response_model=ClientResponse)
 def get_client(client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)):
     """Get client by ID"""
-    db_client = db.query(Client).filter(Client.id == client_id).first()
-    if not db_client:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Client not found"
-        )
-    
-    # אם לא הוגדר תאריך תחילת קצבה ללקוח, נחשב אותו מקצבאות הפנסיה ונשמור פעם אחת
-    if not db_client.pension_start_date:
-        effective_pension_start_date = compute_pension_start_date_from_funds(db, db_client)
-        if effective_pension_start_date:
-            db_client.pension_start_date = effective_pension_start_date
-            db.add(db_client)
-            db.commit()
-            db.refresh(db_client)
-
-    return db_client
+    try:
+        return ClientCrudService.get_client(db=db, client_id=client_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Client not found",
+            )
+        raise
 
 
 def _update_client_impl(client: ClientUpdate, client_id: int, db: Session) -> Client:
     """Internal helper to update a client instance"""
-    db_client = db.query(Client).filter(Client.id == client_id).first()
-    if not db_client:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Client not found"
-        )
-
-    # Update only provided fields
-    update_data = client.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_client, field, value)
-
     try:
-        db.commit()
-        db.refresh(db_client)
-        return db_client
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Client with this ID number already exists"
-        )
+        return ClientCrudService.update_client(db=db, client_id=client_id, client=client)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Client not found",
+            )
+        if str(e) == "duplicate_id_number":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Client with this ID number already exists",
+            )
+        raise
 
 
 @router.put("/{client_id}", response_model=ClientResponse)
@@ -166,15 +132,15 @@ def patch_client(
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_client(client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)):
     """Delete client by ID"""
-    db_client = db.query(Client).filter(Client.id == client_id).first()
-    if not db_client:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Client not found"
-        )
-    
-    db.delete(db_client)
-    db.commit()
+    try:
+        ClientCrudService.delete_client(db=db, client_id=client_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Client not found",
+            )
+        raise
 
 
 @router.get("", response_model=ClientList)
@@ -188,27 +154,15 @@ def list_clients(
     db: Session = Depends(get_db),
 ):
     """List clients with pagination, filtering, sorting, and search"""
-    query = db.query(Client)
-
-    if is_active is not None:
-        query = query.filter(Client.is_active == is_active)
-    if gender is not None:
-        query = query.filter(Client.gender == gender)
-    if search:
-        pattern = f"%{search}%"
-        query = query.filter(
-            or_(
-                Client.full_name.ilike(pattern),
-                Client.id_number.ilike(pattern),
-            )
-        )
-
-    total = query.count()
-
-    if sort == "full_name":
-        query = query.order_by(Client.full_name.asc())
-
-    items = query.offset(skip).limit(limit).all()
+    items, total = ClientCrudService.list_clients(
+        db=db,
+        skip=skip,
+        limit=limit,
+        is_active=is_active,
+        gender=gender,
+        search=search,
+        sort=sort,
+    )
 
     page_size = limit
     page = (skip // page_size) + 1 if page_size else 1
@@ -284,17 +238,16 @@ def get_current_employer(
     db: Session = Depends(get_db)
 ):
     """Get specific current employer"""
-    db_employer = db.query(CurrentEmployer).filter(
-        CurrentEmployer.id == employer_id,
-        CurrentEmployer.client_id == client_id
-    ).first()
-    
+    db_employer = CurrentEmployerService.get_current_employer_by_id_for_client(
+        db=db,
+        client_id=client_id,
+        employer_id=employer_id,
+    )
     if not db_employer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Current employer not found"
+            detail="Current employer not found",
         )
-    
     return db_employer
 
 
@@ -306,25 +259,17 @@ def update_current_employer(
     db: Session = Depends(get_db)
 ):
     """Update current employer"""
-    db_employer = db.query(CurrentEmployer).filter(
-        CurrentEmployer.id == employer_id,
-        CurrentEmployer.client_id == client_id
-    ).first()
-    
+    db_employer = CurrentEmployerService.update_current_employer_for_client(
+        db=db,
+        client_id=client_id,
+        employer_id=employer_id,
+        employer_data=employer,
+    )
     if not db_employer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Current employer not found"
+            detail="Current employer not found",
         )
-    
-    # Update only provided fields
-    update_data = employer.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_employer, field, value)
-    
-    db.commit()
-    db.refresh(db_employer)
-    
     return db_employer
 
 
@@ -335,19 +280,16 @@ def delete_current_employer(
     db: Session = Depends(get_db)
 ):
     """Delete current employer"""
-    db_employer = db.query(CurrentEmployer).filter(
-        CurrentEmployer.id == employer_id,
-        CurrentEmployer.client_id == client_id
-    ).first()
-    
-    if not db_employer:
+    deleted = CurrentEmployerService.delete_current_employer_for_client(
+        db=db,
+        client_id=client_id,
+        employer_id=employer_id,
+    )
+    if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Current employer not found"
+            detail="Current employer not found",
         )
-    
-    db.delete(db_employer)
-    db.commit()
 
 # ==========================================
 # FIXATION ENDPOINTS
@@ -362,48 +304,17 @@ async def get_client_fixation(
     Get fixation of rights data for a client
     Returns the most recent fixation calculation results
     """
-    from app.models.fixation_result import FixationResult
-    from sqlalchemy import desc
-    
-    # Check if client exists
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Client not found"
-        )
-    
-    # Get the most recent fixation result
-    fixation = db.query(FixationResult).filter(
-        FixationResult.client_id == client_id
-    ).order_by(desc(FixationResult.created_at)).first()
-    
-    if not fixation or not fixation.raw_result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No fixation data found for this client"
-        )
-    
-    # Extract data from raw_result
-    raw_result = fixation.raw_result
-    
-    # Build response in the format expected by SimpleReports
-    response = {
-        "id": fixation.id,
-        "client_id": client_id,
-        "created_at": fixation.created_at.isoformat() if fixation.created_at else None,
-        "eligibility_year": raw_result.get("eligibility_year"),
-        "exemption_summary": {
-            "exemption_percentage": raw_result.get("exemption_summary", {}).get("exemption_percentage", 0),
-            "general_exemption_percentage": raw_result.get("exemption_summary", {}).get("general_exemption_percentage", 0),
-            "remaining_exempt_capital": raw_result.get("exemption_summary", {}).get("remaining_exempt_capital", 0),
-            "remaining_monthly_exemption": raw_result.get("exemption_summary", {}).get("remaining_monthly_exemption", 0),
-            "exempt_capital_initial": raw_result.get("exemption_summary", {}).get("exempt_capital_initial", 0),
-            "eligibility_year": raw_result.get("exemption_summary", {}).get("eligibility_year", 0),
-            "total_impact": raw_result.get("exemption_summary", {}).get("total_impact", 0)
-        },
-        "grants": raw_result.get("grants", []),
-        "calculation_details": raw_result.get("calculation_details", {})
-    }
-    
-    return response
+    try:
+        return get_client_fixation_response(db=db, client_id=client_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Client not found",
+            )
+        if str(e) == "no_fixation_data":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No fixation data found for this client",
+            )
+        raise

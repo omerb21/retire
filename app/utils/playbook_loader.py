@@ -102,6 +102,46 @@ def get_summary_report_example() -> str:
     return _extract_example_by_number(content, 8)
 
 
+def get_out_of_scope_example() -> str:
+    """
+    מחזיר דוגמה לטיפול בבקשות מחוץ לתחום (Playbook #9).
+    """
+    content = _load_examples_file()
+    return _extract_example_by_number(content, 9)
+
+
+def get_contextual_narrative_example() -> str:
+    """
+    מחזיר דוגמה לנרטיב השוואתי (Playbook #10 - Contextual Narrative).
+    """
+    content = _load_examples_file()
+    return _extract_example_by_number(content, 10)
+
+
+def get_pre_tool_check_example() -> str:
+    """
+    מחזיר דוגמה לזיהוי פערי מידע (Playbook #11 - Pre-Tool Check).
+    """
+    content = _load_examples_file()
+    return _extract_example_by_number(content, 11)
+
+
+def get_minimum_pension_rule_example() -> str:
+    """
+    מחזיר דוגמה לדחייה רגולטורית - קצבת מינימום מזכה (Playbook #12).
+    """
+    content = _load_examples_file()
+    return _extract_example_by_number(content, 12)
+
+
+def get_job_termination_whatif_example() -> str:
+    """
+    מחזיר דוגמה לניתוח רגישות עזיבת עבודה (Playbook #13 - What-If Analysis).
+    """
+    content = _load_examples_file()
+    return _extract_example_by_number(content, 13)
+
+
 def get_relevant_example(user_message: str) -> Optional[str]:
     """
     מזהה את סוג השאלה ומחזיר דוגמה רלוונטית.
@@ -141,6 +181,24 @@ def get_relevant_example(user_message: str) -> Optional[str]:
     report_keywords = ["סכם את", "תן לי סיכום", "הפק דו\"ח", "דו\"ח מסכם", "מסקנה סופית", "סיכום של", "לראות את כל המידע"]
     if any(kw in msg_lower for kw in report_keywords):
         return get_summary_report_example()
+    
+    # זיהוי בקשות מחוץ לתחום (השקעות, נדל"ן, קריפטו וכו')
+    out_of_scope_keywords = [
+        "להשקיע", "השקעה", "מניות", "בורסה", "קריפטו", "ביטקוין", "נדל\"ן", 
+        "לקנות דירה", "משכנתא", "תיק השקעות", "קרן נאמנות", "מט\"ח",
+        "ביטוח רכב", "ביטוח בריאות", "ביטוח דירה", "תספר בדיחה"
+    ]
+    if any(kw in msg_lower for kw in out_of_scope_keywords):
+        return get_out_of_scope_example()
+    
+    # זיהוי שאלות עזיבת עבודה / פיצויים (What-If Analysis)
+    job_termination_keywords = [
+        "עזבתי עבודה", "פוטרתי", "התפטרתי", "פיצויים", "פיצויי פיטורין",
+        "מה לעשות עם הכסף", "למשוך או להשאיר", "רצף קצבה", "רצף הון",
+        "עזיבת עבודה", "סיום עבודה"
+    ]
+    if any(kw in msg_lower for kw in job_termination_keywords):
+        return get_job_termination_whatif_example()
     
     # זיהוי שאלות הסבר
     explanation_keywords = ["מה זה", "תסביר", "איך עובד", "איך מחשבים", "הסבר"]

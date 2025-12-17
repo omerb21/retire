@@ -111,7 +111,9 @@ def setup_logging():
         # If we keep the 'json' formatter with a missing class, dictConfig will fail.
         LOGGING_CONFIG["handlers"]["json_file"]["formatter"] = "standard"
         LOGGING_CONFIG["formatters"].pop("json", None)
-        print("python-json-logger not found, using standard formatter for JSON logs")
+        logging.getLogger(__name__).warning(
+            "python-json-logger not found, using standard formatter for JSON logs"
+        )
     
     logging.config.dictConfig(LOGGING_CONFIG)
     logging.info(f"Logging initialized with level {LOG_LEVEL} in {ENV} environment")

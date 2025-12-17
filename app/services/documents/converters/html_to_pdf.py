@@ -76,6 +76,7 @@ def html_to_pdf(
     
     cmd = [
         wkhtmltopdf_path,
+        '--enable-local-file-access',
         '--encoding', 'UTF-8',
         '--page-size', page_size,
         '--margin-top', margin_top,

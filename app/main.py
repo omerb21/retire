@@ -27,7 +27,6 @@ except Exception as e:
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.core.system_access import SystemAccessMiddleware
 from app.routers import (
     fixation,
     files,
@@ -53,6 +52,7 @@ from app.routers import (
     system_health,
     calculation,
     llm_chat,
+    reports,
 )
 from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
@@ -111,9 +111,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# System-wide access protection (single password header)
-app.add_middleware(SystemAccessMiddleware)
-
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
 app.include_router(employment.router)  # employment router already has /api/v1/clients prefix
@@ -141,6 +138,7 @@ app.include_router(annuity_coefficient.router, prefix="/api/v1/annuity-coefficie
 app.include_router(system_health.router, tags=["system-health"])
 app.include_router(calculation.router)
 app.include_router(llm_chat.router)
+app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

@@ -1,12 +1,15 @@
 from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
+import logging
 import traceback
 
 InputMode = Enum("calculated", "manual", name="pension_input_mode")
 IndexationMethod = Enum("none", "cpi", "fixed", name="pension_indexation_method")
 # For SQLite compatibility, use String instead of Enum for tax_treatment
 # TaxTreatment = Enum("taxable", "exempt", "capital_gains", name="pension_tax_treatment")
+
+logger = logging.getLogger("app.models.pension_fund")
 
 class PensionFund(Base):
     __tablename__ = "pension_funds"
@@ -61,16 +64,14 @@ def log_balance_change(mapper, connection, target):
         if history.has_changes():
             old_balance = history.deleted[0] if history.deleted else None
             new_balance = target.balance
-            print(f"🔴🔴🔴 BALANCE CHANGE DETECTED!")
-            print(f"  Fund ID: {target.id}")
-            print(f"  Old Balance: {old_balance}")
-            print(f"  New Balance: {new_balance}")
-            print(f"  Input Mode: {target.input_mode}")
-            print(f"  Stack trace:")
-            for line in traceback.format_stack()[-5:]:
-                print(f"    {line.strip()}")
-            print()
-
+            logger.warning(
+                "Balance change detected (fund_id=%s, old_balance=%s, new_balance=%s, input_mode=%s)",
+                getattr(target, "id", None),
+                old_balance,
+                new_balance,
+                getattr(target, "input_mode", None),
+            )
+            logger.debug("Balance change stack trace:\n%s", "".join(traceback.format_stack()[-5:]))
 
 @event.listens_for(PensionFund, "after_insert")
 @event.listens_for(PensionFund, "after_update")

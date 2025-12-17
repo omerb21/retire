@@ -1,0 +1,110 @@
+[
+  {
+    "case_id": "qa_client_1_full_report",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": true,
+    "repeat": 2,
+    "prompt": "אנא בצע בדיקת מערכת מקיפה (QA) עבור הלקוח הנוכחי. חובה לבצע: 1) GET_PENSION_PRODUCTS, 2) TRANSFORM_FUNDS_TO_ASSETS על בסיס התיק הפנסיוני המצורף (accounts), 3) GENERATE_FULL_REPORT. בסוף החזר PASS/FAIL + סיכום קצר, וציין את open_path של הדוח.",
+    "expect": {
+      "require_ui_action": true,
+      "require_open_path": true,
+      "require_pass_fail": true,
+      "require_tools_used": [
+        "TRANSFORM_FUNDS_TO_ASSETS",
+        "GET_PENSION_PRODUCTS",
+        "GENERATE_FULL_REPORT"
+      ]
+    },
+    "db_assert": {
+      "require_no_duplicate_pension_funds_by_deduction_file": true,
+      "require_idempotent_counts": true
+    }
+  },
+  {
+    "case_id": "doc_client_1_full_report_non_qa",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "אנא הפק דוח מלא להורדה עבור הלקוח הנוכחי. חשוב: אל תבצע פעולות שמשנות נתוני לקוח (כמו PROCESS_TERMINATION/עזיבת עבודה/קיבוע זכויות). רק הפקת הדוח. תן קישור או open_path.",
+    "expect": {
+      "require_ui_action": true,
+      "require_open_path": true,
+      "require_tools_used": ["GENERATE_FULL_REPORT"],
+      "forbid_tools_used": ["PROCESS_TERMINATION"]
+    },
+    "db_assert": {
+      "require_no_duplicate_pension_funds_by_deduction_file": true
+    }
+  },
+  {
+    "case_id": "net_pension_client_1",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "כמה קצבה נטו אחרי מס צפויה לי? חובה לבצע תחילה RUN_RETIREMENT_CASHFLOW_ANALYSIS ואז GET_TAX_PROJECTION (אפשר Auto-chained). תן תשובה קצרה וברורה.",
+    "expect": {
+      "require_contains": ["נטו"],
+      "require_tools_used": ["RUN_RETIREMENT_CASHFLOW_ANALYSIS", "GET_TAX_PROJECTION"]
+    }
+  },
+  {
+    "case_id": "net_pension_max_exemption_client_1",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "כמה קצבה נטו אחרי מס צפויה לי עם מיצוי הפטור המקסימלי (קיבוע זכויות)?",
+    "expect": {
+      "require_contains": ["נטו", "פטור"],
+      "require_tools_used": ["RUN_RETIREMENT_CASHFLOW_ANALYSIS", "GET_TAX_PROJECTION"]
+    }
+  },
+  {
+    "case_id": "qa_client_1_report_only_no_portfolio",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "אנא בצע בדיקת מערכת מקיפה (QA) והפק דוח מלא ללקוח הנוכחי. חובה לבצע GET_PENSION_PRODUCTS לפני GENERATE_FULL_REPORT. בסוף החזר PASS/FAIL וציין open_path.",
+    "expect": {
+      "require_ui_action": true,
+      "require_open_path": true,
+      "require_pass_fail": true,
+      "require_tools_used": ["GET_PENSION_PRODUCTS", "GENERATE_FULL_REPORT"]
+    },
+    "db_assert": {
+      "require_no_duplicate_pension_funds_by_deduction_file": true
+    }
+  },
+  {
+    "case_id": "qa_tax_spread_explanation_no_tools",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "אנא בצע בדיקת מערכת (QA) להסבר קצר בלבד: מהי פריסת מס (Tax Spread) על מענק חד-פעמי ולמה היא לא מחלקת את התשלום בתזרים בפועל. חובה לסיים ב-PASS/FAIL + 3-6 שורות סיכום קצר. חשוב: אין להריץ שום כלי.",
+    "expect": {
+      "require_pass_fail": true,
+      "require_contains": ["פריסת", "חד", "תזרים"],
+      "require_no_tools_used": true,
+      "forbid_tools_used": ["GET_PENSION_PRODUCTS", "TRANSFORM_FUNDS_TO_ASSETS", "GENERATE_FULL_REPORT"]
+    }
+  },
+  {
+    "case_id": "qa_income_tax_only_policy_no_tools",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "אנא בצע בדיקת מערכת (QA) להסבר קצר בלבד: האם החישובים במערכת כוללים ביטוח לאומי או מס בריאות? ענה במפורש שהמערכת מחשבת מס הכנסה בלבד, ואם נשאלים על ביטוח לאומי/מס בריאות יש לציין שלא מחושב. חובה לסיים ב-PASS/FAIL + 3-6 שורות סיכום קצר. חשוב: אין להריץ שום כלי.",
+    "expect": {
+      "require_pass_fail": true,
+      "require_contains": ["מס הכנסה", "בלבד", "ביטוח לאומי", "מס בריאות"],
+      "require_no_tools_used": true,
+      "forbid_tools_used": ["GET_PENSION_PRODUCTS", "TRANSFORM_FUNDS_TO_ASSETS", "GENERATE_FULL_REPORT"]
+    }
+  }
+]

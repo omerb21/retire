@@ -5,8 +5,11 @@
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from typing import Dict, Optional
+import logging
 import json
 import os
+
+logger = logging.getLogger("app.retirement_age")
 
 # נתיב לקובץ הגדרות
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'retirement_age_settings.json')
@@ -80,7 +83,7 @@ def load_retirement_age_settings() -> Dict:
             with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
     except Exception as e:
-        print(f"Error loading retirement age settings: {e}")
+        logger.warning("Error loading retirement age settings: %s", e)
     
     # ברירת מחדל
     return {
@@ -96,7 +99,7 @@ def save_retirement_age_settings(settings: Dict) -> bool:
             json.dump(settings, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        print(f"Error saving retirement age settings: {e}")
+        logger.warning("Error saving retirement age settings: %s", e)
         return False
 
 

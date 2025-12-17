@@ -1,0 +1,597 @@
+import json
+
+from sqlalchemy.orm import Session
+
+from ...models import PensionFund, CapitalAsset, Scenario
+
+
+def get_agent_state_json(client_id: int, db: Session) -> str:
+    pension_count = db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+    capital_count = db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+    has_portfolio = (pension_count + capital_count) > 0
+
+    scenarios_count = db.query(Scenario).filter(Scenario.client_id == client_id).count()
+
+    state = {
+        "maslaka_loaded": has_portfolio,
+        "pension_plan_calculated": scenarios_count > 0,
+        "rights_fixation_done": False,
+        "current_target_pension": None,
+        "products_count": pension_count + capital_count,
+    }
+    return json.dumps(state, indent=2)
+
+
+def get_tools_definitions_json() -> str:
+    tools = [
+        {
+            "name": "BUILD_TARGET_PENSION_PLAN",
+            "description": "כלי לתכנון מתווה משיכה אופטימלי מכל המקורות להשגת יעד קצבה חודשי נטו.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_monthly_pension": {
+                        "type": "integer",
+                        "description": "יעד הקצבה החודשי המבוקש בשקלים (למשל: 20000)",
+                    }
+                },
+                "required": ["target_monthly_pension"],
+            },
+        },
+        {
+            "name": "GET_TAX_PROJECTION",
+            "description": "כלי לחישוב הערכת מס מפורטת על קצבה חודשית ברוטו.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "gross_monthly_pension": {
+                        "type": "integer",
+                        "description": "סכום הקצבה החודשית ברוטו עליה יש לחשב מס",
+                    }
+                },
+                "required": ["gross_monthly_pension"],
+            },
+        },
+        {
+            "name": "GET_PENSION_PRODUCTS",
+            "description": "Retrieves a detailed list of all pension products and capital assets in the client's portfolio, including balances and types.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
+            "name": "CALCULATE_TAX_EXEMPT_PENSION",
+            "description": "Calculates the tax-exempt monthly pension benefit (קיבוע זכויות), including a simulation of how the client's current severance pay exemption impacts the final exempt pension.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "current_tax_exempt_grant_amount": {
+                        "type": "integer",
+                        "description": "The amount of tax-exempt grant (severance) the client considers taking now.",
+                    }
+                },
+                "required": ["current_tax_exempt_grant_amount"],
+            },
+        },
+        {
+            "name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            "description": "כלי מרכזי לניתוח תזרים פרישה. מחשב קצבה ברוטו, מס הכנסה, קצבה נטו, ופטור מקיבוע זכויות. השתמש בכלי זה כאשר הלקוח שואל 'כמה אקבל נטו', 'אחרי מס', 'פטור מקסימלי' או 'קיבוע זכויות'. דוגמה: ###TOOL_CALL### {\"name\": \"RUN_RETIREMENT_CASHFLOW_ANALYSIS\", \"arguments\": {\"retirement_date\": \"2028-01-01\", \"apply_max_exemption\": true}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "retirement_date": {
+                        "type": "string",
+                        "description": "תאריך פרישה בפורמט YYYY-MM-DD. אם הלקוח נתן רק שנה (למשל 2028), השתמש ב-01-01 של אותה שנה.",
+                    },
+                    "desired_monthly_income": {
+                        "type": "integer",
+                        "description": "יעד הכנסה חודשית נטו בשקלים (אופציונלי, ברירת מחדל: 70% מהשכר).",
+                    },
+                    "apply_max_exemption": {
+                        "type": "boolean",
+                        "description": "הפעל פטור מקסימלי מקיבוע זכויות. חובה להפעיל (true) כאשר הלקוח מבקש 'פטור מקסימלי' או 'קיבוע זכויות'.",
+                    },
+                },
+                "required": ["retirement_date"],
+            },
+        },
+        {
+            "name": "CALCULATE_PENSION_COMMUTATION",
+            "description": "כלי לחישוב היוון קצבה - המרת חלק מהקצבה החודשית לסכום חד-פעמי (Lump Sum). השתמש בכלי זה כאשר הלקוח שואל 'כמה כסף אקבל אם אוותר על X שקל מהקצבה', 'היוון קצבה', 'לקבל סכום חד-פעמי במקום קצבה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_PENSION_COMMUTATION\", \"arguments\": {\"target_monthly_pension_reduction\": 2000, \"retirement_date\": \"2028-01-01\"}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_monthly_pension_reduction": {
+                        "type": "number",
+                        "description": "הסכום החודשי שהלקוח מוכן להפחית מהקצבה העתידית (ברוטו) בתמורה לסכום חד-פעמי.",
+                    },
+                    "retirement_date": {
+                        "type": "string",
+                        "description": "תאריך פרישה בפורמט YYYY-MM-DD.",
+                    },
+                },
+                "required": ["target_monthly_pension_reduction", "retirement_date"],
+            },
+        },
+        {
+            "name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+            "description": "כלי לחישוב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים). השתמש בכלי זה כאשר הלקוח שואל 'כמה מס אשלם אם אמשוך X שקל מהקופה', 'משיכה מקופת גמל', 'משיכה מקרן השתלמות', 'כמה נשאר לי נטו אחרי משיכה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_CAPITAL_WITHDRAWAL_TAX\", \"arguments\": {\"withdrawal_amount_gross\": 100000, \"withdrawal_year\": 2025}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "withdrawal_amount_gross": {
+                        "type": "number",
+                        "description": "סכום המשיכה ברוטו מכספי ההון.",
+                    },
+                    "withdrawal_year": {
+                        "type": "integer",
+                        "description": "שנת המשיכה המתוכננת (לקביעת מדרגות המס). ברירת מחדל: 2025.",
+                    },
+                },
+                "required": ["withdrawal_amount_gross"],
+            },
+        },
+        {
+            "name": "CALCULATE_TAX_SPREAD_BENEFIT",
+            "description": "כלי לחישוב הטבת המס בפריסה על מספר שנים. משווה בין משיכה מיידית (מס מלא) לבין פריסת מס. השתמש בכלי זה לאחר CALCULATE_CAPITAL_WITHDRAWAL_TAX כדי להציג ללקוח את האפשרות לחסוך במס באמצעות פריסה. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_TAX_SPREAD_BENEFIT\", \"arguments\": {\"gross_amount\": 735000, \"spread_years\": 6}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "gross_amount": {
+                        "type": "number",
+                        "description": "סכום ברוטו חייב במס (החלק החייב של הפיצויים).",
+                    },
+                    "spread_years": {
+                        "type": "integer",
+                        "description": "מספר שנות פריסה (1-6). מקסימום 6 שנים לפי החוק.",
+                    },
+                },
+                "required": ["gross_amount", "spread_years"],
+            },
+        },
+        {
+            "name": "PROCESS_TERMINATION",
+            "description": "🔴 כלי ביצוע (Execution Tool) - עזיבת עבודה/פיצויים בלבד. השתמש בכלי זה **רק** כאשר ההקשר הוא עזיבת עבודה והלקוח מאשר לבצע החלטה על פיצויים (משיכה / רצף קצבה / פיצול). טריגרים לדוגמה: 'בצע את משיכת הפיצויים', 'בצע רצף קצבה', 'עדכן במערכת את עזיבת העבודה', 'סיים את עזיבת העבודה', 'בחרתי למשוך/לרצף'. אם ההקשר הוא קיבוע זכויות/היוון/פריסת מס/אישור פטור – השתמש ב-SUBMIT_TAX_COMMUTATION ולא בכלי זה.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "termination_date": {
+                        "type": "string",
+                        "description": "תאריך סיום העבודה בפורמט YYYY-MM-DD.",
+                    },
+                    "use_employer_completion": {
+                        "type": "boolean",
+                        "description": "האם תבוצע השלמת מעסיק (ברירת מחדל: true).",
+                    },
+                    "severance_amount": {
+                        "type": "number",
+                        "description": "סכום הפיצויים הכולל (שכר × שנות ותק).",
+                    },
+                    "exempt_amount": {
+                        "type": "number",
+                        "description": "סכום פטור ממס (תקרה × שנות ותק).",
+                    },
+                    "taxable_amount": {
+                        "type": "number",
+                        "description": "סכום חייב במס (סה\"כ פיצויים - פטור).",
+                    },
+                    "exempt_choice": {
+                        "type": "string",
+                        "enum": ["redeem_with_exemption", "redeem_no_exemption", "annuity"],
+                        "description": "בחירה לחלק הפטור: redeem_with_exemption (משיכה עם פטור), redeem_no_exemption (משיכה ללא פטור), annuity (רצף קצבה).",
+                    },
+                    "taxable_choice": {
+                        "type": "string",
+                        "enum": ["redeem_no_exemption", "annuity", "split"],
+                        "description": "בחירה לחלק החייב: redeem_no_exemption (משיכה עם פריסת מס), annuity (רצף קצבה), split (פיצול - השתמש ב-taxable_annuity_amount ו-taxable_capital_amount).",
+                    },
+                    "taxable_annuity_amount": {
+                        "type": "number",
+                        "description": "D4.1: סכום מדויק מתוך היתרה החייבת שיועבר לרצף קצבה. רלוונטי כאשר taxable_choice=split או כאשר רוצים לפצל את הסכום החייב.",
+                    },
+                    "taxable_capital_amount": {
+                        "type": "number",
+                        "description": "D4.1: סכום מדויק מתוך היתרה החייבת שיועבר למענק הוני (כפוף למס/פריסה). רלוונטי כאשר taxable_choice=split או כאשר רוצים לפצל את הסכום החייב.",
+                    },
+                    "tax_spread_years": {
+                        "type": "integer",
+                        "description": "מספר שנות פריסת מס (1-6). רלוונטי רק אם taxable_choice = redeem_no_exemption או אם יש taxable_capital_amount.",
+                    },
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "האם הלקוח אישר את הפעולה. חובה להיות true לביצוע.",
+                    },
+                    "plan_details": {
+                        "type": "string",
+                        "description": "JSON של פרטי התכניות הפנסיוניות שמהן נלקחים הפיצויים. כל תכנית כוללת: plan_name (שם התכנית), plan_start_date (תאריך התחלה), product_type (סוג מוצר: קרן פנסיה/ביטוח מנהלים/קופת גמל), amount (סכום). אם לא מועבר, המערכת תנסה לבנות אוטומטית מהפורטפוליו.",
+                    },
+                },
+                "required": [
+                    "termination_date",
+                    "severance_amount",
+                    "exempt_amount",
+                    "taxable_amount",
+                    "exempt_choice",
+                    "taxable_choice",
+                    "confirmed",
+                ],
+            },
+        },
+        {
+            "name": "PROJECT_TOTAL_ANNUITY",
+            "description": "D10.1: כלי להקרנת קצבה חודשית כוללת מכל המוצרים בפורטפוליו. מחשב כמה קצבה חודשית הלקוח יקבל בפרישה מכל קרנות הפנסיה, ביטוחי המנהלים וקופות הגמל. השתמש בכלי זה כאשר הלקוח שואל 'כמה קצבה אקבל', 'מה הפנסיה שלי', 'כמה אקבל בפרישה'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "retirement_age": {
+                        "type": "integer",
+                        "description": "גיל פרישה (ברירת מחדל: 67). אם הלקוח ציין גיל אחר, השתמש בו.",
+                    },
+                    "retirement_date": {
+                        "type": "string",
+                        "description": "תאריך פרישה בפורמט YYYY-MM-DD (אופציונלי). אם לא מסופק, יחושב לפי גיל הפרישה.",
+                    },
+                },
+                "required": [],
+            },
+        },
+        {
+            "name": "GET_ACCOUNT_DETAILS",
+            "description": "D11.1: כלי לשליפת פרטים מלאים על חשבון פנסיה ספציפי. השתמש בכלי זה כאשר הלקוח שואל על מוצר ספציפי, כגון 'מה הסטטוס של הראל', 'פרטים על מקפת', 'כמה יש לי במיטב'. מחזיר יתרה, סוג מוצר, שם חברה, פיצויים צבורים, ואם המוצר ברצף זכויות.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "search_term": {
+                        "type": "string",
+                        "description": "מחרוזת חיפוש - שם קרן, שם חברה, או חלק משם המוצר. לדוגמה: 'הראל', 'מקפת', 'מיטב', 'ביטוח מנהלים'.",
+                    }
+                },
+                "required": ["search_term"],
+            },
+        },
+        {
+            "name": "SUBMIT_TAX_COMMUTATION",
+            "description": "🔴 כלי ביצוע (Execution Tool) - קיבוע זכויות/היוון קצבה/פריסת מס/אישור פטור בלבד (לא עזיבת עבודה). מפעיל Workflow אוטומטי לביצוע סופי לאחר שהלקוח אישר תוצאות חישוב תיאורטי (מ-CALCULATE_PENSION_COMMUTATION, GET_TAX_PROJECTION, או CALCULATE_TAX_SPREAD_BENEFIT). טריגרים לדוגמה: 'בצע קיבוע', 'אשר את הפטור', 'הגש לרשות המיסים', 'סיים את התהליך', 'אני מאשר'. אם ההקשר הוא עזיבת עבודה/פיצויים (משיכה/רצף קצבה/פיצול) – השתמש ב-PROCESS_TERMINATION. שדה client_id הוא אופציונלי (נלקח מהבקשה/הקשר).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "client_id": {
+                        "type": "integer",
+                        "description": "מזהה הלקוח במערכת.",
+                    },
+                    "commutation_type": {
+                        "type": "string",
+                        "enum": ["היוון קצבה", "פטור על פיצויים", "פריסת מס", "קיבוע זכויות"],
+                        "description": "סוג הקיבוע/אישור המס המבוצע.",
+                    },
+                    "tax_projection_id": {
+                        "type": "string",
+                        "description": "מזהה ייחודי המקשר את הביצוע לתוצאת חישוב המס התיאורטי שבוצע קודם לכן.",
+                    },
+                    "final_net_amount": {
+                        "type": "number",
+                        "description": "הסכום נטו הסופי שאושר ללקוח (לצורך תיעוד).",
+                    },
+                    "distribution_schedule": {
+                        "type": "string",
+                        "description": "אם סוג הקיבוע הוא פריסת מס, יש לציין את משך הפריסה (לדוגמה: '6 שנים'). אופציונלי.",
+                    },
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "האם הלקוח אישר את הפעולה. חובה להיות true לביצוע.",
+                    },
+                },
+                "required": ["commutation_type", "tax_projection_id", "final_net_amount", "confirmed"],
+            },
+        },
+        {
+            "name": "GENERATE_FULL_REPORT",
+            "description": "📄 כלי להצגת דוח פרישה מלא בממשק. ברירת מחדל: פתיחת עמוד התוצאות (HTML) בדיוק כמו משתמש אנושי (/clients/:id/reports) והפעלת דוח ה-HTML. אופציונלי: ניתן לבקש גם הפקת PDF ע\"י output_format=pdf.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "report_type": {
+                        "type": "string",
+                        "enum": ["retirement_plan", "tax_analysis", "cashflow", "full"],
+                        "description": "סוג הדוח: retirement_plan (תכנית פרישה), tax_analysis (ניתוח מס), cashflow (תזרים), full (דוח מלא).",
+                    },
+                    "output_format": {
+                        "type": "string",
+                        "enum": ["html", "pdf"],
+                        "description": "פלט: html (ברירת מחדל - פתיחת דוח HTML בממשק) או pdf (יצירת קובץ PDF להורדה).",
+                    },
+                    "include_charts": {
+                        "type": "boolean",
+                        "description": "האם לכלול גרפים בדוח. ברירת מחדל: true.",
+                    },
+                    "retirement_date": {
+                        "type": "string",
+                        "description": "תאריך פרישה בפורמט YYYY-MM-DD לצורך הבטחת ניתוח עדכני לפני הפקת הדוח. אם לא נשלח, המערכת תנסה להשתמש בתאריך פרישה חוקי מתוך נתוני הלקוח.",
+                    },
+                    "ensure_analysis": {
+                        "type": "boolean",
+                        "description": "האם לוודא שניתוח פרישה (RUN_RETIREMENT_CASHFLOW_ANALYSIS) בוצע לפני הפקת הדוח. ברירת מחדל: true.",
+                    },
+                },
+                "required": ["report_type"],
+            },
+        },
+        {
+            "name": "GENERATE_TAX_DEDUCTION_DOCUMENTS",
+            "description": "📄 כלי להפקת מסמכי קיבוע זכויות ואישורי מס בפורמט PDF. השתמש בכלי זה כאשר הלקוח מבקש מסמכי קיבוע זכויות, אישורי פטור, או טפסי מס. טריגרים: 'מסמכי קיבוע', 'אישור פטור', 'טופס 161', 'מסמכים לרשות המיסים'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_type": {
+                        "type": "string",
+                        "enum": ["kibua_zechuyot", "ptor_pitzuim", "form_161", "tax_spread"],
+                        "description": "סוג המסמך: kibua_zechuyot (קיבוע זכויות), ptor_pitzuim (פטור פיצויים), form_161 (טופס 161), tax_spread (פריסת מס).",
+                    },
+                },
+                "required": ["document_type"],
+            },
+        },
+        # ===== OPERATION TOOLS - Data Input & Transformation =====
+        {
+            "name": "TRANSFORM_FUNDS_TO_ASSETS",
+            "description": "🔄 כלי תפעול להמרת כספים גלובליים (מטבלת מוצרים/מסלקה) לנכסי קצבה והון ספציפיים. השתמש בכלי זה כאשר הלקוח מבקש להמיר חשבונות פנסיוניים לנכסים במערכת. טריגרים: 'המר את הכספים', 'צור נכסים מהמסלקה', 'העבר לנכסים'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "accounts": {
+                        "type": "array",
+                        "description": "רשימת חשבונות להמרה. מומלץ להעביר גם מזהים ותאריכים כדי לאפשר מניעת כפילויות וחישוב מקדמי קצבה מדויקים.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "account_name": {
+                                    "type": "string",
+                                    "description": "שם התכנית/החשבון (למשל: 'כלל תמר').",
+                                },
+                                "balance": {
+                                    "type": "number",
+                                    "description": "יתרה נוכחית (₪).",
+                                },
+                                "product_type": {
+                                    "type": "string",
+                                    "description": "סוג מוצר (למשל: 'קופת גמל', 'קרן פנסיה', 'ביטוח מנהלים').",
+                                },
+                                "company": {
+                                    "type": "string",
+                                    "description": "חברה מנהלת (אם קיימת).",
+                                },
+                                "account_number": {
+                                    "type": "string",
+                                    "description": "מספר חשבון/תיק ניכויים לזיהוי חד-חד ערכי (מומלץ מאוד לאידמפוטנטיות).",
+                                },
+                                "start_date": {
+                                    "type": "string",
+                                    "description": "תאריך התחלת תכנית בפורמט ISO (YYYY-MM-DD). משמש לזיהוי דור פוליסה/מקדמים.",
+                                },
+                                "conversion_type": {
+                                    "type": "string",
+                                    "enum": ["pension", "capital_asset"],
+                                    "description": "סוג המרה מפורש (pension/capital_asset). אם לא נשלח, המערכת תנסה לסווג אוטומטית.",
+                                },
+                                "שם_תכנית": {"type": "string"},
+                                "יתרה": {"type": "number"},
+                                "סוג_מוצר": {"type": "string"},
+                                "חברה_מנהלת": {"type": "string"},
+                                "מספר_חשבון": {"type": "string"},
+                                "תאריך_התחלה": {"type": "string"},
+                            },
+                            "required": ["balance"],
+                        },
+                    },
+                    "default_conversion_type": {
+                        "type": "string",
+                        "enum": ["pension", "capital_asset"],
+                        "description": "סוג המרה ברירת מחדל: pension (קצבה) או capital_asset (נכס הון). ברירת מחדל: pension.",
+                    },
+                },
+                "required": ["accounts"],
+            },
+        },
+        {
+            "name": "CREATE_TAX_EXEMPT_GRANT",
+            "description": "🎁 כלי תפעול ליצירת מענק פטור ממס ממעסיק קודם. השתמש בכלי זה כאשר הלקוח מדווח על מענק פיצויים פטור שקיבל בעבר. טריגרים: 'קיבלתי פיצויים פטורים', 'מענק ממעסיק קודם', 'הוסף מענק פטור'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "employer_name": {
+                        "type": "string",
+                        "description": "שם המעסיק שממנו התקבל המענק.",
+                    },
+                    "grant_amount": {
+                        "type": "number",
+                        "description": "סכום המענק בשקלים.",
+                    },
+                    "work_start_date": {
+                        "type": "string",
+                        "description": "תאריך תחילת עבודה אצל המעסיק (YYYY-MM-DD).",
+                    },
+                    "work_end_date": {
+                        "type": "string",
+                        "description": "תאריך סיום עבודה אצל המעסיק (YYYY-MM-DD).",
+                    },
+                    "grant_date": {
+                        "type": "string",
+                        "description": "תאריך קבלת המענק (YYYY-MM-DD). אם לא צוין, ישמש תאריך סיום העבודה.",
+                    },
+                },
+                "required": ["employer_name", "grant_amount", "work_start_date", "work_end_date"],
+            },
+        },
+        {
+            "name": "CREATE_ADDITIONAL_INCOME",
+            "description": "💰 כלי תפעול ליצירת הכנסה נוספת (שכירות, דיבידנדים, פנסיה מחו\"ל וכו'). השתמש בכלי זה כאשר הלקוח מדווח על הכנסות נוספות מעבר לקצבה. טריגרים: 'יש לי הכנסה משכירות', 'מקבל דיבידנדים', 'הכנסה נוספת', 'פנסיה מחו\"ל'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source_type": {
+                        "type": "string",
+                        "enum": ["rental", "dividends", "interest", "foreign_pension", "social_security", "other"],
+                        "description": "סוג מקור ההכנסה: rental (שכירות), dividends (דיבידנדים), interest (ריבית), foreign_pension (פנסיה מחו\"ל), social_security (ביטוח לאומי), other (אחר).",
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "סכום ההכנסה.",
+                    },
+                    "frequency": {
+                        "type": "string",
+                        "enum": ["monthly", "quarterly", "annual", "one_time"],
+                        "description": "תדירות התשלום: monthly (חודשי), quarterly (רבעוני), annual (שנתי), one_time (חד פעמי).",
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "תאריך תחילת ההכנסה (YYYY-MM-DD).",
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "תאריך סיום ההכנסה (YYYY-MM-DD). אופציונלי - אם לא צוין, ההכנסה נחשבת כמתמשכת.",
+                    },
+                    "tax_treatment": {
+                        "type": "string",
+                        "enum": ["taxable", "exempt", "fixed_rate"],
+                        "description": "יחס מס: taxable (חייב במס שולי), exempt (פטור), fixed_rate (שיעור קבוע).",
+                    },
+                    "tax_rate": {
+                        "type": "number",
+                        "description": "שיעור מס קבוע (0-100). רלוונטי רק אם tax_treatment=fixed_rate.",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "תיאור ההכנסה (אופציונלי).",
+                    },
+                },
+                "required": ["source_type", "amount", "frequency", "start_date"],
+            },
+        },
+        {
+            "name": "CREATE_INDIVIDUAL_ASSET",
+            "description": "🏦 כלי תפעול ליצירת נכס קצבה או הון באופן עצמאי (ללא המרה מהמסלקה). השתמש בכלי זה כאשר הלקוח רוצה להוסיף נכס ידנית. טריגרים: 'הוסף קרן פנסיה', 'יש לי ביטוח מנהלים', 'הוסף נכס הון', 'קופת גמל'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "asset_category": {
+                        "type": "string",
+                        "enum": ["pension", "capital"],
+                        "description": "קטגוריית הנכס: pension (קצבה - קרן פנסיה/ביטוח מנהלים) או capital (הון - קופת גמל/חיסכון).",
+                    },
+                    "asset_name": {
+                        "type": "string",
+                        "description": "שם הנכס (למשל: 'מקפת אישית', 'הראל פנסיה').",
+                    },
+                    "asset_type": {
+                        "type": "string",
+                        "description": "סוג הנכס: לקצבה - 'קרן פנסיה', 'ביטוח מנהלים', 'קופת גמל'. להון - 'provident_fund', 'savings', 'severance'.",
+                    },
+                    "balance": {
+                        "type": "number",
+                        "description": "יתרה/ערך נוכחי בשקלים.",
+                    },
+                    "monthly_amount": {
+                        "type": "number",
+                        "description": "סכום חודשי (לקצבה) או הכנסה חודשית (להון). אופציונלי.",
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "תאריך תחילה (YYYY-MM-DD).",
+                    },
+                    "tax_treatment": {
+                        "type": "string",
+                        "enum": ["taxable", "exempt", "capital_gains", "tax_spread"],
+                        "description": "יחס מס: taxable (חייב), exempt (פטור), capital_gains (רווח הון), tax_spread (פריסת מס).",
+                    },
+                    "annuity_factor": {
+                        "type": "number",
+                        "description": "מקדם קצבה (רלוונטי לנכסי קצבה). אם לא צוין, יחושב אוטומטית.",
+                    },
+                },
+                "required": ["asset_category", "asset_name", "balance", "start_date"],
+            },
+        },
+        # ===== OPERATION TOOLS - Process Tools =====
+        {
+            "name": "SET_CURRENT_EMPLOYER_DETAILS",
+            "description": "👔 כלי תפעול להזנת/עדכון פרטי המעסיק הנוכחי. השתמש בכלי זה כאשר הלקוח מספק פרטים על מקום עבודתו הנוכחי. טריגרים: 'אני עובד ב...', 'השכר שלי הוא...', 'התחלתי לעבוד ב...', 'עדכן פרטי מעסיק'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "employer_name": {
+                        "type": "string",
+                        "description": "שם המעסיק.",
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "תאריך תחילת עבודה (YYYY-MM-DD).",
+                    },
+                    "last_salary": {
+                        "type": "number",
+                        "description": "שכר אחרון/נוכחי בשקלים.",
+                    },
+                    "severance_accrued": {
+                        "type": "number",
+                        "description": "פיצויים שנצברו בשקלים. אופציונלי.",
+                    },
+                    "expected_retirement_date": {
+                        "type": "string",
+                        "description": "תאריך פרישה צפוי (YYYY-MM-DD). אופציונלי.",
+                    },
+                    "employer_id_number": {
+                        "type": "string",
+                        "description": "מספר ח.פ./עוסק של המעסיק. אופציונלי.",
+                    },
+                },
+                "required": ["employer_name", "start_date", "last_salary"],
+            },
+        },
+        {
+            "name": "EXECUTE_WORK_TERMINATION",
+            "description": "🚪 כלי תפעול לביצוע תהליך עזיבת עבודה בפועל. שונה מ-PROCESS_TERMINATION שמטפל בהחלטות פיצויים - כלי זה מבצע את הפעולה הטכנית של סיום העסקה במערכת. טריגרים: 'עזבתי את העבודה', 'פוטרתי', 'התפטרתי', 'סיימתי לעבוד'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "termination_date": {
+                        "type": "string",
+                        "description": "תאריך סיום העבודה (YYYY-MM-DD).",
+                    },
+                    "termination_reason": {
+                        "type": "string",
+                        "enum": ["resignation", "layoff", "retirement", "other"],
+                        "description": "סיבת סיום: resignation (התפטרות), layoff (פיטורים), retirement (פרישה), other (אחר).",
+                    },
+                    "final_salary": {
+                        "type": "number",
+                        "description": "שכר אחרון (אם שונה מהשכר הרשום). אופציונלי.",
+                    },
+                    "calculate_severance": {
+                        "type": "boolean",
+                        "description": "האם לחשב פיצויים אוטומטית. ברירת מחדל: true.",
+                    },
+                },
+                "required": ["termination_date", "termination_reason"],
+            },
+        },
+        {
+            "name": "CALCULATE_FIXATION_OF_RIGHTS",
+            "description": "📋 כלי תפעול לחישוב קיבוע זכויות (פטור על קצבה). מבצע את החישוב המלא של הפטור המגיע ללקוח על בסיס המענקים הפטורים שקיבל בעבר. טריגרים: 'חשב קיבוע זכויות', 'כמה פטור מגיע לי', 'חישוב פטור על קצבה'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "include_current_employer": {
+                        "type": "boolean",
+                        "description": "האם לכלול את המעסיק הנוכחי בחישוב. ברירת מחדל: false.",
+                    },
+                    "save_result": {
+                        "type": "boolean",
+                        "description": "האם לשמור את תוצאת החישוב במערכת. ברירת מחדל: true.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    ]
+    return json.dumps(tools, indent=2, ensure_ascii=False)

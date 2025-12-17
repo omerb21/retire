@@ -9,6 +9,15 @@ from app.models.additional_income import AdditionalIncome, IncomeSourceType, Pay
 from app.models.client import Client
 from app.services.additional_income_service import AdditionalIncomeService
 from app.providers.tax_params import InMemoryTaxParamsProvider
+from tests.utils import gen_valid_id
+
+
+def _create_test_client(db_session: Session) -> Client:
+    unique_id = gen_valid_id()
+    client = Client(first_name="Test", last_name="User", id_number=unique_id, id_number_raw=unique_id)
+    db_session.add(client)
+    db_session.flush()
+    return client
 
 
 def test_calculate_monthly_amount(db_session: Session):
@@ -16,9 +25,7 @@ def test_calculate_monthly_amount(db_session: Session):
     service = AdditionalIncomeService()
     
     # Create test client
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     # Test monthly frequency
     monthly_income = AdditionalIncome(
@@ -67,9 +74,7 @@ def test_apply_indexation_none(db_session: Session):
     """Test no indexation."""
     service = AdditionalIncomeService()
     
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     income = AdditionalIncome(
         client_id=client.id,
@@ -93,9 +98,7 @@ def test_apply_indexation_fixed(db_session: Session):
     """Test fixed indexation."""
     service = AdditionalIncomeService()
     
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     income = AdditionalIncome(
         client_id=client.id,
@@ -122,9 +125,7 @@ def test_calculate_tax_exempt(db_session: Session):
     """Test tax calculation for exempt income."""
     service = AdditionalIncomeService()
     
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     income = AdditionalIncome(
         client_id=client.id,
@@ -145,9 +146,7 @@ def test_calculate_tax_fixed_rate(db_session: Session):
     """Test tax calculation for fixed rate."""
     service = AdditionalIncomeService()
     
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     income = AdditionalIncome(
         client_id=client.id,
@@ -169,9 +168,7 @@ def test_project_cashflow(db_session: Session):
     """Test cashflow projection."""
     service = AdditionalIncomeService()
     
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     income = AdditionalIncome(
         client_id=client.id,
@@ -207,9 +204,7 @@ def test_generate_combined_cashflow(db_session: Session):
     """Test combined cashflow generation for multiple incomes."""
     service = AdditionalIncomeService()
     
-    client = Client(first_name="Test", last_name="User", id_number="123456789")
-    db_session.add(client)
-    db_session.flush()
+    client = _create_test_client(db_session)
     
     # Create two income sources
     income1 = AdditionalIncome(

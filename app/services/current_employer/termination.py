@@ -3,6 +3,7 @@ Termination Service Module
 מודול שירותי סיום העסקה
 """
 import json
+import logging
 from typing import Dict, List, Any, Optional
 from datetime import date, datetime
 from decimal import Decimal
@@ -15,6 +16,8 @@ from app.models.capital_asset import CapitalAsset
 from app.models.current_employment import EmployerGrant, GrantType
 from app.schemas.current_employer import TerminationDecisionCreate
 from .calculations import ServiceYearsCalculator, SeveranceCalculator
+
+logger = logging.getLogger("app.current_employer.termination")
 
 
 class TerminationService:
@@ -41,12 +44,34 @@ class TerminationService:
         - עיבוד סכום פטור (מענק/קצבה/נכס הון)
         - עיבוד סכום חייב (קצבה/נכס הון עם פריסת מס)
         """
-        print(f"🔵 TERMINATION DECISION RECEIVED: {json.dumps(decision.model_dump(), indent=2, default=str)}")
+        logger.info("Termination decision received")
+        logger.debug("Termination decision payload: %s", decision.model_dump())
+        
+        # D4.3: חישוב שנות פריסה מקסימליות לפי תקנות המס
+        employment_years = self._calculate_employment_years(employer.start_date, decision.termination_date)
+        calculated_max_spread = max(1, int(employment_years / 4))  # מינימום 1, עיגול למטה
+        # מקסימום 6 שנים לפי חוק
+        max_spread_years = min(calculated_max_spread, 6)
+        
+        logger.debug(
+            "Termination max spread years derived (employment_years=%.2f, max_spread_years=%s)",
+            employment_years,
+            max_spread_years,
+        )
         
         result = {
             "created_grant_id": None,
             "created_pension_id": None,
-            "created_capital_asset_id": None
+            "created_capital_asset_id": None,
+            # D4.3: שנות פריסה מקסימליות
+            "employment_years": round(employment_years, 2),
+            "max_spread_years": max_spread_years,
+            # D3.8: מידע על סכומים שאופסו - לעדכון הפרונטאנד
+            "severance_reset_info": {
+                "employer_severance_accrued_reset": 0,  # יעודכן בהמשך
+                "portfolio_severance_to_reset": True,   # סימון לפרונטאנד לאפס פיצויים_מעסיק_נוכחי
+                "source_accounts": []  # רשימת חשבונות מקור לאיפוס
+            }
         }
         
         # פרסור נתונים
@@ -58,7 +83,7 @@ class TerminationService:
         employer.end_date = decision.termination_date
         self.db.add(employer)
         self.db.flush()
-        print(f"✅ Updated CurrentEmployer end_date to: {decision.termination_date}")
+        logger.debug("Updated CurrentEmployer end_date to %s", decision.termination_date)
         
         # מחיקת מענקים קיימים
         self._delete_existing_severance_grants(employer.id)
@@ -71,10 +96,23 @@ class TerminationService:
             self._process_exempt_amount(client, employer, decision, source_suffix, result)
         
         if decision.taxable_amount > 0:
-            self._process_taxable_amount(client, employer, decision, source_suffix, result)
+            self._process_taxable_amount(client, employer, decision, source_suffix, result, max_spread_years)
+        
+        # D3.7: איפוס יתרת הפיצויים במעסיק הנוכחי לאחר יצירת הקצבה/נכס הון
+        # זה מונע ספירה כפולה - הכסף עבר מהפיצויים לקצבה/נכס הון
+        original_severance = employer.severance_accrued
+        employer.severance_accrued = 0
+        self.db.add(employer)
+        logger.debug("Reset severance_accrued from %s to 0", original_severance)
+        
+        # D3.8: עדכון מידע על איפוס הפיצויים בתוצאה
+        result["severance_reset_info"]["employer_severance_accrued_reset"] = original_severance or 0
+        result["severance_reset_info"]["source_accounts"] = source_account_names
+        logger.debug("Severance reset info: %s", result["severance_reset_info"])
         
         self.db.commit()
-        print(f"✅ TRANSACTION COMMITTED - RESULT: {result}")
+        logger.info("Termination transaction committed")
+        logger.debug("Termination result: %s", result)
         
         return result
     
@@ -85,26 +123,48 @@ class TerminationService:
     ) -> Dict[str, Any]:
         """מחיקת כל הישויות שנוצרו מהחלטת סיום העסקה"""
         deleted_count = 0
-        severance_to_restore = employer.severance_accrued or 0
         
-        print(f"🔵 DELETE TERMINATION: client_id={client.id}, employer_name={employer.employer_name}")
+        logger.info("Delete termination requested (client_id=%s, employer_name=%s)", client.id, employer.employer_name)
+        
+        # D3.7: חישוב סכום הפיצויים לשחזור מה-EmployerGrants לפני המחיקה
+        severance_grants = self.db.query(EmployerGrant).filter(
+            EmployerGrant.employer_id == employer.id,
+            EmployerGrant.grant_type == GrantType.severance
+        ).all()
+        severance_to_restore = sum(g.grant_amount or 0 for g in severance_grants)
+        logger.debug(
+            "Severance to restore from %s grants: %s",
+            len(severance_grants),
+            severance_to_restore,
+        )
         
         if employer.employer_name:
             deleted_count += self._delete_grants(client.id, employer.employer_name)
             deleted_count += self._delete_capital_assets(client.id, employer.employer_name)
             deleted_count += self._delete_pension_funds(client.id, employer.employer_name)
         
+        # מחיקת EmployerGrants
+        for grant in severance_grants:
+            self.db.delete(grant)
+            deleted_count += 1
+        
+        # D3.7: שחזור יתרת הפיצויים ואיפוס תאריך סיום
         employer.end_date = None
+        employer.severance_accrued = severance_to_restore
         self.db.add(employer)
         self.db.commit()
         
-        print(f"✅ DELETED {deleted_count} entities")
+        logger.info(
+            "Deleted termination entities (deleted_count=%s, restored_severance=%s)",
+            deleted_count,
+            severance_to_restore,
+        )
         
         return {
             "success": True,
             "deleted_count": deleted_count,
             "severance_to_restore": severance_to_restore,
-            "message": f"נמחקו {deleted_count} אלמנטים הקשורים לעזיבה"
+            "message": f"נמחקו {deleted_count} אלמנטים הקשורים לעזיבה, שוחזרו פיצויים: {severance_to_restore:,.0f} ₪"
         }
     
     def calculate_severance(
@@ -179,7 +239,7 @@ class TerminationService:
         ).all()
         
         if existing_grants:
-            print(f"🗑️ Deleting {len(existing_grants)} existing EmployerGrants")
+            logger.debug("Deleting %s existing EmployerGrants", len(existing_grants))
             for grant in existing_grants:
                 self.db.delete(grant)
             self.db.flush()
@@ -242,7 +302,7 @@ class TerminationService:
         result: Dict
     ):
         """עיבוד סכום פטור - מענק/קצבה/נכס הון"""
-        print(f"🟡 PROCESSING EXEMPT AMOUNT: {decision.exempt_amount}")
+        logger.debug("Processing exempt amount: %s", decision.exempt_amount)
         
         if decision.exempt_choice == 'redeem_with_exemption':
             # יצירת מענק + נכס הון פטור
@@ -310,14 +370,82 @@ class TerminationService:
         employer: CurrentEmployer,
         decision: TerminationDecisionCreate,
         source_suffix: str,
-        result: Dict
+        result: Dict,
+        max_spread_years: int = 6
     ):
         """עיבוד סכום חייב - קצבה/נכס הון עם פריסת מס"""
-        print(f"🔵 PROCESSING TAXABLE AMOUNT: {decision.taxable_amount}")
+        logger.debug("Processing taxable amount: %s", decision.taxable_amount)
         
-        if decision.taxable_choice == 'redeem_no_exemption':
-            # נכס הון עם פריסת מס
-            spread_years = decision.max_spread_years or 1
+        # D4.4: אכיפת שנות פריסה מקסימליות לטובת הלקוח
+        requested_spread = decision.tax_spread_years
+        if requested_spread is None or requested_spread < 1 or requested_spread > max_spread_years:
+            effective_spread_years = max_spread_years
+            logger.debug(
+                "Enforcing max spread years (requested=%s, using=%s)",
+                requested_spread,
+                effective_spread_years,
+            )
+        else:
+            effective_spread_years = requested_spread
+            logger.debug("Using requested spread years: %s", effective_spread_years)
+        
+        # D4.4: שמירת הפריסה בפועל ב-result
+        result["effective_spread_years"] = effective_spread_years
+        result["requested_spread_years"] = requested_spread
+        
+        # D4.1: בדיקה אם יש פיצול של הסכום החייב
+        taxable_annuity = getattr(decision, 'taxable_annuity_amount', None)
+        taxable_capital = getattr(decision, 'taxable_capital_amount', None)
+        
+        if decision.taxable_choice == 'split' or (taxable_annuity is not None or taxable_capital is not None):
+            # D4.1: פיצול הסכום החייב - חלק לקצבה וחלק למענק
+            annuity_amount = float(taxable_annuity or 0)
+            capital_amount = float(taxable_capital or 0)
+            
+            logger.debug(
+                "Split taxable amount (annuity=%s, capital=%s)",
+                annuity_amount,
+                capital_amount,
+            )
+            
+            # יצירת קצבה מהחלק שהוקצה לרצף קצבה
+            if annuity_amount > 0:
+                logger.debug("Creating pension from annuity amount: %s", annuity_amount)
+                self._create_pension_funds_from_amount(
+                    client, employer, decision, annuity_amount, "taxable", result
+                )
+            
+            # יצירת נכס הון מהחלק שהוקצה למענק
+            if capital_amount > 0:
+                logger.debug("Creating capital asset from capital amount: %s", capital_amount)
+                spread_years = effective_spread_years  # D4.4: שימוש בפריסה המאוכפת
+                capital_asset = CapitalAsset(
+                    client_id=client.id,
+                    asset_name=f"מענק פיצויים חייב במס ({employer.employer_name}){source_suffix}",
+                    asset_type="other",
+                    current_value=Decimal("0"),
+                    monthly_income=capital_amount,
+                    annual_return_rate=0.0,
+                    payment_frequency="annually",
+                    start_date=decision.termination_date,
+                    indexation_method="none",
+                    tax_treatment="tax_spread",
+                    spread_years=spread_years,
+                    remarks=f"מענק פיצויים חייב במס עם פריסת מס ל-{spread_years} שנים (D4.1 split)"
+                )
+                self.db.add(capital_asset)
+                self.db.flush()
+                if not result.get("created_capital_asset_id"):
+                    result["created_capital_asset_id"] = capital_asset.id
+                
+                # D4.2: חישוב המס על המענק ההוני
+                tax_info = self._calculate_capital_tax(capital_amount, spread_years)
+                result["capital_tax_info"] = tax_info
+                logger.debug("Capital tax calculated: %s", tax_info)
+            
+        elif decision.taxable_choice == 'redeem_no_exemption':
+            # נכס הון עם פריסת מס - כל הסכום החייב
+            spread_years = effective_spread_years  # D4.4: שימוש בפריסה המאוכפת
             capital_asset = CapitalAsset(
                 client_id=client.id,
                 asset_name=f"מענק פיצויים חייב במס ({employer.employer_name}){source_suffix}",
@@ -336,9 +464,14 @@ class TerminationService:
             self.db.flush()
             if not result.get("created_capital_asset_id"):
                 result["created_capital_asset_id"] = capital_asset.id
+            
+            # D4.2: חישוב המס על המענק ההוני
+            tax_info = self._calculate_capital_tax(float(decision.taxable_amount), spread_years)
+            result["capital_tax_info"] = tax_info
+            logger.debug("Capital tax calculated: %s", tax_info)
                 
         elif decision.taxable_choice == 'annuity':
-            # יצירת קצבאות
+            # יצירת קצבאות - כל הסכום החייב
             self._create_pension_funds_from_amount(
                 client, employer, decision, decision.taxable_amount, "taxable", result
             )
@@ -375,17 +508,32 @@ class TerminationService:
                 }
             grants_by_plan[plan_key]['grants'].append(grant)
         
+        # D6.1: אתחול מצברים לחישוב קצבה כוללת
+        total_annuity_deposit = 0.0
+        total_monthly_annuity = 0.0
+        annuity_details = []
+        
         # יצירת קצבה לכל תכנית
         for plan_key, plan_data in grants_by_plan.items():
             plan_grants = plan_data['grants']
             plan_grant_amount = sum(g.grant_amount for g in plan_grants)
             plan_amount = (plan_grant_amount / total_grant_amount) * amount if total_grant_amount > 0 else 0
             
-            # חישוב מקדם קצבה
+            # D3.9: חישוב מקדם קצבה לפי סוג המוצר
+            product_type = plan_data['product_type']
+            start_date = plan_data['plan_start_date'] or employer.start_date or decision.termination_date
+            logger.debug(
+                "Calculating annuity coefficient (plan=%s, product_type=%s, start_date=%s, amount=%s)",
+                plan_key,
+                product_type,
+                start_date,
+                plan_amount,
+            )
+            
             try:
                 coefficient_result = get_annuity_coefficient(
-                    product_type=plan_data['product_type'],
-                    start_date=plan_data['plan_start_date'] or employer.start_date or decision.termination_date,
+                    product_type=product_type,
+                    start_date=start_date,
                     gender=client.gender or 'זכר',
                     retirement_age=67,
                     survivors_option='תקנוני',
@@ -394,7 +542,13 @@ class TerminationService:
                     pension_start_date=decision.termination_date
                 )
                 annuity_factor = coefficient_result['factor_value']
-            except:
+                logger.debug(
+                    "Got coefficient (factor=%s, source=%s)",
+                    annuity_factor,
+                    coefficient_result.get("source_table", "unknown"),
+                )
+            except Exception as e:
+                logger.warning("Coefficient error (%s), using default 200", e)
                 annuity_factor = 200
             
             monthly_amount = plan_amount / annuity_factor
@@ -417,6 +571,37 @@ class TerminationService:
             
             if not result.get("created_pension_id"):
                 result["created_pension_id"] = pension_fund.id
+            
+            # D6.1: צבירת נתוני הקצבה
+            total_annuity_deposit += float(plan_amount)
+            total_monthly_annuity += float(monthly_amount)
+            annuity_details.append({
+                "plan_name": plan_data['plan_name'],
+                "deposit": round(float(plan_amount), 2),
+                "coefficient": round(annuity_factor, 2),
+                "monthly_annuity": round(float(monthly_amount), 2)
+            })
+        
+        # D6.1: עדכון result עם נתוני הקצבה
+        if total_annuity_deposit > 0:
+            # אתחול אם לא קיים
+            if "annuity_projection" not in result:
+                result["annuity_projection"] = {
+                    "total_annuity_deposit": 0.0,
+                    "total_monthly_annuity": 0.0,
+                    "details": []
+                }
+            
+            # הוספה לסכומים הקיימים (יכול להיות גם exempt וגם taxable)
+            result["annuity_projection"]["total_annuity_deposit"] += round(total_annuity_deposit, 2)
+            result["annuity_projection"]["total_monthly_annuity"] += round(total_monthly_annuity, 2)
+            result["annuity_projection"]["details"].extend(annuity_details)
+            
+            logger.debug(
+                "Annuity projection updated (deposit=%s, monthly=%s)",
+                total_annuity_deposit,
+                total_monthly_annuity,
+            )
     
     def _delete_grants(self, client_id: int, employer_name: str) -> int:
         """מחיקת מענקים"""
@@ -447,3 +632,92 @@ class TerminationService:
         for pension in pensions:
             self.db.delete(pension)
         return len(pensions)
+    
+    def _calculate_employment_years(self, start_date: date, end_date: date) -> float:
+        """
+        D4.3: חישוב שנות עבודה מלאות
+        
+        Args:
+            start_date: תאריך תחילת עבודה
+            end_date: תאריך סיום עבודה
+            
+        Returns:
+            מספר שנות העבודה (כולל חלקי שנה)
+        """
+        if not start_date or not end_date:
+            return 0.0
+        
+        # חישוב ההפרש בימים וחלוקה ב-365.25 (ממוצע שנה כולל שנים מעוברות)
+        days_diff = (end_date - start_date).days
+        years = days_diff / 365.25
+        
+        return max(0.0, years)
+    
+    def _calculate_capital_tax(self, gross_amount: float, spread_years: int) -> Dict[str, Any]:
+        """
+        D4.2: חישוב מס שולי על מענק הוני עם פריסת מס
+        
+        Args:
+            gross_amount: סכום ברוטו של המענק
+            spread_years: מספר שנות פריסה
+            
+        Returns:
+            Dict עם פרטי המס: total_tax, net_amount, annual_portion, annual_tax, effective_rate
+        """
+        from app.services.tax.constants import TaxConstants
+        
+        if spread_years <= 0:
+            spread_years = 1
+        
+        # חלוקה שווה של הסכום על השנים
+        annual_portion = gross_amount / spread_years
+        
+        # חישוב מס שנתי לפי מדרגות מס 2025
+        tax_brackets = TaxConstants.INCOME_TAX_BRACKETS_2025
+        
+        annual_tax = Decimal('0')
+        remaining_income = Decimal(str(annual_portion))
+        prev_threshold = Decimal('0')
+        
+        for bracket in tax_brackets:
+            if remaining_income <= 0:
+                break
+            
+            threshold = Decimal(str(bracket.max_income)) if bracket.max_income else None
+            rate = Decimal(str(bracket.rate))
+            
+            if threshold is None:
+                # מדרגה אחרונה
+                annual_tax += remaining_income * rate
+                break
+            
+            income_in_bracket = min(remaining_income, threshold - prev_threshold)
+            annual_tax += income_in_bracket * rate
+            remaining_income -= income_in_bracket
+            prev_threshold = threshold
+        
+        # סה"כ מס = מס שנתי × מספר שנים
+        total_tax = float(annual_tax) * spread_years
+        net_amount = gross_amount - total_tax
+        effective_rate = (total_tax / gross_amount * 100) if gross_amount > 0 else 0
+
+        logger.debug(
+            "Capital tax calculation (gross=%s, spread_years=%s, annual_portion=%s, annual_tax=%s, total_tax=%s, net=%s, effective_rate=%s)",
+            gross_amount,
+            spread_years,
+            annual_portion,
+            float(annual_tax),
+            total_tax,
+            net_amount,
+            effective_rate,
+        )
+         
+        return {
+            "gross_amount": gross_amount,
+            "spread_years": spread_years,
+            "annual_portion": round(annual_portion, 2),
+            "annual_tax": round(float(annual_tax), 2),
+            "total_tax": round(total_tax, 2),
+            "net_amount": round(net_amount, 2),
+            "effective_rate": round(effective_rate, 2)
+        }

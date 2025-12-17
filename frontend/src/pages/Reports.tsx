@@ -1,5 +1,5 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
+import { useLocation, useParams, Link } from 'react-router-dom';
 import { ReportHeader } from './Reports/components/ReportHeader';
 import { ExportControls } from './Reports/components/ExportControls';
 import { YearlyBreakdown } from './Reports/components/YearlyBreakdown';
@@ -10,6 +10,8 @@ import './Reports/Reports.css';
 
 const ReportsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const autoTriggeredRef = useRef(false);
 
   const {
     loading,
@@ -25,6 +27,47 @@ const ReportsPage: React.FC = () => {
     handleGenerateHTML,
     handleGenerateFixationDocuments,
   } = useReportsPage(id);
+
+  useEffect(() => {
+    if (autoTriggeredRef.current) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const shouldAutoHtml = params.get('auto_html') === '1';
+    if (!shouldAutoHtml) {
+      return;
+    }
+
+    if (loading || error) {
+      return;
+    }
+
+    if (!id) {
+      return;
+    }
+
+    if (!client) {
+      return;
+    }
+
+    if (!pensionFunds.length && !additionalIncomes.length && !capitalAssets.length) {
+      return;
+    }
+
+    autoTriggeredRef.current = true;
+    handleGenerateHTML();
+  }, [
+    location.search,
+    loading,
+    error,
+    id,
+    client,
+    pensionFunds.length,
+    additionalIncomes.length,
+    capitalAssets.length,
+    handleGenerateHTML,
+  ]);
 
   // טעינה
   if (loading) {

@@ -179,20 +179,20 @@ def validate_system_on_startup(db: Session) -> bool:
     
     if not is_valid:
         logger.warning("⚠️ System validation failed - attempting auto-fix...")
-        print("\n" + validator.get_validation_report())
-        
+        logger.warning("\n%s", validator.get_validation_report())
+
         # נסה לתקן אוטומטית
-        fix_results = validator.auto_fix_missing_data()
-        
+        validator.auto_fix_missing_data()
+
         # אמת שוב
-        is_valid_after_fix, errors_after_fix = validator.validate_all()
-        
+        is_valid_after_fix, _errors_after_fix = validator.validate_all()
+
         if is_valid_after_fix:
             logger.info("✅ Auto-fix successful - system is now valid")
             return True
-        else:
-            logger.error("❌ Auto-fix failed - manual intervention required")
-            print("\n" + validator.get_validation_report())
-            return False
-    
+
+        logger.error("❌ Auto-fix failed - manual intervention required")
+        logger.error("\n%s", validator.get_validation_report())
+        return False
+
     return True

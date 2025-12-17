@@ -130,21 +130,26 @@ class ReportService:
             return buffer
             
         except Exception as e:
-            _logger.error(f"Error generating PDF report: {e}")
-            # Create error PDF
-            from reportlab.platypus import SimpleDocTemplate, Paragraph
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.styles import getSampleStyleSheet
-            
-            buffer = io.BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4)
-            story = []
-            styles = getSampleStyleSheet()
-            
-            story.append(Paragraph(f"שגיאה ביצירת דוח: {str(e)}", styles['Normal']))
-            doc.build(story)
-            buffer.seek(0)
-            return buffer
+            import traceback
+            error_details = traceback.format_exc()
+            _logger.error(
+                "🚨 FATAL PDF GENERATION ERROR: %s\n"
+                "Client: %s (ID: %s)\n"
+                "Scenarios count: %d\n"
+                "Report type: %s\n"
+                "Include charts: %s\n"
+                "Full traceback:\n%s",
+                str(e),
+                client.full_name if client else "None",
+                client.id if client else "None",
+                len(scenarios) if scenarios else 0,
+                report_type,
+                include_charts,
+                error_details
+            )
+            # Re-raise the exception so the caller knows the report failed
+            # This prevents returning a broken/empty PDF that can't be downloaded
+            raise RuntimeError(f"PDF generation failed: {str(e)}") from e
 
     @staticmethod
     def compose_pdf(

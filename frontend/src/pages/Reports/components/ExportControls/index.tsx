@@ -70,7 +70,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
         onClick={onGenerateHTML}
         className="report-export-button report-export-button--pdf"
       >
-        🌐 דוח PDF מלא
+        🌐 דוח HTML מלא
       </button>
       {fixationData && onGenerateFixationDocuments && (
         <button 

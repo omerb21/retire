@@ -11,9 +11,12 @@ All entries share a request_id for correlation.
 """
 import json
 import uuid
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+
+logger = logging.getLogger("app.utils.llm_chat_log")
 
 # Maximum characters to log for large payloads (tool results, answers)
 MAX_PAYLOAD_CHARS = 5000
@@ -84,4 +87,4 @@ def log_llm_event(
             f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
     except Exception as e:
         # Don't let logging errors break the main application
-        print(f"Warning: Failed to write LLM chat log: {e}")
+        logger.warning("Warning: Failed to write LLM chat log: %s", e)

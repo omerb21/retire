@@ -1,8 +1,11 @@
 import json
 import os
+import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 from pathlib import Path
+
+logger = logging.getLogger("app.utils.calculation_log")
 
 
 def ensure_logs_dir():
@@ -63,7 +66,7 @@ def log_calc(event: str, payload: Dict[str, Any], result: Optional[Any] = None, 
             f.write(json.dumps(log_entry, ensure_ascii=False, default=str) + "\n")
     except Exception as e:
         # Don't let logging errors break the main application
-        print(f"Warning: Failed to write calculation log: {e}")
+        logger.warning("Warning: Failed to write calculation log: %s", e)
 
 
 def get_recent_logs(limit: int = 100) -> list:
@@ -81,7 +84,7 @@ def get_recent_logs(limit: int = 100) -> list:
             recent_lines = lines[-limit:] if len(lines) > limit else lines
             return [json.loads(line.strip()) for line in recent_lines if line.strip()]
     except Exception as e:
-        print(f"Warning: Failed to read calculation log: {e}")
+        logger.warning("Warning: Failed to read calculation log: %s", e)
         return []
 
 

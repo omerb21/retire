@@ -101,11 +101,28 @@ class DataService:
             if scenario.summary_results:
                 try:
                     results = json.loads(scenario.summary_results) if isinstance(scenario.summary_results, str) else scenario.summary_results
+                    total_pension_val = (
+                        results.get('total_pension_at_retirement')
+                        or results.get('total_guaranteed_income')
+                        or 'N/A'
+                    )
+                    monthly_pension_val = (
+                        results.get('monthly_pension')
+                        or results.get('pension_monthly')
+                        or results.get('projected_pension')
+                        or 'N/A'
+                    )
+                    total_grants_val = (
+                        results.get('total_grants')
+                        or results.get('grant_gross')
+                        or 'N/A'
+                    )
+                    net_worth_val = results.get('net_worth_at_retirement', 'N/A')
                     scenario_summary.update({
-                        'total_pension': results.get('total_pension_at_retirement', 'N/A'),
-                        'monthly_pension': results.get('monthly_pension', 'N/A'),
-                        'total_grants': results.get('total_grants', 'N/A'),
-                        'net_worth_at_retirement': results.get('net_worth_at_retirement', 'N/A')
+                        'total_pension': total_pension_val,
+                        'monthly_pension': monthly_pension_val,
+                        'total_grants': total_grants_val,
+                        'net_worth_at_retirement': net_worth_val,
                     })
                 except (json.JSONDecodeError, TypeError) as e:
                     _logger.error(f"Error parsing scenario {scenario.id} results: {e}")

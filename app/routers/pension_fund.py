@@ -2,30 +2,33 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+import logging
 from app.database import get_db
 from app.models.pension_fund import PensionFund
 from app.schemas.pension_fund import PensionFundCreate, PensionFundUpdate, PensionFundOut
 from app.services.pension_fund_service import compute_and_persist, compute_and_persist_fund, compute_all_pension_funds
 
 router = APIRouter(prefix="/api/v1", tags=["pension-funds"])
+logger = logging.getLogger("app.pension_fund")
 
 @router.post("/clients/{client_id}/pension-funds", response_model=PensionFundOut, status_code=status.HTTP_201_CREATED)
 def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session = Depends(get_db)):
     if payload.client_id != client_id:
         raise HTTPException(status_code=422, detail={"error": "client_id mismatch"})
 
-    print(f"🟡🟡🟡 CREATE PENSION - NEW CODE LOADED! payload: {payload.model_dump()}")
+    logger.info("Create pension fund request received (client_id=%s)", client_id)
+    logger.debug("Create pension fund payload: %s", payload.model_dump())
     fund = PensionFund(**payload.model_dump())
-    print(f"🟡 BEFORE COMMIT - balance={fund.balance}, input_mode={fund.input_mode}")
+    logger.debug("Create pension fund before commit (balance=%s, input_mode=%s)", fund.balance, fund.input_mode)
     
     # אל תאפס את ה-balance! זה קריטי להיוון!
     if fund.input_mode == "calculated" and fund.balance:
-        print(f"🟢🟢🟢 CALCULATED MODE - Preserving balance={fund.balance}")
+        logger.debug("Create pension fund calculated mode - preserving balance=%s", fund.balance)
     
     db.add(fund)
     db.commit()
     db.refresh(fund)
-    print(f"🟡 AFTER REFRESH - balance={fund.balance}, id={fund.id}")
+    logger.debug("Create pension fund after refresh (id=%s, balance=%s)", fund.id, fund.balance)
     return fund
 
 @router.get("/pension-funds/{fund_id}", response_model=PensionFundOut)
@@ -133,10 +136,10 @@ def get_client_pension_funds(client_id: int, db: Session = Depends(get_db)):
     """Get all pension funds for a client - FAST VERSION"""
     try:
         funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
-        print(f"🔵 GET PENSION FUNDS - client_id={client_id}, count={len(funds)}")
+        logger.debug("Get pension funds (client_id=%s, count=%s)", client_id, len(funds))
         for fund in funds:
-            print(f"   Fund ID={fund.id}, balance={fund.balance}, input_mode={fund.input_mode}")
+            logger.debug("Pension fund row (id=%s, balance=%s, input_mode=%s)", fund.id, fund.balance, fund.input_mode)
         return funds
     except Exception as e:
-        print(f"Error getting pension funds: {e}")
+        logger.exception("Error getting pension funds for client_id=%s: %s", client_id, e)
         return []

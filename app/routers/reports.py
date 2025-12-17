@@ -12,6 +12,12 @@ from app.database import get_db
 from app.models.client import Client
 from app.models.scenario import Scenario
 from app.services.report_service import ReportService
+from app.services.report_request_service import (
+    get_client_or_raise,
+    get_scenarios_for_client_or_raise,
+    parse_scenario_ids_csv,
+    get_or_create_default_scenario,
+)
 
 router = APIRouter()
 
@@ -30,26 +36,25 @@ def generate_report(
     """
     Generate PDF report for selected scenarios
     """
-    # Check if client exists
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(
-            status_code=404, 
-            detail={"error": "לקוח לא נמצא"}
+    try:
+        client = get_client_or_raise(db=db, client_id=client_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+        raise
+
+    try:
+        scenarios = get_scenarios_for_client_or_raise(
+            db=db, client_id=client_id, scenario_ids=request.scenario_ids
         )
-    
-    # Validate scenarios belong to client
-    scenarios = db.query(Scenario).filter(
-        Scenario.id.in_(request.scenario_ids),
-        Scenario.client_id == client_id
-    ).all()
-    
-    if len(scenarios) != len(request.scenario_ids):
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "חלק מהתרחישים לא נמצאו או לא שייכים ללקוח"}
-        )
-    
+    except ValueError as e:
+        if str(e) == "scenario_mismatch":
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "חלק מהתרחישים לא נמצאו או לא שייכים ללקוח"},
+            )
+        raise
+
     try:
         # Generate PDF report
         pdf_buffer = ReportService.generate_pdf_report(
@@ -87,34 +92,31 @@ def preview_report_data(
     """
     Preview report data without generating PDF
     """
-    # Check if client exists
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(
-            status_code=404, 
-            detail={"error": "לקוח לא נמצא"}
-        )
-    
-    # Parse scenario IDs
     try:
-        scenario_id_list = [int(id.strip()) for id in scenario_ids.split(',')]
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "מזהי תרחישים לא תקינים"}
+        client = get_client_or_raise(db=db, client_id=client_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+        raise
+
+    try:
+        scenario_id_list = parse_scenario_ids_csv(scenario_ids)
+    except ValueError as e:
+        if str(e) == "invalid_scenario_ids":
+            raise HTTPException(status_code=400, detail={"error": "מזהי תרחישים לא תקינים"})
+        raise
+
+    try:
+        scenarios = get_scenarios_for_client_or_raise(
+            db=db, client_id=client_id, scenario_ids=scenario_id_list
         )
-    
-    # Get scenarios
-    scenarios = db.query(Scenario).filter(
-        Scenario.id.in_(scenario_id_list),
-        Scenario.client_id == client_id
-    ).all()
-    
-    if len(scenarios) != len(scenario_id_list):
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "חלק מהתרחישים לא נמצאו או לא שייכים ללקוח"}
-        )
+    except ValueError as e:
+        if str(e) == "scenario_mismatch":
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "חלק מהתרחישים לא נמצאו או לא שייכים ללקוח"},
+            )
+        raise
     
     # Return preview data
     return {
@@ -145,35 +147,16 @@ def generate_simple_pdf_report(
     """
     Simple PDF report generation endpoint for frontend compatibility
     """
-    # Check if client exists
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(
-            status_code=404, 
-            detail={"error": "לקוח לא נמצא"}
-        )
-    
+    try:
+        client = get_client_or_raise(db=db, client_id=client_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
+        raise
+
     # Get scenario ID from request
     scenario_id = request.get('scenario_id', 1)
-    
-    # Get scenario
-    scenario = db.query(Scenario).filter(
-        Scenario.id == scenario_id,
-        Scenario.client_id == client_id
-    ).first()
-    
-    if not scenario:
-        # Create a default scenario if none exists
-        scenario = Scenario(
-            client_id=client_id,
-            scenario_name="דוח ברירת מחדל",
-            parameters="{}",
-            summary_results="{}",
-            cashflow_projection="{}"
-        )
-        db.add(scenario)
-        db.commit()
-        db.refresh(scenario)
+    scenario = get_or_create_default_scenario(db=db, client_id=client_id, scenario_id=scenario_id)
     
     try:
         # Generate PDF report using the existing service
@@ -202,3 +185,85 @@ def generate_simple_pdf_report(
             status_code=500,
             detail={"error": f"שגיאה ביצירת דוח: {str(e)}"}
         )
+
+
+@router.get("/reports/{report_id}/download")
+def download_report_by_id(report_id: str):
+    """
+    Download a generated PDF report by its report_id.
+    Reports are stored in artifacts/reports/{report_id}.pdf
+    """
+    import os
+    from fastapi.responses import FileResponse
+    
+    project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    app_dir = os.path.dirname(os.path.dirname(__file__))
+
+    candidate_dirs = [
+        os.path.join(project_root_dir, "artifacts", "reports"),
+        os.path.join(app_dir, "artifacts", "reports"),
+    ]
+
+    searched_paths = []
+
+    pdf_path = None
+    for d in candidate_dirs:
+        candidate = os.path.join(d, f"{report_id}.pdf")
+        searched_paths.append(candidate)
+        if os.path.exists(candidate):
+            pdf_path = candidate
+            break
+
+    if not pdf_path:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": f"דוח {report_id} לא נמצא", "searched_paths": searched_paths},
+        )
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=f"{report_id}.pdf",
+        headers={"Content-Disposition": f"attachment; filename={report_id}.pdf"},
+    )
+
+
+@router.get("/documents/{doc_id}/download")
+def download_document_by_id(doc_id: str):
+    """
+    Download a generated PDF document by its doc_id.
+    Documents are stored in artifacts/documents/{doc_id}.pdf
+    """
+    import os
+    from fastapi.responses import FileResponse
+    
+    project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    app_dir = os.path.dirname(os.path.dirname(__file__))
+
+    candidate_dirs = [
+        os.path.join(project_root_dir, "artifacts", "documents"),
+        os.path.join(app_dir, "artifacts", "documents"),
+    ]
+
+    searched_paths = []
+
+    pdf_path = None
+    for d in candidate_dirs:
+        candidate = os.path.join(d, f"{doc_id}.pdf")
+        searched_paths.append(candidate)
+        if os.path.exists(candidate):
+            pdf_path = candidate
+            break
+
+    if not pdf_path:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": f"מסמך {doc_id} לא נמצא", "searched_paths": searched_paths},
+        )
+
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=f"{doc_id}.pdf",
+        headers={"Content-Disposition": f"attachment; filename={doc_id}.pdf"},
+    )
