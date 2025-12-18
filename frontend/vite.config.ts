@@ -23,6 +23,11 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    host: '0.0.0.0',
+    port: 8080,
+    allowedHosts: ['retapp-production.up.railway.app'],
+  },
   build: {
     rollupOptions: {
       output: {
