@@ -1,5 +1,18 @@
 function normalizeBaseUrl(url: string): string {
-  return url.endsWith("/") ? url.slice(0, -1) : url;
+  const trimmed = url.trim();
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+function upgradeToHttpsInSecureContext(url: string): string {
+  if (typeof window === "undefined") {
+    return url;
+  }
+
+  if (window.location.protocol === "https:" && url.startsWith("http://")) {
+    return `https://${url.slice("http://".length)}`;
+  }
+
+  return url;
 }
 
 const explicitApiBase =
@@ -10,7 +23,7 @@ const apiBaseFromUrl = import.meta.env.VITE_API_URL
   : undefined;
 
 export const API_BASE = normalizeBaseUrl(
-  explicitApiBase ?? apiBaseFromUrl ?? "/api/v1"
+  upgradeToHttpsInSecureContext(explicitApiBase ?? apiBaseFromUrl ?? "/api/v1")
 );
 
 const SYSTEM_ACCESS_STORAGE_KEY = "systemAccessPassword";

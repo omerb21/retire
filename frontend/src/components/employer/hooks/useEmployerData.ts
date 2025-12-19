@@ -12,8 +12,7 @@ import {
   formatEmployerData 
 } from '../utils/employerUtils';
 import { convertDDMMYYToISO, convertISOToDDMMYY } from '../../../utils/dateUtils';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
+import { API_BASE } from '../../../lib/api';
 
 export const useEmployerData = (clientId: string | undefined) => {
   const [loading, setLoading] = useState<boolean>(false);

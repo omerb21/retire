@@ -29,10 +29,20 @@ def calculate_severance(
     """
     try:
         from datetime import datetime
+
+        def parse_date(value: str | None):
+            if not value:
+                return None
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(value, fmt).date()
+                except ValueError:
+                    continue
+            raise ValueError(f"time data '{value}' does not match supported date formats")
         
         # Convert dates
-        start_date = datetime.strptime(request_data.start_date, '%Y-%m-%d').date() if request_data.start_date else None
-        end_date = datetime.strptime(request_data.end_date, '%Y-%m-%d').date() if request_data.end_date else date.today()
+        start_date = parse_date(request_data.start_date)
+        end_date = parse_date(request_data.end_date) if request_data.end_date else date.today()
         
         if not start_date:
             raise ValueError("חסר תאריך התחלת עבודה")

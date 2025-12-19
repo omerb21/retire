@@ -16,6 +16,7 @@ from app.services.retirement_scenarios_api_service import (
 from app.services.retirement_scenario_execution_service import (
     execute_retirement_scenario as execute_retirement_scenario_service,
 )
+from app.services.retirement import RetirementScenariosBuilder
 from ..schemas import RetirementScenariosRequest
 
 logger = logging.getLogger(__name__)
