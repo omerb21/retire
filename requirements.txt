@@ -18,3 +18,4 @@ langchain-community
 google-genai
 anthropic
 openai>=1.30,<2.0
+python-dotenv==1.0.1
