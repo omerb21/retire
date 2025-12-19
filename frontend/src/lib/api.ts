@@ -3,23 +3,60 @@ function normalizeBaseUrl(url: string): string {
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
 }
 
-function upgradeToHttpsInSecureContext(url: string): string {
-  if (typeof window === "undefined") {
-    return url;
+function sanitizeEnvUrl(value: string | undefined): string | undefined {
+  if (!value) {
+    return value;
   }
 
-  if (window.location.protocol === "https:" && url.startsWith("http://")) {
-    return `https://${url.slice("http://".length)}`;
+  const trimmed = value.trim();
+  const hasDoubleQuotes = trimmed.startsWith('"') && trimmed.endsWith('"');
+  const hasSingleQuotes = trimmed.startsWith("'") && trimmed.endsWith("'");
+
+  if (hasDoubleQuotes || hasSingleQuotes) {
+    return trimmed.slice(1, -1).trim();
   }
 
-  return url;
+  return trimmed;
 }
 
-const explicitApiBase =
-  import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL;
+function upgradeToHttpsInSecureContext(url: string): string {
+  const trimmed = url.trim();
 
-const apiBaseFromUrl = import.meta.env.VITE_API_URL
-  ? `${normalizeBaseUrl(import.meta.env.VITE_API_URL)}/api/v1`
+  if (typeof window === "undefined") {
+    return trimmed;
+  }
+
+  if (window.location.protocol !== "https:") {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:") {
+      parsed.protocol = "https:";
+      return parsed.toString();
+    }
+  } catch {
+    // ignore invalid absolute URLs (e.g. relative URLs)
+  }
+
+  if (trimmed.toLowerCase().startsWith("http://")) {
+    return `https://${trimmed.slice("http://".length)}`;
+  }
+
+  return trimmed;
+}
+
+const explicitApiBase = sanitizeEnvUrl(
+  import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL
+);
+
+const apiBaseFromUrl = sanitizeEnvUrl(import.meta.env.VITE_API_URL)
+  ? `${normalizeBaseUrl(sanitizeEnvUrl(import.meta.env.VITE_API_URL) as string)}/api/v1`
   : undefined;
 
 export const API_BASE = normalizeBaseUrl(
