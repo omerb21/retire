@@ -16,11 +16,12 @@ from .pension_fund import PensionFund
 from .pension_fund_coefficient import PensionFundCoefficient
 from .additional_income import AdditionalIncome, IncomeSourceType, PaymentFrequency, IndexationMethod, TaxTreatment
 from .capital_asset import CapitalAsset, AssetType
+from .public_chat import PublicChatSession, PublicChatMessage
 
 __all__ = [
     'Base', 'Client', 'Employer', 'Employment', 'TerminationEvent', 'TerminationReason',
     'Grant', 'Pension', 'Commutation', 'Scenario', 'FixationResult', 'CurrentEmployer',
     'ActiveContinuityType', 'EmployerGrant', 'GrantType', 'PensionFund', 'PensionFundCoefficient',
     'AdditionalIncome', 'IncomeSourceType', 'PaymentFrequency', 'IndexationMethod', 'TaxTreatment', 
-    'CapitalAsset', 'AssetType'
+    'CapitalAsset', 'AssetType', 'PublicChatSession', 'PublicChatMessage'
 ]

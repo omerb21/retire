@@ -54,6 +54,7 @@ from app.routers import (
     system_health,
     calculation,
     llm_chat,
+    public_chat,
     reports,
 )
 from app.routers.employment import router as employment_router
@@ -100,6 +101,9 @@ app.add_middleware(
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
+from app.core.system_access import SystemAccessMiddleware
+app.add_middleware(SystemAccessMiddleware)
+
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
 app.include_router(employment.router)  # employment router already has /api/v1/clients prefix
@@ -127,6 +131,7 @@ app.include_router(annuity_coefficient.router, prefix="/api/v1/annuity-coefficie
 app.include_router(system_health.router, tags=["system-health"])
 app.include_router(calculation.router)
 app.include_router(llm_chat.router)
+app.include_router(public_chat.router)
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 
 # Mount static files

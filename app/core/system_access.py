@@ -43,6 +43,9 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/"):
             return await call_next(request)
 
+        if path.startswith("/api/v1/public-chat/") and path != "/api/v1/public-chat/topup":
+            return await call_next(request)
+
         header_password = request.headers.get("X-System-Password")
         expected_passwords = get_expected_passwords()
 

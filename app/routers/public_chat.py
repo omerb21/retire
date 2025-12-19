@@ -1,0 +1,121 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.schemas.public_chat import (
+    PublicChatStartRequest,
+    PublicChatStartResponse,
+    PublicChatStatusResponse,
+    PublicChatHistoryResponse,
+    PublicChatSendMessageRequest,
+    PublicChatSendMessageResponse,
+    PublicChatTopUpRequest,
+    PublicChatTopUpResponse,
+)
+from app.services.public_chat_service import (
+    start_or_get_session,
+    get_session_by_key,
+    get_history,
+    send_message,
+    top_up,
+)
+
+
+router = APIRouter(prefix="/api/v1/public-chat", tags=["public-chat"])
+
+
+@router.post("/start", response_model=PublicChatStartResponse)
+def start_public_chat(payload: PublicChatStartRequest, db: Session = Depends(get_db)) -> PublicChatStartResponse:
+    try:
+        session = start_or_get_session(db, payload.id_number, payload.initial_tokens)
+        client_name = session.client.full_name if session.client else None
+        return PublicChatStartResponse(
+            session_key=session.session_key,
+            client_id=session.client_id,
+            client_name=client_name,
+            token_balance=session.token_balance,
+        )
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(status_code=404, detail="Client not found")
+        if str(e) == "invalid_id_number":
+            raise HTTPException(status_code=400, detail="Invalid id_number")
+        raise
+
+
+@router.get("/sessions/{session_key}/status", response_model=PublicChatStatusResponse)
+def get_public_chat_status(session_key: str, db: Session = Depends(get_db)) -> PublicChatStatusResponse:
+    try:
+        session = get_session_by_key(db, session_key)
+        client_name = session.client.full_name if session.client else None
+        return PublicChatStatusResponse(
+            session_key=session.session_key,
+            client_id=session.client_id,
+            client_name=client_name,
+            token_balance=session.token_balance,
+            tokens_spent=session.tokens_spent,
+            is_active=session.is_active,
+        )
+    except ValueError as e:
+        if str(e) == "session_not_found":
+            raise HTTPException(status_code=404, detail="Session not found")
+        raise
+
+
+@router.get("/sessions/{session_key}/history", response_model=PublicChatHistoryResponse)
+def get_public_chat_history(session_key: str, db: Session = Depends(get_db)) -> PublicChatHistoryResponse:
+    try:
+        session = get_session_by_key(db, session_key)
+        messages = get_history(db, session)
+        return PublicChatHistoryResponse(session_key=session.session_key, messages=messages)
+    except ValueError as e:
+        if str(e) == "session_not_found":
+            raise HTTPException(status_code=404, detail="Session not found")
+        raise
+
+
+@router.post("/sessions/{session_key}/messages", response_model=PublicChatSendMessageResponse)
+def send_public_chat_message(
+    session_key: str,
+    payload: PublicChatSendMessageRequest,
+    db: Session = Depends(get_db),
+) -> PublicChatSendMessageResponse:
+    try:
+        session = get_session_by_key(db, session_key)
+        reply, _tokens_used = send_message(db, session, payload.content)
+        refreshed = get_session_by_key(db, session_key)
+        return PublicChatSendMessageResponse(
+            reply=reply,
+            token_balance=refreshed.token_balance,
+            tokens_spent=refreshed.tokens_spent,
+            depleted=refreshed.token_balance <= 0,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if msg == "session_not_found":
+            raise HTTPException(status_code=404, detail="Session not found")
+        if msg == "tokens_depleted":
+            raise HTTPException(status_code=402, detail="Token credits depleted")
+        if msg == "session_inactive":
+            raise HTTPException(status_code=403, detail="Session is inactive")
+        if msg == "empty_message":
+            raise HTTPException(status_code=400, detail="Empty message")
+        raise
+
+
+@router.post("/topup", response_model=PublicChatTopUpResponse)
+def topup_public_chat(payload: PublicChatTopUpRequest, db: Session = Depends(get_db)) -> PublicChatTopUpResponse:
+    try:
+        session = top_up(db, payload.session_key, payload.tokens)
+        return PublicChatTopUpResponse(
+            session_key=session.session_key,
+            token_balance=session.token_balance,
+            tokens_spent=session.tokens_spent,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if msg == "session_not_found":
+            raise HTTPException(status_code=404, detail="Session not found")
+        if msg == "invalid_topup":
+            raise HTTPException(status_code=400, detail="Invalid top-up")
+        raise

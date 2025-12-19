@@ -614,6 +614,88 @@ export const llmApi = {
   updateProvider: updateLlmProvider,
 };
 
+// ===== Public Chat API =====
+
+export type PublicChatStartResponseDto = {
+  session_key: string;
+  client_id: number;
+  client_name: string | null;
+  token_balance: number;
+};
+
+export type PublicChatStatusDto = {
+  session_key: string;
+  client_id: number;
+  client_name: string | null;
+  token_balance: number;
+  tokens_spent: number;
+  is_active: boolean;
+};
+
+export type PublicChatMessageDto = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};
+
+export type PublicChatHistoryDto = {
+  session_key: string;
+  messages: PublicChatMessageDto[];
+};
+
+export type PublicChatSendMessageResponseDto = {
+  reply: string;
+  token_balance: number;
+  tokens_spent: number;
+  depleted: boolean;
+};
+
+export type PublicChatTopUpResponseDto = {
+  session_key: string;
+  token_balance: number;
+  tokens_spent: number;
+};
+
+export async function startPublicChat(idNumber: string, initialTokens?: number) {
+  const body: any = { id_number: idNumber };
+  if (typeof initialTokens === "number" && !Number.isNaN(initialTokens)) {
+    body.initial_tokens = initialTokens;
+  }
+  return apiFetch<PublicChatStartResponseDto>("/public-chat/start", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function getPublicChatStatus(sessionKey: string) {
+  return apiFetch<PublicChatStatusDto>(`/public-chat/sessions/${sessionKey}/status`);
+}
+
+export async function getPublicChatHistory(sessionKey: string) {
+  return apiFetch<PublicChatHistoryDto>(`/public-chat/sessions/${sessionKey}/history`);
+}
+
+export async function sendPublicChatMessage(sessionKey: string, content: string) {
+  return apiFetch<PublicChatSendMessageResponseDto>(`/public-chat/sessions/${sessionKey}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function topUpPublicChat(sessionKey: string, tokens: number) {
+  return apiFetch<PublicChatTopUpResponseDto>("/public-chat/topup", {
+    method: "POST",
+    body: JSON.stringify({ session_key: sessionKey, tokens }),
+  });
+}
+
+export const publicChatApi = {
+  start: startPublicChat,
+  status: getPublicChatStatus,
+  history: getPublicChatHistory,
+  sendMessage: sendPublicChatMessage,
+  topUp: topUpPublicChat,
+};
+
 export function handleApiError(error: any): string {
   if (error instanceof Error) {
     return error.message;
