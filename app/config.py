@@ -14,3 +14,17 @@ def allow_json_fallback() -> bool:
     """
     return os.getenv("FIXATION_ALLOW_JSON_FALLBACK", "true").lower() in ("true", "1", "yes")
 
+
+def cors_allow_origins() -> list[str]:
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://retire-1.onrender.com",
+        "https://retire.onrender.com",
+        "https://retapp-production.up.railway.app",
+    ]
+    extra = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if extra.strip():
+        origins.extend([o.strip() for o in extra.split(",") if o.strip()])
+    return origins
+

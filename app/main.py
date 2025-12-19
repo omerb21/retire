@@ -1,6 +1,7 @@
 """
 FastAPI application entrypoint
 """
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,7 @@ except Exception as e:
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
+from app.config import cors_allow_origins
 from app.routers import (
     fixation,
     files,
@@ -68,21 +70,9 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Retirement Planning System")
     logger.info("=" * 60)
     
-    from app.database import get_db
-    from app.core.system_validator import validate_system_on_startup
-    
-    db = next(get_db())
-    try:
-        is_valid = validate_system_on_startup(db)
-        if not is_valid:
-            logger.error("⚠️ System validation failed - some features may not work correctly")
-            logger.error("⚠️ Please check the validation report above")
-        else:
-            logger.info("✅ System validation passed - all critical data is present")
-    except Exception as e:
-        logger.error(f"❌ System validation error: {e}")
-    finally:
-        db.close()
+    from app.core.system_validator import run_system_validation_background
+
+    asyncio.create_task(asyncio.to_thread(run_system_validation_background))
     
     logger.info("=" * 60)
     
@@ -100,12 +90,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "https://retire-1.onrender.com",
-        "https://retire.onrender.com"
-    ],
+    allow_origins=cors_allow_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

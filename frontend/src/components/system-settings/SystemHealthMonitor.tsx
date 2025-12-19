@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './SystemHealthMonitor.css';
+import { API_BASE } from '../../lib/api';
 
 const SYSTEM_ACCESS_STORAGE_KEY = 'systemAccessPassword';
 
@@ -54,7 +55,7 @@ const SystemHealthMonitor: React.FC = () => {
     setLoading(true);
     try {
       const systemPassword = getSystemAccessPassword();
-      const response = await axios.get<SystemHealthResponse>('http://localhost:8005/api/v1/system/health', {
+      const response = await axios.get<SystemHealthResponse>(`${API_BASE}/system/health`, {
         headers: systemPassword
           ? { 'X-System-Password': systemPassword }
           : undefined,
@@ -72,7 +73,7 @@ const SystemHealthMonitor: React.FC = () => {
     setFixing(true);
     try {
       const systemPassword = getSystemAccessPassword();
-      const response = await axios.post<AutoFixResponse>('http://localhost:8005/api/v1/system/health/fix', undefined, {
+      const response = await axios.post<AutoFixResponse>(`${API_BASE}/system/health/fix`, undefined, {
         headers: systemPassword
           ? { 'X-System-Password': systemPassword }
           : undefined,

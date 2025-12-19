@@ -196,3 +196,15 @@ def validate_system_on_startup(db: Session) -> bool:
         return False
 
     return True
+
+
+def run_system_validation_background() -> None:
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        validate_system_on_startup(db)
+    except Exception as e:
+        logger.error("System validation background task failed: %s", e)
+    finally:
+        db.close()

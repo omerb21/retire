@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, NavLink } from "react-router-dom";
 import { getTaxBrackets } from "./components/reports/calculations/taxCalculations";
 import "./styles/modern-theme.css";
 import SystemAccessGate from "./components/SystemAccess/SystemAccessGate";
+import { API_BASE } from "./lib/api";
 
 // Lazy-loaded page components for better bundle splitting
 const Clients = React.lazy(() => import("./pages/Clients/ClientsPage"));
@@ -46,7 +47,19 @@ export default function App() {
     const existing = window.localStorage.getItem(SYSTEM_ACCESS_STORAGE_KEY);
     if (existing) {
       setHasAccess(true);
+      return;
     }
+
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/health`, { method: "GET" });
+        if (res.ok) {
+          setHasAccess(true);
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }, []);
 
   if (!hasAccess) {
