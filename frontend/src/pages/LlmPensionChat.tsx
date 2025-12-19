@@ -18,6 +18,7 @@ const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
   ],
   openai: [
     { value: "", label: "ברירת מחדל (gpt-4o-mini)" },
+    { value: "gpt-5-mini", label: "gpt-5-mini (חדש!)" },
     { value: "gpt-4o-mini", label: "gpt-4o-mini (מומלץ)" },
     { value: "gpt-4o", label: "gpt-4o" },
   ],

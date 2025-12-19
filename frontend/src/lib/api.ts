@@ -682,7 +682,7 @@ export async function sendPublicChatMessage(sessionKey: string, content: string)
 }
 
 export async function topUpPublicChat(sessionKey: string, tokens: number) {
-  return apiFetch<PublicChatTopUpResponseDto>("/public-chat/topup", {
+  return apiFetch<PublicChatTopUpResponseDto>("/api/v1/public-chat/topup", {
     method: "POST",
     body: JSON.stringify({ session_key: sessionKey, tokens }),
   });
@@ -694,6 +694,11 @@ export const publicChatApi = {
   history: getPublicChatHistory,
   sendMessage: sendPublicChatMessage,
   topUp: topUpPublicChat,
+  getModelInfo: async () => {
+    return apiFetch<{ model_name: string; provider: string }>(
+      "/api/v1/public-chat/model-info"
+    );
+  },
 };
 
 export function handleApiError(error: any): string {

@@ -3,6 +3,11 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { publicChatApi, handleApiError } from "../lib/api";
 import "./PublicChat.css";
 
+interface ModelInfo {
+  model_name: string;
+  provider: string;
+}
+
 type ChatMessage = { role: string; content: string };
 
 type Status = {
@@ -89,6 +94,7 @@ function PublicChatSessionPage() {
   const [error, setError] = useState<string | null>(null);
   const [topUpValue, setTopUpValue] = useState("1000");
   const [canTopUp, setCanTopUp] = useState(false);
+  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const displayName = useMemo(() => {
@@ -99,6 +105,23 @@ function PublicChatSessionPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
+
+  // Load model info
+  useEffect(() => {
+    const loadModelInfo = async () => {
+      try {
+        const info = await publicChatApi.getModelInfo();
+        setModelInfo(info);
+      } catch (err) {
+        console.error("Failed to load model info:", err);
+        setModelInfo({
+          model_name: "שגיאה בטעינת פרטי המודל",
+          provider: "לא זמין"
+        });
+      }
+    };
+    loadModelInfo();
+  }, []);
 
   useEffect(() => {
     if (!sessionKey) {
@@ -216,17 +239,15 @@ function PublicChatSessionPage() {
   return (
     <div className="public-chat-page">
       <div className="public-chat-shell">
-        <div className="public-chat-topbar">
-          <div className="public-chat-brand">{displayName}</div>
-          <div className="public-chat-meta">
-            <span className={depleted ? "public-chat-pill danger" : "public-chat-pill"}>
-              יתרה: {status?.token_balance ?? "-"}
-            </span>
-            <Link to="/public-chat" className="public-chat-link">חדש</Link>
-          </div>
-        </div>
-
-        <div className="public-chat-thread">
+        <div className="public-chat-container">
+          <div className="public-chat-header">
+            <h2>צ'אט עם יועץ פנסיוני</h2>
+            <div className="model-info">
+              {modelInfo ? (
+                <span>{modelInfo.model_name} <small>({modelInfo.provider})</small></span>
+              ) : (
+                <span>טוען פרטי מודל...</span>
+              )}
           {messages.map((m, idx) => (
             <div
               key={`${m.role}-${idx}`}

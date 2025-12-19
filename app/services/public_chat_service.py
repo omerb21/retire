@@ -133,12 +133,18 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
 
 
 def top_up(db: Session, session_key: str, tokens: int) -> PublicChatSession:
-    if tokens <= 0:
-        raise ValueError("invalid_topup")
-
+    print(f"[DEBUG] Top up called with session_key={session_key}, tokens={tokens}")
     session = get_session_by_key(db, session_key)
-    session.token_balance += int(tokens)
-    db.add(session)
+    if not session:
+        print(f"[ERROR] Session {session_key} not found")
+        raise ValueError("session_not_found")
+    if tokens <= 0:
+        print(f"[ERROR] Invalid token amount: {tokens}")
+        raise ValueError("invalid_topup")
+    
+    print(f"[DEBUG] Current balance: {session.token_balance}, adding {tokens} tokens")
+    session.token_balance += tokens
     db.commit()
     db.refresh(session)
+    print(f"[DEBUG] New balance: {session.token_balance}")
     return session
