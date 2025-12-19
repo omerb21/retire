@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 from typing import Dict, Any
 from app.database import get_db
-from app.core.system_validator import SystemValidator
+from app.core.system_validator import (
+    SystemValidator,
+    get_validation_cache,
+    ensure_background_validation_running,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,21 +41,22 @@ def get_system_health(db: Session = Depends(get_db)) -> Dict[str, Any]:
             }
         }
     """
-    validator = SystemValidator(db)
-    is_valid, errors = validator.validate_all()
-    
-    valid_count = sum(1 for r in validator.validation_results.values() if r['valid'])
-    invalid_count = len(validator.validation_results) - valid_count
-    
+    cached = get_validation_cache(max_age_seconds=5 * 60)
+    if cached is not None:
+        ensure_background_validation_running()
+        cached.pop("generated_at", None)
+        return cached
+
+    ensure_background_validation_running()
     return {
-        "status": "healthy" if is_valid else "unhealthy",
-        "tables": validator.validation_results,
+        "status": "unhealthy",
+        "tables": {},
         "summary": {
-            "total_tables": len(validator.validation_results),
-            "valid_tables": valid_count,
-            "invalid_tables": invalid_count
+            "total_tables": 0,
+            "valid_tables": 0,
+            "invalid_tables": 0,
         },
-        "errors": errors
+        "errors": ["System validation is still running"],
     }
 
 
@@ -112,12 +117,21 @@ def get_validation_report(db: Session = Depends(get_db)) -> Dict[str, str]:
             "report": str  # דוח טקסט מפורט
         }
     """
-    validator = SystemValidator(db)
-    validator.validate_all()
-    
-    return {
-        "report": validator.get_validation_report()
-    }
+    cached = get_validation_cache(max_age_seconds=5 * 60)
+    if cached is not None:
+        tables = cached.get("tables") or {}
+        lines = ["=" * 60, "📊 דוח אימות מערכת", "=" * 60]
+        for table_name, result in tables.items():
+            status = "✅" if result.get("valid") else "❌"
+            description = result.get("description") or ""
+            lines.append(f"\n{status} {description} ({table_name})")
+            if not result.get("valid") and result.get("error"):
+                lines.append(f"   שגיאה: {result.get('error')}")
+        lines.append("\n" + "=" * 60)
+        return {"report": "\n".join(lines)}
+
+    ensure_background_validation_running()
+    return {"report": "System validation is still running"}
 
 
 @router.get("/health/tables/{table_name}")
