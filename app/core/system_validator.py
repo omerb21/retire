@@ -98,7 +98,12 @@ class SystemValidator:
                 return False, f"טבלה '{table_name}' לא קיימת במסד הנתונים"
 
             # בדוק כמה שורות יש בטבלה
-            count_result = self.db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).fetchone()
+            min_rows = int(config.get('min_rows') or 0)
+            count_result = self.db.execute(
+                text(
+                    f"SELECT COUNT(*) FROM (SELECT 1 FROM {table_name} LIMIT {min_rows}) AS t"
+                )
+            ).fetchone()
             row_count = count_result[0] if count_result else 0
             
             if row_count < config['min_rows']:
