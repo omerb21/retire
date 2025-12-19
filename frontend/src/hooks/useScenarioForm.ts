@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ScenarioFormData, INITIAL_FORM_STATE } from '../types/scenario';
+import { API_BASE } from '../lib/api';
 
 export const useScenarioForm = (
   clientId: number,
@@ -10,7 +11,7 @@ export const useScenarioForm = (
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+  const apiBaseUrl = API_BASE;
 
   const handleFormChange = (field: keyof ScenarioFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));

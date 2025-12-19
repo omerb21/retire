@@ -1,4 +1,17 @@
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+function normalizeBaseUrl(url: string): string {
+  return url.endsWith("/") ? url.slice(0, -1) : url;
+}
+
+const explicitApiBase =
+  import.meta.env.VITE_API_BASE ?? import.meta.env.VITE_API_BASE_URL;
+
+const apiBaseFromUrl = import.meta.env.VITE_API_URL
+  ? `${normalizeBaseUrl(import.meta.env.VITE_API_URL)}/api/v1`
+  : undefined;
+
+export const API_BASE = normalizeBaseUrl(
+  explicitApiBase ?? apiBaseFromUrl ?? "/api/v1"
+);
 
 const SYSTEM_ACCESS_STORAGE_KEY = "systemAccessPassword";
 
