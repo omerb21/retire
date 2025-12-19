@@ -96,6 +96,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add ProxyHeadersMiddleware to trust headers from Railway load balancer
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
+
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
 app.include_router(employment.router)  # employment router already has /api/v1/clients prefix

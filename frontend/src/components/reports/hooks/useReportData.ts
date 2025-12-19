@@ -72,7 +72,7 @@ export function useReportData(clientId: string | undefined) {
               ? { 'X-System-Password': systemPassword }
               : undefined,
           }),
-          axios.get(`${API_BASE}/clients/${clientId}/additional-incomes`, {
+          axios.get(`${API_BASE}/clients/${clientId}/additional-incomes/`, {
             headers: systemPassword
               ? { 'X-System-Password': systemPassword }
               : undefined,
