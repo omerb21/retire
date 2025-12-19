@@ -689,7 +689,14 @@ async def get_saved_fixation(client_id: int, db: Session = Depends(get_db)):
         )
 
         if not result:
-            raise HTTPException(status_code=404, detail="לא נמצאו תוצאות קיבוע זכויות שמורות")
+            return {
+                "success": True,
+                "calculation_date": None,
+                "exempt_capital_remaining": None,
+                "raw_result": None,
+                "raw_payload": None,
+                "eligible": False,
+            }
 
         # Ensure exemption_summary includes derived exempt pension fields so
         # that reports behave as if the user pressed the "save" button in
