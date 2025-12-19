@@ -1,6 +1,11 @@
 {
   "results": [
     {
+      "case_id": "check_data_completeness_client_1",
+      "passed": true,
+      "errors": []
+    },
+    {
       "case_id": "doc_client_1_full_report_non_qa",
       "passed": true,
       "errors": []
@@ -22,6 +27,36 @@
     },
     {
       "case_id": "qa_client_1_report_only_no_portfolio",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "qa_income_tax_only_policy_no_tools",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "qa_products_table_excel_no_tools",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "qa_tax_spread_explanation_no_tools",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "tax_spread_tools_chain_client_1",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "transform_portfolio_update_non_stream_client_1",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case_id": "transform_portfolio_update_stream_client_1",
       "passed": true,
       "errors": []
     }

@@ -9,14 +9,17 @@ from app.database import SessionLocal
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_forced_document_reply,
+    build_pension_portfolio_update_after_transform,
     get_gross_for_tax_chaining,
     maybe_clear_pension_portfolio_after_transform,
     run_tax_projection_autochain,
 )
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import find_last_user_message
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
+    build_transform_accounts_from_portfolio,
     build_tax_result_system_message_for_stream,
     build_tool_call_message_content,
     build_tool_result_system_message_for_stream,
@@ -26,6 +29,8 @@ from app.services.llm_chat.orchestration_utils import (
     is_max_exemption_request,
     is_net_pension_request,
     is_qa_request,
+    is_transform_request,
+    is_portfolio_breakdown_request,
     parse_tool_call_from_reply,
 )
 from app.services.llm_chat.tool_execution import execute_tool_call
@@ -59,11 +64,31 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
+    if is_portfolio_breakdown_request(original_user_msg):
+        portfolio = request.pension_portfolio or []
+
+        def generate_breakdown():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            breakdown = (
+                "\n".join(build_pension_portfolio_context(portfolio)).strip()
+                if portfolio
+                else ""
+            )
+            yield breakdown or "אין תיק פנסיוני לניתוח."
+
+        return StreamingResponse(generate_breakdown(), media_type="text/plain; charset=utf-8")
     is_net_request = is_net_pension_request(original_user_msg)
     is_doc_request = is_document_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
     no_tools_requested = is_no_tools_request(original_user_msg)
     force_max_exemption = is_max_exemption_request(original_user_msg)
+    explicit_transform = is_transform_request(original_user_msg)
 
     log_llm_event(
         request_id=stream_request_id,
@@ -89,10 +114,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         executed_tools: set[str] = set()
 
         required_tools: set[str] = set()
-        if is_doc_request:
-            required_tools.add("GENERATE_FULL_REPORT")
-        if isinstance(request.pension_portfolio, list) and request.pension_portfolio:
-            required_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
+        if not no_tools_requested:
+            if is_doc_request:
+                required_tools.add("GENERATE_FULL_REPORT")
+            if (
+                is_doc_request
+                and isinstance(request.pension_portfolio, list)
+                and request.pension_portfolio
+            ):
+                required_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
 
         tool_call_marker = "###TOOL_CALL###"
         max_steps = 5
@@ -125,7 +155,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
                 missing_tools = required_tools.difference(executed_tools)
 
-                if missing_tools:
+                if missing_tools and not no_tools_requested:
                     preferred_order = [
                         "TRANSFORM_FUNDS_TO_ASSETS",
                         "GENERATE_FULL_REPORT",
@@ -202,6 +232,42 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 text_part, tool_data = parsed
                 tool_name = tool_data.get("name")
                 tool_args = tool_data.get("arguments", {})
+
+                if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
+                    if (not is_doc_request) and (not is_qa_mode) and (not explicit_transform):
+                        history_messages.append(
+                            ChatMessage(
+                                role="system",
+                                content=(
+                                    "אזהרה: אסור לבצע TRANSFORM_FUNDS_TO_ASSETS ללא בקשה מפורשת להמרה, "
+                                    "או במסגרת בקשת דוח/QA. כעת המשך ללא TOOL_CALL."
+                                ),
+                            )
+                        )
+                        continue
+
+                    if (
+                        (not isinstance(tool_args, dict))
+                        or (not isinstance(tool_args.get("accounts"), list))
+                        or (not tool_args.get("accounts"))
+                    ):
+                        derived_accounts = build_transform_accounts_from_portfolio(
+                            current_pension_portfolio
+                        )
+                        if derived_accounts:
+                            tool_args["accounts"] = derived_accounts
+                        else:
+                            history_messages.append(
+                                ChatMessage(
+                                    role="system",
+                                    content=(
+                                        "אזהרה: TRANSFORM_FUNDS_TO_ASSETS דורש רשימת accounts תקינה. "
+                                        "אין accounts ואין pension_portfolio שממנו ניתן לגזור accounts. "
+                                        "כעת אל תחזיר TOOL_CALL."
+                                    ),
+                                )
+                            )
+                            continue
 
                 if no_tools_requested:
                     history_messages.append(
@@ -290,6 +356,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
                     if tool_name:
                         executed_tools.add(tool_name)
+
+                    portfolio_update_marker = build_pension_portfolio_update_after_transform(
+                        tool_name=tool_name,
+                        tool_result=tool_result,
+                        tool_args=tool_args,
+                        current_pension_portfolio=current_pension_portfolio,
+                    )
+                    if portfolio_update_marker:
+                        yield "\n\n" + portfolio_update_marker
 
                     missing_tools_after = required_tools.difference(executed_tools)
                     if missing_tools_after:
@@ -438,12 +513,13 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             else:
                 yield "\n\nFAIL - לא התקבלה תשובת QA סופית מהמודל לאחר יצירת הדוח."
 
-        missing_tools_final = required_tools.difference(executed_tools)
-        if missing_tools_final:
-            yield (
-                "\n\nFAIL - לא הושלמו שלבי החובה לבקשה. חסרים הכלים: "
-                + ", ".join(sorted(missing_tools_final))
-            )
+        if not no_tools_requested:
+            missing_tools_final = required_tools.difference(executed_tools)
+            if missing_tools_final:
+                yield (
+                    "\n\nFAIL - לא הושלמו שלבי החובה לבקשה. חסרים הכלים: "
+                    + ", ".join(sorted(missing_tools_final))
+                )
 
     return StreamingResponse(
         generate(force_max_exemption, stream_request_id),

@@ -56,6 +56,21 @@ from app.services.llm_chat.tool_handlers.calculate_capital_withdrawal_tax import
 from app.services.llm_chat.tool_handlers.calculate_tax_spread_benefit import (
     handle_calculate_tax_spread_benefit,
 )
+from app.services.llm_chat.tool_handlers.check_data_completeness import (
+    handle_check_data_completeness,
+)
+from app.services.llm_chat.tool_handlers.run_retirement_scenarios import (
+    handle_run_retirement_scenarios,
+)
+from app.services.llm_chat.tool_handlers.select_target_pension_scenario import (
+    handle_select_target_pension_scenario,
+)
+from app.services.llm_chat.tool_handlers.find_optimal_scenario import (
+    handle_find_optimal_scenario,
+)
+from app.services.llm_chat.tool_handlers.execute_retirement_scenario import (
+    handle_execute_retirement_scenario,
+)
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -94,6 +109,9 @@ def execute_tool_call(
         if tool_name == "GET_PENSION_PRODUCTS":
             return handle_get_pension_products(agent_tools=agent_tools)
 
+        if tool_name == "CHECK_DATA_COMPLETENESS":
+            return handle_check_data_completeness(agent_tools=agent_tools)
+
         if tool_name == "CALCULATE_TAX_EXEMPT_PENSION":
             return handle_calculate_tax_exempt_pension(args=args, agent_tools=agent_tools)
 
@@ -102,6 +120,22 @@ def execute_tool_call(
                 args=args,
                 agent_tools=agent_tools,
                 force_max_exemption=force_max_exemption,
+            )
+
+        if tool_name == "RUN_RETIREMENT_SCENARIOS":
+            return handle_run_retirement_scenarios(args=args, agent_tools=agent_tools)
+
+        if tool_name == "SELECT_TARGET_PENSION_SCENARIO":
+            return handle_select_target_pension_scenario(args=args, agent_tools=agent_tools)
+
+        if tool_name == "FIND_OPTIMAL_SCENARIO":
+            return handle_find_optimal_scenario(args=args, agent_tools=agent_tools)
+
+        if tool_name == "EXECUTE_RETIREMENT_SCENARIO":
+            return handle_execute_retirement_scenario(
+                args=args,
+                client_id=client_id,
+                db=db,
             )
 
         if tool_name == "CALCULATE_PENSION_COMMUTATION":

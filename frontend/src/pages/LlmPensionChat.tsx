@@ -3,7 +3,11 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, handleApiError } from "../lib/api";
 import { useClientData } from "./ClientDetails/hooks/useClientData";
 import { loadLlmChatFromStorage, saveLlmChatToStorage, clearLlmChatFromStorage } from "../services/llmChatStorageService";
-import { loadPensionDataFromStorage, updatePensionDataInStorage } from "./PensionPortfolio/services/pensionPortfolioStorageService";
+import {
+  applyConversionUpdatesToPensionPortfolio,
+  loadPensionDataFromStorage,
+  updatePensionDataInStorage,
+} from "./PensionPortfolio/services/pensionPortfolioStorageService";
 import "./LlmPensionChat.css";
 
 const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
@@ -387,6 +391,29 @@ const LlmPensionChat: React.FC = () => {
           // הסר את הסמנים מהתוכן המוצג
           fullContent = fullContent.substring(0, fullContent.indexOf(severanceResetMarker)) +
                         fullContent.substring(resetEndIdx + severanceResetEndMarker.length);
+        }
+
+        // D3.12: חפש וטפל בעדכוני המרה לטבלת המוצרים (איפוס רכיבים והפחתת יתרה)
+        const portfolioUpdateMarker = "###PENSION_PORTFOLIO_UPDATE###";
+        const portfolioUpdateEndMarker = "###END_PENSION_PORTFOLIO_UPDATE###";
+
+        if (fullContent.includes(portfolioUpdateMarker) && fullContent.includes(portfolioUpdateEndMarker)) {
+          const updStartIdx = fullContent.indexOf(portfolioUpdateMarker) + portfolioUpdateMarker.length;
+          const updEndIdx = fullContent.indexOf(portfolioUpdateEndMarker);
+          const updJsonStr = fullContent.substring(updStartIdx, updEndIdx).trim();
+
+          try {
+            const parsed = JSON.parse(updJsonStr);
+            if (parsed?.type === "pension_portfolio_updates" && Array.isArray(parsed.updates)) {
+              applyConversionUpdatesToPensionPortfolio(clientId, parsed.updates);
+            }
+          } catch (parseErr) {
+            console.warn("Failed to parse pension portfolio update JSON:", parseErr);
+          }
+
+          // הסר את הסמנים מהתוכן המוצג
+          fullContent = fullContent.substring(0, fullContent.indexOf(portfolioUpdateMarker)) +
+                        fullContent.substring(updEndIdx + portfolioUpdateEndMarker.length);
         }
 
         // UI actions from system (open download URL / navigate)

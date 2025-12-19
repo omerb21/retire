@@ -1,7 +1,9 @@
 import argparse
+import codecs
 import json
 import os
 import sqlite3
+import socket
 import sys
 import urllib.request
 from collections import Counter
@@ -18,6 +20,124 @@ def _post_json(*, url: str, payload: dict[str, Any], timeout_s: int) -> str:
     )
     with urllib.request.urlopen(req, timeout=timeout_s) as resp:
         return resp.read().decode("utf-8", errors="replace")
+
+
+def _contains_required_tools(*, text: str, required_tools: set[str]) -> bool:
+    if not required_tools:
+        return True
+    hay = text or ""
+    for tool in required_tools:
+        tool_name = str(tool or "").strip()
+        if not tool_name:
+            continue
+        if tool_name == "GET_TAX_PROJECTION":
+            if (
+                "Tool Output (GET_TAX_PROJECTION" not in hay
+                and "Tool Result (GET_TAX_PROJECTION" not in hay
+            ):
+                return False
+            continue
+
+        if (
+            f"Tool Output ({tool_name}" not in hay
+            and f"Tool Result ({tool_name}" not in hay
+        ):
+            return False
+    return True
+
+
+def _contains_required_substrings(*, text: str, required_contains: list[str]) -> bool:
+    if not required_contains:
+        return True
+    hay = text or ""
+    for item in required_contains:
+        if not item:
+            continue
+        if str(item) not in hay:
+            return False
+    return True
+
+
+def _post_json_stream_until(
+    *,
+    url: str,
+    payload: dict[str, Any],
+    timeout_s: int,
+    require_ui_action: bool,
+    require_open_path: bool,
+    require_pass_fail: bool,
+    require_pension_portfolio_update: bool,
+    required_tools: set[str],
+    required_contains: list[str],
+    max_chars: int = 2_000_000,
+) -> str:
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    chunks: list[str] = []
+
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        while True:
+            try:
+                data = resp.read(4096)
+            except (TimeoutError, socket.timeout):
+                break
+
+            if not data:
+                break
+
+            chunks.append(decoder.decode(data))
+            text = "".join(chunks)
+
+            if len(text) >= max_chars:
+                break
+
+            if not _contains_required_tools(text=text, required_tools=required_tools):
+                continue
+
+            if not _contains_required_substrings(text=text, required_contains=required_contains):
+                continue
+
+            if require_ui_action and "###UI_ACTION###" not in text:
+                continue
+
+            if require_open_path:
+                lowered = text.lower()
+                if (
+                    "open_path" not in text
+                    and "/reports" not in text
+                    and "auto_html" not in text
+                    and "/reports" not in lowered
+                    and "auto_html" not in lowered
+                ):
+                    continue
+
+            if require_pass_fail:
+                lowered = text.lower()
+                if ("pass" not in lowered) and ("fail" not in lowered):
+                    continue
+
+            if require_pension_portfolio_update:
+                if (
+                    "###PENSION_PORTFOLIO_UPDATE###" not in text
+                    or "###END_PENSION_PORTFOLIO_UPDATE###" not in text
+                ):
+                    continue
+
+            break
+
+    try:
+        chunks.append(decoder.decode(b"", final=True))
+    except Exception:
+        pass
+
+    return "".join(chunks)
 
 
 def _extract_ui_action_payload(response_text: str) -> dict[str, Any] | None:
@@ -77,6 +197,10 @@ def _extract_tools_used(response_text: str) -> list[str]:
             continue
         deduped.append(t)
         seen.add(t)
+
+    if "###PENSION_PORTFOLIO_UPDATE###" in text and "TRANSFORM_FUNDS_TO_ASSETS" not in seen:
+        deduped.append("TRANSFORM_FUNDS_TO_ASSETS")
+        seen.add("TRANSFORM_FUNDS_TO_ASSETS")
     return deduped
 
 
@@ -271,6 +395,24 @@ def _evaluate_response(*, response_text: str) -> dict[str, bool]:
                     has_open_path_via_ui = True
                     break
 
+    pension_portfolio_update_start = "###PENSION_PORTFOLIO_UPDATE###"
+    pension_portfolio_update_end = "###END_PENSION_PORTFOLIO_UPDATE###"
+    has_pension_portfolio_update = False
+    if pension_portfolio_update_start in (response_text or "") and pension_portfolio_update_end in (
+        response_text or ""
+    ):
+        try:
+            start_idx = response_text.index(pension_portfolio_update_start) + len(
+                pension_portfolio_update_start
+            )
+            end_idx = response_text.index(pension_portfolio_update_end, start_idx)
+            payload = response_text[start_idx:end_idx].strip()
+            if payload:
+                json.loads(payload)
+                has_pension_portfolio_update = True
+        except Exception:
+            has_pension_portfolio_update = False
+
     return {
         "has_ui_action": "###UI_ACTION###" in response_text,
         "has_open_path": (
@@ -280,6 +422,7 @@ def _evaluate_response(*, response_text: str) -> dict[str, bool]:
             or has_open_path_via_ui
         ),
         "has_pass_fail": ("pass" in lowered) or ("fail" in lowered),
+        "has_pension_portfolio_update": has_pension_portfolio_update,
     }
 
 
@@ -294,7 +437,10 @@ def _run_case_once(
     endpoint = case.get("endpoint") or "stream"
 
     portfolio: list[dict[str, Any]] | None = None
-    if case.get("include_portfolio"):
+    inline_portfolio = case.get("pension_portfolio")
+    if isinstance(inline_portfolio, list):
+        portfolio = inline_portfolio
+    elif case.get("include_portfolio"):
         portfolio = _load_portfolio(db_path=db_path, client_id=client_id)
 
     payload: dict[str, Any] = {
@@ -311,7 +457,46 @@ def _run_case_once(
         url = f"{base_url}/api/v1/llm/pension-chat"
 
     before = _summarize_db(db_path=db_path, client_id=client_id)
-    response_text = _post_json(url=url, payload=payload, timeout_s=timeout_s)
+    request_error: str | None = None
+    response_text = ""
+    try:
+        expect: dict[str, Any] = case.get("expect") or {}
+        required_tools = {
+            str(t)
+            for t in (expect.get("require_tools_used") or [])
+            if t is not None and str(t).strip()
+        }
+        required_contains = expect.get("require_contains") or []
+
+        if endpoint == "stream" and (
+            expect.get("require_ui_action")
+            or expect.get("require_open_path")
+            or expect.get("require_pass_fail")
+            or expect.get("require_pension_portfolio_update")
+            or required_tools
+            or (isinstance(required_contains, list) and len(required_contains) > 0)
+        ):
+            response_text = _post_json_stream_until(
+                url=url,
+                payload=payload,
+                timeout_s=timeout_s,
+                require_ui_action=bool(expect.get("require_ui_action")),
+                require_open_path=bool(expect.get("require_open_path")),
+                require_pass_fail=bool(expect.get("require_pass_fail")),
+                require_pension_portfolio_update=bool(expect.get("require_pension_portfolio_update")),
+                required_tools=required_tools,
+                required_contains=required_contains if isinstance(required_contains, list) else [],
+            )
+        else:
+            response_text = _post_json(url=url, payload=payload, timeout_s=timeout_s)
+            try:
+                parsed = json.loads(response_text)
+                if isinstance(parsed, dict) and isinstance(parsed.get("reply"), str):
+                    response_text = parsed["reply"]
+            except Exception:
+                pass
+    except Exception as e:
+        request_error = f"{type(e).__name__}: {e}"
     after = _summarize_db(db_path=db_path, client_id=client_id)
 
     markers = _evaluate_response(response_text=response_text)
@@ -323,6 +508,7 @@ def _run_case_once(
         "url": url,
         "before": before,
         "after": after,
+        "request_error": request_error,
         "markers": markers,
         "tools_used": tools_used,
         "response_preview": response_text[:4000],
@@ -348,6 +534,14 @@ def _check_case_expectations(*, case: dict[str, Any], case_runs: list[dict[str, 
         errors.append("missing_open_path")
     if expect.get("require_pass_fail") and not markers.get("has_pass_fail"):
         errors.append("missing_pass_fail")
+
+    if expect.get("require_pension_portfolio_update") and not markers.get(
+        "has_pension_portfolio_update"
+    ):
+        errors.append("missing_pension_portfolio_update_marker")
+
+    if expect.get("forbid_pension_portfolio_update") and markers.get("has_pension_portfolio_update"):
+        errors.append("forbidden_pension_portfolio_update_marker")
 
     required_contains = expect.get("require_contains")
     if isinstance(required_contains, list):

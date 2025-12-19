@@ -60,5 +60,26 @@ def test_global_system_prompt_contains_tool_distinction_rules() -> None:
 
     assert "PROCESS_TERMINATION" in prompt
     assert "SUBMIT_TAX_COMMUTATION" in prompt
+    assert "RUN_RETIREMENT_SCENARIOS" in prompt
+    assert "SELECT_TARGET_PENSION_SCENARIO" in prompt
+    assert "FIND_OPTIMAL_SCENARIO" in prompt
+    assert "EXECUTE_RETIREMENT_SCENARIO" in prompt
+    assert "כלל חובה (D14.1" in prompt
     assert "כלל חובה (D9.1" in prompt
     assert "כלל בחירה" in prompt
+
+
+def test_retirement_scenario_tools_exist_in_schema() -> None:
+    tools = json.loads(get_tools_definitions_json())
+
+    run_tool = _get_tool(tools, "RUN_RETIREMENT_SCENARIOS")
+    assert "retirement_age" in run_tool.get("parameters", {}).get("required", [])
+
+    select_tool = _get_tool(tools, "SELECT_TARGET_PENSION_SCENARIO")
+    assert "target_monthly_pension" in select_tool.get("parameters", {}).get("required", [])
+
+    find_tool = _get_tool(tools, "FIND_OPTIMAL_SCENARIO")
+    assert "target_monthly_pension" in find_tool.get("parameters", {}).get("required", [])
+
+    execute_tool = _get_tool(tools, "EXECUTE_RETIREMENT_SCENARIO")
+    assert "scenario_id" in execute_tool.get("parameters", {}).get("required", [])

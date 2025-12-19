@@ -106,3 +106,69 @@ def run_tax_projection_autochain(
         return None
 
     return execute_tool_call_fn("GET_TAX_PROJECTION", {"gross_monthly_pension": gross_for_tax})
+
+
+def build_pension_portfolio_update_after_transform(
+    *,
+    tool_name: str | None,
+    tool_result: str,
+    tool_args: dict,
+    current_pension_portfolio: Optional[list[Any]],
+) -> Optional[str]:
+    if tool_name != "TRANSFORM_FUNDS_TO_ASSETS":
+        return None
+
+    if not current_pension_portfolio:
+        return None
+
+    try:
+        parsed_result = json.loads(tool_result)
+        if not (isinstance(parsed_result, dict) and parsed_result.get("success") is True):
+            return None
+        if not parsed_result.get("total_converted"):
+            return None
+    except Exception:
+        return None
+
+    accounts = tool_args.get("accounts")
+    if not isinstance(accounts, list) or not accounts:
+        return None
+
+    updates: list[dict[str, Any]] = []
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            continue
+        account_number = (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+        if not account_number:
+            continue
+        converted_amount = float(acc.get("balance") or acc.get("יתרה") or 0)
+        if converted_amount <= 0:
+            continue
+
+        specific_amounts = acc.get("specific_amounts")
+        if not isinstance(specific_amounts, dict):
+            specific_amounts = None
+
+        updates.append(
+            {
+                "account_number": account_number,
+                "account_name": acc.get("account_name") or acc.get("שם_תכנית") or "",
+                "company": acc.get("company") or acc.get("חברה_מנהלת") or "",
+                "converted_amount": converted_amount,
+                "specific_amounts": specific_amounts,
+            }
+        )
+
+    if not updates:
+        return None
+
+    payload = json.dumps(
+        {
+            "type": "pension_portfolio_updates",
+            "updates": updates,
+            "operation": "converted_to_assets",
+        },
+        ensure_ascii=False,
+    )
+
+    return f"###PENSION_PORTFOLIO_UPDATE###{payload}###END_PENSION_PORTFOLIO_UPDATE###\n"

@@ -4,6 +4,24 @@
     "client_id": 1,
     "endpoint": "stream",
     "include_portfolio": true,
+    "pension_portfolio": [
+      {
+        "מספר_חשבון": "QA-A-001",
+        "שם_תכנית": "קופת גמל - בדיקת QA",
+        "חברה_מנהלת": "חברת בדיקה",
+        "סוג_מוצר": "קופת גמל",
+        "יתרה": 250000,
+        "תאריך_התחלה": "2005-01-01"
+      },
+      {
+        "מספר_חשבון": "QA-A-002",
+        "שם_תכנית": "קרן פנסיה - בדיקת QA",
+        "חברה_מנהלת": "חברת בדיקה",
+        "סוג_מוצר": "קרן פנסיה",
+        "יתרה": 300000,
+        "תאריך_התחלה": "2008-01-01"
+      }
+    ],
     "repeat": 2,
     "prompt": "אנא בצע בדיקת מערכת מקיפה (QA) עבור הלקוח הנוכחי. חובה לבצע: 1) GET_PENSION_PRODUCTS, 2) TRANSFORM_FUNDS_TO_ASSETS על בסיס התיק הפנסיוני המצורף (accounts), 3) GENERATE_FULL_REPORT. בסוף החזר PASS/FAIL + סיכום קצר, וציין את open_path של הדוח.",
     "expect": {
@@ -99,12 +117,104 @@
     "endpoint": "stream",
     "include_portfolio": false,
     "repeat": 1,
-    "prompt": "אנא בצע בדיקת מערכת (QA) להסבר קצר בלבד: האם החישובים במערכת כוללים ביטוח לאומי או מס בריאות? ענה במפורש שהמערכת מחשבת מס הכנסה בלבד, ואם נשאלים על ביטוח לאומי/מס בריאות יש לציין שלא מחושב. חובה לסיים ב-PASS/FAIL + 3-6 שורות סיכום קצר. חשוב: אין להריץ שום כלי.",
+    "prompt": "אנא בצע בדיקת מערכת (QA) להסבר קצר בלבד: האם החישובים במערכת כוללים ביטוח לאומי או מס בריאות? ענה במפורש שהמערכת מחשבת מס הכנסה בלבד. חשוב: כתוב במפורש בדיוק את המחרוזות: 'ביטוח לאומי' וגם 'מס בריאות' (בלי ה' הידיעה). חובה לסיים ב-PASS/FAIL + 3-6 שורות סיכום קצר. חשוב: אין להריץ שום כלי.",
     "expect": {
       "require_pass_fail": true,
       "require_contains": ["מס הכנסה", "בלבד", "ביטוח לאומי", "מס בריאות"],
       "require_no_tools_used": true,
       "forbid_tools_used": ["GET_PENSION_PRODUCTS", "TRANSFORM_FUNDS_TO_ASSETS", "GENERATE_FULL_REPORT"]
+    }
+  },
+  {
+    "case_id": "qa_products_table_excel_no_tools",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": true,
+    "repeat": 1,
+    "prompt": "אנא בצע בדיקת מערכת (QA) להסבר קצר בלבד: הלקוח מבקש לעשות סדר בתיק לפי טבלת המוצרים (אקסל). הסבר איך מציגים את הטבלה בחלוקה של הון מול קצבה, ומה המשמעות של העמודות מבחינת חוקי המרה (למשל פיצויים מעסיק נוכחי/תגמולים). חשוב: כלול במפורש את המילים: 'טבלת', 'הון', 'קצבה', 'פיצויים', 'תגמולים'. חובה לסיים ב-PASS/FAIL + 3-6 שורות סיכום קצר. חשוב: אין להריץ שום כלי.",
+    "expect": {
+      "require_pass_fail": true,
+      "require_contains": ["טבלת", "הון", "קצבה", "פיצויים", "תגמולים"],
+      "require_no_tools_used": true,
+      "forbid_tools_used": ["GET_PENSION_PRODUCTS", "CHECK_DATA_COMPLETENESS", "TRANSFORM_FUNDS_TO_ASSETS", "GENERATE_FULL_REPORT"]
+    }
+  },
+  {
+    "case_id": "check_data_completeness_client_1",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "אני רוצה להתחיל תכנון פרישה. חובה לבצע תחילה CHECK_DATA_COMPLETENESS ולסכם בקצרה מה חסר/מה התראות. אין לבצע פעולות שמשנות נתוני לקוח.",
+    "expect": {
+      "require_tools_used": ["CHECK_DATA_COMPLETENESS"],
+      "forbid_tools_used": ["PROCESS_TERMINATION", "TRANSFORM_FUNDS_TO_ASSETS"]
+    }
+  },
+  {
+    "case_id": "transform_portfolio_update_stream_client_1",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": true,
+    "pension_portfolio": [
+      {
+        "מספר_חשבון": "QA-A-003",
+        "שם_תכנית": "קופת גמל - בדיקת Marker",
+        "חברה_מנהלת": "חברת בדיקה",
+        "סוג_מוצר": "קופת גמל",
+        "יתרה": 100000,
+        "תאריך_התחלה": "2005-01-01"
+      }
+    ],
+    "repeat": 1,
+    "prompt": "אנא בצע בדיקת מערכת (QA) להמרת תיק פנסיוני: חובה לבצע TRANSFORM_FUNDS_TO_ASSETS על בסיס התיק הפנסיוני המצורף (accounts). בסוף החזר PASS/FAIL + סיכום קצר. חשוב: לאחר ההמרה המערכת חייבת לשלוח marker לעדכון טבלת המוצרים.",
+    "expect": {
+      "require_pass_fail": true,
+      "require_pension_portfolio_update": true,
+      "require_tools_used": ["TRANSFORM_FUNDS_TO_ASSETS"],
+      "forbid_tools_used": ["PROCESS_TERMINATION"]
+    },
+    "db_assert": {
+      "require_no_duplicate_pension_funds_by_deduction_file": true
+    }
+  },
+  {
+    "case_id": "transform_portfolio_update_non_stream_client_1",
+    "client_id": 1,
+    "endpoint": "non_stream",
+    "include_portfolio": true,
+    "pension_portfolio": [
+      {
+        "מספר_חשבון": "QA-A-004",
+        "שם_תכנית": "קופת גמל - בדיקת Marker NonStream",
+        "חברה_מנהלת": "חברת בדיקה",
+        "סוג_מוצר": "קופת גמל",
+        "יתרה": 120000,
+        "תאריך_התחלה": "2005-01-01"
+      }
+    ],
+    "repeat": 1,
+    "prompt": "אנא בצע בדיקת מערכת (QA) להמרת תיק פנסיוני: חובה לבצע TRANSFORM_FUNDS_TO_ASSETS על בסיס התיק הפנסיוני המצורף (accounts). בסוף החזר PASS/FAIL + סיכום קצר. חשוב: לאחר ההמרה המערכת חייבת לשלוח marker לעדכון טבלת המוצרים.",
+    "expect": {
+      "require_pass_fail": true,
+      "require_pension_portfolio_update": true,
+      "require_tools_used": ["TRANSFORM_FUNDS_TO_ASSETS"],
+      "forbid_tools_used": ["PROCESS_TERMINATION"]
+    },
+    "db_assert": {
+      "require_no_duplicate_pension_funds_by_deduction_file": true
+    }
+  },
+  {
+    "case_id": "tax_spread_tools_chain_client_1",
+    "client_id": 1,
+    "endpoint": "stream",
+    "include_portfolio": false,
+    "repeat": 1,
+    "prompt": "אני רוצה למשוך סכום הוני ברוטו 735000 בשנת 2025 ולבדוק האם פריסת מס ל-6 שנים משתלמת. חובה לבצע תחילה CALCULATE_CAPITAL_WITHDRAWAL_TAX ואז CALCULATE_TAX_SPREAD_BENEFIT (אפשר Auto-chained). תן תשובה קצרה וברורה.",
+    "expect": {
+      "require_contains": ["פריס"],
+      "require_tools_used": ["CALCULATE_CAPITAL_WITHDRAWAL_TAX", "CALCULATE_TAX_SPREAD_BENEFIT"]
     }
   }
 ]

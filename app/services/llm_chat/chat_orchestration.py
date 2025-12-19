@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.schemas.llm_chat import ChatMessage, ChatRequest, ChatResponse
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_forced_document_reply,
+    build_pension_portfolio_update_after_transform,
     get_gross_for_tax_chaining,
     maybe_clear_pension_portfolio_after_transform,
     run_tax_projection_autochain,
@@ -17,16 +18,20 @@ from app.services.llm_chat.chat_stream_orchestration import (
 )
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import find_last_user_message
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
+    build_transform_accounts_from_portfolio,
     build_tax_result_system_message_for_chat,
     build_tool_call_message_content,
     build_tool_result_system_message_for_chat,
     is_document_request,
     is_no_tools_request,
     is_qa_request,
+    is_transform_request,
     is_max_exemption_request,
     is_net_pension_request,
+    is_portfolio_breakdown_request,
     parse_tool_call_from_reply,
 )
 from app.services.llm_chat.tool_execution import execute_tool_call
@@ -60,6 +65,11 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
 
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
+    if is_portfolio_breakdown_request(original_user_msg):
+        portfolio = request.pension_portfolio or []
+        breakdown = "\n".join(build_pension_portfolio_context(portfolio)).strip() if portfolio else ""
+        if breakdown:
+            return ChatResponse(reply=breakdown, computed_data=computed_data)
     is_doc_request = is_document_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
     no_tools_requested = is_no_tools_request(original_user_msg)
@@ -131,6 +141,46 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                 text_part, tool_call_data = parsed
                 tool_name = tool_call_data.get("name")
                 tool_args = tool_call_data.get("arguments", {})
+
+                if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
+                    explicit_transform = is_transform_request(original_user_msg)
+                    if (not is_doc_request) and (not is_qa_mode) and (not explicit_transform):
+                        messages.append(
+                            ChatMessage(
+                                role="system",
+                                content=(
+                                    "אזהרה: אסור לבצע TRANSFORM_FUNDS_TO_ASSETS ללא בקשה מפורשת להמרה, "
+                                    "או במסגרת בקשת דוח/QA. כעת המשך ללא TOOL_CALL ותן תשובה טקסטואלית בלבד "
+                                    "או בחר כלי אחר שמתאים לבקשה."
+                                ),
+                            )
+                        )
+                        current_step += 1
+                        continue
+
+                    if (
+                        (not isinstance(tool_args, dict))
+                        or (not isinstance(tool_args.get("accounts"), list))
+                        or (not tool_args.get("accounts"))
+                    ):
+                        derived_accounts = build_transform_accounts_from_portfolio(
+                            current_pension_portfolio
+                        )
+                        if derived_accounts:
+                            tool_args["accounts"] = derived_accounts
+                        else:
+                            messages.append(
+                                ChatMessage(
+                                    role="system",
+                                    content=(
+                                        "אזהרה: TRANSFORM_FUNDS_TO_ASSETS דורש רשימת accounts תקינה. "
+                                        "אין accounts ואין pension_portfolio שממנו ניתן לגזור accounts. "
+                                        "כעת אל תחזיר TOOL_CALL."
+                                    ),
+                                )
+                            )
+                            current_step += 1
+                            continue
 
                 if no_tools_requested:
                     messages.append(
@@ -217,6 +267,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                     force_max_exemption=force_max_exemption,
                 )
 
+                portfolio_update_marker = build_pension_portfolio_update_after_transform(
+                    tool_name=tool_name,
+                    tool_result=tool_result,
+                    tool_args=tool_args,
+                    current_pension_portfolio=current_pension_portfolio,
+                )
+                if portfolio_update_marker:
+                    forced_user_prefix += portfolio_update_marker
+
                 if is_qa_mode and tool_name == "GENERATE_FULL_REPORT":
                     qa_summary_required = True
                     try:
@@ -248,7 +307,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                         final_reply = forced_document_reply
                         break
 
-                    forced_user_prefix = forced_document_reply.strip() + "\n\n"
+                    forced_user_prefix += forced_document_reply.strip() + "\n\n"
                     messages.append(
                         ChatMessage(
                             role="system",

@@ -1,17 +1,24 @@
 # tests/conftest.py (relevant parts)
-import matplotlib
-matplotlib.use("Agg")
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+except Exception:
+    matplotlib = None
 
 import pytest
-import httpx
+try:
+    import httpx
+except Exception:
+    httpx = None
 import inspect
 from app.database import get_engine, Base, SessionLocal
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from app.main import app as fastapi_app
 
-HTTPXClient = getattr(httpx, "Client", None)
-if HTTPXClient is not None:
+HTTPXClient = getattr(httpx, "Client", None) if httpx is not None else None
+if httpx is not None and HTTPXClient is not None:
     sig = inspect.signature(HTTPXClient.__init__)
     if "app" not in sig.parameters and hasattr(httpx, "ASGITransport"):
         _orig_init = HTTPXClient.__init__

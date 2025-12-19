@@ -142,6 +142,11 @@ def get_job_termination_whatif_example() -> str:
     return _extract_example_by_number(content, 13)
 
 
+def get_products_table_example() -> str:
+    content = _load_examples_file()
+    return _extract_example_by_number(content, 14)
+
+
 def get_relevant_example(user_message: str) -> Optional[str]:
     """
     מזהה את סוג השאלה ומחזיר דוגמה רלוונטית.
@@ -176,6 +181,24 @@ def get_relevant_example(user_message: str) -> Optional[str]:
     withdrawal_keywords = ["משיכה מקופת", "משיכה מקרן", "למשוך כסף", "למשוך מהקופה", "למשוך מהחיסכון", "משיכת כספים", "אמשוך"]
     if any(kw in msg_lower for kw in withdrawal_keywords):
         return get_capital_withdrawal_example()
+
+    products_table_keywords = [
+        "אקסל",
+        "excel",
+        "spreadsheet",
+        "טבלת המוצרים",
+        "טבלת מוצרים",
+        "product table",
+        "products table",
+        "לעשות סדר",
+        "סדר בתיק",
+        "חלוקה לפי מוצר",
+        "חלוקה לפי מוצרים",
+    ]
+    if any(kw in msg_lower for kw in products_table_keywords) or (
+        "הון" in msg_lower and "קצבה" in msg_lower
+    ):
+        return get_products_table_example()
     
     # זיהוי בקשות לדו"ח סיכום
     report_keywords = ["סכם את", "תן לי סיכום", "הפק דו\"ח", "דו\"ח מסכם", "מסקנה סופית", "סיכום של", "לראות את כל המידע"]

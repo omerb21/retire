@@ -1,0 +1,556 @@
+{
+  "results": [
+    {
+      "case_id": "qa_client_1_full_report",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 0,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 0,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {}
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": true,
+            "has_open_path": true,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": true
+          },
+          "tools_used": [
+            "GET_PENSION_PRODUCTS",
+            "TRANSFORM_FUNDS_TO_ASSETS",
+            "GENERATE_FULL_REPORT"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (GET_PENSION_PRODUCTS):**\n{\"products\": [], \"pension_funds\": [], \"capital_assets\": [], \"total_balance\": 0, \"count\": 0}\n\n###PENSION_PORTFOLIO_UPDATE###{\"type\": \"pension_portfolio_updates\", \"updates\": [{\"account_number\": \"QA-A-001\", \"account_name\": \"קופת גמל - בדיקת QA\", \"company\": \"חברת בדיקה\", \"converted_amount\": 250000.0, \"specific_amounts\": null}, {\"account_number\": \"QA-A-002\", \"account_name\": \"קרן פנסיה - בדיקת QA\", \"company\": \"חברת בדיקה\", \"converted_amount\": 300000.0, \"specific_amounts\": null}], \"operation\": \"converted_to_assets\"}###END_PENSION_PORTFOLIO_UPDATE###\n\n\n🔧 **Tool Output (TRANSFORM_FUNDS_TO_ASSETS):**\n{\"success\": true, \"message\": \"✅ הומרו בהצלחה 2 חשבונות: 2 נכסי קצבה, 0 נכסי הון.\", \"converted_pensions\": 2, \"converted_capitals\": 0, \"total_converted\": 2, \"skipped_zero_balance\": 0, \"errors\": null, \"next_step\": \"כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT\", \"source_data_cleared\": true, \"memory_cleared\": true, \"persisted_source_scenarios_updated\": 0, \"persisted_source_cleanup_ok\": true}\n\n###UI_ACTION###{\"type\": \"ui_actions\", \"actions\": [{\"type\": \"navigate\", \"path\": \"/clients/1/reports?auto_html=1\", \"label\": \"פתח דוח\"}]}###END_UI_ACTION###\nפותח את דוח ה-HTML בעמוד התוצאות.\n\n🔧 **Tool Output (GENERATE_FULL_REPORT):**\n{\"success\": true, \"client_id\": 1, \"open_path\": \"/clients/1/reports?auto_html=1\", \"report_type\": \"full\", \"status_message\": \"פותח את דוח ה-HTML בעמוד התוצאות.\"}✅ בדיקת המערכת המקיפה (QA) הושלמה בהצלחה!\n\n**סטטוס הבדיקה:** PASS\n\n**סיכום:**\n1.  **קבלת מוצרים פנסיוניים:** בוצעה בדיקה של המוצרים הפנסיוניים הקיימים. נמצאו חשבונות מתאימים להמרה.\n2.  **המרת כספים לנכסים:** החשבונות הפנסיוניים בתיק הלקוח הומרו בהצלחה לנכסי קצבה במערכת.\n3.  **הפקת דוח פרישה מלא:** דוח פרישה מלא הופק בהצלחה עבור הלקוח.\n\nתוכל לצפות בדוח הפרישה המלא כאן: [/clients/1/reports?auto_html=1](/clients/1/reports?auto_html=1)"
+        },
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": true,
+            "has_open_path": true,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": true
+          },
+          "tools_used": [
+            "GET_PENSION_PRODUCTS",
+            "TRANSFORM_FUNDS_TO_ASSETS",
+            "GENERATE_FULL_REPORT"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (GET_PENSION_PRODUCTS):**\n{\"products\": [{\"category\": \"pension\", \"id\": 14, \"fund_name\": \"קרן פנסיה - בדיקת QA\", \"fund_type\": \"קרן פנסיה\", \"input_mode\": \"manual\", \"balance\": 300000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1542.9717636167259, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-002\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-002\\\", \\\"account_name\\\": \\\"קרן פנסיה - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קרן פנסיה\\\", \\\"start_date\\\": \\\"2008-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:21.130500\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:21\"}, {\"category\": \"pension\", \"id\": 13, \"fund_name\": \"קופת גמל - בדיקת QA\", \"fund_type\": \"קופת גמל\", \"input_mode\": \"manual\", \"balance\": 250000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1285.809803013938, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-001\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-001\\\", \\\"account_name\\\": \\\"קופת גמל - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קופת גמל\\\", \\\"start_date\\\": \\\"2005-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:21.102653\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:21\"}], \"pension_funds\": [{\"category\": \"pension\", \"id\": 13, \"fund_name\": \"קופת גמל - בדיקת QA\", \"fund_type\": \"קופת גמל\", \"input_mode\": \"manual\", \"balance\": 250000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1285.809803013938, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-001\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-001\\\", \\\"account_name\\\": \\\"קופת גמל - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קופת גמל\\\", \\\"start_date\\\": \\\"2005-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:21.102653\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:21\"}, {\"category\": \"pension\", \"id\": 14, \"fund_name\": \"קרן פנסיה - בדיקת QA\", \"fund_type\": \"קרן פנסיה\", \"input_mode\": \"manual\", \"balance\": 300000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1542.9717636167259, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-002\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-002\\\", \\\"account_name\\\": \\\"קרן פנסיה - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קרן פנסיה\\\", \\\"start_date\\\": \\\"2008-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:21.130500\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:21\"}], \"capital_assets\": [], \"total_balance\": 550000.0, \"count\": 2}\n\n###PENSION_PORTFOLIO_UPDATE###{\"type\": \"pension_portfolio_updates\", \"updates\": [{\"account_number\": \"QA-A-001\", \"account_name\": \"קופת גמל - בדיקת QA\", \"company\": \"חברת בדיקה\", \"converted_amount\": 250000.0, \"specific_amounts\": null}, {\"account_number\": \"QA-A-002\", \"account_name\": \"קרן פנסיה - בדיקת QA\", \"company\": \"חברת בדיקה\", \"converted_amount\": 300000.0, \"specific_amounts\": null}], \"operation\": \"converted_to_assets\"}###END_PENSION_PORTFOLIO_UPDATE###\n\n\n🔧 **Tool Output (TRANSFORM_FUNDS_TO_ASSETS):**\n{\"success\": true, \"message\": \"✅ הומרו בהצלחה 2 חשבונות: 2 נכסי קצבה, 0 נכסי הון.\", \"converted_pensions\": 2, \"converted_capitals\": 0, \"total_conve"
+        }
+      ]
+    },
+    {
+      "case_id": "doc_client_1_full_report_non_qa",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": true,
+            "has_open_path": true,
+            "has_pass_fail": false,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [
+            "GENERATE_FULL_REPORT"
+          ],
+          "response_preview": "\n\n###UI_ACTION###{\"type\": \"ui_actions\", \"actions\": [{\"type\": \"open_url\", \"url\": \"/api/v1/reports/RPT-1-20251218134034/download\", \"label\": \"פתח להורדה\"}, {\"type\": \"navigate\", \"path\": \"/clients/1/reports\", \"label\": \"פתח עמוד דוחות\"}]}###END_UI_ACTION###\n✅ הדוח הופק בהצלחה! דוח פרישה מלא מוכן להורדה.\n\nקישור להורדה: /api/v1/reports/RPT-1-20251218134034/download\n\n🔧 **Tool Output (GENERATE_FULL_REPORT):**\n{\"success\": true, \"message\": \"✅ הדוח הופק בהצלחה! דוח פרישה מלא מוכן להורדה.\", \"status_message\": \"✅ הדוח הופק בהצלחה! דוח פרישה מלא מוכן להורדה.\", \"report_id\": \"RPT-1-20251218134034\", \"client_id\": 1, \"client_name\": \"עומר בן צבי\", \"report_type\": \"full\", \"report_name\": \"דוח פרישה מלא\", \"generated_at\": \"2025-12-18 13:40:35\", \"format\": \"PDF\", \"file_size_bytes\": 28923, \"include_charts\": true, \"analysis_performed\": true, \"analysis_result\": {\"retirement_date\": \"2025-01-01\", \"retirement_age\": 67, \"projected_pension\": 5657.56, \"social_security\": 0.0, \"total_guaranteed_income\": 5657.56, \"apply_max_exemption\": false, \"exemption_percentage\": 0.0, \"exempt_pension_monthly\": 0.0, \"monthly_income_tax\": 465.76, \"monthly_health_tax\": 0.0, \"monthly_tax_deduction\": 465.76, \"projected_pension_net\": 5191.81, \"total_guaranteed_income_net\": 5191.81, \"desired_monthly_income\": 15000.0, \"monthly_deficit_or_surplus\": -9808.19, \"required_capital_withdrawal\": 9808.19, \"total_liquid_capital\": 0.0, \"capital_sufficiency_years\": 0.0, \"is_sustainable\": false}, \"download_url\": \"/api/v1/reports/RPT-1-20251218134034/download\", \"sections_included\": [\"סיכום תכנית פרישה\", \"פירוט מקורות הכנסה\", \"ניתוח קצבה ברוטו ונטו\", \"ניתוח מס הכנסה\", \"פטור קיבוע זכויות\", \"המלצות אופטימיזציה\", \"תזרים מזומנים שנתי\", \"גרף תזרים\"]}✅ **הדוח הופק בהצלחה!**\n\nדוח הפרישה המלא עבורך, עומר, מוכן להורדה. הדוח מפרט את תזרים המזומנים הצפוי, ניתוח המס, והמלצות לאופטימיזציה.\n\nתוכל להוריד את הדוח בקישור הבא:\n[הורדת דוח פרישה מלא](/api/v1/reports/RPT-1-20251218134034/download)\n\n---\n\n## ניתוח תזרים פרישה לדוח המלא (גיל 67)\n\n| הכנסה חודשית מובטחת ברוטו | הכנסה חודשית נטו משוערת |\n| :------------------------- | :----------------------- |\n| 5,657.56 ₪                 | 5,191.81 ₪               |\n\n*   **קצבה צפויה ברוטו:** על פי הנתונים שהוזנו, הקצבה החודשית הכוללת הצפויה לך עומדת על 5,657.56 ₪.\n*   **מס הכנסה:** מס הכנסה חודשי משוער על קצבה זו הוא 465.76 ₪.\n*   **פער תקציבי:** הדוח מראה כי ביחס ליעד הכנסה חודשית של 15,000 ₪, קיים פער של 9,808.19 ₪. ייתכן שיהיה צורך במשיכה מהון נזיל כדי לכסות פער זה.\n\n**מסקנה סופית:** הדוח המלא שזה עתה הופק מספק לך תמונה מפורטת של מצב הפרישה שלך. כדי להשיג קצבה חודשית נטו של 5,191.81 ₪, יהיה עליך להשלים את ההכנסה ממקורות אחרים או לבחון אפשרויות למיקסום ההכנסה החודשית. אשמח לסייע לך לנתח את הדוח ולבנות תוכנית מותאמת אישית."
+        }
+      ]
+    },
+    {
+      "case_id": "net_pension_client_1",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": false,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [
+            "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            "GET_TAX_PROJECTION"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (RUN_RETIREMENT_CASHFLOW_ANALYSIS):**\nניתוח פרישה – עיקרי התוצאות (חודשיות):\n• קצבה ברוטו: 5,739 ₪\n• מס הכנסה חודשי על הקצבה: 474 ₪\n• קצבה נטו לאחר מס: 5,266 ₪\n• פטור מקסימלי מקיבוע זכויות: אחוז קצבה פטורה: 0.0% | סכום קצבה פטורה חודשי: 0 ₪\n\n🔧 **Tool Output (GET_TAX_PROJECTION - Auto-chained):**\n⚠️ **אזהרה D2.10:** הערך שסופק (5739 ₪) אינו תואם את נוסחת Q_total.\nערכים תקפים: ~20600 ₪ (קצבה חלקית) או ~27432 ₪ (רצף קצבה מלא).\nהערך תוקן אוטומטית ל-20600 ₪.\n\nTax Projection Result:\n💵 **הערכת מס בפרישה**\n\n**📊 הכנסות:**\n  • קצבה חודשית: 20,600 ₪\n  • סה\"כ שנתי: 247,200 ₪\n\n**💰 מס משוער:**\n  • מס שנתי: 45,969 ₪\n  • מס חודשי: 3,831 ₪\n  • שיעור מס אפקטיבי: 18.6%\n\n**💡 שים לב:**\n  • זו הערכה בלבד - המס בפועל תלוי בנקודות זיכוי ובניכויים נוספים\n  • מומלץ להתייעץ עם יועץ מס לחישוב מדויקבהתבסס על הנתונים שברשותי, וכפי שהתבקש לחשב ללא פטור מקסימלי, להלן הערכת הקצבה החודשית נטו שלך:\n\n*   **קצבה חודשית ברוטו צפויה:** 20,600 ₪\n*   **מס הכנסה חודשי משוער:** 3,831 ₪ (שיעור מס אפקטיבי של כ-18.6%)\n\n**קצבה חודשית נטו משוערת:** לאחר ניכוי מס הכנסה, צפויה לך קצבה נטו של כ-**16,769 ₪** בחודש.\n\n**חשוב לציין:** חישוב זה אינו כולל פטור מקסימלי מקיבוע זכויות (כפי שהתבקש), והמס המשוער מתייחס למס הכנסה בלבד."
+        }
+      ]
+    },
+    {
+      "case_id": "net_pension_max_exemption_client_1",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": false,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [
+            "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            "GET_TAX_PROJECTION"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (RUN_RETIREMENT_CASHFLOW_ANALYSIS):**\nניתוח פרישה – עיקרי התוצאות (חודשיות):\n• קצבה ברוטו: 5,739 ₪\n• מס הכנסה חודשי על הקצבה: 0 ₪\n• קצבה נטו לאחר מס: 5,739 ₪\n• פטור מקסימלי מקיבוע זכויות: אחוז קצבה פטורה: 57.5% | סכום קצבה פטורה חודשי: 5,422 ₪\n\n🔧 **Tool Output (GET_TAX_PROJECTION - Auto-chained):**\n⚠️ **אזהרה D2.10:** הערך שסופק (5739 ₪) אינו תואם את נוסחת Q_total.\nערכים תקפים: ~20600 ₪ (קצבה חלקית) או ~27432 ₪ (רצף קצבה מלא).\nהערך תוקן אוטומטית ל-20600 ₪.\n\nTax Projection Result:\n💵 **הערכת מס בפרישה**\n\n**📊 הכנסות:**\n  • קצבה חודשית: 20,600 ₪\n  • סה\"כ שנתי: 247,200 ₪\n\n**💰 מס משוער:**\n  • מס שנתי: 45,969 ₪\n  • מס חודשי: 3,831 ₪\n  • שיעור מס אפקטיבי: 18.6%\n\n**💡 שים לב:**\n  • זו הערכה בלבד - המס בפועל תלוי בנקודות זיכוי ובניכויים נוספים\n  • מומלץ להתייעץ עם יועץ מס לחישוב מדויק## ניתוח תרחיש פרישה לעומר בן צבי\n\nבדקתי את הנתונים שלך לפרישה בתחילת שנת 2026, תוך מיצוי הפטור המקסימלי מקיבוע זכויות:\n\n*   **קצבת פנסיה חודשית ברוטו צפויה:** כ-5,739 ₪.\n*   **פטור מקסימלי מקיבוע זכויות:**\n    *   על פי הניתוח, כ-57.5% מהקצבה שלך עשויה להיות פטורה ממס.\n    *   קצבה חודשית פטורה ממס: 5,422 ₪.\n*   **מס הכנסה חודשי משוער:** 0 ₪.\n*   **קצבה חודשית נטו צפויה:** 5,739 ₪.\n\n**ממצאים מרכזיים:**\n*   על בסיס הקצבה הצפויה, מרביתה מכוסה בפטור המקסימלי מקיבוע זכויות, ולכן לא צפוי להיות חיוב במס הכנסה על קצבה זו.\n*   בהתייחס ליעד ההכנסה החודשית שהוגדר עבורך (15,000 ₪), קיים פער של כ-9,260 ₪ בין הקצבה הצפויה ליעד.\n\n**מסקנה סופית:**\nעומר, נכון לניתוח הנוכחי עבור פרישה בתחילת שנת 2026 ומיצוי פטור מקסימלי, צפויה לך קצבה חודשית נטו של כ-5,739 ₪ בידך, ללא תשלום מס הכנסה. יש פער משמעותי מול יעד ההכנסה החודשית שנקבע, ונצטרך לבחון אפשרויות נוספות כמו משיכת הון, אופטימיזציה של נכסים קיימים או התאמת יעד ההכנסה כדי לצמצם אותו."
+        }
+      ]
+    },
+    {
+      "case_id": "qa_client_1_report_only_no_portfolio",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": true,
+            "has_open_path": true,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [
+            "GET_PENSION_PRODUCTS",
+            "GENERATE_FULL_REPORT"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (GET_PENSION_PRODUCTS):**\n{\"products\": [{\"category\": \"pension\", \"id\": 14, \"fund_name\": \"קרן פנסיה - בדיקת QA\", \"fund_type\": \"קרן פנסיה\", \"input_mode\": \"manual\", \"balance\": 300000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1542.9717636167259, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-002\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-002\\\", \\\"account_name\\\": \\\"קרן פנסיה - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קרן פנסיה\\\", \\\"start_date\\\": \\\"2008-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:54.202509\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:54\"}, {\"category\": \"pension\", \"id\": 13, \"fund_name\": \"קופת גמל - בדיקת QA\", \"fund_type\": \"קופת גמל\", \"input_mode\": \"manual\", \"balance\": 250000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1285.809803013938, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-001\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-001\\\", \\\"account_name\\\": \\\"קופת גמל - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קופת גמל\\\", \\\"start_date\\\": \\\"2005-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:54.172029\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:54\"}], \"pension_funds\": [{\"category\": \"pension\", \"id\": 13, \"fund_name\": \"קופת גמל - בדיקת QA\", \"fund_type\": \"קופת גמל\", \"input_mode\": \"manual\", \"balance\": 250000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1285.809803013938, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-001\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-001\\\", \\\"account_name\\\": \\\"קופת גמל - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קופת גמל\\\", \\\"start_date\\\": \\\"2005-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:54.172029\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:54\"}, {\"category\": \"pension\", \"id\": 14, \"fund_name\": \"קרן פנסיה - בדיקת QA\", \"fund_type\": \"קרן פנסיה\", \"input_mode\": \"manual\", \"balance\": 300000.0, \"annuity_factor\": 194.43, \"pension_amount\": 1542.9717636167259, \"pension_start_date\": \"2025-01-01\", \"tax_treatment\": \"taxable\", \"deduction_file\": \"QA-A-002\", \"conversion_source\": \"{\\\"source\\\": \\\"llm_transform_funds_to_assets\\\", \\\"account_number\\\": \\\"QA-A-002\\\", \\\"account_name\\\": \\\"קרן פנסיה - בדיקת QA\\\", \\\"company\\\": \\\"חברת בדיקה\\\", \\\"product_type\\\": \\\"קרן פנסיה\\\", \\\"start_date\\\": \\\"2008-01-01\\\", \\\"resolved_annuity_factor\\\": 194.43, \\\"coeff_source_table\\\": \\\"pension_fund_coefficient\\\", \\\"converted_at\\\": \\\"2025-12-18T13:39:54.202509\\\"}\", \"remarks\": \"הומר מתיק פנסיוני - חברת בדיקה\", \"created_at\": \"2025-12-18T11:39:21\", \"updated_at\": \"2025-12-18T11:39:54\"}], \"capital_assets\": [], \"total_balance\": 550000.0, \"count\": 2}\n\n###UI_ACTION###{\"type\": \"ui_actions\", \"actions\": [{\"type\": \"navigate\", \"path\": \"/clients/1/reports?auto_html=1\", \"label\": \"פתח דוח\"}]}###END_UI_ACTION###\nפותח את דוח ה-HTML בעמוד התוצאות.\n\n🔧 **Tool Output (GENERATE_FULL_REPORT):**\n{\"success\": true, \"client_id\": 1, \"open_path\": \"/clients/1/reports?auto_html=1\", \"report_type\": \"full\", \"status_message\": \"פותח את דוח ה-HTML בעמוד התוצאות.\"}✅ **בדיקת המערכת והפקת הדוח הושלמו בהצלחה (PASS)!**\n\nהדוח המלא עבורך זמין לצפייה בממשק:\n[פתח את דוח הפרישה המלא](open_path: /clients/1/reports?auto_html=1)\n\nבדוח תוכל למצוא ניתוח מקיף של מצב הפרישה שלך, כולל תזרים מזומנים, השלכות מס ופירוט תרחישים."
+        }
+      ]
+    },
+    {
+      "case_id": "qa_tax_spread_explanation_no_tools",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [],
+          "response_preview": "פריסת מס היא שיטה לחישוב מס על מענק חד-פעמי, כמו פיצויי פרישה. במקום לשלם את כל המס בבת אחת בשנה שבה התקבל המענק, ניתן לפרוס את החלק החייב במס על פני מספר שנים (עד 6 שנים).\n\nהמטרה היא להפחית את נטל המס הכולל, מכיוון שעל ידי חלוקת הסכום על פני כמה שנים, כל חלק שנתי \"יטפס\" במדרגות המס מנקודת פתיחה נמוכה יותר, מה שיכול להביא לשיעור מס ממוצע נמוך יותר. חשוב להבין שנכס הון הוא תשלום חד-פעמי בתאריך אחד, ולא תזרים מתמשך. פריסת המס היא רק לחישוב המס ולא מחלקת את התשלום בפועל על פני השנים.\n\nPASS - ההסבר מבוסס על ידע המערכת ואינו דורש הפעלת כלים.\nפריסת מס מאפשרת להפחית את נטל המס על מענק חד-פעמי (כמו פיצויים) על ידי חישובו כאילו התקבל במספר שנים, כדי ליהנות ממדרגות מס נמוכות יותר. עם זאת, התשלום עצמו מתקבל במלואו באופן חד-פעמי, והפריסה מתייחסת אך ורק לדרך חישוב המס ולא לתזרים הכסף בפועל."
+        }
+      ]
+    },
+    {
+      "case_id": "qa_income_tax_only_policy_no_tools",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [],
+          "response_preview": "המערכת ממוקדת בחישוב והצגת מס הכנסה בלבד על קצבאות והכנסות רלוונטיות. היא אינה כוללת בחישובים או בהסברים את רכיבי ביטוח לאומי או מס בריאות.\n\n**PASS**\nהחישובים במערכת עוסקים אך ורק במס הכנסה. ביטוח לאומי ומס בריאות אינם נכללים בניתוח או בהצגה, שכן המערכת מתמחה במיסוי פנסיוני בלבד."
+        }
+      ]
+    },
+    {
+      "case_id": "qa_products_table_excel_no_tools",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [],
+          "response_preview": "בטח, אבצע בדיקת מערכת (QA) ואסביר כיצד ניתן לסדר את התיק שלך לפי הנתונים הקיימים בטבלת המוצרים (האקסל), תוך התייחסות לחלוקה בין הון לקצבה ולמשמעות עמודות הפיצויים והתגמולים.\n\n## 1) חלוקה לפי סוג (הון מול קצבה) בטבלת המוצרים\n\nכאשר אנו מסתכלים על **טבלת** המוצרים שלך, אנו יכולים לזהות את אופיים על פי עמודת \"סיווג\":\n\n*   **הון שניתן להמרה לקצבה / הון:**\n    *   **קופת גמל - בדיקת QA**: היתרה היא 250,000 ש\"ח. הסיווג שלה הוא \"קצבתי/הוני\", מה שאומר שחלק מהכסף יכול לשמש כ**הון** למשיכה חד פעמית (לאחר חישוב מס), וחלק אחר יכול לשמש להגדלת ה**קצבה** החודשית בפרישה. הגמישות כאן תלויה במרכיבי הקופה וחוקי המרה.\n\n*   **קצבתי בלבד (קצבה):**\n    *   **קרן פנסיה - בדיקת QA**: היתרה היא 300,000 ש\"ח. הסיווג שלה הוא \"קצבתי\", כלומר הכסף מיועד בעיקר לתשלום **קצבה** חודשית בפרישה. משיכת כ**הון** מקרן פנסיה כפופה למגבלות חמורות (למעט חריגים בחוק).\n\n## 2) המשמעות של העמודות העיקריות בטבלה (חוקי המרה בפשטות)\n\nלמרות שה**טבלת** המוצרים שסופקה לך מצומצמת, חשוב להבין את המשמעות של עמודות נפוצות אחרות והשפעתן על המרה ל**הון** או ל**קצבה**:\n\n*   **יתרה (Total Balance)**: עמודה זו מציגה את הסכום הכולל הצבור בכל מוצר. היא הבסיס לחישובים, אך החלוקה בפועל ל**הון** ול**קצבה** תלויה בסוג המוצר וברכיבים השונים.\n*   **פיצויים (Severance Payments)**:\n    *   **פיצויים מעסיק נוכחי**: בנתונים שלך, ישנם פיצויים צבורים של 686,250 ש\"ח מהמעסיק הנוכחי. סכום זה אינו משתקף ישירות כ\"עמודה\" ב**טבלת** המוצרים, אלא נגזר מנתוני המעסיק. כאשר אתה עוזב עבודה, אתה יכול לבחור אם למשוך את ה**פיצויים** כ**הון** (חלקו פטור ממס וחלקו חייב) או להשאיר אותם כרצף **קצבה** בקרן הפנסיה/ביטוח המנהלים, מה שיגדיל את ה**קצבה** העתידית שלך. החלטה זו מתבצעת בתהליך עזיבת עבודה נפרד.\n    *   **פיצויים שלא עברו התחשבנות / פיצויים ברצף זכויות**: אלו **פיצויים** הדורשים טיפול ואישור מיוחד מול רשויות המס לפני שניתן למשוך אותם כ**הון** או להמירם ל**קצבה**.\n    *   **פיצויים לאחר התחשבנות / פיצויים ברצף קצבה**: אלו **פיצויים** שכבר עברו תהליכים רגולטוריים וניתן להחליט לגביהם (כפוף לחוק) אם למשוך כ**הון** או להוסיף ל**קצבה**.\n*   **תגמולים (Provident Payments)**:\n    *   ה**תגמולים** הם החלק הצבור שמורכב מהפקדות העובד והמעסיק. חוקי המרה ל**הון** או ל**קצבה** תלויים בסוג המוצר (קופת גמל, קרן פנסיה, ביטוח מנהלים) ובתאריך ההפקדה (למשל, תגמולים שהופקדו לפני שנת 2000 נהנים לעיתים קרובות מפטורים מיוחדים). חלק מה**תגמולים** יכול להיות נזיל למשיכה כ**הון** בכפוף למס רווח הון, בעוד שאחרים מיועדים ל**קצבה**.\n\n---\n**סיכום בדיקת QA:**\n\nPASS. ההסבר מקיף את האופן שבו יש לנתח את **טבלת** המוצרים, תוך "
+        }
+      ]
+    },
+    {
+      "case_id": "check_data_completeness_client_1",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": false,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [
+            "CHECK_DATA_COMPLETENESS"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (CHECK_DATA_COMPLETENESS):**\n{\"complete\": true, \"missing\": [], \"warnings\": [\"לא הוגדר שכר שנתי\"], \"recommendations\": [\"הזן שכר שנתי לחישוב יעד קצבה מומלץ\"], \"pension_funds_count\": 2, \"scenarios_count\": 14, \"fixation_exists\": true, \"employers_count\": 1}שלום עומר,\n\nביצעתי את הבדיקה המקיפה של הנתונים שלך במערכת, ואני שמח לעדכן כי רוב המידע הדרוש לתכנון הפרישה שלך כבר קיים ומלא.\n\n**סיכום הבדיקה:**\n*   **נתונים קיימים ושלמים:** יש לנו נתונים על שתי קרנות פנסיה/קופות גמל פעילות, מספר תרחישי פרישה שנותחו עבורך, ופרטי מעסיק נוכחי. בנוסף, נראה שיש כבר תוצאות של קיבוע זכויות קיימות.\n*   **התראה קטנה:** הדבר היחיד שחסר, ומומלץ להשלים, הוא הגדרת שכר שנתי. הזנת השכר השנתי תאפשר למערכת לחשב עבורך יעד קצבה מומלץ ומדויק יותר כחלק מתכנון הפרישה.\n\nהאם תרצה שנעבור לשלב הבא ונבחן את תרחישי הפרישה הקיימים, או שתרצה להזין קודם את השכר השנתי כדי שנוכל לבנות יעד קצבה מותאם אישית?"
+        }
+      ]
+    },
+    {
+      "case_id": "transform_portfolio_update_stream_client_1",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 2,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 2,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 2
+            }
+          },
+          "after": {
+            "pension_funds_total": 3,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 3,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 3
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": true
+          },
+          "tools_used": [
+            "TRANSFORM_FUNDS_TO_ASSETS"
+          ],
+          "response_preview": "\n\n###PENSION_PORTFOLIO_UPDATE###{\"type\": \"pension_portfolio_updates\", \"updates\": [{\"account_number\": \"QA-A-003\", \"account_name\": \"קופת גמל - בדיקת Marker\", \"company\": \"חברת בדיקה\", \"converted_amount\": 100000.0, \"specific_amounts\": null}], \"operation\": \"converted_to_assets\"}###END_PENSION_PORTFOLIO_UPDATE###\n\n\n🔧 **Tool Output (TRANSFORM_FUNDS_TO_ASSETS):**\n{\"success\": true, \"message\": \"✅ הומרו בהצלחה 1 חשבונות: 1 נכסי קצבה, 0 נכסי הון.\", \"converted_pensions\": 1, \"converted_capitals\": 0, \"total_converted\": 1, \"skipped_zero_balance\": 0, \"errors\": null, \"next_step\": \"כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT\", \"source_data_cleared\": true, \"memory_cleared\": true, \"persisted_source_scenarios_updated\": 0, \"persisted_source_cleanup_ok\": true}✅ **PASS**\n\nהמערכת השלימה בהצלחה את המרת התיק הפנסיוני שלך. קופת הגמל \"בדיקת Marker\" בסך 100,000 ₪ הוגדרה כנכס קצבתי במערכת.\n\nכעת, ניתן להמשיך לתכנון פרישה מפורט או להפיק דוח מלא."
+        }
+      ]
+    },
+    {
+      "case_id": "transform_portfolio_update_non_stream_client_1",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "non_stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat",
+          "before": {
+            "pension_funds_total": 3,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 3,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 3
+            }
+          },
+          "after": {
+            "pension_funds_total": 4,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 4,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 4
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": true,
+            "has_pension_portfolio_update": true
+          },
+          "tools_used": [
+            "TRANSFORM_FUNDS_TO_ASSETS"
+          ],
+          "response_preview": "###PENSION_PORTFOLIO_UPDATE###{\"type\": \"pension_portfolio_updates\", \"updates\": [{\"account_number\": \"QA-A-004\", \"account_name\": \"קופת גמל - בדיקת Marker NonStream\", \"company\": \"חברת בדיקה\", \"converted_amount\": 120000.0, \"specific_amounts\": null}], \"operation\": \"converted_to_assets\"}###END_PENSION_PORTFOLIO_UPDATE###\n✅ **PASS**\n\nהמערכת ביצעה בהצלחה את המרת נתוני התיק הפנסיוני שלך לנכסים. חשבון אחד הומר בהצלחה לנכס קצבתי.\n\nהנתונים עודכנו במערכת וכעת ניתן להמשיך לתכנון פרישה מפורט יותר או להפקת דוחות."
+        }
+      ]
+    },
+    {
+      "case_id": "tax_spread_tools_chain_client_1",
+      "passed": true,
+      "errors": [],
+      "runs": [
+        {
+          "client_id": 1,
+          "endpoint": "stream",
+          "url": "http://localhost:8005/api/v1/llm/pension-chat-stream",
+          "before": {
+            "pension_funds_total": 4,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 4,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 4
+            }
+          },
+          "after": {
+            "pension_funds_total": 4,
+            "capital_assets_total": 0,
+            "pension_funds_llm_transform": 4,
+            "capital_assets_llm_transform": 0,
+            "pension_funds_duplicate_deduction_file": 0,
+            "coeff_source_table_counts": {
+              "pension_fund_coefficient": 4
+            }
+          },
+          "request_error": null,
+          "markers": {
+            "has_ui_action": false,
+            "has_open_path": false,
+            "has_pass_fail": false,
+            "has_pension_portfolio_update": false
+          },
+          "tools_used": [
+            "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+            "CALCULATE_TAX_SPREAD_BENEFIT"
+          ],
+          "response_preview": "\n\n🔧 **Tool Output (CALCULATE_CAPITAL_WITHDRAWAL_TAX):**\n{\"withdrawal_amount_gross\": 735000.0, \"withdrawal_year\": 2025, \"tax_amount\": 223014.0, \"net_amount\": 511986.0, \"effective_tax_rate\": 30.3, \"marginal_tax_rate\": 47.0}\n\n🔧 **Tool Output (CALCULATE_TAX_SPREAD_BENEFIT):**\n{\"gross_amount\": 735000.0, \"spread_years\": 6, \"annual_portion\": 122500.0, \"immediate_tax\": 247248.8, \"immediate_net\": 487751.2, \"immediate_effective_rate\": 33.6392925170068, \"spread_total_tax\": 85410.6, \"spread_net\": 649589.4, \"spread_effective_rate\": 11.620489795918369, \"annual_tax\": 14235.1, \"tax_benefit\": 161838.19999999998, \"benefit_percentage\": 65.45560585127207}## ניתוח תרחישי משיכת הון - פריסת מס מול משיכה מיידית\n\nבהתאם לבקשתך, ביצעתי ניתוח של שתי האפשרויות למשיכת סכום הוני ברוטו של 735,000 ₪ בשנת 2025: משיכה מיידית לעומת פריסת המס על פני 6 שנים.\n\nלהלן טבלת השוואה המסכמת את הממצאים:\n\n| תרחיש                   | סכום ברוטו למשיכה | מס הכנסה צפוי | סכום נטו ביד | שיעור מס אפקטיבי | חיסכון במס (בהשוואה למשיכה מיידית) |\n| :----------------------- | :---------------- | :------------- | :----------- | :--------------- | :----------------------------------- |\n| משיכה מיידית (2025)       | 735,000 ₪        | 223,014 ₪      | 511,986 ₪    | 30.3%            | 0 ₪                                  |\n| פריסת מס ל-6 שנים (2025) | 735,000 ₪        | 85,411 ₪       | 649,589 ₪    | 11.6%            | 161,838 ₪                            |\n\n**ממצאים מרכזיים:**\n\n*   **חיסכון משמעותי במס:** פריסת המס על פני 6 שנים מפחיתה את נטל המס הכולל ביותר מ-161,000 ₪ בהשוואה למשיכה מיידית.\n*   **הכנסה נטו גבוהה יותר:** במקרה של פריסת מס, הסכום הנקי שיישאר בידך לאחר ניכוי מס הכנסה יהיה כ-649,589 ₪, לעומת כ-511,986 ₪ במשיכה מיידית.\n*   **שיעור מס אפקטיבי נמוך יותר:** פריסת המס מורידה את שיעור המס האפקטיבי על הסכום מ-30.3% לכ-11.6%, בזכות ניצול מדרגות מס נמוכות יותר לאורך השנים.\n\n**מסקנה סופית:**\n\nעל בסיס הנתונים, **פריסת מס על פני 6 שנים היא האפשרות המשתלמת יותר עבורך**, ותאפשר לך לקבל סכום גבוה יותר של כ-649,589 ₪ נטו ביד, עם חיסכון ניכר במס של למעלה מ-161,000 ₪. חשוב לזכור כי חישוב זה מתייחס למס הכנסה בלבד.\n\nהאם תרצה שנבדוק אפשרויות נוספות או שאתה מעוניין להתקדם עם תכנון פריסת המס?"
+        }
+      ]
+    }
+  ]
+}

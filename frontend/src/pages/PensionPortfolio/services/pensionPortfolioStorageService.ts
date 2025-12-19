@@ -113,6 +113,92 @@ export function removeConvertedAccountsFromStorage(
   }
 }
 
+export type PensionPortfolioConversionUpdate = {
+  account_number: string;
+  converted_amount: number;
+  specific_amounts?: Record<string, number> | null;
+  account_name?: string;
+  company?: string;
+};
+
+export function applyConversionUpdatesToPensionPortfolio(
+  clientId: string | undefined,
+  updates: PensionPortfolioConversionUpdate[],
+): void {
+  if (!clientId) {
+    return;
+  }
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return;
+  }
+
+  updatePensionDataInStorage(clientId, (data) => {
+    const updated = [...data];
+
+    updates.forEach((u) => {
+      const accountNumber = String(u.account_number || '').trim();
+      if (!accountNumber) {
+        return;
+      }
+
+      const idx = updated.findIndex((acc) => String(acc.מספר_חשבון || '').trim() === accountNumber);
+      if (idx === -1) {
+        return;
+      }
+
+      const account = { ...updated[idx] } as any;
+
+      const specific = u.specific_amounts && typeof u.specific_amounts === 'object'
+        ? u.specific_amounts
+        : null;
+
+      if (specific && Object.keys(specific).length > 0) {
+        Object.keys(specific).forEach((field) => {
+          if (Object.prototype.hasOwnProperty.call(account, field)) {
+            account[field] = 0;
+          }
+        });
+      }
+
+      const originalBalance = Number(account.יתרה ?? 0) || 0;
+      const convertedAmount = Number(u.converted_amount ?? 0) || 0;
+      if (convertedAmount > 0) {
+        account.יתרה = Math.max(0, originalBalance - convertedAmount);
+      }
+
+      account.selected = false;
+      account.selected_amounts = {};
+
+      updated[idx] = account;
+    });
+
+    return updated;
+  });
+
+  try {
+    const convertedAccounts = loadConvertedAccountsFromStorage(clientId);
+    updates.forEach((u) => {
+      const accountNumber = String(u.account_number || '').trim();
+      if (!accountNumber) {
+        return;
+      }
+      const name = String(u.account_name || '').trim();
+      const company = String(u.company || '').trim();
+      convertedAccounts.add(`${accountNumber}_${name}_${company}`);
+    });
+    saveConvertedAccountsToStorage(clientId, convertedAccounts);
+  } catch (error) {
+    console.error('Failed to persist converted accounts after conversion updates', error);
+  }
+
+  try {
+    window.dispatchEvent(new Event('storage'));
+  } catch {
+    // ignore
+  }
+}
+
 export type PensionRestorationPayload = {
   account_number: string;
   balance_to_restore: number;

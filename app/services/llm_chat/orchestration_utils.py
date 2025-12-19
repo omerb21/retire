@@ -166,6 +166,121 @@ def is_document_request(user_message: str) -> bool:
     return has_doc_keyword and has_intent_keyword
 
 
+def is_transform_request(user_message: str) -> bool:
+    if not user_message:
+        return False
+
+    lowered = user_message.lower()
+
+    triggers = [
+        "transform_funds_to_assets",
+        "המר",
+        "להמיר",
+        "המרה",
+        "convert",
+        "conversion",
+        "transform funds",
+    ]
+
+    return any(t in lowered for t in triggers)
+
+
+def is_portfolio_breakdown_request(user_message: str) -> bool:
+    if not user_message:
+        return False
+
+    lowered = user_message.lower()
+
+    must_have = ["קצבה", "הון"]
+    if not all(k in lowered for k in must_have):
+        return False
+
+    triggers = [
+        "חלוקה",
+        "בחלק",
+        "כמה",
+        "תיק פנסיוני",
+        "תיק הפנסיוני",
+        "תיק",
+        "portfolio",
+        "breakdown",
+    ]
+    return any(t in lowered for t in triggers)
+
+
+def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict[str, Any]]:
+    if not isinstance(pension_portfolio, list) or not pension_portfolio:
+        return []
+
+    def item_to_dict(item: Any) -> dict[str, Any]:
+        if isinstance(item, dict):
+            return item
+        model_dump = getattr(item, "model_dump", None)
+        if callable(model_dump):
+            dumped = model_dump()
+            return dumped if isinstance(dumped, dict) else {}
+        raw = getattr(item, "__dict__", {})
+        return raw if isinstance(raw, dict) else {}
+
+    component_fields = [
+        "פיצויים_מעסיק_נוכחי",
+        "פיצויים_לאחר_התחשבנות",
+        "פיצויים_שלא_עברו_התחשבנות",
+        "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+        "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+        "תגמולי_עובד_עד_2000",
+        "תגמולי_עובד_אחרי_2000",
+        "תגמולי_עובד_אחרי_2008_לא_משלמת",
+        "תגמולי_מעביד_עד_2000",
+        "תגמולי_מעביד_אחרי_2000",
+        "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+        "תגמולים",
+        "קרן_השתלמות",
+    ]
+
+    accounts: list[dict[str, Any]] = []
+    for item in pension_portfolio:
+        data = item_to_dict(item)
+
+        account_number = data.get("מספר_חשבון")
+        account_name = data.get("שם_תכנית")
+        company = data.get("חברה_מנהלת")
+        product_type = data.get("סוג_מוצר")
+        balance = data.get("יתרה")
+        start_date = data.get("תאריך_התחלה")
+
+        specific_amounts: dict[str, float] = {}
+        for field in component_fields:
+            value = data.get(field)
+            try:
+                numeric = float(value) if value is not None else 0.0
+            except (TypeError, ValueError):
+                numeric = 0.0
+            if numeric > 0:
+                specific_amounts[field] = numeric
+
+        accounts.append(
+            {
+                "account_number": account_number,
+                "account_name": account_name,
+                "company": company,
+                "product_type": product_type,
+                "balance": balance,
+                "start_date": start_date,
+                "specific_amounts": specific_amounts,
+                "מספר_חשבון": account_number,
+                "שם_תכנית": account_name,
+                "חברה_מנהלת": company,
+                "סוג_מוצר": product_type,
+                "יתרה": balance,
+                "תאריך_התחלה": start_date,
+                **{field: data.get(field) for field in component_fields if field in data},
+            }
+        )
+
+    return accounts
+
+
 def is_no_tools_request(user_message: str) -> bool:
     if not user_message:
         return False

@@ -5,7 +5,7 @@ Portfolio import service for retirement scenarios
 import logging
 import json
 from datetime import date, datetime
-from typing import List, Dict, Optional, Callable
+from typing import Any, List, Dict, Optional, Callable
 from sqlalchemy.orm import Session
 from app.models.pension_fund import PensionFund
 from app.models.client import Client
@@ -32,8 +32,13 @@ class PortfolioImportService:
         # כאשר מופעל, לא נכליל את רכיב "פיצויים מעסקי נוכחי" בייבוא מהתיק הפנסיוני,
         # כדי למנוע ספירה כפולה כאשר סיום עבודה מטופל דרך שירות המעסיק הנוכחי.
         self.ignore_current_employer_severance = ignore_current_employer_severance
+
+    def _get_account_value(self, account: Any, key: str, default: Any = None) -> Any:
+        if isinstance(account, dict):
+            return account.get(key, default)
+        return getattr(account, key, default)
     
-    def import_pension_portfolio(self, pension_portfolio: List[Dict]) -> None:
+    def import_pension_portfolio(self, pension_portfolio: List[Any]) -> None:
         """ייבוא נתוני תיק פנסיוני והמרתם ל-PensionFund זמניים"""
         logger.info(f"📦 Importing pension portfolio: {len(pension_portfolio)} accounts")
         
@@ -61,8 +66,10 @@ class PortfolioImportService:
         
         for account in pension_portfolio:
             # חישוב יתרה כוללת מכל הרכיבים
-            raw_balance = float(account.get('יתרה', 0) or 0)
-            current_employer_severance = float(account.get('פיצויים_מעסיק_נוכחי', 0) or 0)
+            raw_balance = float(self._get_account_value(account, 'יתרה', 0) or 0)
+            current_employer_severance = float(
+                self._get_account_value(account, 'פיצויים_מעסיק_נוכחי', 0) or 0
+            )
 
             # ברירת מחדל: כוללים גם את רכיב "פיצויים_מעסיק_נוכחי" כחלק מהרכיבים,
             # אלא אם ignore_current_employer_severance מופעל (ראו בהמשך).
@@ -86,10 +93,15 @@ class PortfolioImportService:
 
             # בתרחישי פרישה איננו ממירים את טור "יתרה" עצמו אלא רק סכומים מפורטים לפי רכיבים.
             # לכן היתרה לתרחיש תחושב תמיד כסכום הרכיבים הרלוונטיים, ללא שימוש בערך הגולמי מטור "יתרה".
-            balance = sum(float(account.get(comp, 0) or 0) for comp in component_fields)
+            balance = sum(
+                float(self._get_account_value(account, comp, 0) or 0)
+                for comp in component_fields
+            )
             
             if balance <= 0:
-                logger.warning(f"  ⚠️ Skipping account {account.get('שם_תכנית')} - zero balance")
+                logger.warning(
+                    f"  ⚠️ Skipping account {self._get_account_value(account, 'שם_תכנית')} - zero balance"
+                )
                 continue
             
             # בניית פירוט רכיבים לצורך שחזור עתידי ובהמשך לצורך המרות לפי רכיב.
@@ -97,26 +109,26 @@ class PortfolioImportService:
             # יתרה כללית, כדי לא לאבד מידע על התפלגות הסכומים בין הטורים.
             specific_amounts: Dict[str, float] = {}
             for field in component_fields:
-                value = float(account.get(field, 0) or 0)
+                value = float(self._get_account_value(account, field, 0) or 0)
                 if value > 0:
                     specific_amounts[field] = value
 
             # קביעת סוג מוצר ויחס מס בסיסי
-            product_type = account.get('סוג_מוצר', '') or ''
+            product_type = self._get_account_value(account, 'סוג_מוצר', '') or ''
             tax_treatment = "taxable"
             if 'השתלמות' in product_type:
                 # קרן השתלמות - כל היתרה היא הונית ופטורה ממס
                 tax_treatment = "exempt"
                 logger.info(
                     f"  🎁 Detected education fund (קרן השתלמות): "
-                    f"{account.get('שם_תכנית')} - tax exempt"
+                    f"{self._get_account_value(account, 'שם_תכנית')} - tax exempt"
                 )
 
             # ניסיון לחישוב מקדם קצבה דינמי מטבלאות המקדמים
             annuity_factor = 180.0  # ברירת מחדל אם אין נתונים
             try:
                 # נגזרת תאריך התחלת התכנית
-                start_date_raw = account.get('תאריך_התחלה')
+                start_date_raw = self._get_account_value(account, 'תאריך_התחלה')
                 start_date_obj: Optional[date] = None
                 if start_date_raw:
                     try:
@@ -136,7 +148,7 @@ class PortfolioImportService:
                     start_date=start_date_obj or date(retirement_year, 1, 1),
                     gender=getattr(client, "gender", None) or "זכר",
                     retirement_age=retirement_age or 67,
-                    company_name=account.get('חברה_מנהלת'),
+                    company_name=self._get_account_value(account, 'חברה_מנהלת'),
                     option_name=None,
                     survivors_option='תקנוני',
                     spouse_age_diff=0,
@@ -146,17 +158,17 @@ class PortfolioImportService:
                 )
                 annuity_factor = float(coeff.get("factor_value") or annuity_factor)
                 logger.info(
-                    f"  📊 Annuity factor from table for {account.get('שם_תכנית')}: "
+                    f"  📊 Annuity factor from table for {self._get_account_value(account, 'שם_תכנית')}: "
                     f"{annuity_factor} (source={coeff.get('source_table')})"
                 )
             except Exception as e:
                 logger.warning(
                     f"  ⚠️ Failed to get annuity coefficient for "
-                    f"{account.get('שם_תכנית')}, using default {annuity_factor}: {e}"
+                    f"{self._get_account_value(account, 'שם_תכנית')}, using default {annuity_factor}: {e}"
                 )
             
             # בדיקה אם המוצר כבר קיים (למניעת כפילויות)
-            account_number = account.get('מספר_חשבון', '')
+            account_number = self._get_account_value(account, 'מספר_חשבון', '')
             existing_pf = self.db.query(PensionFund).filter(
                 PensionFund.client_id == self.client_id,
                 PensionFund.deduction_file == account_number,
@@ -174,8 +186,8 @@ class PortfolioImportService:
                 # יצירת PensionFund חדש
                 pf = PensionFund(
                     client_id=self.client_id,
-                    fund_name=account.get('שם_תכנית', 'תכנית ללא שם'),
-                    fund_type=account.get('סוג_מוצר', 'unknown'),
+                    fund_name=self._get_account_value(account, 'שם_תכנית', 'תכנית ללא שם'),
+                    fund_type=self._get_account_value(account, 'סוג_מוצר', 'unknown'),
                     input_mode="manual",
                     balance=balance,
                     annuity_factor=annuity_factor,
@@ -187,8 +199,8 @@ class PortfolioImportService:
                     conversion_source=json.dumps({
                         "type": "pension_portfolio",
                         "source": "pension_portfolio",
-                        "account_name": account.get('שם_תכנית'),
-                        "company": account.get('חברה_מנהלת'),
+                        "account_name": self._get_account_value(account, 'שם_תכנית'),
+                        "company": self._get_account_value(account, 'חברה_מנהלת'),
                         "account_number": account_number,
                         "product_type": product_type,
                         "amount": balance,
@@ -209,7 +221,7 @@ class PortfolioImportService:
                 self.add_action(
                     "import",
                     f"ייבוא מתיק פנסיוני: {pf.fund_name} ({tax_status})",
-                    from_asset=f"תיק פנסיוני: {account.get('מספר_חשבון')}",
+                    from_asset=f"תיק פנסיוני: {self._get_account_value(account, 'מספר_חשבון')}",
                     to_asset=f"יתרה: {balance:,.0f} ₪ ({tax_status})",
                     amount=balance
                 )

@@ -23,6 +23,7 @@ def handle_calculate_fixation_of_rights(
         save_result = args.get("save_result", True)
 
         from app.routers.rights_fixation import calculate_and_save_fixation_for_client
+        from app.routers.rights_fixation import update_fixation_exempt_pension_fields
 
         if save_result:
             fixation_result = calculate_and_save_fixation_for_client(db, client_id)
@@ -39,6 +40,14 @@ def handle_calculate_fixation_of_rights(
             raw_result = fixation_result.raw_result or {}
             exemption_summary = raw_result.get("exemption_summary", {}) or {}
 
+            try:
+                update_fixation_exempt_pension_fields(fixation_result)
+                db.flush()
+                raw_result = fixation_result.raw_result or raw_result
+                exemption_summary = raw_result.get("exemption_summary", exemption_summary) or {}
+            except Exception:
+                pass
+
             response = {
                 "success": True,
                 "message": "✅ חישוב קיבוע זכויות בוצע ונשמר בהצלחה!",
@@ -47,6 +56,12 @@ def handle_calculate_fixation_of_rights(
                 "total_grants_used": exemption_summary.get("total_grants_used", 0),
                 "exemption_percentage": exemption_summary.get("exemption_percentage", 0),
                 "monthly_exempt_pension": exemption_summary.get("monthly_exempt_pension", 0),
+                "remaining_monthly_exemption": exemption_summary.get(
+                    "remaining_monthly_exemption", 0
+                ),
+                "exempt_pension_percentage": exemption_summary.get(
+                    "exempt_pension_percentage", 0
+                ),
                 "saved": True,
             }
         else:

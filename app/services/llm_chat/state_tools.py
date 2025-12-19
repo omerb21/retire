@@ -62,6 +62,15 @@ def get_tools_definitions_json() -> str:
             },
         },
         {
+            "name": "CHECK_DATA_COMPLETENESS",
+            "description": "Checks whether the client has all required data for retirement planning (portfolio, scenarios, fixation results, employer details, and missing fields).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
             "name": "CALCULATE_TAX_EXEMPT_PENSION",
             "description": "Calculates the tax-exempt monthly pension benefit (קיבוע זכויות), including a simulation of how the client's current severance pay exemption impacts the final exempt pension.",
             "parameters": {
@@ -95,6 +104,78 @@ def get_tools_definitions_json() -> str:
                     },
                 },
                 "required": ["retirement_date"],
+            },
+        },
+        {
+            "name": "RUN_RETIREMENT_SCENARIOS",
+            "description": "כלי להרצת 3 תרחישי פרישה (מקסימום קצבה / מקסימום הון / מקסימום NPV) ולשמירתם במערכת. מחזיר מזהי תרחישים וסיכום (קצבה/הון/NPV) לכל תרחיש.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "retirement_age": {
+                        "type": "integer",
+                        "description": "גיל פרישה לחישוב (50-80).",
+                    },
+                    "include_current_employer_termination": {
+                        "type": "boolean",
+                        "description": "האם לכלול סימולציה של עזיבת עבודה (מעסיק נוכחי) כחלק מבניית התרחישים. ברירת מחדל: false.",
+                    },
+                },
+                "required": ["retirement_age"],
+            },
+        },
+        {
+            "name": "SELECT_TARGET_PENSION_SCENARIO",
+            "description": "כלי לבחירת תרחיש אופטימלי מבין תרחישים שמורים כדי להגיע ליעד קצבה. אם יש כמה שמגיעים ליעד - נבחר זה עם NPV הכי גבוה. אם אין שמגיעים - נבחר זה עם הקצבה הגבוהה ביותר.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_monthly_pension": {
+                        "type": "number",
+                        "description": "יעד קצבה חודשי בשקלים.",
+                    },
+                    "retirement_age": {
+                        "type": "integer",
+                        "description": "אופציונלי: לסנן תרחישים לגיל פרישה מסוים.",
+                    },
+                },
+                "required": ["target_monthly_pension"],
+            },
+        },
+        {
+            "name": "FIND_OPTIMAL_SCENARIO",
+            "description": "כלי שמריץ תרחישים למספר גילי פרישה ובוחר את התרחיש האופטימלי להשגת יעד קצבה. מחזיר גם ניתוח רגישות (קצבה לפי גיל פרישה).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_monthly_pension": {
+                        "type": "number",
+                        "description": "יעד קצבה חודשי בשקלים.",
+                    },
+                    "min_retirement_age": {
+                        "type": "integer",
+                        "description": "אופציונלי: גיל פרישה מינימלי לבדיקה.",
+                    },
+                    "max_retirement_age": {
+                        "type": "integer",
+                        "description": "אופציונלי: גיל פרישה מקסימלי לבדיקה.",
+                    },
+                },
+                "required": ["target_monthly_pension"],
+            },
+        },
+        {
+            "name": "EXECUTE_RETIREMENT_SCENARIO",
+            "description": "🔴 כלי ביצוע (Execution Tool) - מבצע בפועל תרחיש פרישה שמור לפי scenario_id. כולל ניקוי תוצאות ישנות, סימולציית עזיבת עבודה (אם מוגדר בתרחיש), וקיבוע זכויות אוטומטי.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scenario_id": {
+                        "type": "integer",
+                        "description": "מזהה תרחיש שמור לביצוע.",
+                    }
+                },
+                "required": ["scenario_id"],
             },
         },
         {

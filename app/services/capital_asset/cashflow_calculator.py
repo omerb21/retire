@@ -82,6 +82,15 @@ class CashflowCalculator(BaseCalculator):
         
         # סכום ברוטו
         gross_amount = asset.current_value
+        if (
+            (gross_amount is None or Decimal(str(gross_amount)) <= Decimal("0"))
+            and asset.monthly_income is not None
+            and Decimal(str(asset.monthly_income)) > Decimal("0")
+        ):
+            gross_amount = asset.monthly_income
+
+        if gross_amount is None or Decimal(str(gross_amount)) <= Decimal("0"):
+            return []
         
         # הצמדה אם נדרשת
         indexed_amount = self.indexation_calculator.calculate(

@@ -27,9 +27,38 @@ from app.schemas.tax_schemas import TaxCalculationInput, PersonalDetails
 from app.services.rights_fixation.exemption_caps import get_monthly_cap, get_exemption_percentage
 from app.services.commutation_service import CommutationService
 from app.services.capital_withdrawal_service import CapitalWithdrawalService
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 
 logger = logging.getLogger("app.llm_agent_tools")
+
+
+def _to_jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(k): _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(v) for v in value]
+
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        dumped = model_dump()
+        return _to_jsonable(dumped)
+    dict_dump = getattr(value, "dict", None)
+    if callable(dict_dump):
+        dumped = dict_dump()
+        return _to_jsonable(dumped)
+
+    raw = getattr(value, "__dict__", None)
+    if isinstance(raw, dict):
+        return _to_jsonable(raw)
+
+    return str(value)
 
 
 class AgentToolsService:
@@ -373,11 +402,19 @@ class AgentToolsService:
             }
 
         try:
+            pension_portfolio_serialized = (
+                _to_jsonable(pension_portfolio) if pension_portfolio is not None else None
+            )
+            if pension_portfolio_serialized is not None and not isinstance(
+                pension_portfolio_serialized, list
+            ):
+                pension_portfolio_serialized = None
+
             builder = RetirementScenariosBuilder(
                 self.db,
                 self.client_id,
                 retirement_age,
-                pension_portfolio,
+                pension_portfolio_serialized,
                 include_current_employer_termination,
             )
             scenarios = builder.build_all_scenarios()
@@ -398,10 +435,10 @@ class AgentToolsService:
                     parameters=json.dumps({
                         "retirement_age": retirement_age,
                         "scenario_type": scenario_key,
-                        "pension_portfolio": pension_portfolio,
+                        "pension_portfolio": pension_portfolio_serialized,
                         "include_current_employer_termination": include_current_employer_termination,
-                    }),
-                    summary_results=json.dumps(scenario_data),
+                    }, ensure_ascii=False),
+                    summary_results=json.dumps(scenario_data, ensure_ascii=False),
                 )
                 self.db.add(new_scenario)
                 self.db.flush()
