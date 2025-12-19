@@ -134,6 +134,17 @@
   padding: 10px 12px;
 }
 
+.public-chat-notice {
+  color: #065f46;
+  font-size: 13px;
+}
+
+.public-chat-notice.banner {
+  background: #d1fae5;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
 .public-chat-link {
   color: #1d4ed8;
   font-weight: 700;
@@ -177,6 +188,12 @@
   color: #111827;
 }
 
+.public-chat-bubble-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
 .public-chat-composer {
   display: flex;
   gap: 10px;
@@ -203,4 +220,22 @@
 
 .public-chat-topup-row .public-chat-input {
   width: 140px;
+}
+
+.public-chat-topup-quick {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.public-chat-quick {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 12px;
 }

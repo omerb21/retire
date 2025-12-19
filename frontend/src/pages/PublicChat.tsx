@@ -3,12 +3,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { publicChatApi, handleApiError } from "../lib/api";
 import "./PublicChat.css";
 
-interface ModelInfo {
-  model_name: string;
-  provider: string;
-}
-
-type ChatMessage = { role: string; content: string };
+type ChatMessage = { role: string; content: string; estimated_tokens?: number; tokens_used?: number };
 
 type Status = {
   session_key: string;
@@ -17,7 +12,25 @@ type Status = {
   token_balance: number;
   tokens_spent: number;
   is_active: boolean;
+  llm_provider?: string | null;
+  llm_backend?: string | null;
+  llm_model_name?: string | null;
 };
+
+function estimateTokens(text: string): number {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return 0;
+  return Math.ceil(trimmed.length / 4);
+}
+
+function parsePositiveInt(input: string): number {
+  const cleaned = (input || "").replace(/[\s,]/g, "");
+  const value = Number.parseInt(cleaned, 10);
+  if (!Number.isFinite(value) || Number.isNaN(value) || value <= 0) {
+    return 0;
+  }
+  return value;
+}
 
 function PublicChatStartPage() {
   const navigate = useNavigate();
@@ -92,9 +105,9 @@ function PublicChatSessionPage() {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [topUpValue, setTopUpValue] = useState("1000");
   const [canTopUp, setCanTopUp] = useState(false);
-  const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const displayName = useMemo(() => {
@@ -105,23 +118,6 @@ function PublicChatSessionPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
-
-  // Load model info
-  useEffect(() => {
-    const loadModelInfo = async () => {
-      try {
-        const info = await publicChatApi.getModelInfo();
-        setModelInfo(info);
-      } catch (err) {
-        console.error("Failed to load model info:", err);
-        setModelInfo({
-          model_name: "שגיאה בטעינת פרטי המודל",
-          provider: "לא זמין"
-        });
-      }
-    };
-    loadModelInfo();
-  }, []);
 
   useEffect(() => {
     if (!sessionKey) {
@@ -161,15 +157,24 @@ function PublicChatSessionPage() {
     if (!trimmed) return;
 
     setError(null);
+    setNotice(null);
     setIsSending(true);
 
     try {
-      setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
+      setMessages((prev) => [...prev, { role: "user", content: trimmed, estimated_tokens: estimateTokens(trimmed) }]);
       setInput("");
 
       const res = await publicChatApi.sendMessage(sessionKey, trimmed);
 
-      setMessages((prev) => [...prev, { role: "assistant", content: res.reply }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: res.reply,
+          estimated_tokens: estimateTokens(res.reply),
+          tokens_used: res.tokens_used,
+        },
+      ]);
       setStatus((prev) =>
         prev
           ? {
@@ -195,18 +200,14 @@ function PublicChatSessionPage() {
     if (!key) return;
 
     setError(null);
+    setNotice(null);
 
     if (!canTopUp) {
       setError("טעינת טוקנים זמינה רק למנהל מערכת");
       return;
     }
 
-    let tokens = 0;
-    try {
-      tokens = parseInt(topUpValue, 10);
-    } catch {
-      tokens = 0;
-    }
+    const tokens = parsePositiveInt(topUpValue);
 
     if (!tokens || tokens <= 0) {
       setError("יש להזין מספר טוקנים חיובי");
@@ -214,6 +215,7 @@ function PublicChatSessionPage() {
     }
 
     try {
+      const before = status?.token_balance ?? null;
       const res = await publicChatApi.topUp(key, tokens);
       setStatus((prev) =>
         prev
@@ -224,6 +226,18 @@ function PublicChatSessionPage() {
             }
           : prev,
       );
+
+      const refreshed = await publicChatApi.status(key).catch(() => null);
+      if (refreshed) {
+        setStatus(refreshed);
+      }
+
+      const after = refreshed?.token_balance ?? res.token_balance;
+      if (before != null && after === before) {
+        setError("בקשת טעינה נשלחה אבל היתרה לא השתנתה. זה בדרך כלל אומר שהבקשה לא אומתה מול השרת או שנשלחה למושב אחר.");
+      } else {
+        setNotice(`נטענו ${tokens} טוקנים. יתרה חדשה: ${after}`);
+      }
     } catch (err) {
       const msg = handleApiError(err);
       if ((msg || "").toLowerCase().includes("unauthorized")) {
@@ -236,30 +250,46 @@ function PublicChatSessionPage() {
 
   const depleted = (status?.token_balance ?? 0) <= 0;
 
+  const modelLabel = useMemo(() => {
+    if (!status) return null;
+    const backend = status.llm_backend || status.llm_provider;
+    const model = status.llm_model_name;
+    if (!backend && !model) return null;
+    return `${backend || "LLM"}${model ? `: ${model}` : ""}`;
+  }, [status]);
+
   return (
     <div className="public-chat-page">
       <div className="public-chat-shell">
-        <div className="public-chat-container">
-          <div className="public-chat-header">
-            <h2>צ'אט עם יועץ פנסיוני</h2>
-            <div className="model-info">
-              {modelInfo ? (
-                <span>{modelInfo.model_name} <small>({modelInfo.provider})</small></span>
-              ) : (
-                <span>טוען פרטי מודל...</span>
-              )}
+        <div className="public-chat-topbar">
+          <div className="public-chat-brand">{displayName}</div>
+          <div className="public-chat-meta">
+            <span className={depleted ? "public-chat-pill danger" : "public-chat-pill"}>
+              יתרה: {status?.token_balance ?? "-"}
+            </span>
+            {modelLabel && <span className="public-chat-pill">{modelLabel}</span>}
+            <Link to="/public-chat" className="public-chat-link">חדש</Link>
+          </div>
+        </div>
+
+        <div className="public-chat-thread">
           {messages.map((m, idx) => (
             <div
               key={`${m.role}-${idx}`}
               className={m.role === "user" ? "public-chat-bubble user" : "public-chat-bubble assistant"}
             >
               {m.content}
+              <div className="public-chat-bubble-meta">
+                {typeof m.estimated_tokens === "number" ? `~${m.estimated_tokens} טוקנים` : ""}
+                {typeof m.tokens_used === "number" ? ` | צריכת שיחה: ${m.tokens_used}` : ""}
+              </div>
             </div>
           ))}
           {isSending && <div className="public-chat-bubble assistant">...</div>}
           <div ref={bottomRef} />
         </div>
 
+        {notice && <div className="public-chat-notice banner">{notice}</div>}
         {error && <div className="public-chat-error banner">{error}</div>}
 
         <form onSubmit={handleSend} className="public-chat-composer">
@@ -282,6 +312,7 @@ function PublicChatSessionPage() {
               value={topUpValue}
               onChange={(e) => setTopUpValue(e.target.value)}
               inputMode="numeric"
+              placeholder="לדוגמה: 1000"
             />
             <button
               className="public-chat-secondary"
@@ -292,6 +323,19 @@ function PublicChatSessionPage() {
               טעינת טוקנים
             </button>
           </div>
+          {canTopUp && (
+            <div className="public-chat-topup-quick">
+              <button type="button" className="public-chat-quick" onClick={() => setTopUpValue("500")}>
+                +500
+              </button>
+              <button type="button" className="public-chat-quick" onClick={() => setTopUpValue("1000")}>
+                +1000
+              </button>
+              <button type="button" className="public-chat-quick" onClick={() => setTopUpValue("5000")}>
+                +5000
+              </button>
+            </div>
+          )}
           {!canTopUp && (
             <div className="public-chat-hint">טעינת טוקנים זמינה רק למנהל מערכת</div>
           )}

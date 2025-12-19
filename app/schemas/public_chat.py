@@ -13,6 +13,9 @@ class PublicChatStartResponse(BaseModel):
     client_id: int
     client_name: str | None = None
     token_balance: int
+    llm_provider: str | None = None
+    llm_backend: str | None = None
+    llm_model_name: str | None = None
 
 
 class PublicChatStatusResponse(BaseModel):
@@ -22,11 +25,15 @@ class PublicChatStatusResponse(BaseModel):
     token_balance: int
     tokens_spent: int
     is_active: bool
+    llm_provider: str | None = None
+    llm_backend: str | None = None
+    llm_model_name: str | None = None
 
 
 class PublicChatMessageDto(BaseModel):
     role: str
     content: str
+    estimated_tokens: int = 0
 
 
 class PublicChatHistoryResponse(BaseModel):
@@ -42,6 +49,7 @@ class PublicChatSendMessageResponse(BaseModel):
     reply: str
     token_balance: int
     tokens_spent: int
+    tokens_used: int
     depleted: bool
 
 

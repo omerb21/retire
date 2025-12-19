@@ -80,7 +80,14 @@ def get_history(db: Session, session: PublicChatSession) -> list[PublicChatMessa
         .order_by(PublicChatMessage.id.asc())
         .all()
     )
-    return [PublicChatMessageDto(role=r.role, content=r.content) for r in rows]
+    return [
+        PublicChatMessageDto(
+            role=r.role,
+            content=r.content,
+            estimated_tokens=int(r.estimated_tokens or 0),
+        )
+        for r in rows
+    ]
 
 
 def _append_message(db: Session, session: PublicChatSession, role: str, content: str) -> PublicChatMessage:
@@ -133,18 +140,12 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
 
 
 def top_up(db: Session, session_key: str, tokens: int) -> PublicChatSession:
-    print(f"[DEBUG] Top up called with session_key={session_key}, tokens={tokens}")
-    session = get_session_by_key(db, session_key)
-    if not session:
-        print(f"[ERROR] Session {session_key} not found")
-        raise ValueError("session_not_found")
     if tokens <= 0:
-        print(f"[ERROR] Invalid token amount: {tokens}")
         raise ValueError("invalid_topup")
-    
-    print(f"[DEBUG] Current balance: {session.token_balance}, adding {tokens} tokens")
-    session.token_balance += tokens
+
+    session = get_session_by_key(db, session_key)
+    session.token_balance += int(tokens)
+    db.add(session)
     db.commit()
     db.refresh(session)
-    print(f"[DEBUG] New balance: {session.token_balance}")
     return session

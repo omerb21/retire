@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Dict, Any
 
 from app.database import get_db
 from app.schemas.public_chat import (
@@ -20,6 +19,7 @@ from app.services.public_chat_service import (
     send_message,
     top_up,
 )
+from app.services.llm_pension_agent_service import pension_llm_service
 
 
 router = APIRouter(prefix="/api/v1/public-chat", tags=["public-chat"])
@@ -30,11 +30,15 @@ def start_public_chat(payload: PublicChatStartRequest, db: Session = Depends(get
     try:
         session = start_or_get_session(db, payload.id_number, payload.initial_tokens)
         client_name = session.client.full_name if session.client else None
+        llm_status = pension_llm_service.get_status()
         return PublicChatStartResponse(
             session_key=session.session_key,
             client_id=session.client_id,
             client_name=client_name,
             token_balance=session.token_balance,
+            llm_provider=llm_status.get("provider"),
+            llm_backend=llm_status.get("backend"),
+            llm_model_name=llm_status.get("model_name"),
         )
     except ValueError as e:
         if str(e) == "client_not_found":
@@ -49,6 +53,7 @@ def get_public_chat_status(session_key: str, db: Session = Depends(get_db)) -> P
     try:
         session = get_session_by_key(db, session_key)
         client_name = session.client.full_name if session.client else None
+        llm_status = pension_llm_service.get_status()
         return PublicChatStatusResponse(
             session_key=session.session_key,
             client_id=session.client_id,
@@ -56,6 +61,9 @@ def get_public_chat_status(session_key: str, db: Session = Depends(get_db)) -> P
             token_balance=session.token_balance,
             tokens_spent=session.tokens_spent,
             is_active=session.is_active,
+            llm_provider=llm_status.get("provider"),
+            llm_backend=llm_status.get("backend"),
+            llm_model_name=llm_status.get("model_name"),
         )
     except ValueError as e:
         if str(e) == "session_not_found":
@@ -83,12 +91,13 @@ def send_public_chat_message(
 ) -> PublicChatSendMessageResponse:
     try:
         session = get_session_by_key(db, session_key)
-        reply, _tokens_used = send_message(db, session, payload.content)
+        reply, tokens_used = send_message(db, session, payload.content)
         refreshed = get_session_by_key(db, session_key)
         return PublicChatSendMessageResponse(
             reply=reply,
             token_balance=refreshed.token_balance,
             tokens_spent=refreshed.tokens_spent,
+            tokens_used=tokens_used,
             depleted=refreshed.token_balance <= 0,
         )
     except ValueError as e:

@@ -621,6 +621,9 @@ export type PublicChatStartResponseDto = {
   client_id: number;
   client_name: string | null;
   token_balance: number;
+  llm_provider?: string | null;
+  llm_backend?: string | null;
+  llm_model_name?: string | null;
 };
 
 export type PublicChatStatusDto = {
@@ -630,11 +633,15 @@ export type PublicChatStatusDto = {
   token_balance: number;
   tokens_spent: number;
   is_active: boolean;
+  llm_provider?: string | null;
+  llm_backend?: string | null;
+  llm_model_name?: string | null;
 };
 
 export type PublicChatMessageDto = {
   role: "user" | "assistant" | "system";
   content: string;
+  estimated_tokens?: number;
 };
 
 export type PublicChatHistoryDto = {
@@ -646,6 +653,7 @@ export type PublicChatSendMessageResponseDto = {
   reply: string;
   token_balance: number;
   tokens_spent: number;
+  tokens_used: number;
   depleted: boolean;
 };
 
@@ -682,7 +690,7 @@ export async function sendPublicChatMessage(sessionKey: string, content: string)
 }
 
 export async function topUpPublicChat(sessionKey: string, tokens: number) {
-  return apiFetch<PublicChatTopUpResponseDto>("/api/v1/public-chat/topup", {
+  return apiFetch<PublicChatTopUpResponseDto>("/public-chat/topup", {
     method: "POST",
     body: JSON.stringify({ session_key: sessionKey, tokens }),
   });
@@ -694,11 +702,6 @@ export const publicChatApi = {
   history: getPublicChatHistory,
   sendMessage: sendPublicChatMessage,
   topUp: topUpPublicChat,
-  getModelInfo: async () => {
-    return apiFetch<{ model_name: string; provider: string }>(
-      "/api/v1/public-chat/model-info"
-    );
-  },
 };
 
 export function handleApiError(error: any): string {
