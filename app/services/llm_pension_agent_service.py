@@ -79,10 +79,24 @@ class PensionLLMService:
         self._gemini_model: str | None = None
         self._anthropic_client = None
         self._anthropic_model: str | None = None
+        self._openai_client = None
+        self._openai_model: str | None = None
         self._ollama_model_name: str | None = None
 
-        # זיהוי ספק מבוקש ממשתנה סביבה (ברירת מחדל: Ollama מקומי)
-        desired_provider = os.getenv("PENSION_LLM_PROVIDER", "ollama").lower()
+        # זיהוי ספק מבוקש ממשתנה סביבה.
+        # אם לא הוגדר ספק במפורש, נעדיף ספק ענן אם יש מפתחות מתאימים,
+        # כדי למנוע ניסיון להשתמש ב-Ollama מקומי בסביבות ענן (Railway וכו').
+        configured_provider = os.getenv("PENSION_LLM_PROVIDER")
+        desired_provider = (configured_provider or "").strip().lower()
+        if not desired_provider:
+            if os.getenv("OPENAI_API_KEY"):
+                desired_provider = "openai"
+            elif os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+                desired_provider = "gemini"
+            elif os.getenv("ANTHROPIC_API_KEY"):
+                desired_provider = "anthropic"
+            else:
+                desired_provider = "ollama"
 
         # Ollama – ברירת מחדל בטוחה שלא צורכת מכסת API חיצונית
         # אם המשתמש הגדיר PENSION_LLM_MODEL בשילוב ספק ollama – נשתמש בו.
@@ -104,6 +118,9 @@ class PensionLLMService:
         # ניסיון לעבור לספק חיצוני אם התבקש במפורש
         if desired_provider == "gemini":
             try:
+                if os.getenv("GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
+                    os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY", "")
+
                 # הלקוח יקרא את המפתח ממשתנה הסביבה GEMINI_API_KEY
                 from google import genai  # type: ignore[import]
 
@@ -161,6 +178,32 @@ class PensionLLMService:
                     "Failed to initialize Anthropic provider, falling back to Ollama: %s",
                     e,
                 )
+        elif desired_provider == "openai":
+            try:
+                from openai import OpenAI  # type: ignore[import]
+
+                self._openai_client = OpenAI()
+
+                env_model = os.getenv("PENSION_LLM_MODEL")
+                if env_model and (env_model.startswith("gpt-") or env_model.startswith("o")):
+                    openai_model = env_model
+                else:
+                    openai_model = "gpt-4o-mini"
+
+                self._openai_model = openai_model
+                self._provider = "openai"
+                logger.info(
+                    "PensionLLMService initialized with OpenAI model '%s'",
+                    self._openai_model,
+                )
+            except Exception as e:  # pragma: no cover
+                self._provider = "ollama"
+                self._openai_client = None
+                self._openai_model = None
+                logger.warning(
+                    "Failed to initialize OpenAI provider, falling back to Ollama: %s",
+                    e,
+                )
 
     def _build_history(self, messages: List[ChatMessage]) -> List[BaseMessage]:
         history: List[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
@@ -201,6 +244,20 @@ class PensionLLMService:
             lines.append(f"{prefix}: {msg.content}")
         return "\n\n".join(lines)
 
+    def _history_to_openai_messages(self, history: List[BaseMessage]) -> list[dict]:
+        messages: list[dict] = []
+        for msg in history:
+            if isinstance(msg, SystemMessage):
+                role = "system"
+            elif isinstance(msg, HumanMessage):
+                role = "user"
+            elif isinstance(msg, AIMessage):
+                role = "assistant"
+            else:
+                role = "user"
+            messages.append({"role": role, "content": str(msg.content)})
+        return messages
+
     def get_status(self) -> dict[str, str | None]:
         """מחזיר מידע על ספק ה-LLM והמודל הפעיל לצורך חיווי ב-UI."""
         provider = self._provider
@@ -210,6 +267,8 @@ class PensionLLMService:
             model_name = self._gemini_model
         elif provider == "anthropic":
             model_name = self._anthropic_model
+        elif provider == "openai":
+            model_name = self._openai_model
         else:
             model_name = self._ollama_model_name
 
@@ -218,6 +277,8 @@ class PensionLLMService:
             backend = "Gemini"
         elif provider == "anthropic":
             backend = "Anthropic"
+        elif provider == "openai":
+            backend = "OpenAI"
         else:
             backend = "Ollama"
 
@@ -235,7 +296,7 @@ class PensionLLMService:
         """
 
         normalized = (provider or "").strip().lower()
-        if normalized not in {"ollama", "gemini", "anthropic"}:
+        if normalized not in {"ollama", "gemini", "anthropic", "openai"}:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
         previous_provider = self._provider
@@ -245,6 +306,8 @@ class PensionLLMService:
         previous_gemini_model = self._gemini_model
         previous_anthropic_client = self._anthropic_client
         previous_anthropic_model = self._anthropic_model
+        previous_openai_client = self._openai_client
+        previous_openai_model = self._openai_model
 
         try:
             if normalized == "ollama":
@@ -260,6 +323,9 @@ class PensionLLMService:
                 logger.info("PensionLLMService switched to Ollama model '%s'", effective_model)
 
             elif normalized == "gemini":
+                if os.getenv("GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
+                    os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY", "")
+
                 from google import genai  # type: ignore[import]
 
                 self._gemini_client = genai.Client()
@@ -287,6 +353,18 @@ class PensionLLMService:
                     self._anthropic_model,
                 )
 
+            elif normalized == "openai":
+                from openai import OpenAI  # type: ignore[import]
+
+                self._openai_client = OpenAI()
+                env_model = model_name or os.getenv("PENSION_LLM_MODEL")
+                self._openai_model = env_model or "gpt-4o-mini"
+                self._provider = "openai"
+                logger.info(
+                    "PensionLLMService switched to OpenAI model '%s'",
+                    self._openai_model,
+                )
+
         except Exception as e:  # pragma: no cover - הגנה מפני כשלי ספרייה חיצונית
             # החזרה לתצורה הקודמת במקרה של תקלה
             self._provider = previous_provider
@@ -296,6 +374,8 @@ class PensionLLMService:
             self._gemini_model = previous_gemini_model
             self._anthropic_client = previous_anthropic_client
             self._anthropic_model = previous_anthropic_model
+            self._openai_client = previous_openai_client
+            self._openai_model = previous_openai_model
             logger.error("Failed to switch LLM provider to %s, reverting to previous config: %s", provider, e)
             raise RuntimeError(f"Failed to switch LLM provider to {provider}: {e}") from e
 
@@ -327,6 +407,21 @@ class PensionLLMService:
         if not text:
             text = str(response)
         return text
+
+    def _chat_openai(self, history: List[BaseMessage]) -> str:
+        if not self._openai_client or not self._openai_model:
+            raise RuntimeError("OpenAI client is not initialized")
+
+        messages = self._history_to_openai_messages(history)
+        response = self._openai_client.chat.completions.create(  # type: ignore[union-attr]
+            model=self._openai_model,
+            messages=messages,
+        )
+
+        choice0 = response.choices[0] if getattr(response, "choices", None) else None
+        message = getattr(choice0, "message", None) if choice0 else None
+        text = getattr(message, "content", None) if message else None
+        return (text or "").strip()
 
     def _chat_anthropic(self, history: List[BaseMessage]) -> str:
         """שולח את ההיסטוריה למודל Claude (Anthropic) ומחזיר טקסט תשובה אחד."""
@@ -381,6 +476,9 @@ class PensionLLMService:
         if self._provider == "anthropic" and self._anthropic_client is not None:
             return self._chat_anthropic(history)
 
+        if self._provider == "openai" and self._openai_client is not None:
+            return self._chat_openai(history)
+
         if self._llm is None:
             raise RuntimeError("No LLM backend is configured")
 
@@ -399,6 +497,11 @@ class PensionLLMService:
         # עבור Anthropic – מחזירים את כל התשובה כמקשה אחת
         if self._provider == "anthropic" and self._anthropic_client is not None:
             yield self._chat_anthropic(history)
+            return
+
+        # עבור OpenAI – מחזירים את כל התשובה כמקשה אחת
+        if self._provider == "openai" and self._openai_client is not None:
+            yield self._chat_openai(history)
             return
 
         if self._llm is None:

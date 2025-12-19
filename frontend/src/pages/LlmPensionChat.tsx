@@ -16,6 +16,11 @@ const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
     { value: "gemma3:4b", label: "gemma3:4b" },
     { value: "qwen3:8b", label: "qwen3:8b" },
   ],
+  openai: [
+    { value: "", label: "ברירת מחדל (gpt-4o-mini)" },
+    { value: "gpt-4o-mini", label: "gpt-4o-mini (מומלץ)" },
+    { value: "gpt-4o", label: "gpt-4o" },
+  ],
   gemini: [
     { value: "", label: "ברירת מחדל (gemini-2.0-flash)" },
     { value: "gemini-2.0-flash", label: "gemini-2.0-flash (מומלץ)" },
@@ -84,6 +89,7 @@ function getEstimatedPricePer1kTokensUsd(provider: string | null | undefined): n
   const normalized = provider.toLowerCase();
 
   // ערכי ברירת מחדל גסים לפי ספק – לשימוש פנימי בלבד
+  if (normalized === "openai") return 0.003; // הערכה גסה בלבד
   if (normalized === "gemini") return 0.001; // כ-0.001$ ל-1,000 טוקנים
   if (normalized === "anthropic") return 0.002; // כ-0.002$ ל-1,000 טוקנים
 
@@ -559,6 +565,7 @@ const LlmPensionChat: React.FC = () => {
                   disabled={isSending || isSwitchingProvider}
                 >
                   <option value="ollama">Ollama (מקומי)</option>
+                  <option value="openai">OpenAI (ChatGPT)</option>
                   <option value="gemini">Gemini (ענן)</option>
                   <option value="anthropic">Anthropic (Claude)</option>
                 </select>
