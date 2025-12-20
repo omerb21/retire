@@ -221,6 +221,16 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
       const pensionPortfolio = loadPensionDataFromStorage(String(clientId)) || [];
       const convertedAccountsSet = loadConvertedAccountsFromStorage(String(clientId));
       const convertedAccounts = Array.from(convertedAccountsSet);
+
+      if (Array.isArray(pensionPortfolio) && pensionPortfolio.length > 0) {
+        await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ accounts: pensionPortfolio })
+        });
+      }
       
       const snapshotData = {
         ...data.snapshot,
@@ -292,6 +302,16 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
         savePensionDataToStorage(String(clientId), savedSnapshot.pension_portfolio as any[]);
         console.log(`✅ Restored ${savedSnapshot.pension_portfolio.length} pension accounts to localStorage`);
         console.log('Sample account:', savedSnapshot.pension_portfolio[0]);
+
+        if (savedSnapshot.pension_portfolio.length > 0) {
+          await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ accounts: savedSnapshot.pension_portfolio })
+          });
+        }
       } else {
         removePensionDataFromStorage(String(clientId));
         console.log('⚠️ No pension portfolio data in snapshot');

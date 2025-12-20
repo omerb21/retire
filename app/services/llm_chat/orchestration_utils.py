@@ -191,8 +191,20 @@ def is_portfolio_breakdown_request(user_message: str) -> bool:
 
     lowered = user_message.lower()
 
-    must_have = ["קצבה", "הון"]
-    if not all(k in lowered for k in must_have):
+    portfolio_keywords = [
+        "תיק פנסיוני",
+        "תיק הפנסיוני",
+        "נכסי פנסיה",
+        "נכסים פנסיוניים",
+        "פירוט",
+        "טבלת",
+        "מוצרים",
+        "מסלקה",
+        "portfolio",
+        "breakdown",
+    ]
+
+    if not any(k.lower() in lowered for k in portfolio_keywords):
         return False
 
     triggers = [

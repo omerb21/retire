@@ -5,10 +5,32 @@ from sqlalchemy.orm import Session
 from ...models import PensionFund, CapitalAsset, Scenario
 
 
+def _get_snapshot_portfolio_count(client_id: int, db: Session) -> int:
+    snapshot = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+
+    if snapshot is None or not snapshot.parameters:
+        return 0
+
+    try:
+        params = json.loads(snapshot.parameters)
+    except Exception:
+        return 0
+
+    portfolio = params.get("pension_portfolio")
+    return len(portfolio) if isinstance(portfolio, list) else 0
+
+
 def get_agent_state_json(client_id: int, db: Session) -> str:
     pension_count = db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
     capital_count = db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
-    has_portfolio = (pension_count + capital_count) > 0
+    snapshot_count = _get_snapshot_portfolio_count(client_id=client_id, db=db)
+    has_portfolio = (pension_count + capital_count) > 0 or snapshot_count > 0
 
     scenarios_count = db.query(Scenario).filter(Scenario.client_id == client_id).count()
 
@@ -17,7 +39,8 @@ def get_agent_state_json(client_id: int, db: Session) -> str:
         "pension_plan_calculated": scenarios_count > 0,
         "rights_fixation_done": False,
         "current_target_pension": None,
-        "products_count": pension_count + capital_count,
+        "products_count": pension_count + capital_count + snapshot_count,
+        "maslaka_accounts_count": snapshot_count,
     }
     return json.dumps(state, indent=2)
 
