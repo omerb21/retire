@@ -205,6 +205,9 @@ export type ClientItem = {
   email?: string | null;
   phone?: string | null;
   pension_start_date?: string | null;
+  public_chat_token_balance?: number | null;
+  public_chat_tokens_spent?: number | null;
+  public_chat_credit_initialized?: boolean | null;
 };
 
 export type Paged<T> = { items: T[]; total: number; page: number; page_size: number };

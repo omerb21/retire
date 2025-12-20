@@ -72,6 +72,10 @@ from app.routers.scenarios import router as scenarios_router
 async def lifespan(app: FastAPI):
     """Initialize database tables on application startup"""
     Base.metadata.create_all(bind=engine)
+
+    from app.database import ensure_client_public_chat_credit_schema
+
+    ensure_client_public_chat_credit_schema(engine)
     
     # אימות תקינות המערכת
     logger.info("=" * 60)

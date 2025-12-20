@@ -32,6 +32,21 @@ def _default_initial_tokens() -> int:
         return 5000
 
 
+def _ensure_client_credit_initialized(client: Client, initial_tokens: int | None = None) -> None:
+    if client.public_chat_token_balance is None:
+        client.public_chat_token_balance = 0
+    if client.public_chat_tokens_spent is None:
+        client.public_chat_tokens_spent = 0
+
+    if bool(getattr(client, "public_chat_credit_initialized", False)):
+        return
+
+    token_balance = _default_initial_tokens() if initial_tokens is None else max(0, int(initial_tokens))
+    client.public_chat_token_balance = int(token_balance)
+    client.public_chat_tokens_spent = 0
+    client.public_chat_credit_initialized = True
+
+
 def start_or_get_session(db: Session, id_number: str, initial_tokens: int | None = None) -> PublicChatSession:
     normalized = normalize_id_number(id_number)
     if not normalized:
@@ -41,6 +56,25 @@ def start_or_get_session(db: Session, id_number: str, initial_tokens: int | None
     if not client:
         raise ValueError("client_not_found")
 
+    if not bool(getattr(client, "public_chat_credit_initialized", False)):
+        latest_session = (
+            db.query(PublicChatSession)
+            .filter(PublicChatSession.client_id == client.id)
+            .order_by(PublicChatSession.id.desc())
+            .first()
+        )
+        if latest_session is not None:
+            client.public_chat_token_balance = int(latest_session.token_balance or 0)
+            client.public_chat_tokens_spent = int(latest_session.tokens_spent or 0)
+            client.public_chat_credit_initialized = True
+        else:
+            _ensure_client_credit_initialized(client, initial_tokens=initial_tokens)
+    else:
+        _ensure_client_credit_initialized(client, initial_tokens=None)
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+
     existing = (
         db.query(PublicChatSession)
         .filter(PublicChatSession.client_id == client.id)
@@ -49,15 +83,25 @@ def start_or_get_session(db: Session, id_number: str, initial_tokens: int | None
         .first()
     )
     if existing:
+        desired_balance = int(client.public_chat_token_balance or 0)
+        desired_spent = int(client.public_chat_tokens_spent or 0)
+
+        if existing.token_balance != desired_balance or existing.tokens_spent != desired_spent:
+            existing.token_balance = desired_balance
+            existing.tokens_spent = desired_spent
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
         return existing
 
-    token_balance = _default_initial_tokens() if initial_tokens is None else max(0, int(initial_tokens))
+    token_balance = int(client.public_chat_token_balance or 0)
+    tokens_spent = int(client.public_chat_tokens_spent or 0)
 
     session = PublicChatSession(
         session_key=_generate_session_key(),
         client_id=client.id,
         token_balance=token_balance,
-        tokens_spent=0,
+        tokens_spent=tokens_spent,
         is_active=True,
     )
     db.add(session)
@@ -111,7 +155,18 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
     if not session.is_active:
         raise ValueError("session_inactive")
 
-    if session.token_balance <= 0:
+    client = session.client or db.query(Client).filter(Client.id == session.client_id).first()
+    if not client:
+        raise ValueError("client_not_found")
+
+    if not bool(getattr(client, "public_chat_credit_initialized", False)):
+        client.public_chat_token_balance = int(session.token_balance or 0)
+        client.public_chat_tokens_spent = int(session.tokens_spent or 0)
+        client.public_chat_credit_initialized = True
+
+    _ensure_client_credit_initialized(client)
+
+    if int(client.public_chat_token_balance or 0) <= 0:
         raise ValueError("tokens_depleted")
 
     _append_message(db, session, "user", trimmed)
@@ -129,9 +184,15 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
     if tokens_used < 0:
         tokens_used = 0
 
-    to_deduct = min(session.token_balance, tokens_used)
-    session.token_balance -= to_deduct
-    session.tokens_spent += to_deduct
+    current_balance = int(client.public_chat_token_balance or 0)
+    to_deduct = min(current_balance, int(tokens_used))
+    client.public_chat_token_balance = current_balance - to_deduct
+    client.public_chat_tokens_spent = int(client.public_chat_tokens_spent or 0) + to_deduct
+
+    session.token_balance = int(client.public_chat_token_balance or 0)
+    session.tokens_spent = int(client.public_chat_tokens_spent or 0)
+
+    db.add(client)
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -144,7 +205,23 @@ def top_up(db: Session, session_key: str, tokens: int) -> PublicChatSession:
         raise ValueError("invalid_topup")
 
     session = get_session_by_key(db, session_key)
-    session.token_balance += int(tokens)
+
+    client = session.client or db.query(Client).filter(Client.id == session.client_id).first()
+    if not client:
+        raise ValueError("client_not_found")
+
+    if not bool(getattr(client, "public_chat_credit_initialized", False)):
+        client.public_chat_token_balance = int(session.token_balance or 0)
+        client.public_chat_tokens_spent = int(session.tokens_spent or 0)
+        client.public_chat_credit_initialized = True
+
+    _ensure_client_credit_initialized(client)
+    client.public_chat_token_balance = int(client.public_chat_token_balance or 0) + int(tokens)
+
+    session.token_balance = int(client.public_chat_token_balance or 0)
+    session.tokens_spent = int(client.public_chat_tokens_spent or 0)
+
+    db.add(client)
     db.add(session)
     db.commit()
     db.refresh(session)

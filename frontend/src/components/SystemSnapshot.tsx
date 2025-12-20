@@ -2,13 +2,12 @@
  * System Snapshot Component
  * כפתורי שמירה ואיפוס מצב מערכת
  */
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button, Box, Typography, Alert, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress } from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Box, Typography, Alert, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress, TextField } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import RestoreIcon from '@mui/icons-material/Restore';
 import InfoIcon from '@mui/icons-material/Info';
-import { API_BASE } from '../lib/api';
+import { API_BASE, getClient, handleApiError, publicChatApi } from '../lib/api';
 import {
   loadPensionDataFromStorage,
   savePensionDataToStorage,
@@ -37,14 +36,22 @@ interface SnapshotData {
 }
 
 const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRestored }) => {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [tokenLoading, setTokenLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [savedSnapshot, setSavedSnapshot] = useState<SnapshotData | null>(null);
+  const [clientIdNumber, setClientIdNumber] = useState<string | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [sessionKey, setSessionKey] = useState<string | null>(null);
+  const [tokensToAdd, setTokensToAdd] = useState<string>('1000');
+
+  const canManageTokens = useMemo(() => {
+    return Boolean(window.localStorage.getItem('systemAccessPassword'));
+  }, []);
 
   // טעינת snapshot שמור מ-localStorage
-  React.useEffect(() => {
+  useEffect(() => {
     const stored = loadSnapshotRawFromStorage(clientId);
     if (stored) {
       try {
@@ -54,6 +61,123 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
       }
     }
   }, [clientId]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const client = await getClient(clientId);
+        if (!active) return;
+        setClientIdNumber(client?.id_number || null);
+        setTokenBalance(
+          typeof client?.public_chat_token_balance === 'number'
+            ? client.public_chat_token_balance
+            : null
+        );
+      } catch (e) {
+        if (!active) return;
+        console.warn('Failed to fetch client for token management', e);
+        setClientIdNumber(null);
+        setTokenBalance(null);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [clientId]);
+
+  async function refreshClientTokenBalance(): Promise<number | null> {
+    try {
+      const client = await getClient(clientId);
+      setClientIdNumber(client?.id_number || null);
+      const balance =
+        typeof client?.public_chat_token_balance === 'number' ? client.public_chat_token_balance : null;
+      setTokenBalance(balance);
+      return balance;
+    } catch (e) {
+      console.warn('Failed to refresh client token balance', e);
+      setTokenBalance(null);
+      return null;
+    }
+  }
+
+  async function ensurePublicChatSession(): Promise<{ sessionKey: string; tokenBalance: number } | null> {
+    if (!clientIdNumber) {
+      setMessage({ type: 'error', text: '❌ לא נמצאה תעודת זהות ללקוח. לא ניתן לטעון קרדיט צ׳אט.' });
+      return null;
+    }
+
+    try {
+      const started = await publicChatApi.start(clientIdNumber);
+      const key = started.session_key;
+      setSessionKey(key);
+      await refreshClientTokenBalance();
+      return { sessionKey: key, tokenBalance: started.token_balance };
+    } catch (err) {
+      setMessage({ type: 'error', text: `❌ ${handleApiError(err)}` });
+      return null;
+    }
+  }
+
+  function parsePositiveInt(input: string): number {
+    const cleaned = (input || '').replace(/[\s,]/g, '');
+    const value = Number.parseInt(cleaned, 10);
+    if (!Number.isFinite(value) || Number.isNaN(value) || value <= 0) {
+      return 0;
+    }
+    return value;
+  }
+
+  const handleTopUpTokens = async () => {
+    if (!canManageTokens) {
+      setMessage({ type: 'error', text: '❌ טעינת טוקנים זמינה רק למנהל מערכת (נדרשת סיסמת מערכת).' });
+      return;
+    }
+
+    const tokens = parsePositiveInt(tokensToAdd);
+    if (!tokens) {
+      setMessage({ type: 'error', text: '❌ יש להזין מספר טוקנים חיובי (מספר שלם).' });
+      return;
+    }
+
+    setTokenLoading(true);
+    setMessage(null);
+    try {
+      const existing = sessionKey ? { sessionKey, tokenBalance: tokenBalance ?? 0 } : await ensurePublicChatSession();
+      if (!existing) {
+        return;
+      }
+
+      const res = await publicChatApi.topUp(existing.sessionKey, tokens);
+      const refreshedBalance = await refreshClientTokenBalance();
+      const displayBalance =
+        typeof refreshedBalance === 'number' ? refreshedBalance : res.token_balance;
+      setMessage({ type: 'success', text: `✅ נטענו ${tokens.toLocaleString()} טוקנים. יתרה חדשה: ${displayBalance.toLocaleString()}` });
+    } catch (err) {
+      setMessage({ type: 'error', text: `❌ ${handleApiError(err)}` });
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  const handleRefreshTokens = async () => {
+    setTokenLoading(true);
+    setMessage(null);
+    try {
+      const s = await ensurePublicChatSession();
+      if (s) {
+        const balance = await refreshClientTokenBalance();
+        if (typeof balance === 'number') {
+          setMessage({ type: 'info', text: `ℹ️ יתרת קרדיט נוכחית: ${balance.toLocaleString()}` });
+        } else {
+          setMessage({ type: 'info', text: `ℹ️ יתרת קרדיט נוכחית: ${s.tokenBalance.toLocaleString()}` });
+        }
+      }
+    } finally {
+      setTokenLoading(false);
+    }
+  };
 
   const handleSaveSnapshot = async () => {
     setLoading(true);
@@ -221,35 +345,56 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
       </Button>
 
       {/* כפתור איפוס */}
-      <Button
-        variant="contained"
-        color="warning"
-        startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <RestoreIcon />}
-        onClick={openConfirmDialog}
-        disabled={loading || !savedSnapshot}
-      >
-        ♻️ שחזר מצב
-      </Button>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Button
+          variant="contained"
+          color="warning"
+          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <RestoreIcon />}
+          onClick={openConfirmDialog}
+          disabled={loading || !savedSnapshot}
+        >
+          ♻️ שחזר מצב
+        </Button>
+        {savedSnapshot && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <InfoIcon color="info" fontSize="small" />
+            <Typography variant="caption" color="text.secondary">
+              נשמר: {formatDate(savedSnapshot.created_at)}
+            </Typography>
+          </Box>
+        )}
+      </Box>
 
-      <Button
-        variant="outlined"
-        color="secondary"
-        onClick={() => navigate(`/clients/${clientId}/llm-chat`)}
-        disabled={loading}
-        sx={{ marginInlineStart: 'auto' }}
-      >
-        🤖 יועץ פרישה
-      </Button>
-
-      {/* מידע על snapshot שמור */}
-      {savedSnapshot && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <InfoIcon color="info" fontSize="small" />
-          <Typography variant="caption" color="text.secondary">
-            נשמר: {formatDate(savedSnapshot.created_at)}
-          </Typography>
-        </Box>
-      )}
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+        <TextField
+          label="טעינת טוקנים"
+          value={tokensToAdd}
+          onChange={(e) => setTokensToAdd(e.target.value)}
+          disabled={tokenLoading}
+          size="small"
+          inputProps={{ inputMode: 'numeric' }}
+        />
+        <Button
+          variant="contained"
+          color="success"
+          onClick={handleTopUpTokens}
+          disabled={tokenLoading || !canManageTokens}
+          startIcon={tokenLoading ? <CircularProgress size={18} color="inherit" /> : undefined}
+        >
+          ➕ טען
+        </Button>
+        <Button
+          variant="outlined"
+          color="success"
+          onClick={handleRefreshTokens}
+          disabled={tokenLoading}
+        >
+          רענן
+        </Button>
+        <Typography variant="caption" color="text.secondary">
+          יתרה: {tokenBalance != null ? tokenBalance.toLocaleString() : '—'}
+        </Typography>
+      </Box>
 
       {/* הודעות */}
       {message && (

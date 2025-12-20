@@ -14,7 +14,7 @@ export const ClientNavigation: React.FC<ClientNavigationProps> = ({ clientId }) 
           תיק פנסיוני
         </Link>
         <Link to={`/clients/${clientId}/grants`} className={styles.moduleButton}>
-          מענקים פטורים שהתקבלו
+          מענקים פטורים
         </Link>
         <Link to={`/clients/${clientId}/current-employer`} className={styles.moduleButton}>
           מעסיק נוכחי
@@ -35,7 +35,10 @@ export const ClientNavigation: React.FC<ClientNavigationProps> = ({ clientId }) 
           📊 תוצאות
         </Link>
         <Link to={`/clients/${clientId}/retirement-scenarios`} className={styles.moduleButton}>
-          🎯 תרחישי פרישה
+          🎯 תרחישים
+        </Link>
+        <Link to={`/clients/${clientId}/llm-chat`} className={styles.moduleButton}>
+          🤖 יועץ פרישה
         </Link>
       </div>
 

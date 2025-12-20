@@ -3,6 +3,7 @@ Database configuration module for SQLAlchemy and connection management
 """
 import os
 from sqlalchemy import create_engine
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Get database URL from dedicated env var or use default SQLite for development
@@ -41,6 +42,45 @@ def setup_database(engine):
     from sqlalchemy.orm import clear_mappers
     clear_mappers()
     Base.metadata.create_all(bind=engine)
+
+
+def ensure_client_public_chat_credit_schema(engine) -> None:
+    """Ensure client table contains columns required for per-client public chat credit.
+
+    This is a non-destructive best-effort schema fix for environments without Alembic.
+    """
+
+    try:
+        inspector = inspect(engine)
+        if "client" not in set(inspector.get_table_names() or []):
+            return
+
+        columns = {c.get("name") for c in (inspector.get_columns("client") or [])}
+        dialect = (engine.dialect.name or "").lower()
+
+        def add_column_sqlite(conn, col_name: str, col_type_sql: str):
+            conn.execute(text(f"ALTER TABLE client ADD COLUMN {col_name} {col_type_sql}"))
+
+        def add_column_postgres_like(conn, col_name: str, col_type_sql: str):
+            conn.execute(text(f"ALTER TABLE client ADD COLUMN IF NOT EXISTS {col_name} {col_type_sql}"))
+
+        with engine.begin() as conn:
+            add_column = add_column_sqlite if dialect == "sqlite" else add_column_postgres_like
+
+            if "public_chat_token_balance" not in columns:
+                add_column(conn, "public_chat_token_balance", "INTEGER")
+                conn.execute(text("UPDATE client SET public_chat_token_balance = 0 WHERE public_chat_token_balance IS NULL"))
+
+            if "public_chat_tokens_spent" not in columns:
+                add_column(conn, "public_chat_tokens_spent", "INTEGER")
+                conn.execute(text("UPDATE client SET public_chat_tokens_spent = 0 WHERE public_chat_tokens_spent IS NULL"))
+
+            if "public_chat_credit_initialized" not in columns:
+                add_column(conn, "public_chat_credit_initialized", "BOOLEAN" if dialect != "sqlite" else "INTEGER")
+                conn.execute(text("UPDATE client SET public_chat_credit_initialized = 0 WHERE public_chat_credit_initialized IS NULL"))
+    except Exception:
+        # best-effort only; avoid breaking app startup
+        return
 
 # Create SQLAlchemy engine
 engine = get_engine()

@@ -74,6 +74,10 @@ class Client(Base):
     spouse_income = Column(Float)
     immigration_date = Column(Date)
     military_discharge_date = Column(Date)
+
+    public_chat_token_balance = Column(Integer, nullable=True, default=0)
+    public_chat_tokens_spent = Column(Integer, nullable=True, default=0)
+    public_chat_credit_initialized = Column(Boolean, nullable=True, default=False)
     
     # Record management
     is_active = Column(Boolean, default=True, nullable=False)

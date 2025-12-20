@@ -23,15 +23,6 @@ function estimateTokens(text: string): number {
   return Math.ceil(trimmed.length / 4);
 }
 
-function parsePositiveInt(input: string): number {
-  const cleaned = (input || "").replace(/[\s,]/g, "");
-  const value = Number.parseInt(cleaned, 10);
-  if (!Number.isFinite(value) || Number.isNaN(value) || value <= 0) {
-    return 0;
-  }
-  return value;
-}
-
 function PublicChatStartPage() {
   const navigate = useNavigate();
   const [idNumber, setIdNumber] = useState("");
@@ -105,9 +96,6 @@ function PublicChatSessionPage() {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [topUpValue, setTopUpValue] = useState("1000");
-  const [canTopUp, setCanTopUp] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const displayName = useMemo(() => {
@@ -123,8 +111,6 @@ function PublicChatSessionPage() {
     if (!sessionKey) {
       return;
     }
-
-    setCanTopUp(Boolean(window.localStorage.getItem("systemAccessPassword")));
 
     let active = true;
     (async () => {
@@ -157,7 +143,6 @@ function PublicChatSessionPage() {
     if (!trimmed) return;
 
     setError(null);
-    setNotice(null);
     setIsSending(true);
 
     try {
@@ -192,59 +177,6 @@ function PublicChatSessionPage() {
       }
     } finally {
       setIsSending(false);
-    }
-  }
-
-  async function handleTopUp() {
-    const key = sessionKey;
-    if (!key) return;
-
-    setError(null);
-    setNotice(null);
-
-    if (!canTopUp) {
-      setError("טעינת טוקנים זמינה רק למנהל מערכת");
-      return;
-    }
-
-    const tokens = parsePositiveInt(topUpValue);
-
-    if (!tokens || tokens <= 0) {
-      setError("יש להזין מספר טוקנים חיובי");
-      return;
-    }
-
-    try {
-      const before = status?.token_balance ?? null;
-      const res = await publicChatApi.topUp(key, tokens);
-      setStatus((prev) =>
-        prev
-          ? {
-              ...prev,
-              token_balance: res.token_balance,
-              tokens_spent: res.tokens_spent,
-            }
-          : prev,
-      );
-
-      const refreshed = await publicChatApi.status(key).catch(() => null);
-      if (refreshed) {
-        setStatus(refreshed);
-      }
-
-      const after = refreshed?.token_balance ?? res.token_balance;
-      if (before != null && after === before) {
-        setError("בקשת טעינה נשלחה אבל היתרה לא השתנתה. זה בדרך כלל אומר שהבקשה לא אומתה מול השרת או שנשלחה למושב אחר.");
-      } else {
-        setNotice(`נטענו ${tokens} טוקנים. יתרה חדשה: ${after}`);
-      }
-    } catch (err) {
-      const msg = handleApiError(err);
-      if ((msg || "").toLowerCase().includes("unauthorized")) {
-        setError("טעינת טוקנים דורשת סיסמת מערכת");
-        return;
-      }
-      setError(msg);
     }
   }
 
@@ -289,7 +221,6 @@ function PublicChatSessionPage() {
           <div ref={bottomRef} />
         </div>
 
-        {notice && <div className="public-chat-notice banner">{notice}</div>}
         {error && <div className="public-chat-error banner">{error}</div>}
 
         <form onSubmit={handleSend} className="public-chat-composer">
@@ -304,42 +235,6 @@ function PublicChatSessionPage() {
             שלח
           </button>
         </form>
-
-        <div className="public-chat-topup">
-          <div className="public-chat-topup-row">
-            <input
-              className="public-chat-input"
-              value={topUpValue}
-              onChange={(e) => setTopUpValue(e.target.value)}
-              inputMode="numeric"
-              placeholder="לדוגמה: 1000"
-            />
-            <button
-              className="public-chat-secondary"
-              type="button"
-              onClick={handleTopUp}
-              disabled={!canTopUp}
-            >
-              טעינת טוקנים
-            </button>
-          </div>
-          {canTopUp && (
-            <div className="public-chat-topup-quick">
-              <button type="button" className="public-chat-quick" onClick={() => setTopUpValue("500")}>
-                +500
-              </button>
-              <button type="button" className="public-chat-quick" onClick={() => setTopUpValue("1000")}>
-                +1000
-              </button>
-              <button type="button" className="public-chat-quick" onClick={() => setTopUpValue("5000")}>
-                +5000
-              </button>
-            </div>
-          )}
-          {!canTopUp && (
-            <div className="public-chat-hint">טעינת טוקנים זמינה רק למנהל מערכת</div>
-          )}
-        </div>
       </div>
     </div>
   );

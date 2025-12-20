@@ -167,6 +167,9 @@ class ClientResponse(ClientBase):
     """Schema for client response"""
     id: int
     id_number: str
+    public_chat_token_balance: Optional[int] = None
+    public_chat_tokens_spent: Optional[int] = None
+    public_chat_credit_initialized: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
     
