@@ -299,13 +299,21 @@ def build_pension_portfolio_context(
         if blocked_accounts:
             blocked_sorted = sorted(blocked_accounts, key=lambda x: float(x.get("blocked_sum") or 0), reverse=True)
             context_lines.append("")
-            context_lines.append("**פירוט חשבונות עם יתרות חסומות:**")
-            context_lines.append("| תכנית | סוג מוצר | חברה | חסום: לא התחשבנות | חסום: רצף זכויות | סה\"כ חסום | מספר חשבון |")
-            context_lines.append("|---|---|---|---:|---:|---:|---|")
+            context_lines.append("**פירוט חשבונות עם יתרות חסומות (פורמט קריא):**")
             for b in blocked_sorted[:15]:
+                context_lines.append(f"- תכנית: {(b.get('name') or '')[:60]}")
+                context_lines.append(f"  סוג מוצר: {(b.get('type') or '')[:60]}")
+                context_lines.append(f"  חברה מנהלת: {(b.get('company') or '')[:60]}")
                 context_lines.append(
-                    f"| {b['name'][:40]} | {b['type'][:25]} | {b['company'][:20]} | {float(b.get('severance_not_settled') or 0):,.0f} | {float(b.get('severance_prev_rights') or 0):,.0f} | {float(b.get('blocked_sum') or 0):,.0f} | {b.get('account_number') or ''} |"
+                    f"  חסום: לא התחשבנות: {float(b.get('severance_not_settled') or 0):,.0f} ₪"
                 )
+                context_lines.append(
+                    f"  חסום: רצף זכויות: {float(b.get('severance_prev_rights') or 0):,.0f} ₪"
+                )
+                context_lines.append(f"  סה\"כ חסום: {float(b.get('blocked_sum') or 0):,.0f} ₪")
+                if b.get("account_number"):
+                    context_lines.append(f"  מספר חשבון: {b.get('account_number')}")
+                context_lines.append("")
         context_lines.append("")
 
     requested_split = _detect_requested_split(user_message)
@@ -421,40 +429,57 @@ def build_pension_portfolio_context(
             row["blocked"] += float(p.get("blocked_classified") or 0)
 
         rows = sorted(grouped.items(), key=lambda kv: float(kv[1].get("balance") or 0), reverse=True)
-        context_lines.append("| קבוצה | #חשבונות | יתרה | הון | קצבה | חסום |")
-        context_lines.append("|---|---:|---:|---:|---:|---:|")
+        context_lines.append("**סיכום לפי קבוצה (פורמט קריא):**")
         for k, r in rows:
-            context_lines.append(
-                f"| {k[:40]} | {int(r['count'])} | {float(r['balance']):,.0f} | {float(r['capital']):,.0f} | {float(r['pension']):,.0f} | {float(r['blocked']):,.0f} |"
-            )
+            context_lines.append(f"- קבוצה: {k[:60]}")
+            context_lines.append(f"  מספר חשבונות: {int(r['count'])}")
+            context_lines.append(f"  יתרה: {float(r['balance']):,.0f} ₪")
+            context_lines.append(f"  הון: {float(r['capital']):,.0f} ₪")
+            context_lines.append(f"  קצבה: {float(r['pension']):,.0f} ₪")
+            context_lines.append(f"  חסום: {float(r['blocked']):,.0f} ₪")
+            context_lines.append("")
 
     if requested_split == "capital_pension":
-        context_lines.append("| תכנית | סוג מוצר | יתרה | הון | קצבה | חסום |")
-        context_lines.append("|---|---|---:|---:|---:|---:|")
+        context_lines.append("**חלוקה לפי הון/קצבה/חסום (פורמט קריא):**")
         rows = sorted(products_list, key=lambda p: float(p.get("balance") or 0), reverse=True)
         for p in rows[:25]:
-            context_lines.append(
-                f"| {p['name'][:40]} | {p['type'][:25]} | {float(p.get('balance') or 0):,.0f} | {float(p.get('capital_classified') or 0):,.0f} | {float(p.get('pension_classified') or 0):,.0f} | {float(p.get('blocked_classified') or 0):,.0f} |"
-            )
+            context_lines.append(f"- תכנית: {(p.get('name') or '')[:60]}")
+            context_lines.append(f"  סוג מוצר: {(p.get('type') or '')[:60]}")
+            if p.get("company"):
+                context_lines.append(f"  חברה מנהלת: {(p.get('company') or '')[:60]}")
+            context_lines.append(f"  יתרה: {float(p.get('balance') or 0):,.0f} ₪")
+            context_lines.append(f"  הון: {float(p.get('capital_classified') or 0):,.0f} ₪")
+            context_lines.append(f"  קצבה: {float(p.get('pension_classified') or 0):,.0f} ₪")
+            context_lines.append(f"  חסום/לא מסווג: {float(p.get('blocked_classified') or 0):,.0f} ₪")
+            if p.get("account_number"):
+                context_lines.append(f"  מספר חשבון: {p.get('account_number')}")
+            if p.get("start_date"):
+                context_lines.append(f"  תאריך התחלה: {p.get('start_date')}")
+            context_lines.append("")
 
     if requested_split == "overview":
         rows = sorted(products_list, key=lambda p: float(p.get("balance") or 0), reverse=True)
-        context_lines.append("| תכנית | סוג מוצר | חברה | יתרה |")
-        context_lines.append("|---|---|---|---:|")
+        context_lines.append("**מוצרים מובילים לפי יתרה (פורמט קריא):**")
         for p in rows[:15]:
-            context_lines.append(
-                f"| {p['name'][:40]} | {p['type'][:25]} | {(p.get('company') or '')[:20]} | {float(p.get('balance') or 0):,.0f} |"
-            )
+            context_lines.append(f"- תכנית: {(p.get('name') or '')[:60]}")
+            context_lines.append(f"  סוג מוצר: {(p.get('type') or '')[:60]}")
+            if p.get("company"):
+                context_lines.append(f"  חברה מנהלת: {(p.get('company') or '')[:60]}")
+            context_lines.append(f"  יתרה: {float(p.get('balance') or 0):,.0f} ₪")
+            if p.get("account_number"):
+                context_lines.append(f"  מספר חשבון: {p.get('account_number')}")
+            context_lines.append("")
 
     if canonical_accounts:
         context_lines.append("")
         context_lines.append("🔑 **מזהים לחשבונות (למניעת כפילויות בהמרה):**")
-        context_lines.append("| תכנית | מספר חשבון | תאריך התחלה |")
-        context_lines.append("|---|---|---|")
         for a in canonical_accounts[:30]:
-            context_lines.append(
-                f"| {(a.get('account_name') or '')[:40]} | {a.get('account_number') or ''} | {a.get('start_date') or ''} |"
-            )
+            context_lines.append(f"- תכנית: {(a.get('account_name') or '')[:60]}")
+            if a.get("account_number"):
+                context_lines.append(f"  מספר חשבון: {a.get('account_number')}")
+            if a.get("start_date"):
+                context_lines.append(f"  תאריך התחלה: {a.get('start_date')}")
+            context_lines.append("")
 
     context_lines.append("")
     context_lines.append("🔧 **לקבלת קצבה מחושבת:** הפעל BUILD_TARGET_PENSION_PLAN עם יעד קצבה (למשל 20000)")
