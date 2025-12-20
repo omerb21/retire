@@ -99,10 +99,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add ProxyHeadersMiddleware to trust headers from Railway load balancer
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
-
 from app.core.system_access import SystemAccessMiddleware
 app.add_middleware(SystemAccessMiddleware)
 
@@ -115,6 +111,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add ProxyHeadersMiddleware to trust headers from Railway load balancer
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
