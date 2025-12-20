@@ -67,7 +67,17 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     original_user_msg = find_last_user_message(request.messages)
     if is_portfolio_breakdown_request(original_user_msg):
         portfolio = request.pension_portfolio or []
-        breakdown = "\n".join(build_pension_portfolio_context(portfolio)).strip() if portfolio else ""
+        breakdown = (
+            "\n".join(
+                build_pension_portfolio_context(
+                    portfolio,
+                    user_message=original_user_msg,
+                    snapshot_at=request.pension_portfolio_snapshot_at,
+                )
+            ).strip()
+            if portfolio
+            else ""
+        )
         if breakdown:
             return ChatResponse(reply=breakdown, computed_data=computed_data)
     is_doc_request = is_document_request(original_user_msg)

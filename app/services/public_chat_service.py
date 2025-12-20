@@ -149,7 +149,7 @@ def _append_message(db: Session, session: PublicChatSession, role: str, content:
     return msg
 
 
-def _load_latest_pension_portfolio(db: Session, client_id: int) -> list[dict] | None:
+def _load_latest_pension_portfolio(db: Session, client_id: int) -> tuple[list[dict], str] | None:
     snapshot = (
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
@@ -178,7 +178,12 @@ def _load_latest_pension_portfolio(db: Session, client_id: int) -> list[dict] | 
             continue
         portfolio = params.get("pension_portfolio")
         if isinstance(portfolio, list) and portfolio:
-            return portfolio
+            snapshot_at = ""
+            try:
+                snapshot_at = scenario.created_at.isoformat()
+            except Exception:
+                snapshot_at = ""
+            return portfolio, snapshot_at
 
     return None
 
@@ -210,11 +215,17 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
     history = get_history(db, session)
     chat_messages: list[ChatMessage] = [ChatMessage(role=m.role, content=m.content) for m in history]
 
-    pension_portfolio = _load_latest_pension_portfolio(db, session.client_id)
+    pension_portfolio_result = _load_latest_pension_portfolio(db, session.client_id)
+    pension_portfolio = None
+    pension_portfolio_snapshot_at = None
+    if pension_portfolio_result is not None:
+        pension_portfolio, snapshot_at = pension_portfolio_result
+        pension_portfolio_snapshot_at = snapshot_at or None
     request = ChatRequest(
         messages=chat_messages,
         client_id=session.client_id,
         pension_portfolio=pension_portfolio,
+        pension_portfolio_snapshot_at=pension_portfolio_snapshot_at,
     )
     response = run_pension_chat(request, db)
     reply_text = (response.reply or "").strip()

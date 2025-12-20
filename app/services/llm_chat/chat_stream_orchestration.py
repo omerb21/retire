@@ -76,7 +76,13 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
             breakdown = (
-                "\n".join(build_pension_portfolio_context(portfolio)).strip()
+                "\n".join(
+                    build_pension_portfolio_context(
+                        portfolio,
+                        user_message=original_user_msg,
+                        snapshot_at=request.pension_portfolio_snapshot_at,
+                    )
+                ).strip()
                 if portfolio
                 else ""
             )

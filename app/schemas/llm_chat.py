@@ -38,6 +38,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     client_id: int | None = None
     pension_portfolio: Optional[List[PensionPortfolioAccount]] = None
+    pension_portfolio_snapshot_at: Optional[str] = None
 
 
 class ComputedPensionSource(BaseModel):

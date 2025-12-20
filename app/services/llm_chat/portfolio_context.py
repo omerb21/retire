@@ -12,13 +12,59 @@ def _get_attr_float(acc: PensionPortfolioAccount, name: str) -> float:
     return _as_float(getattr(acc, name, 0) or 0)
 
 
-def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) -> list[str]:
+def _is_education_fund(product_type: str) -> bool:
+    return "השתלמות" in (product_type or "").lower()
+
+
+def _is_investment_provident_fund(product_type: str) -> bool:
+    return "גמל להשקעה" in (product_type or "").lower()
+
+
+def _is_regular_provident_fund(product_type: str) -> bool:
+    lowered = (product_type or "").lower()
+    return ("קופת גמל" in lowered) and ("להשקעה" not in lowered)
+
+
+def _is_pension_or_insurance(product_type: str) -> bool:
+    lowered = (product_type or "").lower()
+    return ("קרן פנסיה" in lowered) or ("פנסיה" in lowered) or ("ביטוח" in lowered)
+
+
+def _format_snapshot_at(snapshot_at: str | None) -> str:
+    raw = (snapshot_at or "").strip()
+    if not raw:
+        return ""
+    return raw.replace("T", " ").replace("Z", "")
+
+
+def _detect_requested_split(user_message: str | None) -> str:
+    lowered = (user_message or "").lower()
+
+    if any(k in lowered for k in ["פיצויים", "תגמולים", "פיצויים/תגמולים"]):
+        return "components"
+    if any(k in lowered for k in ["חברה", "חברה מנהלת", "לפי חברה"]):
+        return "company"
+    if any(k in lowered for k in ["סוג מוצר", "סוג המוצר", "לפי מוצר", "לפי סוג"]):
+        return "product_type"
+    if any(k in lowered for k in ["הון", "קצבה", "הון/קצבה", "קצבתי", "הוני"]):
+        return "capital_pension"
+    return "overview"
+
+
+def build_pension_portfolio_context(
+    portfolio: list[PensionPortfolioAccount],
+    user_message: str | None = None,
+    snapshot_at: str | None = None,
+) -> list[str]:
     if not portfolio:
         return []
 
     context_lines: list[str] = []
     context_lines.append("")
     context_lines.append("📂 **תיק פנסיוני (נתונים גולמיים מקובץ מסלקה)**")
+    formatted_snapshot = _format_snapshot_at(snapshot_at)
+    if formatted_snapshot:
+        context_lines.append(f"🕒 **הנתונים נכונים לתאריך snapshot:** {formatted_snapshot}")
     context_lines.append("⚠️ **חובה:** להפעיל BUILD_TARGET_PENSION_PLAN לקבלת קצבה מחושבת עם מקדמים אמיתיים!")
     context_lines.append("")
 
@@ -40,6 +86,7 @@ def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) ->
 
     has_unsettled_severance = False
     has_rights_sequence = False
+    blocked_accounts: list[dict] = []
     products_list: list[dict] = []
     canonical_accounts: list[dict] = []
 
@@ -124,6 +171,25 @@ def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) ->
         pension_sum += tagmul_emp_after_2008_np + tagmul_empr_after_2008_np
         capital_sum += tagmul_emp_to_2000 + tagmul_empr_to_2000
 
+        has_detailed_tagmulim = (
+            tagmul_emp_to_2000
+            + tagmul_emp_after_2000
+            + tagmul_emp_after_2008_np
+            + tagmul_empr_to_2000
+            + tagmul_empr_after_2000
+            + tagmul_empr_after_2008_np
+        ) > 0
+
+        # If we only have aggregate tagmulim fields (תגמולים/סך_תגמולים) and no detailed breakdown,
+        # classify them using conversion rules (not by column heuristics).
+        if tagmulim_total > 0 and not has_detailed_tagmulim:
+            if _is_education_fund(product_type) or _is_regular_provident_fund(product_type) or _is_investment_provident_fund(product_type):
+                capital_sum += tagmulim_total
+            elif _is_pension_or_insurance(product_type):
+                pension_sum += tagmulim_total
+            else:
+                unspecified_sum += tagmulim_total
+
         if "השתלמות" in product_lower:
             is_capital_only = True
             category = "הון בלבד"
@@ -139,6 +205,26 @@ def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) ->
                 category = "קצבתי/הוני"
             else:
                 category = "לא מסווג"
+
+        # Conversion-rule override: Education fund is always capital, regardless of column composition.
+        if _is_education_fund(product_type):
+            capital_sum = capital_sum + pension_sum + unspecified_sum
+            pension_sum = 0.0
+            unspecified_sum = 0.0
+
+        blocked_sum = severance_not_settled + severance_prev_rights
+        if blocked_sum > 0:
+            blocked_accounts.append(
+                {
+                    "name": acc.שם_תכנית or "ללא שם",
+                    "type": product_type,
+                    "company": acc.חברה_מנהלת or "",
+                    "account_number": account_number,
+                    "severance_not_settled": severance_not_settled,
+                    "severance_prev_rights": severance_prev_rights,
+                    "blocked_sum": blocked_sum,
+                }
+            )
 
         total_cols = capital_sum + pension_sum + unspecified_sum
         if total_cols > 0:
@@ -162,6 +248,9 @@ def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) ->
                 "balance": balance,
                 "account_number": account_number,
                 "start_date": start_date,
+                "capital_classified": capital_sum,
+                "pension_classified": pension_sum,
+                "blocked_classified": unspecified_sum,
                 "severance_current": severance_current,
                 "severance_after_settlement": severance_after_settlement,
                 "severance_not_settled": severance_not_settled,
@@ -194,50 +283,62 @@ def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) ->
         )
 
     if has_unsettled_severance or has_rights_sequence:
-        context_lines.append("🚫 **אזהרה רגולטורית/תפעולית:**")
+        context_lines.append("🚫 **חשוב מאוד – יתרות חסומות שאי אפשר לטפל בהן במערכת:**")
+        context_lines.append(
+            "המערכת והסוכן *לא יכולים* לבצע המרה/משיכה/חישוב מס סופי על רכיבים אלה. "
+            "נדרש טיפול חיצוני מול הגוף המנהל/מעסיקים (התחשבנות/השלמת רצפים) ורק לאחר מכן אפשר להמשיך במערכת."
+        )
         if has_unsettled_severance:
             context_lines.append(
-                "  • קיימות יתרות בעמודה 'פיצויים שלא עברו התחשבנות' – אין לבצע תרחישים/המרות עד טיפול והתאפסות העמודה."
+                "- קיימות יתרות ב־'פיצויים שלא עברו התחשבנות' (חסום להמרה עד התחשבנות)."
             )
         if has_rights_sequence:
             context_lines.append(
-                "  • קיימות יתרות בעמודה 'רצף זכויות (פיצויים ממעסיקים קודמים)' – אין לבצע משיכות/מס סופי על כספים אלו ללא טיפול חיצוני."
+                "- קיימות יתרות ב־'רצף זכויות (פיצויים ממעסיקים קודמים)' (חסום לטיפול במערכת)."
             )
+        if blocked_accounts:
+            blocked_sorted = sorted(blocked_accounts, key=lambda x: float(x.get("blocked_sum") or 0), reverse=True)
+            context_lines.append("")
+            context_lines.append("**פירוט חשבונות עם יתרות חסומות:**")
+            context_lines.append("| תכנית | סוג מוצר | חברה | חסום: לא התחשבנות | חסום: רצף זכויות | סה\"כ חסום | מספר חשבון |")
+            context_lines.append("|---|---|---|---:|---:|---:|---|")
+            for b in blocked_sorted[:15]:
+                context_lines.append(
+                    f"| {b['name'][:40]} | {b['type'][:25]} | {b['company'][:20]} | {float(b.get('severance_not_settled') or 0):,.0f} | {float(b.get('severance_prev_rights') or 0):,.0f} | {float(b.get('blocked_sum') or 0):,.0f} | {b.get('account_number') or ''} |"
+                )
         context_lines.append("")
 
-    context_lines.append(
-        "| מוצר | סוג | סיווג מוצר | יתרה (₪) | פיצויים סה\"כ | תגמולים סה\"כ | דגלים | מספר חשבון |"
-    )
-    context_lines.append("|------|------|-----------|----------|------------|-------------|--------|------------|")
+    requested_split = _detect_requested_split(user_message)
 
-    for p in products_list:
-        flags: list[str] = []
-        if float(p.get("severance_not_settled") or 0) > 0:
-            flags.append("לא התחשבנות")
-        if float(p.get("severance_prev_rights") or 0) > 0:
-            flags.append("רצף זכויות")
-        if bool(p.get("is_unspecified_candidate")):
-            flags.append("לא מסווג")
-        elif bool(p.get("is_pension_candidate")):
-            flags.append("קצבה")
-        elif bool(p.get("is_capital_candidate")):
-            flags.append("הון")
-
-        context_lines.append(
-            f"| {p['name'][:30]} | {p['type'][:20]} | {p['category']} | {p['balance']:,.0f} | {float(p.get('severance_total') or 0):,.0f} | {float(p.get('tagmulim_total') or 0):,.0f} | {', '.join(flags)} | {p.get('account_number') or ''} |"
-        )
-
-    context_lines.append("")
+    context_lines.append("## סיכום מהיר")
     context_lines.append("**סיכום נתונים גולמיים:**")
     context_lines.append(f"  • סה\"כ יתרות: {total_balance:,.0f} ₪")
     if total_capital_by_columns > 0 or total_pension_by_columns > 0 or total_unspecified_by_columns > 0:
-        context_lines.append("  • חלוקה לפי עמודות (דטרמיניסטי, ללא פרשנות לפי שם מוצר):")
+        context_lines.append(
+            "  • חלוקה דטרמיניסטית (לפי עמודות + חריגים לפי חוקי המרה/קרן השתלמות):"
+        )
         if total_pension_by_columns > 0:
             context_lines.append(f"    ◦ סכומים קצבתיים: {total_pension_by_columns:,.0f} ₪")
         if total_capital_by_columns > 0:
             context_lines.append(f"    ◦ סכומים הוניים: {total_capital_by_columns:,.0f} ₪")
         if total_unspecified_by_columns > 0:
             context_lines.append(f"    ◦ סכומים לא מסווגים/חסומים (לא התחשבנות/רצף זכויות): {total_unspecified_by_columns:,.0f} ₪")
+
+    if requested_split == "components":
+        context_lines.append("")
+        context_lines.append("## חלוקה לפי רכיבים (פיצויים/תגמולים)")
+    elif requested_split == "company":
+        context_lines.append("")
+        context_lines.append("## חלוקה לפי חברה מנהלת")
+    elif requested_split == "product_type":
+        context_lines.append("")
+        context_lines.append("## חלוקה לפי סוג מוצר")
+    elif requested_split == "capital_pension":
+        context_lines.append("")
+        context_lines.append("## חלוקה לפי הון/קצבה/חסום")
+    else:
+        context_lines.append("")
+        context_lines.append("## מוצרים מובילים לפי יתרה")
     total_severance = (
         totals["severance_current_employer"]
         + totals["severance_after_settlement"]
@@ -298,17 +399,62 @@ def build_pension_portfolio_context(portfolio: list[PensionPortfolioAccount]) ->
     if total_unspecified > 0:
         context_lines.append(f"  • חשבונות עם רכיבים לא מסווגים/חסומים: {total_unspecified}")
 
+    if requested_split in ("company", "product_type"):
+        grouped: dict[str, dict] = {}
+        group_key = "company" if requested_split == "company" else "type"
+        for p in products_list:
+            key = (p.get(group_key) or "לא ידוע").strip() or "לא ידוע"
+            row = grouped.get(key)
+            if row is None:
+                row = {
+                    "count": 0,
+                    "balance": 0.0,
+                    "capital": 0.0,
+                    "pension": 0.0,
+                    "blocked": 0.0,
+                }
+                grouped[key] = row
+            row["count"] += 1
+            row["balance"] += float(p.get("balance") or 0)
+            row["capital"] += float(p.get("capital_classified") or 0)
+            row["pension"] += float(p.get("pension_classified") or 0)
+            row["blocked"] += float(p.get("blocked_classified") or 0)
+
+        rows = sorted(grouped.items(), key=lambda kv: float(kv[1].get("balance") or 0), reverse=True)
+        context_lines.append("| קבוצה | #חשבונות | יתרה | הון | קצבה | חסום |")
+        context_lines.append("|---|---:|---:|---:|---:|---:|")
+        for k, r in rows:
+            context_lines.append(
+                f"| {k[:40]} | {int(r['count'])} | {float(r['balance']):,.0f} | {float(r['capital']):,.0f} | {float(r['pension']):,.0f} | {float(r['blocked']):,.0f} |"
+            )
+
+    if requested_split == "capital_pension":
+        context_lines.append("| תכנית | סוג מוצר | יתרה | הון | קצבה | חסום |")
+        context_lines.append("|---|---|---:|---:|---:|---:|")
+        rows = sorted(products_list, key=lambda p: float(p.get("balance") or 0), reverse=True)
+        for p in rows[:25]:
+            context_lines.append(
+                f"| {p['name'][:40]} | {p['type'][:25]} | {float(p.get('balance') or 0):,.0f} | {float(p.get('capital_classified') or 0):,.0f} | {float(p.get('pension_classified') or 0):,.0f} | {float(p.get('blocked_classified') or 0):,.0f} |"
+            )
+
+    if requested_split == "overview":
+        rows = sorted(products_list, key=lambda p: float(p.get("balance") or 0), reverse=True)
+        context_lines.append("| תכנית | סוג מוצר | חברה | יתרה |")
+        context_lines.append("|---|---|---|---:|")
+        for p in rows[:15]:
+            context_lines.append(
+                f"| {p['name'][:40]} | {p['type'][:25]} | {(p.get('company') or '')[:20]} | {float(p.get('balance') or 0):,.0f} |"
+            )
+
     if canonical_accounts:
         context_lines.append("")
-        context_lines.append("🔑 **שדות מזהים (להמרה אידמפוטנטית):**")
-        context_lines.append(
-            "בעת קריאה לכלי TRANSFORM_FUNDS_TO_ASSETS חובה להעביר לכל חשבון account_number ו-start_date "
-            "(מקבילים ל-מספר_חשבון ותאריך_התחלה) כדי למנוע כפילויות ולעדכן רשומות קיימות."
-        )
-        context_lines.append("")
-        context_lines.append("Canonical accounts (keys expected by tools):")
-        for a in canonical_accounts:
-            context_lines.append(str(a))
+        context_lines.append("🔑 **מזהים לחשבונות (למניעת כפילויות בהמרה):**")
+        context_lines.append("| תכנית | מספר חשבון | תאריך התחלה |")
+        context_lines.append("|---|---|---|")
+        for a in canonical_accounts[:30]:
+            context_lines.append(
+                f"| {(a.get('account_name') or '')[:40]} | {a.get('account_number') or ''} | {a.get('start_date') or ''} |"
+            )
 
     context_lines.append("")
     context_lines.append("🔧 **לקבלת קצבה מחושבת:** הפעל BUILD_TARGET_PENSION_PLAN עם יעד קצבה (למשל 20000)")
