@@ -46,9 +46,20 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
   const [sessionKey, setSessionKey] = useState<string | null>(null);
   const [tokensToAdd, setTokensToAdd] = useState<string>('1000');
 
-  const canManageTokens = useMemo(() => {
-    return Boolean(window.localStorage.getItem('systemAccessPassword'));
-  }, []);
+  function ensureSystemAccessPassword(): string | null {
+    const existing = window.localStorage.getItem('systemAccessPassword');
+    if (existing) {
+      return existing;
+    }
+
+    const entered = window.prompt('נדרשת סיסמת מערכת כדי לטעון טוקנים. הזן סיסמת מערכת:');
+    const trimmed = (entered || '').trim();
+    if (!trimmed) {
+      return null;
+    }
+    window.localStorage.setItem('systemAccessPassword', trimmed);
+    return trimmed;
+  }
 
   // טעינת snapshot שמור מ-localStorage
   useEffect(() => {
@@ -130,8 +141,8 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
   }
 
   const handleTopUpTokens = async () => {
-    if (!canManageTokens) {
-      setMessage({ type: 'error', text: '❌ טעינת טוקנים זמינה רק למנהל מערכת (נדרשת סיסמת מערכת).' });
+    if (!ensureSystemAccessPassword()) {
+      setMessage({ type: 'error', text: '❌ טעינת טוקנים דורשת סיסמת מערכת.' });
       return;
     }
 
@@ -378,7 +389,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
           variant="contained"
           color="success"
           onClick={handleTopUpTokens}
-          disabled={tokenLoading || !canManageTokens}
+          disabled={tokenLoading}
           startIcon={tokenLoading ? <CircularProgress size={18} color="inherit" /> : undefined}
         >
           ➕ טען
