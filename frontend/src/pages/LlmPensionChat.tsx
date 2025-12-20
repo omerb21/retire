@@ -1,6 +1,6 @@
 import React, { useState, FormEvent, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, handleApiError } from "../lib/api";
+import { apiFetch, llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, handleApiError } from "../lib/api";
 import { useClientData } from "./ClientDetails/hooks/useClientData";
 import { loadLlmChatFromStorage, saveLlmChatToStorage, clearLlmChatFromStorage } from "../services/llmChatStorageService";
 import {
@@ -65,6 +65,20 @@ type ComputedPensionData = {
   target_achieved: boolean;
   retirement_age: number;
 };
+
+async function persistPortfolioUpdateToDb(
+  clientId: string | undefined,
+  updater: (accounts: any[]) => any[],
+) {
+  if (!clientId) return;
+
+  const portfolio = await apiFetch<any[]>(`/clients/${clientId}/pension-portfolio/`);
+  const updated = updater(Array.isArray(portfolio) ? portfolio : []);
+  await apiFetch(`/clients/${clientId}/pension-portfolio/save`, {
+    method: "POST",
+    body: JSON.stringify({ accounts: updated }),
+  });
+}
 
 function estimateTokensForMessages(messages: LlmChatMessageDto[]): { totalTokens: number; totalChars: number } {
   if (!messages || messages.length === 0) {
@@ -329,24 +343,19 @@ const LlmPensionChat: React.FC = () => {
 
     try {
       const numericClientId = clientId ? Number(clientId) : undefined;
-      
-      // טען את נתוני התיק הפנסיוני מה-localStorage
-      const pensionPortfolio = loadPensionPortfolioForLlm(clientId);
-      if (pensionPortfolio.length > 0) {
-        console.log(`Sending ${pensionPortfolio.length} pension accounts to LLM`);
-      }
-      
+
       let fullContent = "";
       let extractedComputedData: ComputedPensionData | null = null;
       const pendingUiActions: any[] = [];
 
-      // Use streaming API with pension portfolio
-      for await (const chunk of llmApi.chatStream(newMessages, numericClientId, pensionPortfolio)) {
+      // Use streaming API (portfolio is loaded from DB on the server)
+      for await (const chunk of llmApi.chatStream(newMessages, numericClientId)) {
         fullContent += chunk;
-        
+
         // חפש וחלץ נתונים מחושבים מהמערכת (לא מה-LLM)
         const computedStartMarker = "###COMPUTED_DATA###";
         const computedEndMarker = "###END_COMPUTED_DATA###";
+
         
         if (fullContent.includes(computedStartMarker) && fullContent.includes(computedEndMarker)) {
           const startIdx = fullContent.indexOf(computedStartMarker) + computedStartMarker.length;
@@ -389,6 +398,12 @@ const LlmPensionChat: React.FC = () => {
                   פיצויים_מעסיק_נוכחי: 0
                 }));
               });
+              await persistPortfolioUpdateToDb(clientId, (accounts) =>
+                accounts.map((acc) => ({
+                  ...acc,
+                  פיצויים_מעסיק_נוכחי: 0,
+                })),
+              );
               console.log("✅ D3.11: Severance reset in localStorage completed");
             }
           } catch (parseErr) {
@@ -413,6 +428,40 @@ const LlmPensionChat: React.FC = () => {
             const parsed = JSON.parse(updJsonStr);
             if (parsed?.type === "pension_portfolio_updates" && Array.isArray(parsed.updates)) {
               applyConversionUpdatesToPensionPortfolio(clientId, parsed.updates);
+
+              await persistPortfolioUpdateToDb(clientId, (accounts) => {
+                const updatedAccounts = [...accounts];
+
+                parsed.updates.forEach((u: any) => {
+                  const accountNumber = String(u.account_number || "").trim();
+                  if (!accountNumber) return;
+
+                  const idx = updatedAccounts.findIndex(
+                    (acc: any) => String(acc.מספר_חשבון || "").trim() === accountNumber,
+                  );
+                  if (idx === -1) return;
+
+                  const account = { ...updatedAccounts[idx] } as any;
+                  const specific = u.specific_amounts && typeof u.specific_amounts === "object" ? u.specific_amounts : null;
+                  if (specific && Object.keys(specific).length > 0) {
+                    Object.keys(specific).forEach((field) => {
+                      if (Object.prototype.hasOwnProperty.call(account, field)) {
+                        account[field] = 0;
+                      }
+                    });
+                  }
+
+                  const originalBalance = Number(account.יתרה ?? 0) || 0;
+                  const convertedAmount = Number(u.converted_amount ?? 0) || 0;
+                  if (convertedAmount > 0) {
+                    account.יתרה = Math.max(0, originalBalance - convertedAmount);
+                  }
+
+                  updatedAccounts[idx] = account;
+                });
+
+                return updatedAccounts;
+              });
             }
           } catch (parseErr) {
             console.warn("Failed to parse pension portfolio update JSON:", parseErr);

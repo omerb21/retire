@@ -35,6 +35,9 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.llm_chat.tool_execution import execute_tool_call
 from app.services.llm_pension_agent_service import pension_llm_service
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot_models,
+)
 from app.utils.llm_chat_log import generate_request_id, log_llm_event
 
 logger = logging.getLogger("app.llm_chat")
@@ -62,10 +65,17 @@ def _execute_tool_call(
 def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingResponse:
     stream_request_id = generate_request_id()
 
+    effective_portfolio = request.pension_portfolio
+    effective_snapshot_at = request.pension_portfolio_snapshot_at
+    if request.client_id is not None:
+        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+        if loaded is not None:
+            effective_portfolio, effective_snapshot_at = loaded
+
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
     if is_portfolio_breakdown_request(original_user_msg):
-        portfolio = request.pension_portfolio or []
+        portfolio = effective_portfolio or []
 
         def generate_breakdown():
             if computed_data is not None:
@@ -80,7 +90,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     build_pension_portfolio_context(
                         portfolio,
                         user_message=original_user_msg,
-                        snapshot_at=request.pension_portfolio_snapshot_at,
+                        snapshot_at=effective_snapshot_at,
                     )
                 ).strip()
                 if portfolio
@@ -112,7 +122,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
             yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-        current_pension_portfolio = request.pension_portfolio
+        current_pension_portfolio = effective_portfolio
 
         report_open_path: str | None = None
         qa_summary_required = False
@@ -125,8 +135,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 required_tools.add("GENERATE_FULL_REPORT")
             if (
                 is_doc_request
-                and isinstance(request.pension_portfolio, list)
-                and request.pension_portfolio
+                and isinstance(current_pension_portfolio, list)
+                and current_pension_portfolio
             ):
                 required_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
 

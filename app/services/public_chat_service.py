@@ -13,6 +13,7 @@ from app.schemas.public_chat import PublicChatMessageDto
 from app.services.client_service import normalize_id_number
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 from app.schemas.llm_chat import ChatRequest
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
 
 def _estimate_tokens(text: str) -> int:
@@ -150,42 +151,12 @@ def _append_message(db: Session, session: PublicChatSession, role: str, content:
 
 
 def _load_latest_pension_portfolio(db: Session, client_id: int) -> tuple[list[dict], str] | None:
-    snapshot = (
-        db.query(Scenario)
-        .filter(Scenario.client_id == client_id)
-        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
-        .first()
-    )
+    result = load_latest_pension_portfolio_snapshot_models(db, client_id)
+    if result is None:
+        return None
 
-    scenarios = []
-    if snapshot is not None:
-        scenarios.append(snapshot)
-    scenarios.extend(
-        db.query(Scenario)
-        .filter(Scenario.client_id == client_id)
-        .order_by(Scenario.created_at.desc())
-        .limit(20)
-        .all()
-    )
-
-    for scenario in scenarios:
-        if not scenario.parameters:
-            continue
-        try:
-            params = json.loads(scenario.parameters)
-        except Exception:
-            continue
-        portfolio = params.get("pension_portfolio")
-        if isinstance(portfolio, list) and portfolio:
-            snapshot_at = ""
-            try:
-                snapshot_at = scenario.created_at.isoformat()
-            except Exception:
-                snapshot_at = ""
-            return portfolio, snapshot_at
-
-    return None
+    portfolio_models, snapshot_at = result
+    return [item.model_dump() for item in portfolio_models], snapshot_at
 
 
 def send_message(db: Session, session: PublicChatSession, user_content: str) -> tuple[str, int]:

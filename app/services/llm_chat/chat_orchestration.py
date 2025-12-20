@@ -19,6 +19,7 @@ from app.services.llm_chat.chat_stream_orchestration import (
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import find_last_user_message
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
     build_transform_accounts_from_portfolio,
@@ -63,16 +64,23 @@ def _execute_tool_call(
 def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     request_id = generate_request_id()
 
+    effective_portfolio = request.pension_portfolio
+    effective_snapshot_at = request.pension_portfolio_snapshot_at
+    if request.client_id is not None:
+        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+        if loaded is not None:
+            effective_portfolio, effective_snapshot_at = loaded
+
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
     if is_portfolio_breakdown_request(original_user_msg):
-        portfolio = request.pension_portfolio or []
+        portfolio = effective_portfolio or []
         breakdown = (
             "\n".join(
                 build_pension_portfolio_context(
                     portfolio,
                     user_message=original_user_msg,
-                    snapshot_at=request.pension_portfolio_snapshot_at,
+                    snapshot_at=effective_snapshot_at,
                 )
             ).strip()
             if portfolio
@@ -85,7 +93,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     no_tools_requested = is_no_tools_request(original_user_msg)
     force_max_exemption = is_max_exemption_request(original_user_msg)
 
-    current_pension_portfolio = request.pension_portfolio
+    current_pension_portfolio = effective_portfolio
 
     log_llm_event(
         request_id=request_id,

@@ -19,6 +19,7 @@ from app.services.documents.data_fetchers.client_data import fetch_client_data
 from app.services.llm_chat.message_utils import extract_executed_tools_from_history
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.state_tools import get_agent_state_json, get_tools_definitions_json
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 from app.services.retirement_age_service import calculate_retirement_age
 from app.services.tax_data import TaxBracketsService
 
@@ -387,12 +388,22 @@ def build_llm_context_parts(
             context_parts.append(f"  • {hebrew_name}")
         context_parts.append("**אל תפעיל כלים אלה שוב אלא אם הלקוח מבקש במפורש!**")
 
-    if request.pension_portfolio and len(request.pension_portfolio) > 0:
-        portfolio_context = build_pension_portfolio_context(request.pension_portfolio)
+    effective_portfolio = request.pension_portfolio
+    effective_snapshot_at = request.pension_portfolio_snapshot_at
+    if not effective_portfolio and request.client_id is not None:
+        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+        if loaded is not None:
+            effective_portfolio, effective_snapshot_at = loaded
+
+    if effective_portfolio and len(effective_portfolio) > 0:
+        portfolio_context = build_pension_portfolio_context(
+            effective_portfolio,
+            snapshot_at=effective_snapshot_at,
+        )
         context_parts.extend(portfolio_context)
         logger.info(
             "Added pension portfolio context with %d accounts",
-            len(request.pension_portfolio),
+            len(effective_portfolio),
         )
 
     user_messages = [m for m in messages if m.role == "user"]
