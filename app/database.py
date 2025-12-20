@@ -77,7 +77,10 @@ def ensure_client_public_chat_credit_schema(engine) -> None:
 
             if "public_chat_credit_initialized" not in columns:
                 add_column(conn, "public_chat_credit_initialized", "BOOLEAN" if dialect != "sqlite" else "INTEGER")
-                conn.execute(text("UPDATE client SET public_chat_credit_initialized = 0 WHERE public_chat_credit_initialized IS NULL"))
+                if dialect == "sqlite":
+                    conn.execute(text("UPDATE client SET public_chat_credit_initialized = 0 WHERE public_chat_credit_initialized IS NULL"))
+                else:
+                    conn.execute(text("UPDATE client SET public_chat_credit_initialized = FALSE WHERE public_chat_credit_initialized IS NULL"))
     except Exception:
         # best-effort only; avoid breaking app startup
         return
