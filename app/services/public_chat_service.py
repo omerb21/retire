@@ -1,11 +1,13 @@
 import math
 import os
 import secrets
+import json
 
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.public_chat import PublicChatSession, PublicChatMessage
+from app.models.scenario import Scenario
 from app.schemas.llm_chat import ChatMessage
 from app.schemas.public_chat import PublicChatMessageDto
 from app.services.client_service import normalize_id_number
@@ -147,6 +149,40 @@ def _append_message(db: Session, session: PublicChatSession, role: str, content:
     return msg
 
 
+def _load_latest_pension_portfolio(db: Session, client_id: int) -> list[dict] | None:
+    snapshot = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+
+    scenarios = []
+    if snapshot is not None:
+        scenarios.append(snapshot)
+    scenarios.extend(
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .order_by(Scenario.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    for scenario in scenarios:
+        if not scenario.parameters:
+            continue
+        try:
+            params = json.loads(scenario.parameters)
+        except Exception:
+            continue
+        portfolio = params.get("pension_portfolio")
+        if isinstance(portfolio, list) and portfolio:
+            return portfolio
+
+    return None
+
+
 def send_message(db: Session, session: PublicChatSession, user_content: str) -> tuple[str, int]:
     trimmed = (user_content or "").strip()
     if not trimmed:
@@ -174,7 +210,12 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
     history = get_history(db, session)
     chat_messages: list[ChatMessage] = [ChatMessage(role=m.role, content=m.content) for m in history]
 
-    request = ChatRequest(messages=chat_messages, client_id=session.client_id)
+    pension_portfolio = _load_latest_pension_portfolio(db, session.client_id)
+    request = ChatRequest(
+        messages=chat_messages,
+        client_id=session.client_id,
+        pension_portfolio=pension_portfolio,
+    )
     response = run_pension_chat(request, db)
     reply_text = (response.reply or "").strip()
 

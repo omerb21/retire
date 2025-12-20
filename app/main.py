@@ -35,7 +35,7 @@ except Exception as e:
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.config import cors_allow_origins
+from app.config import cors_allow_origins, cors_allow_origin_regex, cors_allow_credentials
 from app.routers import (
     fixation,
     files,
@@ -99,21 +99,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_allow_origins(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Add ProxyHeadersMiddleware to trust headers from Railway load balancer
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 from app.core.system_access import SystemAccessMiddleware
 app.add_middleware(SystemAccessMiddleware)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_allow_origins(),
+    allow_origin_regex=cors_allow_origin_regex(),
+    allow_credentials=cors_allow_credentials(),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix

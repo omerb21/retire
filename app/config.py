@@ -16,6 +16,10 @@ def allow_json_fallback() -> bool:
 
 
 def cors_allow_origins() -> list[str]:
+    allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() in ("true", "1", "yes")
+    if allow_all:
+        return ["*"]
+
     origins = [
         "http://localhost:3000",
         "http://localhost:8000",
@@ -27,4 +31,16 @@ def cors_allow_origins() -> list[str]:
     if extra.strip():
         origins.extend([o.strip() for o in extra.split(",") if o.strip()])
     return origins
+
+
+def cors_allow_origin_regex() -> str | None:
+    value = os.getenv("CORS_ALLOW_ORIGIN_REGEX", "").strip()
+    return value or None
+
+
+def cors_allow_credentials() -> bool:
+    allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() in ("true", "1", "yes")
+    if allow_all:
+        return False
+    return os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() in ("true", "1", "yes")
 

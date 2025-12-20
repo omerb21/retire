@@ -8,13 +8,16 @@ from pathlib import Path
 
 from app.database import get_db
 from app.services.pension_portfolio import PensionPortfolioProcessor
+from app.models.scenario import Scenario
+from app.models.client import Client
 
 router = APIRouter()
 
 @router.post("/clients/{client_id}/pension-portfolio/process-xml")
 async def process_pension_xml_files(
     client_id: int,
-    files: List[UploadFile] = File(...)
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
 ):
     """עיבוד קבצי XML ו-DAT של המסלקה"""
     
@@ -81,34 +84,117 @@ async def process_pension_xml_files(
                 detail=f"שגיאה בעיבוד קובץ {file.filename}: {str(e)}"
             )
     
+    saved_snapshot_result = None
+    try:
+        saved_snapshot_result = await save_pension_portfolio(
+            client_id=client_id,
+            portfolio_data={"accounts": all_accounts},
+            db=db,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"שגיאה בשמירת תיק פנסיוני: {str(e)}")
+
     return {
         'total_accounts': len(all_accounts),
         'processed_files_count': len(processed_files),
         'skipped_files_count': len(skipped_files),
         'processed_files': processed_files,
         'skipped_files': skipped_files,
-        'accounts': all_accounts
+        'accounts': all_accounts,
+        'saved_snapshot': saved_snapshot_result,
     }
 
 @router.get("/clients/{client_id}/pension-portfolio/")
-async def get_pension_portfolio(client_id: int):
+async def get_pension_portfolio(client_id: int, db: Session = Depends(get_db)):
     """קבלת נתוני תיק פנסיוני קיימים"""
-    # כאן ניתן לטעון נתונים שנשמרו קודם במסד הנתונים
-    # לעת עתה נחזיר רשימה ריקה
+    snapshot = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+
+    scenarios = []
+    if snapshot is not None:
+        scenarios.append(snapshot)
+    scenarios.extend(
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .order_by(Scenario.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    for scenario in scenarios:
+        if not scenario.parameters:
+            continue
+        try:
+            params = json.loads(scenario.parameters)
+        except Exception:
+            continue
+        portfolio = params.get("pension_portfolio")
+        if isinstance(portfolio, list):
+            return portfolio
+
     return []
 
 @router.post("/clients/{client_id}/pension-portfolio/save")
 async def save_pension_portfolio(
     client_id: int,
-    portfolio_data: dict
+    portfolio_data: dict,
+    db: Session = Depends(get_db),
 ):
     """שמירת נתוני תיק פנסיוני"""
-    # כאן ניתן לשמור את הנתונים במסד הנתונים
-    # לעת עתה נחזיר הצלחה
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="לקוח לא נמצא")
+
+    accounts = None
+    if isinstance(portfolio_data, dict):
+        accounts = portfolio_data.get("accounts")
+
+    if not isinstance(accounts, list):
+        raise HTTPException(status_code=400, detail="מבנה תיק פנסיוני לא תקין (accounts)")
+
+    scenario = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+
+    if scenario is None:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="pension_portfolio_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps({"pension_portfolio": accounts}, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.commit()
+        db.refresh(scenario)
+    else:
+        try:
+            params = json.loads(scenario.parameters) if scenario.parameters else {}
+        except Exception:
+            params = {}
+        params["pension_portfolio"] = accounts
+        scenario.parameters = json.dumps(params, ensure_ascii=False)
+        db.add(scenario)
+        db.commit()
+        db.refresh(scenario)
+
     return {
         'message': 'נתוני התיק הפנסיוני נשמרו בהצלחה',
         'client_id': client_id,
-        'accounts_count': len(portfolio_data.get('accounts', []))
+        'accounts_count': len(accounts),
+        'scenario_id': scenario.id,
     }
 
 @router.post("/clients/{client_id}/pension-portfolio/convert")
