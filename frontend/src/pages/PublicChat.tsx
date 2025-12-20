@@ -23,7 +23,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(trimmed.length / 4);
 }
 
-function PublicChatStartPage() {
+export function PublicChatStartPage() {
   const navigate = useNavigate();
   const [idNumber, setIdNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -190,6 +190,14 @@ function PublicChatSessionPage() {
     return `${backend || "LLM"}${model ? `: ${model}` : ""}`;
   }, [status]);
 
+  function handleClearChat() {
+    const ok = window.confirm("לנקות את השיחה מהמסך? פעולה זו לא מוחקת את ההיסטוריה מהשרת.");
+    if (!ok) return;
+    setMessages([]);
+    setError(null);
+    setInput("");
+  }
+
   return (
     <div className="public-chat-page">
       <div className="public-chat-shell">
@@ -200,7 +208,9 @@ function PublicChatSessionPage() {
               יתרה: {status?.token_balance ?? "-"}
             </span>
             {modelLabel && <span className="public-chat-pill">{modelLabel}</span>}
-            <Link to="/public-chat" className="public-chat-link">חדש</Link>
+            <button type="button" className="public-chat-secondary" onClick={handleClearChat}>
+              נקה שיחה
+            </button>
           </div>
         </div>
 
@@ -245,6 +255,25 @@ export default function PublicChat() {
 
   if (sessionKey) {
     return <PublicChatSessionPage />;
+  }
+
+  const hasSystemAccess = Boolean(window.localStorage.getItem("systemAccessPassword"));
+  if (!hasSystemAccess) {
+    return (
+      <div className="public-chat-page">
+        <div className="public-chat-shell">
+          <div className="public-chat-topbar">
+            <div className="public-chat-brand">צ'אט פרישה</div>
+          </div>
+          <div className="public-chat-card">
+            <h2 className="public-chat-title">קישור לא תקין</h2>
+            <p className="public-chat-subtitle">
+              פתיחת שיחה חדשה זמינה רק דרך מנהל המערכת. נא להשתמש בקישור שקיבלת.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return <PublicChatStartPage />;

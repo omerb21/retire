@@ -46,4 +46,5 @@ export type TabType =
   | 'termination' 
   | 'annuity' 
   | 'tax_calculation'
-  | 'health';
+  | 'health'
+  | 'public_chat';

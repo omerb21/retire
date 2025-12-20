@@ -16,6 +16,7 @@ import ScenariosSettings from '../components/system-settings/ScenariosSettings';
 import TerminationSettings from '../components/system-settings/TerminationSettings';
 import AnnuitySettings from '../components/system-settings/AnnuitySettings';
 import SystemHealthMonitor from '../components/system-settings/SystemHealthMonitor';
+import PublicChatSettings from '../components/system-settings/PublicChatSettings';
 import { useSystemSettingsPage } from './SystemSettings/hooks/useSystemSettingsPage';
 import './SystemSettings.css';
 
@@ -148,6 +149,12 @@ const SystemSettings: React.FC = () => {
           >
             🏥 תקינות מערכת
           </button>
+          <button
+            onClick={() => setActiveTab('public_chat')}
+            className={`tab-button ${activeTab === 'public_chat' ? 'active' : ''}`}
+          >
+            💬 צ'אט לקוח
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -244,6 +251,8 @@ const SystemSettings: React.FC = () => {
         )}
 
         {activeTab === 'health' && <SystemHealthMonitor />}
+
+        {activeTab === 'public_chat' && <PublicChatSettings />}
       </div>
     </div>
   );
