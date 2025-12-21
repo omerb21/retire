@@ -360,7 +360,16 @@ def handle_transform_funds_to_assets(
         skip_non_convertible_accounts = bool(args.get("skip_non_convertible_accounts"))
 
         if not accounts or not isinstance(accounts, list):
-            return "Error: חסרה רשימת חשבונות להמרה (accounts)"
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "חסרה רשימת חשבונות להמרה (accounts)",
+                    "total_converted": 0,
+                    "converted_pensions": 0,
+                    "converted_capitals": 0,
+                },
+                ensure_ascii=False,
+            )
 
         from decimal import Decimal
         from datetime import date as date_type
@@ -433,10 +442,23 @@ def handle_transform_funds_to_assets(
                     rights_sequence_total += val
 
         if (unresolved_severance_total > 0 or rights_sequence_total > 0) and (not ignore_blocked_balances):
-            return (
-                "Error: לא ניתן להמשיך בתרחיש כל עוד קיימות יתרות בעמודות "
-                "'פיצויים שלא עברו התחשבנות' או 'רצף פיצויים מעסיקים קודמים (זכויות)'. "
-                "נא לבצע התחשבנות ולרוקן עמודות אלו לפני המשך התרחיש."
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": (
+                        "לא ניתן להמשיך בתרחיש כל עוד קיימות יתרות בעמודות "
+                        "'פיצויים שלא עברו התחשבנות' או 'רצף פיצויים מעסיקים קודמים (זכויות)'. "
+                        "נא לבצע התחשבנות ולרוקן עמודות אלו לפני המשך התרחיש."
+                    ),
+                    "blocked": {
+                        "unresolved_severance_total": unresolved_severance_total,
+                        "rights_sequence_total": rights_sequence_total,
+                    },
+                    "total_converted": 0,
+                    "converted_pensions": 0,
+                    "converted_capitals": 0,
+                },
+                ensure_ascii=False,
             )
 
         validation_errors: list[str] = []
@@ -576,7 +598,17 @@ def handle_transform_funds_to_assets(
             )
 
         if validation_errors:
-            return "Error: שגיאות ולידציה בהמרה:\n" + "\n".join(validation_errors)
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "שגיאות ולידציה בהמרה",
+                    "validation_errors": validation_errors,
+                    "total_converted": 0,
+                    "converted_pensions": 0,
+                    "converted_capitals": 0,
+                },
+                ensure_ascii=False,
+            )
 
         for idx, normalized in enumerate(normalized_accounts):
             try:
@@ -994,4 +1026,13 @@ def handle_transform_funds_to_assets(
 
     except Exception as e:
         logger.error("TRANSFORM_FUNDS_TO_ASSETS failed: %s", e, exc_info=True)
-        return f"Error: שגיאה בהמרת הכספים: {str(e)}"
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"שגיאה בהמרת הכספים: {str(e)}",
+                "total_converted": 0,
+                "converted_pensions": 0,
+                "converted_capitals": 0,
+            },
+            ensure_ascii=False,
+        )

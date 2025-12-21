@@ -139,6 +139,14 @@ function PublicChatSessionPage() {
     return status.client_name || `לקוח ${status.client_id}`;
   }, [status]);
 
+  const modelLabel = useMemo(() => {
+    if (!status) return null;
+    const backend = status.llm_backend || status.llm_provider;
+    const model = status.llm_model_name;
+    if (!backend && !model) return null;
+    return `${backend || "LLM"}${model ? `: ${model}` : ""}`;
+  }, [status]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
@@ -295,14 +303,6 @@ function PublicChatSessionPage() {
   }
 
   const depleted = (status?.token_balance ?? 0) <= 0;
-
-  const modelLabel = useMemo(() => {
-    if (!status) return null;
-    const backend = status.llm_backend || status.llm_provider;
-    const model = status.llm_model_name;
-    if (!backend && !model) return null;
-    return `${backend || "LLM"}${model ? `: ${model}` : ""}`;
-  }, [status]);
 
   function handleClearChat() {
     const ok = window.confirm("לנקות את השיחה מהמסך? פעולה זו לא מוחקת את ההיסטוריה מהשרת.");

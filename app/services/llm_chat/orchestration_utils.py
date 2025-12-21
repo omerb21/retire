@@ -39,6 +39,24 @@ def build_tool_call_message_content(tool_data: dict[str, Any], ensure_ascii: boo
 
 
 def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) -> str:
+    if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
+        is_error = False
+        try:
+            parsed = json.loads(tool_result)
+            if isinstance(parsed, dict) and parsed.get("success") is False:
+                is_error = True
+        except Exception:
+            is_error = isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:")
+
+        if is_error:
+            return (
+                f"🔧 **Tool Result ({tool_name}):**\n"
+                f"{tool_result}\n\n"
+                "הנחיות למודל: ההמרה נכשלה ולכן לא בוצעה שום המרה (converted_count=0). "
+                "אסור לטעון שבוצעה המרה חלקית של יתרות לא חסומות. "
+                "אם נדרש ניתוח פרישה/השוואה, ציין במפורש שהניתוח מבוסס על הנתונים הקיימים לפני ההמרה בלבד."
+            )
+
     return (
         f"🔧 **Tool Result ({tool_name}):**\n"
         f"{tool_result}\n\n"
@@ -48,6 +66,23 @@ def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) 
 
 
 def build_tool_result_system_message_for_stream(tool_name: str, tool_result: str) -> str:
+    if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
+        is_error = False
+        try:
+            parsed = json.loads(tool_result)
+            if isinstance(parsed, dict) and parsed.get("success") is False:
+                is_error = True
+        except Exception:
+            is_error = isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:")
+
+        if is_error:
+            return (
+                f"Tool Result ({tool_name}): {tool_result}\n\n"
+                "הנחיות למודל: ההמרה נכשלה ולכן לא בוצעה שום המרה (converted_count=0). "
+                "אסור לטעון שבוצעה המרה חלקית של יתרות לא חסומות. "
+                "אם נדרש ניתוח פרישה/השוואה, ציין במפורש שהניתוח מבוסס על הנתונים הקיימים לפני ההמרה בלבד."
+            )
+
     return (
         f"Tool Result ({tool_name}): {tool_result}\n\n"
         "הנחיות למודל: שלב את נתוני הכלי (ברוטו, נטו, מס ופרטי פטור) בתוך תשובה אחת סופית וברורה ללקוח על הקצבה נטו, "
