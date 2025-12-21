@@ -72,19 +72,30 @@ function ProtectedAppShell() {
 
   useEffect(() => {
     const existing = window.localStorage.getItem(SYSTEM_ACCESS_STORAGE_KEY);
-    if (existing) {
-      setHasAccess(true);
-      return;
-    }
 
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/health`, { method: "GET" });
+        const headers: Record<string, string> = {};
+        if (existing) {
+          headers["X-System-Password"] = existing;
+        }
+
+        const res = await fetch(`${API_BASE}/health`, {
+          method: "GET",
+          headers,
+        });
+
         if (res.ok) {
           setHasAccess(true);
+          return;
         }
+
+        if (existing) {
+          window.localStorage.removeItem(SYSTEM_ACCESS_STORAGE_KEY);
+        }
+        setHasAccess(false);
       } catch {
-        // ignore
+        setHasAccess(false);
       }
     })();
   }, []);

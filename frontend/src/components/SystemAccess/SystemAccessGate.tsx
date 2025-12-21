@@ -16,7 +16,28 @@ const SystemAccessGate: React.FC<SystemAccessGateProps> = ({ onAccessGranted }) 
   useEffect(() => {
     const existing = window.localStorage.getItem(STORAGE_KEY);
     if (existing) {
-      onAccessGranted();
+      setPassword(existing);
+      setLoading(true);
+      (async () => {
+        try {
+          const res = await fetch(`${API_BASE}/health`, {
+            method: "GET",
+            headers: {
+              "X-System-Password": existing,
+            },
+          });
+
+          if (res.ok) {
+            onAccessGranted();
+            return;
+          }
+
+          window.localStorage.removeItem(STORAGE_KEY);
+        } catch {
+        } finally {
+          setLoading(false);
+        }
+      })();
     }
   }, [onAccessGranted]);
 

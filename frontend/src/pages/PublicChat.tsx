@@ -17,6 +17,32 @@ type Status = {
   llm_model_name?: string | null;
 };
 
+const PUBLIC_CHAT_PASSWORD_STORAGE_PREFIX = "publicChatPassword:";
+
+function getStoredPublicChatPassword(sessionKey: string): string | null {
+  try {
+    return window.sessionStorage.getItem(`${PUBLIC_CHAT_PASSWORD_STORAGE_PREFIX}${sessionKey}`);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredPublicChatPassword(sessionKey: string, password: string): void {
+  try {
+    window.sessionStorage.setItem(`${PUBLIC_CHAT_PASSWORD_STORAGE_PREFIX}${sessionKey}`, password);
+  } catch {
+    // ignore
+  }
+}
+
+function clearStoredPublicChatPassword(sessionKey: string): void {
+  try {
+    window.sessionStorage.removeItem(`${PUBLIC_CHAT_PASSWORD_STORAGE_PREFIX}${sessionKey}`);
+  } catch {
+    // ignore
+  }
+}
+
 function estimateTokens(text: string): number {
   const trimmed = (text || "").trim();
   if (!trimmed) return 0;
@@ -42,6 +68,7 @@ export function PublicChatStartPage() {
     setIsLoading(true);
     try {
       const started = await publicChatApi.start(trimmed);
+      setStoredPublicChatPassword(started.session_key, trimmed);
       navigate(`/public-chat/${started.session_key}`);
     } catch (err) {
       setError(handleApiError(err));
@@ -96,7 +123,16 @@ function PublicChatSessionPage() {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [publicChatPassword, setPublicChatPassword] = useState<string>("");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sessionKey) return;
+    const existing = getStoredPublicChatPassword(sessionKey);
+    if (existing) {
+      setPublicChatPassword(existing);
+    }
+  }, [sessionKey]);
 
   const displayName = useMemo(() => {
     if (!status) return "";
@@ -112,12 +148,17 @@ function PublicChatSessionPage() {
       return;
     }
 
+    const trimmedPassword = (publicChatPassword || "").trim();
+    if (!trimmedPassword) {
+      return;
+    }
+
     let active = true;
     (async () => {
       try {
         const [s, h] = await Promise.all([
-          publicChatApi.status(sessionKey),
-          publicChatApi.history(sessionKey),
+          publicChatApi.status(sessionKey, trimmedPassword),
+          publicChatApi.history(sessionKey, trimmedPassword),
         ]);
 
         if (!active) return;
@@ -126,18 +167,47 @@ function PublicChatSessionPage() {
         setMessages(h.messages || []);
       } catch (err) {
         if (!active) return;
-        setError(handleApiError(err));
+        const msg = handleApiError(err);
+        setError(msg);
+        if (msg.toLowerCase().includes("password")) {
+          clearStoredPublicChatPassword(sessionKey);
+          setPublicChatPassword("");
+        }
       }
     })();
 
     return () => {
       active = false;
     };
-  }, [sessionKey]);
+  }, [sessionKey, publicChatPassword]);
+
+  async function handleUnlock(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sessionKey) return;
+    setError(null);
+
+    const trimmed = (publicChatPassword || "").trim();
+    if (!trimmed) {
+      setError("יש להזין תעודת זהות");
+      return;
+    }
+
+    try {
+      await publicChatApi.status(sessionKey, trimmed);
+      setStoredPublicChatPassword(sessionKey, trimmed);
+      setPublicChatPassword(trimmed);
+    } catch (err) {
+      setError(handleApiError(err));
+      clearStoredPublicChatPassword(sessionKey);
+    }
+  }
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!sessionKey) return;
+
+    const trimmedPassword = (publicChatPassword || "").trim();
+    if (!trimmedPassword) return;
 
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -149,7 +219,7 @@ function PublicChatSessionPage() {
       setMessages((prev) => [...prev, { role: "user", content: trimmed, estimated_tokens: estimateTokens(trimmed) }]);
       setInput("");
 
-      const res = await publicChatApi.sendMessage(sessionKey, trimmed);
+      const res = await publicChatApi.sendMessage(sessionKey, trimmed, trimmedPassword);
 
       setMessages((prev) => [
         ...prev,
@@ -170,14 +240,58 @@ function PublicChatSessionPage() {
           : prev,
       );
     } catch (err) {
-      setError(handleApiError(err));
-      const s = await publicChatApi.status(sessionKey).catch(() => null);
+      const msg = handleApiError(err);
+      setError(msg);
+      if (msg.toLowerCase().includes("password")) {
+        clearStoredPublicChatPassword(sessionKey);
+        setPublicChatPassword("");
+        setStatus(null);
+        setMessages([]);
+        return;
+      }
+
+      const s = await publicChatApi.status(sessionKey, trimmedPassword).catch(() => null);
       if (s) {
         setStatus(s);
       }
     } finally {
       setIsSending(false);
     }
+  }
+
+  if (sessionKey && !(publicChatPassword || "").trim()) {
+    return (
+      <div className="public-chat-page">
+        <div className="public-chat-shell">
+          <div className="public-chat-topbar">
+            <div className="public-chat-brand">צ'אט פרישה</div>
+          </div>
+
+          <div className="public-chat-card">
+            <h2 className="public-chat-title">פתיחת שיחה</h2>
+            <p className="public-chat-subtitle">כדי לפתוח את השיחה יש להזין תעודת זהות של הלקוח.</p>
+
+            <form onSubmit={handleUnlock} className="public-chat-form">
+              <label className="public-chat-label">
+                תעודת זהות
+                <input
+                  className="public-chat-input"
+                  value={publicChatPassword}
+                  onChange={(e) => setPublicChatPassword(e.target.value)}
+                  inputMode="numeric"
+                />
+              </label>
+
+              {error && <div className="public-chat-error">{error}</div>}
+
+              <button className="public-chat-primary" type="submit">
+                המשך
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const depleted = (status?.token_balance ?? 0) <= 0;

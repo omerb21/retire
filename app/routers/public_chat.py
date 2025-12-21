@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,6 +15,7 @@ from app.schemas.public_chat import (
 from app.services.public_chat_service import (
     start_or_get_session,
     get_session_by_key,
+    get_session_by_key_with_password,
     get_history,
     send_message,
     top_up,
@@ -49,9 +50,13 @@ def start_public_chat(payload: PublicChatStartRequest, db: Session = Depends(get
 
 
 @router.get("/sessions/{session_key}/status", response_model=PublicChatStatusResponse)
-def get_public_chat_status(session_key: str, db: Session = Depends(get_db)) -> PublicChatStatusResponse:
+def get_public_chat_status(
+    session_key: str,
+    db: Session = Depends(get_db),
+    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+) -> PublicChatStatusResponse:
     try:
-        session = get_session_by_key(db, session_key)
+        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
         client_name = session.client.full_name if session.client else None
         llm_status = pension_llm_service.get_status()
         return PublicChatStatusResponse(
@@ -68,18 +73,26 @@ def get_public_chat_status(session_key: str, db: Session = Depends(get_db)) -> P
     except ValueError as e:
         if str(e) == "session_not_found":
             raise HTTPException(status_code=404, detail="Session not found")
+        if str(e) == "invalid_public_chat_password":
+            raise HTTPException(status_code=401, detail="Invalid public chat password")
         raise
 
 
 @router.get("/sessions/{session_key}/history", response_model=PublicChatHistoryResponse)
-def get_public_chat_history(session_key: str, db: Session = Depends(get_db)) -> PublicChatHistoryResponse:
+def get_public_chat_history(
+    session_key: str,
+    db: Session = Depends(get_db),
+    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+) -> PublicChatHistoryResponse:
     try:
-        session = get_session_by_key(db, session_key)
+        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
         messages = get_history(db, session)
         return PublicChatHistoryResponse(session_key=session.session_key, messages=messages)
     except ValueError as e:
         if str(e) == "session_not_found":
             raise HTTPException(status_code=404, detail="Session not found")
+        if str(e) == "invalid_public_chat_password":
+            raise HTTPException(status_code=401, detail="Invalid public chat password")
         raise
 
 
@@ -88,9 +101,10 @@ def send_public_chat_message(
     session_key: str,
     payload: PublicChatSendMessageRequest,
     db: Session = Depends(get_db),
+    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
 ) -> PublicChatSendMessageResponse:
     try:
-        session = get_session_by_key(db, session_key)
+        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
         reply, tokens_used = send_message(db, session, payload.content)
         refreshed = get_session_by_key(db, session_key)
         return PublicChatSendMessageResponse(
@@ -104,6 +118,8 @@ def send_public_chat_message(
         msg = str(e)
         if msg == "session_not_found":
             raise HTTPException(status_code=404, detail="Session not found")
+        if msg == "invalid_public_chat_password":
+            raise HTTPException(status_code=401, detail="Invalid public chat password")
         if msg == "tokens_depleted":
             raise HTTPException(status_code=402, detail="Token credits depleted")
         if msg == "session_inactive":

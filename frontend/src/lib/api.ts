@@ -677,17 +677,43 @@ export async function startPublicChat(idNumber: string, initialTokens?: number) 
   });
 }
 
-export async function getPublicChatStatus(sessionKey: string) {
-  return apiFetch<PublicChatStatusDto>(`/public-chat/sessions/${sessionKey}/status`);
+export async function getPublicChatStatus(sessionKey: string, publicChatPassword?: string | null) {
+  const trimmed = (publicChatPassword ?? "").trim();
+  const headers: HeadersInit | undefined = trimmed
+    ? {
+        "X-Public-Chat-Password": trimmed,
+      }
+    : undefined;
+
+  return apiFetch<PublicChatStatusDto>(`/public-chat/sessions/${sessionKey}/status`, {
+    headers,
+  });
 }
 
-export async function getPublicChatHistory(sessionKey: string) {
-  return apiFetch<PublicChatHistoryDto>(`/public-chat/sessions/${sessionKey}/history`);
+export async function getPublicChatHistory(sessionKey: string, publicChatPassword?: string | null) {
+  const trimmed = (publicChatPassword ?? "").trim();
+  const headers: HeadersInit | undefined = trimmed
+    ? {
+        "X-Public-Chat-Password": trimmed,
+      }
+    : undefined;
+
+  return apiFetch<PublicChatHistoryDto>(`/public-chat/sessions/${sessionKey}/history`, {
+    headers,
+  });
 }
 
-export async function sendPublicChatMessage(sessionKey: string, content: string) {
+export async function sendPublicChatMessage(sessionKey: string, content: string, publicChatPassword?: string | null) {
+  const trimmed = (publicChatPassword ?? "").trim();
+  const headers: HeadersInit | undefined = trimmed
+    ? {
+        "X-Public-Chat-Password": trimmed,
+      }
+    : undefined;
+
   return apiFetch<PublicChatSendMessageResponseDto>(`/public-chat/sessions/${sessionKey}/messages`, {
     method: "POST",
+    headers,
     body: JSON.stringify({ content }),
   });
 }

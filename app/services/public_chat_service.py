@@ -2,6 +2,7 @@ import math
 import os
 import secrets
 import json
+import hmac
 
 from sqlalchemy.orm import Session
 
@@ -117,6 +118,20 @@ def get_session_by_key(db: Session, session_key: str) -> PublicChatSession:
     session = db.query(PublicChatSession).filter(PublicChatSession.session_key == session_key).first()
     if not session:
         raise ValueError("session_not_found")
+    return session
+
+
+def get_session_by_key_with_password(db: Session, session_key: str, password: str | None) -> PublicChatSession:
+    session = get_session_by_key(db, session_key)
+
+    client = session.client or db.query(Client).filter(Client.id == session.client_id).first()
+    if not client:
+        raise ValueError("client_not_found")
+
+    normalized = normalize_id_number(password or "")
+    if not normalized or not hmac.compare_digest(normalized, str(client.id_number or "")):
+        raise ValueError("invalid_public_chat_password")
+
     return session
 
 
