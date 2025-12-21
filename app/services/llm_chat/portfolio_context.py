@@ -1,5 +1,15 @@
 from ...schemas.llm_chat import PensionPortfolioAccount
 
+from app.services.pension_portfolio.conversion_rules import (
+    COMPONENT_RULES as _SHARED_COMPONENT_RULES,
+    FIELD_DISPLAY as _SHARED_FIELD_DISPLAY,
+    is_education_fund as _shared_is_education_fund,
+    is_investment_provident_fund as _shared_is_investment_provident_fund,
+    is_pension_or_insurance as _shared_is_pension_or_insurance,
+    is_regular_provident_fund as _shared_is_regular_provident_fund,
+    rule_for_tagmulim_by_product_type as _shared_rule_for_tagmulim_by_product_type,
+)
+
 
 def _as_float(value) -> float:
     try:
@@ -13,21 +23,19 @@ def _get_attr_float(acc: PensionPortfolioAccount, name: str) -> float:
 
 
 def _is_education_fund(product_type: str) -> bool:
-    return "השתלמות" in (product_type or "").lower()
+    return _shared_is_education_fund(product_type)
 
 
 def _is_investment_provident_fund(product_type: str) -> bool:
-    return "גמל להשקעה" in (product_type or "").lower()
+    return _shared_is_investment_provident_fund(product_type)
 
 
 def _is_regular_provident_fund(product_type: str) -> bool:
-    lowered = (product_type or "").lower()
-    return ("קופת גמל" in lowered) and ("להשקעה" not in lowered)
+    return _shared_is_regular_provident_fund(product_type)
 
 
 def _is_pension_or_insurance(product_type: str) -> bool:
-    lowered = (product_type or "").lower()
-    return ("קרן פנסיה" in lowered) or ("פנסיה" in lowered) or ("ביטוח" in lowered)
+    return _shared_is_pension_or_insurance(product_type)
 
 
 def _format_snapshot_at(snapshot_at: str | None) -> str:
@@ -35,6 +43,58 @@ def _format_snapshot_at(snapshot_at: str | None) -> str:
     if not raw:
         return ""
     return raw.replace("T", " ").replace("Z", "")
+
+
+_FIELD_DISPLAY: dict[str, str] = dict(_SHARED_FIELD_DISPLAY)
+
+
+_COMPONENT_RULES: dict[str, dict[str, object]] = dict(_SHARED_COMPONENT_RULES)
+
+
+def _tax_label(tax: str | None) -> str:
+    if tax == "exempt":
+        return "פטור ממס"
+    if tax == "taxable":
+        return "חייב במס"
+    if tax == "capital_gains":
+        return "חייב במס רווח הון"
+    return "לא ידוע"
+
+
+def _build_conversion_line(*, display: str, amount: float, rule: dict[str, object]) -> list[str]:
+    if amount <= 0:
+        return []
+
+    can_pension = bool(rule.get("pension"))
+    can_capital = bool(rule.get("capital"))
+    pension_tax = str(rule.get("pension_tax") or "")
+    capital_tax = rule.get("capital_tax")
+    capital_tax_str = str(capital_tax) if capital_tax is not None else None
+
+    lines: list[str] = []
+    lines.append(f"- {display}: {amount:,.0f} ₪")
+
+    if not can_pension and not can_capital:
+        err = str(rule.get("error") or "לא ניתן להמיר")
+        lines.append("  סטטוס: חסום במערכת")
+        lines.append(f"  סיבה: {err}")
+        return lines
+
+    if can_capital:
+        lines.append(f"  הון: אפשרי | יחס מס: {_tax_label(capital_tax_str)}")
+    else:
+        lines.append("  הון: לא אפשרי")
+
+    if can_pension:
+        lines.append(f"  קצבה: אפשרי | יחס מס: {_tax_label(pension_tax)}")
+    else:
+        lines.append("  קצבה: לא אפשרי")
+
+    return lines
+
+
+def _rule_for_tagmulim_by_product_type(*, product_type: str) -> dict[str, object]:
+    return _shared_rule_for_tagmulim_by_product_type(product_type=product_type)
 
 
 def _detect_requested_split(user_message: str | None) -> str:
@@ -84,6 +144,8 @@ def build_pension_portfolio_context(
         "tagmulim_total": 0.0,
     }
 
+    conversion_totals = {k: 0.0 for k in totals.keys()}
+
     has_unsettled_severance = False
     has_rights_sequence = False
     blocked_accounts: list[dict] = []
@@ -93,6 +155,17 @@ def build_pension_portfolio_context(
     total_capital_by_columns = 0.0
     total_pension_by_columns = 0.0
     total_unspecified_by_columns = 0.0
+
+    tagmulim_aggregate_by_kind: dict[str, float] = {
+        "education_fund": 0.0,
+        "investment_provident_fund": 0.0,
+        "regular_provident_fund": 0.0,
+        "pension_or_insurance": 0.0,
+        "unknown": 0.0,
+    }
+
+    education_fund_total_balance = 0.0
+    investment_provident_total_balance = 0.0
 
     for acc in portfolio:
         balance = _as_float(getattr(acc, "יתרה", 0))
@@ -147,6 +220,28 @@ def build_pension_portfolio_context(
         product_type = acc.סוג_מוצר or "לא ידוע"
         product_lower = product_type.lower()
 
+        is_education = _is_education_fund(product_type)
+        is_investment = _is_investment_provident_fund(product_type)
+
+        if _is_education_fund(product_type):
+            education_fund_total_balance += balance
+        if "גמל להשקעה" in product_lower:
+            investment_provident_total_balance += balance
+
+        if not (is_education or is_investment):
+            conversion_totals["severance_current_employer"] += severance_current
+            conversion_totals["severance_after_settlement"] += severance_after_settlement
+            conversion_totals["severance_not_settled"] += severance_not_settled
+            conversion_totals["severance_prev_employers_sequence_rights"] += severance_prev_rights
+            conversion_totals["severance_prev_employers_sequence_pension"] += severance_prev_pension
+            conversion_totals["tagmulim_employee_to_2000"] += tagmul_emp_to_2000
+            conversion_totals["tagmulim_employee_after_2000"] += tagmul_emp_after_2000
+            conversion_totals["tagmulim_employee_after_2008_non_paying"] += tagmul_emp_after_2008_np
+            conversion_totals["tagmulim_employer_to_2000"] += tagmul_empr_to_2000
+            conversion_totals["tagmulim_employer_after_2000"] += tagmul_empr_after_2000
+            conversion_totals["tagmulim_employer_after_2008_non_paying"] += tagmul_empr_after_2008_np
+            conversion_totals["tagmulim_total"] += tagmulim_total
+
         account_number = (acc.מספר_חשבון or "").strip() or None
         start_date = (acc.תאריך_התחלה or "").strip() or None
 
@@ -183,6 +278,17 @@ def build_pension_portfolio_context(
         # If we only have aggregate tagmulim fields (תגמולים/סך_תגמולים) and no detailed breakdown,
         # classify them using conversion rules (not by column heuristics).
         if tagmulim_total > 0 and not has_detailed_tagmulim:
+            if _is_education_fund(product_type):
+                tagmulim_aggregate_by_kind["education_fund"] += tagmulim_total
+            elif _is_investment_provident_fund(product_type):
+                tagmulim_aggregate_by_kind["investment_provident_fund"] += tagmulim_total
+            elif _is_regular_provident_fund(product_type):
+                tagmulim_aggregate_by_kind["regular_provident_fund"] += tagmulim_total
+            elif _is_pension_or_insurance(product_type):
+                tagmulim_aggregate_by_kind["pension_or_insurance"] += tagmulim_total
+            else:
+                tagmulim_aggregate_by_kind["unknown"] += tagmulim_total
+
             if _is_education_fund(product_type) or _is_regular_provident_fund(product_type) or _is_investment_provident_fund(product_type):
                 capital_sum += tagmulim_total
             elif _is_pension_or_insurance(product_type):
@@ -331,6 +437,99 @@ def build_pension_portfolio_context(
             context_lines.append(f"    ◦ סכומים הוניים: {total_capital_by_columns:,.0f} ₪")
         if total_unspecified_by_columns > 0:
             context_lines.append(f"    ◦ סכומים לא מסווגים/חסומים (לא התחשבנות/רצף זכויות): {total_unspecified_by_columns:,.0f} ₪")
+
+    context_lines.append("")
+    context_lines.append("## לוגיקת משיכה/המרה לפי טורי טבלת המוצרים")
+    context_lines.append(
+        "החלוקה כאן היא לפי *העמודות/הרכיבים* (שהן הבסיס לכל פעולות ההמרה), עם סייגים לפי סוג מוצר כאשר החוק דורש זאת."
+    )
+
+    group_rows: list[tuple[str, float, dict[str, object]]] = []
+
+    for field, amount in (
+        ("פיצויים_מעסיק_נוכחי", float(conversion_totals["severance_current_employer"])),
+        ("פיצויים_לאחר_התחשבנות", float(conversion_totals["severance_after_settlement"])),
+        ("פיצויים_שלא_עברו_התחשבנות", float(conversion_totals["severance_not_settled"])),
+        ("פיצויים_ממעסיקים_קודמים_רצף_זכויות", float(conversion_totals["severance_prev_employers_sequence_rights"])),
+        ("פיצויים_ממעסיקים_קודמים_רצף_קצבה", float(conversion_totals["severance_prev_employers_sequence_pension"])),
+    ):
+        rule = _COMPONENT_RULES.get(field)
+        if rule is None:
+            continue
+        group_rows.append((_FIELD_DISPLAY.get(field, field), amount, rule))
+
+    tagmulim_to_2000 = float(
+        conversion_totals["tagmulim_employee_to_2000"] + conversion_totals["tagmulim_employer_to_2000"]
+    )
+    if tagmulim_to_2000 > 0:
+        base_rule = _COMPONENT_RULES.get("תגמולי_עובד_עד_2000") or {}
+        group_rows.append(("תגמולי עד 2000 (עובד+מעביד)", tagmulim_to_2000, base_rule))
+
+    tagmulim_after_2000 = float(
+        conversion_totals["tagmulim_employee_after_2000"] + conversion_totals["tagmulim_employer_after_2000"]
+    )
+    if tagmulim_after_2000 > 0:
+        base_rule = _COMPONENT_RULES.get("תגמולי_עובד_אחרי_2000") or {}
+        group_rows.append(("תגמולי אחרי 2000 (עובד+מעביד)", tagmulim_after_2000, base_rule))
+
+    tagmulim_after_2008_np = float(
+        conversion_totals["tagmulim_employee_after_2008_non_paying"]
+        + conversion_totals["tagmulim_employer_after_2008_non_paying"]
+    )
+    if tagmulim_after_2008_np > 0:
+        base_rule = _COMPONENT_RULES.get("תגמולי_עובד_אחרי_2008_לא_משלמת") or {}
+        group_rows.append(("תגמולי אחרי 2008 לא משלמת (עובד+מעביד)", tagmulim_after_2008_np, base_rule))
+
+    if group_rows:
+        for display, amount, rule in group_rows:
+            context_lines.extend(_build_conversion_line(display=display, amount=amount, rule=rule))
+    else:
+        context_lines.append("לא נמצאו רכיבים חיוביים בטבלת המוצרים כדי להציג את חוקי ההמרה.")
+
+    tagmulim_agg_total = float(sum(tagmulim_aggregate_by_kind.values()))
+    if tagmulim_agg_total > 0:
+        context_lines.append("")
+        context_lines.append(
+            "**תגמולים/סך תגמולים ללא פירוט רכיבים (בחשבונות שבהם אין עמודות מפורטות):**"
+        )
+
+        agg_rows = [
+            ("קרן השתלמות", "education_fund"),
+            ("גמל להשקעה", "investment_provident_fund"),
+            ("קופת גמל", "regular_provident_fund"),
+            ("קרן פנסיה/ביטוח מנהלים", "pension_or_insurance"),
+            ("לא מזוהה", "unknown"),
+        ]
+        for display, key in agg_rows:
+            amt = float(tagmulim_aggregate_by_kind.get(key) or 0)
+            if amt <= 0:
+                continue
+            rule = _rule_for_tagmulim_by_product_type(product_type=display)
+            context_lines.extend(
+                _build_conversion_line(
+                    display=f"תגמולים ללא פירוט ({display})",
+                    amount=amt,
+                    rule=rule,
+                )
+            )
+
+    if education_fund_total_balance > 0 or investment_provident_total_balance > 0:
+        context_lines.append("")
+        context_lines.append("**סייגים לפי סוג מוצר (חוקי המרה מיוחדים):**")
+        if education_fund_total_balance > 0:
+            context_lines.append(
+                f"- סה\"כ בקרנות השתלמות: {education_fund_total_balance:,.0f} ₪"
+            )
+            context_lines.append(
+                "  בקרן השתלמות: המערכת מתייחסת לכספים כהוניים, ויחסי המס בהמרה הם פטור ממס (גם להון וגם לקצבה)."
+            )
+        if investment_provident_total_balance > 0:
+            context_lines.append(
+                f"- סה\"כ בגמל להשקעה: {investment_provident_total_balance:,.0f} ₪"
+            )
+            context_lines.append(
+                "  בגמל להשקעה: הון -> מס רווח הון; קצבה -> פטור ממס (לפי חוקי ההמרה)."
+            )
 
     if requested_split == "components":
         context_lines.append("")

@@ -203,6 +203,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 extra={"endpoint": "stream"},
             )
 
+            portfolio_update_marker = build_pension_portfolio_update_after_transform(
+                tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                tool_result=tool_result,
+                tool_args=tool_args,
+                current_pension_portfolio=current_pension_portfolio,
+            )
+
+            if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
+                yield portfolio_update_marker
+
             yield format_transform_result_for_user(tool_result=tool_result)
             return
 

@@ -236,10 +236,18 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
             client_id=request.client_id,
         )
 
-        return ChatResponse(
-            reply=format_transform_result_for_user(tool_result=tool_result),
-            computed_data=computed_data,
+        portfolio_update_marker = build_pension_portfolio_update_after_transform(
+            tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+            tool_result=tool_result,
+            tool_args=tool_args,
+            current_pension_portfolio=current_pension_portfolio,
         )
+
+        reply_text = format_transform_result_for_user(tool_result=tool_result)
+        if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
+            reply_text = f"{portfolio_update_marker}{reply_text}"
+
+        return ChatResponse(reply=reply_text, computed_data=computed_data)
 
     log_llm_event(
         request_id=request_id,

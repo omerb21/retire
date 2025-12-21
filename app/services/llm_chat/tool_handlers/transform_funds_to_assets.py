@@ -10,6 +10,12 @@ from app.models import PensionFund, Scenario
 from app.models.capital_asset import CapitalAsset
 from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.llm_agent_tools_service import AgentToolsService
+from app.services.pension_portfolio.conversion_rules import (
+    is_education_fund,
+    is_investment_provident_fund,
+    preferred_conversion_type_for_component,
+    validate_component_conversion,
+)
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 from app.services.retirement_age_service import calculate_retirement_age
 
@@ -47,161 +53,61 @@ def _delete_existing_tool_created_records(*, db: Session, client_id: int, accoun
         db.delete(row)
 
 
-def _preferred_conversion_type_for_component(field: str) -> str:
-    if field in {
-        "תגמולי_עובד_עד_2000",
-        "תגמולי_מעביד_עד_2000",
-        "קרן_השתלמות",
-        "פיצויים_לאחר_התחשבנות",
-    }:
+def classify_product_type(product_type_str: str, default_conversion_type: str = "pension") -> str:
+    """Classify product type to determine conversion destination."""
+    if not product_type_str:
+        return default_conversion_type
+
+    pt = (product_type_str or "").strip().lower()
+
+    if any(token in pt for token in ("education_fund", "klal_stud")):
         return "capital_asset"
-    return "pension"
+
+    if any(token in pt for token in ("provident_fund", "savings_policy")):
+        return "capital_asset"
+
+    if "גמל להשקעה" in pt:
+        return "capital_asset"
+
+    if "השתלמות" in pt:
+        return "capital_asset"
+
+    if "פוליסת חיסכון" in pt and "טהור" in pt:
+        return "capital_asset"
+
+    if "ביטוח" in pt:
+        return "pension"
+
+    if "קרן פנסיה" in pt or "פנסיה" in pt:
+        return "pension"
+
+    # 'קופת גמל' can be either annuity-oriented or capital-oriented. We only classify
+    # as pension when annuity intent is explicit.
+    if "קופת גמל" in pt and ("לקצבה" in pt or "קצבה" in pt):
+        return "pension"
+    if "קופת גמל" in pt:
+        return "pension"
+
+    if "חיסכון" in pt:
+        return "capital_asset"
+
+    return default_conversion_type
 
 
-def _is_education_fund(product_type: str) -> bool:
-    return "השתלמות" in (product_type or "")
+def _preferred_conversion_type_for_component(*, field: str, product_type: str) -> str:
+    return preferred_conversion_type_for_component(field=field, product_type=product_type)
 
 
 def _validate_component_conversion(
-    *,
-    field: str,
-    amount: float,
-    conversion_type: str,
-    product_type: str,
+    *, field: str, amount: float, conversion_type: str, product_type: str
 ) -> tuple[bool, str | None, str | None]:
-    if amount <= 0:
-        return True, None, None
+    return validate_component_conversion(
+        field=field, amount=amount, conversion_type=conversion_type, product_type=product_type
+    )
 
-    pt = (product_type or "").lower()
 
-    is_education_code = any(token in pt for token in ("education_fund", "klal_stud"))
-    is_provident_code = "provident_fund" in pt
-    is_savings_policy_code = "savings_policy" in pt
-
-    if "גמל להשקעה" in pt:
-        if conversion_type == "capital_asset":
-            return True, "capital_gains", None
-        return True, "exempt", None
-
-    if _is_education_fund(product_type) or is_education_code:
-        return True, "exempt", None
-
-    rules: dict[str, dict[str, object]] = {
-        "פיצויים_מעסיק_נוכחי": {
-            "pension": False,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר כספים ממעסיק נוכחי. נא לבצע סיום עבודה במסך מעסיק נוכחי",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "פיצויים_לאחר_התחשבנות": {
-            "pension": True,
-            "capital_asset": True,
-            "pension_tax": "exempt",
-            "capital_tax": "capital_gains",
-        },
-        "פיצויים_שלא_עברו_התחשבנות": {
-            "pension": False,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר כספים שלא עברו התחשבנות",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "פיצויים_ממעסיקים_קודמים_רצף_זכויות": {
-            "pension": False,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר כספים ברצף זכויות. נא לבצע התחשבנות כולל במסגרת סיום עבודה מעסיק נוכחי",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "פיצויים_ממעסיקים_קודמים_רצף_קצבה": {
-            "pension": True,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר רכיב זה להון",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "תגמולי_עובד_עד_2000": {
-            "pension": True,
-            "capital_asset": True,
-            "pension_tax": "exempt",
-            "capital_tax": "exempt",
-        },
-        "תגמולי_מעביד_עד_2000": {
-            "pension": True,
-            "capital_asset": True,
-            "pension_tax": "exempt",
-            "capital_tax": "exempt",
-        },
-        "תגמולי_עובד_אחרי_2000": {
-            "pension": True,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר רכיב זה להון",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "תגמולי_מעביד_אחרי_2000": {
-            "pension": True,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר רכיב זה להון",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "תגמולי_עובד_אחרי_2008_לא_משלמת": {
-            "pension": True,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר רכיב זה להון",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "תגמולי_מעביד_אחרי_2008_לא_משלמת": {
-            "pension": True,
-            "capital_asset": False,
-            "error": "לא ניתן להמיר רכיב זה להון",
-            "pension_tax": "taxable",
-            "capital_tax": None,
-        },
-        "קרן_השתלמות": {
-            "pension": True,
-            "capital_asset": True,
-            "pension_tax": "exempt",
-            "capital_tax": "exempt",
-        },
-    }
-
-    if field == "תגמולים":
-        if "קרן פנסיה" in pt or "פנסיה" in pt or "ביטוח" in pt:
-            if conversion_type == "capital_asset":
-                return False, None, "לא ניתן להמיר רכיב תגמולים להון עבור קרן פנסיה/ביטוח מנהלים"
-            return True, "taxable", None
-
-        if ("קופת גמל" in pt and "להשקעה" not in pt) or is_provident_code:
-            if conversion_type == "capital_asset":
-                return True, "exempt", None
-            return True, "exempt", None
-
-        if "גמל להשקעה" in pt:
-            if conversion_type == "capital_asset":
-                return True, "capital_gains", None
-            return True, "exempt", None
-
-        if conversion_type == "capital_asset":
-            if is_savings_policy_code:
-                return True, "capital_gains", None
-            return False, None, "לא ניתן להמיר רכיב תגמולים להון עבור סוג מוצר לא מזוהה"
-        return True, "taxable", None
-
-    rule = rules.get(field)
-    if not rule:
-        return False, None, f"לא נמצאו חוקים עבור רכיב: {field}"
-
-    can_convert = bool(rule.get(conversion_type))
-    if not can_convert:
-        return False, None, str(rule.get("error") or f"לא ניתן להמיר רכיב {field}")
-
-    tax_key = "pension_tax" if conversion_type == "pension" else "capital_tax"
-    tax = rule.get(tax_key)
-    return True, str(tax) if tax is not None else None, None
+def _is_education_fund(product_type: str) -> bool:
+    return is_education_fund(product_type)
 
 
 def _zero_source_portfolio_pension_funds(
@@ -349,43 +255,6 @@ def _derive_conversion_type_from_components(*, specific_amounts: dict[str, float
     if pension_sum > 0 and capital_sum > 0:
         return "pension"
     return None
-
-
-def classify_product_type(*, product_type_str: str, default_conversion_type: str) -> str:
-    pt = (product_type_str or "").strip().lower()
-
-    if any(token in pt for token in ("education_fund", "klal_stud")):
-        return "capital_asset"
-
-    if any(token in pt for token in ("provident_fund", "savings_policy")):
-        return "capital_asset"
-
-    if "גמל להשקעה" in pt:
-        return "capital_asset"
-
-    if "השתלמות" in pt:
-        return "capital_asset"
-
-    if "פוליסת חיסכון" in pt and "טהור" in pt:
-        return "capital_asset"
-
-    if "ביטוח" in pt:
-        return "pension"
-
-    if "קרן פנסיה" in pt or "פנסיה" in pt:
-        return "pension"
-
-    # 'קופת גמל' can be either annuity-oriented or capital-oriented. We only classify
-    # as pension when annuity intent is explicit.
-    if "קופת גמל" in pt and ("לקצבה" in pt or "קצבה" in pt):
-        return "pension"
-    if "קופת גמל" in pt:
-        return "pension"
-
-    if "חיסכון" in pt:
-        return "capital_asset"
-
-    return default_conversion_type
 
 
 def _is_allowed_capital_without_breakdown(*, product_type: str, account_name: str) -> bool:
@@ -610,8 +479,11 @@ def handle_transform_funds_to_assets(
                     if numeric_val <= 0:
                         continue
 
-                    preferred = _preferred_conversion_type_for_component(field)
-                    ok, _tax, err_msg = _validate_component_conversion(
+                    preferred = preferred_conversion_type_for_component(
+                        field=field,
+                        product_type=product_type,
+                    )
+                    ok, _tax, err_msg = validate_component_conversion(
                         field=field,
                         amount=numeric_val,
                         conversion_type=preferred,
@@ -620,7 +492,7 @@ def handle_transform_funds_to_assets(
                     chosen = preferred
                     if not ok:
                         alt = "capital_asset" if preferred == "pension" else "pension"
-                        ok2, _tax2, err_msg2 = _validate_component_conversion(
+                        ok2, _tax2, err_msg2 = validate_component_conversion(
                             field=field,
                             amount=numeric_val,
                             conversion_type=alt,
@@ -828,9 +700,7 @@ def handle_transform_funds_to_assets(
                     # Convert to pension fund
                     tax_treatment = (
                         "exempt"
-                        if ("השתלמות" in (product_type or ""))
-                        or ("education_fund" in (product_type or "").lower())
-                        or ("klal_stud" in (product_type or "").lower())
+                        if is_education_fund(product_type) or is_investment_provident_fund(product_type)
                         else "taxable"
                     )
 
@@ -992,11 +862,12 @@ def handle_transform_funds_to_assets(
                     # Determine asset type based on product
                     product_lower = (product_type or "").lower()
 
-                    if ("השתלמות" in (product_type or "")) or ("education_fund" in product_lower) or (
-                        "klal_stud" in product_lower
-                    ):
+                    if is_education_fund(product_type):
                         asset_type = "education_fund"
                         tax_treatment = "exempt"
+                    elif is_investment_provident_fund(product_type):
+                        asset_type = "provident_fund"
+                        tax_treatment = "capital_gains"
                     elif ("גמל" in (product_type or "")) or ("provident_fund" in product_lower):
                         asset_type = "provident_fund"
                         tax_treatment = "taxable"
