@@ -417,22 +417,43 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         if not (isinstance(tool_args_accounts, list) and tool_args_accounts):
                             tool_args["accounts"] = derived_accounts
                         else:
-                            by_number = {
-                                (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip(): acc
-                                for acc in derived_accounts
+                            def _is_aggregate_account(acc: dict) -> bool:
+                                name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
+                                number = str(acc.get("account_number") or acc.get("מספר_חשבון") or "")
+                                product_type = str(acc.get("product_type") or acc.get("סוג_מוצר") or "")
+                                return (
+                                    name.startswith("Aggregate_")
+                                    or number.startswith("AGG-")
+                                    or product_type.startswith("aggregate_")
+                                )
+
+                            if any(
+                                _is_aggregate_account(acc)
+                                for acc in tool_args_accounts
                                 if isinstance(acc, dict)
-                            }
-                            enriched: list[dict] = []
-                            for acc in tool_args_accounts:
-                                if not isinstance(acc, dict):
-                                    continue
-                                num = (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
-                                base = by_number.get(num) if num else None
-                                merged = dict(base or {})
-                                merged.update(acc)
-                                enriched.append(merged)
-                            if enriched:
-                                tool_args["accounts"] = enriched
+                            ):
+                                tool_args["accounts"] = derived_accounts
+                            else:
+                                by_number = {
+                                    (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip(): acc
+                                    for acc in derived_accounts
+                                    if isinstance(acc, dict)
+                                }
+                                enriched: list[dict] = []
+                                for acc in tool_args_accounts:
+                                    if not isinstance(acc, dict):
+                                        continue
+                                    num = (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+                                    base = by_number.get(num) if num else None
+                                    if base is None:
+                                        continue
+                                    merged = dict(base or {})
+                                    merged.update(acc)
+                                    enriched.append(merged)
+                                if enriched:
+                                    tool_args["accounts"] = enriched
+                                else:
+                                    tool_args["accounts"] = derived_accounts
                     else:
                         history_messages.append(
                             ChatMessage(

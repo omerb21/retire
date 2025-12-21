@@ -10,6 +10,7 @@ from app.models import PensionFund, Scenario
 from app.models.capital_asset import CapitalAsset
 from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.llm_agent_tools_service import AgentToolsService
+from app.services.llm_chat.orchestration_utils import build_transform_accounts_from_portfolio
 from app.services.pension_portfolio.conversion_rules import (
     is_education_fund,
     is_investment_provident_fund,
@@ -292,6 +293,29 @@ def handle_transform_funds_to_assets(
         default_conversion_type = args.get("default_conversion_type", "pension")
         ignore_blocked_balances = bool(args.get("ignore_blocked_balances"))
         skip_non_convertible_accounts = bool(args.get("skip_non_convertible_accounts"))
+
+        def _is_aggregate_account(acc: dict) -> bool:
+            name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
+            number = str(acc.get("account_number") or acc.get("מספר_חשבון") or "")
+            product_type = str(acc.get("product_type") or acc.get("סוג_מוצר") or "")
+            return (
+                name.startswith("Aggregate_")
+                or number.startswith("AGG-")
+                or product_type.startswith("aggregate_")
+            )
+
+        if isinstance(accounts, list) and accounts:
+            if any(_is_aggregate_account(a) for a in accounts if isinstance(a, dict)):
+                portfolio = getattr(agent_tools, "pension_portfolio_data", None)
+                derived = build_transform_accounts_from_portfolio(portfolio)
+                if derived:
+                    logger.info(
+                        "🔁 Replacing aggregate accounts with derived portfolio accounts (client_id=%s, aggregates=%s, derived=%s)",
+                        client_id,
+                        len([a for a in accounts if isinstance(a, dict) and _is_aggregate_account(a)]),
+                        len(derived),
+                    )
+                    accounts = derived
 
         if not accounts or not isinstance(accounts, list):
             return json.dumps(
