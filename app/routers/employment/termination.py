@@ -47,10 +47,9 @@ def process_termination_decision(
         result = termination_service.process_termination(client, ce, decision)
         
         # Return result with created IDs
-        return TerminationDecisionOut(
-            **decision.model_dump(),
-            **result
-        )
+        payload = decision.model_dump()
+        payload.update(result or {})
+        return TerminationDecisionOut(**payload)
         
     except ValueError as e:
         db.rollback()
