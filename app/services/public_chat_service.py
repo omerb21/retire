@@ -203,6 +203,9 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
 
     pension_portfolio = None
     pension_portfolio_snapshot_at = None
+    loaded_portfolio = _load_latest_pension_portfolio(db, session.client_id)
+    if loaded_portfolio is not None:
+        pension_portfolio, pension_portfolio_snapshot_at = loaded_portfolio
     request = ChatRequest(
         messages=chat_messages,
         client_id=session.client_id,

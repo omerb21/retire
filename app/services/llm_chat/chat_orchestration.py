@@ -26,6 +26,7 @@ from app.services.llm_chat.orchestration_utils import (
     build_tax_result_system_message_for_chat,
     build_tool_call_message_content,
     build_tool_result_system_message_for_chat,
+    normalize_retirement_date_if_jan1_placeholder,
     is_document_request,
     is_no_tools_request,
     is_qa_request,
@@ -39,6 +40,7 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.llm_chat.tool_execution import execute_tool_call
 from app.services.llm_pension_agent_service import pension_llm_service
+from app.models.client import Client
 from app.utils.llm_chat_log import generate_request_id, log_llm_event
 
 logger = logging.getLogger("app.llm_chat")
@@ -347,6 +349,22 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                     tool_args=tool_args,
                     force_max_exemption=force_max_exemption,
                 )
+
+                if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
+                    date_str = tool_args.get("retirement_date")
+                    if isinstance(date_str, str) and date_str.strip() and request.client_id is not None:
+                        client = (
+                            db.query(Client)
+                            .filter(Client.id == request.client_id)
+                            .first()
+                        )
+                        birth_date = getattr(client, "birth_date", None) if client else None
+                        if birth_date is not None:
+                            tool_args["retirement_date"] = normalize_retirement_date_if_jan1_placeholder(
+                                retirement_date=date_str.strip(),
+                                birth_date=birth_date,
+                                user_message=original_user_msg,
+                            )
 
                 if text_part:
                     messages.append(ChatMessage(role="assistant", content=text_part))

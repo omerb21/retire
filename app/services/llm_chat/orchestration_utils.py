@@ -1,4 +1,7 @@
 import json
+import re
+from datetime import date, datetime
+from dateutil.relativedelta import relativedelta
 from typing import Any
 
 
@@ -80,6 +83,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
         total_tax = data.get("monthly_tax_deduction")
         exempt_pct = data.get("exemption_percentage")
         exempt_amount = data.get("exempt_pension_monthly")
+        liquid_capital = data.get("total_liquid_capital")
+        suff_years = data.get("capital_sufficiency_years")
+        is_sustainable = data.get("is_sustainable")
 
         lines: list[str] = []
         lines.append("ניתוח פרישה – עיקרי התוצאות (חודשיות):")
@@ -99,6 +105,16 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 extra_parts.append(f"סכום קצבה פטורה חודשי: {exempt_amount:,.0f} ₪")
             if extra_parts:
                 lines.append("• פטור מקסימלי מקיבוע זכויות: " + " | ".join(extra_parts))
+
+        if liquid_capital is not None:
+            lines.append(f"• הון נזיל זמין לתכנון: {liquid_capital:,.0f} ₪")
+        if suff_years is not None:
+            try:
+                lines.append(f"• קיימות כספית (שנים): {float(suff_years):g}")
+            except Exception:
+                lines.append(f"• קיימות כספית (שנים): {suff_years}")
+        if is_sustainable is not None:
+            lines.append(f"• בר-קיימא: {'כן' if bool(is_sustainable) else 'לא'}")
 
         return "\n".join(lines)
 
@@ -385,3 +401,74 @@ def is_qa_request(user_message: str) -> bool:
     ]
 
     return any(t.lower() in lowered for t in triggers)
+
+
+def extract_retirement_ages_from_message(user_message: str) -> list[int]:
+    if not user_message:
+        return []
+
+    text = user_message.lower()
+
+    ages: list[int] = []
+
+    for m in re.finditer(r"גיל\s*(\d{2})", text):
+        try:
+            ages.append(int(m.group(1)))
+        except Exception:
+            continue
+
+    for m in re.finditer(r"(?:מול|לעומת|בין|vs|versus)\s*(\d{2})", text):
+        try:
+            ages.append(int(m.group(1)))
+        except Exception:
+            continue
+
+    normalized: list[int] = []
+    for a in ages:
+        if a < 40 or a > 80:
+            continue
+        if a not in normalized:
+            normalized.append(a)
+
+    return normalized
+
+
+def compute_retirement_date_from_birth_date(birth_date: date, retirement_age: int) -> date:
+    try:
+        return birth_date + relativedelta(years=int(retirement_age))
+    except ValueError:
+        return birth_date.replace(
+            year=birth_date.year + int(retirement_age),
+            day=min(birth_date.day, 28),
+        )
+
+
+def normalize_retirement_date_if_jan1_placeholder(
+    retirement_date: str,
+    birth_date: date,
+    user_message: str,
+) -> str:
+    if not retirement_date or not birth_date:
+        return retirement_date
+
+    try:
+        parsed = datetime.strptime(retirement_date, "%Y-%m-%d").date()
+    except Exception:
+        return retirement_date
+
+    if parsed.month != 1 or parsed.day != 1:
+        return retirement_date
+
+    requested_ages = extract_retirement_ages_from_message(user_message)
+    if not requested_ages:
+        return retirement_date
+
+    implied_age = relativedelta(parsed, birth_date).years
+
+    if implied_age in requested_ages:
+        return compute_retirement_date_from_birth_date(birth_date, implied_age).isoformat()
+
+    if len(requested_ages) == 1:
+        return compute_retirement_date_from_birth_date(birth_date, requested_ages[0]).isoformat()
+
+    return retirement_date
