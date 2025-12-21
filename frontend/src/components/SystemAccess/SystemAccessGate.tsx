@@ -63,6 +63,8 @@ const SystemAccessGate: React.FC<SystemAccessGateProps> = ({ onAccessGranted }) 
       if (!res.ok) {
         if (res.status === 401) {
           setError("סיסמת מערכת שגויה");
+        } else if (res.status === 503) {
+          setError("סיסמת מערכת לא הוגדרה בשרת. יש להגדיר SYSTEM_ACCESS_PASSWORD.");
         } else {
           setError("שגיאה באימות מול השרת");
         }
