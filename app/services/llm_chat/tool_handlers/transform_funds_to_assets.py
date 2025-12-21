@@ -31,12 +31,16 @@ def _validate_component_conversion(
 
     pt = (product_type or "").lower()
 
+    is_education_code = any(token in pt for token in ("education_fund", "klal_stud"))
+    is_provident_code = "provident_fund" in pt
+    is_savings_policy_code = "savings_policy" in pt
+
     if "גמל להשקעה" in pt:
         if conversion_type == "capital_asset":
             return True, "capital_gains", None
         return True, "exempt", None
 
-    if _is_education_fund(product_type):
+    if _is_education_fund(product_type) or is_education_code:
         return True, "exempt", None
 
     rules: dict[str, dict[str, object]] = {
@@ -123,12 +127,12 @@ def _validate_component_conversion(
     }
 
     if field == "תגמולים":
-        if "קרן פנסיה" in pt or "ביטוח" in pt:
+        if "קרן פנסיה" in pt or "פנסיה" in pt or "ביטוח" in pt:
             if conversion_type == "capital_asset":
                 return False, None, "לא ניתן להמיר רכיב תגמולים להון עבור קרן פנסיה/ביטוח מנהלים"
             return True, "taxable", None
 
-        if "קופת גמל" in pt and "להשקעה" not in pt:
+        if ("קופת גמל" in pt and "להשקעה" not in pt) or is_provident_code:
             if conversion_type == "capital_asset":
                 return True, "exempt", None
             return True, "exempt", None
@@ -139,6 +143,8 @@ def _validate_component_conversion(
             return True, "exempt", None
 
         if conversion_type == "capital_asset":
+            if is_savings_policy_code:
+                return True, "capital_gains", None
             return False, None, "לא ניתן להמיר רכיב תגמולים להון עבור סוג מוצר לא מזוהה"
         return True, "taxable", None
 
@@ -212,8 +218,83 @@ def _parse_date_value(value) -> Optional[date]:
     return None
 
 
+def _build_specific_amounts_from_account(account: dict) -> dict[str, float]:
+    component_fields = [
+        "פיצויים_מעסיק_נוכחי",
+        "פיצויים_לאחר_התחשבנות",
+        "פיצויים_שלא_עברו_התחשבנות",
+        "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+        "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+        "תגמולי_עובד_עד_2000",
+        "תגמולי_עובד_אחרי_2000",
+        "תגמולי_עובד_אחרי_2008_לא_משלמת",
+        "תגמולי_מעביד_עד_2000",
+        "תגמולי_מעביד_אחרי_2000",
+        "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+        "תגמולים",
+        "סך_תגמולים",
+        "קרן_השתלמות",
+    ]
+
+    specific_amounts: dict[str, float] = {}
+    for field in component_fields:
+        if field not in account:
+            continue
+        raw_val = account.get(field)
+        try:
+            val = float(raw_val or 0)
+        except (TypeError, ValueError):
+            val = 0.0
+        if val > 0:
+            specific_amounts[field] = val
+
+    if "סך_תגמולים" in specific_amounts and "תגמולים" in specific_amounts:
+        if specific_amounts["סך_תגמולים"] >= specific_amounts["תגמולים"]:
+            specific_amounts.pop("תגמולים", None)
+        else:
+            specific_amounts.pop("סך_תגמולים", None)
+
+    return specific_amounts
+
+
+def _derive_conversion_type_from_components(*, specific_amounts: dict[str, float]) -> str | None:
+    if not specific_amounts:
+        return None
+
+    pension_fields = {
+        "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+        "תגמולי_עובד_אחרי_2000",
+        "תגמולי_מעביד_אחרי_2000",
+        "תגמולי_עובד_אחרי_2008_לא_משלמת",
+        "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+    }
+    capital_fields = {
+        "תגמולי_עובד_עד_2000",
+        "תגמולי_מעביד_עד_2000",
+        "קרן_השתלמות",
+        "פיצויים_לאחר_התחשבנות",
+    }
+
+    pension_sum = sum(float(specific_amounts.get(k) or 0) for k in pension_fields)
+    capital_sum = sum(float(specific_amounts.get(k) or 0) for k in capital_fields)
+
+    if pension_sum > 0 and capital_sum == 0:
+        return "pension"
+    if capital_sum > 0 and pension_sum == 0:
+        return "capital_asset"
+    if pension_sum > 0 and capital_sum > 0:
+        return "pension"
+    return None
+
+
 def classify_product_type(*, product_type_str: str, default_conversion_type: str) -> str:
     pt = (product_type_str or "").strip().lower()
+
+    if any(token in pt for token in ("education_fund", "klal_stud")):
+        return "capital_asset"
+
+    if any(token in pt for token in ("provident_fund", "savings_policy")):
+        return "capital_asset"
 
     if "גמל להשקעה" in pt:
         return "capital_asset"
@@ -243,6 +324,26 @@ def classify_product_type(*, product_type_str: str, default_conversion_type: str
     return default_conversion_type
 
 
+def _is_allowed_capital_without_breakdown(*, product_type: str, account_name: str) -> bool:
+    candidate = f"{product_type or ''} {account_name or ''}".lower()
+    return any(
+        token in candidate
+        for token in (
+            "השתלמות",
+            "גמל להשקעה",
+            "קופת גמל",
+            "חיסכון",
+            "פוליסת חיסכון",
+            "education_fund",
+            "klal_stud",
+            "provident_fund",
+            "savings_policy",
+            "savings",
+            "policy",
+        )
+    )
+
+
 def handle_transform_funds_to_assets(
     *,
     args: dict,
@@ -255,6 +356,8 @@ def handle_transform_funds_to_assets(
     try:
         accounts = args.get("accounts", [])
         default_conversion_type = args.get("default_conversion_type", "pension")
+        ignore_blocked_balances = bool(args.get("ignore_blocked_balances"))
+        skip_non_convertible_accounts = bool(args.get("skip_non_convertible_accounts"))
 
         if not accounts or not isinstance(accounts, list):
             return "Error: חסרה רשימת חשבונות להמרה (accounts)"
@@ -291,12 +394,29 @@ def handle_transform_funds_to_assets(
 
         unresolved_severance_total = 0.0
         rights_sequence_total = 0.0
+        blocked_field_amount = 0.0
+        blocked_fields = {
+            "פיצויים_שלא_עברו_התחשבנות",
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            "פיצויים_מעסיק_נוכחי",
+        }
         for account in accounts:
             if not isinstance(account, dict):
                 continue
             specific_amounts = account.get("specific_amounts")
-            if not isinstance(specific_amounts, dict):
-                specific_amounts = {}
+            if (not isinstance(specific_amounts, dict)) or (not specific_amounts):
+                specific_amounts = _build_specific_amounts_from_account(account)
+
+            if ignore_blocked_balances and specific_amounts:
+                for bf in blocked_fields:
+                    raw_val = specific_amounts.get(bf)
+                    try:
+                        val = float(raw_val or 0)
+                    except (TypeError, ValueError):
+                        val = 0.0
+                    if val > 0:
+                        blocked_field_amount += val
+                        specific_amounts.pop(bf, None)
 
             for key, target in (
                 ("פיצויים_שלא_עברו_התחשבנות", "unresolved"),
@@ -312,7 +432,7 @@ def handle_transform_funds_to_assets(
                 else:
                     rights_sequence_total += val
 
-        if unresolved_severance_total > 0 or rights_sequence_total > 0:
+        if (unresolved_severance_total > 0 or rights_sequence_total > 0) and (not ignore_blocked_balances):
             return (
                 "Error: לא ניתן להמשיך בתרחיש כל עוד קיימות יתרות בעמודות "
                 "'פיצויים שלא עברו התחשבנות' או 'רצף פיצויים מעסיקים קודמים (זכויות)'. "
@@ -320,6 +440,7 @@ def handle_transform_funds_to_assets(
             )
 
         validation_errors: list[str] = []
+        skipped_non_convertible: list[dict[str, str]] = []
         normalized_accounts: list[dict] = []
 
         for idx, account in enumerate(accounts):
@@ -335,13 +456,27 @@ def handle_transform_funds_to_assets(
                 continue
 
             specific_amounts = account.get("specific_amounts")
-            if not isinstance(specific_amounts, dict):
-                specific_amounts = {}
+            if (not isinstance(specific_amounts, dict)) or (not specific_amounts):
+                specific_amounts = _build_specific_amounts_from_account(account)
+
+            if ignore_blocked_balances and specific_amounts:
+                for bf in blocked_fields:
+                    raw_val = specific_amounts.get(bf)
+                    try:
+                        val = float(raw_val or 0)
+                    except (TypeError, ValueError):
+                        val = 0.0
+                    if val > 0:
+                        blocked_field_amount += val
+                        specific_amounts.pop(bf, None)
 
             conversion_type = account.get("conversion_type")
             if not conversion_type:
-                conversion_type = classify_product_type(
-                    product_type_str=product_type,
+                derived = _derive_conversion_type_from_components(
+                    specific_amounts=specific_amounts
+                )
+                conversion_type = derived or classify_product_type(
+                    product_type_str=f"{product_type or ''} {account_name or ''}",
                     default_conversion_type=default_conversion_type,
                 )
 
@@ -367,17 +502,22 @@ def handle_transform_funds_to_assets(
                 continue
 
             if conversion_type == "capital_asset" and not specific_amounts:
-                pt_lower = (product_type or "").lower()
-                if not (
-                    "השתלמות" in pt_lower
-                    or "גמל להשקעה" in pt_lower
-                    or ("קופת גמל" in pt_lower and "להשקעה" not in pt_lower)
+                if not _is_allowed_capital_without_breakdown(
+                    product_type=product_type,
+                    account_name=account_name,
                 ):
-                    validation_errors.append(
+                    msg = (
                         f"{account_name}: אין פירוט רכיבים ולכן אסור להמיר להון עבור סוג מוצר זה ({product_type})"
                     )
+                    if skip_non_convertible_accounts:
+                        skipped_non_convertible.append(
+                            {"account_name": account_name, "reason": msg}
+                        )
+                        continue
+                    validation_errors.append(msg)
                     continue
 
+            component_errors: list[str] = []
             for field, val in specific_amounts.items():
                 try:
                     numeric_val = float(val or 0)
@@ -391,7 +531,37 @@ def handle_transform_funds_to_assets(
                     product_type=product_type,
                 )
                 if not ok and err_msg:
-                    validation_errors.append(f"{account_name}: {err_msg} ({field})")
+                    component_errors.append(f"{err_msg} ({field})")
+
+            if component_errors:
+                alt_type = "capital_asset" if conversion_type == "pension" else "pension"
+                alt_errors: list[str] = []
+                for field, val in specific_amounts.items():
+                    try:
+                        numeric_val = float(val or 0)
+                    except (TypeError, ValueError):
+                        numeric_val = 0.0
+
+                    ok, _tax, err_msg = _validate_component_conversion(
+                        field=field,
+                        amount=numeric_val,
+                        conversion_type=alt_type,
+                        product_type=product_type,
+                    )
+                    if not ok and err_msg:
+                        alt_errors.append(f"{err_msg} ({field})")
+
+                if not alt_errors:
+                    conversion_type = alt_type
+                else:
+                    msg = f"{account_name}: " + "; ".join(component_errors)
+                    if skip_non_convertible_accounts:
+                        skipped_non_convertible.append(
+                            {"account_name": account_name, "reason": msg}
+                        )
+                        continue
+                    validation_errors.append(msg)
+                    continue
 
             normalized_accounts.append(
                 {
@@ -427,7 +597,13 @@ def handle_transform_funds_to_assets(
 
                 if conversion_type == "pension":
                     # Convert to pension fund
-                    tax_treatment = "exempt" if "השתלמות" in product_type else "taxable"
+                    tax_treatment = (
+                        "exempt"
+                        if ("השתלמות" in (product_type or ""))
+                        or ("education_fund" in (product_type or "").lower())
+                        or ("klal_stud" in (product_type or "").lower())
+                        else "taxable"
+                    )
 
                     account_number = normalized.get("account_number") or ""
 
@@ -592,10 +768,14 @@ def handle_transform_funds_to_assets(
                 else:  # capital_asset
                     # Convert to capital asset
                     # Determine asset type based on product
-                    if "השתלמות" in product_type:
+                    product_lower = (product_type or "").lower()
+
+                    if ("השתלמות" in (product_type or "")) or ("education_fund" in product_lower) or (
+                        "klal_stud" in product_lower
+                    ):
                         asset_type = "education_fund"
                         tax_treatment = "exempt"
-                    elif "גמל" in product_type:
+                    elif ("גמל" in (product_type or "")) or ("provident_fund" in product_lower):
                         asset_type = "provident_fund"
                         tax_treatment = "taxable"
                     else:
@@ -792,6 +972,8 @@ def handle_transform_funds_to_assets(
             "converted_capitals": converted_capitals,
             "total_converted": total_converted,
             "skipped_zero_balance": skipped_accounts,
+            "skipped_non_convertible": skipped_non_convertible if skipped_non_convertible else None,
+            "ignored_blocked_amount": blocked_field_amount if blocked_field_amount > 0 else None,
             "errors": errors if errors else None,
             "next_step": "כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT" if total_converted > 0 else None,
             "source_data_cleared": total_converted > 0,

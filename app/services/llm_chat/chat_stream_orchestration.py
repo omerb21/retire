@@ -28,6 +28,8 @@ from app.services.llm_chat.orchestration_utils import (
     is_no_tools_request,
     is_max_exemption_request,
     is_net_pension_request,
+    is_retirement_cashflow_request,
+    is_retirement_comparison_request,
     is_qa_request,
     is_transform_request,
     is_portfolio_breakdown_request,
@@ -105,6 +107,39 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     no_tools_requested = is_no_tools_request(original_user_msg)
     force_max_exemption = is_max_exemption_request(original_user_msg)
     explicit_transform = is_transform_request(original_user_msg)
+    is_cashflow_request = is_retirement_cashflow_request(original_user_msg)
+    is_comparison_request = is_retirement_comparison_request(original_user_msg)
+
+    def _is_ignore_blocked_text(text: str) -> bool:
+        lowered = (text or "").lower()
+        return any(
+            token in lowered
+            for token in (
+                "התעלם",
+                "להתעלם",
+                "דלג",
+                "לדלג",
+                "המשך",
+                "להמשיך",
+                "בלי",
+            )
+        ) and any(
+            token in lowered
+            for token in (
+                "חסומ",
+                "פיצויים מעסיק נוכחי",
+                "מעסיק נוכחי",
+                "רצף זכויות",
+                "שלא עברו התחשבנות",
+                "התחשבנות",
+            )
+        )
+
+    wants_ignore_blocked = any(
+        _is_ignore_blocked_text(getattr(m, "content", ""))
+        for m in (request.messages or [])
+        if getattr(m, "role", None) == "user"
+    )
 
     log_llm_event(
         request_id=stream_request_id,
@@ -145,6 +180,17 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         current_step = 0
 
         history_messages: list[ChatMessage] = list(messages)
+
+        if wants_ignore_blocked:
+            history_messages.append(
+                ChatMessage(
+                    role="system",
+                    content=(
+                        "המשתמש אישר להתעלם מיתרות חסומות/יתרות לטיפול במסך עזיבת עבודה ולהמשיך בחישוב רק על מה שניתן. "
+                        "אל תשאל שוב לאישור על זה. אל תבצע PROCESS_TERMINATION בשיחה זו, והמשך עם שאר הכלים הרלוונטיים בלבד."
+                    ),
+                )
+            )
 
         while current_step < max_steps:
             current_step += 1
@@ -209,6 +255,36 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     m.role == "system" and "Tool Result (" in m.content
                     for m in history_messages
                 )
+                if (
+                    is_cashflow_request
+                    and (not no_tools_requested)
+                    and (not has_tool_results)
+                ):
+                    warning_msg = (
+                        "אזהרה: אסור לך לענות על בקשות חישוב/השוואת קצבה ללא הרצת כלים. "
+                        "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
+                        '###TOOL_CALL### {"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {"retirement_date": "YYYY-MM-DD"}} ללא טקסט נוסף.'
+                    )
+                    history_messages.append(ChatMessage(role="system", content=warning_msg))
+                    continue
+
+                if is_comparison_request and (not no_tools_requested):
+                    cashflow_results = sum(
+                        1
+                        for m in history_messages
+                        if (m.role == "system")
+                        and ("Tool Result (RUN_RETIREMENT_CASHFLOW_ANALYSIS" in m.content)
+                    )
+                    if cashflow_results < 2:
+                        warning_msg = (
+                            "אזהרה: המשתמש ביקש השוואה בין שני תרחישי פרישה (למשל גיל 68 מול 69). "
+                            "אסור לספק תשובה מספרית לפני שתי הרצות של RUN_RETIREMENT_CASHFLOW_ANALYSIS (אחת לכל תרחיש). "
+                            "כעת עליך להחזיר רק בלוק יחיד בפורמט "
+                            '###TOOL_CALL### {"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {"retirement_date": "YYYY-MM-DD"}} ללא טקסט נוסף.'
+                        )
+                        history_messages.append(ChatMessage(role="system", content=warning_msg))
+                        continue
+
                 if is_net_request and (not no_tools_requested) and not has_tool_results:
                     warning_msg = (
                         "אזהרה: אסור לך לענות על שאלות נטו או אחרי מס ללא הרצת כלים. "
@@ -249,6 +325,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 tool_name = tool_data.get("name")
                 tool_args = tool_data.get("arguments", {})
 
+                if tool_name == "PROCESS_TERMINATION" and wants_ignore_blocked:
+                    history_messages.append(
+                        ChatMessage(
+                            role="system",
+                            content=(
+                                "אזהרה: המשתמש ביקש במפורש להתעלם מיתרות חסומות/עזיבת עבודה ולהמשיך ללא טיפול בעזיבת עבודה. "
+                                "אסור לבצע PROCESS_TERMINATION. כעת המשך ללא TOOL_CALL ובחר כלי אחר שמתאים לבקשה."
+                            ),
+                        )
+                    )
+                    continue
+
                 if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
                     if (not is_doc_request) and (not is_qa_mode) and (not explicit_transform):
                         history_messages.append(
@@ -262,28 +350,48 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         )
                         continue
 
-                    if (
-                        (not isinstance(tool_args, dict))
-                        or (not isinstance(tool_args.get("accounts"), list))
-                        or (not tool_args.get("accounts"))
-                    ):
-                        derived_accounts = build_transform_accounts_from_portfolio(
-                            current_pension_portfolio
-                        )
-                        if derived_accounts:
+                    derived_accounts = build_transform_accounts_from_portfolio(
+                        current_pension_portfolio
+                    )
+                    if derived_accounts:
+                        tool_args_accounts = tool_args.get("accounts") if isinstance(tool_args, dict) else None
+                        if not isinstance(tool_args, dict):
+                            tool_args = {}
+                        if not (isinstance(tool_args_accounts, list) and tool_args_accounts):
                             tool_args["accounts"] = derived_accounts
                         else:
-                            history_messages.append(
-                                ChatMessage(
-                                    role="system",
-                                    content=(
-                                        "אזהרה: TRANSFORM_FUNDS_TO_ASSETS דורש רשימת accounts תקינה. "
-                                        "אין accounts ואין pension_portfolio שממנו ניתן לגזור accounts. "
-                                        "כעת אל תחזיר TOOL_CALL."
-                                    ),
-                                )
+                            by_number = {
+                                (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip(): acc
+                                for acc in derived_accounts
+                                if isinstance(acc, dict)
+                            }
+                            enriched: list[dict] = []
+                            for acc in tool_args_accounts:
+                                if not isinstance(acc, dict):
+                                    continue
+                                num = (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+                                base = by_number.get(num) if num else None
+                                merged = dict(base or {})
+                                merged.update(acc)
+                                enriched.append(merged)
+                            if enriched:
+                                tool_args["accounts"] = enriched
+                    else:
+                        history_messages.append(
+                            ChatMessage(
+                                role="system",
+                                content=(
+                                    "אזהרה: TRANSFORM_FUNDS_TO_ASSETS דורש רשימת accounts תקינה. "
+                                    "אין accounts ואין pension_portfolio שממנו ניתן לגזור accounts. "
+                                    "כעת אל תחזיר TOOL_CALL."
+                                ),
                             )
-                            continue
+                        )
+                        continue
+
+                    if wants_ignore_blocked:
+                        tool_args["ignore_blocked_balances"] = True
+                        tool_args["skip_non_convertible_accounts"] = True
 
                 if no_tools_requested:
                     history_messages.append(

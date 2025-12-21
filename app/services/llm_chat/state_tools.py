@@ -494,6 +494,14 @@ def get_tools_definitions_json() -> str:
                         "enum": ["pension", "capital_asset"],
                         "description": "סוג המרה ברירת מחדל: pension (קצבה) או capital_asset (נכס הון). ברירת מחדל: pension.",
                     },
+                    "ignore_blocked_balances": {
+                        "type": "boolean",
+                        "description": "האם להתעלם מיתרות חסומות (פיצויים שלא עברו התחשבנות / רצף זכויות / פיצויי מעסיק נוכחי) ולהמיר רק רכיבים שמותרים להמרה. ברירת מחדל: false.",
+                    },
+                    "skip_non_convertible_accounts": {
+                        "type": "boolean",
+                        "description": "האם לדלג על חשבונות שלא ניתנים להמרה (למשל ללא פירוט רכיבים עבור נכס הון) במקום להחזיר שגיאת ולידציה. ברירת מחדל: false.",
+                    },
                 },
                 "required": ["accounts"],
             },

@@ -112,6 +112,56 @@ def is_net_pension_request(user_message: str) -> bool:
     return any(keyword in message_lower for keyword in net_keywords)
 
 
+def is_retirement_cashflow_request(user_message: str) -> bool:
+    if not user_message:
+        return False
+
+    lowered = user_message.lower()
+
+    triggers = [
+        "קצבה",
+        "פנסיה",
+        "פרישה",
+        "גיל פרישה",
+        "תאריך פרישה",
+        "השווא",
+        "לעומת",
+        "מול",
+        "תרחיש",
+        "גובה הקצבה",
+        "משוך קצבה",
+        "להתחיל קצבה",
+        "קיבוע",
+        "פטור",
+        "ברוטו",
+        "מס",
+    ]
+
+    return any(t in lowered for t in triggers)
+
+
+def is_retirement_comparison_request(user_message: str) -> bool:
+    if not user_message:
+        return False
+
+    lowered = user_message.lower()
+
+    comparison_triggers = [
+        "השווא",
+        "לעומת",
+        "מול",
+        "בין",
+        "vs",
+        "versus",
+    ]
+
+    has_comparison = any(t in lowered for t in comparison_triggers)
+    if not has_comparison:
+        return False
+
+    return is_retirement_cashflow_request(user_message)
+
+
 def is_max_exemption_request(user_message: str) -> bool:
     if not user_message:
         return False

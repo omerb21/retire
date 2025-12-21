@@ -186,12 +186,8 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
     history = get_history(db, session)
     chat_messages: list[ChatMessage] = [ChatMessage(role=m.role, content=m.content) for m in history]
 
-    pension_portfolio_result = _load_latest_pension_portfolio(db, session.client_id)
     pension_portfolio = None
     pension_portfolio_snapshot_at = None
-    if pension_portfolio_result is not None:
-        pension_portfolio, snapshot_at = pension_portfolio_result
-        pension_portfolio_snapshot_at = snapshot_at or None
     request = ChatRequest(
         messages=chat_messages,
         client_id=session.client_id,
