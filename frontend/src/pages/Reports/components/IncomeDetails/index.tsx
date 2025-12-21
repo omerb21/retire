@@ -112,7 +112,11 @@ export const IncomeDetails: React.FC<IncomeDetailsProps> = ({
                     {formatCurrency(parseFloat(asset.current_value) || 0)}
                   </td>
                   <td className="reports-table-cell--income">
-                    {formatCurrency(parseFloat(asset.monthly_income) || 0)}
+                    {formatCurrency(
+                      (parseFloat(asset.monthly_income) || 0) > 0
+                        ? parseFloat(asset.monthly_income)
+                        : parseFloat(asset.current_value) || 0
+                    )}
                   </td>
                   <td className="reports-table-cell--income">
                     {asset.start_date ? formatDateToDDMMYY(asset.start_date) : '-'}

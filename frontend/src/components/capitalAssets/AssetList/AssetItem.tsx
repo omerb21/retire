@@ -23,6 +23,8 @@ interface AssetItemProps {
 }
 
 export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
+  const paymentAmount = (asset.monthly_income || 0) > 0 ? (asset.monthly_income || 0) : (asset.current_value || 0);
+
   return (
     <div className="asset-item-container">
       <div className="asset-item-grid">
@@ -34,7 +36,7 @@ export function AssetItem({ asset, onEdit, onDelete }: AssetItemProps) {
           <div className="asset-item-card">
             <div className="asset-item-card-title">פרטי נכס</div>
             <div><strong>סוג נכס:</strong> {ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type}</div>
-            <div><strong>תשלום:</strong> ₪{formatMoney(asset.monthly_income || 0)}</div>
+            <div><strong>תשלום:</strong> ₪{formatMoney(paymentAmount)}</div>
             <div><strong>ערך נוכחי:</strong> ₪{formatMoney(asset.current_value || 0)}</div>
             <div><strong>תשואה שנתית:</strong> {
               asset.annual_return_rate > 1 ? asset.annual_return_rate : 

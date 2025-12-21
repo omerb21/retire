@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+import json
 import logging
 from app.database import get_db
 from app.models.pension_fund import PensionFund
 from app.schemas.pension_fund import PensionFundCreate, PensionFundUpdate, PensionFundOut
 from app.services.pension_fund_service import compute_and_persist, compute_and_persist_fund, compute_all_pension_funds
+from app.services.retirement.utils.projection_utils import calculate_compound_factor
 
 router = APIRouter(prefix="/api/v1", tags=["pension-funds"])
 logger = logging.getLogger("app.pension_fund")
@@ -18,7 +20,35 @@ def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session 
 
     logger.info("Create pension fund request received (client_id=%s)", client_id)
     logger.debug("Create pension fund payload: %s", payload.model_dump())
-    fund = PensionFund(**payload.model_dump())
+    data = payload.model_dump()
+
+    try:
+        src_raw = data.get("conversion_source")
+        if src_raw:
+            src = json.loads(src_raw)
+            if isinstance(src, dict):
+                src_type = src.get("type") or src.get("source")
+                start_date = data.get("pension_start_date")
+                if (
+                    src_type == "pension_portfolio"
+                    and isinstance(start_date, date)
+                    and start_date > date.today()
+                ):
+                    factor = calculate_compound_factor(from_date=date.today(), to_date=start_date)
+                    balance = data.get("balance")
+                    if balance is not None:
+                        data["balance"] = float(balance) * float(factor)
+                        annuity_factor = data.get("annuity_factor")
+                        try:
+                            af = float(annuity_factor) if annuity_factor is not None else 0.0
+                        except (TypeError, ValueError):
+                            af = 0.0
+                        if af > 0:
+                            data["pension_amount"] = float(data["balance"] or 0) / af
+    except Exception:
+        pass
+
+    fund = PensionFund(**data)
     logger.debug("Create pension fund before commit (balance=%s, input_mode=%s)", fund.balance, fund.input_mode)
     
     # אל תאפס את ה-balance! זה קריטי להיוון!

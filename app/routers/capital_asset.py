@@ -2,6 +2,9 @@
 
 from typing import List
 import logging
+import json
+from datetime import date
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -12,6 +15,7 @@ from app.schemas.capital_asset import (
     CapitalAssetUpdate,
     CapitalAssetResponse
 )
+from app.services.retirement.utils.projection_utils import calculate_compound_factor
 
 router = APIRouter(prefix="/clients/{client_id}/capital-assets", tags=["capital-assets"])
 logger = logging.getLogger("app.capital_asset")
@@ -33,10 +37,34 @@ def create_capital_asset(
             detail=f"Client with id {client_id} not found"
         )
     
+    data = asset_data.dict()
+
+    try:
+        src_raw = data.get("conversion_source")
+        if src_raw:
+            src = json.loads(src_raw)
+            if isinstance(src, dict):
+                src_type = src.get("type") or src.get("source")
+                start_date = data.get("start_date")
+                if (
+                    src_type == "pension_portfolio"
+                    and isinstance(start_date, date)
+                    and start_date > date.today()
+                ):
+                    factor = calculate_compound_factor(from_date=date.today(), to_date=start_date)
+                    factor_decimal = Decimal(str(factor))
+
+                    if data.get("current_value") is not None:
+                        data["current_value"] = Decimal(str(data.get("current_value") or 0)) * factor_decimal
+                    if data.get("monthly_income") is not None:
+                        data["monthly_income"] = Decimal(str(data.get("monthly_income") or 0)) * factor_decimal
+    except Exception:
+        pass
+
     # Create capital asset
     db_asset = CapitalAsset(
         client_id=client_id,
-        **asset_data.dict()
+        **data
     )
     
     db.add(db_asset)
@@ -62,8 +90,36 @@ def get_capital_assets(
 
         normalized: List[CapitalAssetResponse] = []
         for asset in assets:
+            asset_name = getattr(asset, "asset_name", None) or ""
+            description = getattr(asset, "description", None) or ""
+
+            raw_current_value = getattr(asset, "current_value", 0) or 0
+            raw_monthly_income = getattr(asset, "monthly_income", None)
+            monthly_income_val = raw_monthly_income if raw_monthly_income is not None else 0
+
+            needs_severance_value_fix = False
             try:
-                normalized.append(CapitalAssetResponse.model_validate(asset, from_attributes=True))
+                if "מענק פיצויים" in asset_name or "מענק פיצויים" in description:
+                    current_value_dec = Decimal(str(raw_current_value))
+                    monthly_income_dec = Decimal(str(monthly_income_val))
+                    needs_severance_value_fix = (
+                        current_value_dec == Decimal("0") and monthly_income_dec > Decimal("0")
+                    )
+            except Exception:
+                needs_severance_value_fix = False
+
+            normalized_current_value = raw_current_value
+            normalized_monthly_income = raw_monthly_income
+            if needs_severance_value_fix:
+                normalized_current_value = monthly_income_val
+                normalized_monthly_income = Decimal("0")
+
+            try:
+                validated = CapitalAssetResponse.model_validate(asset, from_attributes=True)
+                if needs_severance_value_fix:
+                    validated.current_value = Decimal(str(normalized_current_value))
+                    validated.monthly_income = Decimal("0")
+                normalized.append(validated)
             except Exception:
                 raw_asset_type = getattr(asset, "asset_type", None)
                 raw_frequency = getattr(asset, "payment_frequency", None)
@@ -86,8 +142,8 @@ def get_capital_assets(
                     "asset_name": getattr(asset, "asset_name", None),
                     "asset_type": asset_type,
                     "description": getattr(asset, "description", None),
-                    "current_value": getattr(asset, "current_value", 0),
-                    "monthly_income": getattr(asset, "monthly_income", None),
+                    "current_value": normalized_current_value,
+                    "monthly_income": normalized_monthly_income,
                     "rental_income": getattr(asset, "rental_income", None),
                     "monthly_rental_income": getattr(asset, "monthly_rental_income", None),
                     "annual_return_rate": getattr(asset, "annual_return_rate", 0),

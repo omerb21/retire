@@ -186,7 +186,7 @@ export function generateExcelReport(
         asset.description || asset.asset_name || 'ללא תיאור',
         ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
         `₪${formatMoney(asset.current_value || 0)}`,
-        `₪${formatMoney(asset.monthly_income || 0)}`,
+        `₪${formatMoney((asset.monthly_income || 0) > 0 ? (asset.monthly_income || 0) : (asset.current_value || 0))}`,
         `${((asset.annual_return_rate || 0) * 100).toFixed(1)}%`, 
         asset.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
         asset.start_date || 'לא צוין',
@@ -195,7 +195,11 @@ export function generateExcelReport(
     ];
     
     // הוספת סיכום נכסי הון
-    const totalValue = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.current_value) || 0), 0);
+    const totalValue = capitalAssets.reduce((sum, asset) => {
+      const currentValue = parseFloat(asset.current_value) || 0;
+      const paymentValue = parseFloat(asset.monthly_income) || 0;
+      return sum + (currentValue > 0 ? currentValue : paymentValue);
+    }, 0);
     const totalMonthlyIncome = capitalAssets.reduce((sum, asset) => sum + (parseFloat(asset.monthly_income) || 0), 0);
     
     capitalAssetsData.push(['', '', '', '', '', '', '', '']);

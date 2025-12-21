@@ -17,6 +17,7 @@ from app.models.capital_asset import CapitalAsset
 from app.models.additional_income import AdditionalIncome
 from .services import ConversionService, TerminationService, PortfolioImportService
 from .utils.calculation_utils import calculate_npv_dcf, calculate_years_to_age
+from .utils.projection_utils import calculate_compound_factor
 from .constants import DEFAULT_DISCOUNT_RATE
 
 logger = logging.getLogger("app.scenarios.base")
@@ -153,30 +154,29 @@ class BaseScenarioBuilder:
         self.portfolio_import_service.import_pension_portfolio(self.pension_portfolio)
     
     def _apply_retirement_projection_if_needed(self) -> None:
-        """הצמדת היתרות ונכסי ההון לריבית דריבית 4% עד תאריך הפרישה.
+        """הצמדת היתרות ונכסי ההון לריבית דריבית 3% נטו עד תאריך הפרישה.
         
         אם תאריך הפרישה מרוחק פחות או שישה חודשים – לא מתבצעת הצמדה.
         """
         retirement_date = self._get_retirement_date()
         if not retirement_date:
-            logger.info("  ℹ️ Retirement date not available, skipping 4% projection")
+            logger.info("  ℹ️ Retirement date not available, skipping 3% projection")
             return
         
         today = date.today()
         days_to_retirement = (retirement_date - today).days
         if days_to_retirement <= 0:
-            logger.info("  ℹ️ Retirement date is in the past or today, skipping 4% projection")
+            logger.info("  ℹ️ Retirement date is in the past or today, skipping 3% projection")
             return
         
         # פחות או שישה חודשים – לא מצמידים
         if days_to_retirement <= 182:
-            logger.info("  ℹ️ Retirement date is within ~6 months, skipping 4% projection")
+            logger.info("  ℹ️ Retirement date is within ~6 months, skipping 3% projection")
             return
-        
-        years_to_retirement = days_to_retirement / 365.25
-        growth_factor = (1.04) ** years_to_retirement
+
+        growth_factor = calculate_compound_factor(from_date=today, to_date=retirement_date)
         logger.info(
-            f"  📈 Applying 4% compound projection for ~{years_to_retirement:.2f} years "
+            f"  📈 Applying 3% compound projection "
             f"(factor={growth_factor:.4f})"
         )
         

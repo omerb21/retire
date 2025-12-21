@@ -226,7 +226,9 @@ export const generateHTMLReport = (
         <tr>
           <td>${asset.asset_name || asset.description}</td>
           <td>${formatCurrency(parseFloat(asset.current_value) || 0)}</td>
-          <td>${formatCurrency(parseFloat(asset.monthly_income) || 0)}</td>
+          <td>${formatCurrency(((parseFloat(asset.monthly_income) || 0) > 0
+            ? parseFloat(asset.monthly_income)
+            : (parseFloat(asset.current_value) || 0)))}</td>
           <td>${asset.start_date ? formatDateToDDMMYY(asset.start_date) : '-'}</td>
         </tr>
       `).join('')}
