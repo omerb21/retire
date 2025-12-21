@@ -41,10 +41,13 @@ def build_tool_call_message_content(tool_data: dict[str, Any], ensure_ascii: boo
 def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) -> str:
     if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
         is_error = False
+        parsed_success: dict | None = None
         try:
             parsed = json.loads(tool_result)
             if isinstance(parsed, dict) and parsed.get("success") is False:
                 is_error = True
+            if isinstance(parsed, dict) and parsed.get("success") is True:
+                parsed_success = parsed
         except Exception:
             is_error = isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:")
 
@@ -55,6 +58,15 @@ def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) 
                 "הנחיות למודל: ההמרה נכשלה ולכן לא בוצעה שום המרה (converted_count=0). "
                 "אסור לטעון שבוצעה המרה חלקית של יתרות לא חסומות. "
                 "אם נדרש ניתוח פרישה/השוואה, ציין במפורש שהניתוח מבוסס על הנתונים הקיימים לפני ההמרה בלבד."
+            )
+
+        if parsed_success is not None:
+            return (
+                f"🔧 **Tool Result ({tool_name}):**\n"
+                f"{tool_result}\n\n"
+                "הנחיות למודל: זהו כלי ביצוע. מותר לך לטעון שבוצעה המרה אך ורק לפי הנתונים שמוחזרים כאן. "
+                "בעת סיכום הפעולה, חובה להתבסס רק על converted_items ו-skipped_items (ועל employer_current_severance_not_converted אם קיים). "
+                "אסור להוסיף/להמציא המרות, איפוסים, מחיקות, או שינויי יתרות שלא מופיעים בפלט ה-JSON של הכלי."
             )
 
     return (
@@ -68,10 +80,13 @@ def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) 
 def build_tool_result_system_message_for_stream(tool_name: str, tool_result: str) -> str:
     if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
         is_error = False
+        parsed_success: dict | None = None
         try:
             parsed = json.loads(tool_result)
             if isinstance(parsed, dict) and parsed.get("success") is False:
                 is_error = True
+            if isinstance(parsed, dict) and parsed.get("success") is True:
+                parsed_success = parsed
         except Exception:
             is_error = isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:")
 
@@ -81,6 +96,13 @@ def build_tool_result_system_message_for_stream(tool_name: str, tool_result: str
                 "הנחיות למודל: ההמרה נכשלה ולכן לא בוצעה שום המרה (converted_count=0). "
                 "אסור לטעון שבוצעה המרה חלקית של יתרות לא חסומות. "
                 "אם נדרש ניתוח פרישה/השוואה, ציין במפורש שהניתוח מבוסס על הנתונים הקיימים לפני ההמרה בלבד."
+            )
+
+        if parsed_success is not None:
+            return (
+                f"Tool Result ({tool_name}): {tool_result}\n\n"
+                "הנחיות למודל: סכם את הפעולה רק לפי converted_items ו-skipped_items (ועל employer_current_severance_not_converted אם קיים). "
+                "אסור לטעון על המרות/איפוסים/מחיקות מאחורי הקלעים שלא מופיעים בפלט הכלי."
             )
 
     return (
@@ -292,6 +314,32 @@ def is_portfolio_breakdown_request(user_message: str) -> bool:
 
     lowered = user_message.lower()
 
+    planning_intent_keywords = [
+        "תכנית משיכה",
+        "תוכנית משיכה",
+        "מתווה משיכה",
+        "יעד קצבה",
+        "יעד",
+        "צור תכנית",
+        "צור תוכנית",
+        "בנה תכנית",
+        "בנה תוכנית",
+        "תכנן",
+        "תכנון",
+        "build_target_pension_plan",
+        "plan",
+    ]
+    has_planning_intent = any(k in lowered for k in planning_intent_keywords)
+    mentions_pension_goal = "קצבה" in lowered or "פנסיה" in lowered
+    if has_planning_intent and mentions_pension_goal:
+        return False
+
+    # Common goal phrasing: "אני צריך/זקוק לקצבה" + a numeric target (e.g., 25K / 25000)
+    has_need_phrase = any(k in lowered for k in ["צריך קצבה", "זקוק לקצבה", "זקוקה לקצבה", "אני צריך קצבה", "אני זקוק לקצבה"])
+    has_numeric_target = bool(re.search(r"\b\d{2,3}\s*k\b", lowered)) or bool(re.search(r"\b\d{4,6}\b", lowered))
+    if has_need_phrase and has_numeric_target:
+        return False
+
     portfolio_keywords = [
         "תיק פנסיוני",
         "תיק הפנסיוני",
@@ -309,14 +357,18 @@ def is_portfolio_breakdown_request(user_message: str) -> bool:
         return False
 
     triggers = [
+        "סכם",
+        "סיכום",
+        "תסכם",
+        "סכמ",
+        "פירוט",
+        "הצג",
+        "תציג",
+        "טבלה",
+        "רשימה",
         "חלוקה",
-        "בחלק",
-        "כמה",
-        "תיק פנסיוני",
-        "תיק הפנסיוני",
-        "תיק",
-        "portfolio",
         "breakdown",
+        "summary",
     ]
     return any(t in lowered for t in triggers)
 

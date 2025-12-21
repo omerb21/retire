@@ -401,7 +401,20 @@ def build_pension_portfolio_context(
 
     total_capital_only = sum(p["balance"] for p in products_list if p["is_capital_only"])
     if total_capital_only > 0:
-        context_lines.append(f"  • הון שלא ניתן להמרה: {total_capital_only:,.0f} ₪")
+        context_lines.append(
+            f"  • הון הוני בלבד (למשל קרן השתלמות/גמל להשקעה): {total_capital_only:,.0f} ₪"
+        )
+        capital_only_accounts = [p for p in products_list if p.get("is_capital_only")]
+        capital_only_sorted = sorted(
+            capital_only_accounts,
+            key=lambda p: float(p.get("balance") or 0),
+            reverse=True,
+        )
+        context_lines.append("    ◦ פירוט (כדי לשייך לטבלת המוצרים):")
+        for p in capital_only_sorted[:10]:
+            context_lines.append(f"      - {(p.get('name') or '')[:60]} | {float(p.get('balance') or 0):,.0f} ₪")
+            if p.get("account_number"):
+                context_lines.append(f"        מספר חשבון: {p.get('account_number')}")
 
     total_unspecified = sum(1 for p in products_list if p.get("is_unspecified_candidate"))
     if total_unspecified > 0:

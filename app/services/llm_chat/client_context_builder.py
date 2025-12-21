@@ -26,6 +26,64 @@ from app.services.tax_data import TaxBracketsService
 logger = logging.getLogger("app.llm_chat")
 
 
+def _find_last_user_text(messages: list[ChatMessage]) -> str:
+    for m in reversed(messages or []):
+        if getattr(m, "role", None) == "user" and isinstance(getattr(m, "content", None), str):
+            return m.content
+    return ""
+
+
+def _is_portfolio_summary_only_request(user_text: str) -> bool:
+    lowered = (user_text or "").lower()
+    if not lowered.strip():
+        return False
+
+    planning_intent_keywords = [
+        "קצבה",
+        "פנסיה",
+        "יעד קצבה",
+        "יעד",
+        "תכנית משיכה",
+        "תוכנית משיכה",
+        "מתווה משיכה",
+        "משיכה",
+        "build_target_pension_plan",
+        "25k",
+        "k",
+    ]
+    if any(k in lowered for k in planning_intent_keywords) and any(
+        k in lowered for k in ["צור", "בנה", "תכנן", "תכנון", "תכנית", "תוכנית", "מתווה", "אני צריך", "אני זקוק"]
+    ):
+        return False
+
+    has_summary_intent = any(
+        k in lowered
+        for k in [
+            "סכם",
+            "סיכום",
+            "תסכם",
+            "תסכום",
+            "סכמ",
+            "summary",
+        ]
+    )
+    refers_to_portfolio = any(
+        k in lowered
+        for k in [
+            "תיק פנסיוני",
+            "פורטפוליו",
+            "טבלת המוצרים",
+            "מסלקה",
+            "מוצרים מובילים",
+        ]
+    )
+    if has_summary_intent and refers_to_portfolio:
+        return True
+    if "תיק פנסיוני" in lowered and any(k in lowered for k in ["נתונים", "הצג", "תציג", "תפרט"]):
+        return True
+    return False
+
+
 def build_llm_context_parts(
     *,
     request: ChatRequest,
@@ -37,6 +95,34 @@ def build_llm_context_parts(
 
     client = fetch_client_data(db, request.client_id)
     if client is None:
+        return []
+
+    last_user_text = _find_last_user_text(messages)
+    portfolio_summary_only = _is_portfolio_summary_only_request(last_user_text)
+
+    effective_portfolio = request.pension_portfolio
+    effective_snapshot_at = request.pension_portfolio_snapshot_at
+    if not effective_portfolio and request.client_id is not None:
+        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+        if loaded is not None:
+            effective_portfolio, effective_snapshot_at = loaded
+
+    if portfolio_summary_only:
+        if effective_portfolio and len(effective_portfolio) > 0:
+            context_parts: list[str] = []
+            context_parts.extend(
+                build_pension_portfolio_context(
+                    effective_portfolio,
+                    user_message=last_user_text,
+                    snapshot_at=effective_snapshot_at,
+                )
+            )
+            context_parts.append("")
+            context_parts.append(
+                "**הנחיה לסוכן:** זהו שלב 1 (נתונים גולמיים). הצג רק את הנתונים שמופיעים בתיק הפנסיוני למעלה. "
+                "אל תשתמש במקורות אחרים במערכת (תרחישים/נכסים/מעסיקים) ואל תוסיף פרשנות רגולטורית ללא עמודה/שדה מפורש."
+            )
+            return context_parts
         return []
 
     age = client.get_age() if hasattr(client, "get_age") else None
@@ -388,16 +474,10 @@ def build_llm_context_parts(
             context_parts.append(f"  • {hebrew_name}")
         context_parts.append("**אל תפעיל כלים אלה שוב אלא אם הלקוח מבקש במפורש!**")
 
-    effective_portfolio = request.pension_portfolio
-    effective_snapshot_at = request.pension_portfolio_snapshot_at
-    if not effective_portfolio and request.client_id is not None:
-        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
-        if loaded is not None:
-            effective_portfolio, effective_snapshot_at = loaded
-
     if effective_portfolio and len(effective_portfolio) > 0:
         portfolio_context = build_pension_portfolio_context(
             effective_portfolio,
+            user_message=last_user_text,
             snapshot_at=effective_snapshot_at,
         )
         context_parts.extend(portfolio_context)
@@ -435,7 +515,8 @@ def build_llm_context_parts(
 
     context_parts.append("")
     context_parts.append(
-        "**הנחיה לסוכן:** הנתונים למעלה כוללים חישובים אוטומטיים עם מקדמים אמיתיים. השתמש בהם ישירות בתשובתך! אל תגיד 'צריך להריץ חישוב' - החישוב כבר בוצע."
+        "**הנחיה לסוכן:** הנתונים למעלה הם נתוני מערכת/מסלקה. תוצאות מחושבות מופיעות רק אם קיימת הודעת system מסוג Tool Result. "
+        "אם אין Tool Result רלוונטי — אסור לטעון שבוצע חישוב או שיש 'מקדמים אמיתיים'."
     )
 
     return context_parts

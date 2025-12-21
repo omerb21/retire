@@ -444,6 +444,10 @@ def get_tools_definitions_json() -> str:
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "pension_start_date": {
+                        "type": "string",
+                        "description": "תאריך מימוש/תחילת קצבה בפורמט ISO (YYYY-MM-DD). אם מסופק ותאריך עתידי, המערכת תבצע projection ליתרות ותחשב מקדמים לפי הגיל בפועל בתאריך זה (כמו בכפתורי המערכת).",
+                    },
                     "accounts": {
                         "type": "array",
                         "description": "רשימת חשבונות להמרה. מומלץ להעביר גם מזהים ותאריכים כדי לאפשר מניעת כפילויות וחישוב מקדמי קצבה מדויקים.",
@@ -474,6 +478,10 @@ def get_tools_definitions_json() -> str:
                                     "type": "string",
                                     "description": "תאריך התחלת תכנית בפורמט ISO (YYYY-MM-DD). משמש לזיהוי דור פוליסה/מקדמים.",
                                 },
+                                "pension_start_date": {
+                                    "type": "string",
+                                    "description": "תאריך מימוש/תחילת קצבה בפורמט ISO (YYYY-MM-DD). אם מסופק, יעקוף את pension_start_date הכללי עבור חשבון זה.",
+                                },
                                 "conversion_type": {
                                     "type": "string",
                                     "enum": ["pension", "capital_asset"],
@@ -485,6 +493,7 @@ def get_tools_definitions_json() -> str:
                                 "חברה_מנהלת": {"type": "string"},
                                 "מספר_חשבון": {"type": "string"},
                                 "תאריך_התחלה": {"type": "string"},
+                                "תאריך_מימוש": {"type": "string"},
                             },
                             "required": ["balance"],
                         },
