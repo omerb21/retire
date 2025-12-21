@@ -209,11 +209,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     m.role == "system" and "Tool Result (" in m.content
                     for m in history_messages
                 )
-                if is_net_request and not has_tool_results:
+                if is_net_request and (not no_tools_requested) and not has_tool_results:
                     warning_msg = (
                         "אזהרה: אסור לך לענות על שאלות נטו או אחרי מס ללא הרצת כלים. "
                         "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
-                        '###TOOL_CALL### {"name": "TOOL_NAME", "arguments": {...}} ללא טקסט נוסף.'
+                        '###TOOL_CALL### {"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {"retirement_date": "YYYY-MM-DD"}} ללא טקסט נוסף.'
                     )
                     history_messages.append(ChatMessage(role="system", content=warning_msg))
                     continue

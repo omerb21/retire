@@ -92,6 +92,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     is_qa_mode = is_qa_request(original_user_msg)
     no_tools_requested = is_no_tools_request(original_user_msg)
     force_max_exemption = is_max_exemption_request(original_user_msg)
+    is_net_request = is_net_pension_request(original_user_msg)
 
     current_pension_portfolio = effective_portfolio
 
@@ -394,6 +395,16 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
             has_tool_results = any(
                 m.role == "system" and "Tool Result (" in m.content for m in messages
             )
+            if is_net_request and (not no_tools_requested) and (not has_tool_results):
+                warning_msg = (
+                    "אזהרה: אסור לך לענות על שאלות נטו/אחרי מס ללא הרצת כלים. "
+                    "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
+                    '###TOOL_CALL### {"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {"retirement_date": "YYYY-MM-DD"}} ללא טקסט נוסף.'
+                )
+                messages.append(ChatMessage(role="system", content=warning_msg))
+                current_step += 1
+                continue
+
             if is_doc_request and not has_tool_results:
                 warning_msg = (
                     "אזהרה: המשתמש ביקש דוח/מסמך להורדה. אסור לך להשיב טקסט חופשי או לטעון שהופק דוח ללא הפעלת כלי GENERATE_* "

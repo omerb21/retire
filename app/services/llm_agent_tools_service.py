@@ -2259,11 +2259,23 @@ class AgentToolsService:
             )
 
         except Exception as e:
-            logger.warning("TAX ANALYSIS: Failed to calculate tax, using gross as net: %s", e)
-            monthly_net_pension = total_pension_income
-            monthly_tax_deduction = 0.0
-            monthly_health_tax = 0.0
-            monthly_income_tax = 0.0
+            logger.error(
+                "TAX ANALYSIS: Failed to calculate tax for retirement_date=%s (tax_year=%s). Refusing to return fallback tax=0: %s",
+                retirement_date,
+                tax_year,
+                e,
+                exc_info=True,
+            )
+            return {
+                "success": False,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {},
+                "explanation": (
+                    "שגיאה בחישוב מס הכנסה לקצבה. "
+                    "כדי למנוע הצגת נתונים שגויים, המערכת לא מחזירה תוצאת מס משוערת במקרה זה. "
+                    f"פרטים טכניים: {str(e)}"
+                ),
+            }
 
         # הכנסה מובטחת נטו (כולל ביטוח לאומי שהוא פטור ממס)
         total_guaranteed_income_net = monthly_net_pension + social_security_amount

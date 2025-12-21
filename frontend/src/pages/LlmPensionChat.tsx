@@ -1,6 +1,6 @@
 import React, { useState, FormEvent, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { apiFetch, llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, handleApiError } from "../lib/api";
+import { apiFetch, llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, publicChatApi, handleApiError } from "../lib/api";
 import { useClientData } from "./ClientDetails/hooks/useClientData";
 import { loadLlmChatFromStorage, saveLlmChatToStorage, clearLlmChatFromStorage } from "../services/llmChatStorageService";
 import {
@@ -216,6 +216,7 @@ const LlmPensionChat: React.FC = () => {
     { provider: "", modelName: "" },
   );
   const [isSwitchingProvider, setIsSwitchingProvider] = useState(false);
+  const [isOpeningPublicChat, setIsOpeningPublicChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [usageByMessageIndex, setUsageByMessageIndex] = useState<Record<number, UsageInfo>>({});
   const [nextMessageUsage, setNextMessageUsage] = useState<UsageInfo | null>(null);
@@ -318,6 +319,25 @@ const LlmPensionChat: React.FC = () => {
       setError(handleApiError(err));
     } finally {
       setIsSwitchingProvider(false);
+    }
+  }
+
+  async function handleOpenPublicChat() {
+    if (!client?.id_number) {
+      setError("לא ניתן לפתוח Public Chat: חסרה תעודת זהות ללקוח.");
+      return;
+    }
+
+    setIsOpeningPublicChat(true);
+    setError(null);
+
+    try {
+      const started = await publicChatApi.start(client.id_number);
+      navigate(`/public-chat/${started.session_key}`);
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsOpeningPublicChat(false);
     }
   }
 
@@ -619,6 +639,14 @@ const LlmPensionChat: React.FC = () => {
                   <option value="gemini">Gemini (ענן)</option>
                   <option value="anthropic">Anthropic (Claude)</option>
                 </select>
+                <button
+                  type="button"
+                  className="llm-chat-public-chat-button"
+                  onClick={handleOpenPublicChat}
+                  disabled={isSending || isSwitchingProvider || isOpeningPublicChat}
+                >
+                  {isOpeningPublicChat ? "פותח Public Chat..." : "פתח Public Chat של הלקוח"}
+                </button>
                 {(() => {
                   const providerKey = providerForm.provider || llmStatus?.provider || "";
                   const presets = MODEL_PRESETS[providerKey] || [];

@@ -155,6 +155,20 @@
   gap: 4px;
 }
 
+.llm-chat-public-chat-button {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+  cursor: pointer;
+}
+
+.llm-chat-public-chat-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .llm-chat-provider-select,
 .llm-chat-provider-input {
   font-size: 0.8rem;

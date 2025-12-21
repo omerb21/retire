@@ -88,9 +88,10 @@ class TaxCalculationInput(BaseModel):
     @validator('tax_year')
     def validate_tax_year(cls, v):
         current_year = date.today().year
-        # הרחבת הטווח ל-20 שנה קדימה לתמיכה בתרחישי פרישה עתידיים
-        if v < 2020 or v > current_year + 20:
-            raise ValueError(f'שנת מס חייבת להיות בין 2020 ל-{current_year + 20}')
+        # תרחישי פרישה יכולים להיות רחוק בעתיד (למשל 2045/2046), ולכן אין להגביל ל-20 שנה קדימה.
+        # נשמור על חסם תחתון (מניעת שנים לא רלוונטיות), ונאפשר קדימה עד 120 שנה.
+        if v < 2020 or v > current_year + 120:
+            raise ValueError(f'שנת מס חייבת להיות בין 2020 ל-{current_year + 120}')
         return v
     
     def get_total_annual_income(self) -> float:
