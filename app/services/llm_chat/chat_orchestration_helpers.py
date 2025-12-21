@@ -4,6 +4,53 @@ from typing import Any, Callable, Optional
 from app.services.llm_chat.message_utils import extract_gross_income_for_tax
 
 
+def format_transform_result_for_user(*, tool_result: str) -> str:
+    try:
+        parsed = json.loads(tool_result)
+    except Exception:
+        return "בוצעה המרה, אך לא הצלחתי לקרוא את תוצאת הכלי."
+
+    if not isinstance(parsed, dict):
+        return "בוצעה המרה, אך תוצאת הכלי אינה בפורמט צפוי."
+
+    if parsed.get("success") is not True:
+        err = parsed.get("error") or "המרה נכשלה."
+        return f"המרה נכשלה: {err}"
+
+    total_converted = int(parsed.get("total_converted") or 0)
+    converted_pensions = int(parsed.get("converted_pensions") or 0)
+    converted_capitals = int(parsed.get("converted_capitals") or 0)
+
+    ignored_blocked_amount = parsed.get("ignored_blocked_amount")
+    employer_current_sev = parsed.get("employer_current_severance_not_converted")
+
+    lines: list[str] = []
+    lines.append("סיכום המרה הון/קצבה בתיק:")
+    lines.append(f"הומרו {total_converted} חשבונות")
+    lines.append(f"נכסי קצבה שנוצרו/עודכנו: {converted_pensions}")
+    lines.append(f"נכסי הון שנוצרו/עודכנו: {converted_capitals}")
+
+    if ignored_blocked_amount is not None:
+        try:
+            lines.append(f"יתרות חסומות שדולגו לפי הבקשה: {float(ignored_blocked_amount):,.0f} ₪")
+        except Exception:
+            lines.append(f"יתרות חסומות שדולגו לפי הבקשה: {ignored_blocked_amount}")
+
+    if employer_current_sev is not None:
+        try:
+            lines.append(f"פיצויי מעסיק נוכחי שלא הומרו (חסימה מערכתית): {float(employer_current_sev):,.0f} ₪")
+        except Exception:
+            lines.append(f"פיצויי מעסיק נוכחי שלא הומרו (חסימה מערכתית): {employer_current_sev}")
+
+    errors = parsed.get("errors")
+    if isinstance(errors, list) and errors:
+        lines.append("הערות/שגיאות במהלך ההמרה:")
+        for item in errors[:5]:
+            lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
 def maybe_clear_pension_portfolio_after_transform(
     *,
     tool_name: str | None,

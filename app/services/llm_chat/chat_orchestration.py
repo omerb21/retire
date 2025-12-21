@@ -9,6 +9,7 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest, ChatResponse
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_forced_document_reply,
     build_pension_portfolio_update_after_transform,
+    format_transform_result_for_user,
     get_gross_for_tax_chaining,
     maybe_clear_pension_portfolio_after_transform,
     run_tax_projection_autochain,
@@ -99,6 +100,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     is_net_request = is_net_pension_request(original_user_msg)
     is_cashflow_request = is_retirement_cashflow_request(original_user_msg)
     is_comparison_request = is_retirement_comparison_request(original_user_msg)
+    explicit_transform = is_transform_request(original_user_msg)
 
     def _is_ignore_blocked_text(text: str) -> bool:
         lowered = (text or "").lower()
@@ -143,6 +145,51 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         )
 
     current_pension_portfolio = effective_portfolio
+
+    if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
+        derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
+        if not derived_accounts:
+            return ChatResponse(
+                reply=(
+                    "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "
+                    "כדי לבצע המרה מלאה צריך קודם לטעון תיק מסלקה כך שיופיע פירוט חשבונות."
+                ),
+                computed_data=computed_data,
+            )
+
+        tool_args: dict[str, Any] = {
+            "accounts": derived_accounts,
+        }
+        if wants_ignore_blocked:
+            tool_args["ignore_blocked_balances"] = True
+            tool_args["skip_non_convertible_accounts"] = True
+
+        tool_result = _execute_tool_call(
+            "TRANSFORM_FUNDS_TO_ASSETS",
+            tool_args,
+            request.client_id,
+            db,
+            pension_portfolio=current_pension_portfolio,
+            force_max_exemption=False,
+        )
+
+        log_llm_event(
+            request_id=request_id,
+            event_type="tool_call",
+            payload={"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": tool_args},
+            client_id=request.client_id,
+        )
+        log_llm_event(
+            request_id=request_id,
+            event_type="tool_result",
+            payload={"tool_name": "TRANSFORM_FUNDS_TO_ASSETS", "result": tool_result},
+            client_id=request.client_id,
+        )
+
+        return ChatResponse(
+            reply=format_transform_result_for_user(tool_result=tool_result),
+            computed_data=computed_data,
+        )
 
     log_llm_event(
         request_id=request_id,

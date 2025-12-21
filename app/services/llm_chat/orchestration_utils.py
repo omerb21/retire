@@ -189,6 +189,9 @@ def is_retirement_cashflow_request(user_message: str) -> bool:
     if not user_message:
         return False
 
+    if is_transform_request(user_message):
+        return False
+
     lowered = user_message.lower()
 
     triggers = [

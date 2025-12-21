@@ -10,6 +10,7 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_forced_document_reply,
     build_pension_portfolio_update_after_transform,
+    format_transform_result_for_user,
     get_gross_for_tax_chaining,
     maybe_clear_pension_portfolio_after_transform,
     run_tax_projection_autochain,
@@ -160,6 +161,50 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
         current_pension_portfolio = effective_portfolio
+
+        if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
+            derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
+            if not derived_accounts:
+                yield (
+                    "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "
+                    "כדי לבצע המרה מלאה צריך קודם לטעון תיק מסלקה כך שיופיע פירוט חשבונות."
+                )
+                return
+
+            tool_args: dict[str, Any] = {
+                "accounts": derived_accounts,
+            }
+            if wants_ignore_blocked:
+                tool_args["ignore_blocked_balances"] = True
+                tool_args["skip_non_convertible_accounts"] = True
+
+            log_llm_event(
+                request_id=req_id,
+                event_type="tool_call",
+                payload={"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": tool_args},
+                client_id=request.client_id,
+                extra={"endpoint": "stream"},
+            )
+
+            tool_result = _execute_tool_call(
+                "TRANSFORM_FUNDS_TO_ASSETS",
+                tool_args,
+                request.client_id,
+                db,
+                pension_portfolio=current_pension_portfolio,
+                force_max_exemption=False,
+            )
+
+            log_llm_event(
+                request_id=req_id,
+                event_type="tool_result",
+                payload={"tool_name": "TRANSFORM_FUNDS_TO_ASSETS", "result": tool_result},
+                client_id=request.client_id,
+                extra={"endpoint": "stream"},
+            )
+
+            yield format_transform_result_for_user(tool_result=tool_result)
+            return
 
         report_open_path: str | None = None
         qa_summary_required = False
