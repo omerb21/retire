@@ -123,14 +123,16 @@ function PublicChatSessionPage() {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [publicChatPassword, setPublicChatPassword] = useState<string>("");
+  const [publicChatPasswordInput, setPublicChatPasswordInput] = useState<string>("");
+  const [verifiedPublicChatPassword, setVerifiedPublicChatPassword] = useState<string>("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sessionKey) return;
     const existing = getStoredPublicChatPassword(sessionKey);
     if (existing) {
-      setPublicChatPassword(existing);
+      setVerifiedPublicChatPassword(existing);
+      setPublicChatPasswordInput(existing);
     }
   }, [sessionKey]);
 
@@ -156,7 +158,7 @@ function PublicChatSessionPage() {
       return;
     }
 
-    const trimmedPassword = (publicChatPassword || "").trim();
+    const trimmedPassword = (verifiedPublicChatPassword || "").trim();
     if (!trimmedPassword) {
       return;
     }
@@ -179,7 +181,7 @@ function PublicChatSessionPage() {
         setError(msg);
         if (msg.toLowerCase().includes("password")) {
           clearStoredPublicChatPassword(sessionKey);
-          setPublicChatPassword("");
+          setVerifiedPublicChatPassword("");
         }
       }
     })();
@@ -187,14 +189,14 @@ function PublicChatSessionPage() {
     return () => {
       active = false;
     };
-  }, [sessionKey, publicChatPassword]);
+  }, [sessionKey, verifiedPublicChatPassword]);
 
   async function handleUnlock(e: React.FormEvent) {
     e.preventDefault();
     if (!sessionKey) return;
     setError(null);
 
-    const trimmed = (publicChatPassword || "").trim();
+    const trimmed = (publicChatPasswordInput || "").trim();
     if (!trimmed) {
       setError("יש להזין תעודת זהות");
       return;
@@ -203,10 +205,11 @@ function PublicChatSessionPage() {
     try {
       await publicChatApi.status(sessionKey, trimmed);
       setStoredPublicChatPassword(sessionKey, trimmed);
-      setPublicChatPassword(trimmed);
+      setVerifiedPublicChatPassword(trimmed);
     } catch (err) {
       setError(handleApiError(err));
       clearStoredPublicChatPassword(sessionKey);
+      setVerifiedPublicChatPassword("");
     }
   }
 
@@ -214,7 +217,7 @@ function PublicChatSessionPage() {
     e.preventDefault();
     if (!sessionKey) return;
 
-    const trimmedPassword = (publicChatPassword || "").trim();
+    const trimmedPassword = (verifiedPublicChatPassword || "").trim();
     if (!trimmedPassword) return;
 
     const trimmed = input.trim();
@@ -252,7 +255,8 @@ function PublicChatSessionPage() {
       setError(msg);
       if (msg.toLowerCase().includes("password")) {
         clearStoredPublicChatPassword(sessionKey);
-        setPublicChatPassword("");
+        setVerifiedPublicChatPassword("");
+        setPublicChatPasswordInput("");
         setStatus(null);
         setMessages([]);
         return;
@@ -267,7 +271,7 @@ function PublicChatSessionPage() {
     }
   }
 
-  if (sessionKey && !(publicChatPassword || "").trim()) {
+  if (sessionKey && !(verifiedPublicChatPassword || "").trim()) {
     return (
       <div className="public-chat-page">
         <div className="public-chat-shell">
@@ -284,8 +288,8 @@ function PublicChatSessionPage() {
                 תעודת זהות
                 <input
                   className="public-chat-input"
-                  value={publicChatPassword}
-                  onChange={(e) => setPublicChatPassword(e.target.value)}
+                  value={publicChatPasswordInput}
+                  onChange={(e) => setPublicChatPasswordInput(e.target.value)}
                   inputMode="numeric"
                 />
               </label>
