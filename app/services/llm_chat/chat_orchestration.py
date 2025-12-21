@@ -71,10 +71,44 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
 
     effective_portfolio = request.pension_portfolio
     effective_snapshot_at = request.pension_portfolio_snapshot_at
+    try:
+        request_portfolio_count = (
+            len(request.pension_portfolio)
+            if isinstance(request.pension_portfolio, list)
+            else 0
+        )
+    except Exception:
+        request_portfolio_count = 0
     if request.client_id is not None:
         loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
         if loaded is not None:
             effective_portfolio, effective_snapshot_at = loaded
+            try:
+                logger.info(
+                    "📦 Using DB pension_portfolio_snapshot (client_id=%s, accounts=%s, snapshot_at=%s)",
+                    request.client_id,
+                    len(effective_portfolio) if isinstance(effective_portfolio, list) else 0,
+                    effective_snapshot_at,
+                )
+            except Exception:
+                pass
+        else:
+            try:
+                logger.info(
+                    "📦 No DB pension_portfolio_snapshot found; using request payload (client_id=%s, accounts=%s)",
+                    request.client_id,
+                    request_portfolio_count,
+                )
+            except Exception:
+                pass
+    else:
+        try:
+            logger.info(
+                "📦 No client_id provided; using request payload (accounts=%s)",
+                request_portfolio_count,
+            )
+        except Exception:
+            pass
 
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
@@ -148,7 +182,23 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
 
     if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
         derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
+        try:
+            logger.info(
+                "🔁 Deterministic transform requested (client_id=%s, portfolio_accounts=%s, derived_accounts=%s)",
+                request.client_id,
+                len(current_pension_portfolio) if isinstance(current_pension_portfolio, list) else 0,
+                len(derived_accounts),
+            )
+        except Exception:
+            pass
         if not derived_accounts:
+            try:
+                logger.info(
+                    "⚠️ Deterministic transform blocked: no derived accounts (client_id=%s)",
+                    request.client_id,
+                )
+            except Exception:
+                pass
             return ChatResponse(
                 reply=(
                     "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "

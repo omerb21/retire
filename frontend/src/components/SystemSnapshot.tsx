@@ -223,13 +223,16 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
       const convertedAccounts = Array.from(convertedAccountsSet);
 
       if (Array.isArray(pensionPortfolio) && pensionPortfolio.length > 0) {
-        await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
+        const portfolioRes = await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({ accounts: pensionPortfolio })
         });
+
+        if (!portfolioRes.ok) {
+          const error = await portfolioRes.json().catch(() => null);
+          throw new Error(error?.detail || 'שגיאה בשמירת תיק פנסיוני');
+        }
       }
       
       const snapshotData = {
@@ -304,13 +307,16 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
         console.log('Sample account:', savedSnapshot.pension_portfolio[0]);
 
         if (savedSnapshot.pension_portfolio.length > 0) {
-          await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
+          const portfolioRes = await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({ accounts: savedSnapshot.pension_portfolio })
           });
+
+          if (!portfolioRes.ok) {
+            const error = await portfolioRes.json().catch(() => null);
+            throw new Error(error?.detail || 'שגיאה בשמירת תיק פנסיוני');
+          }
         }
       } else {
         removePensionDataFromStorage(String(clientId));

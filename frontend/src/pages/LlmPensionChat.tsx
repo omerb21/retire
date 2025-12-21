@@ -363,13 +363,14 @@ const LlmPensionChat: React.FC = () => {
 
     try {
       const numericClientId = clientId ? Number(clientId) : undefined;
+      const pensionPortfolioForLlm = loadPensionPortfolioForLlm(clientId);
 
       let fullContent = "";
       let extractedComputedData: ComputedPensionData | null = null;
       const pendingUiActions: any[] = [];
 
       // Use streaming API (portfolio is loaded from DB on the server)
-      for await (const chunk of llmApi.chatStream(newMessages, numericClientId)) {
+      for await (const chunk of llmApi.chatStream(newMessages, numericClientId, pensionPortfolioForLlm)) {
         fullContent += chunk;
 
         // חפש וחלץ נתונים מחושבים מהמערכת (לא מה-LLM)
