@@ -127,6 +127,7 @@ def _zero_source_portfolio_pension_funds(
             PensionFund.deduction_file == account_number,
             PensionFund.conversion_source.isnot(None),
         )
+        .filter(~PensionFund.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'))
         .filter(
             (PensionFund.conversion_source.like('%"source": "pension_portfolio"%'))
             | (PensionFund.conversion_source.like('%"type": "pension_portfolio"%'))
@@ -144,6 +145,107 @@ def _zero_source_portfolio_pension_funds(
             pf.pension_amount = 0.0
             updated += 1
     return updated
+
+
+def _coerce_float(value) -> float:
+    if value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return 0.0
+        cleaned = raw.replace(",", "").replace("₪", "").replace(" ", "")
+        try:
+            return float(cleaned)
+        except (TypeError, ValueError):
+            return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) -> list[dict]:
+    updated: list[dict] = []
+    for item in portfolio:
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        account_number = str(
+            row.get("מספר_חשבון")
+            or row.get("account_number")
+            or row.get("מספר חשבון")
+            or ""
+        ).strip()
+        if not account_number or account_number not in deltas:
+            updated.append(row)
+            continue
+
+        delta = deltas.get(account_number) or {}
+        fields = delta.get("fields") or {}
+        total = _coerce_float(delta.get("total"))
+
+        if fields and isinstance(fields, dict):
+            for field in list(fields.keys()):
+                if field in row:
+                    row[field] = 0
+
+        if "יתרה" in row:
+            row["יתרה"] = max(0.0, _coerce_float(row.get("יתרה")) - total)
+        if "balance" in row:
+            row["balance"] = max(0.0, _coerce_float(row.get("balance")) - total)
+
+        updated.append(row)
+    return updated
+
+
+def _create_updated_snapshot_scenario(
+    *,
+    db: Session,
+    client_id: int,
+    deltas: dict[str, dict],
+) -> tuple[bool, int]:
+    if not deltas:
+        return True, 0
+
+    snapshot = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    if snapshot is None or not snapshot.parameters:
+        return False, 0
+
+    try:
+        params = json.loads(snapshot.parameters)
+    except Exception:
+        return False, 0
+
+    portfolio = params.get("pension_portfolio")
+    if not isinstance(portfolio, list) or not portfolio:
+        return False, 0
+
+    updated_portfolio = _apply_snapshot_deltas(portfolio=portfolio, deltas=deltas)
+    if not updated_portfolio:
+        return False, 0
+
+    new_params = dict(params)
+    new_params["pension_portfolio"] = updated_portfolio
+
+    scenario = Scenario(
+        client_id=client_id,
+        scenario_name="pension_portfolio_snapshot",
+        apply_tax_planning=False,
+        apply_capitalization=False,
+        apply_exemption_shield=False,
+        parameters=json.dumps(new_params, ensure_ascii=False),
+    )
+    db.add(scenario)
+    return True, 1
 
 
 def _parse_date_value(value) -> Optional[date]:
@@ -751,6 +853,7 @@ def handle_transform_funds_to_assets(
 
         deleted_for_accounts: set[str] = set()
         source_zeroed_for_accounts: set[str] = set()
+        snapshot_deltas: dict[str, dict] = {}
 
         for idx, task in enumerate(conversion_tasks):
             try:
@@ -957,6 +1060,25 @@ def handle_transform_funds_to_assets(
                             account_number=account_number,
                         )
                         source_zeroed_for_accounts.add(account_number)
+
+                    if account_number:
+                        entry = snapshot_deltas.setdefault(
+                            str(account_number).strip(),
+                            {"total": 0.0, "fields": {}},
+                        )
+                        entry["total"] = float(entry.get("total") or 0.0) + float(base_amount or 0.0)
+                        if isinstance(components, dict) and components:
+                            fields = entry.get("fields")
+                            if not isinstance(fields, dict):
+                                fields = {}
+                            for k, v in components.items():
+                                try:
+                                    numeric = float(v or 0)
+                                except (TypeError, ValueError):
+                                    numeric = 0.0
+                                if numeric > 0:
+                                    fields[str(k)] = float(fields.get(str(k), 0.0)) + numeric
+                            entry["fields"] = fields
                     converted_pensions += 1
 
                     converted_items.append(
@@ -1096,6 +1218,25 @@ def handle_transform_funds_to_assets(
                             account_number=account_number,
                         )
                         source_zeroed_for_accounts.add(account_number)
+
+                    if account_number:
+                        entry = snapshot_deltas.setdefault(
+                            str(account_number).strip(),
+                            {"total": 0.0, "fields": {}},
+                        )
+                        entry["total"] = float(entry.get("total") or 0.0) + float(base_amount or 0.0)
+                        if isinstance(components, dict) and components:
+                            fields = entry.get("fields")
+                            if not isinstance(fields, dict):
+                                fields = {}
+                            for k, v in components.items():
+                                try:
+                                    numeric = float(v or 0)
+                                except (TypeError, ValueError):
+                                    numeric = 0.0
+                                if numeric > 0:
+                                    fields[str(k)] = float(fields.get(str(k), 0.0)) + numeric
+                            entry["fields"] = fields
                     converted_capitals += 1
 
                     converted_items.append(
@@ -1115,12 +1256,22 @@ def handle_transform_funds_to_assets(
                 errors.append(f"שגיאה בחשבון {account_name}: {str(acc_err)}")
                 logger.error("Error converting account %s: %s", account_name, acc_err)
 
-        db.commit()
-
         total_converted = converted_pensions + converted_capitals
 
         scenario_source_cleanup_ok = None
         scenarios_updated = 0
+
+        try:
+            scenario_source_cleanup_ok, scenarios_updated = _create_updated_snapshot_scenario(
+                db=db,
+                client_id=client_id,
+                deltas=snapshot_deltas,
+            )
+        except Exception:
+            scenario_source_cleanup_ok = False
+            scenarios_updated = 0
+
+        db.commit()
 
         response = {
             "success": True,
