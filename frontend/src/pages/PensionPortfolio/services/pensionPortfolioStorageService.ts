@@ -10,6 +10,8 @@ const getConvertedAccountsStorageKey = (clientId: string | undefined): string =>
 
  const PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION = new Set<string>([
    'פיצויים_מעסיק_נוכחי',
+   'פיצויים_שלא_עברו_התחשבנות',
+   'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
  ]);
 
 export function loadPensionDataFromStorage(
@@ -172,6 +174,25 @@ export function applyConversionUpdatesToPensionPortfolio(
       const convertedAmount = Number(u.converted_amount ?? 0) || 0;
       if (convertedAmount > 0) {
         account.יתרה = Math.max(0, originalBalance - convertedAmount);
+      }
+
+      if ((!specific || Object.keys(specific).length === 0) && Number(account.יתרה ?? 0) === 0) {
+        Object.keys(account).forEach((field) => {
+          if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
+            return;
+          }
+          if (
+            field.startsWith('תגמולי_') ||
+            field.startsWith('פיצויים_') ||
+            field === 'תגמולים' ||
+            field === 'סך_תגמולים' ||
+            field === 'סך_פיצויים' ||
+            field === 'סך_רכיבים' ||
+            field === 'קרן_השתלמות'
+          ) {
+            account[field] = 0;
+          }
+        });
       }
 
       account.selected = false;

@@ -165,9 +165,6 @@ def build_pension_portfolio_update_after_transform(
     if tool_name != "TRANSFORM_FUNDS_TO_ASSETS":
         return None
 
-    if not current_pension_portfolio:
-        return None
-
     try:
         parsed_result = json.loads(tool_result)
         if not (isinstance(parsed_result, dict) and parsed_result.get("success") is True):

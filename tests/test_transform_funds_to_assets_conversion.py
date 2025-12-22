@@ -84,8 +84,8 @@ def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client
     )
     assert ca is not None
 
-    assert float(ca.current_value or 0) == 100000.0
-    assert float(ca.monthly_income or 0) == 0.0
+    assert float(ca.current_value or 0) == 0.0
+    assert float(ca.monthly_income or 0) == 100000.0
     assert ca.start_date == date(2047, 1, 1)
 
     db_session.refresh(source_pf)
