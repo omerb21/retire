@@ -169,6 +169,7 @@ def _coerce_float(value) -> float:
 
 def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) -> list[dict]:
     updated: list[dict] = []
+    zero_epsilon = 0.01
     for item in portfolio:
         if not isinstance(item, dict):
             continue
@@ -203,14 +204,16 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
         prior_balance = None
         if "יתרה" in row:
             prior_balance = _coerce_float(row.get("יתרה"))
-            row["יתרה"] = max(0.0, prior_balance - total)
+            remaining = max(0.0, prior_balance - total)
+            row["יתרה"] = 0.0 if remaining <= zero_epsilon else remaining
         if "balance" in row:
             if prior_balance is None:
                 prior_balance = _coerce_float(row.get("balance"))
-            row["balance"] = max(0.0, _coerce_float(row.get("balance")) - total)
+            remaining = max(0.0, _coerce_float(row.get("balance")) - total)
+            row["balance"] = 0.0 if remaining <= zero_epsilon else remaining
 
         if (not fields or not isinstance(fields, dict) or not fields) and (prior_balance is not None):
-            if max(0.0, prior_balance - total) == 0.0:
+            if max(0.0, prior_balance - total) <= zero_epsilon:
                 for key in list(row.keys()):
                     if key in protected_fields:
                         continue

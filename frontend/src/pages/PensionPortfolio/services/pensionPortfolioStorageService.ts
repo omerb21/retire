@@ -8,11 +8,13 @@ const getConvertedAccountsStorageKey = (clientId: string | undefined): string =>
   return `convertedAccounts_${clientId}`;
 };
 
- const PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION = new Set<string>([
-   'פיצויים_מעסיק_נוכחי',
-   'פיצויים_שלא_עברו_התחשבנות',
-   'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
- ]);
+const BALANCE_ZERO_EPSILON = 0.01;
+
+const PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION = new Set<string>([
+  'פיצויים_מעסיק_נוכחי',
+  'פיצויים_שלא_עברו_התחשבנות',
+  'פיצויים_ממעסיקים_קודמים_רצף_זכויות',
+]);
 
 export function loadPensionDataFromStorage(
   clientId: string | undefined
@@ -174,6 +176,10 @@ export function applyConversionUpdatesToPensionPortfolio(
       const convertedAmount = Number(u.converted_amount ?? 0) || 0;
       if (convertedAmount > 0) {
         account.יתרה = Math.max(0, originalBalance - convertedAmount);
+      }
+
+      if (Math.abs(Number(account.יתרה ?? 0) || 0) < BALANCE_ZERO_EPSILON) {
+        account.יתרה = 0;
       }
 
       if ((!specific || Object.keys(specific).length === 0) && Number(account.יתרה ?? 0) === 0) {

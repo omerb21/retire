@@ -16,6 +16,8 @@ const PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION = new Set<string>([
   "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
 ]);
 
+const BALANCE_ZERO_EPSILON = 0.01;
+
 const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
   ollama: [
     { value: "", label: "ברירת מחדל (מהשרת)" },
@@ -495,6 +497,10 @@ const LlmPensionChat: React.FC = () => {
                   const convertedAmount = Number(u.converted_amount ?? 0) || 0;
                   if (convertedAmount > 0) {
                     account.יתרה = Math.max(0, originalBalance - convertedAmount);
+                  }
+
+                  if (Math.abs(Number(account.יתרה ?? 0) || 0) < BALANCE_ZERO_EPSILON) {
+                    account.יתרה = 0;
                   }
 
                   if ((!specific || Object.keys(specific).length === 0) && Number(account.יתרה ?? 0) === 0) {

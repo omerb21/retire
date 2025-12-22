@@ -223,12 +223,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         if not no_tools_requested:
             if is_doc_request:
                 required_tools.add("GENERATE_FULL_REPORT")
-            if (
-                is_doc_request
-                and isinstance(current_pension_portfolio, list)
-                and current_pension_portfolio
-            ):
-                required_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
 
         tool_call_marker = "###TOOL_CALL###"
         max_steps = 5
