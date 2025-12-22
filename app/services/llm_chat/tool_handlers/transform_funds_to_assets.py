@@ -446,6 +446,7 @@ def handle_transform_funds_to_assets(
 
             account_name = account.get("account_name") or account.get("שם_תכנית", f"חשבון {idx + 1}")
             product_type = account.get("product_type") or account.get("סוג_מוצר", "")
+            rules_product_type = f"{product_type or ''} {account_name or ''}".strip()
             account_number = account.get("account_number") or account.get("מספר_חשבון") or ""
             if not str(account_number).strip():
                 validation_errors.append(f"{account_name}: חסר מספר חשבון (מספר_חשבון) ולכן לא ניתן לבצע המרה בטוחה")
@@ -505,13 +506,13 @@ def handle_transform_funds_to_assets(
 
                     preferred = preferred_conversion_type_for_component(
                         field=field,
-                        product_type=product_type,
+                        product_type=rules_product_type,
                     )
                     ok, _tax, err_msg = validate_component_conversion(
                         field=field,
                         amount=numeric_val,
                         conversion_type=preferred,
-                        product_type=product_type,
+                        product_type=rules_product_type,
                     )
                     chosen = preferred
                     if not ok:
@@ -520,7 +521,7 @@ def handle_transform_funds_to_assets(
                             field=field,
                             amount=numeric_val,
                             conversion_type=alt,
-                            product_type=product_type,
+                            product_type=rules_product_type,
                         )
                         if ok2:
                             chosen = alt
@@ -678,6 +679,7 @@ def handle_transform_funds_to_assets(
                 account_name = task.get("account_name")
                 base_amount = float(task.get("amount") or 0)
                 product_type = task.get("product_type")
+                rules_product_type = f"{product_type or ''} {account_name or ''}".strip()
                 company = task.get("company")
                 conversion_type = task.get("task_type")
                 components = task.get("components")
@@ -724,7 +726,8 @@ def handle_transform_funds_to_assets(
                     # Convert to pension fund
                     tax_treatment = (
                         "exempt"
-                        if is_education_fund(product_type) or is_investment_provident_fund(product_type)
+                        if is_education_fund(rules_product_type)
+                        or is_investment_provident_fund(rules_product_type)
                         else "taxable"
                     )
 
@@ -884,12 +887,12 @@ def handle_transform_funds_to_assets(
                 else:  # capital_asset
                     # Convert to capital asset
                     # Determine asset type based on product
-                    product_lower = (product_type or "").lower()
+                    product_lower = (rules_product_type or "").lower()
 
-                    if is_education_fund(product_type):
+                    if is_education_fund(rules_product_type):
                         asset_type = "education_fund"
                         tax_treatment = "exempt"
-                    elif is_investment_provident_fund(product_type):
+                    elif is_investment_provident_fund(rules_product_type):
                         asset_type = "provident_fund"
                         tax_treatment = "capital_gains"
                     elif ("גמל" in (product_type or "")) or ("provident_fund" in product_lower):

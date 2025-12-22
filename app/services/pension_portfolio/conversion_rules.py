@@ -230,6 +230,11 @@ def rule_for_tagmulim_by_product_type(*, product_type: str) -> dict[str, object]
 
 
 def preferred_conversion_type_for_component(*, field: str, product_type: str) -> str:
+    pt = (product_type or "").lower()
+    is_education_code = any(token in pt for token in ("education_fund", "klal_stud"))
+    if is_education_fund(product_type) or is_education_code:
+        return ConversionType.capital_asset.value
+
     if field == PensionPortfolioComponentField.tagmulim_aggregate.value:
         rule = rule_for_tagmulim_by_product_type(product_type=product_type)
         if bool(rule.get("capital_asset")):

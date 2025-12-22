@@ -177,30 +177,56 @@ def build_pension_portfolio_update_after_transform(
     except Exception:
         return None
 
-    accounts = tool_args.get("accounts")
-    if not isinstance(accounts, list) or not accounts:
+    converted_items = parsed_result.get("converted_items")
+    if not isinstance(converted_items, list) or not converted_items:
         return None
 
+    def _portfolio_item_to_dict(item: Any) -> dict[str, Any]:
+        if isinstance(item, dict):
+            return item
+        model_dump = getattr(item, "model_dump", None)
+        if callable(model_dump):
+            dumped = model_dump()
+            return dumped if isinstance(dumped, dict) else {}
+        raw = getattr(item, "__dict__", {})
+        return raw if isinstance(raw, dict) else {}
+
+    portfolio_by_number: dict[str, dict[str, Any]] = {}
+    for item in current_pension_portfolio or []:
+        data = _portfolio_item_to_dict(item)
+        num = str(data.get("מספר_חשבון") or data.get("account_number") or "").strip()
+        if num:
+            portfolio_by_number[num] = data
+
     updates: list[dict[str, Any]] = []
-    for acc in accounts:
-        if not isinstance(acc, dict):
+    for item in converted_items:
+        if not isinstance(item, dict):
             continue
-        account_number = (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+
+        account_number = str(item.get("account_number") or "").strip()
         if not account_number:
             continue
-        converted_amount = float(acc.get("balance") or acc.get("יתרה") or 0)
+
+        try:
+            converted_amount = float(item.get("amount") or 0)
+        except Exception:
+            converted_amount = 0.0
         if converted_amount <= 0:
             continue
 
-        specific_amounts = acc.get("specific_amounts")
+        specific_amounts = item.get("components")
         if not isinstance(specific_amounts, dict):
             specific_amounts = None
 
+        portfolio_item = portfolio_by_number.get(account_number) or {}
         updates.append(
             {
                 "account_number": account_number,
-                "account_name": acc.get("account_name") or acc.get("שם_תכנית") or "",
-                "company": acc.get("company") or acc.get("חברה_מנהלת") or "",
+                "account_name": item.get("account_name")
+                or portfolio_item.get("שם_תכנית")
+                or portfolio_item.get("account_name")
+                or "",
+                "company": portfolio_item.get("חברה_מנהלת") or portfolio_item.get("company") or "",
                 "converted_amount": converted_amount,
                 "specific_amounts": specific_amounts,
             }
