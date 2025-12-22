@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from typing import List, Literal, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -28,6 +29,32 @@ class PensionPortfolioAccount(BaseModel):
     תגמולים: Optional[float] = None
     סך_תגמולים: Optional[float] = None
     סך_פיצויים: Optional[float] = None
+
+    @field_validator(
+        "מספר_חשבון",
+        "שם_תכנית",
+        "חברה_מנהלת",
+        "סוג_מוצר",
+        "תאריך_התחלה",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_text(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            raw = v.strip()
+            return raw if raw else None
+        if isinstance(v, (date, datetime)):
+            try:
+                return v.date().isoformat() if isinstance(v, datetime) else v.isoformat()
+            except Exception:
+                return None
+        try:
+            s = str(v).strip()
+            return s if s else None
+        except Exception:
+            return None
 
     @field_validator(
         "יתרה",

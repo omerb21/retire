@@ -39,9 +39,7 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.llm_chat.tool_execution import execute_tool_call
 from app.services.llm_pension_agent_service import pension_llm_service
-from app.services.pension_portfolio.snapshot_loader import (
-    load_latest_pension_portfolio_snapshot_models,
-)
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
 from app.models.client import Client
 from app.utils.llm_chat_log import generate_request_id, log_llm_event
 
@@ -73,7 +71,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     effective_portfolio = request.pension_portfolio
     effective_snapshot_at = request.pension_portfolio_snapshot_at
     if request.client_id is not None:
-        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+        loaded = load_latest_pension_portfolio_snapshot(db, request.client_id)
         if loaded is not None:
             effective_portfolio, effective_snapshot_at = loaded
 
@@ -414,6 +412,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         tool_args_accounts = tool_args.get("accounts") if isinstance(tool_args, dict) else None
                         if not isinstance(tool_args, dict):
                             tool_args = {}
+                        if isinstance(tool_args_accounts, list) and tool_args_accounts and len(tool_args_accounts) < len(derived_accounts):
+                            tool_args["accounts"] = derived_accounts
+                        elif not (isinstance(tool_args_accounts, list) and tool_args_accounts):
+                            tool_args["accounts"] = derived_accounts
                         if not (isinstance(tool_args_accounts, list) and tool_args_accounts):
                             tool_args["accounts"] = derived_accounts
                         else:

@@ -20,7 +20,7 @@ from app.services.llm_chat.chat_stream_orchestration import (
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import find_last_user_message
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
     build_transform_accounts_from_portfolio,
@@ -80,7 +80,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     except Exception:
         request_portfolio_count = 0
     if request.client_id is not None:
-        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+        loaded = load_latest_pension_portfolio_snapshot(db, request.client_id)
         if loaded is not None:
             effective_portfolio, effective_snapshot_at = loaded
             try:
@@ -350,6 +350,10 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                         tool_args_accounts = tool_args.get("accounts") if isinstance(tool_args, dict) else None
                         if not isinstance(tool_args, dict):
                             tool_args = {}
+                        if isinstance(tool_args_accounts, list) and tool_args_accounts and len(tool_args_accounts) < len(derived_accounts):
+                            tool_args["accounts"] = derived_accounts
+                        elif not (isinstance(tool_args_accounts, list) and tool_args_accounts):
+                            tool_args["accounts"] = derived_accounts
                         if not (isinstance(tool_args_accounts, list) and tool_args_accounts):
                             tool_args["accounts"] = derived_accounts
                         else:
