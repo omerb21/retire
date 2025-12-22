@@ -498,6 +498,49 @@ def handle_transform_funds_to_assets(
                 )
                 specific_amounts.pop("פיצויים_מעסיק_נוכחי", None)
 
+                raw_total_contrib = account.get("סך_תגמולים")
+                try:
+                    total_contrib_val = float(raw_total_contrib or 0)
+                except (TypeError, ValueError):
+                    total_contrib_val = 0.0
+                raw_tagmulim = specific_amounts.get("תגמולים")
+                try:
+                    tagmulim_val = float(raw_tagmulim or 0)
+                except (TypeError, ValueError):
+                    tagmulim_val = 0.0
+                if (
+                    tagmulim_val > 0
+                    and total_contrib_val <= 0
+                    and abs(tagmulim_val - employer_current_val)
+                    <= max(1.0, employer_current_val * 0.001)
+                ):
+                    specific_amounts.pop("תגמולים", None)
+
+            if not specific_amounts and (
+                (isinstance(account.get("specific_amounts"), dict) and bool(account.get("specific_amounts")))
+                or any(
+                    k in account
+                    for k in (
+                        "פיצויים_מעסיק_נוכחי",
+                        "פיצויים_לאחר_התחשבנות",
+                        "פיצויים_שלא_עברו_התחשבנות",
+                        "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+                        "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+                        "תגמולי_עובד_עד_2000",
+                        "תגמולי_עובד_אחרי_2000",
+                        "תגמולי_עובד_אחרי_2008_לא_משלמת",
+                        "תגמולי_מעביד_עד_2000",
+                        "תגמולי_מעביד_אחרי_2000",
+                        "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+                        "תגמולים",
+                        "סך_תגמולים",
+                        "קרן_השתלמות",
+                    )
+                )
+            ):
+                skipped_accounts += 1
+                continue
+
             if specific_amounts:
                 pension_components: dict[str, float] = {}
                 capital_components: dict[str, float] = {}
@@ -678,6 +721,7 @@ def handle_transform_funds_to_assets(
             )
 
         deleted_for_accounts: set[str] = set()
+        source_zeroed_for_accounts: set[str] = set()
 
         for idx, task in enumerate(conversion_tasks):
             try:
@@ -709,7 +753,10 @@ def handle_transform_funds_to_assets(
                     except Exception:
                         projection_factor = 1.0
 
-                balance = float(base_amount) * float(projection_factor)
+                if conversion_type == "pension":
+                    balance = float(base_amount) * float(projection_factor)
+                else:
+                    balance = float(base_amount)
 
                 logger.info(
                     "🔄 Converting account: name=%s, type=%s, balance=%.2f -> %s",
@@ -873,6 +920,14 @@ def handle_transform_funds_to_assets(
                         )
                         db.add(pf)
                     db.flush()
+
+                    if account_number and account_number not in source_zeroed_for_accounts:
+                        source_pension_funds_zeroed += _zero_source_portfolio_pension_funds(
+                            db=db,
+                            client_id=client_id,
+                            account_number=account_number,
+                        )
+                        source_zeroed_for_accounts.add(account_number)
                     converted_pensions += 1
 
                     converted_items.append(
@@ -992,7 +1047,7 @@ def handle_transform_funds_to_assets(
                             client_id=client_id,
                             asset_name=account_name,
                             asset_type=asset_type,
-                            current_value=Decimal("0"),
+                            current_value=Decimal(str(balance)),
                             monthly_income=Decimal("0"),
                             annual_return_rate=Decimal("0.03"),
                             payment_frequency="monthly",
@@ -1002,9 +1057,16 @@ def handle_transform_funds_to_assets(
                             conversion_source=conversion_source_json,
                             description=f"הומר מתיק פנסיוני - {company}",
                         )
-                        ca.current_value = Decimal(str(balance))
                         db.add(ca)
                     db.flush()
+
+                    if account_number and account_number not in source_zeroed_for_accounts:
+                        source_pension_funds_zeroed += _zero_source_portfolio_pension_funds(
+                            db=db,
+                            client_id=client_id,
+                            account_number=account_number,
+                        )
+                        source_zeroed_for_accounts.add(account_number)
                     converted_capitals += 1
 
                     converted_items.append(

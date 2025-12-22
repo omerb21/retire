@@ -756,13 +756,11 @@ class _PensionFileProcessor:
         raw = balance_fields.get("YITRAT-KASPEY-TAGMULIM")
         primary = self._safe_sum_values(raw)
         if primary:
-            deductions = (
-                severance_components.get("פיצויים מעסקי נוכחי", 0.0)
-                + severance_components.get("פיצויים לאחר התחשבנות", 0.0)
-                + severance_components.get("פיצויים שלא עברו התחשבנות", 0.0)
-            )
-            adjusted = primary - deductions
-            return adjusted if adjusted > 0 else max(primary, total_contributions)
+            deductions = sum(float(v or 0) for v in severance_components.values())
+            if deductions > 0:
+                adjusted = primary - deductions
+                return adjusted if adjusted > 0 else float(total_contributions or 0)
+            return primary
         return total_contributions
 
     def _try_fix_xml(self, content: str) -> Optional[str]:
