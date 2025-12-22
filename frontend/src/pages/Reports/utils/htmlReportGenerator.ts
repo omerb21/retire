@@ -225,7 +225,9 @@ export const generateHTMLReport = (
       ${capitalAssets.map(asset => `
         <tr>
           <td>${asset.asset_name || asset.description}</td>
-          <td>${formatCurrency(parseFloat(asset.current_value) || 0)}</td>
+          <td>${formatCurrency(((parseFloat(asset.monthly_income) || 0) > 0
+            ? (parseFloat(asset.current_value) || 0)
+            : 0))}</td>
           <td>${formatCurrency(((parseFloat(asset.monthly_income) || 0) > 0
             ? parseFloat(asset.monthly_income)
             : (parseFloat(asset.current_value) || 0)))}</td>

@@ -131,7 +131,7 @@ export function generatePDFReport(
     const capitalAssetsData = capitalAssets.map(asset => [
       asset.description || asset.asset_name || 'ללא תיאור',
       ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
-      `₪${formatMoney(asset.current_value || 0)}`,
+      `₪${formatMoney((asset.monthly_income || 0) > 0 ? (asset.current_value || 0) : 0)}`,
       `₪${formatMoney((asset.monthly_income || 0) > 0 ? (asset.monthly_income || 0) : (asset.current_value || 0))}`,
       asset.start_date ? formatDateToDDMMYY(asset.start_date) : 'לא צוין',
       asset.end_date ? formatDateToDDMMYY(asset.end_date) : 'ללא הגבלה'

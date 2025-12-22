@@ -363,7 +363,17 @@ const LlmPensionChat: React.FC = () => {
 
     try {
       const numericClientId = clientId ? Number(clientId) : undefined;
-      const pensionPortfolioForLlm = loadPensionPortfolioForLlm(clientId);
+      let pensionPortfolioForLlm = loadPensionPortfolioForLlm(clientId);
+      try {
+        if (clientId) {
+          const dbPortfolio = await apiFetch<any[]>(`/clients/${clientId}/pension-portfolio/`);
+          if (Array.isArray(dbPortfolio) && dbPortfolio.length > 0) {
+            pensionPortfolioForLlm = dbPortfolio as any;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn("Failed to load pension portfolio from DB for LLM chat, falling back to localStorage:", fetchErr);
+      }
 
       let fullContent = "";
       let extractedComputedData: ComputedPensionData | null = null;

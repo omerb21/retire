@@ -185,7 +185,7 @@ export function generateExcelReport(
       ...capitalAssets.map(asset => [
         asset.description || asset.asset_name || 'ללא תיאור',
         ASSET_TYPES.find(t => t.value === asset.asset_type)?.label || asset.asset_type || 'לא צוין',
-        `₪${formatMoney(asset.current_value || 0)}`,
+        `₪${formatMoney((asset.monthly_income || 0) > 0 ? (asset.current_value || 0) : 0)}`,
         `₪${formatMoney((asset.monthly_income || 0) > 0 ? (asset.monthly_income || 0) : (asset.current_value || 0))}`,
         `${((asset.annual_return_rate || 0) * 100).toFixed(1)}%`, 
         asset.tax_treatment === 'exempt' ? 'פטור ממס' : 'חייב במס',
