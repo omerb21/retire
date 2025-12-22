@@ -341,6 +341,20 @@ class _PensionFileProcessor:
         # Primary tagmul column (used elsewhere in the app)
         account["תגמולים"] = self._extract_primary_tagmul(balance_fields, total_contributions, severance_components)
 
+        lowered_product_type = (product_type or "").lower()
+        if (
+            ("השתלמות" in lowered_product_type)
+            or ("education_fund" in lowered_product_type)
+            or ("klal_stud" in lowered_product_type)
+        ):
+            education_amount = float(balance or 0)
+            if education_amount <= 0:
+                education_amount = float(account.get("תגמולים") or 0)
+            if education_amount <= 0:
+                education_amount = float(account.get("סך_תגמולים") or 0)
+            if education_amount > 0:
+                account["קרן_השתלמות"] = education_amount
+
         return account
 
     def _find_balance(self, account_elem: ET.Element) -> float:

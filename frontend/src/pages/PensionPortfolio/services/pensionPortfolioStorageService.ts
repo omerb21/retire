@@ -8,6 +8,10 @@ const getConvertedAccountsStorageKey = (clientId: string | undefined): string =>
   return `convertedAccounts_${clientId}`;
 };
 
+ const PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION = new Set<string>([
+   'פיצויים_מעסיק_נוכחי',
+ ]);
+
 export function loadPensionDataFromStorage(
   clientId: string | undefined
 ): PensionAccount[] | null {
@@ -155,6 +159,9 @@ export function applyConversionUpdatesToPensionPortfolio(
 
       if (specific && Object.keys(specific).length > 0) {
         Object.keys(specific).forEach((field) => {
+          if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
+            return;
+          }
           if (Object.prototype.hasOwnProperty.call(account, field)) {
             account[field] = 0;
           }

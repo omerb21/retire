@@ -10,6 +10,10 @@ import {
 } from "./PensionPortfolio/services/pensionPortfolioStorageService";
 import "./LlmPensionChat.css";
 
+const PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION = new Set<string>([
+  "פיצויים_מעסיק_נוכחי",
+]);
+
 const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
   ollama: [
     { value: "", label: "ברירת מחדל (מהשרת)" },
@@ -476,6 +480,9 @@ const LlmPensionChat: React.FC = () => {
                   const specific = u.specific_amounts && typeof u.specific_amounts === "object" ? u.specific_amounts : null;
                   if (specific && Object.keys(specific).length > 0) {
                     Object.keys(specific).forEach((field) => {
+                      if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
+                        return;
+                      }
                       if (Object.prototype.hasOwnProperty.call(account, field)) {
                         account[field] = 0;
                       }

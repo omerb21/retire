@@ -50,6 +50,41 @@ def load_latest_pension_portfolio_snapshot(
             normalized: list[dict[str, Any]] = []
             for item in portfolio:
                 if isinstance(item, dict):
+                    product_type = (
+                        item.get("סוג_מוצר")
+                        or item.get("product_type")
+                        or item.get("סוג מוצר")
+                        or ""
+                    )
+                    lowered_product_type = str(product_type).lower()
+                    is_education_fund = (
+                        ("השתלמות" in lowered_product_type)
+                        or ("education_fund" in lowered_product_type)
+                        or ("klal_stud" in lowered_product_type)
+                    )
+                    if is_education_fund:
+                        existing_edu_val = item.get("קרן_השתלמות")
+                        try:
+                            existing_edu_num = float(existing_edu_val or 0)
+                        except (TypeError, ValueError):
+                            existing_edu_num = 0.0
+                        if existing_edu_num <= 0:
+                            candidate_vals = [
+                                item.get("יתרה"),
+                                item.get("balance"),
+                                item.get("תגמולים"),
+                                item.get("סך_תגמולים"),
+                            ]
+                            edu_amount = 0.0
+                            for raw in candidate_vals:
+                                try:
+                                    edu_amount = float(raw or 0)
+                                except (TypeError, ValueError):
+                                    edu_amount = 0.0
+                                if edu_amount > 0:
+                                    break
+                            if edu_amount > 0:
+                                item["קרן_השתלמות"] = edu_amount
                     normalized.append(item)
             if normalized:
                 return normalized, snapshot_at

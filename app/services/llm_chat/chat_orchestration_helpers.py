@@ -217,6 +217,11 @@ def build_pension_portfolio_update_after_transform(
         specific_amounts = item.get("components")
         if not isinstance(specific_amounts, dict):
             specific_amounts = None
+        else:
+            specific_amounts = dict(specific_amounts)
+            specific_amounts.pop("פיצויים_מעסיק_נוכחי", None)
+            if not specific_amounts:
+                specific_amounts = None
 
         portfolio_item = portfolio_by_number.get(account_number) or {}
         updates.append(

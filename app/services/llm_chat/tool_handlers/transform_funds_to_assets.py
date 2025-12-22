@@ -181,6 +181,12 @@ def _normalize_specific_amounts(specific_amounts: dict) -> dict[str, float]:
         if val > 0:
             normalized[str(k)] = val
 
+    if "קרן_השתלמות" in normalized:
+        normalized.pop("תגמולים", None)
+        normalized.pop("סך_תגמולים", None)
+        for key in [k for k in list(normalized.keys()) if k.startswith("תגמולי_")]:
+            normalized.pop(key, None)
+
     if "סך_תגמולים" in normalized and "תגמולים" in normalized:
         if normalized["סך_תגמולים"] >= normalized["תגמולים"]:
             normalized.pop("תגמולים", None)
