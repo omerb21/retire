@@ -19,6 +19,7 @@ from app.services.public_chat_service import (
     get_history,
     send_message,
     top_up,
+    clear_history,
 )
 from app.services.llm_pension_agent_service import pension_llm_service
 
@@ -46,6 +47,25 @@ def start_public_chat(payload: PublicChatStartRequest, db: Session = Depends(get
             raise HTTPException(status_code=404, detail="Client not found")
         if str(e) == "invalid_id_number":
             raise HTTPException(status_code=400, detail="Invalid id_number")
+        raise
+
+
+@router.delete("/sessions/{session_key}/history")
+def clear_public_chat_history(
+    session_key: str,
+    db: Session = Depends(get_db),
+    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+) -> dict:
+    try:
+        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
+        deleted = clear_history(db, session)
+        return {"success": True, "deleted": int(deleted)}
+    except ValueError as e:
+        msg = str(e)
+        if msg == "session_not_found":
+            raise HTTPException(status_code=404, detail="Session not found")
+        if msg == "invalid_public_chat_password":
+            raise HTTPException(status_code=401, detail="Invalid public chat password")
         raise
 
 

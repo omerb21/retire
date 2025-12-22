@@ -308,12 +308,25 @@ function PublicChatSessionPage() {
 
   const depleted = (status?.token_balance ?? 0) <= 0;
 
-  function handleClearChat() {
-    const ok = window.confirm("לנקות את השיחה מהמסך? פעולה זו לא מוחקת את ההיסטוריה מהשרת.");
+  async function handleClearChat() {
+    if (!sessionKey) return;
+    const trimmedPassword = (verifiedPublicChatPassword || "").trim();
+    if (!trimmedPassword) return;
+
+    const ok = window.confirm("לנקות את השיחה? פעולה זו מוחקת את ההיסטוריה מהשרת.");
     if (!ok) return;
-    setMessages([]);
+
     setError(null);
-    setInput("");
+    setIsSending(true);
+    try {
+      await publicChatApi.clearHistory(sessionKey, trimmedPassword);
+      setMessages([]);
+      setInput("");
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsSending(false);
+    }
   }
 
   return (

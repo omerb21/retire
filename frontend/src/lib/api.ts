@@ -718,6 +718,20 @@ export async function sendPublicChatMessage(sessionKey: string, content: string,
   });
 }
 
+export async function clearPublicChatHistory(sessionKey: string, publicChatPassword?: string | null) {
+  const trimmed = (publicChatPassword ?? "").trim();
+  const headers: HeadersInit | undefined = trimmed
+    ? {
+        "X-Public-Chat-Password": trimmed,
+      }
+    : undefined;
+
+  return apiFetch<{ success: boolean; deleted: number }>(`/public-chat/sessions/${sessionKey}/history`, {
+    method: "DELETE",
+    headers,
+  });
+}
+
 export async function topUpPublicChat(sessionKey: string, tokens: number) {
   return apiFetch<PublicChatTopUpResponseDto>("/public-chat/topup", {
     method: "POST",
@@ -730,6 +744,7 @@ export const publicChatApi = {
   status: getPublicChatStatus,
   history: getPublicChatHistory,
   sendMessage: sendPublicChatMessage,
+  clearHistory: clearPublicChatHistory,
   topUp: topUpPublicChat,
 };
 

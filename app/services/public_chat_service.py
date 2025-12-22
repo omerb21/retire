@@ -263,3 +263,13 @@ def top_up(db: Session, session_key: str, tokens: int) -> PublicChatSession:
     db.commit()
     db.refresh(session)
     return session
+
+
+def clear_history(db: Session, session: PublicChatSession) -> int:
+    deleted = (
+        db.query(PublicChatMessage)
+        .filter(PublicChatMessage.session_id == session.id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return int(deleted or 0)

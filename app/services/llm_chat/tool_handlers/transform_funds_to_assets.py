@@ -299,6 +299,7 @@ def handle_transform_funds_to_assets(
         default_conversion_type = args.get("default_conversion_type", "pension")
         ignore_blocked_balances = bool(args.get("ignore_blocked_balances"))
         skip_non_convertible_accounts = bool(args.get("skip_non_convertible_accounts"))
+        use_provided_accounts_only = bool(args.get("use_provided_accounts_only"))
 
         def _is_aggregate_account(acc: dict) -> bool:
             name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
@@ -310,18 +311,46 @@ def handle_transform_funds_to_assets(
                 or product_type.startswith("aggregate_")
             )
 
+        portfolio = getattr(agent_tools, "pension_portfolio_data", None)
+        derived_accounts = build_transform_accounts_from_portfolio(portfolio)
+
+        if (not use_provided_accounts_only) and derived_accounts:
+            provided_numbers = {
+                str(a.get("account_number") or a.get("מספר_חשבון") or "").strip()
+                for a in accounts
+                if isinstance(a, dict)
+            }
+            derived_numbers = {
+                str(a.get("account_number") or a.get("מספר_חשבון") or "").strip()
+                for a in derived_accounts
+                if isinstance(a, dict)
+            }
+            provided_numbers.discard("")
+            derived_numbers.discard("")
+
+            should_replace = (not accounts) or (len(derived_accounts) > len(accounts))
+            if derived_numbers and provided_numbers and not derived_numbers.issubset(provided_numbers):
+                should_replace = True
+
+            if should_replace:
+                logger.info(
+                    "🔁 Using derived portfolio accounts for transform (client_id=%s, provided=%s, derived=%s)",
+                    client_id,
+                    len(accounts) if isinstance(accounts, list) else 0,
+                    len(derived_accounts),
+                )
+                accounts = derived_accounts
+
         if isinstance(accounts, list) and accounts:
             if any(_is_aggregate_account(a) for a in accounts if isinstance(a, dict)):
-                portfolio = getattr(agent_tools, "pension_portfolio_data", None)
-                derived = build_transform_accounts_from_portfolio(portfolio)
-                if derived:
+                if derived_accounts:
                     logger.info(
                         "🔁 Replacing aggregate accounts with derived portfolio accounts (client_id=%s, aggregates=%s, derived=%s)",
                         client_id,
                         len([a for a in accounts if isinstance(a, dict) and _is_aggregate_account(a)]),
-                        len(derived),
+                        len(derived_accounts),
                     )
-                    accounts = derived
+                    accounts = derived_accounts
 
         if not accounts or not isinstance(accounts, list):
             return json.dumps(
