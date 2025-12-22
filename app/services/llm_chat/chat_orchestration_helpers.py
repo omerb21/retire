@@ -179,7 +179,44 @@ def build_pension_portfolio_update_after_transform(
 
     converted_items = parsed_result.get("converted_items")
     if not isinstance(converted_items, list) or not converted_items:
-        return None
+        accounts = tool_args.get("accounts") if isinstance(tool_args, dict) else None
+        if not isinstance(accounts, list) or not accounts:
+            return None
+        converted_items = []
+        for acc in accounts:
+            if not isinstance(acc, dict):
+                continue
+            account_number = str(acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+            if not account_number:
+                continue
+            specific_amounts_raw = acc.get("specific_amounts")
+            specific_amounts = specific_amounts_raw if isinstance(specific_amounts_raw, dict) else None
+            components = dict(specific_amounts or {})
+            components.pop("פיצויים_מעסיק_נוכחי", None)
+            amount = 0.0
+            if components:
+                try:
+                    amount = float(sum(float(v or 0) for v in components.values()))
+                except Exception:
+                    amount = 0.0
+            if amount <= 0:
+                raw_balance = acc.get("balance")
+                if raw_balance is None:
+                    raw_balance = acc.get("יתרה")
+                try:
+                    amount = float(raw_balance or 0)
+                except Exception:
+                    amount = 0.0
+            if amount <= 0:
+                continue
+            converted_items.append(
+                {
+                    "account_number": account_number,
+                    "account_name": acc.get("account_name") or acc.get("שם_תכנית") or "",
+                    "amount": amount,
+                    "components": components if components else None,
+                }
+            )
 
     def _portfolio_item_to_dict(item: Any) -> dict[str, Any]:
         if isinstance(item, dict):

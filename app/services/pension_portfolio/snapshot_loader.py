@@ -13,21 +13,10 @@ def load_latest_pension_portfolio_snapshot(
     *,
     lookback_scenarios: int = 20,
 ) -> tuple[list[dict[str, Any]], str] | None:
-    snapshot = (
+    scenarios = (
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
         .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
-        .first()
-    )
-
-    scenarios: list[Scenario] = []
-    if snapshot is not None:
-        scenarios.append(snapshot)
-
-    scenarios.extend(
-        db.query(Scenario)
-        .filter(Scenario.client_id == client_id)
         .order_by(Scenario.created_at.desc())
         .limit(int(lookback_scenarios))
         .all()

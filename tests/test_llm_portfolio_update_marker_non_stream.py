@@ -31,6 +31,15 @@ def test_non_stream_transform_emits_pension_portfolio_update_marker(db_session, 
 
     monkeypatch.setattr(chat_orchestration.pension_llm_service, "chat", fake_chat)
 
+    def fake_load_latest_pension_portfolio_snapshot(db, client_id):
+        return None
+
+    monkeypatch.setattr(
+        chat_orchestration,
+        "load_latest_pension_portfolio_snapshot",
+        fake_load_latest_pension_portfolio_snapshot,
+    )
+
     tool_calls: list[str] = []
 
     def fake_execute_tool_call(
@@ -91,6 +100,15 @@ def test_non_stream_marker_is_preserved_when_document_ui_action_added(db_session
         return next(responses)
 
     monkeypatch.setattr(chat_orchestration.pension_llm_service, "chat", fake_chat)
+
+    def fake_load_latest_pension_portfolio_snapshot(db, client_id):
+        return None
+
+    monkeypatch.setattr(
+        chat_orchestration,
+        "load_latest_pension_portfolio_snapshot",
+        fake_load_latest_pension_portfolio_snapshot,
+    )
 
     tool_calls: list[str] = []
 

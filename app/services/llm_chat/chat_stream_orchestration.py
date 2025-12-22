@@ -405,6 +405,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         )
                         continue
 
+                    if (not current_pension_portfolio) and request.client_id is not None:
+                        loaded = load_latest_pension_portfolio_snapshot(db, request.client_id)
+                        if loaded is not None:
+                            current_pension_portfolio, _effective_snapshot_at = loaded
+
                     derived_accounts = build_transform_accounts_from_portfolio(
                         current_pension_portfolio
                     )

@@ -13,8 +13,10 @@ SYSTEM_PASSWORD_DISABLED_ENV = "SYSTEM_ACCESS_DISABLED"
 
 
 def is_protection_enabled() -> bool:
-    """Return True unless explicitly disabled via env var."""
-    return not bool(os.getenv(SYSTEM_PASSWORD_DISABLED_ENV))
+    """Return True when system access protection is configured and enabled."""
+    if bool(os.getenv(SYSTEM_PASSWORD_DISABLED_ENV)):
+        return False
+    return bool(get_expected_passwords())
 
 
 def get_expected_passwords():
