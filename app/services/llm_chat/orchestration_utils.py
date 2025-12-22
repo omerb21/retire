@@ -380,6 +380,30 @@ def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict
     if not isinstance(pension_portfolio, list) or not pension_portfolio:
         return []
 
+    def _coerce_float(value: Any) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return 0.0
+            cleaned = (
+                raw.replace(",", "")
+                .replace("₪", "")
+                .replace("\u00a0", " ")
+                .replace(" ", "")
+            )
+            try:
+                return float(cleaned)
+            except (TypeError, ValueError):
+                return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
     def item_to_dict(item: Any) -> dict[str, Any]:
         if isinstance(item, dict):
             return item
@@ -420,10 +444,7 @@ def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict
         specific_amounts: dict[str, float] = {}
         for field in component_fields:
             value = data.get(field)
-            try:
-                numeric = float(value) if value is not None else 0.0
-            except (TypeError, ValueError):
-                numeric = 0.0
+            numeric = _coerce_float(value)
             if numeric > 0:
                 specific_amounts[field] = numeric
 
