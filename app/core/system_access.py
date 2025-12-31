@@ -50,6 +50,12 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
         if path.startswith("/api/v1/documents/") and path.endswith("/download"):
             return await call_next(request)
 
+        if path.startswith("/api/v1/fixation/") and path.endswith("/package"):
+            return await call_next(request)
+
+        if path.startswith("/api/v1/files"):
+            return await call_next(request)
+
         if path.startswith("/api/v1/public-chat/") and path != "/api/v1/public-chat/topup":
             return await call_next(request)
 

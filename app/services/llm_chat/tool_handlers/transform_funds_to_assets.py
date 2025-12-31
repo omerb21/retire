@@ -28,35 +28,44 @@ except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
 
-def _delete_existing_tool_created_records(*, db: Session, client_id: int, account_number: str) -> None:
+def _delete_existing_tool_created_records(
+    *,
+    db: Session,
+    client_id: int,
+    account_number: str,
+    delete_pensions: bool,
+    delete_capitals: bool,
+) -> None:
     if not account_number:
         return
 
-    pension_rows = (
-        db.query(PensionFund)
-        .filter(
-            PensionFund.client_id == client_id,
-            PensionFund.deduction_file == account_number,
-            PensionFund.conversion_source.isnot(None),
-            PensionFund.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'),
+    if delete_pensions:
+        pension_rows = (
+            db.query(PensionFund)
+            .filter(
+                PensionFund.client_id == client_id,
+                PensionFund.deduction_file == account_number,
+                PensionFund.conversion_source.isnot(None),
+                PensionFund.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'),
+            )
+            .all()
         )
-        .all()
-    )
-    for row in pension_rows:
-        db.delete(row)
+        for row in pension_rows:
+            db.delete(row)
 
-    capital_rows = (
-        db.query(CapitalAsset)
-        .filter(
-            CapitalAsset.client_id == client_id,
-            CapitalAsset.conversion_source.isnot(None),
-            CapitalAsset.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'),
-            CapitalAsset.conversion_source.like(f'%%"account_number": "{account_number}"%%'),
+    if delete_capitals:
+        capital_rows = (
+            db.query(CapitalAsset)
+            .filter(
+                CapitalAsset.client_id == client_id,
+                CapitalAsset.conversion_source.isnot(None),
+                CapitalAsset.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'),
+                CapitalAsset.conversion_source.like(f'%%"account_number": "{account_number}"%%'),
+            )
+            .all()
         )
-        .all()
-    )
-    for row in capital_rows:
-        db.delete(row)
+        for row in capital_rows:
+            db.delete(row)
 
 
 def classify_product_type(product_type_str: str, default_conversion_type: str = "pension") -> str:
@@ -368,8 +377,36 @@ def _normalize_specific_amounts(specific_amounts: dict) -> dict[str, float]:
 
     granular_keys = [k for k in normalized.keys() if k.startswith("תגמולי_")]
     if granular_keys:
-        normalized.pop("תגמולים", None)
-        normalized.pop("סך_תגמולים", None)
+        aggregate_key = None
+        if "סך_תגמולים" in normalized:
+            aggregate_key = "סך_תגמולים"
+        elif "תגמולים" in normalized:
+            aggregate_key = "תגמולים"
+
+        if aggregate_key:
+            try:
+                aggregate_val = float(normalized.get(aggregate_key) or 0)
+            except (TypeError, ValueError):
+                aggregate_val = 0.0
+
+            granular_sum = 0.0
+            for k in granular_keys:
+                try:
+                    granular_sum += float(normalized.get(k) or 0)
+                except (TypeError, ValueError):
+                    continue
+
+            remainder = aggregate_val - granular_sum
+            if remainder > 0.01:
+                normalized[aggregate_key] = remainder
+            else:
+                normalized.pop(aggregate_key, None)
+
+        # Ensure we don't keep both aggregate variants after the remainder calculation
+        if aggregate_key == "סך_תגמולים":
+            normalized.pop("תגמולים", None)
+        elif aggregate_key == "תגמולים":
+            normalized.pop("סך_תגמולים", None)
 
     return normalized
 
@@ -1062,14 +1099,20 @@ def handle_transform_funds_to_assets(
                 )
 
                 account_number = (task.get("account_number") or "").strip()
-                if account_number and account_number not in deleted_for_accounts:
-                    _delete_existing_tool_created_records(
-                        db=db,
-                        client_id=client_id,
-                        account_number=account_number,
-                    )
-                    db.flush()
-                    deleted_for_accounts.add(account_number)
+                if account_number:
+                    delete_pensions = conversion_type == "pension"
+                    delete_capitals = conversion_type != "pension"
+                    deletion_key = (account_number, "pensions" if delete_pensions else "capitals")
+                    if deletion_key not in deleted_for_accounts:
+                        _delete_existing_tool_created_records(
+                            db=db,
+                            client_id=client_id,
+                            account_number=account_number,
+                            delete_pensions=delete_pensions,
+                            delete_capitals=delete_capitals,
+                        )
+                        db.flush()
+                        deleted_for_accounts.add(deletion_key)
 
                 if conversion_type == "pension":
                     # Convert to pension fund
