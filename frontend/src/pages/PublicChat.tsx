@@ -1,9 +1,57 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { publicChatApi, handleApiError } from "../lib/api";
+import { publicChatApi, handleApiError, API_BASE } from "../lib/api";
 import "./PublicChat.css";
 
 type ChatMessage = { role: string; content: string; estimated_tokens?: number; tokens_used?: number };
+
+type UiAction =
+  | { type: "open_url"; url: string; label?: string }
+  | { type: "navigate"; path: string; label?: string }
+  | { type: string; [key: string]: any };
+
+function normalizeUiUrl(raw: string): string {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/api/v1/")) {
+    return `${API_BASE}${trimmed.slice("/api/v1".length)}`;
+  }
+  if (trimmed === "/api/v1") {
+    return API_BASE;
+  }
+  return `${window.location.origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+}
+
+function extractUiActions(rawContent: string): { text: string; actions: UiAction[] } {
+  const uiMarker = "###UI_ACTION###";
+  const uiEnd = "###END_UI_ACTION###";
+  let content = rawContent || "";
+  const actions: UiAction[] = [];
+
+  while (content.includes(uiMarker) && content.includes(uiEnd)) {
+    const startIdx = content.indexOf(uiMarker);
+    const jsonStart = startIdx + uiMarker.length;
+    const endIdx = content.indexOf(uiEnd, jsonStart);
+    if (endIdx < 0) break;
+
+    const jsonStr = content.substring(jsonStart, endIdx).trim();
+    try {
+      const parsed = JSON.parse(jsonStr);
+      if (parsed?.type === "ui_actions" && Array.isArray(parsed.actions)) {
+        actions.push(...parsed.actions);
+      }
+    } catch {
+      // ignore
+    }
+
+    content = content.substring(0, startIdx) + content.substring(endIdx + uiEnd.length);
+  }
+
+  return { text: content.trim(), actions };
+}
 
 type Status = {
   session_key: string;
@@ -118,6 +166,7 @@ export function PublicChatStartPage() {
 
 function PublicChatSessionPage() {
   const { sessionKey } = useParams<{ sessionKey: string }>();
+  const navigate = useNavigate();
   const [status, setStatus] = useState<Status | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -351,7 +400,62 @@ function PublicChatSessionPage() {
               key={`${m.role}-${idx}`}
               className={m.role === "user" ? "public-chat-bubble user" : "public-chat-bubble assistant"}
             >
-              {m.content}
+              {(() => {
+                if (m.role !== "assistant") {
+                  return <>{m.content}</>;
+                }
+
+                const parsed = extractUiActions(m.content);
+                const actionable = parsed.actions.filter(
+                  (a) =>
+                    a &&
+                    typeof a === "object" &&
+                    (a.type === "open_url" || a.type === "navigate") &&
+                    ((a as any).url || (a as any).path),
+                ) as UiAction[];
+
+                return (
+                  <>
+                    {parsed.text}
+                    {actionable.length > 0 && (
+                      <div className="public-chat-actions">
+                        {actionable.map((action, aIdx) => {
+                          const label =
+                            (action as any).label ||
+                            (action.type === "navigate" ? "פתח" : "פתח להורדה");
+                          const href =
+                            action.type === "navigate"
+                              ? normalizeUiUrl((action as any).path)
+                              : normalizeUiUrl((action as any).url);
+                          if (!href) return null;
+
+                          const onClick = (e: React.MouseEvent) => {
+                            if (action.type !== "navigate") return;
+                            const path = String((action as any).path || "").trim();
+                            if (path.startsWith("/")) {
+                              e.preventDefault();
+                              navigate(path);
+                            }
+                          };
+
+                          return (
+                            <a
+                              key={`${idx}-action-${aIdx}`}
+                              className="public-chat-action-link"
+                              href={href}
+                              target={action.type === "open_url" ? "_blank" : undefined}
+                              rel={action.type === "open_url" ? "noopener noreferrer" : undefined}
+                              onClick={onClick}
+                            >
+                              {label}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <div className="public-chat-bubble-meta">
                 {typeof m.estimated_tokens === "number" ? `~${m.estimated_tokens} טוקנים` : ""}
                 {typeof m.tokens_used === "number" ? ` | צריכת שיחה: ${m.tokens_used}` : ""}

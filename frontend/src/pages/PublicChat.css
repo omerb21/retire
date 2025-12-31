@@ -178,9 +178,25 @@
 }
 
 .public-chat-bubble-meta {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 12px;
-  opacity: 0.85;
+  opacity: 0.7;
+}
+
+.public-chat-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.public-chat-action-link {
+  color: #1d4ed8;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
 }
 
 .public-chat-composer {

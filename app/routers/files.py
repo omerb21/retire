@@ -25,7 +25,12 @@ def download_file(path: str = Query(..., description="File path relative to pack
     """
     try:
         # Validate path is under packages directory only (prevent Path Traversal)
-        packages_dir = Path("packages").resolve()
+        try:
+            from app.services.documents.utils import PACKAGES_DIR
+
+            packages_dir = PACKAGES_DIR.resolve()
+        except Exception:
+            packages_dir = Path("packages").resolve()
         requested_path = (packages_dir / path).resolve()
         
         # Security check: ensure the resolved path is still under packages
