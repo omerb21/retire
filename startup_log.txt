@@ -1,2 +1,0 @@
-Starting servers at 20:13:11.93 
-ECHO is off.
