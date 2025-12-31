@@ -22,6 +22,11 @@ from app.services.retirement_age_service import calculate_retirement_age
 
 logger = logging.getLogger("app.llm_chat.tools")
 
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
+
 
 def _delete_existing_tool_created_records(*, db: Session, client_id: int, account_number: str) -> None:
     if not account_number:
@@ -111,6 +116,43 @@ def _is_education_fund(product_type: str) -> bool:
     return is_education_fund(product_type)
 
 
+def _derive_capital_tax_treatment_from_components(*, components: dict, product_type: str) -> Optional[str]:
+    if not isinstance(components, dict) or not components:
+        return None
+
+    taxes: set[str] = set()
+    for field, value in components.items():
+        try:
+            amount = float(value or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        if amount <= 0:
+            continue
+
+        ok, tax, _err = validate_component_conversion(
+            field=str(field),
+            amount=amount,
+            conversion_type="capital_asset",
+            product_type=product_type,
+        )
+        if ok and tax:
+            taxes.add(str(tax))
+
+    if not taxes:
+        return None
+    if "taxable" in taxes:
+        return "taxable"
+    if "tax_spread" in taxes:
+        return "tax_spread"
+    if "capital_gains" in taxes:
+        return "capital_gains"
+    if "fixed_rate" in taxes:
+        return "fixed_rate"
+    if "exempt" in taxes:
+        return "exempt"
+    return next(iter(taxes))
+
+
 def _zero_source_portfolio_pension_funds(
     *,
     db: Session,
@@ -197,9 +239,15 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
         component_exact = {"תגמולים", "סך_תגמולים", "סך_פיצויים", "סך_רכיבים", "קרן_השתלמות"}
 
         if fields and isinstance(fields, dict):
-            for field in list(fields.keys()):
-                if field in row and field not in protected_fields:
-                    row[field] = 0
+            for field, raw_delta in list(fields.items()):
+                if field in protected_fields:
+                    continue
+                delta_val = _coerce_float(raw_delta)
+                if delta_val <= 0:
+                    continue
+                current_val = _coerce_float(row.get(field))
+                remaining_val = max(0.0, current_val - delta_val)
+                row[field] = 0.0 if remaining_val <= zero_epsilon else remaining_val
 
         prior_balance = None
         if "יתרה" in row:
@@ -212,7 +260,7 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
             remaining = max(0.0, _coerce_float(row.get("balance")) - total)
             row["balance"] = 0.0 if remaining <= zero_epsilon else remaining
 
-        if (not fields or not isinstance(fields, dict) or not fields) and (prior_balance is not None):
+        if prior_balance is not None:
             if max(0.0, prior_balance - total) <= zero_epsilon:
                 for key in list(row.keys()):
                     if key in protected_fields:
@@ -422,9 +470,26 @@ def handle_transform_funds_to_assets(
         accounts = args.get("accounts", [])
         pension_start_date_raw = args.get("pension_start_date")
         default_conversion_type = args.get("default_conversion_type", "pension")
-        ignore_blocked_balances = bool(args.get("ignore_blocked_balances"))
-        skip_non_convertible_accounts = bool(args.get("skip_non_convertible_accounts"))
+        commute_pension_components_raw = args.get("commute_pension_components")
+        commute_pension_components = bool(commute_pension_components_raw) if commute_pension_components_raw is not None else False
+        ignore_blocked_balances_raw = args.get("ignore_blocked_balances")
+        ignore_blocked_balances = (
+            True if ignore_blocked_balances_raw is None else bool(ignore_blocked_balances_raw)
+        )
+        skip_non_convertible_accounts_raw = args.get("skip_non_convertible_accounts")
+        skip_non_convertible_accounts = (
+            True
+            if skip_non_convertible_accounts_raw is None
+            else bool(skip_non_convertible_accounts_raw)
+        )
         use_provided_accounts_only = bool(args.get("use_provided_accounts_only"))
+        try:
+            if isinstance(accounts, list) and any(
+                isinstance(a, dict) and bool(a.get("_partial_conversion")) for a in accounts
+            ):
+                use_provided_accounts_only = True
+        except Exception:
+            pass
 
         def _is_aggregate_account(acc: dict) -> bool:
             name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
@@ -466,7 +531,7 @@ def handle_transform_funds_to_assets(
                 )
                 accounts = derived_accounts
 
-        if isinstance(accounts, list) and accounts:
+        if (not use_provided_accounts_only) and isinstance(accounts, list) and accounts:
             if any(_is_aggregate_account(a) for a in accounts if isinstance(a, dict)):
                 if derived_accounts:
                     logger.info(
@@ -493,7 +558,12 @@ def handle_transform_funds_to_assets(
         from datetime import date as date_type
 
         client_obj = getattr(agent_tools, "client", None)
-        retirement_age = 67
+        try:
+            from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+            retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+        except Exception:
+            retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
         retirement_date: Optional[date] = None
         retirement_year = datetime.now().year
         if client_obj and getattr(client_obj, "birth_date", None) and getattr(client_obj, "gender", None):
@@ -511,6 +581,20 @@ def handle_transform_funds_to_assets(
                     client_id,
                     e,
                 )
+
+        # If the client is already past retirement age, execution defaults should reflect that.
+        # We use today's date for pension start (unless overridden) and use the client's current age
+        # to avoid falling back to a static retirement age in downstream coefficient logic.
+        try:
+            current_age = None
+            if client_obj and hasattr(client_obj, "get_age"):
+                current_age = client_obj.get_age()
+            if current_age is not None and int(current_age) >= int(retirement_age):
+                retirement_age = int(current_age)
+                retirement_date = date_type.today()
+                retirement_year = retirement_date.year
+        except Exception:
+            pass
 
         global_pension_start_date = _parse_date_value(pension_start_date_raw)
 
@@ -572,24 +656,7 @@ def handle_transform_funds_to_assets(
                     rights_sequence_total += val
 
         if (unresolved_severance_total > 0 or rights_sequence_total > 0) and (not ignore_blocked_balances):
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": (
-                        "לא ניתן להמשיך בתרחיש כל עוד קיימות יתרות בעמודות "
-                        "'פיצויים שלא עברו התחשבנות' או 'רצף פיצויים מעסיקים קודמים (זכויות)'. "
-                        "נא לבצע התחשבנות ולרוקן עמודות אלו לפני המשך התרחיש."
-                    ),
-                    "blocked": {
-                        "unresolved_severance_total": unresolved_severance_total,
-                        "rights_sequence_total": rights_sequence_total,
-                    },
-                    "total_converted": 0,
-                    "converted_pensions": 0,
-                    "converted_capitals": 0,
-                },
-                ensure_ascii=False,
-            )
+            ignore_blocked_balances = True
 
         conversion_tasks: list[dict] = []
         converted_items: list[dict] = []
@@ -609,7 +676,20 @@ def handle_transform_funds_to_assets(
             rules_product_type = f"{product_type or ''} {account_name or ''}".strip()
             account_number = account.get("account_number") or account.get("מספר_חשבון") or ""
             if not str(account_number).strip():
-                validation_errors.append(f"{account_name}: חסר מספר חשבון (מספר_חשבון) ולכן לא ניתן לבצע המרה בטוחה")
+                msg = f"{account_name}: חסר מספר חשבון (מספר_חשבון) ולכן לא ניתן לבצע המרה בטוחה"
+                if skip_non_convertible_accounts:
+                    skipped_items.append(
+                        {
+                            "account_name": account_name,
+                            "account_number": "",
+                            "field": "מספר_חשבון",
+                            "amount": 0,
+                            "reason": msg,
+                        }
+                    )
+                    skipped_accounts += 1
+                    continue
+                validation_errors.append(msg)
                 continue
 
             specific_amounts = account.get("specific_amounts")
@@ -639,7 +719,7 @@ def handle_transform_funds_to_assets(
             if employer_current_val > 0:
                 msg = (
                     "לא ניתן להמיר רכיב 'פיצויים מעסיק נוכחי' מתוך טבלת המוצרים. "
-                    "יש לבצע PROCESS_TERMINATION במסך מעסיק נוכחי."
+                    "יש לבצע עזיבת עבודה (מעסיק נוכחי) במסך מעסיק נוכחי."
                 )
                 skipped_items.append(
                     {
@@ -697,7 +777,12 @@ def handle_transform_funds_to_assets(
 
             if specific_amounts:
                 pension_components: dict[str, float] = {}
-                capital_components: dict[str, float] = {}
+                capital_components_by_tax: dict[str, dict[str, float]] = {}
+                commutation_components: dict[str, float] = {}
+
+                component_overrides = account.get("component_conversion_overrides")
+                if not isinstance(component_overrides, dict):
+                    component_overrides = {}
 
                 for field, val in list(specific_amounts.items()):
                     try:
@@ -707,10 +792,15 @@ def handle_transform_funds_to_assets(
                     if numeric_val <= 0:
                         continue
 
-                    preferred = preferred_conversion_type_for_component(
-                        field=field,
-                        product_type=rules_product_type,
-                    )
+                    override_raw = component_overrides.get(field)
+                    override = str(override_raw).strip().lower() if override_raw is not None else ""
+                    if override in {"pension", "capital_asset"}:
+                        preferred = override
+                    else:
+                        preferred = preferred_conversion_type_for_component(
+                            field=field,
+                            product_type=rules_product_type,
+                        )
                     ok, _tax, err_msg = validate_component_conversion(
                         field=field,
                         amount=numeric_val,
@@ -718,6 +808,7 @@ def handle_transform_funds_to_assets(
                         product_type=rules_product_type,
                     )
                     chosen = preferred
+                    chosen_tax = _tax
                     if not ok:
                         alt = "capital_asset" if preferred == "pension" else "pension"
                         ok2, _tax2, err_msg2 = validate_component_conversion(
@@ -728,6 +819,7 @@ def handle_transform_funds_to_assets(
                         )
                         if ok2:
                             chosen = alt
+                            chosen_tax = _tax2
                         else:
                             msg = err_msg2 or err_msg or f"לא ניתן להמיר רכיב {field}"
                             if skip_non_convertible_accounts:
@@ -748,14 +840,29 @@ def handle_transform_funds_to_assets(
                             continue
 
                     if chosen == "pension":
-                        pension_components[field] = float(pension_components.get(field, 0) + numeric_val)
+                        if commute_pension_components:
+                            commutation_components[field] = float(
+                                commutation_components.get(field, 0) + numeric_val
+                            )
+                        else:
+                            pension_components[field] = float(
+                                pension_components.get(field, 0) + numeric_val
+                            )
                     else:
-                        capital_components[field] = float(capital_components.get(field, 0) + numeric_val)
+                        tax_key = str(chosen_tax or "taxable")
+                        bucket = capital_components_by_tax.get(tax_key)
+                        if bucket is None:
+                            bucket = {}
+                            capital_components_by_tax[tax_key] = bucket
+                        bucket[field] = float(bucket.get(field, 0) + numeric_val)
 
                 pension_sum = sum(pension_components.values())
-                capital_sum = sum(capital_components.values())
+                capital_sum = sum(
+                    sum(parts.values()) for parts in capital_components_by_tax.values()
+                )
+                commutation_sum = sum(commutation_components.values())
 
-                if pension_sum <= 0 and capital_sum <= 0:
+                if pension_sum <= 0 and capital_sum <= 0 and commutation_sum <= 0:
                     skipped_accounts += 1
                     continue
 
@@ -773,19 +880,39 @@ def handle_transform_funds_to_assets(
                         }
                     )
 
-                if capital_sum > 0:
+                if commutation_sum > 0:
                     conversion_tasks.append(
                         {
-                            "task_type": "capital_asset",
+                            "task_type": "commutation",
                             "account": account,
                             "account_name": account_name,
                             "product_type": product_type,
                             "company": account.get("company") or account.get("חברה_מנהלת", ""),
                             "account_number": str(account_number).strip(),
-                            "amount": capital_sum,
-                            "components": capital_components,
+                            "amount": commutation_sum,
+                            "components": commutation_components,
+                            "tax_treatment": "taxable",
                         }
                     )
+
+                if capital_sum > 0:
+                    for tax_treatment, parts in capital_components_by_tax.items():
+                        part_sum = sum(float(v or 0) for v in (parts or {}).values())
+                        if part_sum <= 0:
+                            continue
+                        conversion_tasks.append(
+                            {
+                                "task_type": "capital_asset",
+                                "account": account,
+                                "account_name": account_name,
+                                "product_type": product_type,
+                                "company": account.get("company") or account.get("חברה_מנהלת", ""),
+                                "account_number": str(account_number).strip(),
+                                "amount": part_sum,
+                                "components": parts,
+                                "tax_treatment": str(tax_treatment),
+                            }
+                        )
                 continue
 
             conversion_type = account.get("conversion_type")
@@ -874,9 +1001,22 @@ def handle_transform_funds_to_assets(
                 ensure_ascii=False,
             )
 
+        # Deterministic execution order: convert pensionable balances first, then capital assets.
+        # This prevents regressions where capital conversions run before exhausting pension conversions
+        # simply due to input account ordering.
+        try:
+            conversion_tasks.sort(
+                key=lambda t: 0
+                if str((t or {}).get("task_type") or "").lower() == "pension"
+                else 1
+            )
+        except Exception:
+            pass
+
         deleted_for_accounts: set[str] = set()
         source_zeroed_for_accounts: set[str] = set()
         snapshot_deltas: dict[str, dict] = {}
+        converted_commutations = 0
 
         for idx, task in enumerate(conversion_tasks):
             try:
@@ -921,13 +1061,14 @@ def handle_transform_funds_to_assets(
                     conversion_type,
                 )
 
-                account_number = task.get("account_number") or ""
+                account_number = (task.get("account_number") or "").strip()
                 if account_number and account_number not in deleted_for_accounts:
                     _delete_existing_tool_created_records(
                         db=db,
                         client_id=client_id,
                         account_number=account_number,
                     )
+                    db.flush()
                     deleted_for_accounts.add(account_number)
 
                 if conversion_type == "pension":
@@ -1076,7 +1217,11 @@ def handle_transform_funds_to_assets(
                         db.add(pf)
                     db.flush()
 
-                    if account_number and account_number not in source_zeroed_for_accounts:
+                    if (
+                        (not use_provided_accounts_only)
+                        and account_number
+                        and account_number not in source_zeroed_for_accounts
+                    ):
                         source_pension_funds_zeroed += _zero_source_portfolio_pension_funds(
                             db=db,
                             client_id=client_id,
@@ -1115,6 +1260,138 @@ def handle_transform_funds_to_assets(
                             "pension_start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
                             "annuity_factor": annuity_factor,
                             "coeff_source_table": coeff.get("source_table") if isinstance(coeff, dict) else None,
+                            "tax_treatment": tax_treatment,
+                            "components": components,
+                        }
+                    )
+
+                elif conversion_type == "commutation":
+                    task_tax_override = task.get("tax_treatment")
+                    tax_treatment = (
+                        task_tax_override.strip()
+                        if isinstance(task_tax_override, str) and task_tax_override.strip()
+                        else "taxable"
+                    )
+
+                    start_date_raw = (
+                        account.get("start_date")
+                        or account.get("תאריך_התחלה")
+                        or account.get("תאריך התחלה")
+                    )
+                    start_date_obj: Optional[date_type] = _parse_date_value(start_date_raw)
+
+                    annuity_factor = 200.0
+                    coeff = None
+                    try:
+                        coeff = get_annuity_coefficient(
+                            product_type=product_type,
+                            start_date=start_date_obj or date_type(retirement_year, 1, 1),
+                            gender=getattr(client_obj, "gender", None) or "זכר",
+                            retirement_age=retirement_age,
+                            company_name=company or None,
+                            option_name=None,
+                            survivors_option="תקנוני",
+                            spouse_age_diff=0,
+                            target_year=effective_pension_start_date.year if effective_pension_start_date else retirement_year,
+                            birth_date=getattr(client_obj, "birth_date", None),
+                            pension_start_date=effective_pension_start_date,
+                        )
+                        annuity_factor = float(coeff.get("factor_value") or annuity_factor)
+                        if annuity_factor <= 0:
+                            annuity_factor = 200.0
+                    except Exception:
+                        annuity_factor = 200.0
+
+                    pension_amount = balance / annuity_factor if annuity_factor > 0 else 0.0
+
+                    conversion_source_json = json.dumps(
+                        {
+                            "source": "llm_transform_funds_to_assets",
+                            "type": "pension_portfolio",
+                            "account_number": account_number,
+                            "account_name": account_name,
+                            "company": company,
+                            "product_type": product_type,
+                            "start_date": start_date_raw,
+                            "pension_start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
+                            "original_amount": base_amount,
+                            "projection_factor": projection_factor,
+                            "components": components,
+                            "commutation": True,
+                            "resolved_annuity_factor": annuity_factor,
+                            "pension_amount": pension_amount,
+                            "tax_treatment": tax_treatment,
+                            "converted_at": datetime.now().isoformat(),
+                        },
+                        ensure_ascii=False,
+                    )
+
+                    remarks = f"COMMUTATION:account_number={account_number}&amount={balance}"
+
+                    ca = CapitalAsset(
+                        client_id=client_id,
+                        asset_name=f"הון מהיוון - {account_name}",
+                        asset_type="provident_fund",
+                        current_value=Decimal("0"),
+                        monthly_income=Decimal(str(balance)),
+                        annual_return_rate=Decimal("0"),
+                        payment_frequency="annually",
+                        start_date=effective_pension_start_date,
+                        indexation_method="none",
+                        tax_treatment=tax_treatment,
+                        conversion_source=conversion_source_json,
+                        description=f"היוון מתיק פנסיוני - {company}",
+                        remarks=remarks,
+                    )
+                    db.add(ca)
+                    db.flush()
+
+                    if (
+                        (not use_provided_accounts_only)
+                        and account_number
+                        and account_number not in source_zeroed_for_accounts
+                    ):
+                        source_pension_funds_zeroed += _zero_source_portfolio_pension_funds(
+                            db=db,
+                            client_id=client_id,
+                            account_number=account_number,
+                        )
+                        source_zeroed_for_accounts.add(account_number)
+
+                    if account_number:
+                        entry = snapshot_deltas.setdefault(
+                            str(account_number).strip(),
+                            {"total": 0.0, "fields": {}},
+                        )
+                        entry["total"] = float(entry.get("total") or 0.0) + float(base_amount or 0.0)
+                        if isinstance(components, dict) and components:
+                            fields = entry.get("fields")
+                            if not isinstance(fields, dict):
+                                fields = {}
+                            for k, v in components.items():
+                                try:
+                                    numeric = float(v or 0)
+                                except (TypeError, ValueError):
+                                    numeric = 0.0
+                                if numeric > 0:
+                                    fields[str(k)] = float(fields.get(str(k), 0.0)) + numeric
+                            entry["fields"] = fields
+
+                    converted_capitals += 1
+                    converted_commutations += 1
+                    converted_items.append(
+                        {
+                            "kind": "commutation",
+                            "account_name": account_name,
+                            "account_number": account_number,
+                            "amount": balance,
+                            "original_amount": base_amount,
+                            "projection_factor": projection_factor,
+                            "start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
+                            "asset_type": "provident_fund",
+                            "tax_treatment": tax_treatment,
+                            "annuity_factor": annuity_factor,
+                            "coeff_source_table": coeff.get("source_table") if isinstance(coeff, dict) else None,
                             "components": components,
                         }
                     )
@@ -1123,6 +1400,13 @@ def handle_transform_funds_to_assets(
                     # Convert to capital asset
                     # Determine asset type based on product
                     product_lower = (rules_product_type or "").lower()
+
+                    components_tax_treatment = None
+                    if isinstance(components, dict) and components:
+                        components_tax_treatment = _derive_capital_tax_treatment_from_components(
+                            components=components,
+                            product_type=rules_product_type,
+                        )
 
                     if is_education_fund(rules_product_type):
                         asset_type = "education_fund"
@@ -1136,6 +1420,13 @@ def handle_transform_funds_to_assets(
                     else:
                         asset_type = "savings_account"
                         tax_treatment = "taxable"
+
+                    if components_tax_treatment is not None:
+                        tax_treatment = components_tax_treatment
+
+                    task_tax_override = task.get("tax_treatment")
+                    if isinstance(task_tax_override, str) and task_tax_override.strip():
+                        tax_treatment = task_tax_override.strip()
 
                     account_number = account_number
 
@@ -1160,6 +1451,7 @@ def handle_transform_funds_to_assets(
                             "original_amount": base_amount,
                             "projection_factor": projection_factor,
                             "components": components,
+                            "capital_tax_treatment": tax_treatment,
                             "converted_at": datetime.now().isoformat(),
                         },
                         ensure_ascii=False,
@@ -1177,6 +1469,9 @@ def handle_transform_funds_to_assets(
                                 ),
                                 CapitalAsset.conversion_source.like(
                                     f'%"account_number": "{account_number}"%'
+                                ),
+                                CapitalAsset.conversion_source.like(
+                                    f'%"capital_tax_treatment": "{tax_treatment}"%'
                                 ),
                             )
                             .first()
@@ -1234,7 +1529,11 @@ def handle_transform_funds_to_assets(
                         db.add(ca)
                     db.flush()
 
-                    if account_number and account_number not in source_zeroed_for_accounts:
+                    if (
+                        (not use_provided_accounts_only)
+                        and account_number
+                        and account_number not in source_zeroed_for_accounts
+                    ):
                         source_pension_funds_zeroed += _zero_source_portfolio_pension_funds(
                             db=db,
                             client_id=client_id,
@@ -1271,6 +1570,8 @@ def handle_transform_funds_to_assets(
                             "original_amount": base_amount,
                             "projection_factor": projection_factor,
                             "start_date": payment_date.isoformat() if payment_date else None,
+                            "asset_type": asset_type,
+                            "tax_treatment": tax_treatment,
                             "components": components,
                         }
                     )
@@ -1296,11 +1597,43 @@ def handle_transform_funds_to_assets(
 
         db.commit()
 
+        try:
+            db_url = str(db.get_bind().url)
+        except Exception:
+            db_url = None
+
+        try:
+            pf_count = (
+                db.query(PensionFund)
+                .filter(PensionFund.client_id == client_id)
+                .count()
+            )
+            ca_count = (
+                db.query(CapitalAsset)
+                .filter(CapitalAsset.client_id == client_id)
+                .count()
+            )
+            logger.info(
+                "🔎 TRANSFORM_FUNDS_TO_ASSETS post-commit: client_id=%s db_url=%s pension_funds=%s capital_assets=%s",
+                client_id,
+                db_url,
+                pf_count,
+                ca_count,
+            )
+        except Exception as _count_err:
+            logger.warning(
+                "⚠️ TRANSFORM_FUNDS_TO_ASSETS post-commit count check failed: client_id=%s db_url=%s err=%s",
+                client_id,
+                db_url,
+                _count_err,
+            )
+
         response = {
             "success": True,
             "message": f"✅ הומרו בהצלחה {total_converted} חשבונות: {converted_pensions} נכסי קצבה, {converted_capitals} נכסי הון.",
             "converted_pensions": converted_pensions,
             "converted_capitals": converted_capitals,
+            "converted_commutations": converted_commutations,
             "total_converted": total_converted,
             "skipped_zero_balance": skipped_accounts,
             "skipped_non_convertible": skipped_non_convertible if skipped_non_convertible else None,

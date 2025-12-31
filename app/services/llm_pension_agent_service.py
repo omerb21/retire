@@ -200,7 +200,7 @@ class PensionLLMService:
                 if env_model and (env_model.startswith("gpt-") or env_model.startswith("o")):
                     openai_model = env_model
                 else:
-                    openai_model = "gpt-4o-mini"
+                    openai_model = "gpt-5-mini"
 
                 self._openai_model = openai_model
                 self._provider = "openai"
@@ -370,7 +370,7 @@ class PensionLLMService:
 
                 self._openai_client = OpenAI()
                 env_model = model_name or os.getenv("PENSION_LLM_MODEL")
-                self._openai_model = env_model or "gpt-4o-mini"
+                self._openai_model = env_model or "gpt-5-mini"
                 self._provider = "openai"
                 logger.info(
                     "PensionLLMService switched to OpenAI model '%s'",

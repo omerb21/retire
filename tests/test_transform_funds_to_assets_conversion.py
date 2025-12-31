@@ -328,3 +328,139 @@ def test_transform_updates_snapshot_scenario_zeroes_converted_components(db_sess
     assert float(row.get("יתרה") or 0) == 0.0
     assert float(row.get("תגמולי_עובד_אחרי_2008_לא_משלמת") or 0) == 0.0
     assert float(row.get("תגמולי_מעביד_אחרי_2008_לא_משלמת") or 0) == 0.0
+
+
+def test_transform_updates_snapshot_scenario_zeroes_education_fund_even_when_edu_field_missing(
+    db_session, client
+) -> None:
+    account_number = "ACC-EDU-SNAP-1"
+
+    db_session.query(Scenario).filter(
+        Scenario.client_id == client.id,
+        Scenario.scenario_name == "pension_portfolio_snapshot",
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    # Simulate a common real-world case:
+    # - product is קרן השתלמות
+    # - snapshot may store tagmulim/total fields, but may NOT include a dedicated קרן_השתלמות key
+    initial_portfolio = [
+        {
+            "מספר_חשבון": account_number,
+            "שם_תכנית": "מיטב השתלמות",
+            "סוג_מוצר": "קרן השתלמות",
+            "יתרה": 1000.0,
+            "תגמולים": 1000.0,
+            "סך_תגמולים": 1000.0,
+            "תגמולי_עובד_אחרי_2008_לא_משלמת": 300.0,
+            "תגמולי_מעביד_אחרי_2008_לא_משלמת": 700.0,
+        }
+    ]
+    snapshot = Scenario(
+        client_id=client.id,
+        scenario_name="pension_portfolio_snapshot",
+        apply_tax_planning=False,
+        apply_capitalization=False,
+        apply_exemption_shield=False,
+        parameters=json.dumps({"pension_portfolio": initial_portfolio}, ensure_ascii=False),
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    result_str = handle_transform_funds_to_assets(
+        args={
+            "accounts": [
+                {
+                    "account_name": "מיטב השתלמות",
+                    "product_type": "קרן השתלמות",
+                    "company": "TestCo",
+                    "account_number": account_number,
+                    "specific_amounts": {
+                        "קרן_השתלמות": 1000.0,
+                    },
+                }
+            ],
+            "pension_start_date": "2047-01-01",
+        },
+        client_id=client.id,
+        db=db_session,
+        agent_tools=agent_tools,
+    )
+
+    payload = json.loads(result_str)
+    assert payload["success"] is True
+    assert int(payload.get("persisted_source_scenarios_updated") or 0) == 1
+
+    latest_snapshot = (
+        db_session.query(Scenario)
+        .filter(Scenario.client_id == client.id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    assert latest_snapshot is not None
+    latest_params = json.loads(latest_snapshot.parameters)
+    latest_portfolio = latest_params.get("pension_portfolio")
+    assert isinstance(latest_portfolio, list) and latest_portfolio
+    row = next((r for r in latest_portfolio if r.get("מספר_חשבון") == account_number), None)
+    assert row is not None
+    assert float(row.get("יתרה") or 0) == 0.0
+    assert float(row.get("קרן_השתלמות") or 0) == 0.0
+    assert float(row.get("תגמולים") or 0) == 0.0
+    assert float(row.get("סך_תגמולים") or 0) == 0.0
+    assert float(row.get("תגמולי_עובד_אחרי_2008_לא_משלמת") or 0) == 0.0
+    assert float(row.get("תגמולי_מעביד_אחרי_2008_לא_משלמת") or 0) == 0.0
+
+
+def test_transform_tagmulim_to_2000_capital_is_exempt(db_session, client) -> None:
+    account_number = "ACC-2000-EXEMPT"
+
+    db_session.query(CapitalAsset).filter(
+        CapitalAsset.client_id == client.id,
+        CapitalAsset.conversion_source.isnot(None),
+        CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+    ).delete(synchronize_session=False)
+
+    db_session.query(PensionFund).filter(
+        PensionFund.client_id == client.id,
+        PensionFund.deduction_file == account_number,
+    ).delete(synchronize_session=False)
+
+    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+
+    result_str = handle_transform_funds_to_assets(
+        args={
+            "accounts": [
+                {
+                    "account_name": "Tagmulim <2000",
+                    "product_type": "קופת גמל",
+                    "company": "TestCo",
+                    "account_number": account_number,
+                    "specific_amounts": {
+                        "תגמולי_עובד_עד_2000": 50000.0,
+                    },
+                }
+            ],
+            "pension_start_date": "2047-01-01",
+        },
+        client_id=client.id,
+        db=db_session,
+        agent_tools=agent_tools,
+    )
+
+    payload = json.loads(result_str)
+    assert payload["success"] is True
+    assert int(payload.get("converted_capitals") or 0) == 1
+
+    ca = (
+        db_session.query(CapitalAsset)
+        .filter(
+            CapitalAsset.client_id == client.id,
+            CapitalAsset.conversion_source.isnot(None),
+            CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+        )
+        .first()
+    )
+    assert ca is not None
+    assert ca.tax_treatment == "exempt"

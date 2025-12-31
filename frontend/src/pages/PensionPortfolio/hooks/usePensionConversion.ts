@@ -7,6 +7,7 @@ import {
 import { apiFetch } from '../../../lib/api';
 import { calculateRetirementDateForClient } from '../services/retirementDateService';
 import { preparePensionConversions } from '../services/pensionConversionPreparationService';
+import { convertDDMMYYToISO } from '../../../utils/dateUtils';
 import {
   savePensionDataToStorage,
   saveConvertedAccountsToStorage,
@@ -140,7 +141,7 @@ export function usePensionConversion(
               method: 'POST',
               body: JSON.stringify({
                 product_type: coefficientProductType,
-                start_date: account.תאריך_התחלה || paymentDateISO,
+                start_date: convertDDMMYYToISO(account.תאריך_התחלה || '') || paymentDateISO,
                 gender: clientData?.gender || 'זכר',
                 retirement_age: retirementAge,
                 company_name: account.חברה_מנהלת,
@@ -241,9 +242,7 @@ export function usePensionConversion(
           });
           
           const todayISO = new Date().toISOString().split('T')[0];
-          const purchaseDateISO = account.תאריך_התחלה 
-            ? (account.תאריך_התחלה.includes('-') ? account.תאריך_התחלה : todayISO)
-            : todayISO;
+          const purchaseDateISO = convertDDMMYYToISO(account.תאריך_התחלה || '') || todayISO;
           
           // יצירת נכס הון לסכומים פטורים ממס
           if (Object.keys(exemptComponents).length > 0) {

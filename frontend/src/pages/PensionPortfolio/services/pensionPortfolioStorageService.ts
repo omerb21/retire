@@ -144,6 +144,31 @@ export function applyConversionUpdatesToPensionPortfolio(
   updatePensionDataInStorage(clientId, (data) => {
     const updated = [...data];
 
+    const computeRemainingBalanceFromComponents = (account: any): number => {
+      if (!account || typeof account !== 'object') {
+        return 0;
+      }
+      let sum = 0;
+      let sawComponent = false;
+      Object.keys(account).forEach((field) => {
+        if (
+          field.startsWith('תגמולי_') ||
+          field.startsWith('פיצויים_') ||
+          field === 'קרן_השתלמות'
+        ) {
+          sawComponent = true;
+          const v = Number((account as any)[field] ?? 0) || 0;
+          if (v > 0) {
+            sum += v;
+          }
+        }
+      });
+      if (!sawComponent) {
+        return 0;
+      }
+      return sum;
+    };
+
     updates.forEach((u) => {
       const accountNumber = String(u.account_number || '').trim();
       if (!accountNumber) {
@@ -161,28 +186,60 @@ export function applyConversionUpdatesToPensionPortfolio(
         ? u.specific_amounts
         : null;
 
-      if (specific && Object.keys(specific).length > 0) {
+      const hasSpecific = !!(specific && Object.keys(specific).length > 0);
+
+      if (hasSpecific) {
         Object.keys(specific).forEach((field) => {
           if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
             return;
           }
-          if (Object.prototype.hasOwnProperty.call(account, field)) {
-            account[field] = 0;
+          const rawDelta = (specific as any)[field];
+          const delta = Number(rawDelta ?? 0) || 0;
+          if (delta <= 0) {
+            return;
           }
+          const currentVal = Number(account[field] ?? 0) || 0;
+          const remaining = Math.max(0, currentVal - delta);
+          account[field] = Math.abs(remaining) < BALANCE_ZERO_EPSILON ? 0 : remaining;
         });
+
+        const eduDelta = Number((specific as any).קרן_השתלמות ?? 0) || 0;
+        if (eduDelta > 0) {
+          Object.keys(account).forEach((field) => {
+            if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
+              return;
+            }
+            if (
+              field.startsWith('תגמולי_') ||
+              field === 'תגמולים' ||
+              field === 'סך_תגמולים' ||
+              field === 'קרן_השתלמות'
+            ) {
+              account[field] = 0;
+            }
+          });
+          account.יתרה = 0;
+        }
       }
 
       const originalBalance = Number(account.יתרה ?? 0) || 0;
       const convertedAmount = Number(u.converted_amount ?? 0) || 0;
-      if (convertedAmount > 0) {
-        account.יתרה = Math.max(0, originalBalance - convertedAmount);
+      if (hasSpecific) {
+        const remainingFromComponents = computeRemainingBalanceFromComponents(account);
+        if (remainingFromComponents > 0 || convertedAmount > 0) {
+          account.יתרה = remainingFromComponents;
+        }
+      } else {
+        if (convertedAmount > 0) {
+          account.יתרה = Math.max(0, originalBalance - convertedAmount);
+        }
       }
 
       if (Math.abs(Number(account.יתרה ?? 0) || 0) < BALANCE_ZERO_EPSILON) {
         account.יתרה = 0;
       }
 
-      if ((!specific || Object.keys(specific).length === 0) && Number(account.יתרה ?? 0) === 0) {
+      if (!hasSpecific && Number(account.יתרה ?? 0) === 0) {
         Object.keys(account).forEach((field) => {
           if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
             return;

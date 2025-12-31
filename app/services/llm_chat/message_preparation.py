@@ -14,9 +14,10 @@ from app.services.llm_chat.message_utils import (
     extract_executed_tools_from_history,
     find_last_user_message,
 )
+from app.services.knowledge_base.rag_prompt import build_rag_system_message
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.prompts import get_global_system_prompt_base
-from app.services.llm_chat.state_tools import get_agent_state_json, get_tools_definitions_json
+from app.services.llm_chat.state_tools import get_agent_state_json
 from app.utils.playbook_loader import (
     format_example_as_few_shot,
     get_condensed_workflow_example,
@@ -34,13 +35,6 @@ def _get_agent_state(client_id: int, db: Session) -> str:
     בונה אובייקט מצב (State) המייצג את הסטטוס הנוכחי של התיק.
     """
     return get_agent_state_json(client_id=client_id, db=db)
-
-
-def _get_tools_definitions() -> str:
-    """
-    מחזיר את הגדרות הכלים (Tools) בפורמט JSON Schema.
-    """
-    return get_tools_definitions_json()
 
 
 def _build_pension_portfolio_context(
@@ -77,25 +71,41 @@ def prepare_messages_with_context(
     messages = list(request.messages)
     computed_pension_data: ComputedPensionData | None = None
 
+    last_user_msg = _find_last_user_message(request.messages)
+
+    rag_msg = build_rag_system_message(user_message=last_user_msg or "")
+    if not rag_msg:
+        rag_msg = (
+            "ידע מערכת שנשלף מה-Knowledge Base (חובה להשתמש בו):\n"
+            "(לא נמצאו מקורות רלוונטיים או שהאינדקס לא זמין)\n\n"
+            "הנחיות:\n"
+            "- לפני כל שימוש בנתוני לקוח או הפעלת כלי, חובה להצליב את הפעולה מול ידע המערכת (RAG) ולצטט את המקור הרלוונטי.\n"
+            "- אסור להסתמך על ידע כללי שסותר את המסמכים; אם אין מקורות, ציין זאת במפורש.\n"
+            "- אם אתה עומד לבצע TOOL_CALL שמשנה נתונים/מצב, בקש הבהרה/מקור נוסף לפני ביצוע.\n"
+        )
+
+    messages.insert(0, ChatMessage(role="system", content=rag_msg))
+
     # הנחיית בסיס גלובלית לסוכן (אישיות, שימוש בכלים, פורמט תשובה)
     global_system_prompt = get_global_system_prompt_base()
 
     workflow_example = get_condensed_workflow_example()
     global_system_prompt += workflow_example
 
-    messages.insert(0, ChatMessage(role="system", content=global_system_prompt))
+    messages.insert(1, ChatMessage(role="system", content=global_system_prompt))
 
-    last_user_msg = _find_last_user_message(request.messages)
     if last_user_msg:
+        insertion_idx = 2
+
         relevant_example = get_relevant_example(last_user_msg)
         if relevant_example:
             example_msg = format_example_as_few_shot(relevant_example)
-            messages.insert(1, ChatMessage(role="system", content=example_msg))
+            messages.insert(insertion_idx, ChatMessage(role="system", content=example_msg))
+            insertion_idx += 1
 
         knowledge_msg = build_knowledge_system_message(last_user_msg)
         if knowledge_msg:
-            insert_idx = 2 if any(m.role == "system" for m in messages[1:2]) else 1
-            messages.insert(insert_idx, ChatMessage(role="system", content=knowledge_msg))
+            messages.insert(insertion_idx, ChatMessage(role="system", content=knowledge_msg))
 
     full_context = build_full_context_for_llm(request=request, db=db, messages=messages)
     if full_context:
@@ -110,7 +120,9 @@ def prepare_messages_with_context(
 ---
 שאלת המשתמש: {original_content}
 
-**חשוב:** ענה רק על בסיס הנתונים האמיתיים למעלה. אל תמציא נתונים!"""
+**חשוב:**
+1) ענה רק על בסיס הנתונים האמיתיים למעלה. אל תמציא נתונים!
+2) לפני כל שימוש בנתוני לקוח או הפעלת כלי, חובה להצליב את הפעולה מול ידע המערכת (RAG) ולצטט את המקור הרלוונטי."""
             messages[last_user_idx] = ChatMessage(role="user", content=enhanced_content)
             logger.debug(
                 "Enhanced user message with context for client %s: %d chars",

@@ -91,12 +91,7 @@ export const calculateTaxByBrackets = (annualIncome: number, year?: number): num
       const taxInBracket = incomeInBracket * (bracket.rate / 100);
       totalTax += taxInBracket;
       processedIncome += incomeInBracket;
-      
-      // Debug log
-      console.log(`Tax Bracket ${bracket.id}: Income ${incomeInBracket.toFixed(2)} at ${bracket.rate}% = ${taxInBracket.toFixed(2)}`);
     }
   }
-  
-  console.log(`Total Annual Tax: ${totalTax.toFixed(2)} on income ${annualIncome.toFixed(2)}`);
   return Math.round(totalTax * 100) / 100; // Round to 2 decimal places
 };

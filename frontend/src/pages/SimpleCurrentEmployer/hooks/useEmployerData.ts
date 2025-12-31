@@ -5,12 +5,21 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../../../lib/api';
 import { SimpleEmployer } from '../types';
-import { getSeveranceFromPension, isTerminationConfirmed } from '../utils/storageHelpers';
+import { getSeveranceFromPension, isTerminationConfirmed, setTerminationConfirmed } from '../utils/storageHelpers';
 import { convertISOToDDMMYY, convertDDMMYYToISO } from '../../../utils/dateUtils';
+
+const isNotFoundError = (message: string): boolean => {
+  const msg = (message || '').toString();
+  if (!msg) return false;
+  if (msg.includes('404') || msg.includes('Not Found')) return true;
+  if (msg.includes('אין מעסיק נוכחי') || msg.includes('Current employer not found')) return true;
+  return false;
+};
 
 export const useEmployerData = (clientId: string | undefined) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [terminationConfirmed, setTerminationConfirmedState] = useState<boolean>(false);
   const [employer, setEmployer] = useState<SimpleEmployer>({
     employer_name: '',
     start_date: '',
@@ -35,13 +44,19 @@ export const useEmployerData = (clientId: string | undefined) => {
           employerData = data;
         }
         
-        // Check if termination is confirmed
-        const isConfirmed = isTerminationConfirmed(clientId);
+        // Reconcile termination confirmed state (server is authoritative)
+        const localConfirmed = isTerminationConfirmed(clientId);
+        const serverConfirmed = !!(employerData?.other_grants as any)?.termination_confirmed;
+        if (serverConfirmed !== localConfirmed) {
+          setTerminationConfirmed(clientId, serverConfirmed);
+        }
+        setTerminationConfirmedState(serverConfirmed);
         
         console.log('🔍 בדיקת מצב עזיבה:', {
           is_array: Array.isArray(data),
           end_date_value: employerData?.end_date,
-          is_confirmed_in_storage: isConfirmed,
+          is_confirmed_in_storage: localConfirmed,
+          is_confirmed_in_server: serverConfirmed,
           client_id: clientId,
           full_response: data
         });
@@ -53,7 +68,7 @@ export const useEmployerData = (clientId: string | undefined) => {
           setEmployer({
             id: employerData.id,
             employer_name: employerData.employer_name || '',
-            start_date: employerData.start_date || '',
+            start_date: employerData.start_date ? convertISOToDDMMYY(employerData.start_date) : '',
             end_date: employerData.end_date ? convertISOToDDMMYY(employerData.end_date) : undefined,
             last_salary: Number(employerData.monthly_salary || employerData.last_salary || employerData.average_salary || 0),
             severance_accrued: severanceFromPension
@@ -76,8 +91,12 @@ export const useEmployerData = (clientId: string | undefined) => {
         setLoading(false);
       } catch (err: any) {
         const message = err?.message || '';
-        // 404 ("לא נמצא") אינו נחשב כשגיאה לוגית במסך זה
-        if (!message.includes('404')) {
+        // 404 "אין מעסיק נוכחי" אינו נחשב כשגיאה לוגית במסך זה
+        const isClientMissing = message.includes('לקוח לא נמצא');
+        if (!isClientMissing && isNotFoundError(message)) {
+          setTerminationConfirmed(clientId, false);
+          setTerminationConfirmedState(false);
+        } else {
           setError('שגיאה בטעינת נתוני מעסיק: ' + message);
         }
         setLoading(false);
@@ -207,6 +226,7 @@ export const useEmployerData = (clientId: string | undefined) => {
     setLoading,
     error,
     setError,
+    terminationConfirmed,
     saveEmployer
   };
 };

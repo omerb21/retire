@@ -6,7 +6,7 @@ from app.services.llm_chat.chat_orchestration import run_pension_chat
 def test_non_stream_qa_no_tools_blocks_tool_call(db_session, client, monkeypatch) -> None:
     responses = iter(
         [
-            '###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
             "PASS - הסבר QA ללא כלים\nסיכום קצר",
         ]
     )

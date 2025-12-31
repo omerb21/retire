@@ -6,8 +6,14 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.models import Client, PensionFund
+from app.utils.date_serializer import parse_date_flexible
 
 logger = logging.getLogger("app.llm_chat.tools")
+
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
 
 def handle_project_total_annuity(
@@ -27,13 +33,58 @@ def handle_project_total_annuity(
         if not client_obj:
             return "Error: לקוח לא נמצא"
 
-        retirement_age = args.get("retirement_age", 67)
+        retirement_age = args.get("retirement_age")
+        retirement_age_val: int | None = None
+        if retirement_age is not None:
+            try:
+                retirement_age_val = int(retirement_age)
+            except Exception:
+                retirement_age_val = None
         retirement_date_str = args.get("retirement_date")
 
         if retirement_date_str:
-            retirement_date = datetime.strptime(retirement_date_str, "%Y-%m-%d").date()
+            retirement_date = parse_date_flexible(str(retirement_date_str))
+        elif client_obj.birth_date and getattr(client_obj, "gender", None):
+            try:
+                from app.services.retirement_age_service import get_retirement_date
+
+                if retirement_age_val is not None:
+                    retirement_date = client_obj.birth_date + relativedelta(years=retirement_age_val)
+                else:
+                    retirement_date = get_retirement_date(client_obj.birth_date, client_obj.gender)
+                    retirement_age_val = relativedelta(retirement_date, client_obj.birth_date).years
+            except Exception:
+                if retirement_age_val is None:
+                    try:
+                        from app.services.retirement_age_service import get_retirement_age_simple
+
+                        retirement_age_val = int(
+                            get_retirement_age_simple(client_obj.birth_date, client_obj.gender)
+                        )
+                    except Exception:
+                        try:
+                            from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+                            retirement_age_val = int(DEFAULT_MALE_RETIREMENT_AGE)
+                        except Exception:
+                            retirement_age_val = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+                retirement_date = client_obj.birth_date + relativedelta(years=retirement_age_val)
         elif client_obj.birth_date:
-            retirement_date = client_obj.birth_date + relativedelta(years=retirement_age)
+            if retirement_age_val is None:
+                try:
+                    from app.services.retirement_age_service import get_retirement_age_simple
+
+                    retirement_age_val = int(
+                        get_retirement_age_simple(client_obj.birth_date, getattr(client_obj, "gender", None) or "")
+                    )
+                except Exception:
+                    try:
+                        from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+                        retirement_age_val = int(DEFAULT_MALE_RETIREMENT_AGE)
+                    except Exception:
+                        retirement_age_val = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+            retirement_date = client_obj.birth_date + relativedelta(years=retirement_age_val)
         else:
             retirement_date = datetime.now().date() + relativedelta(years=10)
 
@@ -85,7 +136,7 @@ def handle_project_total_annuity(
                     start_date = retirement_date
                     if start_date_str:
                         try:
-                            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                            start_date = parse_date_flexible(str(start_date_str))
                         except Exception:
                             pass
 
@@ -93,7 +144,7 @@ def handle_project_total_annuity(
                         product_type=product_type,
                         start_date=start_date,
                         gender=client_obj.gender or "זכר",
-                        retirement_age=retirement_age,
+                        retirement_age=retirement_age_val,
                         survivors_option="תקנוני",
                         spouse_age_diff=0,
                         birth_date=client_obj.birth_date,

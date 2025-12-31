@@ -22,8 +22,8 @@ def test_llm_scenarios_chat_flow_runs_tools_then_summarizes(db_session, client, 
 
     llm_replies = iter(
         [
-            '###TOOL_CALL### {"name": "RUN_RETIREMENT_SCENARIOS", "arguments": {"retirement_age": 67}}',
-            '###TOOL_CALL### {"name": "SELECT_TARGET_PENSION_SCENARIO", "arguments": {"target_monthly_pension": 12000}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "RUN_RETIREMENT_SCENARIOS", "arguments": {"retirement_age": 67}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "SELECT_TARGET_PENSION_SCENARIO", "arguments": {"target_monthly_pension": 12000}}',
             "סיכום תרחישים: בחרתי תרחיש שעומד ביעד הקצבה ומציג איזון טוב בין קצבה להון. האם לבצע בפועל?",
         ]
     )

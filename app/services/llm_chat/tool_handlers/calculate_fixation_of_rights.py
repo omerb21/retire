@@ -40,11 +40,40 @@ def handle_calculate_fixation_of_rights(
             raw_result = fixation_result.raw_result or {}
             exemption_summary = raw_result.get("exemption_summary", {}) or {}
 
+            remaining_exempt_capital = exemption_summary.get("remaining_exempt_capital", 0) or 0
+            remaining_monthly_exemption = exemption_summary.get(
+                "remaining_monthly_exemption", 0
+            ) or 0
+            exempt_pension_percentage = exemption_summary.get(
+                "exempt_pension_percentage", 0
+            ) or 0
+
+            monthly_exempt_pension = exemption_summary.get("monthly_exempt_pension")
+            if monthly_exempt_pension is None:
+                try:
+                    monthly_exempt_pension = float(remaining_exempt_capital) / 180.0
+                except Exception:
+                    monthly_exempt_pension = 0
+
             try:
                 update_fixation_exempt_pension_fields(fixation_result)
                 db.flush()
                 raw_result = fixation_result.raw_result or raw_result
                 exemption_summary = raw_result.get("exemption_summary", exemption_summary) or {}
+
+                remaining_exempt_capital = exemption_summary.get("remaining_exempt_capital", remaining_exempt_capital) or 0
+                remaining_monthly_exemption = (
+                    exemption_summary.get("remaining_monthly_exemption", remaining_monthly_exemption) or 0
+                )
+                exempt_pension_percentage = (
+                    exemption_summary.get("exempt_pension_percentage", exempt_pension_percentage) or 0
+                )
+                monthly_exempt_pension = exemption_summary.get("monthly_exempt_pension")
+                if monthly_exempt_pension is None:
+                    try:
+                        monthly_exempt_pension = float(remaining_exempt_capital) / 180.0
+                    except Exception:
+                        monthly_exempt_pension = 0
             except Exception:
                 pass
 
@@ -52,16 +81,12 @@ def handle_calculate_fixation_of_rights(
                 "success": True,
                 "message": "✅ חישוב קיבוע זכויות בוצע ונשמר בהצלחה!",
                 "fixation_id": fixation_result.id,
-                "remaining_exempt_capital": exemption_summary.get("remaining_exempt_capital", 0),
+                "remaining_exempt_capital": remaining_exempt_capital,
                 "total_grants_used": exemption_summary.get("total_grants_used", 0),
                 "exemption_percentage": exemption_summary.get("exemption_percentage", 0),
-                "monthly_exempt_pension": exemption_summary.get("monthly_exempt_pension", 0),
-                "remaining_monthly_exemption": exemption_summary.get(
-                    "remaining_monthly_exemption", 0
-                ),
-                "exempt_pension_percentage": exemption_summary.get(
-                    "exempt_pension_percentage", 0
-                ),
+                "monthly_exempt_pension": monthly_exempt_pension,
+                "remaining_monthly_exemption": remaining_monthly_exemption,
+                "exempt_pension_percentage": exempt_pension_percentage,
                 "saved": True,
             }
         else:
@@ -98,13 +123,30 @@ def handle_calculate_fixation_of_rights(
             result = calculate_full_fixation(formatted_data)
             exemption_summary = result.get("exemption_summary", {}) or {}
 
+            remaining_exempt_capital = exemption_summary.get("remaining_exempt_capital", 0) or 0
+            remaining_monthly_exemption = exemption_summary.get(
+                "remaining_monthly_exemption", 0
+            ) or 0
+            exempt_pension_percentage = exemption_summary.get(
+                "exempt_pension_percentage", 0
+            ) or 0
+
+            monthly_exempt_pension = exemption_summary.get("monthly_exempt_pension")
+            if monthly_exempt_pension is None:
+                try:
+                    monthly_exempt_pension = float(remaining_exempt_capital) / 180.0
+                except Exception:
+                    monthly_exempt_pension = 0
+
             response = {
                 "success": True,
                 "message": "✅ חישוב קיבוע זכויות בוצע (ללא שמירה).",
-                "remaining_exempt_capital": exemption_summary.get("remaining_exempt_capital", 0),
+                "remaining_exempt_capital": remaining_exempt_capital,
                 "total_grants_used": exemption_summary.get("total_grants_used", 0),
                 "exemption_percentage": exemption_summary.get("exemption_percentage", 0),
-                "monthly_exempt_pension": exemption_summary.get("monthly_exempt_pension", 0),
+                "monthly_exempt_pension": monthly_exempt_pension,
+                "remaining_monthly_exemption": remaining_monthly_exemption,
+                "exempt_pension_percentage": exempt_pension_percentage,
                 "saved": False,
             }
 

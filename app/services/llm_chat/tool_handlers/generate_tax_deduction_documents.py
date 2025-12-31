@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from urllib.parse import quote
+
 from sqlalchemy.orm import Session
 
 from app.models import Client, PensionFund
@@ -25,11 +27,81 @@ def handle_generate_tax_deduction_documents(
     try:
         document_type = args.get("document_type")
         if not document_type:
-            return "Error: חסר סוג מסמך (document_type)"
+            document_type = "kibua_zechuyot"
+
+        if document_type == "kibua_zechuyot":
+            document_type = "fixation_package"
 
         # Validate client exists
         if not client_obj:
             return f"Error: לקוח עם מזהה {client_id} לא נמצא"
+
+        if document_type in {"fixation_package", "package", "161d_package"}:
+            from app.services.documents import generate_document_package
+
+            package_result = generate_document_package(db, client_id)
+            if not (isinstance(package_result, dict) and package_result.get("success")):
+                err_msg = None
+                try:
+                    err_msg = str(package_result.get("error") or "").strip() or None
+                except Exception:
+                    err_msg = None
+                return json.dumps(
+                    {
+                        "success": False,
+                        "error_code": "DOCUMENT_PACKAGE_FAILED",
+                        "message": err_msg or "שגיאה בייצור חבילת מסמכי קיבוע זכויות",
+                    },
+                    ensure_ascii=False,
+                )
+
+            folder = package_result.get("folder")
+            files = package_result.get("files")
+            folder_text = str(folder or "")
+            folder_text_norm = folder_text.replace("\\", "/")
+            if folder_text_norm.startswith("packages/"):
+                folder_in_packages = folder_text_norm[len("packages/") :]
+            else:
+                folder_in_packages = folder_text_norm
+            folder_in_packages = folder_in_packages.strip("/")
+
+            file_entries: list[dict[str, str]] = []
+            if isinstance(files, list):
+                for name in files:
+                    file_name = str(name or "").strip()
+                    if not file_name:
+                        continue
+                    rel_path = (
+                        f"{folder_in_packages}/{file_name}" if folder_in_packages else file_name
+                    )
+                    file_entries.append(
+                        {
+                            "name": file_name,
+                            "download_url": f"/api/v1/files?path={quote(rel_path)}",
+                        }
+                    )
+
+            safe_filename = f"fixation_{client_id}_documents.zip"
+            hebrew_filename = f"מסמכי_קיבוע_{client_obj.first_name}_{client_obj.last_name}.zip"
+            encoded_filename = quote(hebrew_filename)
+            download_url = f"/api/v1/fixation/{client_id}/package"
+
+            return json.dumps(
+                {
+                    "success": True,
+                    "message": "✅ חבילת מסמכי קיבוע זכויות הופקה בהצלחה",
+                    "client_id": client_id,
+                    "client_name": client_obj.full_name,
+                    "document_type": document_type,
+                    "download_url": download_url,
+                    "download_filename": safe_filename,
+                    "download_filename_hebrew": hebrew_filename,
+                    "download_filename_hebrew_encoded": encoded_filename,
+                    "package_folder": folder_in_packages,
+                    "files": file_entries,
+                },
+                ensure_ascii=False,
+            )
 
         # ===== GUARDRAIL: Check for critical assets =====
         pension_count = db.query(PensionFund).filter(PensionFund.client_id == client_id).count()

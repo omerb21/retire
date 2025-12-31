@@ -27,7 +27,7 @@ def get_insurance_coefficient(
     שולף מקדם קצבה לביטוח מנהלים
     """
     db = next(get_db())
-    
+
     try:
         # שלב 1: מציאת דור הפוליסה
         generation_code = get_generation_code(db, start_date)
@@ -46,7 +46,13 @@ def get_insurance_coefficient(
         
         # שלב 3: fallback למקדם דור (לפי גיל ומין)
         return get_generation_coefficient(db, generation_code, age, sex)
-        
+
     except Exception as e:
         logger.error(f"[מקדם קצבה] שגיאה בשליפת מקדם ביטוח: {e}")
         return get_default_coefficient()
+
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass

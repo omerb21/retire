@@ -117,7 +117,7 @@ def commutations_appendix(client_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/fixation/{client_id}/package")
+@router.api_route("/fixation/{client_id}/package", methods=["GET", "POST"])
 def package(client_id: int, db: Session = Depends(get_db)):
     """
     מייצר חבילת מסמכים מלאה ללקוח

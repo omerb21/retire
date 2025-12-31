@@ -1,3 +1,5 @@
+import re
+
 from ...schemas.llm_chat import PensionPortfolioAccount
 
 from app.services.pension_portfolio.conversion_rules import (
@@ -43,6 +45,30 @@ def _format_snapshot_at(snapshot_at: str | None) -> str:
     if not raw:
         return ""
     return raw.replace("T", " ").replace("Z", "")
+
+
+def _normalize_start_date_for_display(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", raw)
+    if m:
+        return f"{m.group(3)}/{m.group(2)}/{m.group(1)}"
+
+    if re.match(r"^\d{8}$", raw) and (raw.startswith("19") or raw.startswith("20")):
+        y = raw[0:4]
+        mo = raw[4:6]
+        d = raw[6:8]
+        return f"{d}/{mo}/{y}"
+
+    if re.match(r"^\d{2}/\d{2}/\d{4}$", raw):
+        return raw
+
+    if re.match(r"^\d{2}-\d{2}-\d{4}$", raw):
+        return raw.replace("-", "/")
+
+    return raw
 
 
 _FIELD_DISPLAY: dict[str, str] = dict(_SHARED_FIELD_DISPLAY)
@@ -125,7 +151,14 @@ def build_pension_portfolio_context(
     formatted_snapshot = _format_snapshot_at(snapshot_at)
     if formatted_snapshot:
         context_lines.append(f"🕒 **הנתונים נכונים לתאריך snapshot:** {formatted_snapshot}")
-    context_lines.append("⚠️ **חובה:** להפעיל BUILD_TARGET_PENSION_PLAN לקבלת קצבה מחושבת עם מקדמים אמיתיים!")
+    context_lines.append(
+        "ℹ️ **הבהרה קריטית:** קיום יתרות חסומות בתיק *לא* מונע ניתוח/חישוב/מענה על שאלות לגבי שאר התיק. "
+        "פשוט מתייחסים ליתרות החסומות כ'מחוץ לטווח ביצוע' וממשיכים עם כל מה שניתן."
+    )
+    context_lines.append(
+        "ℹ️ **לקצבה מחושבת עם מקדמים אמיתיים:** אפשר להפעיל BUILD_TARGET_PENSION_PLAN *רק* אם המשתמש ביקש במפורש "
+        "תכנית ל'יעד קצבה' ונתן יעד חודשי מספרי (למשל 20000). זה *לא חובה* לניתוח טבלת המוצרים/אפשרויות משיכה."
+    )
     context_lines.append("")
 
     total_balance = 0.0
@@ -243,7 +276,8 @@ def build_pension_portfolio_context(
             conversion_totals["tagmulim_total"] += tagmulim_total
 
         account_number = (acc.מספר_חשבון or "").strip() or None
-        start_date = (acc.תאריך_התחלה or "").strip() or None
+        start_date_raw = (acc.תאריך_התחלה or "").strip() or None
+        start_date = _normalize_start_date_for_display(start_date_raw)
 
         is_capital_only = False
         is_capital_candidate = False
@@ -391,8 +425,9 @@ def build_pension_portfolio_context(
     if has_unsettled_severance or has_rights_sequence:
         context_lines.append("🚫 **חשוב מאוד – יתרות חסומות שאי אפשר לטפל בהן במערכת:**")
         context_lines.append(
-            "המערכת והסוכן *לא יכולים* לבצע המרה/משיכה/חישוב מס סופי על רכיבים אלה. "
-            "נדרש טיפול חיצוני מול הגוף המנהל/מעסיקים (התחשבנות/השלמת רצפים) ורק לאחר מכן אפשר להמשיך במערכת."
+            "הרכיבים הללו *חסומים לביצוע במערכת* (המרה/משיכה/טיפול תפעולי דורשים התחשבנות/השלמת רצפים מול הגוף המנהל). "
+            "עם זאת, זה *לא* מונע מהסוכן לבצע ניתוח, השוואות וחישובים על שאר התיק: פשוט מתייחסים ליתרות החסומות כ'מחוץ לטווח הביצוע' "
+            "ומחשבים על כל מה שניתן."
         )
         if has_unsettled_severance:
             context_lines.append(
@@ -694,7 +729,9 @@ def build_pension_portfolio_context(
             context_lines.append("")
 
     context_lines.append("")
-    context_lines.append("🔧 **לקבלת קצבה מחושבת:** הפעל BUILD_TARGET_PENSION_PLAN עם יעד קצבה (למשל 20000)")
+    context_lines.append(
+        "🔧 **אופציונלי (רק אם המשתמש ביקש יעד קצבה מספרי):** הפעל BUILD_TARGET_PENSION_PLAN עם יעד קצבה (למשל 20000)."
+    )
     context_lines.append("   הכלי יחזיר מקדמים אמיתיים לפי גיל, מין וסוג מוצר.")
 
     return context_lines

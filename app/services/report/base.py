@@ -92,6 +92,7 @@ class ReportService:
         Returns:
             PDF buffer
         """
+        db = None
         try:
             # Build summary data
             from app.database import get_db
@@ -150,6 +151,13 @@ class ReportService:
             # Re-raise the exception so the caller knows the report failed
             # This prevents returning a broken/empty PDF that can't be downloaded
             raise RuntimeError(f"PDF generation failed: {str(e)}") from e
+
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
 
     @staticmethod
     def compose_pdf(

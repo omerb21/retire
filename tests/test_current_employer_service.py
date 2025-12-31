@@ -10,6 +10,78 @@ from app.models import CurrentEmployer, EmployerGrant
 from app.models.current_employment import ActiveContinuityType, GrantType
 
 
+def test_process_termination_is_idempotent_for_exempt_grant_and_asset(db_session, client) -> None:
+    from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+    from app.models.grant import Grant as GrantModel
+    from app.models.capital_asset import CapitalAsset as CapitalAssetModel
+    from app.schemas.current_employer import TerminationDecisionCreate
+    from app.services.current_employer import TerminationService
+
+    employer = (
+        db_session.query(CurrentEmployerModel)
+        .filter(CurrentEmployerModel.client_id == client.id)
+        .first()
+    )
+    if employer is None:
+        employer = CurrentEmployerModel(
+            client_id=client.id,
+            employer_name="Test Employer",
+            start_date=date(2020, 1, 1),
+            end_date=None,
+            last_salary=10000.0,
+            severance_accrued=50000.0,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+    termination_date = date(2025, 1, 1)
+    decision = TerminationDecisionCreate(
+        termination_date=termination_date,
+        use_employer_completion=True,
+        severance_amount=50000.0,
+        exempt_amount=50000.0,
+        taxable_amount=0.0,
+        exempt_choice="redeem_with_exemption",
+        taxable_choice="redeem_no_exemption",
+        confirmed=True,
+    )
+
+    svc = TerminationService(db_session)
+    result_1 = svc.process_termination(client, employer, decision)
+    assert result_1.get("created_grant_id") is not None
+    assert result_1.get("created_capital_asset_id") is not None
+
+    # Re-run with the same parameters should not create duplicates.
+    result_2 = svc.process_termination(client, employer, decision)
+    assert result_2.get("created_grant_id") is not None
+    assert result_2.get("created_capital_asset_id") is not None
+
+    grant_prefix = f"מענק פיצויים פטור - {employer.employer_name}"
+    grants = (
+        db_session.query(GrantModel)
+        .filter(
+            GrantModel.client_id == client.id,
+            GrantModel.grant_date == termination_date,
+            GrantModel.employer_name.like(f"{grant_prefix}%"),
+        )
+        .all()
+    )
+    assert len(grants) == 1
+
+    asset_prefix = f"מענק פיצויים פטור ({employer.employer_name})"
+    assets = (
+        db_session.query(CapitalAssetModel)
+        .filter(
+            CapitalAssetModel.client_id == client.id,
+            CapitalAssetModel.start_date == termination_date,
+            CapitalAssetModel.asset_name.like(f"{asset_prefix}%"),
+            CapitalAssetModel.asset_type == "other",
+        )
+        .all()
+    )
+    assert len(assets) == 1
+
+
 class TestCurrentEmployerService:
     """Test cases for CurrentEmployer service calculations"""
     

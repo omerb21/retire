@@ -11,6 +11,13 @@ from app.models.pension_fund import PensionFund
 from app.models.client import Client
 from app.services.annuity_coefficient import get_annuity_coefficient
 
+logger = logging.getLogger(__name__)
+
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
+
 logger = logging.getLogger("app.scenarios.portfolio")
 
 
@@ -142,12 +149,27 @@ class PortfolioImportService:
                             ).date()
                         except Exception:
                             start_date_obj = None
-                
+                retirement_age_for_coeff = retirement_age
+                if retirement_age_for_coeff is None and client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
+                    try:
+                        from app.services.retirement_age_service import get_retirement_age_simple
+
+                        retirement_age_for_coeff = int(get_retirement_age_simple(client.birth_date, client.gender))
+                    except Exception:
+                        retirement_age_for_coeff = None
+                if retirement_age_for_coeff is None:
+                    try:
+                        from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+                        retirement_age_for_coeff = int(DEFAULT_MALE_RETIREMENT_AGE)
+                    except Exception:
+                        retirement_age_for_coeff = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+
                 coeff = get_annuity_coefficient(
                     product_type=product_type,
                     start_date=start_date_obj or date(retirement_year, 1, 1),
                     gender=getattr(client, "gender", None) or "זכר",
-                    retirement_age=retirement_age or 67,
+                    retirement_age=retirement_age_for_coeff,
                     company_name=self._get_account_value(account, 'חברה_מנהלת'),
                     option_name=None,
                     survivors_option='תקנוני',

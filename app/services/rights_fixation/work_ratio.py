@@ -7,6 +7,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
+
 
 def work_ratio_within_last_32y(
     start_date: Union[str, date], 
@@ -47,15 +52,20 @@ def work_ratio_within_last_32y(
                 logger.info(f"[יחסי מענק] גיל פרישה מחושב: {retirement_date} (מגדר: {gender})")
             except Exception as e:
                 logger.warning(f"[יחסי מענק] שגיאה בחישוב גיל פרישה: {e}")
-                # fallback לחישוב פשוט
-                retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65
-                retirement_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
+                try:
+                    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+                    retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+                except Exception:
+                    retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+                retirement_date = date(
+                    birth_date.year + retirement_age,
+                    birth_date.month,
+                    birth_date.day,
+                )
         
         # הגבלת תאריך סיום העבודה לגיל הפרישה
         effective_end_date = end_date
-        if retirement_date and end_date > retirement_date:
-            effective_end_date = retirement_date
-            logger.info(f"[יחסי מענק] הגבלת תאריך סיום מ-{end_date} ל-{effective_end_date} (גיל פרישה)")
             
         # חישוב חלון 32 השנים
         limit_start = elig_date - timedelta(days=int(365.25 * 32))

@@ -10,8 +10,8 @@ from app.services.llm_chat.chat_orchestration import run_pension_chat
 def test_qa_mode_blocks_non_qa_tools(db_session, client, monkeypatch):
     responses = iter(
         [
-            '###TOOL_CALL### {"name": "PROCESS_TERMINATION", "arguments": {"confirmed": true}}',
-            '###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "PROCESS_TERMINATION", "arguments": {"confirmed": true}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
             "Final answer after QA tools",
         ]
     )

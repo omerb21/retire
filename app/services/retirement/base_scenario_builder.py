@@ -65,7 +65,12 @@ class BaseScenarioBuilder:
             self._retirement_year = self._retirement_date.year
         else:
             # ברירת מחדל אם אין תאריך לידה
-            self._retirement_year = date.today().year + max(self.retirement_age - 67, 0)
+            from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+            self._retirement_year = date.today().year + max(
+                int(self.retirement_age or 0) - int(DEFAULT_MALE_RETIREMENT_AGE),
+                0,
+            )
         
         # Shared services for all scenarios
         retirement_year_for_conversion = self._retirement_year or date.today().year

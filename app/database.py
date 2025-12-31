@@ -4,6 +4,7 @@ Database configuration module for SQLAlchemy and connection management
 import os
 from sqlalchemy import create_engine
 from sqlalchemy import inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Get database URL from dedicated env var or use default SQLite for development
@@ -18,6 +19,19 @@ Base = declarative_base()
 def get_engine(url=None):
     """Get SQLAlchemy engine with proper configuration"""
     url = url or DATABASE_URL
+    try:
+        parsed_url = make_url(url)
+        if (
+            (parsed_url.drivername or "").startswith("sqlite")
+            and parsed_url.database
+            and parsed_url.database != ":memory:"
+        ):
+            db_path = parsed_url.database
+            if not os.path.isabs(db_path):
+                parsed_url = parsed_url.set(database=os.path.abspath(db_path))
+                url = str(parsed_url)
+    except Exception:
+        pass
     is_sqlite = url.startswith("sqlite")
 
     # SQLite needs special connect args, but we don't use pooling settings there

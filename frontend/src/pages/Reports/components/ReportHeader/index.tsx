@@ -1,5 +1,4 @@
 import React from 'react';
-import { getPensionCeiling } from '../../../../components/reports/calculations/pensionCalculations';
 import { formatCurrency } from '../../../../lib/validation';
 
 interface Client {
@@ -61,16 +60,13 @@ export const ReportHeader: React.FC<ReportHeaderProps> = ({ client, fixationData
               <strong>הון פטור ראשוני:</strong> {formatCurrency(fixationData.exemption_summary.exempt_capital_initial || 0)}
             </div>
             <div>
-              <strong>הון פטור נותר:</strong> {formatCurrency(fixationData.exemption_summary.remaining_exempt_capital || 0)}
-            </div>
-            <div>
-              <strong>קצבה פטורה מקיבוע ({fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || '-'}):</strong> {formatCurrency(fixationData.exemption_summary.remaining_monthly_exemption || ((fixationData.exemption_summary.remaining_exempt_capital || 0) / 180))}
+              <strong>קצבה פטורה מקיבוע ({fixationData.eligibility_year || fixationData.exemption_summary.eligibility_year || '-'}):</strong>{' '}
+              {typeof fixationData.exemption_summary.remaining_monthly_exemption === 'number'
+                ? formatCurrency(fixationData.exemption_summary.remaining_monthly_exemption)
+                : '-'}
             </div>
             <div>
               <strong>אחוז קצבה פטורה:</strong> {((fixationData.exemption_summary.exempt_pension_percentage || 0) * 100).toFixed(2)}%
-            </div>
-            <div>
-              <strong>קצבה פטורה לשנת התזרים ({new Date().getFullYear()}):</strong> {formatCurrency((fixationData.exemption_summary.exempt_pension_percentage || 0) * getPensionCeiling(new Date().getFullYear()))}
             </div>
           </div>
         </div>

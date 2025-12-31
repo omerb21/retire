@@ -12,7 +12,12 @@ from app.models.additional_income import AdditionalIncome
 from app.schemas.case import ClientCase, CaseDetectionResult
 from app.utils.calculation_log import log_calc
 
-def detect_case(db: Session, client_id: int, *, retirement_age: int = 67) -> CaseDetectionResult:
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
+
+def detect_case(db: Session, client_id: int, *, retirement_age: int | None = None) -> CaseDetectionResult:
     """
     Detect client case based on specified rules
     
@@ -46,8 +51,21 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int = 67) -> Cas
     
     reasons: List[str] = []
     
+    if retirement_age is None:
+        try:
+            from app.services.retirement_age_service import (
+                DEFAULT_MALE_RETIREMENT_AGE,
+                get_retirement_age_simple,
+            )
+
+            retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+            if getattr(client, "birth_date", None) and getattr(client, "gender", None) is not None:
+                retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+        except Exception:
+            retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+
     # Check if client is past retirement age (Case 3)
-    if age >= retirement_age:
+    if age >= int(retirement_age):
         case_id = ClientCase.PAST_RETIREMENT_AGE
         case_name = ClientCase.PAST_RETIREMENT_AGE.value
         reasons.append(f"client_age_{age}_exceeds_retirement_age_{retirement_age}")
@@ -135,8 +153,25 @@ def detect_case_with_session(db_session, client_id):
         raise ValueError(f"Client with ID {client_id} not found")
 
     # Calculate age for retirement check
-    from datetime import date
-    retirement_age = 67  # placeholder - replace with real domain rule
+    try:
+        from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+        retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+    except Exception:
+        retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+    try:
+        from app.services.retirement_age_service import get_retirement_age_simple
+
+        if getattr(client, "birth_date", None) and getattr(client, "gender", None) is not None:
+            retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+    except Exception:
+        try:
+            from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+            retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+        except Exception:
+            retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+
     age = calculate_age(client.birth_date) if getattr(client, "birth_date", None) else 0
 
     if age >= retirement_age:

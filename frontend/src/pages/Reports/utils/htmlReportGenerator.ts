@@ -1,5 +1,4 @@
 import { formatDateToDDMMYY } from '../../../utils/dateUtils';
-import { getPensionCeiling } from '../../../components/reports/calculations/pensionCalculations';
 import { YearlyProjection } from '../../../components/reports/types/reportTypes';
 import { formatCurrency } from '../../../lib/validation';
 
@@ -120,10 +119,8 @@ export const generateHTMLReport = (
     <h2>פרטי קיבוע זכויות</h2>
     <p><strong>שנת קיבוע:</strong> ${fixationData.fixation_year || fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}</p>
     <p><strong>הון פטור ראשוני:</strong> ${formatCurrency(fixationData.exemption_summary?.exempt_capital_initial || 0)}</p>
-    <p><strong>הון פטור נותר:</strong> ${formatCurrency(fixationData.exemption_summary?.remaining_exempt_capital || 0)}</p>
-    <p><strong>קצבה פטורה מקיבוע (${fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}):</strong> ${formatCurrency(fixationData.exemption_summary?.remaining_monthly_exemption || ((fixationData.exemption_summary?.remaining_exempt_capital || 0) / 180))}</p>
+    <p><strong>קצבה פטורה מקיבוע (${fixationData.eligibility_year || fixationData.exemption_summary?.eligibility_year || ''}):</strong> ${typeof fixationData.exemption_summary?.remaining_monthly_exemption === 'number' ? formatCurrency(fixationData.exemption_summary.remaining_monthly_exemption) : '-'}</p>
     <p><strong>אחוז קצבה פטורה:</strong> ${((fixationData.exemption_summary?.exempt_pension_percentage || 0) * 100).toFixed(2)}%</p>
-    <p><strong>קצבה פטורה לשנת התזרים (${new Date().getFullYear()}):</strong> ${formatCurrency((fixationData.exemption_summary?.exempt_pension_percentage || 0) * getPensionCeiling(new Date().getFullYear()))}</p>
   </div>
   ` : ''}
 

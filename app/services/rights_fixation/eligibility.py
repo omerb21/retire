@@ -13,10 +13,7 @@ def calculate_eligibility_age(birth_date: date, gender: str, pension_start: date
     :param pension_start: תאריך תחילת קצבה מבוקש
     :return: תאריך זכאות (המקסימום בין גיל זכאות חוקי לתאריך תחילת קצבה)
     """
-    # גיל פרישה לפי מגדר
-    legal_retirement_age = date(
-        birth_date.year + (67 if gender == "male" else 62), 
-        birth_date.month, 
-        birth_date.day
-    )
-    return max(legal_retirement_age, pension_start)
+    from app.services.retirement_age_service import get_retirement_date
+
+    legal_retirement_date = get_retirement_date(birth_date, gender)
+    return max(legal_retirement_date, pension_start)

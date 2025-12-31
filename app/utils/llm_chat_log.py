@@ -10,13 +10,17 @@ Provides structured JSONL logging for LLM agent conversations, including:
 All entries share a request_id for correlation.
 """
 import json
-import uuid
 import logging
+import os
+import uuid
 from datetime import datetime
 from pathlib import Path
+from contextvars import ContextVar
 from typing import Any, Optional
 
-logger = logging.getLogger("app.utils.llm_chat_log")
+logger = logging.getLogger(__name__)
+
+_current_request_id: ContextVar[Optional[str]] = ContextVar("llm_request_id", default=None)
 
 # Maximum characters to log for large payloads (tool results, answers)
 MAX_PAYLOAD_CHARS = 5000
@@ -39,6 +43,14 @@ def _truncate(text: str, max_chars: int = MAX_PAYLOAD_CHARS) -> str:
 def generate_request_id() -> str:
     """Generate a unique request ID (UUID4) for a chat request."""
     return str(uuid.uuid4())
+
+
+def set_current_request_id(request_id: Optional[str]) -> None:
+    _current_request_id.set(request_id)
+
+
+def get_current_request_id() -> Optional[str]:
+    return _current_request_id.get()
 
 
 def log_llm_event(

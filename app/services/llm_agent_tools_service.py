@@ -29,6 +29,11 @@ from app.services.commutation_service import CommutationService
 from app.services.capital_withdrawal_service import CapitalWithdrawalService
 from datetime import date, datetime
 from decimal import Decimal
+from app.utils.date_serializer import parse_date_flexible
+from app.services.pension_portfolio.conversion_rules import (
+    COMPONENT_RULES,
+    rule_for_tagmulim_by_product_type,
+)
 
 logger = logging.getLogger("app.llm_agent_tools")
 
@@ -755,7 +760,7 @@ class AgentToolsService:
             "explanation": explanation,
         }
 
-    def _build_sources_from_pension_portfolio(
+    def _get_pension_sources_from_portfolio(
         self,
         pension_portfolio: List[Dict[str, Any]],
         client: Client,
@@ -765,55 +770,138 @@ class AgentToolsService:
     ) -> List[Dict[str, Any]]:
         pension_sources: List[Dict[str, Any]] = []
 
-        component_fields = [
-            "פיצויים_מעסיק_נוכחי",
-            "פיצויים_לאחר_התחשבנות",
-            "פיצויים_שלא_עברו_התחשבנות",
-            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
-            "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
-            "תגמולי_עובד_עד_2000",
-            "תגמולי_עובד_אחרי_2000",
-            "תגמולי_עובד_אחרי_2008_לא_משלמת",
-            "תגמולי_מעביד_עד_2000",
-            "תגמולי_מעביד_אחרי_2000",
-            "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+        def _as_dict(raw: Any) -> Dict[str, Any]:
+            if raw is None:
+                return {}
+            if isinstance(raw, dict):
+                return raw
+            if hasattr(raw, "model_dump"):
+                try:
+                    dumped = raw.model_dump()
+                    return dumped if isinstance(dumped, dict) else {}
+                except Exception:
+                    return {}
+            try:
+                return vars(raw)
+            except Exception:
+                return {}
+
+        def _safe_float(value: Any) -> float:
+            try:
+                if value is None:
+                    return 0.0
+                if isinstance(value, (int, float)):
+                    return float(value)
+                if isinstance(value, str):
+                    cleaned = value.replace(",", "").replace("₪", "").strip()
+                    if not cleaned:
+                        return 0.0
+                    return float(cleaned)
+                return float(value)
+            except Exception:
+                return 0.0
+
+        components: list[dict[str, Any]] = [
+            {
+                "field": "פיצויים_מעסיק_נוכחי",
+                "label": "פיצויים מעסיק נוכחי",
+                "tax_treatment": "taxable",
+                "priority_bucket": 2,
+                "action_needed": "requires_termination",
+            },
+            {
+                "field": "פיצויים_לאחר_התחשבנות",
+                "label": "פיצויים לאחר התחשבנות",
+                "tax_treatment": "exempt",
+                "priority_bucket": 1,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+                "label": "פיצויים (מעסיקים קודמים - רצף קצבה)",
+                "tax_treatment": "taxable",
+                "priority_bucket": 1,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "תגמולי_עובד_עד_2000",
+                "label": "תגמולי עובד עד 2000",
+                "tax_treatment": "taxable",
+                "priority_bucket": 3,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "תגמולי_מעביד_עד_2000",
+                "label": "תגמולי מעביד עד 2000",
+                "tax_treatment": "taxable",
+                "priority_bucket": 3,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "תגמולי_עובד_אחרי_2000",
+                "label": "תגמולי עובד אחרי 2000",
+                "tax_treatment": "taxable",
+                "priority_bucket": 4,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "תגמולי_מעביד_אחרי_2000",
+                "label": "תגמולי מעביד אחרי 2000",
+                "tax_treatment": "taxable",
+                "priority_bucket": 4,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "תגמולי_עובד_אחרי_2008_לא_משלמת",
+                "label": "תגמולי עובד אחרי 2008 (לא משלמת)",
+                "tax_treatment": "taxable",
+                "priority_bucket": 4,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+                "label": "תגמולי מעביד אחרי 2008 (לא משלמת)",
+                "tax_treatment": "taxable",
+                "priority_bucket": 4,
+                "action_needed": "convert_to_pension",
+            },
+            {
+                "field": "קרן_השתלמות",
+                "label": "קרן השתלמות",
+                "tax_treatment": "exempt",
+                "priority_bucket": 5,
+                "action_needed": "convert_to_pension",
+            },
         ]
 
         for account in pension_portfolio:
-            try:
-                balance = sum(float(account.get(field, 0) or 0) for field in component_fields)
-            except Exception:
-                balance = 0.0
+            acc = _as_dict(account)
 
-            # Fallback לשדה יתרה כללי אם אין רכיבים מפורטים
-            if balance <= 0:
-                try:
-                    balance = float(account.get("יתרה", 0) or 0)
-                except Exception:
-                    balance = 0.0
+            product_type = acc.get("סוג_מוצר") or ""
+            plan_name = acc.get("שם_תכנית", "תכנית ללא שם")
+            account_number = acc.get("מספר_חשבון") or None
 
-            if balance <= 0:
-                continue
-
-            product_type = account.get("סוג_מוצר") or ""
-            tax_treatment = "exempt" if "השתלמות" in product_type else "taxable"
+            start_date_raw = acc.get("תאריך_התחלה")
 
             annuity_factor = float(PENSION_COEFFICIENT)
             try:
-                start_date_raw = account.get("תאריך_התחלה")
                 start_date_obj: Optional[date] = None
                 if isinstance(start_date_raw, str) and start_date_raw:
                     try:
-                        start_date_obj = date.fromisoformat(start_date_raw)
-                    except ValueError:
+                        start_date_obj = parse_date_flexible(start_date_raw)
+                    except Exception:
                         start_date_obj = None
 
                 coeff = get_annuity_coefficient(
                     product_type=product_type,
                     start_date=start_date_obj or date(retirement_year, 1, 1),
                     gender=getattr(client, "gender", None) or "זכר",
-                    retirement_age=retirement_age or 67,
-                    company_name=account.get("חברה_מנהלת"),
+                    retirement_age=(
+                        int(retirement_age)
+                        if retirement_age is not None
+                        else int(get_retirement_age_simple(client.birth_date, client.gender or ""))
+                    ),
+                    company_name=acc.get("חברה_מנהלת"),
                     option_name=None,
                     survivors_option="תקנוני",
                     spouse_age_diff=0,
@@ -828,18 +916,100 @@ class AgentToolsService:
             if annuity_factor <= 0:
                 annuity_factor = float(PENSION_COEFFICIENT)
 
-            potential_pension = balance / annuity_factor
+            if "השתלמות" in str(product_type) or "השתלמות" in str(plan_name):
+                balance = _safe_float(acc.get("יתרה", 0))
+                if balance <= 0:
+                    continue
+                potential_pension = balance / annuity_factor
+                pension_sources.append(
+                    {
+                        "source_type": "pension_fund_from_portfolio",
+                        "source_id": account_number,
+                        "account_number": account_number,
+                        "component_field": "קרן_השתלמות",
+                        "source_name": f"{plan_name} (קרן השתלמות)",
+                        "fund_type": product_type or "unknown",
+                        "start_date": start_date_raw,
+                        "balance": balance,
+                        "annuity_factor": annuity_factor,
+                        "monthly_pension": potential_pension,
+                        "tax_treatment": "exempt",
+                        "priority_bucket": 5,
+                        "action_needed": "convert_to_pension",
+                        "action_description": f"המרת קרן השתלמות בסך {balance:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש",
+                    }
+                )
+                continue
 
+            component_added = False
+            for comp in components:
+                field = str(comp.get("field") or "")
+                if not field:
+                    continue
+                amount = _safe_float(acc.get(field, 0))
+                if amount <= 0:
+                    continue
+                component_added = True
+                potential_pension = amount / annuity_factor
+
+                action_needed = comp.get("action_needed") or "convert_to_pension"
+                tax_treatment = comp.get("tax_treatment") or (
+                    "exempt" if ("השתלמות" in str(product_type)) else "taxable"
+                )
+                priority_bucket = int(comp.get("priority_bucket") or 9)
+                label = str(comp.get("label") or field)
+
+                if action_needed == "requires_termination":
+                    action_description = (
+                        f"נדרש לבצע עזיבת עבודה כדי להמיר {label} בסך {amount:,.0f} ₪ לקצבה"
+                    )
+                else:
+                    action_description = (
+                        f"המרת {label} בסך {amount:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש"
+                    )
+
+                pension_sources.append(
+                    {
+                        "source_type": "pension_fund_from_portfolio",
+                        "source_id": account_number,
+                        "account_number": account_number,
+                        "component_field": field,
+                        "source_name": f"{plan_name} ({label})",
+                        "fund_type": product_type or "unknown",
+                        "start_date": start_date_raw,
+                        "balance": amount,
+                        "annuity_factor": annuity_factor,
+                        "monthly_pension": potential_pension,
+                        "tax_treatment": tax_treatment,
+                        "priority_bucket": priority_bucket,
+                        "action_needed": action_needed,
+                        "action_description": action_description,
+                    }
+                )
+
+            if component_added:
+                continue
+
+            # Fallback: אם אין רכיבים מפורטים, נשתמש ביתרה כללית בלבד
+            balance = _safe_float(acc.get("יתרה", 0))
+            if balance <= 0:
+                continue
+            potential_pension = balance / annuity_factor
+            tax_treatment = "exempt" if ("השתלמות" in str(product_type)) else "taxable"
+            priority_bucket = 5 if ("השתלמות" in str(product_type) or "השתלמות" in str(plan_name)) else 4
             pension_sources.append(
                 {
                     "source_type": "pension_fund_from_portfolio",
-                    "source_id": account.get("מספר_חשבון") or None,
-                    "source_name": account.get("שם_תכנית", "תכנית ללא שם"),
+                    "source_id": account_number,
+                    "account_number": account_number,
+                    "source_name": plan_name,
                     "fund_type": product_type or "unknown",
+                    "start_date": start_date_raw,
                     "balance": balance,
                     "annuity_factor": annuity_factor,
                     "monthly_pension": potential_pension,
                     "tax_treatment": tax_treatment,
+                    "priority_bucket": priority_bucket,
                     "action_needed": "convert_to_pension",
                     "action_description": f"המרת יתרה של {balance:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש",
                 }
@@ -847,10 +1017,27 @@ class AgentToolsService:
 
         return pension_sources
 
+    def _build_sources_from_pension_portfolio(
+        self,
+        pension_portfolio: List[Dict[str, Any]],
+        client: Client,
+        retirement_age: int,
+        retirement_date: date,
+        retirement_year: int,
+    ) -> List[Dict[str, Any]]:
+        return self._get_pension_sources_from_portfolio(
+            pension_portfolio=pension_portfolio,
+            client=client,
+            retirement_age=retirement_age,
+            retirement_date=retirement_date,
+            retirement_year=retirement_year,
+        )
+
     def build_target_pension_plan(
         self,
         target_monthly_pension: float,
         retirement_age: Optional[int] = None,
+        target_is_net: bool = True,
     ) -> Dict[str, Any]:
         """
         בונה תכנית להשגת קצבת יעד בצורה אופטימלית.
@@ -878,10 +1065,34 @@ class AgentToolsService:
                 "explanation": "חסר תאריך לידה ללקוח - לא ניתן לחשב מקדמי קצבה.",
             }
 
-        # קביעת גיל פרישה
+        # קביעת גיל/תאריך תחילת קצבה (ברירת מחדל: max(גיל נוכחי, גיל פרישה חוקי לפי הגדרות))
+        from app.services.retirement_age_service import (
+            DEFAULT_MALE_RETIREMENT_AGE,
+            get_retirement_age_simple,
+            get_retirement_date,
+        )
+
         current_age = client.get_age()
+        legal_retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+        legal_retirement_date = None
+        try:
+            legal_retirement_age = int(
+                get_retirement_age_simple(client.birth_date, client.gender or "")
+            )
+        except Exception:
+            legal_retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+        try:
+            legal_retirement_date = get_retirement_date(client.birth_date, client.gender or "")
+        except Exception:
+            legal_retirement_date = None
+
+        inferred_default_retirement_date = False
         if retirement_age is None:
-            retirement_age = max(current_age + 1, 67) if current_age else 67
+            if current_age is not None:
+                retirement_age = max(int(current_age), int(legal_retirement_age))
+            else:
+                retirement_age = int(legal_retirement_age)
+            inferred_default_retirement_date = True
         
         if retirement_age < current_age:
             return {
@@ -891,18 +1102,30 @@ class AgentToolsService:
                 "explanation": f"גיל הפרישה ({retirement_age}) לא יכול להיות נמוך מהגיל הנוכחי ({current_age}).",
             }
 
-        # חישוב תאריך פרישה
-        try:
-            retirement_date = date(
-                client.birth_date.year + retirement_age,
-                client.birth_date.month,
-                client.birth_date.day,
-            )
-        except ValueError:
-            retirement_date = client.birth_date.replace(
-                year=client.birth_date.year + retirement_age,
-                day=min(client.birth_date.day, 28),
-            )
+        # חישוב תאריך תחילת קצבה
+        if inferred_default_retirement_date:
+            # אם כבר עבר גיל פרישה (או שווה לו) – מתחילים היום; אחרת לפי תאריך הפרישה החוקי
+            if current_age is not None and current_age >= legal_retirement_age:
+                retirement_date = date.today()
+            else:
+                retirement_date = legal_retirement_date
+            if retirement_date is None:
+                retirement_date = date.today()
+        else:
+            try:
+                retirement_date = date(
+                    client.birth_date.year + retirement_age,
+                    client.birth_date.month,
+                    client.birth_date.day,
+                )
+            except ValueError:
+                retirement_date = client.birth_date.replace(
+                    year=client.birth_date.year + retirement_age,
+                    day=min(client.birth_date.day, 28),
+                )
+            # אם המשתמש ביקש גיל נוכחי, אל תאפשר תאריך בעבר
+            if current_age is not None and retirement_age == current_age and retirement_date < date.today():
+                retirement_date = date.today()
         retirement_year = retirement_date.year
 
         target = float(target_monthly_pension)
@@ -924,6 +1147,7 @@ class AgentToolsService:
                 pension_sources.append({
                     "source_type": "existing_pension",
                     "source_id": pf.id,
+                    "account_number": pf.deduction_file,
                     "source_name": pf.fund_name,
                     "fund_type": pf.fund_type,
                     "balance": 0,
@@ -958,6 +1182,7 @@ class AgentToolsService:
                 pension_sources.append({
                     "source_type": "pension_fund",
                     "source_id": pf.id,
+                    "account_number": pf.deduction_file,
                     "source_name": pf.fund_name,
                     "fund_type": pf.fund_type,
                     "balance": balance,
@@ -985,6 +1210,7 @@ class AgentToolsService:
                 pension_sources.append({
                     "source_type": "capital_asset",
                     "source_id": ca.id,
+                    "account_number": None,
                     "source_name": ca.asset_name,
                     "fund_type": ca.asset_type,
                     "balance": value,
@@ -995,14 +1221,16 @@ class AgentToolsService:
                     "action_description": f"המרת הון של {value:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש",
                 })
 
-        # Fallback: אם אין עדיין מקורות קצבה בטבלאות, ננסה להשתמש בתיק הפנסיוני
-        # מחפשים תרחיש שיש בו pension_portfolio תקין (לא רק את האחרון, כי הסוכן עלול לדרוס עם None)
-        if not pension_sources:
-            logger.info(
-                "BUILD_TARGET_PENSION_PLAN: No PensionFund/CapitalAsset records found for client %s, "
-                "trying fallback to saved scenarios...",
-                self.client_id,
-            )
+        portfolio_sources_total = 0
+        portfolio_sources_added = 0
+        portfolio_sources_skipped_duplicates = 0
+        portfolio_sources_unique_accounts = 0
+        portfolio_sources_total_balance = 0.0
+
+        pension_portfolio_data: Any = None
+        if isinstance(getattr(self, "pension_portfolio_data", None), list) and getattr(self, "pension_portfolio_data"):
+            pension_portfolio_data = getattr(self, "pension_portfolio_data")
+        else:
             try:
                 all_scenarios = (
                     self.db.query(Scenario)
@@ -1011,65 +1239,74 @@ class AgentToolsService:
                     .limit(20)
                     .all()
                 )
-                logger.info(
-                    "BUILD_TARGET_PENSION_PLAN: Found %d scenarios for client %s",
-                    len(all_scenarios),
-                    self.client_id,
-                )
-
-                pension_portfolio_data: Any = None
                 for scenario in all_scenarios:
                     if not scenario.parameters:
-                        logger.debug("Scenario %s has no parameters", scenario.id)
                         continue
                     try:
                         params = json.loads(scenario.parameters)
                         portfolio = params.get("pension_portfolio")
                         if isinstance(portfolio, list) and portfolio:
                             pension_portfolio_data = portfolio
-                            logger.info(
-                                "BUILD_TARGET_PENSION_PLAN: Found pension_portfolio in scenario %s with %d accounts",
-                                scenario.id,
-                                len(portfolio),
-                            )
                             break
-                        else:
-                            logger.debug(
-                                "Scenario %s has pension_portfolio=%s (type=%s)",
-                                scenario.id,
-                                "None" if portfolio is None else f"list with {len(portfolio) if isinstance(portfolio, list) else 'N/A'} items",
-                                type(portfolio).__name__,
-                            )
-                    except Exception as parse_err:
-                        logger.debug(
-                            "Failed to parse parameters from scenario %s: %s",
-                            scenario.id,
-                            parse_err,
-                        )
+                    except Exception:
+                        continue
+            except Exception:
+                pension_portfolio_data = None
 
-                if isinstance(pension_portfolio_data, list) and pension_portfolio_data:
-                    portfolio_sources = self._build_sources_from_pension_portfolio(
-                        pension_portfolio=pension_portfolio_data,
-                        client=client,
-                        retirement_age=retirement_age,
-                        retirement_date=retirement_date,
-                        retirement_year=retirement_year,
-                    )
-                    logger.info(
-                        "BUILD_TARGET_PENSION_PLAN: Built %d pension sources from portfolio",
-                        len(portfolio_sources),
-                    )
-                    pension_sources.extend(portfolio_sources)
-                else:
-                    logger.warning(
-                        "BUILD_TARGET_PENSION_PLAN: No valid pension_portfolio found in any scenario for client %s",
-                        self.client_id,
-                    )
-            except Exception as portfolio_err:
-                logger.warning(
-                    "Failed to build pension sources from saved pension portfolio: %s",
-                    portfolio_err,
+        if isinstance(pension_portfolio_data, list) and pension_portfolio_data:
+            portfolio_sources = self._build_sources_from_pension_portfolio(
+                pension_portfolio=pension_portfolio_data,
+                client=client,
+                retirement_age=retirement_age,
+                retirement_date=retirement_date,
+                retirement_year=retirement_year,
+            )
+            portfolio_sources_total = len(portfolio_sources)
+            try:
+                portfolio_sources_total_balance = float(
+                    sum(float(s.get("balance") or 0) for s in portfolio_sources if isinstance(s, dict))
                 )
+            except Exception:
+                portfolio_sources_total_balance = 0.0
+
+            existing_account_numbers: set[str] = set()
+            for src in pension_sources:
+                if not isinstance(src, dict):
+                    continue
+                acc = src.get("account_number")
+                if isinstance(acc, str) and acc.strip():
+                    existing_account_numbers.add(acc.strip())
+
+            seen_portfolio_account_numbers: set[str] = set()
+            seen_portfolio_source_keys: set[str] = set()
+            filtered_portfolio_sources: list[dict] = []
+            for src in portfolio_sources:
+                if not isinstance(src, dict):
+                    continue
+                acc = src.get("account_number")
+                acc_norm = acc.strip() if isinstance(acc, str) else ""
+                try:
+                    src_name_norm = str(src.get("source_name") or "").strip()
+                except Exception:
+                    src_name_norm = ""
+                source_key = f"{acc_norm}::{src_name_norm}" if acc_norm else src_name_norm
+                if source_key:
+                    if source_key in seen_portfolio_source_keys:
+                        continue
+                    seen_portfolio_source_keys.add(source_key)
+                if acc_norm:
+                    if acc_norm in seen_portfolio_account_numbers:
+                        # We still allow multiple component sources per account.
+                        pass
+                    seen_portfolio_account_numbers.add(acc_norm)
+                    if acc_norm in existing_account_numbers:
+                        portfolio_sources_skipped_duplicates += 1
+                        continue
+                filtered_portfolio_sources.append(src)
+
+            portfolio_sources_unique_accounts = len(seen_portfolio_account_numbers)
+            portfolio_sources_added = len(filtered_portfolio_sources)
+            pension_sources.extend(filtered_portfolio_sources)
 
         if not pension_sources:
             return {
@@ -1083,29 +1320,256 @@ class AgentToolsService:
                 ),
             }
 
-        # שלב 2: מיון לפי איכות (מקדם נמוך = טוב יותר)
-        # קצבאות קיימות קודם, אחר כך לפי מקדם
-        pension_sources.sort(key=lambda x: (
-            0 if x["action_needed"] == "none" else 1,  # קצבאות קיימות קודם
-            x["annuity_factor"],  # מקדם נמוך = טוב יותר
-        ))
+        def _infer_priority_bucket(source: dict[str, Any]) -> int:
+            try:
+                explicit = source.get("priority_bucket")
+                if isinstance(explicit, (int, float)):
+                    return int(explicit)
+            except Exception:
+                pass
+            src_type = str(source.get("source_type") or "")
+            fund_type = str(source.get("fund_type") or "")
+            name = str(source.get("source_name") or "")
+            return (
+                0
+                if source.get("action_needed") == "none"
+                else 1
+                if ("pension_fund" in src_type or "from_portfolio" in src_type)
+                else 4
+                if "השתלמות" in fund_type or "השתלמות" in name
+                else 3
+                if "גמל" in fund_type or "קופת" in fund_type or "גמל" in name
+                else 2
+                if "capital_asset" in src_type
+                else 9
+            )
+
+        def _is_pension_only_source(source: dict[str, Any]) -> bool:
+            if not isinstance(source, dict):
+                return False
+
+            src_type = str(source.get("source_type") or "")
+            if src_type in {"existing_pension", "pension_fund"}:
+                return True
+            if src_type == "capital_asset":
+                return False
+
+            if src_type != "pension_fund_from_portfolio":
+                return False
+
+            field = str(source.get("component_field") or "").strip()
+            product_type = str(source.get("fund_type") or "")
+            if not field:
+                return False
+
+            if "השתלמות" in product_type or "השתלמות" in str(source.get("source_name") or ""):
+                return False
+
+            if field == "תגמולים":
+                rule = rule_for_tagmulim_by_product_type(product_type=product_type)
+                try:
+                    can_pension = bool(rule.get("pension"))
+                except Exception:
+                    can_pension = True
+                try:
+                    can_capital = bool(rule.get("capital") or rule.get("capital_asset"))
+                except Exception:
+                    can_capital = False
+                return can_pension and (not can_capital)
+
+            rule = COMPONENT_RULES.get(field)
+            if not isinstance(rule, dict):
+                return False
+            try:
+                can_pension = bool(rule.get("pension"))
+            except Exception:
+                can_pension = True
+            try:
+                can_capital = bool(rule.get("capital") or rule.get("capital_asset"))
+            except Exception:
+                can_capital = False
+            return can_pension and (not can_capital)
+
+        def _is_hishtalmut_source(source: dict[str, Any]) -> bool:
+            if not isinstance(source, dict):
+                return False
+            src_type = str(source.get("source_type") or "")
+            if src_type != "pension_fund_from_portfolio":
+                return False
+            fund_type = str(source.get("fund_type") or "")
+            if "השתלמות" in fund_type:
+                return True
+            source_name = str(source.get("source_name") or "")
+            if "השתלמות" in source_name:
+                return True
+            component_field = str(source.get("component_field") or "")
+            if component_field == "קרן_השתלמות":
+                return True
+            return False
+
+        def _phase_rank(source: dict[str, Any]) -> int:
+            if not isinstance(source, dict):
+                return 99
+            if source.get("action_needed") == "none":
+                return 0
+            if _is_pension_only_source(source):
+                return 1
+            if str(source.get("source_type") or "") == "capital_asset":
+                return 3
+            return 2
+
+        # שלב 2: מיון לפי מתודולוגיה דטרמיניסטית + איכות (מקדם נמוך = טוב יותר)
+        pension_sources.sort(
+            key=lambda x: (
+                _phase_rank(x),
+                _infer_priority_bucket(x),
+                float(x.get("annuity_factor") or PENSION_COEFFICIENT),
+            )
+        )
 
         # שלב 3: בניית התכנית - צבירת קצבה עד היעד
         plan_steps = []
         accumulated_pension = 0.0
         remaining_capital = 0.0
+        blocked_for_execution_capital = 0.0
         sources_used = []
         sources_not_used = []
 
+        # יעד להשגה בברוטו/נטו
+        required_gross_for_target = target
+        required_gross_tax_projection = None
+        if target_is_net:
+            def _gross_for_net_target(target_net: float) -> tuple[Optional[float], Optional[dict]]:
+                try:
+                    target_net_val = float(target_net or 0)
+                except Exception:
+                    target_net_val = 0.0
+                if target_net_val <= 0:
+                    return None, None
+
+                def _net_from_gross(gross: float) -> tuple[Optional[float], Optional[dict]]:
+                    try:
+                        proj = self.get_tax_projection(monthly_pension=float(gross))
+                        if not (isinstance(proj, dict) and isinstance(proj.get("result"), dict)):
+                            return None, None
+                        res = proj.get("result")
+                        monthly_tax = res.get("monthly_tax")
+                        try:
+                            tax_val = float(monthly_tax or 0)
+                        except Exception:
+                            tax_val = 0.0
+                        return float(gross) - tax_val, res
+                    except Exception:
+                        return None, None
+
+                low = max(1000.0, target_net_val)
+                low_net, low_res = _net_from_gross(low)
+                if low_net is None:
+                    return None, None
+                if low_net >= target_net_val:
+                    return low, low_res
+
+                high = low
+                high_net = low_net
+                high_res: Optional[dict] = low_res
+                for _ in range(16):
+                    high = min(high * 1.5, 500_000.0)
+                    high_net, high_res = _net_from_gross(high)
+                    if high_net is not None and high_net >= target_net_val:
+                        break
+                if high_net is None or high_net < target_net_val:
+                    return None, None
+
+                best_gross = high
+                best_res = high_res
+                for _ in range(30):
+                    mid = (low + high) / 2.0
+                    mid_net, mid_res = _net_from_gross(mid)
+                    if mid_net is None:
+                        low = mid
+                        continue
+                    if mid_net >= target_net_val:
+                        best_gross = mid
+                        best_res = mid_res
+                        high = mid
+                    else:
+                        low = mid
+                    if abs(high - low) < 1.0:
+                        break
+
+                try:
+                    best_gross = float(round(best_gross, 2))
+                except Exception:
+                    pass
+                return best_gross, best_res
+
+            computed_gross, tax_result = _gross_for_net_target(target)
+            if computed_gross is not None:
+                required_gross_for_target = float(computed_gross)
+                required_gross_tax_projection = tax_result
+
+        existing_sources: list[dict[str, Any]] = []
+        pension_only_sources: list[dict[str, Any]] = []
+        other_sources: list[dict[str, Any]] = []
+        for src in pension_sources:
+            if not isinstance(src, dict):
+                continue
+            if src.get("action_needed") == "none":
+                existing_sources.append(src)
+                continue
+            if _is_pension_only_source(src):
+                pension_only_sources.append(src)
+            else:
+                other_sources.append(src)
+
+        existing_sources.sort(
+            key=lambda x: (
+                _infer_priority_bucket(x),
+                float(x.get("annuity_factor") or PENSION_COEFFICIENT),
+            )
+        )
+        pension_only_sources.sort(
+            key=lambda x: (
+                _infer_priority_bucket(x),
+                float(x.get("annuity_factor") or PENSION_COEFFICIENT),
+            )
+        )
+        other_sources.sort(
+            key=lambda x: (
+                _phase_rank(x),
+                _infer_priority_bucket(x),
+                float(x.get("annuity_factor") or PENSION_COEFFICIENT),
+            )
+        )
+
+        hishtalmut_sources: list[dict[str, Any]] = []
+        non_hishtalmut_other_sources: list[dict[str, Any]] = []
+        for src in other_sources:
+            if _is_hishtalmut_source(src):
+                hishtalmut_sources.append(src)
+            else:
+                non_hishtalmut_other_sources.append(src)
+
+        pension_sources = [
+            *existing_sources,
+            *pension_only_sources,
+            *non_hishtalmut_other_sources,
+            *hishtalmut_sources,
+        ]
+
         for source in pension_sources:
-            if accumulated_pension >= target:
+            if source.get("action_needed") == "requires_termination":
+                sources_not_used.append(source)
+                blocked_for_execution_capital += float(source.get("balance") or 0)
+                continue
+            if accumulated_pension >= required_gross_for_target:
                 # כבר הגענו ליעד - השאר נשאר כהון
                 sources_not_used.append(source)
                 remaining_capital += source["balance"]
                 continue
 
             pension_from_source = source["monthly_pension"]
-            needed = target - accumulated_pension
+            needed = required_gross_for_target - accumulated_pension
 
             if pension_from_source <= needed:
                 # משתמשים בכל המקור
@@ -1149,15 +1613,18 @@ class AgentToolsService:
                 })
 
         # חישוב סיכום
-        target_achieved = accumulated_pension >= target
-        gap = max(0, target - accumulated_pension)
+        target_achieved_gross = accumulated_pension >= required_gross_for_target
+        gap = max(0, required_gross_for_target - accumulated_pension)
 
         # בניית יתרונות וחסרונות
         advantages = []
         disadvantages = []
 
-        if target_achieved:
-            advantages.append(f"היעד של {target:,.0f} ₪ לחודש הושג")
+        if target_achieved_gross:
+            if target_is_net:
+                advantages.append(f"הושג יעד ברוטו שמוערך כמספיק ל-{target:,.0f} ₪ נטו")
+            else:
+                advantages.append(f"היעד של {target:,.0f} ₪ לחודש הושג")
         
         if remaining_capital > 0:
             advantages.append(f"נותר הון נזיל של {remaining_capital:,.0f} ₪")
@@ -1178,15 +1645,46 @@ class AgentToolsService:
         if taxable_pension > accumulated_pension * 0.7:
             disadvantages.append(f"רוב הקצבה ({taxable_pension:,.0f} ₪) חייבת במס")
 
-        if not target_achieved:
-            disadvantages.append(f"לא ניתן להגיע ליעד - חסרים {gap:,.0f} ₪ לחודש")
+        if not target_achieved_gross:
+            if target_is_net:
+                disadvantages.append(f"לא ניתן להגיע ליעד נטו - חסרים {gap:,.0f} ₪ ברוטו לחודש לפי ההמרה הנוכחית")
+            else:
+                disadvantages.append(f"לא ניתן להגיע ליעד - חסרים {gap:,.0f} ₪ לחודש")
+
+        estimated_tax = None
+        estimated_net = None
+        tax_projection_result = None
+        try:
+            tax_proj = self.get_tax_projection(monthly_pension=accumulated_pension)
+            if isinstance(tax_proj, dict) and isinstance(tax_proj.get("result"), dict):
+                tax_projection_result = tax_proj.get("result")
+                estimated_tax = tax_projection_result.get("monthly_tax")
+                if estimated_tax is not None:
+                    try:
+                        estimated_net = float(accumulated_pension) - float(estimated_tax)
+                    except Exception:
+                        estimated_net = None
+        except Exception:
+            tax_projection_result = None
+
+        # יעד נטו בפועל לפי הערכת מס - בדיקה סופית
+        target_achieved_net = None
+        if target_is_net and estimated_net is not None:
+            try:
+                target_achieved_net = float(estimated_net) >= float(target)
+            except Exception:
+                target_achieved_net = None
 
         # בניית הסבר מפורט לסוכן
         explanation_parts: list[str] = []
         
-        if target_achieved:
+        if target_achieved_gross:
             explanation_parts.append(
-                f"✅ **התכנית הושלמה בהצלחה** - ניתן להגיע לקצבה של {target:,.0f} ₪/חודש בגיל {retirement_age}."
+                (
+                    f"✅ **התכנית הושלמה בהצלחה** - ניתן להגיע לקצבה של {target:,.0f} ₪ נטו (משוער) בגיל {retirement_age}."
+                    if target_is_net
+                    else f"✅ **התכנית הושלמה בהצלחה** - ניתן להגיע לקצבה של {target:,.0f} ₪/חודש בגיל {retirement_age}."
+                )
             )
             explanation_parts.append("")
             explanation_parts.append("**📋 צעדי התכנית:**")
@@ -1211,6 +1709,11 @@ class AgentToolsService:
                 explanation_parts.append("**⚠️ חסרונות:**")
                 for dis in disadvantages:
                     explanation_parts.append(f"  • {dis}")
+
+            if blocked_for_execution_capital > 0:
+                explanation_parts.append("")
+                explanation_parts.append("**🧩 מקורות שדורשים עזיבת עבודה כדי לכלול בפועל:**")
+                explanation_parts.append(f"  • הון חסום לביצוע (סה\"כ): {blocked_for_execution_capital:,.0f} ₪")
             
             # המלצות נוספות
             explanation_parts.append("")
@@ -1223,13 +1726,20 @@ class AgentToolsService:
                 explanation_parts.append("  • שקול לדחות את הפרישה בשנה-שנתיים לשיפור המקדם.")
         else:
             explanation_parts.append(
-                f"❌ **לא ניתן להגיע ליעד** של {target:,.0f} ₪/חודש עם המקורות הקיימים."
+                (
+                    f"❌ **לא ניתן להגיע ליעד** של {target:,.0f} ₪ נטו (משוער) עם המקורות הקיימים."
+                    if target_is_net
+                    else f"❌ **לא ניתן להגיע ליעד** של {target:,.0f} ₪/חודש עם המקורות הקיימים."
+                )
             )
             explanation_parts.append("")
             explanation_parts.append(f"📊 **המצב הנוכחי:**")
-            explanation_parts.append(f"  • קצבה מקסימלית אפשרית: {accumulated_pension:,.0f} ₪/חודש")
+            explanation_parts.append(f"  • קצבה ברוטו שנבנתה מהמקורות: {accumulated_pension:,.0f} ₪/חודש")
+            if target_is_net and estimated_net is not None:
+                explanation_parts.append(f"  • קצבה נטו משוערת (מס הכנסה בלבד): {float(estimated_net):,.0f} ₪/חודש")
             explanation_parts.append(f"  • פער מהיעד: {gap:,.0f} ₪/חודש")
-            explanation_parts.append(f"  • אחוז מהיעד: {(accumulated_pension/target*100):.0f}%")
+            base = required_gross_for_target if required_gross_for_target > 0 else 1
+            explanation_parts.append(f"  • אחוז מהיעד: {(accumulated_pension/base*100):.0f}%")
             
             explanation_parts.append("")
             explanation_parts.append("**💡 אפשרויות לגישור הפער:**")
@@ -1249,11 +1759,27 @@ class AgentToolsService:
             "tool_name": "BUILD_TARGET_PENSION_PLAN",
             "result": {
                 "target_monthly_pension": target,
+                "target_is_net": target_is_net,
                 "retirement_age": retirement_age,
-                "target_achieved": target_achieved,
+                "target_achieved": (target_achieved_net if target_is_net else target_achieved_gross),
+                "target_achieved_gross": target_achieved_gross,
+                "target_achieved_net": target_achieved_net,
+                "required_gross_for_target": required_gross_for_target,
+                "required_gross_tax_projection": required_gross_tax_projection,
                 "accumulated_pension": accumulated_pension,
+                "taxable_pension": taxable_pension,
+                "exempt_pension": exempt_pension,
+                "estimated_monthly_tax": estimated_tax,
+                "estimated_monthly_net": estimated_net,
+                "tax_projection": tax_projection_result,
+                "portfolio_sources_total": portfolio_sources_total,
+                "portfolio_sources_added": portfolio_sources_added,
+                "portfolio_sources_skipped_duplicates": portfolio_sources_skipped_duplicates,
+                "portfolio_sources_unique_accounts": portfolio_sources_unique_accounts,
+                "portfolio_sources_total_balance": portfolio_sources_total_balance,
                 "gap_to_target": gap,
                 "remaining_capital": remaining_capital,
+                "blocked_for_execution_capital": blocked_for_execution_capital,
                 "plan_steps": plan_steps,
                 "sources_used": sources_used,
                 "sources_not_used": sources_not_used,
@@ -1441,9 +1967,12 @@ class AgentToolsService:
             }
 
         # קביעת שנת המס לפי תאריך הפרישה אם סופק, אחרת השנה הנוכחית
-        try:
-            tax_year = datetime.strptime(retirement_date, "%Y-%m-%d").year if retirement_date else date.today().year
-        except ValueError:
+        if retirement_date:
+            try:
+                tax_year = parse_date_flexible(retirement_date).year
+            except Exception:
+                tax_year = date.today().year
+        else:
             tax_year = date.today().year
 
         tax_brackets = TaxBracketsService.get_tax_brackets(tax_year)
@@ -1844,7 +2373,7 @@ class AgentToolsService:
 
         # 1. Parsing & Defaults
         try:
-            target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
+            target_date = parse_date_flexible(retirement_date)
         except ValueError:
             return {
                 "success": False,
@@ -2288,7 +2817,18 @@ class AgentToolsService:
         # שימוש ברשימה המסוננת שכבר יצרנו
         # capital_assets כבר חושב למעלה
         # המרה ל-float כדי למנוע שגיאת Decimal serialization
-        total_capital_available = float(sum(float(ca.current_value or 0) for ca in capital_assets))
+        total_capital_available = 0.0
+        for ca in capital_assets:
+            try:
+                val = float(getattr(ca, "current_value", 0) or 0)
+            except Exception:
+                val = 0.0
+            if val <= 0:
+                try:
+                    val = float(getattr(ca, "monthly_income", 0) or 0)
+                except Exception:
+                    val = 0.0
+            total_capital_available += val
         # נניח שגם קרנות השתלמות נזילות בפרישה
         
         # 7. חישוב משך כיסוי (Sufficiency)
@@ -2423,8 +2963,8 @@ class AgentToolsService:
 
         # פרסור תאריך פרישה
         try:
-            ret_date = date.fromisoformat(retirement_date)
-        except ValueError:
+            ret_date = parse_date_flexible(retirement_date)
+        except Exception:
             return {
                 "success": False,
                 "tool_name": "CALCULATE_PENSION_COMMUTATION",

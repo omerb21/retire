@@ -9,6 +9,11 @@ Commutation Service - שירות היוון קצבה
 from decimal import Decimal
 from datetime import date
 from typing import Dict, Any, Optional
+
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 import logging
 
 logger = logging.getLogger(__name__)
@@ -166,8 +171,8 @@ class CommutationService:
         self,
         monthly_pension_reduction: float,
         annuity_factor: float = 200.0,
-        client_age: int = 67,
-        retirement_age: int = 67,
+        client_age: Optional[int] = None,
+        retirement_age: Optional[int] = None,
         gender: str = 'זכר',
         other_annual_income: float = 0.0,
     ) -> Dict[str, Any]:
@@ -185,6 +190,20 @@ class CommutationService:
         Returns:
             Dict עם תוצאות ההיוון
         """
+
+        if client_age is None or retirement_age is None:
+            try:
+                from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+                default_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+            except Exception:
+                default_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+
+            if client_age is None:
+                client_age = default_age
+            if retirement_age is None:
+                retirement_age = default_age
+
         return calculate_commutation(
             monthly_pension_reduction=Decimal(str(monthly_pension_reduction)),
             annuity_factor=Decimal(str(annuity_factor)),

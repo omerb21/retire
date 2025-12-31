@@ -18,7 +18,8 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.documents.data_fetchers.client_data import fetch_client_data
 from app.services.llm_chat.message_utils import extract_executed_tools_from_history
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
-from app.services.llm_chat.state_tools import get_agent_state_json, get_tools_definitions_json
+from app.services.llm_chat.state_tools import get_agent_state_json
+from app.services.llm_chat.orchestration_utils import is_portfolio_analysis_request
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 from app.services.retirement_age_service import calculate_retirement_age
 from app.services.tax_data import TaxBracketsService
@@ -126,6 +127,24 @@ def build_llm_context_parts(
         return []
 
     age = client.get_age() if hasattr(client, "get_age") else None
+    analysis_default_retirement_age: int | None = None
+    if is_portfolio_analysis_request(last_user_text):
+        try:
+            from app.services.retirement_age_service import get_retirement_age_simple
+
+            legal_ret_age = None
+            try:
+                if getattr(client, "birth_date", None) and getattr(client, "gender", None):
+                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+            except Exception:
+                legal_ret_age = None
+
+            if legal_ret_age is not None:
+                analysis_default_retirement_age = max(int(legal_ret_age), int(age or legal_ret_age))
+            else:
+                analysis_default_retirement_age = int(age) if age is not None else None
+        except Exception:
+            analysis_default_retirement_age = None
 
     client_parts: list[str] = []
     if client.full_name:
@@ -184,57 +203,102 @@ def build_llm_context_parts(
         db.query(Scenario)
         .filter(Scenario.client_id == request.client_id)
         .order_by(Scenario.created_at.desc())
-        .limit(10)
+        .limit(30)
         .all()
     )
 
-    organized: dict[str, dict] = {}
-    for scenario in scenarios:
-        try:
-            params = json.loads(scenario.parameters) if scenario.parameters else {}
-            scenario_type = params.get("scenario_type", "unknown")
-            age_param = params.get("retirement_age")
-            if retirement_age_for_summary is None and isinstance(age_param, int):
-                retirement_age_for_summary = age_param
+    def _build_organized_scenarios(*, require_retirement_age: int | None) -> tuple[dict[str, dict], int | None, float, float, float]:
+        organized_local: dict[str, dict] = {}
+        retirement_age_local: int | None = None
+        best_pension_local: float = 0.0
+        best_capital_local: float = 0.0
+        best_npv_local: float = 0.0
 
-            if scenario.summary_results:
-                summary_data = json.loads(scenario.summary_results)
-                summary_data["scenario_id"] = scenario.id
-                organized[scenario_type] = summary_data
+        for scenario in scenarios:
+            try:
+                params = json.loads(scenario.parameters) if scenario.parameters else {}
+                scenario_type = params.get("scenario_type", "unknown")
+                age_param = params.get("retirement_age")
+                if require_retirement_age is not None and age_param != require_retirement_age:
+                    continue
+                if retirement_age_local is None and isinstance(age_param, int):
+                    retirement_age_local = age_param
 
-                pension_val = summary_data.get("total_pension_monthly", 0) or 0
-                capital_val = summary_data.get("total_capital", 0) or 0
-                npv_val = summary_data.get("estimated_npv", 0) or 0
+                if scenario.summary_results:
+                    summary_data = json.loads(scenario.summary_results)
+                    organized_local[scenario_type] = summary_data
 
-                if pension_val > best_pension:
-                    best_pension = pension_val
-                if capital_val > best_capital:
-                    best_capital = capital_val
-                if npv_val > best_npv:
-                    best_npv = npv_val
-        except Exception:
-            continue
+                    pension_val = summary_data.get("total_pension_monthly", 0) or 0
+                    capital_val = summary_data.get("total_capital", 0) or 0
+                    npv_val = summary_data.get("estimated_npv", 0) or 0
+
+                    if pension_val > best_pension_local:
+                        best_pension_local = pension_val
+                    if capital_val > best_capital_local:
+                        best_capital_local = capital_val
+                    if npv_val > best_npv_local:
+                        best_npv_local = npv_val
+            except Exception:
+                continue
+
+        return (
+            organized_local,
+            retirement_age_local,
+            best_pension_local,
+            best_capital_local,
+            best_npv_local,
+        )
+
+    organized, retirement_age_for_summary, best_pension, best_capital, best_npv = _build_organized_scenarios(
+        require_retirement_age=analysis_default_retirement_age
+    )
+    if (not organized) and analysis_default_retirement_age is not None:
+        organized, retirement_age_for_summary, best_pension, best_capital, best_npv = _build_organized_scenarios(
+            require_retirement_age=None
+        )
 
     if organized:
-        for key, s in organized.items():
-            name = s.get("scenario_name") or key
+        ordered_keys = [
+            ("scenario_1_max_pension", "תרחיש 1"),
+            ("scenario_2_max_capital", "תרחיש 2"),
+            ("scenario_3_max_npv", "תרחיש 3"),
+        ]
+        seen = set()
+
+        for key, label in ordered_keys:
+            if key not in organized:
+                continue
+            s = organized.get(key) or {}
             total_pension = s.get("total_pension_monthly", 0) or 0
             total_capital = s.get("total_capital", 0) or 0
             estimated_npv = s.get("estimated_npv", 0) or 0
-            scenario_id = s.get("scenario_id")
 
             advantage = ""
-            if "max_pension" in key or "קצבה" in name:
+            if "max_pension" in key:
                 advantage = " [ממקסם קצבה]"
-            elif "max_capital" in key or "הון" in name:
+            elif "max_capital" in key:
                 advantage = " [ממקסם הון]"
-            elif "max_npv" in key or "NPV" in name:
+            elif "max_npv" in key:
                 advantage = " [ממקסם ערך נוכחי]"
 
             scenarios_summary_parts.append(
-                f"• {name}{advantage}: קצבה {total_pension:,.0f} ₪/חודש, "
-                f"הון {total_capital:,.0f} ₪, NPV {estimated_npv:,.0f} ₪ (מזהה: {scenario_id})"
+                f"• {label}{advantage}: קצבה {total_pension:,.0f} ₪/חודש, "
+                f"הון {total_capital:,.0f} ₪, NPV {estimated_npv:,.0f} ₪"
             )
+            seen.add(key)
+
+        extra_keys = [k for k in organized.keys() if k not in seen]
+        extra_idx = 4
+        for key in sorted(extra_keys):
+            s = organized.get(key) or {}
+            total_pension = s.get("total_pension_monthly", 0) or 0
+            total_capital = s.get("total_capital", 0) or 0
+            estimated_npv = s.get("estimated_npv", 0) or 0
+            scenarios_summary_parts.append(
+                f"• תרחיש {extra_idx}: קצבה {total_pension:,.0f} ₪/חודש, "
+                f"הון {total_capital:,.0f} ₪, NPV {estimated_npv:,.0f} ₪"
+            )
+            extra_idx += 1
 
     fixation_info: dict = {}
     latest_fixation = (
@@ -409,7 +473,13 @@ def build_llm_context_parts(
     try:
         if client.birth_date and client.gender:
             retirement_info = calculate_retirement_age(client.birth_date, client.gender)
-            legal_retirement_age = retirement_info.get("retirement_age_years", 67)
+            try:
+                legal_retirement_age = int(retirement_info.get("age_years") or 67)
+                legal_retirement_age = legal_retirement_age + (
+                    1 if int(retirement_info.get("age_months") or 0) > 0 else 0
+                )
+            except Exception:
+                legal_retirement_age = 67
             retirement_date = retirement_info.get("retirement_date")
 
             context_parts.append("")
@@ -426,15 +496,8 @@ def build_llm_context_parts(
         pass
 
     try:
-        current_year = date.today().year
-        tax_brackets = TaxBracketsService.get_tax_brackets(current_year)
-        if tax_brackets:
-            context_parts.append("")
-            context_parts.append("💵 **מדרגות מס (שנתי)**")
-            for bracket in tax_brackets[:3]:
-                rate_pct = int(bracket["rate"] * 100)
-                context_parts.append(f"  • עד {bracket['max_income']:,} ₪: {rate_pct}%")
-            context_parts.append(f"  • (ועוד {len(tax_brackets) - 3} מדרגות גבוהות יותר)")
+        _unused_current_year = date.today().year
+        _unused_tax_brackets = TaxBracketsService.get_tax_brackets(_unused_current_year)
     except Exception:
         pass
 
@@ -491,27 +554,16 @@ def build_llm_context_parts(
         last_user_msg = user_messages[-1].content
 
         agent_state = get_agent_state_json(client_id=request.client_id, db=db)
-        tools_schema = get_tools_definitions_json()
 
         context_parts.append("")
         context_parts.append("🏗️ **סטטוס מערכת (State):**")
         context_parts.append(f"```json\n{agent_state}\n```")
-        context_parts.append("")
-        context_parts.append("🛠️ **כלים זמינים (Tools):**")
-        context_parts.append(f"```json\n{tools_schema}\n```")
-        context_parts.append("")
-        context_parts.append("⚡ **הנחיה לפעולה:**")
-        context_parts.append(
-            "אם חסר לך מידע או נדרש חישוב, אל תענה מיד. במקום זאת, הוצא פקודה להרצת כלי בפורמט הבא:"
-        )
-        context_parts.append('###TOOL_CALL### {"name": "TOOL_NAME", "arguments": {"arg": "value"}}')
-        context_parts.append("")
 
         intent_tool = ""
         computed_data = None
 
         history = []
-        logger.info("Prepared agent state and tools schema for context")
+        logger.info("Prepared agent state for context")
 
     context_parts.append("")
     context_parts.append(

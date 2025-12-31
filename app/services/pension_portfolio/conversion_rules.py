@@ -105,13 +105,13 @@ _COMPONENT_RULES_OBJ: dict[str, ComponentRule] = {
     PensionPortfolioComponentField.tagmulim_employee_to_2000.value: ComponentRule(
         can_convert_to_pension=True,
         can_convert_to_capital=True,
-        pension_tax="exempt",
+        pension_tax="taxable",
         capital_tax="exempt",
     ),
     PensionPortfolioComponentField.tagmulim_employer_to_2000.value: ComponentRule(
         can_convert_to_pension=True,
         can_convert_to_capital=True,
-        pension_tax="exempt",
+        pension_tax="taxable",
         capital_tax="exempt",
     ),
     PensionPortfolioComponentField.tagmulim_employee_after_2000.value: ComponentRule(

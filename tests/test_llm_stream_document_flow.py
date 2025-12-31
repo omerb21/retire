@@ -12,7 +12,7 @@ def test_stream_generate_full_report_continues_with_summary(monkeypatch) -> None
     def fake_chat_stream(messages, client_id=None):
         call_count["n"] += 1
         if call_count["n"] == 1:
-            yield '###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {"report_type": "full"}}'
+            yield '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {"report_type": "full"}}'
             return
         yield "PASS - סיכום QA סופי לאחר יצירת הדוח"
 

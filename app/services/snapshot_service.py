@@ -280,7 +280,32 @@ class SnapshotService:
             # שחזור עזיבת עבודה
             termination_data = data.get("termination_event")
             if termination_data and employer:
+                termination_data = dict(termination_data)
+                termination_data["client_id"] = client_id
                 termination_data["employment_id"] = employer.id
+                termination_data["planned_termination_date"] = _parse_date(
+                    termination_data.get("planned_termination_date")
+                )
+                termination_data["actual_termination_date"] = _parse_date(
+                    termination_data.get("actual_termination_date")
+                )
+
+                if termination_data.get("reason") and isinstance(
+                    termination_data.get("reason"), str
+                ):
+                    try:
+                        from app.models.termination_event import TerminationReason
+
+                        termination_data["reason"] = TerminationReason(
+                            termination_data["reason"]
+                        )
+                    except Exception:
+                        termination_data["reason"] = None
+
+                termination_data.pop("id", None)
+                termination_data.pop("created_at", None)
+                termination_data.pop("updated_at", None)
+
                 termination = TerminationEvent(**termination_data)
                 self.db.add(termination)
                 restored_count += 1

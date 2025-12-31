@@ -41,9 +41,21 @@ export const GrantsTable: React.FC<GrantsTableProps> = ({ grantsSummary }) => {
           </thead>
           <tbody>
             {grantsSummary.map((grant, index) => {
-              const isExcluded =
-                !!grant.exclusion_reason ||
-                (grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0);
+              const isExcluded = !!grant.exclusion_reason
+
+              const isNoImpact =
+                !isExcluded &&
+                grant.impact_on_exemption === 0 &&
+                grant.indexed_full !== undefined &&
+                (grant.indexed_full || 0) > 0
+
+              const statusText = grant.exclusion_reason
+                ? grant.exclusion_reason
+                : isNoImpact
+                ? (grant.ratio_32y || 0) === 0
+                  ? 'לא נכלל בחישוב (יחס 32 שנים = 0)'
+                  : 'לא נכלל בחישוב (פגיעה = 0)'
+                : 'נכלל בחישוב'
 
               return (
                 <tr key={index}>
@@ -88,11 +100,7 @@ export const GrantsTable: React.FC<GrantsTableProps> = ({ grantsSummary }) => {
                       isExcluded ? 'fixation-table-cell--danger' : 'fixation-table-cell--success'
                     }`}
                   >
-                    {grant.exclusion_reason
-                      ? grant.exclusion_reason
-                      : isExcluded
-                      ? 'הוחרג - חוק 15 השנים'
-                      : 'נכלל בחישוב'}
+                    {statusText}
                   </td>
                 </tr>
               );

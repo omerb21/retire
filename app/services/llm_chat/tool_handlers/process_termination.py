@@ -1,11 +1,12 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models import Client, CurrentEmployer
+from app.utils.date_serializer import parse_date_flexible
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -19,6 +20,108 @@ def handle_process_termination(
 ) -> str:
     logger.info("🔴 PROCESS_TERMINATION called - Execution Mode!")
 
+    if not isinstance(args, dict):
+        return "Error: arguments חייב להיות אובייקט (dict)"
+
+    raw_date = args.get("termination_date")
+    if raw_date is None or (isinstance(raw_date, str) and not raw_date.strip()):
+        args["termination_date"] = date.today().isoformat()
+
+    if args.get("severance_amount") is None and args.get("severance_amount_gross") is not None:
+        args["severance_amount"] = args.get("severance_amount_gross")
+
+    if args.get("severance_amount") is None:
+        try:
+            employer = (
+                db.query(CurrentEmployer)
+                .filter(CurrentEmployer.client_id == client_id)
+                .first()
+            )
+            if employer and employer.severance_accrued is not None:
+                args["severance_amount"] = float(employer.severance_accrued or 0)
+        except Exception:
+            pass
+
+    if (args.get("severance_amount") is None) and pension_portfolio:
+        try:
+            total_from_portfolio = 0.0
+            for account in pension_portfolio:
+                if hasattr(account, "model_dump"):
+                    acc_dict = account.model_dump()
+                elif isinstance(account, dict):
+                    acc_dict = account
+                else:
+                    acc_dict = getattr(account, "__dict__", {}) or {}
+                total_from_portfolio += float(acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0)
+            if total_from_portfolio > 0:
+                args["severance_amount"] = total_from_portfolio
+        except Exception:
+            pass
+
+    if args.get("exempt_choice") is None:
+        args["exempt_choice"] = "annuity"
+    if args.get("taxable_choice") is None:
+        args["taxable_choice"] = "annuity"
+
+    if args.get("exempt_amount") is None or args.get("taxable_amount") is None:
+        try:
+            sev = float(args.get("severance_amount") or 0)
+        except Exception:
+            sev = 0.0
+
+        if sev > 0:
+            try:
+                from app.services.current_employer.calculations import (
+                    ServiceYearsCalculator,
+                    SeveranceCalculator,
+                )
+
+                employer_for_calc = (
+                    db.query(CurrentEmployer)
+                    .filter(CurrentEmployer.client_id == client_id)
+                    .first()
+                )
+                service_years = None
+                if employer_for_calc is not None and employer_for_calc.start_date is not None:
+                    try:
+                        term_date = parse_date_flexible(str(args.get("termination_date")))
+                    except Exception:
+                        term_date = None
+                    try:
+                        service_years = ServiceYearsCalculator.calculate(
+                            start_date=employer_for_calc.start_date,
+                            end_date=term_date,
+                            non_continuous_periods=employer_for_calc.non_continuous_periods,
+                            continuity_years=employer_for_calc.continuity_years,
+                        )
+                    except Exception:
+                        service_years = None
+
+                try:
+                    service_years_value = float(service_years) if service_years is not None else 0.0
+                except Exception:
+                    service_years_value = 0.0
+
+                breakdown = SeveranceCalculator.calculate_exempt_and_taxable(
+                    severance_amount=sev,
+                    service_years=service_years_value,
+                )
+
+                if args.get("exempt_amount") is None:
+                    args["exempt_amount"] = float(breakdown.get("exempt_amount") or 0)
+                if args.get("taxable_amount") is None:
+                    args["taxable_amount"] = float(breakdown.get("taxable_amount") or 0)
+            except Exception:
+                if args.get("exempt_amount") is None:
+                    args["exempt_amount"] = 0.0
+                if args.get("taxable_amount") is None:
+                    args["taxable_amount"] = max(0.0, sev - float(args.get("exempt_amount") or 0))
+        else:
+            if args.get("exempt_amount") is None:
+                args["exempt_amount"] = 0.0
+            if args.get("taxable_amount") is None:
+                args["taxable_amount"] = 0.0
+
     required_params = [
         "termination_date",
         "severance_amount",
@@ -30,10 +133,14 @@ def handle_process_termination(
     ]
     missing = [p for p in required_params if args.get(p) is None]
     if missing:
-        return f"Error: Missing required parameters: {', '.join(missing)}"
+        return (
+            "Error: חסרים פרמטרים לביצוע עזיבת עבודה: "
+            + ", ".join(missing)
+            + "."
+        )
 
     if not args.get("confirmed"):
-        return "Error: הלקוח לא אישר את הפעולה. יש להגדיר confirmed=true לביצוע."
+        return "Error: הפעולה לא אושרה. יש להגדיר confirmed=true לביצוע עזיבת עבודה."
 
     try:
         from app.schemas.current_employer import TerminationDecisionCreate
@@ -52,7 +159,7 @@ def handle_process_termination(
             return "Error: מעסיק נוכחי לא נמצא"
 
         termination_date_str = args.get("termination_date")
-        termination_date = datetime.strptime(termination_date_str, "%Y-%m-%d").date()
+        termination_date = parse_date_flexible(str(termination_date_str))
 
         plan_details_str = args.get("plan_details")
         if not plan_details_str and pension_portfolio:

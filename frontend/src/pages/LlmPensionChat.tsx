@@ -25,9 +25,9 @@ const MODEL_PRESETS: Record<string, { value: string; label: string }[]> = {
     { value: "qwen3:8b", label: "qwen3:8b" },
   ],
   openai: [
-    { value: "", label: "ברירת מחדל (gpt-4o-mini)" },
-    { value: "gpt-5-mini", label: "gpt-5-mini (חדש!)" },
-    { value: "gpt-4o-mini", label: "gpt-4o-mini (מומלץ)" },
+    { value: "", label: "ברירת מחדל (gpt-5-mini)" },
+    { value: "gpt-5-mini", label: "gpt-5-mini (מומלץ)" },
+    { value: "gpt-4o-mini", label: "gpt-4o-mini" },
     { value: "gpt-4o", label: "gpt-4o" },
   ],
   gemini: [
@@ -216,6 +216,7 @@ const LlmPensionChat: React.FC = () => {
   const { client } = useClientData(clientId);
   const [messages, setMessages] = useState<LlmChatMessageDto[]>([]);
   const [input, setInput] = useState("");
+  const [pendingApprovalRequest, setPendingApprovalRequest] = useState<any | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
@@ -231,6 +232,28 @@ const LlmPensionChat: React.FC = () => {
   const [computedData, setComputedData] = useState<ComputedPensionData | null>(null);
 
   const clientName = client?.full_name || (clientId ? `לקוח ${clientId}` : "");
+
+  const getToolDisplayNameHebrew = (toolName: string): string => {
+    const mapping: Record<string, string> = {
+      RUN_RETIREMENT_SCENARIOS: 'הרצת תרחישי פרישה',
+      EXECUTE_RETIREMENT_SCENARIO: 'החלת תרחיש',
+      CHECK_DATA_COMPLETENESS: 'בדיקת שלמות נתונים',
+      GET_TAX_PROJECTION: 'הערכת מס',
+      SELECT_TARGET_PENSION_SCENARIO: 'בחירת תרחיש ליעד',
+      BUILD_TARGET_PENSION_PLAN: 'בניית תכנית קצבה',
+      FIND_OPTIMAL_SCENARIO: 'מציאת תרחיש אופטימלי',
+      RUN_RETIREMENT_CASHFLOW_ANALYSIS: 'ניתוח פרישה',
+      PROCESS_TERMINATION: 'סיום עבודה',
+      TRANSFORM_FUNDS_TO_ASSETS: 'המרת תיק לנכסים',
+      CALCULATE_CAPITAL_WITHDRAWAL_TAX: 'חישוב מס על משיכת הון',
+      CALCULATE_TAX_SPREAD_BENEFIT: 'חישוב הטבת מס בפריסה',
+      CALCULATE_TAX_EXEMPT_PENSION: 'חישוב קצבה פטורה (קיבוע זכויות)',
+      GENERATE_FULL_REPORT: 'הפקת דוח',
+      GENERATE_TAX_DEDUCTION_DOCUMENTS: 'הפקת מסמכי מס',
+      GET_ACCOUNT_DETAILS: 'שליפת פרטי חשבון',
+    };
+    return mapping[toolName] || toolName;
+  };
 
   // Auto-scroll to bottom when streaming
   useEffect(() => {
@@ -349,9 +372,8 @@ const LlmPensionChat: React.FC = () => {
     }
   }
 
-  async function handleSend(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = input.trim();
+  async function sendMessage(text: string) {
+    const trimmed = (text || "").trim();
     if (!trimmed || isSending) {
       return;
     }
@@ -471,6 +493,31 @@ const LlmPensionChat: React.FC = () => {
               await persistPortfolioUpdateToDb(clientId, (accounts) => {
                 const updatedAccounts = [...accounts];
 
+                const computeRemainingBalanceFromComponents = (account: any): number => {
+                  if (!account || typeof account !== "object") {
+                    return 0;
+                  }
+                  let sum = 0;
+                  let sawComponent = false;
+                  Object.keys(account).forEach((field) => {
+                    if (
+                      field.startsWith("תגמולי_") ||
+                      field.startsWith("פיצויים_") ||
+                      field === "קרן_השתלמות"
+                    ) {
+                      sawComponent = true;
+                      const v = Number((account as any)[field] ?? 0) || 0;
+                      if (v > 0) {
+                        sum += v;
+                      }
+                    }
+                  });
+                  if (!sawComponent) {
+                    return 0;
+                  }
+                  return sum;
+                };
+
                 parsed.updates.forEach((u: any) => {
                   const accountNumber = String(u.account_number || "").trim();
                   if (!accountNumber) return;
@@ -482,28 +529,61 @@ const LlmPensionChat: React.FC = () => {
 
                   const account = { ...updatedAccounts[idx] } as any;
                   const specific = u.specific_amounts && typeof u.specific_amounts === "object" ? u.specific_amounts : null;
-                  if (specific && Object.keys(specific).length > 0) {
+
+                  const hasSpecific = !!(specific && Object.keys(specific).length > 0);
+
+                  if (hasSpecific) {
                     Object.keys(specific).forEach((field) => {
                       if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
                         return;
                       }
-                      if (Object.prototype.hasOwnProperty.call(account, field)) {
-                        account[field] = 0;
+                      const rawDelta = (specific as any)[field];
+                      const delta = Number(rawDelta ?? 0) || 0;
+                      if (delta <= 0) {
+                        return;
                       }
+                      const currentVal = Number((account as any)[field] ?? 0) || 0;
+                      const remaining = Math.max(0, currentVal - delta);
+                      (account as any)[field] = Math.abs(remaining) < BALANCE_ZERO_EPSILON ? 0 : remaining;
                     });
+
+                    const eduDelta = Number((specific as any).קרן_השתלמות ?? 0) || 0;
+                    if (eduDelta > 0) {
+                      Object.keys(account).forEach((field) => {
+                        if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
+                          return;
+                        }
+                        if (
+                          field.startsWith("תגמולי_") ||
+                          field === "תגמולים" ||
+                          field === "סך_תגמולים" ||
+                          field === "קרן_השתלמות"
+                        ) {
+                          (account as any)[field] = 0;
+                        }
+                      });
+                      account.יתרה = 0;
+                    }
                   }
 
                   const originalBalance = Number(account.יתרה ?? 0) || 0;
                   const convertedAmount = Number(u.converted_amount ?? 0) || 0;
-                  if (convertedAmount > 0) {
-                    account.יתרה = Math.max(0, originalBalance - convertedAmount);
+                  if (hasSpecific) {
+                    const remainingFromComponents = computeRemainingBalanceFromComponents(account);
+                    if (remainingFromComponents > 0 || convertedAmount > 0) {
+                      account.יתרה = remainingFromComponents;
+                    }
+                  } else {
+                    if (convertedAmount > 0) {
+                      account.יתרה = Math.max(0, originalBalance - convertedAmount);
+                    }
                   }
 
                   if (Math.abs(Number(account.יתרה ?? 0) || 0) < BALANCE_ZERO_EPSILON) {
                     account.יתרה = 0;
                   }
 
-                  if ((!specific || Object.keys(specific).length === 0) && Number(account.יתרה ?? 0) === 0) {
+                  if (!hasSpecific && Number(account.יתרה ?? 0) === 0) {
                     Object.keys(account).forEach((field) => {
                       if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
                         return;
@@ -541,6 +621,8 @@ const LlmPensionChat: React.FC = () => {
         const uiActionMarker = "###UI_ACTION###";
         const uiActionEndMarker = "###END_UI_ACTION###";
 
+        let sawApprovalRequestInStream = false;
+
         if (fullContent.includes(uiActionMarker) && fullContent.includes(uiActionEndMarker)) {
           const actionStartIdx = fullContent.indexOf(uiActionMarker) + uiActionMarker.length;
           const actionEndIdx = fullContent.indexOf(uiActionEndMarker);
@@ -550,6 +632,14 @@ const LlmPensionChat: React.FC = () => {
             const parsed = JSON.parse(actionJsonStr);
             if (parsed?.type === "ui_actions" && Array.isArray(parsed.actions)) {
               pendingUiActions.push(...parsed.actions);
+
+              const approvalAction = parsed.actions.find(
+                (a: any) => a && typeof a === "object" && a.type === "approval_request",
+              );
+              if (approvalAction) {
+                setPendingApprovalRequest(approvalAction);
+                sawApprovalRequestInStream = true;
+              }
             }
           } catch (parseErr) {
             console.warn("Failed to parse UI_ACTION JSON:", parseErr);
@@ -560,8 +650,12 @@ const LlmPensionChat: React.FC = () => {
                         fullContent.substring(actionEndIdx + uiActionEndMarker.length);
         }
         
-        // הצג רק את התוכן ללא סמני הנתונים המחושבים
-        setStreamingContent(fullContent);
+        const visible = (fullContent || "").trim();
+        if (!visible && (sawApprovalRequestInStream || pendingApprovalRequest)) {
+          setStreamingContent("נדרש אישור לפני הפעלת כלי. אשר/בטל בחלונית האישור.");
+        } else {
+          setStreamingContent(fullContent);
+        }
       }
 
       // When done, add the complete message (without computed data markers)
@@ -581,20 +675,42 @@ const LlmPensionChat: React.FC = () => {
         }
       }
 
+      const normalizeUrl = (raw: string): string => {
+        const trimmed = (raw || "").trim();
+        if (!trimmed) return "";
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+          return trimmed;
+        }
+        return `${window.location.origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+      };
+
       pendingUiActions.forEach((action: any) => {
         if (!action || typeof action !== "object") return;
 
         if (action.type === "open_url" && typeof action.url === "string" && action.url.trim()) {
-          window.open(action.url.trim(), "_blank");
+          const url = normalizeUrl(action.url);
+          if (!url) return;
+          try {
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "";
+            link.rel = "noopener";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          } catch {
+            window.open(url, "_blank");
+          }
           return;
         }
 
         if (action.type === "navigate" && typeof action.path === "string" && action.path.trim()) {
-          navigate(action.path.trim());
+          const url = normalizeUrl(action.path);
+          if (!url) return;
+          window.open(url, "_blank");
         }
       });
 
-      // הערכת צריכת טוקנים ועלות להודעת היועץ
       const effectiveProvider = llmStatus?.provider || "ollama";
       const effectiveModel = llmStatus?.model_name || null;
       const usage = estimateCostForCall(finalMessages, effectiveProvider, effectiveModel);
@@ -611,6 +727,61 @@ const LlmPensionChat: React.FC = () => {
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function handleSend(e: FormEvent) {
+    e.preventDefault();
+    if (pendingApprovalRequest) {
+      const raw = (input || "").trim().toLowerCase();
+      const isApprovalText =
+        raw === "מאשר" ||
+        raw === "אני מאשר" ||
+        raw === "מאשרת" ||
+        raw === "אני מאשרת" ||
+        raw === "כן" ||
+        raw === "אשר" ||
+        raw === "approve" ||
+        raw === "ok";
+      const isCancelText = raw === "בטל" || raw === "ביטול" || raw === "לא" || raw === "cancel";
+
+      if (!isApprovalText && !isCancelText) {
+        setError("נדרש אישור לפני הפעלת כלי. אנא אשר/בטל (בחלונית או ע" + "י כתיבה 'מאשר'/'בטל').");
+        return;
+      }
+
+      setError(null);
+      setInput("");
+      await handleApprovalDecision(isApprovalText);
+      return;
+    }
+    await sendMessage(input);
+  }
+
+  async function handleApprovalDecision(approved: boolean) {
+    const req = pendingApprovalRequest;
+    setPendingApprovalRequest(null);
+
+    if (!req) {
+      return;
+    }
+
+    const toolName = typeof req.tool_name === "string" ? req.tool_name : "";
+    const toolArgs = req.arguments && typeof req.arguments === "object" ? req.arguments : {};
+    if (!toolName) {
+      return;
+    }
+
+    const payload = {
+      tool_name: toolName,
+      arguments: toolArgs,
+    };
+
+    if (approved) {
+      await sendMessage(`###USER_APPROVED### ${JSON.stringify(payload)}`);
+      return;
+    }
+
+    await sendMessage(`###USER_CANCELLED### ${JSON.stringify(payload)}`);
   }
 
   const statusText = llmStatus
@@ -855,7 +1026,7 @@ const LlmPensionChat: React.FC = () => {
         <div className="llm-chat-messages" dir="rtl">
           {messages.length === 0 && (
             <div className="llm-chat-empty">
-              התחל בשאלה או תיאור מצב פנסיוני, למשל: "אני בן 40, חוסך 3,000 ש"ח בחודש ורוצה להבין מה תהיה הקצבה".
+              התחל בשאלה או תיאור מצב פנסיוני, למשל: "אני בן 40, חוסך 3,000 ש" + "ח בחודש ורוצה להבין מה תהיה הקצבה".
             </div>
           )}
 
@@ -898,6 +1069,39 @@ const LlmPensionChat: React.FC = () => {
 
           <div ref={messagesEndRef} />
         </div>
+
+        {pendingApprovalRequest && (
+          <div className="llm-chat-approval-row" dir="rtl">
+            <div className="llm-chat-approval-text">
+              {(() => {
+                const rawToolName =
+                  typeof pendingApprovalRequest?.tool_name === 'string'
+                    ? pendingApprovalRequest.tool_name
+                    : '';
+                const toolLabel = rawToolName ? getToolDisplayNameHebrew(rawToolName) : 'כלי';
+                return `נדרש אישור לפני הפעלת כלי: ${toolLabel}. אשר/בטל:`;
+              })()}
+            </div>
+            <div className="llm-chat-approval-actions">
+              <button
+                type="button"
+                className="llm-chat-approval-button llm-chat-approval-approve"
+                onClick={() => handleApprovalDecision(true)}
+                disabled={isSending}
+              >
+                אשר
+              </button>
+              <button
+                type="button"
+                className="llm-chat-approval-button llm-chat-approval-cancel"
+                onClick={() => handleApprovalDecision(false)}
+                disabled={isSending}
+              >
+                בטל
+              </button>
+            </div>
+          </div>
+        )}
 
         <form className="llm-chat-input-row" onSubmit={handleSend}>
           <textarea

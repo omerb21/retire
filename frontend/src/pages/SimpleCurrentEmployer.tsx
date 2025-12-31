@@ -44,6 +44,7 @@ const SimpleCurrentEmployer: React.FC = () => {
     setLoading,
     error,
     setError,
+    terminationConfirmed,
     saveEmployer
   } = useEmployerData(id);
 
@@ -83,6 +84,14 @@ const SimpleCurrentEmployer: React.FC = () => {
       }
     }
   }, [id]);
+
+  // Keep confirmed state in sync with server-side marker (authoritative)
+  useEffect(() => {
+    setTerminationDecision(prev => ({
+      ...prev,
+      confirmed: terminationConfirmed
+    }));
+  }, [terminationConfirmed]);
 
   // Sync termination_date with employer.end_date
   useEffect(() => {

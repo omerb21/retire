@@ -8,6 +8,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+try:
+    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+except Exception:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
+
 # CBS Consumer Price Index API endpoint
 CBS_CPI_API = 'https://api.cbs.gov.il/index/data/calculator/120010'
 
@@ -110,9 +115,17 @@ class IndexationService:
                     logger.info(f"[יחסי מענק] גיל פרישה מחושב: {retirement_date} (מגדר: {gender})")
                 except Exception as e:
                     logger.warning(f"[יחסי מענק] שגיאה בחישוב גיל פרישה: {e}")
-                    # fallback לחישוב פשוט
-                    retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 65
-                    retirement_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
+                    try:
+                        from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+
+                        retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+                    except Exception:
+                        retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
+                    retirement_date = date(
+                        birth_date.year + retirement_age,
+                        birth_date.month,
+                        birth_date.day,
+                    )
             
             # הגבלת תאריך סיום העבודה לגיל הפרישה
             effective_end_date = end_date
@@ -151,11 +164,9 @@ class IndexationService:
         """
         חישוב תאריך זכאות לפי גיל פרישה
         """
-        # גיל פרישה בישראל: גברים 67, נשים 62
-        retirement_age = 67 if gender.lower() in ['m', 'male', 'זכר'] else 62
-        
-        # חישוב תאריך זכאות
-        eligibility_date = date(birth_date.year + retirement_age, birth_date.month, birth_date.day)
+        from app.services.retirement_age_service import calc_eligibility_date, get_retirement_date
+
+        eligibility_date = get_retirement_date(birth_date, gender)
         
         # אם תאריך הפנסיה מאוחר יותר, נשתמש בו
         return max(eligibility_date, pension_start_date)

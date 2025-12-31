@@ -275,6 +275,35 @@ export function usePensionData(clientId: string | undefined) {
     loadClientData();
   }, [clientId]);
 
+  // רענון הנתונים כאשר כלי (למשל LLM Chat) מעדכן את localStorage
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const savedData = loadPensionDataFromStorage(clientId);
+        if (savedData) {
+          const dataWithComputed = savedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
+          const currentDataStr = JSON.stringify(pensionData);
+          const newDataStr = JSON.stringify(dataWithComputed);
+          if (currentDataStr !== newDataStr) {
+            setPensionData(dataWithComputed);
+          }
+        }
+
+        const savedConvertedAccounts = loadConvertedAccountsFromStorage(clientId);
+        if (savedConvertedAccounts && savedConvertedAccounts.size > 0) {
+          setConvertedAccounts(savedConvertedAccounts);
+        }
+      } catch (e) {
+        console.warn('Failed to refresh pension portfolio data after storage event:', e);
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [clientId, pensionData]);
+
   // טעינה מחדש כשחוזרים לדף
   useEffect(() => {
     const handleFocus = () => {
@@ -282,7 +311,11 @@ export function usePensionData(clientId: string | undefined) {
       const savedData = loadPensionDataFromStorage(clientId);
       if (savedData) {
         const dataWithComputed = savedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
-        setPensionData(dataWithComputed);
+        const currentDataStr = JSON.stringify(pensionData);
+        const newDataStr = JSON.stringify(dataWithComputed);
+        if (currentDataStr !== newDataStr) {
+          setPensionData(dataWithComputed);
+        }
       }
     };
     
@@ -292,7 +325,11 @@ export function usePensionData(clientId: string | undefined) {
         const savedData = loadPensionDataFromStorage(clientId);
         if (savedData) {
           const dataWithComputed = savedData.map((acc: PensionAccount) => calculateInitialTagmulim(acc));
-          setPensionData(dataWithComputed);
+          const currentDataStr = JSON.stringify(pensionData);
+          const newDataStr = JSON.stringify(dataWithComputed);
+          if (currentDataStr !== newDataStr) {
+            setPensionData(dataWithComputed);
+          }
         }
       }
     };

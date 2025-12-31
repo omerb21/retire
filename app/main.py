@@ -60,10 +60,14 @@ from app.routers import (
     annuity_coefficient,
     system_health,
     calculation,
-    llm_chat,
     public_chat,
     reports,
 )
+
+try:
+    from app.routers import llm_chat
+except Exception:
+    llm_chat = None
 from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
@@ -142,7 +146,8 @@ app.include_router(retirement_age.router, prefix="/api/v1", tags=["retirement-ag
 app.include_router(annuity_coefficient.router, prefix="/api/v1/annuity-coefficient", tags=["annuity-coefficient"])
 app.include_router(system_health.router, tags=["system-health"])
 app.include_router(calculation.router)
-app.include_router(llm_chat.router)
+if llm_chat is not None:
+    app.include_router(llm_chat.router)
 app.include_router(public_chat.router)
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 

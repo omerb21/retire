@@ -1,9 +1,9 @@
 import json
 from datetime import datetime, timedelta, timezone
 
- from datetime import date
+from datetime import date
 
- from app.models.client import Client
+from app.models.client import Client
 from app.models.scenario import Scenario
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot,
@@ -11,21 +11,23 @@ from app.services.pension_portfolio.snapshot_loader import (
 
 
 def test_snapshot_loader_ignores_non_snapshot_scenarios(db_session, client):
-    dedicated = Client(
-        id_number="999999999",
-        id_number_raw="999999999",
-        full_name="Snapshot Loader Test",
-        first_name="Snapshot",
-        last_name="Loader",
-        birth_date=date(1980, 1, 1),
-        gender="male",
-        marital_status="single",
-        self_employed=False,
-        current_employer_exists=False,
-        is_active=True,
-    )
-    db_session.add(dedicated)
-    db_session.commit()
+    dedicated = db_session.query(Client).filter_by(id_number="999999999").first()
+    if dedicated is None:
+        dedicated = Client(
+            id_number="999999999",
+            id_number_raw="999999999",
+            full_name="Snapshot Loader Test",
+            first_name="Snapshot",
+            last_name="Loader",
+            birth_date=date(1980, 1, 1),
+            gender="male",
+            marital_status="single",
+            self_employed=False,
+            current_employer_exists=False,
+            is_active=True,
+        )
+        db_session.add(dedicated)
+        db_session.commit()
 
     partial_accounts = [
         {

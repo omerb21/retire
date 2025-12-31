@@ -2,6 +2,7 @@
 Unified date serialization utilities for consistent API responses
 """
 from datetime import date, datetime
+import re
 from typing import Any, Union
 
 
@@ -28,6 +29,53 @@ def serialize_date_to_iso(date_obj: Union[date, datetime, str, None]) -> str:
         return date_obj.strftime("%Y-%m-%d")
     
     return str(date_obj)
+
+
+def parse_date_flexible(value: Union[date, datetime, str, None]) -> date:
+    if value is None:
+        raise ValueError("Empty date")
+
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+
+    if isinstance(value, datetime):
+        return value.date()
+
+    raw = str(value).strip()
+    raw = raw.strip("`").strip().strip('"').strip("'")
+    if not raw:
+        raise ValueError("Empty date")
+
+    if raw.upper() == "YYYY-MM-DD":
+        raise ValueError("Placeholder date")
+
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", raw)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+    if re.match(r"^\d{2}/\d{2}/\d{4}$", raw):
+        return datetime.strptime(raw, "%d/%m/%Y").date()
+
+    if re.match(r"^\d{2}-\d{2}-\d{4}$", raw):
+        normalized = raw.replace("-", "/")
+        return datetime.strptime(normalized, "%d/%m/%Y").date()
+
+    if re.match(r"^\d{8}$", raw):
+        if raw.startswith("19") or raw.startswith("20"):
+            return datetime.strptime(raw, "%Y%m%d").date()
+        return datetime.strptime(raw, "%d%m%Y").date()
+
+    iso = raw
+    if iso.endswith("Z"):
+        iso = iso[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(iso).date()
+    except Exception as e:
+        raise ValueError(f"Unsupported date format: {value}") from e
+
+
+def normalize_date_to_iso(value: Union[date, datetime, str, None]) -> str:
+    return parse_date_flexible(value).isoformat()
 
 
 def serialize_monthly_date(date_obj: Union[date, datetime, str, None]) -> str:

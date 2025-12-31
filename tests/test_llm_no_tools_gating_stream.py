@@ -10,7 +10,7 @@ def test_stream_qa_no_tools_blocks_tool_call(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         call_count["n"] += 1
         if call_count["n"] == 1:
-            yield '###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}'
+            yield '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}'
             return
         yield "PASS - הסבר QA ללא כלים\nסיכום קצר"
 

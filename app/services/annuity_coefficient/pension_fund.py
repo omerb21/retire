@@ -24,7 +24,7 @@ def get_pension_fund_coefficient(
         f"spouse_age_diff={spouse_age_diff}"
     )
     db = next(get_db())
-    
+
     try:
         result = get_pension_fund_coefficient_from_db(
             db, sex, retirement_age, survivors_option, spouse_age_diff
@@ -79,3 +79,9 @@ def get_pension_fund_coefficient(
             'guarantee_months': None,
             'notes': f'שגיאה: {str(e)}'
         }
+
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass

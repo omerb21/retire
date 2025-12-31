@@ -220,6 +220,43 @@ def get_tools_definitions_json() -> str:
             },
         },
         {
+            "name": "EXECUTE_PENSION_COMMUTATION",
+            "description": "🔴 כלי ביצוע (Execution Tool) - ביצוע היוון קצבה בפועל: יצירת נכס הון מסוג 'היוון' (asset_type=deposits) עם הערת COMMUTATION, והפחתת היתרה/קצבה במקור הקצבה (PensionFund). השתמש בכלי זה רק כאשר המשתמש מאשר לבצע היוון קיים במערכת, כולל בחירת קצבה ספציפית, סכום ותאריך. דוגמה: ###TOOL_CALL### {\"name\": \"EXECUTE_PENSION_COMMUTATION\", \"arguments\": {\"pension_fund_id\": 12, \"commutation_amount\": 50000, \"commutation_date\": \"2025-01-01\", \"commutation_type\": \"exempt\", \"confirmed\": true}}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pension_fund_id": {
+                        "type": "integer",
+                        "description": "מזהה מקור הקצבה (PensionFund) שממנו מבוצע ההיוון.",
+                    },
+                    "commutation_amount": {
+                        "type": "number",
+                        "description": "סכום ההיוון (ברוטו) בשקלים.",
+                    },
+                    "commutation_date": {
+                        "type": "string",
+                        "description": "תאריך ההיוון בפורמט YYYY-MM-DD.",
+                    },
+                    "commutation_type": {
+                        "type": "string",
+                        "enum": ["exempt", "taxable"],
+                        "description": "יחס מס לנכס ההיוון: exempt (פטור) או taxable (חייב). אם הקצבה פטורה ממס, ניתן לבחור רק exempt.",
+                    },
+                    "confirmed": {
+                        "type": "boolean",
+                        "description": "האם המשתמש אישר את הביצוע. חובה להיות true.",
+                    },
+                },
+                "required": [
+                    "pension_fund_id",
+                    "commutation_amount",
+                    "commutation_date",
+                    "commutation_type",
+                    "confirmed",
+                ],
+            },
+        },
+        {
             "name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
             "description": "כלי לחישוב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים). השתמש בכלי זה כאשר הלקוח שואל 'כמה מס אשלם אם אמשוך X שקל מהקופה', 'משיכה מקופת גמל', 'משיכה מקרן השתלמות', 'כמה נשאר לי נטו אחרי משיכה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_CAPITAL_WITHDRAWAL_TAX\", \"arguments\": {\"withdrawal_amount_gross\": 100000, \"withdrawal_year\": 2025}}",
             "parameters": {
@@ -263,7 +300,7 @@ def get_tools_definitions_json() -> str:
                 "properties": {
                     "termination_date": {
                         "type": "string",
-                        "description": "תאריך סיום העבודה בפורמט YYYY-MM-DD.",
+                        "description": "תאריך סיום העבודה בפורמט DD/MM/YYYY.",
                     },
                     "use_employer_completion": {
                         "type": "boolean",
@@ -502,6 +539,10 @@ def get_tools_definitions_json() -> str:
                         "type": "string",
                         "enum": ["pension", "capital_asset"],
                         "description": "סוג המרה ברירת מחדל: pension (קצבה) או capital_asset (נכס הון). ברירת מחדל: pension.",
+                    },
+                    "commute_pension_components": {
+                        "type": "boolean",
+                        "description": "כאשר ברירת המחדל היא המרה להון, האם לבצע היוון (COMMUTATION) לרכיבים קצבתיים שאינם ניתנים למשיכה כהון במקום להמיר אותם לנכס קצבה.",
                     },
                     "ignore_blocked_balances": {
                         "type": "boolean",

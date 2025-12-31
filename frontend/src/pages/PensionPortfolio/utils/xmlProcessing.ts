@@ -1,5 +1,6 @@
 import { PensionAccount } from '../types';
 import { calculateInitialTagmulim } from './pensionCalculations';
+import { convertDDMMYYToISO, convertISOToDDMMYY } from '../../../utils/dateUtils';
 
 /**
  * פונקציה לחילוץ חשבונות מתוכן XML
@@ -130,6 +131,17 @@ function extractAccountData(
                    getElementText('TAARICH-HITZTARFUT') ||
                    'לא ידוע';
 
+  const normalizeStartDate = (value: string): string => {
+    const raw = (value || '').trim();
+    if (!raw || raw === 'לא ידוע') return raw || 'לא ידוע';
+    const iso = convertDDMMYYToISO(raw);
+    if (!iso) return raw;
+    const ddmmyyyy = convertISOToDDMMYY(iso);
+    return ddmmyyyy || raw;
+  };
+
+  const normalizedStartDate = normalizeStartDate(startDate);
+
   // סוג מוצר
   const productType = determineProductType(globalShemMutzar, globalSugMutzar);
   console.log(`✅ Final product type: ${productType}`);
@@ -217,7 +229,7 @@ function extractAccountData(
     קוד_חברה_מנהלת: companyCode,
     יתרה: balance,
     תאריך_נכונות_יתרה: balanceDate,
-    תאריך_התחלה: startDate,
+    תאריך_התחלה: normalizedStartDate,
     סוג_מוצר: productType,
     מעסיקים_היסטוריים: employers.join(', '),
     תגמולים,

@@ -2,6 +2,7 @@ import React from 'react';
 import { PensionAccount, EditingCell } from '../types';
 import { EditableNumberCell } from './EditableNumberCell';
 import { formatMoney } from './pensionTableFormatting';
+import { convertISOToDDMMYY, formatDateToDDMMYYYY } from '../../../utils/dateUtils';
 
 interface PensionTableRowProps {
   account: PensionAccount;
@@ -32,6 +33,23 @@ export const PensionTableRow: React.FC<PensionTableRowProps> = ({
     () => Object.values(account.selected_amounts || {}).some(Boolean),
     [account.selected_amounts]
   );
+
+  const displayStartDate = React.useMemo(() => {
+    const raw = (account.תאריך_התחלה || '').toString().trim();
+    if (!raw) return '';
+    if (/^\d{8}$/.test(raw)) {
+      const y = raw.slice(0, 4);
+      const m = raw.slice(4, 6);
+      const d = raw.slice(6, 8);
+      if ((y.startsWith('19') || y.startsWith('20')) && m >= '01' && m <= '12' && d >= '01' && d <= '31') {
+        return `${d}/${m}/${y}`;
+      }
+    }
+    const isoToDd = convertISOToDDMMYY(raw);
+    if (isoToDd) return isoToDd;
+    const formatted = formatDateToDDMMYYYY(raw);
+    return formatted || raw;
+  }, [account.תאריך_התחלה]);
 
   return (
     <tr
@@ -279,7 +297,7 @@ export const PensionTableRow: React.FC<PensionTableRowProps> = ({
             placeholder="DD/MM/YYYY"
           />
         ) : (
-          account.תאריך_התחלה || 'לא ידוע'
+          displayStartDate || 'לא ידוע'
         )}
       </td>
 

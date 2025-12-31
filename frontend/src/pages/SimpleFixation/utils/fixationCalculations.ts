@@ -66,10 +66,7 @@ export const calculatePensionSummary = (
       ? exemptionSummary!.idf_security_forces_impact
       : 0;
 
-  const includedGrants = grantsSummary.filter((grant) =>
-    !(grant.impact_on_exemption === 0 && grant.indexed_full && grant.indexed_full > 0) &&
-    !grant.exclusion_reason
-  );
+  const includedGrants = grantsSummary.filter((grant) => !grant.exclusion_reason);
 
   console.log('DEBUG: includedGrants:', includedGrants);
 

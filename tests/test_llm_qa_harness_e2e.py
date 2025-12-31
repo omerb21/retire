@@ -22,6 +22,8 @@ def _build_sample_portfolio() -> list[dict]:
             "סוג_מוצר": "קופת גמל",
             "יתרה": 100000,
             "תאריך_התחלה": "2005-01-01",
+            "תגמולי_עובד_אחרי_2000": 50000,
+            "תגמולי_מעביד_אחרי_2000": 50000,
         },
         {
             "מספר_חשבון": "A-002",
@@ -30,6 +32,8 @@ def _build_sample_portfolio() -> list[dict]:
             "סוג_מוצר": "קופת גמל להשקעה",
             "יתרה": 50000,
             "תאריך_התחלה": "2018-01-01",
+            "תגמולי_עובד_עד_2000": 25000,
+            "תגמולי_מעביד_עד_2000": 25000,
         },
         {
             "מספר_חשבון": "A-003",
@@ -38,6 +42,7 @@ def _build_sample_portfolio() -> list[dict]:
             "סוג_מוצר": "קרן השתלמות",
             "יתרה": 30000,
             "תאריך_התחלה": "2012-01-01",
+            "קרן_השתלמות": 30000,
         },
         {
             "מספר_חשבון": "A-004",
@@ -46,6 +51,8 @@ def _build_sample_portfolio() -> list[dict]:
             "סוג_מוצר": "ביטוח מנהלים",
             "יתרה": 200000,
             "תאריך_התחלה": "1999-01-01",
+            "תגמולי_עובד_אחרי_2000": 80000,
+            "תגמולי_מעביד_אחרי_2000": 120000,
         },
     ]
 
@@ -69,9 +76,11 @@ def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, mo
 
     llm_replies = iter(
         [
-            '###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": ' + json.dumps(portfolio, ensure_ascii=False) + '}}',
-            '###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
-            '###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {"report_type": "full"}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": '
+            + json.dumps(portfolio, ensure_ascii=False)
+            + '}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {"report_type": "full"}}',
             "PASS - סיכום QA סופי",
         ]
     )
@@ -142,8 +151,10 @@ def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, mo
     # Run again with same data: should not create duplicates
     llm_replies_2 = iter(
         [
-            '###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": ' + json.dumps(portfolio, ensure_ascii=False) + '}}',
-            '###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": '
+            + json.dumps(portfolio, ensure_ascii=False)
+            + '}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
             "PASS - סיכום QA סופי",
         ]
     )

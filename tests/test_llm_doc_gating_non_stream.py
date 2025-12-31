@@ -8,8 +8,8 @@ from app.services.llm_chat.chat_orchestration import run_pension_chat
 def test_doc_request_non_qa_blocks_non_doc_tools(db_session, client, monkeypatch) -> None:
     responses = iter(
         [
-            '###TOOL_CALL### {"name": "PROCESS_TERMINATION", "arguments": {"confirmed": true}}',
-            '###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "PROCESS_TERMINATION", "arguments": {"confirmed": true}}',
+            '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {}}',
             "final",
         ]
     )

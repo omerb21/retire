@@ -218,20 +218,32 @@ async def convert_pension_accounts(
     from decimal import Decimal
     
     client = db.query(Client).filter(Client.id == client_id).first()
-    retirement_age = 67
+    retirement_age = None
     retirement_date = None
     retirement_year = date.today().year
     if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
         try:
             retirement_info = calculate_retirement_age(client.birth_date, client.gender)
             retirement_date = retirement_info.get("retirement_date")
-            age_years = int(retirement_info.get("age_years") or retirement_age)
+            age_years = int(retirement_info.get("age_years") or 0)
             age_months = int(retirement_info.get("age_months") or 0)
             retirement_age = age_years + (1 if age_months > 0 else 0)
             if retirement_date:
                 retirement_year = retirement_date.year
         except Exception:
             retirement_date = None
+
+    if retirement_age is None:
+        try:
+            from app.services.retirement_age_service import get_retirement_age_simple
+
+            if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
+                retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+        except Exception:
+            retirement_age = None
+
+    if retirement_age is None:
+        retirement_age = 67
 
     converted_count = 0
     
@@ -352,7 +364,8 @@ async def convert_pension_accounts(
                 client_id=client_id,
                 asset_name=account.get('שם_תכנית', 'נכס ללא שם'),
                 asset_type='provident_fund',
-                current_value=Decimal(str(balance)),
+                current_value=Decimal('0'),
+                monthly_income=Decimal(str(balance)),
                 annual_return_rate=Decimal('0.03'),
                 payment_frequency='monthly',
                 start_date=date(2025, 1, 1),

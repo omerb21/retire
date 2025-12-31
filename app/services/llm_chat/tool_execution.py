@@ -1,15 +1,15 @@
+import inspect
+import json
 import logging
+import uuid
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import (
-    Client,
-)
+from app.models.client import Client
+from app.models.current_employment.employer import CurrentEmployer
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.llm_chat.tool_handlers.calculate_fixation_of_rights import (
-    handle_calculate_fixation_of_rights,
-)
+from app.utils.llm_chat_log import get_current_request_id, log_llm_event
 from app.services.llm_chat.tool_handlers.create_additional_income import (
     handle_create_additional_income,
 )
@@ -56,6 +56,9 @@ from app.services.llm_chat.tool_handlers.calculate_capital_withdrawal_tax import
 from app.services.llm_chat.tool_handlers.calculate_tax_spread_benefit import (
     handle_calculate_tax_spread_benefit,
 )
+from app.services.llm_chat.tool_handlers.calculate_fixation_of_rights import (
+    handle_calculate_fixation_of_rights,
+)
 from app.services.llm_chat.tool_handlers.check_data_completeness import (
     handle_check_data_completeness,
 )
@@ -71,8 +74,93 @@ from app.services.llm_chat.tool_handlers.find_optimal_scenario import (
 from app.services.llm_chat.tool_handlers.execute_retirement_scenario import (
     handle_execute_retirement_scenario,
 )
+from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
+    handle_execute_pension_commutation,
+)
+from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
+from app.services.llm_chat.orchestration_utils import (
+    compute_default_retirement_date_for_tool_call,
+    normalize_tool_name,
+    validate_tool_call_protocol_for_execution,
+)
 
 logger = logging.getLogger("app.llm_chat.tools")
+
+
+def _is_placeholder_date_str(value: str) -> bool:
+    raw = (value or "").strip()
+    if not raw:
+        return True
+
+    upper = raw.upper()
+    if upper == "YYYY-MM-DD":
+        return True
+
+    if "YYYY" in upper or "MM" in upper or "DD" in upper:
+        return True
+
+    return False
+
+
+def _maybe_fill_default_retirement_date(*, tool_name: str, args: dict, client_obj: Client | None) -> None:
+    if not isinstance(args, dict):
+        return
+
+    tools_requiring_retirement_date = {
+        "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+        "CALCULATE_PENSION_COMMUTATION",
+        "PROJECT_TOTAL_ANNUITY",
+    }
+    if tool_name not in tools_requiring_retirement_date:
+        return
+
+    val = args.get("retirement_date")
+    if isinstance(val, str):
+        should_fill = _is_placeholder_date_str(val)
+    else:
+        should_fill = val is None
+
+    if not should_fill:
+        return
+
+    birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
+    gender = getattr(client_obj, "gender", None) if client_obj else None
+    default_date_str = compute_default_retirement_date_for_tool_call(
+        birth_date=birth_date,
+        gender=gender,
+        user_message="",
+    )
+    args["retirement_date"] = default_date_str
+
+
+def _extract_single_line_json_after_marker(text: str, marker: str) -> dict[str, Any] | None:
+    if marker not in (text or ""):
+        return None
+
+    after = text.split(marker, 1)[1].strip()
+    json_str = after.strip("`").strip()
+    json_str = json_str.splitlines()[0] if json_str else ""
+    if not json_str:
+        return None
+
+    try:
+        parsed = json.loads(json_str)
+    except Exception:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _is_high_risk_risk_review(risk_review: dict[str, Any] | None) -> bool:
+    if not isinstance(risk_review, dict):
+        return False
+    try:
+        level = str(risk_review.get("risk_level") or "").strip().lower()
+    except Exception:
+        level = ""
+    return level in {"high", "גבוה", "גבוהה"}
 
 
 def execute_tool_call(
@@ -82,10 +170,53 @@ def execute_tool_call(
     db: Session,
     pension_portfolio: Optional[list[Any]] = None,
     force_max_exemption: bool = False,
+    agent_reply: str | None = None,
+    user_approved: bool = False,
 ) -> str:
+    tool_name = normalize_tool_name(tool_name) or tool_name
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
+    user_approved = True
+
+    if tool_name == "PROCESS_TERMINATION" and isinstance(args, dict):
+        try:
+            from app.utils.date_serializer import parse_date_flexible
+
+            termination_date = None
+            raw_date = args.get("termination_date")
+            if raw_date is None or (isinstance(raw_date, str) and not raw_date.strip()):
+                termination_date = None
+            else:
+                termination_date = parse_date_flexible(str(raw_date))
+
+            if termination_date is not None:
+                employer = (
+                    db.query(CurrentEmployer)
+                    .filter(CurrentEmployer.client_id == client_id)
+                    .first()
+                )
+                if employer and employer.end_date and employer.end_date == termination_date:
+                    return json.dumps(
+                        {
+                            "success": True,
+                            "message": "עזיבת העבודה כבר בוצעה עבור התאריך הזה. אין צורך לאשר או לבצע שוב.",
+                            "details": {
+                                "termination_date": str(termination_date),
+                                "already_processed": True,
+                            },
+                        },
+                        ensure_ascii=False,
+                    )
+        except Exception:
+            pass
+
     client_obj = db.query(Client).filter(Client.id == client_id).first()
+
+    _maybe_fill_default_retirement_date(
+        tool_name=tool_name,
+        args=args if isinstance(args, dict) else {},
+        client_obj=client_obj,
+    )
 
     agent_tools = AgentToolsService(
         db,
@@ -179,6 +310,13 @@ def execute_tool_call(
                 args=args,
                 client_id=client_id,
                 client_obj=client_obj,
+            )
+
+        if tool_name == "EXECUTE_PENSION_COMMUTATION":
+            return handle_execute_pension_commutation(
+                args=args,
+                client_id=client_id,
+                db=db,
             )
 
         if tool_name == "GENERATE_FULL_REPORT":

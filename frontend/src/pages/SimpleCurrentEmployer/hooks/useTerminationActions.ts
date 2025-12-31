@@ -2,6 +2,7 @@
  * Custom hook for termination actions (submit, delete)
  */
 
+import { useRef } from 'react';
 import { apiFetch } from '../../../lib/api';
 import { SimpleEmployer, TerminationDecision } from '../types';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
@@ -28,10 +29,17 @@ export const useTerminationActions = (
   setLoading: (loading: boolean) => void,
   setError: (error: string | null) => void
 ) => {
+  const submitInFlightRef = useRef(false);
+  const deleteInFlightRef = useRef(false);
+  const clearInFlightRef = useRef(false);
+
   const handleTerminationSubmit = async (): Promise<void> => {
     if (!clientId) return;
+    if (terminationDecision.confirmed) return;
+    if (submitInFlightRef.current) return;
     
     try {
+      submitInFlightRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -61,31 +69,41 @@ export const useTerminationActions = (
       clearSeveranceFromPension(clientId);
 
       // Update local state to freeze form
-      setTerminationDecision(prev => ({ ...prev, confirmed: true }));
+      const confirmedFromServer = typeof response?.confirmed === 'boolean' ? response.confirmed : true;
+      setTerminationDecision(prev => ({ ...prev, confirmed: confirmedFromServer }));
+
+      // Ensure employer end_date stays in sync after successful termination
+      const serverEndDate = response?.termination_date || response?.terminationDate;
+      if (typeof serverEndDate === 'string' && serverEndDate) {
+        setEmployer(prev => ({ ...prev, end_date: prev.end_date || serverEndDate }));
+      }
 
       // Save confirmed state to localStorage
-      setTerminationConfirmed(clientId, true);
+      setTerminationConfirmed(clientId, confirmedFromServer);
 
       alert('החלטות עזיבה נשמרו בהצלחה והנתונים הוקפאו');
       
       // Reload page to show delete button
       
-      setLoading(false);
     } catch (err: any) {
       console.error('❌ TERMINATION ERROR:', err);
       setError('שגיאה בשמירת החלטות עזיבה: ' + err.message);
+    } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleDeleteTermination = async (): Promise<void> => {
     if (!clientId) return;
+    if (deleteInFlightRef.current) return;
     
     if (!confirm('האם אתה בטוח שברצונך למחוק את החלטות העזיבה? פעולה זו תמחק את כל המענקים, הקצבאות ונכסי ההון שנוצרו מהעזיבה, ותחזיר את יתרת הפיצויים לתיק הפנסיוני.')) {
       return;
     }
 
     try {
+      deleteInFlightRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -127,24 +145,27 @@ export const useTerminationActions = (
       
       // Reload page
       
-      setLoading(false);
     } catch (err: any) {
       console.error('❌ DELETE TERMINATION ERROR:', err);
       const errorMessage = err?.message || 'שגיאה לא ידועה';
       setError('שגיאה במחיקת החלטות עזיבה: ' + errorMessage);
       alert('שגיאה במחיקת החלטות עזיבה: ' + errorMessage);
+    } finally {
+      deleteInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const handleClearAllState = async (): Promise<void> => {
     if (!clientId) return;
+    if (clearInFlightRef.current) return;
 
     if (!confirm('האם אתה בטוח שברצונך לנקות את כל הנתונים של המעסיק הנוכחי?\nפעולה זו תמחק את עזיבת העבודה (אם קיימת), את כל המענקים/הקצבאות/נכסי ההון שנוצרו ממנה, תחזיר פיצויים לתיק הפנסיוני ותמחק גם את נתוני המעסיק הנוכחי עצמו.')) {
       return;
     }
 
     try {
+      clearInFlightRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -207,8 +228,6 @@ export const useTerminationActions = (
 
       const severanceMsg = severanceToRestore ? `\nהוחזרו ${formatCurrency(severanceToRestore)} לתיק הפנסיוני (אם היו פיצויים שנמשכו).` : '';
       alert('מצב המעסיק הנוכחי נוקה בהצלחה.\nנמחקו נתוני עזיבת העבודה (אם היו) ופרטי המעסיק הנוכחי.' + severanceMsg);
-
-      setLoading(false);
     } catch (err: any) {
       console.error('❌ CLEAR CURRENT EMPLOYER STATE ERROR:', err);
 
@@ -216,6 +235,8 @@ export const useTerminationActions = (
 
       setError('שגיאה בניקוי מצב המעסיק הנוכחי: ' + errorMessage);
       alert('שגיאה בניקוי מצב המעסיק הנוכחי: ' + errorMessage);
+    } finally {
+      clearInFlightRef.current = false;
       setLoading(false);
     }
   };
