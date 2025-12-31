@@ -25,6 +25,7 @@ MANIFEST
 # Virtual Environment
 .venv/
 venv/
+venv311/
 env/
 ENV/
 .env/
@@ -35,6 +36,7 @@ venv.bak/
 # IDE
 .vscode/
 .idea/
+.windsurf/
 *.swp
 *.swo
 *~
@@ -54,9 +56,14 @@ venv.bak/
 # Logs
 logs/
 *.log
+startup_log.txt
+.safe_server_start_*.lock
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Runtime artifacts
+app/artifacts/
 
 # Local development
 .DS_Store
