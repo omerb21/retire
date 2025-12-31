@@ -40,6 +40,12 @@ def handle_calculate_fixation_of_rights(
             raw_result = fixation_result.raw_result or {}
             exemption_summary = raw_result.get("exemption_summary", {}) or {}
 
+            eligibility_year = raw_result.get("eligibility_year")
+            if eligibility_year is None:
+                eligibility_year = exemption_summary.get("eligibility_year")
+
+            exempt_capital_initial = exemption_summary.get("exempt_capital_initial")
+
             remaining_exempt_capital = exemption_summary.get("remaining_exempt_capital", 0) or 0
             remaining_monthly_exemption = exemption_summary.get(
                 "remaining_monthly_exemption", 0
@@ -61,6 +67,14 @@ def handle_calculate_fixation_of_rights(
                 raw_result = fixation_result.raw_result or raw_result
                 exemption_summary = raw_result.get("exemption_summary", exemption_summary) or {}
 
+                eligibility_year = raw_result.get("eligibility_year") or eligibility_year
+                if eligibility_year is None:
+                    eligibility_year = exemption_summary.get("eligibility_year")
+
+                exempt_capital_initial = (
+                    exemption_summary.get("exempt_capital_initial", exempt_capital_initial)
+                )
+
                 remaining_exempt_capital = exemption_summary.get("remaining_exempt_capital", remaining_exempt_capital) or 0
                 remaining_monthly_exemption = (
                     exemption_summary.get("remaining_monthly_exemption", remaining_monthly_exemption) or 0
@@ -81,7 +95,9 @@ def handle_calculate_fixation_of_rights(
                 "success": True,
                 "message": "✅ חישוב קיבוע זכויות בוצע ונשמר בהצלחה!",
                 "fixation_id": fixation_result.id,
+                "eligibility_year": eligibility_year,
                 "remaining_exempt_capital": remaining_exempt_capital,
+                "exempt_capital_initial": exempt_capital_initial,
                 "total_grants_used": exemption_summary.get("total_grants_used", 0),
                 "exemption_percentage": exemption_summary.get("exemption_percentage", 0),
                 "monthly_exempt_pension": monthly_exempt_pension,

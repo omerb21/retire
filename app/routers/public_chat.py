@@ -117,7 +117,7 @@ def get_public_chat_history(
 
 
 @router.post("/sessions/{session_key}/messages", response_model=PublicChatSendMessageResponse)
-def send_public_chat_message(
+async def send_public_chat_message(
     session_key: str,
     payload: PublicChatSendMessageRequest,
     db: Session = Depends(get_db),
@@ -125,7 +125,7 @@ def send_public_chat_message(
 ) -> PublicChatSendMessageResponse:
     try:
         session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
-        reply, tokens_used = send_message(db, session, payload.content)
+        reply, tokens_used = await send_message(db, session, payload.content)
         refreshed = get_session_by_key(db, session_key)
         return PublicChatSendMessageResponse(
             reply=reply,

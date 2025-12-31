@@ -3,6 +3,7 @@ import os
 import secrets
 import json
 import hmac
+import re
 
 from sqlalchemy.orm import Session
 
@@ -12,9 +13,52 @@ from app.models.scenario import Scenario
 from app.schemas.llm_chat import ChatMessage
 from app.schemas.public_chat import PublicChatMessageDto
 from app.services.client_service import normalize_id_number
-from app.services.llm_chat.chat_orchestration import run_pension_chat
+from app.services.llm_chat.chat_orchestration import run_pension_chat_stream
 from app.schemas.llm_chat import ChatRequest
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
+
+
+def _strip_stream_markers_for_public_chat(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return text
+
+    updated = text
+
+    # Remove computed data block
+    try:
+        updated = re.sub(
+            r"###COMPUTED_DATA###.*?###END_COMPUTED_DATA###\n?",
+            "",
+            updated,
+            flags=re.DOTALL,
+        )
+    except Exception:
+        pass
+
+    # Remove portfolio update blocks (used by internal UI to mutate local storage)
+    try:
+        updated = re.sub(
+            r"###PENSION_PORTFOLIO_UPDATE###.*?###END_PENSION_PORTFOLIO_UPDATE###\n?",
+            "",
+            updated,
+            flags=re.DOTALL,
+        )
+    except Exception:
+        pass
+
+    # Remove severance reset blocks
+    try:
+        updated = re.sub(
+            r"###SEVERANCE_RESET###.*?###END_SEVERANCE_RESET###\n?",
+            "",
+            updated,
+            flags=re.DOTALL,
+        )
+    except Exception:
+        pass
+
+    return updated.strip()
 
 
 def _estimate_tokens(text: str) -> int:
@@ -174,7 +218,7 @@ def _load_latest_pension_portfolio(db: Session, client_id: int) -> tuple[list[di
     return [item.model_dump() for item in portfolio_models], snapshot_at
 
 
-def send_message(db: Session, session: PublicChatSession, user_content: str) -> tuple[str, int]:
+async def send_message(db: Session, session: PublicChatSession, user_content: str) -> tuple[str, int]:
     trimmed = (user_content or "").strip()
     if not trimmed:
         raise ValueError("empty_message")
@@ -212,8 +256,20 @@ def send_message(db: Session, session: PublicChatSession, user_content: str) -> 
         pension_portfolio=pension_portfolio,
         pension_portfolio_snapshot_at=pension_portfolio_snapshot_at,
     )
-    response = run_pension_chat(request, db)
-    reply_text = (response.reply or "").strip()
+
+    stream_response = run_pension_chat_stream(request, db)
+    chunks: list[str] = []
+    async for chunk in stream_response.body_iterator:
+        if isinstance(chunk, (bytes, bytearray)):
+            try:
+                chunks.append(chunk.decode("utf-8", errors="ignore"))
+            except Exception:
+                chunks.append(str(chunk))
+        else:
+            chunks.append(str(chunk))
+    reply_text = "".join(chunks).strip()
+    reply_text = _strip_stream_markers_for_public_chat(reply_text)
+    reply_text = sanitize_user_visible_text(reply_text)
 
     _append_message(db, session, "assistant", reply_text)
 

@@ -1,6 +1,6 @@
 import React, { useState, FormEvent, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { apiFetch, llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, publicChatApi, handleApiError } from "../lib/api";
+import { apiFetch, llmApi, LlmChatMessageDto, LlmStatusDto, LlmPensionPortfolioAccount, publicChatApi, handleApiError, API_BASE } from "../lib/api";
 import { useClientData } from "./ClientDetails/hooks/useClientData";
 import { loadLlmChatFromStorage, saveLlmChatToStorage, clearLlmChatFromStorage } from "../services/llmChatStorageService";
 import {
@@ -680,6 +680,12 @@ const LlmPensionChat: React.FC = () => {
         if (!trimmed) return "";
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
           return trimmed;
+        }
+        if (trimmed.startsWith("/api/v1/")) {
+          return `${API_BASE}${trimmed.slice("/api/v1".length)}`;
+        }
+        if (trimmed === "/api/v1") {
+          return API_BASE;
         }
         return `${window.location.origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
       };

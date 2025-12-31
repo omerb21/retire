@@ -654,24 +654,31 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
         lines.append("קיבוע זכויות – סיכום:")
         if parsed_fix.get("fixation_id") is not None:
             lines.append(f"• מזהה קיבוע: {parsed_fix.get('fixation_id')}")
+        if parsed_fix.get("eligibility_year") is not None:
+            lines.append(f"• שנת קיבוע: {parsed_fix.get('eligibility_year')}")
         if parsed_fix.get("monthly_exempt_pension") is not None:
             try:
-                lines.append(f"• קצבה פטורה חודשית: {float(parsed_fix.get('monthly_exempt_pension')):,.0f} ₪")
+                lines.append(f"• קצבה פטורה חודשית: {float(parsed_fix.get('monthly_exempt_pension')):,.2f} ₪")
             except Exception:
                 lines.append(f"• קצבה פטורה חודשית: {parsed_fix.get('monthly_exempt_pension')} ₪")
         if parsed_fix.get("exempt_pension_percentage") is not None:
             try:
-                lines.append(f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.1f}%")
+                lines.append(f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.2f}%")
             except Exception:
                 lines.append(f"• אחוז קצבה פטורה: {parsed_fix.get('exempt_pension_percentage')}")
         if parsed_fix.get("remaining_monthly_exemption") is not None:
             try:
-                lines.append(f"• יתרת תקרת פטור חודשית: {float(parsed_fix.get('remaining_monthly_exemption')):,.0f} ₪")
+                lines.append(f"• יתרת תקרת פטור חודשית: {float(parsed_fix.get('remaining_monthly_exemption')):,.2f} ₪")
             except Exception:
                 lines.append(f"• יתרת תקרת פטור חודשית: {parsed_fix.get('remaining_monthly_exemption')} ₪")
+        if parsed_fix.get("exempt_capital_initial") is not None:
+            try:
+                lines.append(f"• הון פטור ראשוני: {float(parsed_fix.get('exempt_capital_initial')):,.2f} ₪")
+            except Exception:
+                lines.append(f"• הון פטור ראשוני: {parsed_fix.get('exempt_capital_initial')} ₪")
         if parsed_fix.get("remaining_exempt_capital") is not None:
             try:
-                lines.append(f"• יתרת הון פטורה: {float(parsed_fix.get('remaining_exempt_capital')):,.0f} ₪")
+                lines.append(f"• יתרת הון פטורה: {float(parsed_fix.get('remaining_exempt_capital')):,.2f} ₪")
             except Exception:
                 lines.append(f"• יתרת הון פטורה: {parsed_fix.get('remaining_exempt_capital')} ₪")
         return "\n".join(lines)
@@ -1198,6 +1205,28 @@ def sanitize_user_visible_text(text: str) -> str:
     updated = _strip_marker_block(updated, "###TRANSPARENCY_LOG###")
     updated = _strip_marker_block(updated, "###RISK_REVIEW###")
 
+    # Also support inline single-line markers (common in non-stream agent replies), e.g.:
+    # ###TRANSPARENCY_LOG### {"action": "..."}
+    # ###RISK_REVIEW### {"approval_required": false}
+    try:
+        updated = re.sub(
+            r"^\s*###TRANSPARENCY_LOG###\s*\{.*\}\s*$",
+            "",
+            updated,
+            flags=re.MULTILINE,
+        )
+    except Exception:
+        pass
+    try:
+        updated = re.sub(
+            r"^\s*###RISK_REVIEW###\s*\{.*\}\s*$",
+            "",
+            updated,
+            flags=re.MULTILINE,
+        )
+    except Exception:
+        pass
+
     try:
         updated = re.sub(
             r"\n?###TARGET_PENSION_PLAN_DATA###.*?###END_TARGET_PENSION_PLAN_DATA###\n?",
@@ -1296,13 +1325,34 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
         "משיכה חד-פעמית",
         "למשוך את כל הפיצויים",
         "משיכת כל הפיצויים",
+        "משוך את כל המענקים",
+        "משיכת כל המענקים",
+        "למשוך את כל המענקים",
+        "משיכה הונית",
+        "משיכת הון",
+        "משיכת מענק",
+        "הוני",
+        "הונית",
+        "הון",
         "lump sum",
         "one-time",
         "one time",
     )
-    if ("פיצויים" in lowered) and any(t in lowered for t in lump_sum_tokens) and not any(
-        t in lowered for t in annuity_tokens
-    ):
+    has_no_annuity_intent = any(
+        t in lowered
+        for t in (
+            "אין צורך בקצבה",
+            "אין צורך בעוד קצבה",
+            "לא צריך קצבה",
+            "בלי קצבה",
+            "ללא קצבה",
+            "לא קצבה",
+        )
+    )
+    has_lump_sum_intent = any(t in lowered for t in lump_sum_tokens)
+    has_any_grant_term = ("פיצויים" in lowered) or ("מענק" in lowered) or ("מענקים" in lowered)
+
+    if has_any_grant_term and has_lump_sum_intent and (not any(t in lowered for t in annuity_tokens) or has_no_annuity_intent):
         overrides.setdefault("exempt_choice", "redeem_with_exemption")
         overrides.setdefault("taxable_choice", "redeem_no_exemption")
 
