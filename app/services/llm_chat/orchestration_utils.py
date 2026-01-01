@@ -1832,6 +1832,26 @@ def is_transform_request(user_message: str) -> bool:
 
     lowered = user_message.lower()
 
+    # Safety: do not treat tax / "how much tax" questions as an implicit request to mutate state.
+    # These questions should be answered analytically (e.g., via GET_TAX_PROJECTION) without transforming the portfolio.
+    tax_intent_markers = ["כמה מס", "מס אשלם", "מס על", "tax"]
+    if any(m in lowered for m in tax_intent_markers):
+        return False
+
+    # Only consider transformation when there's an explicit conversion/execution verb.
+    # Withdrawal language alone (e.g. "משוך קצבה") is ambiguous and must not trigger a DB mutation.
+    explicit_convert_markers = [
+        "transform_funds_to_assets",
+        "המר",
+        "להמיר",
+        "המרה",
+        "convert",
+        "conversion",
+        "transform funds",
+    ]
+    if not any(m in lowered for m in explicit_convert_markers):
+        return False
+
     # Pension commutation (היוון קצבה) is NOT a portfolio transformation.
     # Avoid routing commutation requests to TRANSFORM_FUNDS_TO_ASSETS.
     commutation_keywords = [
@@ -1879,20 +1899,8 @@ def is_transform_request(user_message: str) -> bool:
         "המרה",
         "פיצויים ממעסיקים קודמים",
         "פיצויים מעסיקים קודמים",
-        "למשוך",
-        "משוך",
-        "פדיון",
-        "לפדות",
-        "פדה",
-        "קבלת קצבה",
-        "לקבל קצבה",
-        "קבלת פנסיה",
-        "לקבל פנסיה",
         "convert",
         "conversion",
-        "withdraw",
-        "redeem",
-        "redemption",
         "transform funds",
     ]
 
