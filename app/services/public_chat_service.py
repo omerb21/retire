@@ -460,15 +460,21 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
 
     stream_response = run_pension_chat_stream(request, db)
     chunks: list[str] = []
-    async for chunk in stream_response.body_iterator:
-        if isinstance(chunk, (bytes, bytearray)):
-            try:
-                chunks.append(chunk.decode("utf-8", errors="ignore"))
-            except Exception:
+    try:
+        async for chunk in stream_response.body_iterator:
+            if isinstance(chunk, (bytes, bytearray)):
+                try:
+                    chunks.append(chunk.decode("utf-8", errors="ignore"))
+                except Exception:
+                    chunks.append(str(chunk))
+            else:
                 chunks.append(str(chunk))
-        else:
-            chunks.append(str(chunk))
+    except Exception:
+        chunks = []
+
     reply_text = "".join(chunks).strip()
+    if not reply_text:
+        reply_text = "שגיאה: לא התקבלה תשובה מהמערכת (ייתכן כשל זמני בהפקת המסמכים). נסה שוב בעוד רגע."
 
     portfolio_payloads, severance_payloads = _extract_marker_payloads(reply_text)
     if portfolio_payloads or severance_payloads:

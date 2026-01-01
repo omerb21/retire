@@ -4,6 +4,7 @@ Income tax brackets for Israel.
 """
 
 from typing import List
+from datetime import datetime
 from .base_models import TaxBracket
 
 
@@ -52,7 +53,7 @@ def get_tax_brackets(year: int = None) -> List[TaxBracket]:
         רשימת מדרגות המס לשנה המבוקשת
     """
     if year is None:
-        year = 2024
+        year = datetime.now().year
         
     if year >= 2026:
         return INCOME_TAX_BRACKETS_2026

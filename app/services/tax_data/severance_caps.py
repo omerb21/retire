@@ -48,6 +48,7 @@ class SeveranceCapsService(BaseTaxDataService):
         Get default severance caps when storage is unavailable
         """
         return [
+            {'year': 2026, 'monthly_cap': 13750, 'annual_cap': 13750 * 12, 'description': 'תקרה חודשית לשנת 2026'},
             {'year': 2025, 'monthly_cap': 13750, 'annual_cap': 13750 * 12, 'description': 'תקרה חודשית לשנת 2025'},
             {'year': 2024, 'monthly_cap': 13750, 'annual_cap': 13750 * 12, 'description': 'תקרה חודשית לשנת 2024'},
             {'year': 2023, 'monthly_cap': 13310, 'annual_cap': 13310 * 12, 'description': 'תקרה חודשית לשנת 2023'},

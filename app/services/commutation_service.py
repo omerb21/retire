@@ -27,11 +27,13 @@ TAX_BRACKETS_2025 = [
     (None, Decimal('0.47')),
 ]
 
+TAX_BRACKETS_2026 = list(TAX_BRACKETS_2025)
+
 
 def calculate_tax_on_lump_sum(
     lump_sum: Decimal,
     other_annual_income: Decimal = Decimal('0'),
-    tax_year: int = 2025
+    tax_year: Optional[int] = None
 ) -> Dict[str, Decimal]:
     """
     מחשב מס הכנסה על סכום חד-פעמי (היוון).
@@ -47,7 +49,13 @@ def calculate_tax_on_lump_sum(
     Returns:
         Dict עם gross, tax, net
     """
-    brackets = TAX_BRACKETS_2025
+    if tax_year is None:
+        tax_year = date.today().year
+
+    if int(tax_year) >= 2026:
+        brackets = TAX_BRACKETS_2026
+    else:
+        brackets = TAX_BRACKETS_2025
     
     total_income = other_annual_income + lump_sum
     base_income = other_annual_income

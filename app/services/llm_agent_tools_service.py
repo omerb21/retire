@@ -3105,7 +3105,7 @@ class AgentToolsService:
     def calculate_capital_withdrawal_tax(
         self,
         withdrawal_amount_gross: float,
-        withdrawal_year: int = 2025,
+        withdrawal_year: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         מחשב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים).
@@ -3130,6 +3130,9 @@ class AgentToolsService:
         other_annual_income = 0.0
         if client.annual_salary:
             other_annual_income = float(client.annual_salary)
+
+        if withdrawal_year is None:
+            withdrawal_year = date.today().year
 
         # ביצוע חישוב המס
         withdrawal_service = CapitalWithdrawalService(self.db, self.client_id)

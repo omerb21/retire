@@ -9,6 +9,7 @@ Capital Withdrawal Service - שירות משיכת כספי הון
 from decimal import Decimal
 from typing import Dict, Any, Optional
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,13 @@ TAX_BRACKETS = {
         (Decimal('655200'), Decimal('0.35')),
         (None, Decimal('0.47')),
     ],
+    2026: [
+        (Decimal('84000'), Decimal('0.14')),
+        (Decimal('205680'), Decimal('0.20')),
+        (Decimal('403680'), Decimal('0.31')),
+        (Decimal('655200'), Decimal('0.35')),
+        (None, Decimal('0.47')),
+    ],
 }
 
 
@@ -40,7 +48,7 @@ def get_tax_brackets(year: int) -> list:
 def calculate_tax_on_withdrawal(
     withdrawal_amount: Decimal,
     other_annual_income: Decimal = Decimal('0'),
-    tax_year: int = 2025
+    tax_year: Optional[int] = None
 ) -> Dict[str, Decimal]:
     """
     מחשב מס הכנסה על משיכת כספי הון.
@@ -63,7 +71,10 @@ def calculate_tax_on_withdrawal(
             'effective_rate': Decimal('0'),
         }
     
-    brackets = get_tax_brackets(tax_year)
+    if tax_year is None:
+        tax_year = datetime.now().year
+
+    brackets = get_tax_brackets(int(tax_year))
     
     total_income = other_annual_income + withdrawal_amount
     base_income = other_annual_income
@@ -102,7 +113,7 @@ def calculate_tax_on_withdrawal(
 
 def calculate_capital_withdrawal(
     withdrawal_amount_gross: float,
-    withdrawal_year: int = 2025,
+    withdrawal_year: Optional[int] = None,
     other_annual_income: float = 0.0,
 ) -> Dict[str, Any]:
     """
@@ -126,7 +137,10 @@ def calculate_capital_withdrawal(
     )
     
     # חישוב מדרגת המס השולית
-    brackets = get_tax_brackets(withdrawal_year)
+    if withdrawal_year is None:
+        withdrawal_year = datetime.now().year
+
+    brackets = get_tax_brackets(int(withdrawal_year))
     total_income = other_income + withdrawal
     marginal_rate = Decimal('0')
     for limit, rate in brackets:
@@ -156,7 +170,7 @@ class CapitalWithdrawalService:
     def calculate(
         self,
         withdrawal_amount_gross: float,
-        withdrawal_year: int = 2025,
+        withdrawal_year: Optional[int] = None,
         other_annual_income: float = 0.0,
     ) -> Dict[str, Any]:
         """

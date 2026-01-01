@@ -3,11 +3,13 @@ Tax constants package - קבועי מס.
 מודול זה מכיל את כל הקבועים הקשורים למיסוי בישראל.
 """
 
+from datetime import datetime
+
 from .base_models import TaxBracket, TaxCredit
-from .income_tax import INCOME_TAX_BRACKETS_2024, INCOME_TAX_BRACKETS_2025, get_tax_brackets
-from .national_insurance import NATIONAL_INSURANCE_2024, get_national_insurance_rates
-from .health_tax import HEALTH_TAX_2024, get_health_tax_rates
-from .tax_credits import TAX_CREDITS_2024, TAX_CREDIT_POINT_VALUE, get_tax_credits
+from .income_tax import INCOME_TAX_BRACKETS_2024, INCOME_TAX_BRACKETS_2025, INCOME_TAX_BRACKETS_2026, get_tax_brackets
+from .national_insurance import NATIONAL_INSURANCE_2024, NATIONAL_INSURANCE_2025, NATIONAL_INSURANCE_2026, get_national_insurance_rates
+from .health_tax import HEALTH_TAX_2024, HEALTH_TAX_2025, HEALTH_TAX_2026, get_health_tax_rates
+from .tax_credits import TAX_CREDITS_2024, TAX_CREDITS_2025, TAX_CREDITS_2026, TAX_CREDIT_POINT_VALUE, get_tax_credits
 from .pension_tax import PENSION_TAX_EXEMPTIONS, get_pension_exemptions
 from .special_rates import SPECIAL_TAX_RATES, INDEXATION_RATES
 from .enums import INCOME_TYPES, MARITAL_STATUS, MONTHS_IN_YEAR, DAYS_IN_YEAR
@@ -20,20 +22,27 @@ class TaxConstants:
     """
     
     # שנת המס הנוכחית
-    CURRENT_TAX_YEAR = 2024
+    CURRENT_TAX_YEAR = datetime.now().year
     
     # מדרגות מס הכנסה
     INCOME_TAX_BRACKETS_2024 = INCOME_TAX_BRACKETS_2024
     INCOME_TAX_BRACKETS_2025 = INCOME_TAX_BRACKETS_2025
+    INCOME_TAX_BRACKETS_2026 = INCOME_TAX_BRACKETS_2026
     
     # ביטוח לאומי
     NATIONAL_INSURANCE_2024 = NATIONAL_INSURANCE_2024
+    NATIONAL_INSURANCE_2025 = NATIONAL_INSURANCE_2025
+    NATIONAL_INSURANCE_2026 = NATIONAL_INSURANCE_2026
     
     # מס בריאות
     HEALTH_TAX_2024 = HEALTH_TAX_2024
+    HEALTH_TAX_2025 = HEALTH_TAX_2025
+    HEALTH_TAX_2026 = HEALTH_TAX_2026
     
     # נקודות זיכוי במס
     TAX_CREDITS_2024 = TAX_CREDITS_2024
+    TAX_CREDITS_2025 = TAX_CREDITS_2025
+    TAX_CREDITS_2026 = TAX_CREDITS_2026
     TAX_CREDIT_POINT_VALUE = TAX_CREDIT_POINT_VALUE
     
     # פטורים ממס לפנסיונרים
@@ -75,9 +84,16 @@ __all__ = [
     'TaxConstants',
     'INCOME_TAX_BRACKETS_2024',
     'INCOME_TAX_BRACKETS_2025',
+    'INCOME_TAX_BRACKETS_2026',
     'NATIONAL_INSURANCE_2024',
+    'NATIONAL_INSURANCE_2025',
+    'NATIONAL_INSURANCE_2026',
     'HEALTH_TAX_2024',
+    'HEALTH_TAX_2025',
+    'HEALTH_TAX_2026',
     'TAX_CREDITS_2024',
+    'TAX_CREDITS_2025',
+    'TAX_CREDITS_2026',
     'TAX_CREDIT_POINT_VALUE',
     'PENSION_TAX_EXEMPTIONS',
     'SPECIAL_TAX_RATES',

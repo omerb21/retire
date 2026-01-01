@@ -467,9 +467,10 @@ export async function exportReportPdf(clientId: number, scenarioIds: number[]) {
     throw new Error("No scenarios selected for PDF export");
   }
 
+  const year = new Date().getFullYear();
   const body = {
-    from: "2025-01",
-    to: "2025-12",
+    from: `${year}-01`,
+    to: `${year}-12`,
     frequency: "monthly",
     scenarios: scenarioIds,
   };

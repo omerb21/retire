@@ -4,6 +4,7 @@ Health tax rates for Israel.
 """
 
 from typing import Dict
+from datetime import datetime
 
 
 # מס בריאות 2024
@@ -24,6 +25,14 @@ HEALTH_TAX_2025: Dict[str, float] = {
     'max_monthly_payment': 2245,  # תשלום מקסימלי חודשי
 }
 
+HEALTH_TAX_2026: Dict[str, float] = {
+    'rate_low': 0.031,  # 3.1% עד התקרה הנמוכה
+    'rate_high': 0.050,  # 5.0% מעל התקרה הנמוכה
+    'low_threshold_monthly': 6331,  # תקרה נמוכה חודשית
+    'high_threshold_monthly': 47310,  # תקרה עליונה חודשית
+    'max_monthly_payment': 2245,  # תשלום מקסימלי חודשי
+}
+
 
 def get_health_tax_rates(year: int = None) -> Dict[str, float]:
     """
@@ -35,7 +44,12 @@ def get_health_tax_rates(year: int = None) -> Dict[str, float]:
     Returns:
         מילון עם שיעורי מס הבריאות
     """
-    if year is None or year < 2025:
-        return HEALTH_TAX_2024
-    else:
+    if year is None:
+        year = datetime.now().year
+
+    if year >= 2026:
+        return HEALTH_TAX_2026
+    if year >= 2025:
         return HEALTH_TAX_2025
+    else:
+        return HEALTH_TAX_2024

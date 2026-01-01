@@ -4,7 +4,7 @@ from app.services.llm_agent_tools_service import AgentToolsService
 
 
 def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsService) -> str:
-    version_tag = "BUILD_TARGET_PENSION_PLAN_HANDLER_VERSION=2025-12-27.1"
+    version_tag = "BUILD_TARGET_PENSION_PLAN_HANDLER_VERSION=2026-01-01.1"
     if not isinstance(args, dict):
         args = {}
 

@@ -9,7 +9,7 @@
  */
 export function getPensionCeiling(year: number): number {
   const ceilings: { [key: number]: number } = {
-    2025: 9430, 2024: 9430, 2023: 9120, 2022: 8660,
+    2026: 9430, 2025: 9430, 2024: 9430, 2023: 9120, 2022: 8660,
     2021: 8460, 2020: 8510, 2019: 8480, 2018: 8380
   };
   return ceilings[year] || 9430;
