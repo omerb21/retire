@@ -282,15 +282,46 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
         (headers as any)['X-System-Password'] = systemPassword;
       }
 
-      const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(savedSnapshot)
-      });
+      const doRestore = async (payload: any) => {
+        const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'שגיאה בשחזור המצב');
+        if (!response.ok) {
+          const error = await response.json().catch(() => null);
+          const detail = (error as any)?.detail || 'שגיאה בשחזור המצב';
+          const err: any = new Error(String(detail));
+          err.__http_status = response.status;
+          throw err;
+        }
+
+        return response;
+      };
+
+      let response: Response;
+      try {
+        response = await doRestore(savedSnapshot);
+      } catch (e: any) {
+        const msg = String(e?.message || 'שגיאה בשחזור המצב');
+        const statusCode = Number(e?.__http_status || 0);
+        const looksIncomplete =
+          msg.includes('snapshot נראה לא שלם') ||
+          msg.includes('ישוחזרו') ||
+          msg.includes('כדי למנוע מחיקה');
+
+        if (statusCode === 422 && looksIncomplete) {
+          const okForce = window.confirm(
+            `${msg}\n\nהאם לשחזר בכל זאת? פעולה זו עלולה למחוק נתונים אם ה-snapshot באמת חלקי.`
+          );
+          if (!okForce) {
+            throw e;
+          }
+          response = await doRestore({ ...(savedSnapshot as any), force_restore: true });
+        } else {
+          throw e;
+        }
       }
 
       const data = await response.json();
