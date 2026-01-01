@@ -4,6 +4,7 @@ import secrets
 import json
 import hmac
 import re
+import logging
 
 from typing import Any
 
@@ -19,6 +20,10 @@ from app.services.llm_chat.chat_orchestration import run_pension_chat_stream
 from app.schemas.llm_chat import ChatRequest
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
+from app.utils.llm_chat_log import get_current_request_id
+
+
+logger = logging.getLogger(__name__)
 
 
 def _strip_stream_markers_for_public_chat(text: str) -> str:
@@ -481,6 +486,7 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
 
     stream_response = run_pension_chat_stream(request, db)
     chunks: list[str] = []
+    stream_error_id: str | None = None
     try:
         async for chunk in stream_response.body_iterator:
             if isinstance(chunk, (bytes, bytearray)):
@@ -491,11 +497,25 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
             else:
                 chunks.append(str(chunk))
     except Exception:
+        stream_error_id = secrets.token_urlsafe(8)
+        logger.exception(
+            "Public chat stream failed (error_id=%s, request_id=%s, client_id=%s, session_key=%s)",
+            stream_error_id,
+            get_current_request_id(),
+            getattr(session, "client_id", None),
+            getattr(session, "session_key", None) or getattr(session, "key", None) or "",
+        )
         chunks = []
 
     reply_text = "".join(chunks).strip()
     if not reply_text:
-        reply_text = "שגיאה: לא התקבלה תשובה מהמערכת (ייתכן כשל זמני בהפקת המסמכים). נסה שוב בעוד רגע."
+        if stream_error_id:
+            reply_text = (
+                "שגיאה: לא התקבלה תשובה מהמערכת (כשל זמני). נסה שוב בעוד רגע. "
+                f"(קוד שגיאה: {stream_error_id})"
+            )
+        else:
+            reply_text = "שגיאה: לא התקבלה תשובה מהמערכת (ייתכן כשל זמני בהפקת המסמכים). נסה שוב בעוד רגע."
 
     portfolio_payloads, severance_payloads = _extract_marker_payloads(reply_text)
     if portfolio_payloads or severance_payloads:
@@ -510,7 +530,14 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
                 if updated_accounts is not None:
                     _save_snapshot_accounts(db, session.client_id, updated_accounts)
         except Exception:
-            pass
+            marker_error_id = secrets.token_urlsafe(8)
+            logger.exception(
+                "Public chat marker apply failed (error_id=%s, request_id=%s, client_id=%s, session_key=%s)",
+                marker_error_id,
+                get_current_request_id(),
+                getattr(session, "client_id", None),
+                getattr(session, "session_key", None) or getattr(session, "key", None) or "",
+            )
 
     reply_text = _strip_stream_markers_for_public_chat(reply_text)
     reply_text = sanitize_user_visible_text(reply_text)
