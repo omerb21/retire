@@ -179,8 +179,6 @@ def execute_tool_call(
     user_approved = True
 
     if tool_name == "PROCESS_TERMINATION" and isinstance(args, dict):
-        # NOTE: Do NOT skip execution based only on employer.end_date.
-        # We only return already_processed when we have strong evidence the termination flow completed.
         try:
             from app.utils.date_serializer import parse_date_flexible
             from app.models.current_employment import EmployerGrant, GrantType

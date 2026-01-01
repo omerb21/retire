@@ -515,7 +515,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             success = parsed.get("success")
             message = parsed.get("message")
             details = parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
-            already_processed = bool(details.get("already_processed"))
+            already_processed = bool(details.get("already_processed")) or (
+                isinstance(message, str) and ("כבר בוצע" in message or "כבר בוצעה" in message)
+            )
             termination_date = details.get("termination_date")
             severance_amount = details.get("severance_amount")
             exempt_amount = details.get("exempt_amount")
@@ -1378,6 +1380,18 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
     has_lump_sum_intent = any(t in lowered for t in lump_sum_tokens)
     has_any_grant_term = ("פיצויים" in lowered) or ("מענק" in lowered) or ("מענקים" in lowered)
 
+    if "exempt_choice" not in overrides:
+        if any(t in lowered for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")) and any(
+            t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")
+        ):
+            overrides["exempt_choice"] = "redeem_with_exemption"
+
+    if "taxable_choice" not in overrides:
+        if ("חייב" in lowered or "חייב במס" in lowered) and (
+            "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
+        ):
+            overrides["taxable_choice"] = "annuity"
+
     if has_any_grant_term and has_lump_sum_intent and (not any(t in lowered for t in annuity_tokens) or has_no_annuity_intent):
         overrides.setdefault("exempt_choice", "redeem_with_exemption")
         overrides.setdefault("taxable_choice", "redeem_no_exemption")
@@ -1430,6 +1444,20 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
                 overrides["taxable_choice"] = "annuity"
             elif any(t in taxable_clause for t in ("משיכה", "חד פעמ", "משיכת הון", "משיכת מענק", "הוני")):
                 overrides["taxable_choice"] = "redeem_no_exemption"
+
+    if "exempt_choice" not in overrides and ("פטור" in lowered):
+        if any(t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")) and not (
+            "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
+        ):
+            overrides["exempt_choice"] = "redeem_with_exemption"
+        elif "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered):
+            overrides["exempt_choice"] = "annuity"
+
+    if "taxable_choice" not in overrides and ("חייב" in lowered or "חייב במס" in lowered):
+        if any(t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")) and not (
+            "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
+        ):
+            overrides["taxable_choice"] = "redeem_no_exemption"
 
     return overrides
 

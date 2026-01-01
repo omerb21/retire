@@ -727,7 +727,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 )
                 .count()
             )
-            termination_already_executed = grants_count > 0
+            confirmed = False
+            try:
+                other_grants = current_employer.other_grants or {}
+                if isinstance(other_grants, dict):
+                    confirmed = bool(other_grants.get("termination_confirmed"))
+            except Exception:
+                confirmed = False
+            termination_already_executed = confirmed or (grants_count > 0)
 
     if (
         explicit_termination

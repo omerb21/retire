@@ -25,7 +25,18 @@ def handle_process_termination(
 
     raw_date = args.get("termination_date")
     if raw_date is None or (isinstance(raw_date, str) and not raw_date.strip()):
-        args["termination_date"] = date.today().isoformat()
+        try:
+            employer = (
+                db.query(CurrentEmployer)
+                .filter(CurrentEmployer.client_id == client_id)
+                .first()
+            )
+            if employer and employer.end_date:
+                args["termination_date"] = employer.end_date.isoformat()
+            else:
+                args["termination_date"] = date.today().isoformat()
+        except Exception:
+            args["termination_date"] = date.today().isoformat()
 
     if args.get("severance_amount") is None and args.get("severance_amount_gross") is not None:
         args["severance_amount"] = args.get("severance_amount_gross")
@@ -58,8 +69,24 @@ def handle_process_termination(
         except Exception:
             pass
 
+    try:
+        if isinstance(args.get("exempt_choice"), str):
+            raw_exempt_choice = args.get("exempt_choice").strip().lower()
+            if raw_exempt_choice in {"capital", "lump_sum", "lumpsum", "one_time", "one-time"}:
+                args["exempt_choice"] = "redeem_with_exemption"
+            elif raw_exempt_choice in {"pension", "annuity"}:
+                args["exempt_choice"] = "annuity"
+        if isinstance(args.get("taxable_choice"), str):
+            raw_taxable_choice = args.get("taxable_choice").strip().lower()
+            if raw_taxable_choice in {"capital", "lump_sum", "lumpsum", "one_time", "one-time"}:
+                args["taxable_choice"] = "redeem_no_exemption"
+            elif raw_taxable_choice in {"pension", "annuity"}:
+                args["taxable_choice"] = "annuity"
+    except Exception:
+        pass
+
     if args.get("exempt_choice") is None:
-        args["exempt_choice"] = "annuity"
+        args["exempt_choice"] = "redeem_with_exemption"
     if args.get("taxable_choice") is None:
         args["taxable_choice"] = "annuity"
 

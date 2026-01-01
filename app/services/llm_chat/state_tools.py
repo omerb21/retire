@@ -300,7 +300,7 @@ def get_tools_definitions_json() -> str:
                 "properties": {
                     "termination_date": {
                         "type": "string",
-                        "description": "תאריך סיום העבודה בפורמט DD/MM/YYYY.",
+                        "description": "תאריך סיום העבודה בפורמט DD/MM/YYYY (אופציונלי: אם חסר, המערכת תנסה להשתמש בתאריך סיום במעסיק נוכחי או בתאריך היום).",
                     },
                     "use_employer_completion": {
                         "type": "boolean",
@@ -350,12 +350,6 @@ def get_tools_definitions_json() -> str:
                     },
                 },
                 "required": [
-                    "termination_date",
-                    "severance_amount",
-                    "exempt_amount",
-                    "taxable_amount",
-                    "exempt_choice",
-                    "taxable_choice",
                     "confirmed",
                 ],
             },
