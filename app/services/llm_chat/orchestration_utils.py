@@ -515,6 +515,7 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             success = parsed.get("success")
             message = parsed.get("message")
             details = parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
+            already_processed = bool(details.get("already_processed"))
             termination_date = details.get("termination_date")
             severance_amount = details.get("severance_amount")
             exempt_amount = details.get("exempt_amount")
@@ -529,7 +530,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
 
             lines = []
             lines.append("סיום עבודה – סיכום ביצוע:")
-            if success is not None:
+            if already_processed:
+                lines.append("• סטטוס: כבר בוצע בעבר (לא בוצעו שינויים)")
+            elif success is not None:
                 lines.append(f"• סטטוס: {'בוצע בהצלחה' if bool(success) else 'נכשל'}")
             if isinstance(message, str) and message.strip():
                 lines.append(f"• הודעה: {message.strip()}")

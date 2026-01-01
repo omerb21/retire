@@ -179,8 +179,11 @@ def execute_tool_call(
     user_approved = True
 
     if tool_name == "PROCESS_TERMINATION" and isinstance(args, dict):
+        # NOTE: Do NOT skip execution based only on employer.end_date.
+        # We only return already_processed when we have strong evidence the termination flow completed.
         try:
             from app.utils.date_serializer import parse_date_flexible
+            from app.models.current_employment import EmployerGrant, GrantType
 
             termination_date = None
             raw_date = args.get("termination_date")
@@ -195,18 +198,43 @@ def execute_tool_call(
                     .filter(CurrentEmployer.client_id == client_id)
                     .first()
                 )
+
                 if employer and employer.end_date and employer.end_date == termination_date:
-                    return json.dumps(
-                        {
-                            "success": True,
-                            "message": "עזיבת העבודה כבר בוצעה עבור התאריך הזה. אין צורך לאשר או לבצע שוב.",
-                            "details": {
-                                "termination_date": str(termination_date),
-                                "already_processed": True,
-                            },
-                        },
-                        ensure_ascii=False,
+                    grants_count = (
+                        db.query(EmployerGrant)
+                        .filter(
+                            EmployerGrant.employer_id == employer.id,
+                            EmployerGrant.grant_type == GrantType.severance,
+                        )
+                        .count()
                     )
+
+                    confirmed = False
+                    try:
+                        other_grants = employer.other_grants or {}
+                        if isinstance(other_grants, dict):
+                            confirmed = bool(other_grants.get("termination_confirmed")) and (
+                                other_grants.get("termination_date") == termination_date.isoformat()
+                            )
+                    except Exception:
+                        confirmed = False
+
+                    if confirmed and grants_count > 0:
+                        return json.dumps(
+                            {
+                                "success": True,
+                                "message": "עזיבת העבודה כבר בוצעה עבור התאריך הזה. לא בוצעו שינויים.",
+                                "details": {
+                                    "termination_date": str(termination_date),
+                                    "already_processed": True,
+                                    "evidence": {
+                                        "termination_confirmed": True,
+                                        "severance_grants_count": grants_count,
+                                    },
+                                },
+                            },
+                            ensure_ascii=False,
+                        )
         except Exception:
             pass
 
