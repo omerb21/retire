@@ -48,6 +48,15 @@ def get_agent_state_json(client_id: int, db: Session) -> str:
 def get_tools_definitions_json() -> str:
     tools = [
         {
+            "name": "GET_SYSTEM_STATE_SNAPSHOT",
+            "description": "מחזיר snapshot מלא של כל הנתונים הקיימים בפועל במערכת עבור הלקוח (DB) כולל קצבאות, היוונים, הכנסות נוספות, נכסי הון, מענקים, מעסיק נוכחי/עזיבת עבודה, קיבוע זכויות, ותרחישים/תוצאות. חובה להשתמש בכלי זה כאשר המשתמש שואל 'מה יש במערכת' או מבקש פירוט מצב בפועל, במקום לנחש או להסתמך על טבלת מוצרים בלבד.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
             "name": "BUILD_TARGET_PENSION_PLAN",
             "description": "כלי לתכנון מתווה משיכה אופטימלי מכל המקורות להשגת יעד קצבה חודשי נטו.",
             "parameters": {
@@ -56,6 +65,15 @@ def get_tools_definitions_json() -> str:
                     "target_monthly_pension": {
                         "type": "integer",
                         "description": "יעד הקצבה החודשי המבוקש בשקלים (למשל: 20000)",
+                    }
+                    ,
+                    "target_is_net": {
+                        "type": "boolean",
+                        "description": "האם היעד שניתן הוא נטו (אחרי מס הכנסה). true=נטו, false=ברוטו. אם המשתמש כתב במפורש 'נטו' חובה לשלוח true.",
+                    },
+                    "retirement_age": {
+                        "type": "integer",
+                        "description": "אופציונלי: גיל פרישה לחישוב (50-80). אם לא סופק, הכלי ישתמש בגיל חוקי/נוכחי לפי הלקוח.",
                     }
                 },
                 "required": ["target_monthly_pension"],
@@ -350,6 +368,12 @@ def get_tools_definitions_json() -> str:
                     },
                 },
                 "required": [
+                    "termination_date",
+                    "severance_amount",
+                    "exempt_amount",
+                    "taxable_amount",
+                    "exempt_choice",
+                    "taxable_choice",
                     "confirmed",
                 ],
             },

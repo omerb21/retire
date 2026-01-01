@@ -693,7 +693,6 @@ def handle_transform_funds_to_assets(
                     except (TypeError, ValueError):
                         val = 0.0
                     if val > 0:
-                        blocked_field_amount += val
                         specific_amounts.pop(bf, None)
 
             for key, target in (

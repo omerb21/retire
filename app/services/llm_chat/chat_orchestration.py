@@ -362,10 +362,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     )
 
     # Early deterministic handling for pension commutation requests.
+    # Only run this path when the user provided a specific account identifier.
+    # If the request is vague (no account number), fall back to the LLM flow.
     if commutation_intent and request.client_id is not None and (not is_doc_request) and (not is_qa_mode):
         account_number = _extract_commutation_account_number(original_user_msg)
-        fund = None
         if account_number:
+            # NOTE: We deliberately do not handle vague commutation requests deterministically.
+            # If no account number is provided, fall back to the LLM loop.
+
+            fund = None
             try:
                 from app.models.pension_fund import PensionFund
 
@@ -378,167 +383,169 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
             except Exception:
                 fund = None
 
-        if fund is None and account_number:
-            def _item_to_dict(item: Any) -> dict:
-                if isinstance(item, dict):
-                    return item
-                model_dump = getattr(item, "model_dump", None)
-                if callable(model_dump):
-                    dumped = model_dump()
-                    return dumped if isinstance(dumped, dict) else {}
-                raw = getattr(item, "__dict__", {})
-                return raw if isinstance(raw, dict) else {}
+            if fund is None:
+                def _item_to_dict(item: Any) -> dict:
+                    if isinstance(item, dict):
+                        return item
+                    model_dump = getattr(item, "model_dump", None)
+                    if callable(model_dump):
+                        dumped = model_dump()
+                        return dumped if isinstance(dumped, dict) else {}
+                    raw = getattr(item, "__dict__", {})
+                    return raw if isinstance(raw, dict) else {}
 
-            def _digits_only(value: str | None) -> str:
-                return "".join(ch for ch in (value or "") if ch.isdigit())
+                def _digits_only(value: str | None) -> str:
+                    return "".join(ch for ch in (value or "") if ch.isdigit())
 
-            target_digits = _digits_only(account_number)
-            matched: dict | None = None
-            for acc in (effective_portfolio or []):
-                data = _item_to_dict(acc)
-                acc_num = str(data.get("מספר_חשבון") or data.get("account_number") or "").strip()
-                if not acc_num:
-                    continue
-                if acc_num == account_number:
-                    matched = data
-                    break
-                if target_digits and _digits_only(acc_num) == target_digits:
-                    matched = data
-                    break
+                target_digits = _digits_only(account_number)
+                matched: dict | None = None
+                for acc in (effective_portfolio or []):
+                    data = _item_to_dict(acc)
+                    acc_num = str(
+                        data.get("מספר_חשבון")
+                        or data.get("account_number")
+                        or ""
+                    ).strip()
+                    if not acc_num:
+                        continue
+                    if acc_num == account_number:
+                        matched = data
+                        break
+                    if target_digits and _digits_only(acc_num) == target_digits:
+                        matched = data
+                        break
 
-            if matched is not None:
-                try:
-                    from app.models.pension_fund import PensionFund
-
-                    component_fields = [
-                        "פיצויים_מעסיק_נוכחי",
-                        "פיצויים_לאחר_התחשבנות",
-                        "פיצויים_שלא_עברו_התחשבנות",
-                        "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
-                        "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
-                        "תגמולי_עובד_עד_2000",
-                        "תגמולי_עובד_אחרי_2000",
-                        "תגמולי_עובד_אחרי_2008_לא_משלמת",
-                        "תגמולי_מעביד_עד_2000",
-                        "תגמולי_מעביד_אחרי_2000",
-                        "תגמולי_מעביד_אחרי_2008_לא_משלמת",
-                    ]
-                    nested_specific = matched.get("specific_amounts")
-                    if not isinstance(nested_specific, dict):
-                        nested_specific = {}
-                    component_sum = 0.0
-                    for field in component_fields:
-                        val = matched.get(field)
-                        if val is None and field in nested_specific:
-                            val = nested_specific.get(field)
-                        try:
-                            component_sum += float(val or 0)
-                        except Exception:
-                            pass
-                    raw_balance = matched.get("יתרה")
-                    if raw_balance is None:
-                        raw_balance = matched.get("balance")
+                if matched is not None:
                     try:
-                        raw_balance_f = float(raw_balance or 0)
+                        from app.models.pension_fund import PensionFund
+
+                        raw_balance = matched.get("יתרה")
+                        if raw_balance is None:
+                            raw_balance = matched.get("balance")
+                        try:
+                            balance = float(raw_balance or 0)
+                        except Exception:
+                            balance = 0.0
+
+                        fund = PensionFund(
+                            client_id=int(request.client_id),
+                            fund_name=str(
+                                matched.get("שם_תכנית")
+                                or matched.get("account_name")
+                                or "קצבה"
+                            ),
+                            fund_type=str(
+                                matched.get("סוג_מוצר")
+                                or matched.get("product_type")
+                                or "unknown"
+                            ),
+                            input_mode="manual",
+                            balance=float(balance),
+                            annuity_factor=200.0,
+                            pension_amount=round(float(balance) / 200.0)
+                            if float(balance) > 0
+                            else 0.0,
+                            pension_start_date=None,
+                            indexation_method="none",
+                            tax_treatment="taxable",
+                            deduction_file=str(
+                                matched.get("מספר_חשבון")
+                                or matched.get("account_number")
+                                or account_number
+                            ),
+                            conversion_source=json.dumps(
+                                {
+                                    "type": "pension_portfolio",
+                                    "source": "pension_portfolio",
+                                    "account_number": str(
+                                        matched.get("מספר_חשבון")
+                                        or matched.get("account_number")
+                                        or account_number
+                                    ),
+                                    "account_name": str(
+                                        matched.get("שם_תכנית")
+                                        or matched.get("account_name")
+                                        or ""
+                                    ),
+                                    "company": str(
+                                        matched.get("חברה_מנהלת")
+                                        or matched.get("company")
+                                        or ""
+                                    ),
+                                    "product_type": str(
+                                        matched.get("סוג_מוצר")
+                                        or matched.get("product_type")
+                                        or ""
+                                    ),
+                                    "amount": float(balance),
+                                    "conversion_date": date.today().isoformat(),
+                                },
+                                ensure_ascii=False,
+                            ),
+                        )
+                        db.add(fund)
+                        db.commit()
+                        db.refresh(fund)
                     except Exception:
-                        raw_balance_f = 0.0
+                        fund = None
 
-                    balance = raw_balance_f if raw_balance_f > 0 else (component_sum if component_sum > 0 else 0.0)
-
-                    fund = PensionFund(
-                        client_id=int(request.client_id),
-                        fund_name=str(matched.get("שם_תכנית") or matched.get("account_name") or "קצבה"),
-                        fund_type=str(matched.get("סוג_מוצר") or matched.get("product_type") or "unknown"),
-                        input_mode="manual",
-                        balance=float(balance),
-                        annuity_factor=200.0,
-                        pension_amount=round(float(balance) / 200.0) if float(balance) > 0 else 0.0,
-                        pension_start_date=None,
-                        indexation_method="none",
-                        tax_treatment="taxable",
-                        deduction_file=str(matched.get("מספר_חשבון") or matched.get("account_number") or account_number),
-                        conversion_source=json.dumps(
-                            {
-                                "type": "pension_portfolio",
-                                "source": "pension_portfolio",
-                                "account_number": str(
-                                    matched.get("מספר_חשבון") or matched.get("account_number") or account_number
-                                ),
-                                "account_name": str(matched.get("שם_תכנית") or matched.get("account_name") or ""),
-                                "company": str(matched.get("חברה_מנהלת") or matched.get("company") or ""),
-                                "product_type": str(matched.get("סוג_מוצר") or matched.get("product_type") or ""),
-                                "amount": float(balance),
-                                "specific_amounts": nested_specific,
-                                "conversion_date": date.today().isoformat(),
-                            },
-                            ensure_ascii=False,
+                if fund is None:
+                    return ChatResponse(
+                        reply=(
+                            "כדי לבצע היוון אני צריך לזהות **קצבה קיימת במערכת** שמתאימה לחשבון שביקשת. "
+                            f"לא מצאתי קצבה עם מספר חשבון/תיק ניכויים `{account_number}`.\n\n"
+                            "אפשרויות:\n"
+                            "1) כתוב את שם הקצבה כפי שהיא מופיעה במסך קצבאות, או את מזהה הקצבה (pension_fund_id).\n"
+                            "2) אם הכוונה היא לתכנית בתיק המסלקה בלבד (לא קצבה קיימת), ציין: 'הפוך את החשבון לקצבה ואז בצע היוון'."
                         ),
+                        computed_data=computed_data,
                     )
-                    db.add(fund)
-                    db.commit()
-                    db.refresh(fund)
-                except Exception:
-                    fund = None
 
-        if fund is None:
-            if account_number:
+            comm_amount = None
+            try:
+                if _user_wants_full_balance(original_user_msg):
+                    comm_amount = float(getattr(fund, "balance", 0) or 0)
+            except Exception:
+                comm_amount = None
+
+            if not comm_amount or comm_amount <= 0:
                 return ChatResponse(
                     reply=(
-                        "כדי לבצע היוון אני צריך לזהות **קצבה קיימת במערכת** שמתאימה לחשבון שביקשת. "
-                        f"לא מצאתי קצבה עם מספר חשבון/תיק ניכויים `{account_number}`.\n\n"
-                        "אפשרויות:\n"
-                        "1) כתוב את שם הקצבה כפי שהיא מופיעה במסך קצבאות, או את מזהה הקצבה (pension_fund_id).\n"
-                        "2) אם הכוונה היא לתכנית בתיק המסלקה בלבד (לא קצבה קיימת), ציין: 'הפוך את החשבון לקצבה ואז בצע היוון'."
+                        "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
+                        "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
                     ),
                     computed_data=computed_data,
                 )
+
+            tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
+            exec_args = {
+                "pension_fund_id": int(getattr(fund, "id")),
+                "commutation_amount": float(comm_amount),
+                "commutation_date": date.today().isoformat(),
+                "commutation_type": tax_type,
+                "confirmed": True,
+            }
+
+            tool_result = _execute_tool_call(
+                "EXECUTE_PENSION_COMMUTATION",
+                exec_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=request_id,
+            )
+
             return ChatResponse(
-                reply=(
-                    "כדי לבצע היוון אני צריך לזהות מאיזו קצבה לבצע. "
-                    "אנא ציין מזהה קצבה (pension_fund_id) או מספר חשבון בסוגריים, למשל: 'היוון קצבה (12345678)'."
+                reply=sanitize_user_visible_text(
+                    format_tool_output_for_user_stream(
+                        "EXECUTE_PENSION_COMMUTATION",
+                        tool_result,
+                    )
                 ),
                 computed_data=computed_data,
             )
-
-        comm_amount = None
-        try:
-            if _user_wants_full_balance(original_user_msg):
-                comm_amount = float(getattr(fund, "balance", 0) or 0)
-        except Exception:
-            comm_amount = None
-        if not comm_amount or comm_amount <= 0:
-            return ChatResponse(
-                reply=(
-                    "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
-                    "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
-                ),
-                computed_data=computed_data,
-            )
-
-        tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
-        exec_args = {
-            "pension_fund_id": int(getattr(fund, "id")),
-            "commutation_amount": float(comm_amount),
-            "commutation_date": date.today().isoformat(),
-            "commutation_type": tax_type,
-            "confirmed": True,
-        }
-        tool_result = _execute_tool_call(
-            "EXECUTE_PENSION_COMMUTATION",
-            exec_args,
-            request.client_id,
-            db,
-            pension_portfolio=effective_portfolio,
-            force_max_exemption=False,
-            user_approved=True,
-            request_id=request_id,
-        )
-        return ChatResponse(
-            reply=sanitize_user_visible_text(
-                format_tool_output_for_user_stream("EXECUTE_PENSION_COMMUTATION", tool_result)
-            ),
-            computed_data=computed_data,
-        )
 
     forced_termination_result: str | None = None
 

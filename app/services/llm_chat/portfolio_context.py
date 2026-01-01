@@ -152,7 +152,7 @@ def build_pension_portfolio_context(
     if formatted_snapshot:
         context_lines.append(f"🕒 **הנתונים נכונים לתאריך snapshot:** {formatted_snapshot}")
     context_lines.append(
-        "ℹ️ **הבהרה קריטית:** קיום יתרות חסומות בתיק *לא* מונע ניתוח/חישוב/מענה על שאלות לגבי שאר התיק. "
+        "⚠️ **אזהרה קריטית:** קיום יתרות חסומות בתיק *לא* מונע ניתוח/חישוב/מענה על שאלות לגבי שאר התיק. "
         "פשוט מתייחסים ליתרות החסומות כ'מחוץ לטווח ביצוע' וממשיכים עם כל מה שניתן."
     )
     context_lines.append(

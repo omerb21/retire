@@ -26,7 +26,7 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
 
     target_is_net = args.get("target_is_net")
     if target_is_net is None:
-        target_is_net_val = False
+        target_is_net_val = True
     else:
         target_is_net_val = bool(target_is_net)
 
@@ -90,16 +90,53 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
             f"- סה\"כ יתרה במסלקה שנקראה: {total_balance_text} ₪"
         )
 
-    summary = (
-        "תכנית יעד קצבה – סיכום:\n"
-        f"- יעד קצבה חודשי: {plan_res.get('target_monthly_pension'):,.0f} ₪\n"
-        f"- קצבה שהושגה מהמקורות שנבחרו: {plan_res.get('accumulated_pension'):,.0f} ₪\n"
-        f"- הון שנותר (לא הומר לקצבה): {plan_res.get('remaining_capital'):,.0f} ₪\n"
-        f"- סטטוס: {'היעד הושג' if plan_res.get('target_achieved') else 'היעד לא הושג במלואו'}\n"
-        f"פירוט: {result.get('explanation')}\n"
-        f"{portfolio_diag}\n"
-        f"{version_tag}"
-    )
+    try:
+        achieved_gross = float(plan_res.get("accumulated_pension") or 0)
+    except Exception:
+        achieved_gross = 0.0
+
+    try:
+        remaining_capital = float(plan_res.get("remaining_capital") or 0)
+    except Exception:
+        remaining_capital = 0.0
+
+    mode_label = "נטו" if plan_res.get("target_is_net") else "ברוטו"
+    status_label = "היעד הושג" if plan_res.get("target_achieved") else "היעד לא הושג במלואו"
+
+    summary_lines: list[str] = []
+    summary_lines.append("תכנית יעד קצבה – סיכום:")
+    summary_lines.append(f"- יעד קצבה חודשי ({mode_label}): {float(plan_res.get('target_monthly_pension') or 0):,.0f} ₪")
+
+    if plan_res.get("target_is_net"):
+        required_gross = plan_res.get("required_gross_for_target")
+        estimated_tax = plan_res.get("estimated_monthly_tax")
+        estimated_net = plan_res.get("estimated_monthly_net")
+        if required_gross is not None:
+            try:
+                summary_lines.append(f"- ברוטו שנדרש כדי להגיע ליעד נטו (לפי הערכת מס): {float(required_gross):,.0f} ₪/חודש")
+            except Exception:
+                pass
+        summary_lines.append(f"- קצבה ברוטו שנבנתה מהמקורות: {achieved_gross:,.0f} ₪/חודש")
+        if estimated_tax is not None:
+            try:
+                summary_lines.append(f"- מס חודשי משוער: {float(estimated_tax):,.0f} ₪")
+            except Exception:
+                pass
+        if estimated_net is not None:
+            try:
+                summary_lines.append(f"- קצבה נטו משוערת (אחרי מס הכנסה בלבד): {float(estimated_net):,.0f} ₪/חודש")
+            except Exception:
+                pass
+    else:
+        summary_lines.append(f"- קצבה ברוטו שהושגה מהמקורות שנבחרו: {achieved_gross:,.0f} ₪/חודש")
+
+    summary_lines.append(f"- הון שנותר (לא הומר לקצבה): {remaining_capital:,.0f} ₪")
+    summary_lines.append(f"- סטטוס: {status_label}")
+    summary_lines.append(f"פירוט: {result.get('explanation')}")
+    if portfolio_diag:
+        summary_lines.append(portfolio_diag)
+    summary_lines.append(version_tag)
+    summary = "\n".join([line for line in summary_lines if isinstance(line, str)]).strip()
 
     try:
         payload = {

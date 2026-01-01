@@ -3,6 +3,9 @@ import logging
 import inspect
 import re
 import uuid
+import time
+import threading
+import queue
 from typing import Any, Optional
 
 from fastapi.responses import StreamingResponse
@@ -93,6 +96,10 @@ from app.utils.llm_chat_log import generate_request_id, log_llm_event, set_curre
 from app.services.llm_agent_tools_service import AgentToolsService
 
 logger = logging.getLogger("app.llm_chat")
+
+PC_LLM_MAX_RETRIES = 3
+PC_LLM_TIMEOUT_SECONDS = 45.0
+PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 
 
 def _execute_tool_call(
@@ -221,6 +228,156 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         probe = last_assistant
         return ("ברוטו" in probe and "נטו" in probe and "כדי לתקן" in probe)
 
+    def _is_system_results_request(text: str | None) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+        if any(k in lowered for k in ("בנה", "תכנית", "תוכנית", "יעד", "תכנן", "מתווה")) and "קצבה" in lowered:
+            return False
+        if any(k in lowered for k in ("המר", "המרה", "בצע", "ביצוע", "עזיבת עבודה", "קיבוע")):
+            return False
+        if "קצבה" not in lowered:
+            return False
+        if any(k in lowered for k in ("כעת", "עכשיו", "במערכת", "מסך", "תוצאות", "בפועל", "סה\"כ", "סה")):
+            return True
+        if lowered.startswith("מה") and ("גובה" in lowered or "כמה" in lowered):
+            return True
+        return False
+
+    def _format_system_results_from_cashflow(tool_result: str) -> str:
+        try:
+            parsed = json.loads(tool_result)
+        except Exception:
+            return tool_result
+
+        if not isinstance(parsed, dict):
+            return tool_result
+
+        def _num(v: Any) -> float | None:
+            try:
+                if v is None:
+                    return None
+                return float(v)
+            except Exception:
+                return None
+
+        gross = _num(parsed.get("projected_pension"))
+        net = _num(parsed.get("projected_pension_net"))
+        tax = _num(parsed.get("monthly_tax_deduction"))
+        liquid = _num(parsed.get("total_liquid_capital"))
+        retire_date = str(parsed.get("retirement_date") or "").strip()
+        retire_age = parsed.get("retirement_age")
+        exempt_monthly = _num(parsed.get("exempt_pension_monthly"))
+        exemption_pct = _num(parsed.get("exemption_percentage"))
+
+        lines: list[str] = []
+        lines.append("תוצאות בפועל במערכת – סיכום קצבה")
+        if retire_date:
+            lines.append(f"תאריך פרישה שנבדק: {retire_date}")
+        if retire_age is not None:
+            try:
+                lines.append(f"גיל בפרישה: {int(retire_age)}")
+            except Exception:
+                pass
+        if gross is not None:
+            lines.append(f"קצבה ברוטו: {gross:,.2f} ₪/חודש")
+        if tax is not None:
+            lines.append(f"ניכוי מס חודשי משוער: {tax:,.2f} ₪")
+        if net is not None:
+            lines.append(f"קצבה נטו משוערת (אחרי מס הכנסה בלבד): {net:,.2f} ₪/חודש")
+        if (exemption_pct is not None) or (exempt_monthly is not None):
+            pct_str = f"{exemption_pct:.1f}%" if exemption_pct is not None else "לא ידוע"
+            exempt_str = f"{exempt_monthly:,.2f} ₪" if exempt_monthly is not None else "לא ידוע"
+            lines.append(f"פטור מקיבוע זכויות שהוחל: {pct_str} | קצבה פטורה חודשית: {exempt_str}")
+        if liquid is not None:
+            lines.append(f"הון נזיל זמין במערכת: {liquid:,.2f} ₪")
+
+        lines.append("")
+        lines.append("הערה: התשובה נבנתה ישירות מתוצאות החישוב של המערכת (ללא חישוב פנימי של הסוכן).")
+        return "\n".join(lines).strip()
+
+    def _is_system_inventory_request(text: str | None) -> bool:
+        lowered = (text or "").strip().lower()
+        if not lowered:
+            return False
+        if any(k in lowered for k in ("מה יש", "תציג", "הצג", "פירוט", "פרט", "רשימה", "inventory", "snapshot")) and any(
+            k in lowered for k in ("במערכת", "בפועל", "מסך", "נתונים")
+        ):
+            return True
+        if "כל האלמנטים" in lowered or "כל הנתונים" in lowered:
+            return True
+        return False
+
+    def _format_system_inventory_snapshot(tool_result: str) -> str:
+        try:
+            parsed = json.loads(tool_result)
+        except Exception:
+            return tool_result
+
+        if not isinstance(parsed, dict):
+            return tool_result
+
+        counts = parsed.get("counts") if isinstance(parsed.get("counts"), dict) else {}
+        entities = parsed.get("entities") if isinstance(parsed.get("entities"), dict) else {}
+
+        def _count(name: str) -> int:
+            try:
+                return int(counts.get(name) or 0)
+            except Exception:
+                return 0
+
+        def _first_name(items: Any, *fields: str) -> str | None:
+            if not isinstance(items, list) or not items:
+                return None
+            first = items[0]
+            if not isinstance(first, dict):
+                return None
+            for f in fields:
+                val = first.get(f)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+            return None
+
+        lines: list[str] = []
+        lines.append("מצב בפועל במערכת – Snapshot (DB)")
+        generated_at = str(parsed.get("generated_at") or "").strip()
+        if generated_at:
+            lines.append(f"נוצר בתאריך: {generated_at}")
+        lines.append("")
+        lines.append("סיכום ישויות:")
+        lines.append(f"- קצבאות (PensionFund): {_count('pension_funds')}")
+        lines.append(f"- נכסי הון (CapitalAsset): {_count('capital_assets')}")
+        lines.append(f"- הכנסות נוספות (AdditionalIncome): {_count('additional_incomes')}")
+        lines.append(f"- מעסיק נוכחי (CurrentEmployer): {_count('current_employers')}")
+        lines.append(f"- מענקי מעסיק נוכחי (EmployerGrant): {_count('employer_grants')}")
+        lines.append(f"- מענקים ממעסיקים קודמים (Grant legacy): {_count('legacy_grants')}")
+        lines.append(f"- אירועי עזיבת עבודה (TerminationEvent): {_count('termination_events')}")
+        lines.append(f"- קיבוע זכויות (FixationResult): {_count('fixation_results')}")
+        lines.append(f"- קצבאות מערכת קיבוע ישנה (Pension): {_count('pensions')}")
+        lines.append(f"- היוונים מערכת קיבוע ישנה (Commutation): {_count('commutations')}")
+        lines.append(f"- תרחישים/תוצאות (Scenario): {_count('scenarios')}")
+
+        # Provide a tiny sample of what's inside, without dumping JSON.
+        sample_pf = _first_name(entities.get("pension_funds"), "fund_name")
+        sample_ca = _first_name(entities.get("capital_assets"), "asset_name")
+        sample_ce = _first_name(entities.get("current_employers"), "employer_name")
+        if any([sample_pf, sample_ca, sample_ce]):
+            lines.append("")
+            lines.append("דוגמאות (פריט ראשון מכל קטגוריה, אם קיים):")
+            if sample_pf:
+                lines.append(f"- קצבה: {sample_pf}")
+            if sample_ca:
+                lines.append(f"- נכס הון: {sample_ca}")
+            if sample_ce:
+                lines.append(f"- מעסיק נוכחי: {sample_ce}")
+
+        lines.append("")
+        lines.append(
+            "הערה: התשובה נבנתה ישירות מ-DB (Snapshot) ללא השלמות/חישובים פנימיים של הסוכן. "
+            "אם תרצה פירוט של קטגוריה ספציפית (למשל 'תציג את כל נכסי ההון'), תגיד איזו קטגוריה."
+        )
+        return "\n".join(lines).strip()
+
     if request.client_id is not None and (
         _is_target_plan_adjust_request(original_user_msg)
         or _is_target_plan_adjust_followup(original_user_msg, request.messages)
@@ -297,10 +454,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
 
         return StreamingResponse(generate_adjust_reply(), media_type="text/plain; charset=utf-8")
-    if is_portfolio_breakdown_request(original_user_msg):
-        portfolio = effective_portfolio or []
 
-        def generate_breakdown():
+    if request.client_id is not None and _is_system_results_request(original_user_msg):
+        def generate_system_results():
             if computed_data is not None:
                 computed_json = json.dumps(
                     {"type": "computed_data", "data": computed_data.model_dump()},
@@ -308,113 +464,206 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 )
                 yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-            breakdown = (
-                "\n".join(
-                    build_pension_portfolio_context(
-                        portfolio,
-                        user_message=original_user_msg,
-                        snapshot_at=effective_snapshot_at,
-                    )
-                ).strip()
-                if portfolio
-                else ""
-            )
-            yield breakdown or "אין תיק פנסיוני לניתוח."
+            birth_date_for_default_date = None
+            gender_for_default_date = None
+            try:
+                client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+                birth_date_for_default_date = getattr(client_obj, "birth_date", None) if client_obj else None
+                gender_for_default_date = getattr(client_obj, "gender", None) if client_obj else None
+            except Exception:
+                birth_date_for_default_date = None
+                gender_for_default_date = None
 
-        return StreamingResponse(generate_breakdown(), media_type="text/plain; charset=utf-8")
+            default_retirement_date = compute_default_retirement_date_for_tool_call(
+                birth_date=birth_date_for_default_date,
+                gender=gender_for_default_date,
+                user_message=original_user_msg or "",
+            )
+
+            tool_result = _execute_tool_call(
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                {"retirement_date": default_retirement_date},
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+
+            if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+                yield sanitize_user_visible_text(tool_result)
+                return
+
+            yield sanitize_user_visible_text(_format_system_results_from_cashflow(tool_result))
+
+        return StreamingResponse(generate_system_results(), media_type="text/plain; charset=utf-8")
+
+    if request.client_id is not None and _is_system_inventory_request(original_user_msg):
+        def generate_system_inventory():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            tool_result = _execute_tool_call(
+                "GET_SYSTEM_STATE_SNAPSHOT",
+                {},
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+
+            if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+                yield sanitize_user_visible_text(tool_result)
+                return
+
+            yield sanitize_user_visible_text(_format_system_inventory_snapshot(tool_result))
+
+        return StreamingResponse(generate_system_inventory(), media_type="text/plain; charset=utf-8")
+    if is_portfolio_breakdown_request(original_user_msg):
+        portfolio = effective_portfolio or []
+        if portfolio:
+
+            def generate_breakdown():
+                if computed_data is not None:
+                    computed_json = json.dumps(
+                        {"type": "computed_data", "data": computed_data.model_dump()},
+                        ensure_ascii=False,
+                    )
+                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+                breakdown = (
+                    "\n".join(
+                        build_pension_portfolio_context(
+                            portfolio,
+                            user_message=original_user_msg,
+                            snapshot_at=effective_snapshot_at,
+                        )
+                    ).strip()
+                    if portfolio
+                    else ""
+                )
+                yield breakdown or "אין תיק פנסיוני לניתוח."
+
+            return StreamingResponse(generate_breakdown(), media_type="text/plain; charset=utf-8")
 
     if is_portfolio_analysis_request(original_user_msg):
         portfolio = effective_portfolio or []
+        if portfolio:
 
-        def generate_portfolio_analysis():
-            if computed_data is not None:
-                computed_json = json.dumps(
-                    {"type": "computed_data", "data": computed_data.model_dump()},
-                    ensure_ascii=False,
+            def generate_portfolio_analysis():
+                if computed_data is not None:
+                    computed_json = json.dumps(
+                        {"type": "computed_data", "data": computed_data.model_dump()},
+                        ensure_ascii=False,
+                    )
+                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+                full_name = None
+                if request.client_id is not None:
+                    try:
+                        client = db.query(Client).filter(Client.id == request.client_id).first()
+                        full_name = getattr(client, "full_name", None) if client else None
+                    except Exception:
+                        full_name = None
+
+                title_name = (
+                    str(full_name).strip()
+                    if isinstance(full_name, str) and full_name.strip()
+                    else ""
                 )
-                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+                title = "כותרת: ניתוח תיק פנסיוני מלא"
+                if title_name:
+                    title = f"{title} — {title_name}"
 
-            full_name = None
-            if request.client_id is not None:
-                try:
-                    client = db.query(Client).filter(Client.id == request.client_id).first()
-                    full_name = getattr(client, "full_name", None) if client else None
-                except Exception:
-                    full_name = None
-
-            title_name = str(full_name).strip() if isinstance(full_name, str) and full_name.strip() else ""
-            title = "כותרת: ניתוח תיק פנסיוני מלא"
-            if title_name:
-                title = f"{title} — {title_name}"
-
-            scenarios_text = ""
-            if request.client_id is not None:
-                try:
-                    client_obj = db.query(Client).filter(Client.id == request.client_id).first()
-                    client_age = None
+                scenarios_text = ""
+                if request.client_id is not None:
                     try:
-                        client_age = client_obj.get_age() if client_obj and hasattr(client_obj, "get_age") else None
-                    except Exception:
+                        client_obj = db.query(Client).filter(Client.id == request.client_id).first()
                         client_age = None
-
-                    from app.services.retirement_age_service import (
-                        DEFAULT_MALE_RETIREMENT_AGE,
-                        get_retirement_age_simple,
-                    )
-
-                    legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-                    try:
-                        if client_obj and getattr(client_obj, "birth_date", None) and getattr(client_obj, "gender", None):
-                            legal_ret_age = int(
-                                get_retirement_age_simple(client_obj.birth_date, client_obj.gender)
+                        try:
+                            client_age = (
+                                client_obj.get_age()
+                                if client_obj and hasattr(client_obj, "get_age")
+                                else None
                             )
-                    except Exception:
+                        except Exception:
+                            client_age = None
+
+                        from app.services.retirement_age_service import (
+                            DEFAULT_MALE_RETIREMENT_AGE,
+                            get_retirement_age_simple,
+                        )
+
                         legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+                        try:
+                            if (
+                                client_obj
+                                and getattr(client_obj, "birth_date", None)
+                                and getattr(client_obj, "gender", None)
+                            ):
+                                legal_ret_age = int(
+                                    get_retirement_age_simple(
+                                        client_obj.birth_date,
+                                        client_obj.gender,
+                                    )
+                                )
+                        except Exception:
+                            legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
 
-                    retirement_age = legal_ret_age
-                    if client_age is not None:
-                        retirement_age = max(int(legal_ret_age), int(client_age))
+                        retirement_age = legal_ret_age
+                        if client_age is not None:
+                            retirement_age = max(int(legal_ret_age), int(client_age))
 
-                    agent_tools = AgentToolsService(
-                        db=db,
-                        client_id=request.client_id,
-                        client_object=client_obj,
-                        pension_portfolio_data=portfolio,
-                    )
-                    scenario_result = agent_tools.run_retirement_scenarios(
-                        retirement_age=int(retirement_age),
-                        pension_portfolio=portfolio,
-                        include_current_employer_termination=False,
-                    )
-                    if scenario_result.get("success"):
-                        scenarios_text = str(scenario_result.get("explanation") or "").strip()
-                    else:
+                        agent_tools = AgentToolsService(
+                            db=db,
+                            client_id=request.client_id,
+                            client_object=client_obj,
+                            pension_portfolio_data=portfolio,
+                        )
+                        scenario_result = agent_tools.run_retirement_scenarios(
+                            retirement_age=int(retirement_age),
+                            pension_portfolio=portfolio,
+                            include_current_employer_termination=False,
+                        )
+                        if scenario_result.get("success"):
+                            scenarios_text = str(
+                                scenario_result.get("explanation") or ""
+                            ).strip()
+                        else:
+                            scenarios_text = ""
+                    except Exception:
                         scenarios_text = ""
-                except Exception:
-                    scenarios_text = ""
 
-            analysis = (
-                "\n".join(
-                    build_pension_portfolio_context(
-                        portfolio,
-                        user_message=original_user_msg,
-                        snapshot_at=effective_snapshot_at,
-                    )
-                ).strip()
-                if portfolio
-                else ""
-            )
+                analysis = (
+                    "\n".join(
+                        build_pension_portfolio_context(
+                            portfolio,
+                            user_message=original_user_msg,
+                            snapshot_at=effective_snapshot_at,
+                        )
+                    ).strip()
+                    if portfolio
+                    else ""
+                )
 
-            note = "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק."
-            if analysis:
-                extra = ""
-                if isinstance(scenarios_text, str) and scenarios_text.strip():
-                    extra = f"\n\n{scenarios_text}"
-                yield f"{note}\n\n{title}\n\n{analysis}{extra}"
-                return
-            yield f"{title}\n\nאין תיק פנסיוני לניתוח."
+                note = "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק."
+                if analysis:
+                    extra = ""
+                    if isinstance(scenarios_text, str) and scenarios_text.strip():
+                        extra = f"\n\n{scenarios_text}"
+                    yield f"{note}\n\n{title}\n\n{analysis}{extra}"
+                    return
 
-        return StreamingResponse(generate_portfolio_analysis(), media_type="text/plain; charset=utf-8")
+                yield f"{title}\n\nאין תיק פנסיוני לניתוח."
+
+            return StreamingResponse(generate_portfolio_analysis(), media_type="text/plain; charset=utf-8")
 
     def _stream_execute_tool_no_approval(tool_name: str, tool_args: dict[str, Any]) -> StreamingResponse:
         def generate_exec():
@@ -531,11 +780,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         )
 
     # Early deterministic handling for pension commutation requests.
-    # Prevents accidental portfolio transforms when the user asked to commute a specific plan.
+    # Only run this path when the user provided a specific account identifier.
+    # If the request is vague (no account number), fall back to the LLM flow.
     if commutation_intent and request.client_id is not None and (not is_doc_request) and (not is_qa_mode):
         account_number = _extract_commutation_account_number(original_user_msg)
-        fund = None
         if account_number:
+            def _item_to_dict(item: Any) -> dict:
+                if isinstance(item, dict):
+                    return item
+                model_dump = getattr(item, "model_dump", None)
+                if callable(model_dump):
+                    dumped = model_dump()
+                    return dumped if isinstance(dumped, dict) else {}
+                raw = getattr(item, "__dict__", {})
+                return raw if isinstance(raw, dict) else {}
+
+            fund = None
             try:
                 from app.models.pension_fund import PensionFund
 
@@ -548,18 +808,45 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 fund = None
 
-        if fund is None and account_number:
-            # If there is no PensionFund yet, but the account exists in the pension portfolio snapshot,
-            # create a PensionFund for this account only so commutation can proceed.
-            def _item_to_dict(item: Any) -> dict:
-                if isinstance(item, dict):
-                    return item
-                model_dump = getattr(item, "model_dump", None)
-                if callable(model_dump):
-                    dumped = model_dump()
-                    return dumped if isinstance(dumped, dict) else {}
-                raw = getattr(item, "__dict__", {})
-                return raw if isinstance(raw, dict) else {}
+            if fund is not None:
+                # Deterministic execution requires an explicit amount (or 'כל היתרה').
+                comm_amount = None
+                try:
+                    if _user_wants_full_balance(original_user_msg):
+                        comm_amount = float(getattr(fund, "balance", 0) or 0)
+                except Exception:
+                    comm_amount = None
+
+                if not comm_amount or comm_amount <= 0:
+                    def generate_commutation_need_amount_existing():
+                        if computed_data is not None:
+                            computed_json = json.dumps(
+                                {"type": "computed_data", "data": computed_data.model_dump()},
+                                ensure_ascii=False,
+                            )
+                            yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+                        yield (
+                            "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
+                            "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
+                        )
+
+                    return StreamingResponse(
+                        generate_commutation_need_amount_existing(),
+                        media_type="text/plain; charset=utf-8",
+                    )
+
+                tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
+                exec_args = {
+                    "pension_fund_id": int(getattr(fund, "id")),
+                    "commutation_amount": float(comm_amount),
+                    "commutation_date": date.today().isoformat(),
+                    "commutation_type": tax_type,
+                    "confirmed": True,
+                }
+                return _stream_execute_tool_no_approval(
+                    "EXECUTE_PENSION_COMMUTATION",
+                    exec_args,
+                )
 
             def _digits_only(value: str | None) -> str:
                 return "".join(ch for ch in (value or "") if ch.isdigit())
@@ -652,16 +939,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 except Exception:
                     fund = None
 
-        if fund is None:
-            def generate_commutation_missing():
-                if computed_data is not None:
-                    computed_json = json.dumps(
-                        {"type": "computed_data", "data": computed_data.model_dump()},
-                        ensure_ascii=False,
-                    )
-                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+            if fund is None:
+                def generate_commutation_missing():
+                    if computed_data is not None:
+                        computed_json = json.dumps(
+                            {"type": "computed_data", "data": computed_data.model_dump()},
+                            ensure_ascii=False,
+                        )
+                        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-                if account_number:
                     yield (
                         "כדי לבצע היוון אני צריך לזהות **קצבה קיימת במערכת** שמתאימה לחשבון שביקשת. "
                         f"לא מצאתי קצבה עם מספר חשבון/תיק ניכויים `{account_number}`.\n\n"
@@ -669,43 +955,45 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         "1) כתוב את שם הקצבה כפי שהיא מופיעה במסך קצבאות, או את מזהה הקצבה (pension_fund_id).\n"
                         "2) אם הכוונה היא לתכנית בתיק המסלקה בלבד (לא קצבה קיימת), ציין: 'הפוך את החשבון לקצבה ואז בצע היוון'."
                     )
-                else:
-                    yield (
-                        "כדי לבצע היוון אני צריך לזהות מאיזו קצבה לבצע. "
-                        "אנא ציין מזהה קצבה (pension_fund_id) או מספר חשבון בסוגריים, למשל: 'היוון קצבה (12345678)'."
-                    )
 
-            return StreamingResponse(generate_commutation_missing(), media_type="text/plain; charset=utf-8")
-
-        comm_amount = None
-        try:
-            if _user_wants_full_balance(original_user_msg):
-                comm_amount = float(getattr(fund, "balance", 0) or 0)
-        except Exception:
-            comm_amount = None
-        if not comm_amount or comm_amount <= 0:
-            def generate_commutation_need_amount():
-                if computed_data is not None:
-                    computed_json = json.dumps(
-                        {"type": "computed_data", "data": computed_data.model_dump()},
-                        ensure_ascii=False,
-                    )
-                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-                yield (
-                    "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
-                    "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
+                return StreamingResponse(
+                    generate_commutation_missing(),
+                    media_type="text/plain; charset=utf-8",
                 )
-            return StreamingResponse(generate_commutation_need_amount(), media_type="text/plain; charset=utf-8")
 
-        tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
-        exec_args = {
-            "pension_fund_id": int(getattr(fund, "id")),
-            "commutation_amount": float(comm_amount),
-            "commutation_date": date.today().isoformat(),
-            "commutation_type": tax_type,
-            "confirmed": True,
-        }
-        return _stream_execute_tool_no_approval("EXECUTE_PENSION_COMMUTATION", exec_args)
+            comm_amount = None
+            try:
+                if _user_wants_full_balance(original_user_msg):
+                    comm_amount = float(getattr(fund, "balance", 0) or 0)
+            except Exception:
+                comm_amount = None
+            if not comm_amount or comm_amount <= 0:
+                def generate_commutation_need_amount():
+                    if computed_data is not None:
+                        computed_json = json.dumps(
+                            {"type": "computed_data", "data": computed_data.model_dump()},
+                            ensure_ascii=False,
+                        )
+                        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+                    yield (
+                        "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
+                        "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
+                    )
+
+                return StreamingResponse(
+                    generate_commutation_need_amount(),
+                    media_type="text/plain; charset=utf-8",
+                )
+
+            tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
+            exec_args = {
+                "pension_fund_id": int(getattr(fund, "id")),
+                "commutation_amount": float(comm_amount),
+                "commutation_date": date.today().isoformat(),
+                "commutation_type": tax_type,
+                "confirmed": True,
+            }
+            return _stream_execute_tool_no_approval("EXECUTE_PENSION_COMMUTATION", exec_args)
 
     analysis_default_retirement_age: int | None = None
     if is_portfolio_analysis and request.client_id is not None:
@@ -1502,23 +1790,72 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         while current_step < max_steps:
             current_step += 1
-            full_response = ""
 
-            for chunk in pension_llm_service.chat_stream(history_messages, request.client_id):
-                full_response += chunk
+            def _collect_llm_response_once(timeout_seconds: float) -> tuple[Optional[str], Optional[str]]:
+                out_q: "queue.Queue[tuple[str, Any]]" = queue.Queue(maxsize=1)
 
+                def _runner() -> None:
+                    try:
+                        buf: list[str] = []
+                        for chunk in pension_llm_service.chat_stream(history_messages, request.client_id):
+                            if chunk:
+                                buf.append(str(chunk))
+                        out_q.put(("ok", "".join(buf)))
+                    except Exception as e:
+                        out_q.put(("err", e))
+
+                t = threading.Thread(target=_runner, daemon=True)
+                t.start()
+                t.join(timeout_seconds)
+                if t.is_alive():
+                    return None, f"timeout_after_{timeout_seconds}s"
+                try:
+                    status, payload = out_q.get_nowait()
+                except Exception:
+                    return None, "no_result"
+                if status == "err":
+                    try:
+                        return None, str(payload) or "llm_error"
+                    except Exception:
+                        return None, "llm_error"
+                try:
+                    return str(payload), None
+                except Exception:
+                    return None, "invalid_response"
+
+            def _collect_llm_response_with_retry() -> tuple[Optional[str], Optional[str]]:
+                last_err: Optional[str] = None
+                retries = int(PC_LLM_MAX_RETRIES or 1)
+                timeout = float(PC_LLM_TIMEOUT_SECONDS or 0)
+                backoffs = PC_LLM_BACKOFF_SECONDS
+                for attempt in range(max(1, retries)):
+                    resp, err = _collect_llm_response_once(timeout_seconds=timeout)
+                    if isinstance(resp, str) and resp.strip():
+                        return resp, None
+                    last_err = err or "empty_reply"
+                    if attempt < (retries - 1):
+                        try:
+                            delay = float(backoffs[attempt]) if attempt < len(backoffs) else float(backoffs[-1])
+                        except Exception:
+                            delay = 1.0
+                        time.sleep(max(0.0, delay))
+                return None, last_err
+
+            full_response, llm_err = _collect_llm_response_with_retry()
             if not isinstance(full_response, str) or not full_response.strip():
-                history_messages.append(
-                    ChatMessage(
-                        role="system",
-                        content=(
-                            "אזהרה: התשובה האחרונה הייתה ריקה/נקטעה. כעת עליך להשיב שוב. "
-                            "אם נדרש כלי, החזר בדיוק בלוקים בפורמט: "
-                            '###TRANSPARENCY_LOG### {...} ואז ###RISK_REVIEW### {...} ואז ###TOOL_CALL### {"name": "TOOL_NAME", "arguments": {...}} ללא טקסט נוסף.'
-                        ),
-                    )
+                logger.error(
+                    "Public chat LLM call failed (request_id=%s, client_id=%s, step=%s, error=%s)",
+                    stream_request_id,
+                    request.client_id,
+                    current_step,
+                    llm_err,
                 )
-                continue
+                yield (
+                    "שגיאה: לא הצלחתי לקבל תשובה מהמערכת כרגע (כשל זמני). "
+                    "נסה שוב בעוד רגע. "
+                    f"(request_id: {stream_request_id})"
+                )
+                break
 
             if tool_call_marker not in full_response:
                 lowered = (full_response or "").lower()

@@ -77,6 +77,9 @@ from app.services.llm_chat.tool_handlers.execute_retirement_scenario import (
 from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
     handle_execute_pension_commutation,
 )
+from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
+    handle_get_system_state_snapshot,
+)
 from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
 from app.services.llm_chat.orchestration_utils import (
     compute_default_retirement_date_for_tool_call,
@@ -361,6 +364,9 @@ def execute_tool_call(
                 db=db,
                 client_obj=client_obj,
             )
+
+        if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
+            return handle_get_system_state_snapshot(args=args, client_id=client_id, db=db)
 
         # ===== OPERATION TOOLS - Data Input & Transformation =====
 

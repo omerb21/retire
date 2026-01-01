@@ -212,14 +212,10 @@ def get_retirement_date(birth_date: date, gender: str) -> date:
 # פונקציות תאימות לאחור עם הקוד הקיים
 def calc_eligibility_date(birthdate: date, gender: str) -> date:
     """חישוב תאריך זכאות לקיבוע זכויות לפי מין וגיל (תאימות לאחור)"""
-    try:
-        return get_retirement_date(birthdate, gender)
-    except Exception:
-        # fallback תאימות מינימלי בלבד
-        gender_normalized = (gender or "").strip().lower()
-        is_female = gender_normalized in {"female", "f", "נקבה"}
-        years = 62 if is_female else DEFAULT_MALE_RETIREMENT_AGE
-        return birthdate + relativedelta(years=years)
+    gender_normalized = (gender or "").strip().lower()
+    is_female = gender_normalized in {"female", "f", "נקבה"}
+    years = 62 if is_female else DEFAULT_MALE_RETIREMENT_AGE
+    return birthdate + relativedelta(years=years)
 
 
 # קבועים לתאימות לאחור

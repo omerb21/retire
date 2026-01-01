@@ -249,6 +249,22 @@ def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload
     return updated_accounts
 
 
+def _apply_marker_payloads_to_snapshot_accounts(
+    *,
+    accounts: list[dict[str, Any]],
+    portfolio_payloads: list[dict[str, Any]],
+    severance_payloads: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    updated_accounts = accounts
+    for sev in severance_payloads:
+        updated_accounts = _apply_severance_reset_to_accounts(updated_accounts, sev)
+    for upd in portfolio_payloads:
+        if isinstance(upd, dict) and upd.get("operation") == "converted_to_assets":
+            continue
+        updated_accounts = _apply_portfolio_updates_to_accounts(updated_accounts, upd)
+    return updated_accounts
+
+
 def _extract_marker_payloads(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not isinstance(text, str) or not text:
         return [], []
@@ -533,11 +549,11 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
         try:
             accounts = _load_snapshot_accounts(db, session.client_id)
             if accounts is not None:
-                updated_accounts = accounts
-                for sev in severance_payloads:
-                    updated_accounts = _apply_severance_reset_to_accounts(updated_accounts, sev)
-                for upd in portfolio_payloads:
-                    updated_accounts = _apply_portfolio_updates_to_accounts(updated_accounts, upd)
+                updated_accounts = _apply_marker_payloads_to_snapshot_accounts(
+                    accounts=accounts,
+                    portfolio_payloads=portfolio_payloads,
+                    severance_payloads=severance_payloads,
+                )
                 if updated_accounts is not None:
                     _save_snapshot_accounts(db, session.client_id, updated_accounts)
         except Exception:
