@@ -512,6 +512,24 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and ("זכויות" in lowered_user_msg)
     )
 
+    wants_fixation_documents = bool(
+        is_tax_doc_request
+        and any(token in lowered_user_msg for token in ("קיבוע", "זכויות", "161ד", "161d"))
+    )
+
+    # Deterministic handling for fixation-rights document requests.
+    # This avoids relying on the LLM to choose the correct GENERATE_* tool.
+    if (
+        request.client_id is not None
+        and wants_fixation_documents
+        and (not is_qa_mode)
+        and (not no_tools_requested)
+    ):
+        return _stream_execute_tool_no_approval(
+            "GENERATE_TAX_DEDUCTION_DOCUMENTS",
+            {"document_type": "fixation_package"},
+        )
+
     # Early deterministic handling for pension commutation requests.
     # Prevents accidental portfolio transforms when the user asked to commute a specific plan.
     if commutation_intent and request.client_id is not None and (not is_doc_request) and (not is_qa_mode):

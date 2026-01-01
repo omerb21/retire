@@ -515,7 +515,18 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
                 f"(קוד שגיאה: {stream_error_id})"
             )
         else:
-            reply_text = "שגיאה: לא התקבלה תשובה מהמערכת (ייתכן כשל זמני בהפקת המסמכים). נסה שוב בעוד רגע."
+            empty_error_id = secrets.token_urlsafe(8)
+            logger.error(
+                "Public chat stream returned empty reply (error_id=%s, request_id=%s, client_id=%s, session_key=%s)",
+                empty_error_id,
+                get_current_request_id(),
+                getattr(session, "client_id", None),
+                getattr(session, "session_key", None) or getattr(session, "key", None) or "",
+            )
+            reply_text = (
+                "שגיאה: לא התקבלה תשובה מהמערכת (כשל זמני). נסה שוב בעוד רגע. "
+                f"(קוד שגיאה: {empty_error_id})"
+            )
 
     portfolio_payloads, severance_payloads = _extract_marker_payloads(reply_text)
     if portfolio_payloads or severance_payloads:
