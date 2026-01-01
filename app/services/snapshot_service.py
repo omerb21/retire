@@ -136,11 +136,113 @@ class SnapshotService:
         if not client:
             raise ValueError(f"לקוח {client_id} לא נמצא")
         
-        # בדיקת תקינות snapshot
-        if not snapshot_data.get("data"):
+        if not isinstance(snapshot_data, dict):
             raise ValueError("נתוני snapshot לא תקינים")
-        
-        data = snapshot_data["data"]
+
+        # Support wrapped payloads coming directly from /snapshot/save response.
+        normalized_snapshot = snapshot_data
+        if isinstance(snapshot_data.get("snapshot"), dict):
+            normalized_snapshot = snapshot_data.get("snapshot") or {}
+
+        data = normalized_snapshot.get("data")
+        if not isinstance(data, dict):
+            raise ValueError("נתוני snapshot לא תקינים (חסר שדה data). נא לשמור מצב מחדש לפני שחזור.")
+
+        required_keys = {
+            "pension_funds",
+            "capital_assets",
+            "additional_incomes",
+            "current_employer",
+            "grants",
+            "legacy_grants",
+            "termination_event",
+            "fixation_result",
+        }
+        missing_keys = sorted([k for k in required_keys if k not in data])
+        if missing_keys:
+            raise ValueError(
+                "נתוני snapshot לא תקינים (חסרים שדות: "
+                + ", ".join(missing_keys)
+                + "). נא לשמור מצב מחדש לפני שחזור."
+            )
+
+        try:
+            logger.info(
+                "📦 Snapshot restore payload summary (client_id=%s): pf=%s, ca=%s, ai=%s, employer=%s, grants=%s, legacy_grants=%s, termination=%s, fixation=%s",
+                client_id,
+                len(data.get("pension_funds") or []) if isinstance(data.get("pension_funds"), list) else "N/A",
+                len(data.get("capital_assets") or []) if isinstance(data.get("capital_assets"), list) else "N/A",
+                len(data.get("additional_incomes") or []) if isinstance(data.get("additional_incomes"), list) else "N/A",
+                bool(data.get("current_employer")),
+                len(data.get("grants") or []) if isinstance(data.get("grants"), list) else "N/A",
+                len(data.get("legacy_grants") or []) if isinstance(data.get("legacy_grants"), list) else "N/A",
+                bool(data.get("termination_event")),
+                bool(data.get("fixation_result")),
+            )
+        except Exception:
+            pass
+
+        force_restore = False
+        try:
+            force_restore = bool(normalized_snapshot.get("force_restore") or snapshot_data.get("force_restore"))
+        except Exception:
+            force_restore = False
+
+        planned_restore_items = 0
+        try:
+            planned_restore_items = (
+                len(data.get("pension_funds") or [])
+                + len(data.get("capital_assets") or [])
+                + len(data.get("additional_incomes") or [])
+                + (1 if data.get("current_employer") else 0)
+                + len(data.get("grants") or [])
+                + len(data.get("legacy_grants") or [])
+                + (1 if data.get("termination_event") else 0)
+                + (1 if data.get("fixation_result") else 0)
+            )
+        except Exception:
+            planned_restore_items = 0
+
+        existing_total_items = 0
+        try:
+            pf_existing = self.db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+            ca_existing = self.db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+            ai_existing = self.db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).count()
+            fx_existing = self.db.query(FixationResult).filter(FixationResult.client_id == client_id).count()
+            gr_existing = self.db.query(Grant).filter(Grant.client_id == client_id).count()
+            te_existing = self.db.query(TerminationEvent).filter(TerminationEvent.client_id == client_id).count()
+            employer_ids = [
+                int(row[0])
+                for row in self.db.query(CurrentEmployer.id).filter(CurrentEmployer.client_id == client_id).all()
+            ]
+            employer_existing = len(employer_ids)
+            employer_grants_existing = (
+                self.db.query(EmployerGrant)
+                .filter(EmployerGrant.employer_id.in_(employer_ids))
+                .count()
+                if employer_ids
+                else 0
+            )
+            existing_total_items = (
+                pf_existing
+                + ca_existing
+                + ai_existing
+                + fx_existing
+                + gr_existing
+                + te_existing
+                + employer_existing
+                + employer_grants_existing
+            )
+        except Exception:
+            existing_total_items = 0
+
+        if (not force_restore) and existing_total_items >= 5 and planned_restore_items <= 2:
+            raise ValueError(
+                "שחזור snapshot בוטל: ה-snapshot נראה לא שלם (ישוחזרו "
+                f"{planned_restore_items} פריטים בלבד) בעוד שבמערכת קיימים {existing_total_items} פריטים. "
+                "כדי למנוע מחיקה של נתונים, יש לשמור snapshot מחדש לפני שחזור."
+            )
+
         deleted_count = 0
         restored_count = 0
         
@@ -239,6 +341,8 @@ class SnapshotService:
                 self.db.add(grant)
                 restored_count += 1
 
+            employer = None
+
             # שחזור מעסיק נוכחי
             employer_data = data.get("current_employer")
             if employer_data:
@@ -279,7 +383,7 @@ class SnapshotService:
             
             # שחזור עזיבת עבודה
             termination_data = data.get("termination_event")
-            if termination_data and employer:
+            if termination_data and employer is not None:
                 termination_data = dict(termination_data)
                 termination_data["client_id"] = client_id
                 termination_data["employment_id"] = employer.id
