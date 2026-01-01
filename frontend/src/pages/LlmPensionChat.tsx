@@ -364,7 +364,7 @@ const LlmPensionChat: React.FC = () => {
 
     try {
       const started = await publicChatApi.start(client.id_number);
-      navigate(`/public-chat/${started.session_key}`);
+      window.open(`/public-chat/${started.session_key}`, "_blank", "noopener,noreferrer");
     } catch (err) {
       setError(handleApiError(err));
     } finally {

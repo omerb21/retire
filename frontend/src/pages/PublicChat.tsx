@@ -65,6 +65,27 @@ type Status = {
   llm_model_name?: string | null;
 };
 
+type SnapshotData = {
+  client_id?: number;
+  snapshot_name?: string;
+  created_at?: string;
+  data?: any;
+  pension_portfolio?: any[];
+  converted_accounts?: any[];
+};
+
+const getSnapshotStorageKey = (clientId: string | number): string => {
+  return `snapshot_client_${clientId}`;
+};
+
+function loadSnapshotRawFromStorage(clientId: string | number): string | null {
+  try {
+    return window.localStorage.getItem(getSnapshotStorageKey(clientId));
+  } catch {
+    return null;
+  }
+}
+
 const PUBLIC_CHAT_PASSWORD_STORAGE_PREFIX = "publicChatPassword:";
 
 function getStoredPublicChatPassword(sessionKey: string): string | null {
@@ -171,6 +192,7 @@ function PublicChatSessionPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isRestoringSnapshot, setIsRestoringSnapshot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [publicChatPasswordInput, setPublicChatPasswordInput] = useState<string>("");
   const [verifiedPublicChatPassword, setVerifiedPublicChatPassword] = useState<string>("");
@@ -239,6 +261,73 @@ function PublicChatSessionPage() {
       active = false;
     };
   }, [sessionKey, verifiedPublicChatPassword]);
+
+  async function refreshStatusAndHistory(): Promise<void> {
+    if (!sessionKey) return;
+    const trimmedPassword = (verifiedPublicChatPassword || "").trim();
+    if (!trimmedPassword) return;
+    const [s, h] = await Promise.all([
+      publicChatApi.status(sessionKey, trimmedPassword),
+      publicChatApi.history(sessionKey, trimmedPassword),
+    ]);
+    setStatus(s);
+    setMessages(h.messages || []);
+  }
+
+  async function handleRestoreSnapshot() {
+    const clientId = status?.client_id;
+    if (!clientId) {
+      setError("לא ניתן לשחזר מצב: לא נמצא client_id.");
+      return;
+    }
+    const systemPassword = window.localStorage.getItem("systemAccessPassword");
+    if (!systemPassword) {
+      setError("שחזור מצב דורש סיסמת מערכת (System Access). נא להזין סיסמה במערכת.");
+      return;
+    }
+
+    const raw = loadSnapshotRawFromStorage(clientId);
+    if (!raw) {
+      setError("אין snapshot שמור עבור הלקוח. נא לשמור מצב קודם במסך היועץ.");
+      return;
+    }
+
+    let parsed: SnapshotData | null = null;
+    try {
+      parsed = JSON.parse(raw) as SnapshotData;
+    } catch {
+      setError("snapshot שמור אינו תקין (JSON). נא לשמור מצב מחדש.");
+      return;
+    }
+
+    const ok = window.confirm("לשחזר מצב (snapshot)? פעולה זו תמחק נתונים קיימים ותשחזר את המצב השמור.");
+    if (!ok) return;
+
+    setError(null);
+    setIsRestoringSnapshot(true);
+    try {
+      const res = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-System-Password": systemPassword,
+        } as any,
+        body: JSON.stringify(parsed),
+      });
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        const detail = j?.detail ? String(j.detail) : "שגיאה בשחזור snapshot";
+        throw new Error(detail);
+      }
+
+      await refreshStatusAndHistory();
+    } catch (err) {
+      setError(handleApiError(err));
+    } finally {
+      setIsRestoringSnapshot(false);
+    }
+  }
 
   async function handleUnlock(e: React.FormEvent) {
     e.preventDefault();
@@ -388,6 +477,15 @@ function PublicChatSessionPage() {
               יתרה: {status?.token_balance ?? "-"}
             </span>
             {modelLabel && <span className="public-chat-pill">{modelLabel}</span>}
+            <button
+              type="button"
+              className="public-chat-secondary"
+              onClick={handleRestoreSnapshot}
+              disabled={isSending || isRestoringSnapshot}
+              title="שחזור מצב מערכת מה-snapshot האחרון שנשמר"
+            >
+              {isRestoringSnapshot ? "משחזר מצב..." : "שחזר מצב"}
+            </button>
             <button type="button" className="public-chat-secondary" onClick={handleClearChat}>
               נקה שיחה
             </button>

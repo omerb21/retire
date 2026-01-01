@@ -277,6 +277,23 @@ def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) 
             "התמקד בסיכום קצר וברור ובהפניה לקישור/נתיב הדוח."
         )
 
+    if tool_name == "CALCULATE_FIXATION_OF_RIGHTS":
+        safe_tool_result = tool_result
+        try:
+            parsed_fix = json.loads(tool_result)
+            if isinstance(parsed_fix, dict):
+                parsed_fix.pop("remaining_monthly_exemption", None)
+                parsed_fix.pop("remaining_exempt_capital", None)
+                safe_tool_result = json.dumps(parsed_fix, ensure_ascii=False)
+        except Exception:
+            safe_tool_result = tool_result
+        return (
+            f"🔧 **פלט כלי ({tool_display}):**\n"
+            f"{safe_tool_result}\n\n"
+            "הנחיות למודל: בעת סיכום קיבוע זכויות, אל תציג ואל תסיק מסקנות מהשדות remaining_monthly_exemption ו-remaining_exempt_capital. "
+            "הם אינם חלק מהתצוגה הנכונה למשתמש. התבסס רק על שנת קיבוע, קצבה פטורה חודשית, אחוז קצבה פטורה, והון פטור ראשוני (אם קיים)."
+        )
+
     if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
         is_error = False
         parsed_success: dict | None = None
@@ -323,6 +340,22 @@ def build_tool_result_system_message_for_stream(tool_name: str, tool_result: str
             "הנחיות למודל: הדוח כולל את המידע והחישובים הרלוונטיים כפי שנוצרו בדוח עצמו. "
             "אל תציע לבצע חישובי מס נוספים או הרצות כלים נוספות, אלא אם המשתמש ביקש זאת במפורש. "
             "התמקד בסיכום קצר ובהפניה לקישור/נתיב הדוח."
+        )
+
+    if tool_name == "CALCULATE_FIXATION_OF_RIGHTS":
+        safe_tool_result = tool_result
+        try:
+            parsed_fix = json.loads(tool_result)
+            if isinstance(parsed_fix, dict):
+                parsed_fix.pop("remaining_monthly_exemption", None)
+                parsed_fix.pop("remaining_exempt_capital", None)
+                safe_tool_result = json.dumps(parsed_fix, ensure_ascii=False)
+        except Exception:
+            safe_tool_result = tool_result
+        return (
+            f"פלט כלי ({tool_display}): {safe_tool_result}\n\n"
+            "הנחיות למודל: בעת סיכום קיבוע זכויות, אל תציג ואל תסיק מסקנות מהשדות remaining_monthly_exemption ו-remaining_exempt_capital. "
+            "הם אינם חלק מהתצוגה הנכונה למשתמש. התבסס רק על שנת קיבוע, קצבה פטורה חודשית, אחוז קצבה פטורה, והון פטור ראשוני (אם קיים)."
         )
 
     if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
@@ -666,21 +699,11 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 lines.append(f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.2f}%")
             except Exception:
                 lines.append(f"• אחוז קצבה פטורה: {parsed_fix.get('exempt_pension_percentage')}")
-        if parsed_fix.get("remaining_monthly_exemption") is not None:
-            try:
-                lines.append(f"• יתרת תקרת פטור חודשית: {float(parsed_fix.get('remaining_monthly_exemption')):,.2f} ₪")
-            except Exception:
-                lines.append(f"• יתרת תקרת פטור חודשית: {parsed_fix.get('remaining_monthly_exemption')} ₪")
         if parsed_fix.get("exempt_capital_initial") is not None:
             try:
                 lines.append(f"• הון פטור ראשוני: {float(parsed_fix.get('exempt_capital_initial')):,.2f} ₪")
             except Exception:
                 lines.append(f"• הון פטור ראשוני: {parsed_fix.get('exempt_capital_initial')} ₪")
-        if parsed_fix.get("remaining_exempt_capital") is not None:
-            try:
-                lines.append(f"• יתרת הון פטורה: {float(parsed_fix.get('remaining_exempt_capital')):,.2f} ₪")
-            except Exception:
-                lines.append(f"• יתרת הון פטורה: {parsed_fix.get('remaining_exempt_capital')} ₪")
         return "\n".join(lines)
 
     if tool_name == "SUBMIT_TAX_COMMUTATION":
