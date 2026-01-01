@@ -19,6 +19,7 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
+from app.models.current_employment import CurrentEmployer
 from app.services.retirement import RetirementScenariosBuilder
 from app.services.retirement.constants import PENSION_COEFFICIENT, MINIMUM_PENSION
 from app.services.annuity_coefficient import get_annuity_coefficient
@@ -770,6 +771,21 @@ class AgentToolsService:
     ) -> List[Dict[str, Any]]:
         pension_sources: List[Dict[str, Any]] = []
 
+        termination_confirmed = False
+        try:
+            current_employer = (
+                self.db.query(CurrentEmployer)
+                .filter(CurrentEmployer.client_id == self.client_id)
+                .order_by(CurrentEmployer.id.desc())
+                .first()
+            )
+            if current_employer is not None:
+                other_grants = current_employer.other_grants or {}
+                if isinstance(other_grants, dict):
+                    termination_confirmed = bool(other_grants.get("termination_confirmed"))
+        except Exception:
+            termination_confirmed = False
+
         def _as_dict(raw: Any) -> Dict[str, Any]:
             if raw is None:
                 return {}
@@ -942,6 +958,7 @@ class AgentToolsService:
                 continue
 
             component_added = False
+            skipped_requires_termination = False
             for comp in components:
                 field = str(comp.get("field") or "")
                 if not field:
@@ -949,10 +966,13 @@ class AgentToolsService:
                 amount = _safe_float(acc.get(field, 0))
                 if amount <= 0:
                     continue
-                component_added = True
-                potential_pension = amount / annuity_factor
 
                 action_needed = comp.get("action_needed") or "convert_to_pension"
+                if action_needed == "requires_termination" and termination_confirmed:
+                    skipped_requires_termination = True
+                    continue
+                component_added = True
+                potential_pension = amount / annuity_factor
                 tax_treatment = comp.get("tax_treatment") or (
                     "exempt" if ("השתלמות" in str(product_type)) else "taxable"
                 )
@@ -988,6 +1008,9 @@ class AgentToolsService:
                 )
 
             if component_added:
+                continue
+
+            if skipped_requires_termination:
                 continue
 
             # Fallback: אם אין רכיבים מפורטים, נשתמש ביתרה כללית בלבד

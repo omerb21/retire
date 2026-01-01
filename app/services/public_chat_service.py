@@ -5,6 +5,8 @@ import json
 import hmac
 import re
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
@@ -65,6 +67,205 @@ def _estimate_tokens(text: str) -> int:
     if not text:
         return 0
     return int(math.ceil(len(text) / 4))
+
+
+def _load_snapshot_accounts(db: Session, client_id: int) -> list[dict[str, Any]] | None:
+    snapshot = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    if snapshot is None or not snapshot.parameters:
+        return None
+    try:
+        params = json.loads(snapshot.parameters)
+    except Exception:
+        return None
+    portfolio = params.get("pension_portfolio")
+    if not isinstance(portfolio, list):
+        return None
+    accounts: list[dict[str, Any]] = []
+    for item in portfolio:
+        if isinstance(item, dict):
+            accounts.append(item)
+    return accounts or None
+
+
+def _save_snapshot_accounts(db: Session, client_id: int, accounts: list[dict[str, Any]]) -> None:
+    scenario = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    if scenario is None:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="pension_portfolio_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps({"pension_portfolio": accounts}, ensure_ascii=False),
+        )
+    else:
+        try:
+            params = json.loads(scenario.parameters) if scenario.parameters else {}
+        except Exception:
+            params = {}
+        params["pension_portfolio"] = accounts
+        scenario.parameters = json.dumps(params, ensure_ascii=False)
+    db.add(scenario)
+    db.commit()
+
+
+def _safe_number(value: Any) -> float:
+    try:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("₪", "").strip()
+            if not cleaned:
+                return 0.0
+            return float(cleaned)
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _apply_severance_reset_to_accounts(accounts: list[dict[str, Any]], reset_info: dict[str, Any]) -> list[dict[str, Any]]:
+    if not (isinstance(reset_info, dict) and reset_info.get("portfolio_severance_to_reset")):
+        return accounts
+    updated: list[dict[str, Any]] = []
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            continue
+        copy = dict(acc)
+        copy["פיצויים_מעסיק_נוכחי"] = 0
+        updated.append(copy)
+    return updated
+
+
+def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    if not (isinstance(payload, dict) and payload.get("type") == "pension_portfolio_updates"):
+        return accounts
+    updates = payload.get("updates")
+    if not isinstance(updates, list) or not updates:
+        return accounts
+
+    by_account_number: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            continue
+        num = str(acc.get("מספר_חשבון") or acc.get("account_number") or "").strip()
+        if not num:
+            continue
+        by_account_number[num] = dict(acc)
+        order.append(num)
+
+    for upd in updates:
+        if not isinstance(upd, dict):
+            continue
+        num = str(upd.get("account_number") or "").strip()
+        if not num:
+            continue
+        acc = by_account_number.get(num)
+        if not isinstance(acc, dict):
+            continue
+
+        specific = upd.get("specific_amounts")
+        if isinstance(specific, dict) and specific:
+            for field, raw_delta in specific.items():
+                if not isinstance(field, str) or not field:
+                    continue
+                delta = _safe_number(raw_delta)
+                if delta <= 0:
+                    continue
+                current_val = _safe_number(acc.get(field))
+                remaining = max(0.0, current_val - delta)
+                acc[field] = 0 if abs(remaining) < 0.01 else remaining
+
+            edu_delta = _safe_number(specific.get("קרן_השתלמות"))
+            if edu_delta > 0:
+                for field in list(acc.keys()):
+                    if field.startswith("תגמולי_") or field in {"תגמולים", "סך_תגמולים", "קרן_השתלמות"}:
+                        acc[field] = 0
+                acc["יתרה"] = 0
+                acc["balance"] = 0
+        else:
+            converted_amount = _safe_number(upd.get("converted_amount"))
+            if converted_amount > 0:
+                for key in ("יתרה", "balance"):
+                    if key in acc:
+                        current_val = _safe_number(acc.get(key))
+                        remaining = max(0.0, current_val - converted_amount)
+                        acc[key] = 0 if abs(remaining) < 0.01 else remaining
+
+        by_account_number[num] = acc
+
+    updated_accounts: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for num in order:
+        acc = by_account_number.get(num)
+        if isinstance(acc, dict):
+            updated_accounts.append(acc)
+            seen.add(num)
+    for num, acc in by_account_number.items():
+        if num in seen:
+            continue
+        if isinstance(acc, dict):
+            updated_accounts.append(acc)
+    return updated_accounts
+
+
+def _extract_marker_payloads(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not isinstance(text, str) or not text:
+        return [], []
+    portfolio_payloads: list[dict[str, Any]] = []
+    severance_payloads: list[dict[str, Any]] = []
+
+    try:
+        for match in re.findall(
+            r"###PENSION_PORTFOLIO_UPDATE###(.*?)###END_PENSION_PORTFOLIO_UPDATE###",
+            text,
+            flags=re.DOTALL,
+        ):
+            raw = (match or "").strip()
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                portfolio_payloads.append(parsed)
+    except Exception:
+        pass
+
+    try:
+        for match in re.findall(
+            r"###SEVERANCE_RESET###(.*?)###END_SEVERANCE_RESET###",
+            text,
+            flags=re.DOTALL,
+        ):
+            raw = (match or "").strip()
+            if not raw:
+                continue
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(parsed, dict):
+                severance_payloads.append(parsed)
+    except Exception:
+        pass
+
+    return portfolio_payloads, severance_payloads
 
 
 def _generate_session_key() -> str:
@@ -268,6 +469,22 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
         else:
             chunks.append(str(chunk))
     reply_text = "".join(chunks).strip()
+
+    portfolio_payloads, severance_payloads = _extract_marker_payloads(reply_text)
+    if portfolio_payloads or severance_payloads:
+        try:
+            accounts = _load_snapshot_accounts(db, session.client_id)
+            if accounts is not None:
+                updated_accounts = accounts
+                for sev in severance_payloads:
+                    updated_accounts = _apply_severance_reset_to_accounts(updated_accounts, sev)
+                for upd in portfolio_payloads:
+                    updated_accounts = _apply_portfolio_updates_to_accounts(updated_accounts, upd)
+                if updated_accounts is not None:
+                    _save_snapshot_accounts(db, session.client_id, updated_accounts)
+        except Exception:
+            pass
+
     reply_text = _strip_stream_markers_for_public_chat(reply_text)
     reply_text = sanitize_user_visible_text(reply_text)
 
