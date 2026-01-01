@@ -668,7 +668,13 @@ def build_pension_portfolio_update_after_transform(
         for acc in accounts:
             if not isinstance(acc, dict):
                 continue
-            account_number = str(acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+            account_number = str(
+                acc.get("account_number")
+                or acc.get("מספר_חשבון")
+                or acc.get("מספר חשבון")
+                or acc.get("מספר-חשבון")
+                or ""
+            ).strip()
             if not account_number:
                 continue
             specific_amounts_raw = acc.get("specific_amounts")
@@ -713,7 +719,13 @@ def build_pension_portfolio_update_after_transform(
     portfolio_by_number: dict[str, dict[str, Any]] = {}
     for item in current_pension_portfolio or []:
         data = _portfolio_item_to_dict(item)
-        num = str(data.get("מספר_חשבון") or data.get("account_number") or "").strip()
+        num = str(
+            data.get("מספר_חשבון")
+            or data.get("מספר חשבון")
+            or data.get("מספר-חשבון")
+            or data.get("account_number")
+            or ""
+        ).strip()
         if num:
             portfolio_by_number[num] = data
 
@@ -824,7 +836,13 @@ def build_pension_portfolio_update_after_commutation(
     portfolio_by_number: dict[str, dict[str, Any]] = {}
     for item in current_pension_portfolio or []:
         data = _portfolio_item_to_dict(item)
-        num = str(data.get("מספר_חשבון") or data.get("account_number") or "").strip()
+        num = str(
+            data.get("מספר_חשבון")
+            or data.get("מספר חשבון")
+            or data.get("מספר-חשבון")
+            or data.get("account_number")
+            or ""
+        ).strip()
         if num:
             portfolio_by_number[num] = data
 

@@ -2008,6 +2008,17 @@ def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict
     if not isinstance(pension_portfolio, list) or not pension_portfolio:
         return []
 
+    def _extract_account_number(data: dict[str, Any]) -> Any:
+        if not isinstance(data, dict):
+            return None
+        return (
+            data.get("מספר_חשבון")
+            or data.get("מספר חשבון")
+            or data.get("account_number")
+            or data.get("מספר חשבון")
+            or data.get("מספר-חשבון")
+        )
+
     def _coerce_float(value: Any) -> float:
         if value is None:
             return 0.0
@@ -2061,7 +2072,7 @@ def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict
         if not isinstance(nested_specific, dict):
             nested_specific = {}
 
-        account_number = data.get("מספר_חשבון")
+        account_number = _extract_account_number(data)
         account_name = data.get("שם_תכנית")
         company = data.get("חברה_מנהלת")
         product_type = data.get("סוג_מוצר")
@@ -2087,6 +2098,7 @@ def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict
                 "start_date": start_date,
                 "specific_amounts": specific_amounts,
                 "מספר_חשבון": account_number,
+                "מספר חשבון": account_number,
                 "שם_תכנית": account_name,
                 "חברה_מנהלת": company,
                 "סוג_מוצר": product_type,

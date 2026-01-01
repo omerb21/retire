@@ -530,7 +530,13 @@ def handle_transform_funds_to_assets(
 
         def _is_aggregate_account(acc: dict) -> bool:
             name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
-            number = str(acc.get("account_number") or acc.get("מספר_חשבון") or "")
+            number = str(
+                acc.get("account_number")
+                or acc.get("מספר_חשבון")
+                or acc.get("מספר חשבון")
+                or acc.get("מספר-חשבון")
+                or ""
+            )
             product_type = str(acc.get("product_type") or acc.get("סוג_מוצר") or "")
             return (
                 name.startswith("Aggregate_")
@@ -543,12 +549,24 @@ def handle_transform_funds_to_assets(
 
         if (not use_provided_accounts_only) and derived_accounts:
             provided_numbers = {
-                str(a.get("account_number") or a.get("מספר_חשבון") or "").strip()
+                str(
+                    a.get("account_number")
+                    or a.get("מספר_חשבון")
+                    or a.get("מספר חשבון")
+                    or a.get("מספר-חשבון")
+                    or ""
+                ).strip()
                 for a in accounts
                 if isinstance(a, dict)
             }
             derived_numbers = {
-                str(a.get("account_number") or a.get("מספר_חשבון") or "").strip()
+                str(
+                    a.get("account_number")
+                    or a.get("מספר_חשבון")
+                    or a.get("מספר חשבון")
+                    or a.get("מספר-חשבון")
+                    or ""
+                ).strip()
                 for a in derived_accounts
                 if isinstance(a, dict)
             }
@@ -711,7 +729,13 @@ def handle_transform_funds_to_assets(
             account_name = account.get("account_name") or account.get("שם_תכנית", f"חשבון {idx + 1}")
             product_type = account.get("product_type") or account.get("סוג_מוצר", "")
             rules_product_type = f"{product_type or ''} {account_name or ''}".strip()
-            account_number = account.get("account_number") or account.get("מספר_חשבון") or ""
+            account_number = (
+                account.get("account_number")
+                or account.get("מספר_חשבון")
+                or account.get("מספר חשבון")
+                or account.get("מספר-חשבון")
+                or ""
+            )
             if not str(account_number).strip():
                 msg = f"{account_name}: חסר מספר חשבון (מספר_חשבון) ולכן לא ניתן לבצע המרה בטוחה"
                 if skip_non_convertible_accounts:

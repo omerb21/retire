@@ -157,15 +157,31 @@ def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload
     if not isinstance(updates, list) or not updates:
         return accounts
 
+    def _extract_account_number(raw: dict[str, Any]) -> str:
+        if not isinstance(raw, dict):
+            return ""
+        return str(
+            raw.get("מספר_חשבון")
+            or raw.get("מספר חשבון")
+            or raw.get("מספר-חשבון")
+            or raw.get("account_number")
+            or ""
+        ).strip()
+
     by_account_number: dict[str, dict[str, Any]] = {}
     order: list[str] = []
+    unkeyed_accounts: list[dict[str, Any]] = []
     for acc in accounts:
         if not isinstance(acc, dict):
             continue
-        num = str(acc.get("מספר_חשבון") or acc.get("account_number") or "").strip()
+        num = _extract_account_number(acc)
         if not num:
+            unkeyed_accounts.append(dict(acc))
             continue
-        by_account_number[num] = dict(acc)
+        copy = dict(acc)
+        copy["מספר_חשבון"] = num
+        copy["מספר חשבון"] = num
+        by_account_number[num] = copy
         order.append(num)
 
     for upd in updates:
@@ -177,6 +193,9 @@ def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload
         acc = by_account_number.get(num)
         if not isinstance(acc, dict):
             continue
+
+        acc["מספר_חשבון"] = num
+        acc["מספר חשבון"] = num
 
         specific = upd.get("specific_amounts")
         if isinstance(specific, dict) and specific:
@@ -220,6 +239,8 @@ def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload
             continue
         if isinstance(acc, dict):
             updated_accounts.append(acc)
+    if unkeyed_accounts:
+        updated_accounts.extend(unkeyed_accounts)
     return updated_accounts
 
 
