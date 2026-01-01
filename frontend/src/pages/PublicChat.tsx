@@ -590,24 +590,5 @@ export default function PublicChat() {
     return <PublicChatSessionPage />;
   }
 
-  const hasSystemAccess = Boolean(window.localStorage.getItem("systemAccessPassword"));
-  if (!hasSystemAccess) {
-    return (
-      <div className="public-chat-page">
-        <div className="public-chat-shell">
-          <div className="public-chat-topbar">
-            <div className="public-chat-brand">צ'אט פרישה</div>
-          </div>
-          <div className="public-chat-card">
-            <h2 className="public-chat-title">קישור לא תקין</h2>
-            <p className="public-chat-subtitle">
-              פתיחת שיחה חדשה זמינה רק דרך מנהל המערכת. נא להשתמש בקישור שקיבלת.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return <PublicChatStartPage />;
 }
