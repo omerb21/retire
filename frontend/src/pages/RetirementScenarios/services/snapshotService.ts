@@ -58,11 +58,44 @@ export async function restoreSnapshotBeforeScenario(
       (headers as any)['X-System-Password'] = systemPassword;
     }
 
-    const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(snapshotData),
-    });
+    const doRestore = async (payload: any) => {
+      const response = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      return response;
+    };
+
+    let response = await doRestore(snapshotData);
+
+    if (!response.ok) {
+      let errorMessage = `שגיאה בשחזור מצב לפני ביצוע התרחיש: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = (errorData as any).detail || errorMessage;
+      } catch {
+        const textError = await response.text();
+        errorMessage = textError || errorMessage;
+      }
+
+      const looksIncomplete =
+        errorMessage.includes('snapshot נראה לא שלם') ||
+        errorMessage.includes('ישוחזרו') ||
+        errorMessage.includes('כדי למנוע מחיקה');
+
+      if (response.status === 422 && looksIncomplete) {
+        const okForce = window.confirm(
+          `${errorMessage}\n\nהאם לשחזר בכל זאת? פעולה זו עלולה למחוק נתונים אם ה-snapshot באמת חלקי.`
+        );
+        if (!okForce) {
+          setError(errorMessage);
+          return false;
+        }
+
+        response = await doRestore({ ...(snapshotData as any), force_restore: true });
+      }
+    }
 
     if (!response.ok) {
       let errorMessage = `שגיאה בשחזור מצב לפני ביצוע התרחיש: ${response.status}`;

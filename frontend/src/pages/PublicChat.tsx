@@ -306,19 +306,44 @@ function PublicChatSessionPage() {
     setError(null);
     setIsRestoringSnapshot(true);
     try {
-      const res = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-System-Password": systemPassword,
-        } as any,
-        body: JSON.stringify(parsed),
-      });
+      const doRestore = async (payload: any) => {
+        const res = await fetch(`${API_BASE}/clients/${clientId}/snapshot/restore`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-System-Password": systemPassword,
+          } as any,
+          body: JSON.stringify(payload),
+        });
 
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        const detail = j?.detail ? String(j.detail) : "שגיאה בשחזור snapshot";
-        throw new Error(detail);
+        if (!res.ok) {
+          const j = await res.json().catch(() => null);
+          const detail = j?.detail ? String(j.detail) : "שגיאה בשחזור snapshot";
+          const err: any = new Error(detail);
+          err.__http_status = res.status;
+          throw err;
+        }
+        return res;
+      };
+
+      try {
+        await doRestore(parsed);
+      } catch (e: any) {
+        const msg = String(e?.message || "");
+        const statusCode = Number(e?.__http_status || 0);
+        const looksIncomplete = msg.includes("snapshot נראה לא שלם") || msg.includes("ישוחזרו") || msg.includes("כדי למנוע מחיקה");
+
+        if (statusCode === 422 && looksIncomplete) {
+          const okForce = window.confirm(
+            `${msg}\n\nהאם לשחזר בכל זאת? פעולה זו עלולה למחוק נתונים אם ה-snapshot באמת חלקי.`
+          );
+          if (!okForce) {
+            throw e;
+          }
+          await doRestore({ ...(parsed as any), force_restore: true });
+        } else {
+          throw e;
+        }
       }
 
       await refreshStatusAndHistory();
