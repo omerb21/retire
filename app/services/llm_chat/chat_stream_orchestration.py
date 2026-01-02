@@ -995,6 +995,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
+    def _last_assistant_message_text(messages: list[ChatMessage]) -> str:
+        for msg in reversed(messages or []):
+            if getattr(msg, "role", None) == "assistant":
+                return getattr(msg, "content", "") or ""
+        return ""
+
+    last_assistant_text = _last_assistant_message_text(request.messages)
+    awaiting_target_plan_gross_net = False
+    if last_assistant_text:
+        lowered_assistant = last_assistant_text.lower()
+        awaiting_target_plan_gross_net = (
+            ("תכנית יעד קצבה" in lowered_assistant or "תכנית יעד" in lowered_assistant)
+            and ("ברוטו" in lowered_assistant)
+            and ("נטו" in lowered_assistant)
+        )
+
     explicit_target_plan_request = False
     try:
         if ("תזרים" not in lowered_user_msg) and ("cashflow" not in lowered_user_msg):
@@ -1019,7 +1035,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     # This is read-only: it produces a plan, does not execute conversions.
     if (
         request.client_id is not None
-        and explicit_target_plan_request
+        and (explicit_target_plan_request or awaiting_target_plan_gross_net)
         and (not is_doc_request)
         and (not is_qa_mode)
         and (not no_tools_requested)
