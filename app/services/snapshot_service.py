@@ -17,6 +17,7 @@ from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
 from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
 
 logger = logging.getLogger("app.snapshot")
 
@@ -72,6 +73,16 @@ class SnapshotService:
         timestamp = datetime.now()
         snapshot_name = snapshot_name or f"שמירה אוטומטית {timestamp.strftime('%d/%m/%Y %H:%M')}"
         
+        pension_portfolio_snapshot_accounts: list = []
+        pension_portfolio_snapshot_at: str | None = None
+        try:
+            loaded_portfolio = load_latest_pension_portfolio_snapshot(self.db, client_id)
+            if loaded_portfolio is not None:
+                pension_portfolio_snapshot_accounts, pension_portfolio_snapshot_at = loaded_portfolio
+        except Exception:
+            pension_portfolio_snapshot_accounts = []
+            pension_portfolio_snapshot_at = None
+
         # איסוף כל הנתונים
         snapshot_data = {
             "client_id": client_id,
@@ -86,6 +97,8 @@ class SnapshotService:
                 "legacy_grants": self._collect_legacy_grants(client_id),
                 "termination_event": self._collect_termination_event(client_id),
                 "fixation_result": self._collect_fixation_result(client_id),
+                "pension_portfolio_snapshot": pension_portfolio_snapshot_accounts or [],
+                "pension_portfolio_snapshot_at": pension_portfolio_snapshot_at,
             },
         }
         
@@ -427,6 +440,41 @@ class SnapshotService:
             effective_pension_start_date = compute_pension_start_date_from_funds(self.db, client)
             client.pension_start_date = effective_pension_start_date
             self.db.add(client)
+
+            pension_portfolio_snapshot_accounts = data.get("pension_portfolio_snapshot")
+            if isinstance(pension_portfolio_snapshot_accounts, list):
+                try:
+                    from app.models.scenario import Scenario
+
+                    scenario = (
+                        self.db.query(Scenario)
+                        .filter(Scenario.client_id == client_id)
+                        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+                        .order_by(Scenario.created_at.desc())
+                        .first()
+                    )
+                    if scenario is None:
+                        scenario = Scenario(
+                            client_id=client_id,
+                            scenario_name="pension_portfolio_snapshot",
+                            apply_tax_planning=False,
+                            apply_capitalization=False,
+                            apply_exemption_shield=False,
+                            parameters=json.dumps(
+                                {"pension_portfolio": pension_portfolio_snapshot_accounts},
+                                ensure_ascii=False,
+                            ),
+                        )
+                    else:
+                        try:
+                            params = json.loads(scenario.parameters) if scenario.parameters else {}
+                        except Exception:
+                            params = {}
+                        params["pension_portfolio"] = pension_portfolio_snapshot_accounts
+                        scenario.parameters = json.dumps(params, ensure_ascii=False)
+                    self.db.add(scenario)
+                except Exception:
+                    pass
 
             self.db.flush()
             self.db.commit()

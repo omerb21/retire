@@ -43,6 +43,7 @@ def test_snapshot_restore_rejects_incomplete_payload_without_wiping_db(db_sessio
 
 def test_snapshot_restore_accepts_wrapped_snapshot_payload(db_session, client):
     from app.models.pension_fund import PensionFund
+    from app.models.scenario import Scenario
 
     # Start with empty DB.
     db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(synchronize_session=False)
@@ -81,6 +82,16 @@ def test_snapshot_restore_accepts_wrapped_snapshot_payload(db_session, client):
                 "legacy_grants": [],
                 "termination_event": None,
                 "fixation_result": None,
+                "pension_portfolio_snapshot": [
+                    {
+                        "מספר_חשבון": "A-001",
+                        "שם_תכנית": "קופת גמל כללית",
+                        "חברה_מנהלת": "חברה 1",
+                        "סוג_מוצר": "קופת גמל",
+                        "יתרה": 100000,
+                    }
+                ],
+                "pension_portfolio_snapshot_at": "2026-01-01T00:00:00",
             },
         }
     }
@@ -94,3 +105,12 @@ def test_snapshot_restore_accepts_wrapped_snapshot_payload(db_session, client):
     funds = db_session.query(PensionFund).filter(PensionFund.client_id == client.id).all()
     assert len(funds) == 1
     assert funds[0].fund_name == "Restored Fund"
+
+    scenario = (
+        db_session.query(Scenario)
+        .filter(Scenario.client_id == client.id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    assert scenario is not None

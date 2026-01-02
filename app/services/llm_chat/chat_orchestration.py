@@ -85,6 +85,7 @@ from app.services.llm_chat.orchestration_utils import (
     is_portfolio_breakdown_request,
     is_portfolio_analysis_request,
     is_max_capital_request,
+    extract_desired_monthly_income_from_text,
     parse_tool_call_from_reply,
     validate_tool_call_protocol_for_execution,
 )
@@ -370,6 +371,67 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
 
     max_capital_request = is_max_capital_request(original_user_msg)
     wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
+
+    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
+
+    if commutation_intent and request.client_id is not None:
+        account_number = _extract_commutation_account_number(original_user_msg)
+        if not account_number:
+            return ChatResponse(
+                reply=(
+                    "כדי לחשב היוון בצורה נכונה אני צריך לזהות *איזו קצבה* אתה רוצה להוון. "
+                    "בבקשה ציין אחד מהבאים:\n"
+                    "1) מספר חשבון/תיק ניכויים של הקצבה (5+ ספרות)\n"
+                    "2) שם הקצבה כפי שמופיע במסך הקצבאות\n\n"
+                    "בנוסף: האם הכוונה היא ל*סכום חד-פעמי* שתרצה לקבל, או ל*הפחתה חודשית מהקצבה*?"
+                ),
+                computed_data=computed_data,
+            )
+
+    if (
+        explicit_cashflow_request
+        and request.client_id is not None
+        and (not is_doc_request)
+        and (not is_qa_mode)
+        and (not no_tools_requested)
+        and (not commutation_intent)
+    ):
+        birth_date_for_default_date = None
+        gender_for_default_date = None
+        try:
+            client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+            birth_date_for_default_date = getattr(client_obj, "birth_date", None) if client_obj else None
+            gender_for_default_date = getattr(client_obj, "gender", None) if client_obj else None
+        except Exception:
+            birth_date_for_default_date = None
+            gender_for_default_date = None
+
+        default_retirement_date = compute_default_retirement_date_for_tool_call(
+            birth_date=birth_date_for_default_date,
+            gender=gender_for_default_date,
+            user_message=original_user_msg or "",
+        )
+        desired_income = extract_desired_monthly_income_from_text(original_user_msg)
+        tool_args: dict[str, Any] = {"retirement_date": default_retirement_date}
+        if desired_income is not None:
+            tool_args["desired_monthly_income"] = float(desired_income)
+
+        tool_result = _execute_tool_call(
+            "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            tool_args,
+            request.client_id,
+            db,
+            pension_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            user_approved=True,
+            request_id=request_id,
+        )
+        return ChatResponse(
+            reply=sanitize_user_visible_text(
+                format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", tool_result)
+            ),
+            computed_data=computed_data,
+        )
 
     if (
         request.client_id is not None

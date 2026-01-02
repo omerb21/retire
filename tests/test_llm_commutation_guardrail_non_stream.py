@@ -45,6 +45,5 @@ def test_non_stream_commutation_blocks_transform_tool_call(db_session, client, m
 
     assert tool_calls == []
     assert isinstance(resp.reply, str)
-    assert "###UI_ACTION###" in resp.reply
-    assert "approval_request" in resp.reply
-    assert "EXECUTE_PENSION_COMMUTATION" in resp.reply
+    assert "כדי לחשב היוון" in resp.reply
+    assert "מספר חשבון" in resp.reply

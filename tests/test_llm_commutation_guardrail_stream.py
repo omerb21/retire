@@ -55,6 +55,6 @@ def test_stream_commutation_blocks_transform_tool_call(monkeypatch) -> None:
 
     assert response.status_code == 200
     body = response.text
-    assert "EXECUTE_PENSION_COMMUTATION" in body
-    assert ("###UI_ACTION###" in body) or ("approval_request" in body)
+    assert "כדי לחשב היוון" in body
+    assert "מספר חשבון" in body
     assert tool_calls == []

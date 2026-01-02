@@ -829,6 +829,9 @@ def _is_target_pension_plan_request_text(user_message: str) -> bool:
     lowered = (user_message or "").lower().replace(",", "")
     if not lowered.strip():
         return False
+
+    if ("תזרים" in lowered) or ("cashflow" in lowered):
+        return False
     planning_keywords = [
         "יעד קצבה",
         "מתווה",
@@ -848,12 +851,82 @@ def _is_target_pension_plan_request_text(user_message: str) -> bool:
     return has_numeric
 
 
+def extract_desired_monthly_income_from_text(user_message: str | None) -> float | None:
+    if not user_message:
+        return None
+
+    text = str(user_message)
+    lowered = text.lower()
+    if not lowered.strip():
+        return None
+
+    if "תזרים" not in lowered and "cashflow" not in lowered and "הכנסה" not in lowered and "בחודש" not in lowered:
+        return None
+
+    cleaned = re.sub(r"[^0-9\s,\.₪\u0590-\u05FF\"']", " ", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    lowered_clean = cleaned.lower()
+
+    def _is_year_marker(num_text: str, start_idx: int) -> bool:
+        try:
+            n = int(num_text)
+        except Exception:
+            return False
+        if n not in {2000, 2008}:
+            return False
+        window = lowered_clean[max(0, start_idx - 8) : min(len(lowered_clean), start_idx + 8)]
+        return ("אחרי" in window) or ("עד" in window) or ("before" in window) or ("after" in window)
+
+    amount_hints = (
+        "₪",
+        "שח",
+        'ש"ח',
+        "שקל",
+        "בחודש",
+        "חודש",
+        "הכנסה",
+        "צריך",
+        "זקוק",
+        "יעד",
+    )
+
+    candidates: list[tuple[int, str]] = []
+    for m in re.finditer(r"\b(\d{4,6}(?:,\d{3})*)\b", cleaned):
+        raw_num = str(m.group(1) or "")
+        start = int(m.start(1))
+        if raw_num:
+            candidates.append((start, raw_num))
+
+    for start, raw_num in candidates:
+        raw_plain = raw_num.replace(",", "").strip()
+        if not raw_plain:
+            continue
+        if _is_year_marker(raw_plain, start):
+            continue
+        near = lowered_clean[max(0, start - 14) : min(len(lowered_clean), start + 14)]
+        if not any(h in near for h in amount_hints):
+            continue
+        try:
+            val = float(raw_plain)
+        except Exception:
+            continue
+        if val <= 0:
+            continue
+        return float(val)
+
+    return None
+
+
 def is_retirement_cashflow_request(user_message: str) -> bool:
     if not user_message:
         return False
 
     if is_process_termination_request(user_message):
         return False
+
+    lowered = user_message.lower()
+    if ("תזרים" in lowered) or ("cashflow" in lowered):
+        return True
 
     if _is_target_pension_plan_request_text(user_message):
         return False
@@ -867,9 +940,9 @@ def is_retirement_cashflow_request(user_message: str) -> bool:
     if is_tax_documents_request(user_message):
         return False
 
-    lowered = user_message.lower()
-
     triggers = [
+        "תזרים",
+        "cashflow",
         "קצבה",
         "פנסיה",
         "פרישה",
@@ -1843,7 +1916,12 @@ def is_pension_commutation_request(user_message: str) -> bool:
     lowered = user_message.lower()
     # Treat any explicit mention of pension commutation (היוון) as commutation intent.
     # This is intentionally permissive to avoid accidental routing to TRANSFORM_FUNDS_TO_ASSETS.
-    if "היוון" in lowered or "commutation" in lowered:
+    if (
+        "היוון" in lowered
+        or "להוון" in lowered
+        or "הוון" in lowered
+        or "commutation" in lowered
+    ):
         return True
     return False
 
