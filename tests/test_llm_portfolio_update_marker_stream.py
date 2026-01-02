@@ -311,7 +311,7 @@ def test_stream_cashflow_request_runs_cashflow_tool(monkeypatch) -> None:
             "messages": [
                 {
                     "role": "user",
-                    "content": "אני זקוק להכנסה כללית של 40000 שח בחודש. בנה לי תזרים חודשי",
+                    "content": "אני זקוק להכנסה כללית של 40000 שח ברוטו בחודש. בנה לי תזרים חודשי",
                 }
             ],
             "pension_portfolio": [],
@@ -365,7 +365,7 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
             "messages": [
                 {
                     "role": "user",
-                    "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח בחודש. אנא בנה לי תזרים",
+                    "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח ברוטו בחודש. אנא בנה לי תזרים",
                 }
             ],
             "pension_portfolio": [],
@@ -376,6 +376,7 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
     assert captured.get("tool_name") == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
     args = captured.get("args") or {}
     assert args.get("desired_monthly_income") == 40000.0
+    assert args.get("desired_income_is_net") is False
 
 
 def test_cashflow_includes_additional_income_in_gap_calculation(monkeypatch, db_session) -> None:
@@ -408,6 +409,7 @@ def test_cashflow_includes_additional_income_in_gap_calculation(monkeypatch, db_
         retirement_date="2026-01-02",
         desired_monthly_income=40000.0,
         apply_max_exemption=False,
+        desired_income_is_net=True,
     )
     assert res.get("success") is True
     result = res.get("result") or {}
@@ -415,6 +417,33 @@ def test_cashflow_includes_additional_income_in_gap_calculation(monkeypatch, db_
     assert result.get("additional_income_taxable_gross_monthly") == 12000.0
     assert (result.get("monthly_income_tax_total") or 0) >= (result.get("monthly_income_tax") or 0)
     assert (result.get("total_guaranteed_income_net") or 0) >= (result.get("projected_pension_net") or 0)
+
+
+def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None:
+    import app.services.llm_chat.chat_stream_orchestration as stream_orch
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM should not be called for deterministic cashflow clarification")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    def fake_execute_tool_call(*args, **kwargs):
+        raise AssertionError("Tool should not be called when gross/net is missing")
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח מכל המקורות ביחד. אנא בנה לי תזרים"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert response.status_code == 200
+    assert "ברוטו" in response.text
+    assert "נטו" in response.text
 
 
 def test_stream_commutation_without_account_asks_for_account(monkeypatch) -> None:

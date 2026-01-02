@@ -2502,7 +2502,8 @@ class AgentToolsService:
         self,
         retirement_date: str,
         desired_monthly_income: Optional[float] = None,
-        apply_max_exemption: bool = False
+        apply_max_exemption: bool = False,
+        desired_income_is_net: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         מבצע ניתוח תזרים מזומנים בפרישה:
@@ -3042,8 +3043,15 @@ class AgentToolsService:
         total_guaranteed_income_net = monthly_net_total_taxable + additional_income_exempt_gross_monthly + social_security_amount
         total_guaranteed_income = total_guaranteed_income_gross  # לשמירה על תאימות לאחור
 
-        # 5. ניתוח גירעון (Gap Analysis) - מבוסס על נטו משוקלל
-        gap = desired_monthly_income - total_guaranteed_income_net
+        # 5. ניתוח גירעון (Gap Analysis)
+        # נחשב גם פער נטו וגם פער ברוטו. "gap" הוא הפער הפעיל בהתאם לבחירת המשתמש.
+        gap_net = desired_monthly_income - total_guaranteed_income_net
+        gap_gross = desired_monthly_income - total_guaranteed_income_gross
+
+        # ברירת מחדל: אם לא נאמר במפורש – נשמרת תאימות לאחור: נטו.
+        if desired_income_is_net is None:
+            desired_income_is_net = True
+        gap = gap_net if desired_income_is_net else gap_gross
         
         # 6. חישוב הון זמין
         # שימוש ברשימה המסוננת שכבר יצרנו
@@ -3092,6 +3100,9 @@ class AgentToolsService:
         # יצירת הסבר
         deficit_status = "עודף" if gap <= 0 else "גירעון"
         gap_abs = abs(gap)
+
+        target_mode_label = "נטו" if desired_income_is_net else "ברוטו"
+        basis_label = "נטו" if desired_income_is_net else "ברוטו"
         
         # בניית הסבר עם/בלי פטור קיבוע זכויות
         exemption_info = ""
@@ -3117,8 +3128,8 @@ class AgentToolsService:
             f"✅ **הכנסה נטו חודשית:** {total_guaranteed_income_net:,.0f} ₪",
             f"   (פנסיה נטו: {monthly_net_pension:,.0f} ₪ + הכנסות נוספות נטו (כלולות במס): {additional_income_taxable_gross_monthly:,.0f} ₪ + הכנסות פטורות: {additional_income_exempt_gross_monthly:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
             f"",
-            f"🎯 **יעד הכנסה:** {desired_monthly_income:,.0f} ₪",
-            f"📉 **{deficit_status} חודשי (ברוטו):** {gap_abs:,.0f} ₪",
+            f"🎯 **יעד הכנסה ({target_mode_label}):** {desired_monthly_income:,.0f} ₪",
+            f"📉 **{deficit_status} חודשי (לפי {basis_label}):** {gap_abs:,.0f} ₪",
         ])
         
         if gap > 0:
@@ -3158,6 +3169,9 @@ class AgentToolsService:
                 "additional_income_exempt_gross_monthly": round(additional_income_exempt_gross_monthly, 2),
                 # יעד וגירעון
                 "desired_monthly_income": desired_monthly_income,
+                "desired_income_is_net": bool(desired_income_is_net),
+                "gap_to_target_net": round(gap_net, 2),
+                "gap_to_target_gross": round(gap_gross, 2),
                 "monthly_deficit_or_surplus": round(-gap, 2),  # שלילי = גירעון
                 "required_capital_withdrawal": round(required_capital_withdrawal, 2),
                 "total_liquid_capital": round(total_capital_available, 2),

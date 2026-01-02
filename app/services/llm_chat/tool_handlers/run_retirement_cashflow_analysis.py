@@ -30,6 +30,7 @@ def handle_run_retirement_cashflow_analysis(
 ) -> str:
     date_str = args.get("retirement_date")
     income = args.get("desired_monthly_income")
+    desired_income_is_net = args.get("desired_income_is_net")
     apply_max_exemption_arg = args.get("apply_max_exemption", False)
 
     if not isinstance(date_str, str) or _is_placeholder_date_str(date_str):
@@ -77,10 +78,15 @@ def handle_run_retirement_cashflow_analysis(
     if force_max_exemption:
         apply_max_exemption = True
 
+    desired_income_is_net_val = None
+    if desired_income_is_net is not None:
+        desired_income_is_net_val = bool(desired_income_is_net)
+
     result = agent_tools.run_retirement_cashflow_analysis(
         retirement_date=date_str,
         desired_monthly_income=income_val,
         apply_max_exemption=apply_max_exemption,
+        desired_income_is_net=desired_income_is_net_val,
     )
 
     if not result.get("success"):

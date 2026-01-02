@@ -78,6 +78,8 @@ from app.services.llm_chat.orchestration_utils import (
     extract_desired_monthly_income_from_text,
     is_data_awareness_request,
     is_list_all_financial_entities_request,
+    infer_desired_income_is_net_explicit,
+    is_cashflow_missing_income_followup,
     parse_partial_pension_conversion_request,
     parse_portfolio_wide_prev_employers_severance_conversion_request,
     parse_portfolio_wide_education_fund_conversion_request,
@@ -991,6 +993,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
 
+    wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
+
     if commutation_intent and request.client_id is not None:
         account_number = _extract_commutation_account_number(original_user_msg)
         if not account_number:
@@ -1015,7 +1019,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
 
     if (
-        explicit_cashflow_request
+        (explicit_cashflow_request or wants_cashflow_refresh)
         and request.client_id is not None
         and (not is_doc_request)
         and (not is_qa_mode)
@@ -1046,9 +1050,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_message=original_user_msg or "",
             )
             desired_income = extract_desired_monthly_income_from_text(original_user_msg)
+
+            desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
+            if desired_income is not None and desired_income_is_net is None:
+                yield (
+                    "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
+                    "כתוב אחת מהאפשרויות:\n"
+                    "- '40 אלף ברוטו'\n"
+                    "- '40 אלף נטו'"
+                )
+                return
+
             tool_args: dict[str, Any] = {"retirement_date": default_retirement_date}
             if desired_income is not None:
                 tool_args["desired_monthly_income"] = float(desired_income)
+            if desired_income_is_net is not None:
+                tool_args["desired_income_is_net"] = bool(desired_income_is_net)
 
             tool_result = _execute_tool_call(
                 "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
@@ -1064,9 +1081,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
                 yield sanitize_user_visible_text(tool_result)
                 return
-            yield sanitize_user_visible_text(
-                format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", tool_result)
-            )
+            # Deterministic: always present the tool's own explanation which is built from system state.
+            try:
+                parsed = json.loads(tool_result) if isinstance(tool_result, str) else {}
+            except Exception:
+                parsed = {}
+            explanation = parsed.get("explanation") if isinstance(parsed, dict) else None
+            if isinstance(explanation, str) and explanation.strip():
+                yield sanitize_user_visible_text(explanation.strip())
+            else:
+                yield sanitize_user_visible_text(
+                    format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", tool_result)
+                )
 
         return StreamingResponse(generate_cashflow(), media_type="text/plain; charset=utf-8")
 

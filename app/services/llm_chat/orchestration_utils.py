@@ -984,6 +984,56 @@ def is_list_all_financial_entities_request(user_message: str | None) -> bool:
     return True
 
 
+def infer_desired_income_is_net_explicit(user_message: str | None) -> bool | None:
+    if not user_message:
+        return None
+    lowered = str(user_message).strip().lower()
+    if not lowered:
+        return None
+
+    net_triggers = (
+        "נטו",
+        "אחרי מס",
+        "אחרי המס",
+        "לאחר מס",
+        "לאחר המס",
+        "net",
+    )
+    gross_triggers = (
+        "ברוטו",
+        "לפני מס",
+        "לפני המס",
+        "gross",
+    )
+
+    if any(t in lowered for t in net_triggers):
+        return True
+    if any(t in lowered for t in gross_triggers):
+        return False
+    return None
+
+
+def is_cashflow_missing_income_followup(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+    lowered = str(user_message).strip().lower()
+    if not lowered:
+        return False
+    if any(t in lowered for t in ("לא הכנסת", "לא התחשבת", "התעלמת")) and any(
+        t in lowered
+        for t in (
+            "הכנסה",
+            "הכנסות",
+            "הכנסה נוספת",
+            "additionalincome",
+            "קצבה",
+            "קצבאות",
+        )
+    ):
+        return True
+    return False
+
+
 def is_retirement_cashflow_request(user_message: str) -> bool:
     if not user_message:
         return False
