@@ -384,6 +384,89 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         )
         return ChatResponse(reply="\n".join(lines).strip(), computed_data=computed_data)
 
+    # Deterministic handling for target pension plan requests (avoid LLM timeouts/temporary failures).
+    explicit_target_plan_request = False
+    try:
+        lowered_tmp = (original_user_msg or "").lower()
+        if ("תזרים" not in lowered_tmp) and ("cashflow" not in lowered_tmp):
+            planning_keywords = (
+                "יעד קצבה",
+                "תכנית",
+                "תוכנית",
+                "מתווה",
+                "בנה",
+                "צור",
+                "תכנן",
+                "תכנון",
+                "build_target_pension_plan",
+            )
+            if any(k in lowered_tmp for k in planning_keywords):
+                extracted_target = float(extract_target_pension_from_message(original_user_msg) or 0)
+                explicit_target_plan_request = extracted_target > 0
+    except Exception:
+        explicit_target_plan_request = False
+
+    if (
+        request.client_id is not None
+        and explicit_target_plan_request
+        and (not is_document_request(original_user_msg))
+        and (not is_qa_request(original_user_msg))
+        and (not is_no_tools_request(original_user_msg))
+    ):
+        target_val = 0.0
+        try:
+            target_val = float(extract_target_pension_from_message(original_user_msg) or 0)
+        except Exception:
+            target_val = 0.0
+        if target_val <= 0:
+            return ChatResponse(
+                reply="כדי לבנות תכנית יעד קצבה אני צריך יעד חודשי מספרי (למשל: 28000).",
+                computed_data=computed_data,
+            )
+
+        lowered = (original_user_msg or "").lower()
+        explicit_is_net = None
+        if any(t in lowered for t in ("ברוטו", "gross", "bruto")):
+            explicit_is_net = False
+        elif any(t in lowered for t in ("נטו", "ביד", "אחרי מס", "net")):
+            explicit_is_net = True
+
+        if explicit_is_net is None:
+            return ChatResponse(
+                reply=(
+                    "כדי לבנות תכנית יעד קצבה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
+                    "כתוב אחת מהאפשרויות:\n"
+                    "- '28000 ברוטו'\n"
+                    "- '28000 נטו'"
+                ),
+                computed_data=computed_data,
+            )
+
+        plan_args = {"target_monthly_pension": float(target_val), "target_is_net": bool(explicit_is_net)}
+        plan_result = _execute_tool_call(
+            "BUILD_TARGET_PENSION_PLAN",
+            plan_args,
+            request.client_id,
+            db,
+            pension_portfolio=effective_portfolio,
+            force_max_exemption=False,
+            user_approved=True,
+            request_id=request_id,
+        )
+        try:
+            store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+        except Exception:
+            pass
+        return ChatResponse(
+            reply=(
+                "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                + sanitize_user_visible_text(
+                    format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                )
+            ),
+            computed_data=computed_data,
+        )
+
     if request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
         tool_result = _execute_tool_call(
             "GET_SYSTEM_STATE_SNAPSHOT",
@@ -1411,8 +1494,16 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
             tool_args["skip_non_convertible_accounts"] = True
 
         if wants_capital_transform:
-            tool_args.setdefault("default_conversion_type", "capital_asset")
-            tool_args["commute_pension_components"] = True
+            return ChatResponse(
+                reply=(
+                    "המרה להון של רכיבים קצבתיים (למשל 'תגמולים אחרי 2000') לא מבוצעת דרך TRANSFORM_FUNDS_TO_ASSETS, "
+                    "כדי למנוע הפרת קצבת מינימום.\n\n"
+                    "אם הכוונה ל*משיכה הונית מלאה* — בקש: 'משיכה הונית מלאה' ואז אשר את תרחיש 'מקסימום הון' "
+                    "(ששומר קצבת מינימום 5,500).\n"
+                    "אם הכוונה ל*היוון קצבה ספציפית* — בקש: 'הוון קצבה' וציין מספר חשבון/שם קצבה."
+                ),
+                computed_data=computed_data,
+            )
 
         tool_result = _execute_tool_call(
             "TRANSFORM_FUNDS_TO_ASSETS",

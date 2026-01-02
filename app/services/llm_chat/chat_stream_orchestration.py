@@ -995,6 +995,91 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
+    explicit_target_plan_request = False
+    try:
+        if ("תזרים" not in lowered_user_msg) and ("cashflow" not in lowered_user_msg):
+            planning_keywords = (
+                "יעד קצבה",
+                "תכנית",
+                "תוכנית",
+                "מתווה",
+                "בנה",
+                "צור",
+                "תכנן",
+                "תכנון",
+                "build_target_pension_plan",
+            )
+            if any(k in lowered_user_msg for k in planning_keywords):
+                extracted_target = float(extract_target_pension_from_message(original_user_msg) or 0)
+                explicit_target_plan_request = extracted_target > 0
+    except Exception:
+        explicit_target_plan_request = False
+
+    # Deterministic handling for target pension plan requests (avoid LLM timeouts/temporary failures).
+    # This is read-only: it produces a plan, does not execute conversions.
+    if (
+        request.client_id is not None
+        and explicit_target_plan_request
+        and (not is_doc_request)
+        and (not is_qa_mode)
+        and (not no_tools_requested)
+    ):
+        def generate_target_plan():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            target_val = None
+            try:
+                target_val = float(extract_target_pension_from_message(original_user_msg) or 0)
+            except Exception:
+                target_val = 0.0
+
+            if not target_val or target_val <= 0:
+                yield "כדי לבנות תכנית יעד קצבה אני צריך יעד חודשי מספרי (למשל: 28000)."
+                return
+
+            lowered = (original_user_msg or "").lower()
+            explicit_is_net = None
+            if any(t in lowered for t in ("ברוטו", "gross", "bruto")):
+                explicit_is_net = False
+            elif any(t in lowered for t in ("נטו", "ביד", "אחרי מס", "net")):
+                explicit_is_net = True
+
+            if explicit_is_net is None:
+                yield (
+                    "כדי לבנות תכנית יעד קצבה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
+                    "כתוב אחת מהאפשרויות:\n"
+                    "- '28000 ברוטו'\n"
+                    "- '28000 נטו'"
+                )
+                return
+
+            plan_args = {
+                "target_monthly_pension": float(target_val),
+                "target_is_net": bool(explicit_is_net),
+            }
+            plan_result = _execute_tool_call(
+                "BUILD_TARGET_PENSION_PLAN",
+                plan_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+
+            yield sanitize_user_visible_text(
+                "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+            )
+
+        return StreamingResponse(generate_target_plan(), media_type="text/plain; charset=utf-8")
+
     if commutation_intent and request.client_id is not None:
         account_number = _extract_commutation_account_number(original_user_msg)
         if not account_number:
@@ -2054,8 +2139,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                                     }
 
             if wants_capital_transform:
-                tool_args.setdefault("default_conversion_type", "capital_asset")
-                tool_args["commute_pension_components"] = True
+                yield (
+                    "המרה להון של רכיבים קצבתיים (למשל 'תגמולים אחרי 2000') לא מבוצעת דרך TRANSFORM_FUNDS_TO_ASSETS, "
+                    "כדי למנוע הפרת קצבת מינימום.\n\n"
+                    "אם הכוונה ל*משיכה הונית מלאה* — בקש: 'משיכה הונית מלאה' ואז אשר את תרחיש 'מקסימום הון' "
+                    "(ששומר קצבת מינימום 5,500).\n"
+                    "אם הכוונה ל*היוון קצבה ספציפית* — בקש: 'הוון קצבה' וציין מספר חשבון/שם קצבה."
+                )
+                return
 
             log_llm_event(
                 request_id=req_id,

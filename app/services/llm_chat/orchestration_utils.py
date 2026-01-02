@@ -913,12 +913,15 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
         "שח",
         'ש"ח',
         "שקל",
+        "של",
         "בחודש",
         "חודש",
         "הכנסה",
         "צריך",
         "זקוק",
         "יעד",
+        "נטו",
+        "ברוטו",
     )
 
     # Support common shorthand: "40 אלף" / "40k".
@@ -951,7 +954,7 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
             continue
         if _is_year_marker(raw_plain, start):
             continue
-        near = lowered_clean[max(0, start - 14) : min(len(lowered_clean), start + 14)]
+        near = lowered_clean[max(0, start - 28) : min(len(lowered_clean), start + 28)]
         if not any(h in near for h in amount_hints):
             continue
         try:
