@@ -57,6 +57,15 @@ def get_tools_definitions_json() -> str:
             },
         },
         {
+            "name": "GET_SYSTEM_NUMERIC_CONSTANTS",
+            "description": "מחזיר קבועים מספריים מאושרים מהמערכת (למשל MINIMUM_PENSION) לצורך שימוש בטקסט/הסבר בלי לבצע חישוב עצמאי ובלי להמציא מספרים.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
             "name": "BUILD_TARGET_PENSION_PLAN",
             "description": "כלי לתכנון מתווה משיכה אופטימלי מכל המקורות להשגת יעד קצבה חודשי נטו.",
             "parameters": {

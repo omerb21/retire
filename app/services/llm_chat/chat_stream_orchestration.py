@@ -94,6 +94,7 @@ from app.services.llm_chat.orchestration_utils import (
 from app.services.llm_chat.chat_orchestration_helpers import maybe_clear_pension_portfolio_after_transform
 from app.services.llm_chat.tool_execution import execute_tool_call
 from app.services.llm_pension_agent_service import pension_llm_service
+from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
 )
@@ -2465,11 +2466,50 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 )
                 if qa_summary_required and has_pass_fail:
                     qa_summary_satisfied = True
-                final_out = sanitize_user_visible_text(full_response)
+
+                allowed_sources: list[str] = []
+                try:
+                    for msg in (request.messages or []):
+                        if getattr(msg, "role", None) == "user":
+                            allowed_sources.append(getattr(msg, "content", "") or "")
+                except Exception:
+                    pass
+
+                try:
+                    for msg in (history_messages or []):
+                        if getattr(msg, "role", None) != "system":
+                            continue
+                        content = getattr(msg, "content", "") or ""
+                        if ("Tool Result (" in content) or ("פלט כלי (" in content):
+                            allowed_sources.append(content)
+                except Exception:
+                    pass
+
+                violation = validate_reply_numeric_provenance(
+                    reply_text=full_response,
+                    allowed_source_texts=allowed_sources,
+                )
+                if violation is not None:
+                    try:
+                        log_llm_event(
+                            request_id=req_id,
+                            event_type="numeric_provenance_violation",
+                            payload={"tokens": list(violation.tokens)},
+                            client_id=request.client_id,
+                            extra={"endpoint": "stream"},
+                        )
+                    except Exception:
+                        pass
+                    final_out = (
+                        "שגיאה: המערכת חסמה תשובה שכללה מספרים שלא הגיעו מחישוב מערכת. "
+                        "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
+                    )
+                else:
+                    final_out = sanitize_user_visible_text(full_response)
                 if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
                     final_out = "\n".join(
                         ln for ln in final_out.splitlines() if "מדרגות מס" not in ln
-                    ).strip()
+                    )
                 if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
                     if "הערכה" not in final_out and "הערכה גסה" not in final_out and "ראשונית" not in final_out:
                         final_out = (

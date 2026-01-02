@@ -98,6 +98,7 @@ from app.services.llm_pension_agent_service import pension_llm_service
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.utils.llm_chat_log import generate_request_id, log_llm_event, set_current_request_id
+from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -384,8 +385,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         )
         return ChatResponse(reply="\n".join(lines).strip(), computed_data=computed_data)
 
+    lowered_early = (original_user_msg or "").lower()
+    is_system_results_report_request = (
+        ("דוח" in lowered_early and "תוצאות" in lowered_early)
+        or ("report" in lowered_early and "results" in lowered_early)
+    )
+
     if (
         request.client_id is not None
+        and is_system_results_report_request
         and is_document_request(original_user_msg)
         and (not is_tax_documents_request(original_user_msg))
         and (not is_qa_request(original_user_msg))
@@ -2471,7 +2479,47 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                 current_step += 1
                 continue
 
-            final_reply = raw_reply
+            allowed_sources: list[str] = []
+            try:
+                for msg in (request.messages or []):
+                    if getattr(msg, "role", None) == "user":
+                        allowed_sources.append(getattr(msg, "content", "") or "")
+            except Exception:
+                pass
+
+            try:
+                for msg in (messages or []):
+                    if getattr(msg, "role", None) != "system":
+                        continue
+                    content = getattr(msg, "content", "") or ""
+                    if ("Tool Result (" in content) or ("פלט כלי (" in content):
+                        allowed_sources.append(content)
+            except Exception:
+                pass
+
+            if isinstance(forced_user_prefix, str) and forced_user_prefix:
+                allowed_sources.append(forced_user_prefix)
+
+            violation = validate_reply_numeric_provenance(
+                reply_text=raw_reply,
+                allowed_source_texts=allowed_sources,
+            )
+            if violation is not None:
+                try:
+                    log_llm_event(
+                        request_id=request_id,
+                        event_type="numeric_provenance_violation",
+                        payload={"tokens": list(violation.tokens)},
+                        client_id=request.client_id,
+                    )
+                except Exception:
+                    pass
+                final_reply = (
+                    "שגיאה: המערכת חסמה תשובה שכללה מספרים שלא הגיעו מחישוב מערכת. "
+                    "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
+                )
+            else:
+                final_reply = raw_reply
             break
 
     log_llm_event(

@@ -65,6 +65,9 @@ from app.services.llm_chat.tool_handlers.check_data_completeness import (
 from app.services.llm_chat.tool_handlers.run_retirement_scenarios import (
     handle_run_retirement_scenarios,
 )
+from app.services.llm_chat.tool_handlers.run_retirement_scenarios_preview import (
+    handle_run_retirement_scenarios_preview,
+)
 from app.services.llm_chat.tool_handlers.select_target_pension_scenario import (
     handle_select_target_pension_scenario,
 )
@@ -79,6 +82,9 @@ from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
 )
 from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
     handle_get_system_state_snapshot,
+)
+from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
+    handle_get_system_numeric_constants,
 )
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
@@ -281,6 +287,9 @@ def execute_tool_call(
     )
 
     try:
+        if tool_name == "GET_SYSTEM_NUMERIC_CONSTANTS":
+            return handle_get_system_numeric_constants(args=args)
+
         if tool_name == "BUILD_TARGET_PENSION_PLAN":
             return handle_build_target_pension_plan(args=args, agent_tools=agent_tools)
 
@@ -309,6 +318,18 @@ def execute_tool_call(
             )
 
         if tool_name == "RUN_RETIREMENT_SCENARIOS":
+            preview_flag = False
+            try:
+                raw_preview = args.get("preview") if isinstance(args, dict) else None
+                if isinstance(raw_preview, str):
+                    preview_flag = raw_preview.strip().lower() in {"true", "1", "yes", "y"}
+                else:
+                    preview_flag = bool(raw_preview)
+            except Exception:
+                preview_flag = False
+
+            if preview_flag:
+                return handle_run_retirement_scenarios_preview(args=args, agent_tools=agent_tools)
             return handle_run_retirement_scenarios(args=args, agent_tools=agent_tools)
 
         if tool_name == "SELECT_TARGET_PENSION_SCENARIO":
