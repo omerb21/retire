@@ -773,50 +773,81 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
         return "\n".join(lines)
 
     try:
-        data = json.loads(tool_result)
-        gross = data.get("total_guaranteed_income") or data.get("projected_pension")
-        net = data.get("total_guaranteed_income_net") or data.get("projected_pension_net")
-        income_tax = data.get("monthly_income_tax")
-        total_tax = data.get("monthly_tax_deduction")
-        exempt_pct = data.get("exemption_percentage")
-        exempt_amount = data.get("exempt_pension_monthly")
-        liquid_capital = data.get("total_liquid_capital")
-        suff_years = data.get("capital_sufficiency_years")
-        is_sustainable = data.get("is_sustainable")
-
-        lines: list[str] = []
-        lines.append("ניתוח פרישה – עיקרי התוצאות (חודשיות):")
-        if gross is not None:
-            lines.append(f"• קצבה ברוטו: {gross:,.0f} ₪")
-        if income_tax is not None or total_tax is not None:
-            tax_to_show = income_tax if income_tax is not None else total_tax
-            if tax_to_show is not None:
-                lines.append(f"• מס הכנסה חודשי על הקצבה: {tax_to_show:,.0f} ₪")
-        if net is not None:
-            lines.append(f"• קצבה נטו לאחר מס: {net:,.0f} ₪")
-        if exempt_pct is not None or exempt_amount is not None:
-            extra_parts: list[str] = []
-            if exempt_pct is not None:
-                extra_parts.append(f"אחוז קצבה פטורה: {exempt_pct:.1f}%")
-            if exempt_amount is not None:
-                extra_parts.append(f"סכום קצבה פטורה חודשי: {exempt_amount:,.0f} ₪")
-            if extra_parts:
-                lines.append("• פטור מקסימלי מקיבוע זכויות: " + " | ".join(extra_parts))
-
-        if liquid_capital is not None:
-            lines.append(f"• הון נזיל זמין לתכנון: {liquid_capital:,.0f} ₪")
-        if suff_years is not None:
-            try:
-                lines.append(f"• קיימות כספית (שנים): {float(suff_years):g}")
-            except Exception:
-                lines.append(f"• קיימות כספית (שנים): {suff_years}")
-        if is_sustainable is not None:
-            lines.append(f"• בר-קיימא: {'כן' if bool(is_sustainable) else 'לא'}")
-
-        return "\n".join(lines)
-
+        parsed = json.loads(tool_result)
     except Exception:
         return tool_result
+
+    # Support both payload shapes:
+    # 1) legacy: flat dict with computed fields
+    # 2) full tool payload: {success, tool_name, result: {...}, explanation: "..."}
+    if isinstance(parsed, dict) and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
+        explanation = parsed.get("explanation")
+        if isinstance(explanation, str) and explanation.strip():
+            return explanation.strip()
+        data = parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+    else:
+        data = parsed
+
+    if not isinstance(data, dict):
+        return tool_result
+
+    gross_total = data.get("total_guaranteed_income") or data.get("total_guaranteed_income_gross") or data.get("projected_pension")
+    net_total = data.get("total_guaranteed_income_net") or data.get("projected_pension_net")
+    monthly_net_pension = data.get("projected_pension_net")
+    additional_gross = data.get("additional_income_gross_monthly")
+    additional_taxable_gross = data.get("additional_income_taxable_gross_monthly")
+    additional_exempt_gross = data.get("additional_income_exempt_gross_monthly")
+    income_tax = data.get("monthly_income_tax")
+    total_tax = data.get("monthly_tax_deduction")
+    exempt_pct = data.get("exemption_percentage")
+    exempt_amount = data.get("exempt_pension_monthly")
+    liquid_capital = data.get("total_liquid_capital")
+    suff_years = data.get("capital_sufficiency_years")
+    is_sustainable = data.get("is_sustainable")
+
+    lines: list[str] = []
+    lines.append("ניתוח פרישה – עיקרי התוצאות (חודשיות):")
+    if gross_total is not None:
+        lines.append(f"• סה\"כ הכנסה ברוטו: {gross_total:,.0f} ₪")
+    if income_tax is not None or total_tax is not None:
+        tax_to_show = income_tax if income_tax is not None else total_tax
+        if tax_to_show is not None:
+            lines.append(f"• מס הכנסה חודשי (סה\"כ הכנסות חייבות): {tax_to_show:,.0f} ₪")
+    if net_total is not None:
+        lines.append(f"• סה\"כ הכנסה נטו: {net_total:,.0f} ₪")
+    if monthly_net_pension is not None:
+        lines.append(f"• פנסיה נטו (מתוך הסה\"כ): {monthly_net_pension:,.0f} ₪")
+    if additional_gross is not None or additional_taxable_gross is not None or additional_exempt_gross is not None:
+        parts: list[str] = []
+        if additional_gross is not None:
+            parts.append(f"סה\"כ הכנסות נוספות (ברוטו): {additional_gross:,.0f} ₪")
+        if additional_taxable_gross is not None:
+            parts.append(f"חייבות במס: {additional_taxable_gross:,.0f} ₪")
+        if additional_exempt_gross is not None:
+            parts.append(f"פטורות: {additional_exempt_gross:,.0f} ₪")
+        if parts:
+            lines.append("• הכנסות נוספות: " + " | ".join(parts))
+
+    if exempt_pct is not None or exempt_amount is not None:
+        extra_parts: list[str] = []
+        if exempt_pct is not None:
+            extra_parts.append(f"אחוז קצבה פטורה: {exempt_pct:.1f}%")
+        if exempt_amount is not None:
+            extra_parts.append(f"סכום קצבה פטורה חודשי: {exempt_amount:,.0f} ₪")
+        if extra_parts:
+            lines.append("• פטור מקסימלי מקיבוע זכויות: " + " | ".join(extra_parts))
+
+    if liquid_capital is not None:
+        lines.append(f"• הון נזיל זמין לתכנון: {liquid_capital:,.0f} ₪")
+    if suff_years is not None:
+        try:
+            lines.append(f"• קיימות כספית (שנים): {float(suff_years):g}")
+        except Exception:
+            lines.append(f"• קיימות כספית (שנים): {suff_years}")
+    if is_sustainable is not None:
+        lines.append(f"• בר-קיימא: {'כן' if bool(is_sustainable) else 'לא'}")
+
+    return "\n".join(lines)
 
 
 def is_net_pension_request(user_message: str) -> bool:

@@ -446,6 +446,48 @@ def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None
     assert "נטו" in response.text
 
 
+def test_cashflow_tool_handler_returns_full_payload_with_explanation(monkeypatch) -> None:
+    from app.services.llm_chat.tool_handlers.run_retirement_cashflow_analysis import (
+        handle_run_retirement_cashflow_analysis,
+    )
+
+    class DummyAgentTools:
+        def __init__(self):
+            self.client = None
+
+        def run_retirement_cashflow_analysis(self, **kwargs):
+            return {
+                "success": True,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {"total_guaranteed_income_net": 1.0, "additional_income_gross_monthly": 2.0},
+                "explanation": "EXPLANATION_WITH_ADDITIONAL_INCOME",
+            }
+
+    raw = handle_run_retirement_cashflow_analysis(
+        args={"retirement_date": "2026-01-02", "desired_monthly_income": 40000, "desired_income_is_net": True},
+        agent_tools=DummyAgentTools(),
+        force_max_exemption=False,
+    )
+
+    parsed = json.loads(raw)
+    assert parsed.get("success") is True
+    assert parsed.get("explanation") == "EXPLANATION_WITH_ADDITIONAL_INCOME"
+    assert isinstance(parsed.get("result"), dict)
+
+
+def test_cashflow_formatter_prefers_explanation_when_present() -> None:
+    from app.services.llm_chat.orchestration_utils import format_tool_output_for_user_stream
+
+    payload = {
+        "success": True,
+        "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+        "result": {"total_guaranteed_income_net": 1.0},
+        "explanation": "EXPLAIN_ME",
+    }
+    out = format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", json.dumps(payload))
+    assert out == "EXPLAIN_ME"
+
+
 def test_stream_commutation_without_account_asks_for_account(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 

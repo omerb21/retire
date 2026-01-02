@@ -92,4 +92,5 @@ def handle_run_retirement_cashflow_analysis(
     if not result.get("success"):
         return f"Tool Error: {result.get('explanation')}"
 
-    return json.dumps(result.get("result"), ensure_ascii=False)
+    # Return full payload so orchestration can use deterministic explanation.
+    return json.dumps(result, ensure_ascii=False)
