@@ -567,6 +567,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_approved=True,
                 request_id=stream_request_id,
             )
+
             try:
                 store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
             except Exception:
@@ -995,6 +996,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
+    if (
+        request.client_id is not None
+        and is_doc_request
+        and (not is_tax_doc_request)
+        and (not is_qa_mode)
+        and (not no_tools_requested)
+    ):
+        return _stream_execute_tool_no_approval(
+            "GENERATE_FULL_REPORT",
+            {"output_format": "pdf", "report_type": "full"},
+        )
+
     def _last_assistant_message_text(messages: list[ChatMessage]) -> str:
         for msg in reversed(messages or []):
             if getattr(msg, "role", None) == "assistant":
@@ -1039,6 +1052,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and (not is_doc_request)
         and (not is_qa_mode)
         and (not no_tools_requested)
+        and (not wants_execute_target_plan)
     ):
         def generate_target_plan():
             if computed_data is not None:
@@ -1088,6 +1102,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_approved=True,
                 request_id=stream_request_id,
             )
+
+            try:
+                store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+            except Exception:
+                pass
 
             yield sanitize_user_visible_text(
                 "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
@@ -1579,36 +1598,23 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     "skip_non_convertible_accounts": True,
                 }
 
-                if wants_capital_transform:
-                    transform_args.setdefault("default_conversion_type", "capital_asset")
-                    transform_args["commute_pension_components"] = True
-
-                tool_result = _execute_tool_call(
-                    "TRANSFORM_FUNDS_TO_ASSETS",
-                    transform_args,
-                    request.client_id,
-                    db,
-                    pension_portfolio=effective_portfolio,
-                    force_max_exemption=force_max_exemption,
-                    user_approved=True,
-                    request_id=stream_request_id,
-                )
-
                 try:
-                    clear_pending_approval_request(db=db, client_id=request.client_id)
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                        tool_args=transform_args,
+                    )
                 except Exception:
                     pass
 
-                portfolio_update_marker = build_pension_portfolio_update_after_transform(
+                yield build_approval_request_ui_action(
                     tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                    tool_result=tool_result,
                     tool_args=transform_args,
-                    current_pension_portfolio=effective_portfolio,
+                    reason="נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת.",
+                    risk_level="high",
+                    rag_sources=None,
                 )
-                if portfolio_update_marker:
-                    yield portfolio_update_marker
-
-                yield format_transform_result_for_user(tool_result=tool_result)
                 return
 
             if wants_fixation_execute:

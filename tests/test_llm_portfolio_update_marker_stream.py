@@ -157,6 +157,110 @@ def test_stream_transform_portfolio_wide_after2000_is_filtered(monkeypatch) -> N
     assert set(specific.keys()) == {"תגמולי_עובד_אחרי_2000", "תגמולי_מעביד_אחרי_2000"}
 
 
+def test_stream_execute_target_plan_requests_approval(monkeypatch) -> None:
+    import app.services.llm_chat.chat_stream_orchestration as stream_orch
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for deterministic execute-target-plan")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    def fake_store_pending_approval_request(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(stream_orch, "store_pending_approval_request", fake_store_pending_approval_request)
+
+    def fake_build_transform_accounts_from_target_plan_payload(payload: dict):
+        return [
+            {
+                "account_number": "A-001",
+                "specific_amounts": {"תגמולי_עובד_אחרי_2000": 1000},
+            }
+        ]
+
+    monkeypatch.setattr(
+        stream_orch,
+        "build_transform_accounts_from_target_plan_payload",
+        fake_build_transform_accounts_from_target_plan_payload,
+    )
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": 1,
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": "...\n###TARGET_PENSION_PLAN_DATA###\n"
+                    + json.dumps(
+                        {
+                            "tool_name": "BUILD_TARGET_PENSION_PLAN",
+                            "args": {"target_monthly_pension": 28000, "target_is_net": True},
+                            "result": {"sources_used": []},
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n###END_TARGET_PENSION_PLAN_DATA###",
+                },
+                {"role": "user", "content": "בצע את התכנית"},
+            ],
+            "pension_portfolio": [],
+        },
+    )
+    assert response.status_code == 200
+    assert "###UI_ACTION###" in response.text
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in response.text
+
+
+def test_stream_full_report_routes_without_llm(monkeypatch) -> None:
+    import app.services.llm_chat.chat_stream_orchestration as stream_orch
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for deterministic full report")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    captured: dict = {}
+
+    def fake_execute_tool_call(
+        *,
+        tool_name: str,
+        args: dict,
+        client_id: int,
+        db,
+        pension_portfolio=None,
+        force_max_exemption: bool = False,
+        agent_reply: str | None = None,
+        user_approved: bool = False,
+        request_id: str | None = None,
+    ) -> str:
+        captured["tool_name"] = tool_name
+        captured["args"] = args
+        return json.dumps(
+            {
+                "success": True,
+                "status_message": "OK",
+                "download_url": "/api/v1/reports/RPT-1/download",
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "שלח דוח תוצאות של המערכת"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert response.status_code == 200
+    assert captured.get("tool_name") == "GENERATE_FULL_REPORT"
+
+
 def test_pension_chat_stream_does_not_500_with_additional_incomes(db_session, client, monkeypatch) -> None:
     from app.models.additional_income import AdditionalIncome
     from datetime import date

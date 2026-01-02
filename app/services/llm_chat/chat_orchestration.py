@@ -384,10 +384,39 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         )
         return ChatResponse(reply="\n".join(lines).strip(), computed_data=computed_data)
 
+    if (
+        request.client_id is not None
+        and is_document_request(original_user_msg)
+        and (not is_tax_documents_request(original_user_msg))
+        and (not is_qa_request(original_user_msg))
+        and (not is_no_tools_request(original_user_msg))
+    ):
+        tool_result = _execute_tool_call(
+            "GENERATE_FULL_REPORT",
+            {"output_format": "pdf", "report_type": "full"},
+            request.client_id,
+            db,
+            pension_portfolio=effective_portfolio,
+            force_max_exemption=False,
+            user_approved=True,
+            request_id=request_id,
+        )
+        return ChatResponse(
+            reply=sanitize_user_visible_text(
+                format_tool_output_for_user_stream("GENERATE_FULL_REPORT", tool_result)
+            ),
+            computed_data=computed_data,
+        )
+
     # Deterministic handling for target pension plan requests (avoid LLM timeouts/temporary failures).
     explicit_target_plan_request = False
+    wants_execute_target_plan_early = False
     try:
         lowered_tmp = (original_user_msg or "").lower()
+        wants_execute_target_plan_early = (
+            "בצע" in lowered_tmp
+            and ("תכנית" in lowered_tmp or "תוכנית" in lowered_tmp or "מתווה" in lowered_tmp)
+        )
         if ("תזרים" not in lowered_tmp) and ("cashflow" not in lowered_tmp):
             planning_keywords = (
                 "יעד קצבה",
@@ -409,10 +438,12 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     if (
         request.client_id is not None
         and explicit_target_plan_request
+        and (not wants_execute_target_plan_early)
         and (not is_document_request(original_user_msg))
         and (not is_qa_request(original_user_msg))
         and (not is_no_tools_request(original_user_msg))
     ):
+
         target_val = 0.0
         try:
             target_val = float(extract_target_pension_from_message(original_user_msg) or 0)
