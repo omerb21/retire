@@ -69,8 +69,7 @@ def test_stream_commutation_request_does_not_trigger_deterministic_transform(mon
     assert response.status_code == 200
     body = response.text
     assert "TRANSFORM_FUNDS_TO_ASSETS" not in tool_calls
-    assert "###PENSION_PORTFOLIO_UPDATE###" in body
-    assert "10416027" in body
+    assert "קצבה קיימת במערכת" in body
 
     from app.models.pension_fund import PensionFund
 
@@ -80,4 +79,4 @@ def test_stream_commutation_request_does_not_trigger_deterministic_transform(mon
         .filter(PensionFund.deduction_file == "10416027")
         .first()
     )
-    assert pf is not None
+    assert pf is None

@@ -84,6 +84,7 @@ from app.services.llm_chat.orchestration_utils import (
     is_retirement_comparison_request,
     is_portfolio_breakdown_request,
     is_portfolio_analysis_request,
+    is_max_capital_request,
     parse_tool_call_from_reply,
     validate_tool_call_protocol_for_execution,
 )
@@ -348,8 +349,14 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
 
     lowered_user_msg = (original_user_msg or "").lower()
     wants_capital_transform = (
-        ("להון" in lowered_user_msg or "to capital" in lowered_user_msg)
-        and ("המר" in lowered_user_msg or "המרה" in lowered_user_msg or "convert" in lowered_user_msg)
+        (
+            ("להון" in lowered_user_msg)
+            or ("to capital" in lowered_user_msg)
+            or ("הונית" in lowered_user_msg)
+            or ("הוני" in lowered_user_msg)
+            or ("מקסימום הון" in lowered_user_msg)
+        )
+        and ("המר" in lowered_user_msg or "המרה" in lowered_user_msg or "convert" in lowered_user_msg or "משיכה" in lowered_user_msg or "משוך" in lowered_user_msg)
     )
     wants_execute_target_plan = (
         "בצע" in lowered_user_msg
@@ -360,6 +367,96 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         and ("קיבוע" in lowered_user_msg)
         and ("זכויות" in lowered_user_msg)
     )
+
+    max_capital_request = is_max_capital_request(original_user_msg)
+    wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
+
+    if (
+        request.client_id is not None
+        and max_capital_request
+        and (not is_doc_request)
+        and (not is_qa_mode)
+        and (not no_tools_requested)
+    ):
+        retirement_age = None
+        try:
+            client = db.query(Client).filter(Client.id == request.client_id).first()
+            client_age = client.get_age() if client and hasattr(client, "get_age") else None
+            from app.services.retirement_age_service import (
+                DEFAULT_MALE_RETIREMENT_AGE,
+                get_retirement_age_simple,
+            )
+
+            legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+            try:
+                if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
+                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+            except Exception:
+                legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
+
+            retirement_age = max(int(legal_ret_age), int(client_age or legal_ret_age))
+        except Exception:
+            retirement_age = 67
+
+        scenarios_raw = _execute_tool_call(
+            "RUN_RETIREMENT_SCENARIOS",
+            {"retirement_age": int(retirement_age)},
+            request.client_id,
+            db,
+            pension_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            user_approved=True,
+            request_id=request_id,
+        )
+        try:
+            parsed = json.loads(scenarios_raw) if scenarios_raw else {}
+        except Exception:
+            parsed = {}
+
+        scenario_id = None
+        for row in (parsed.get("scenarios") if isinstance(parsed, dict) else []) or []:
+            if isinstance(row, dict) and row.get("scenario_key") == "scenario_2_max_capital":
+                scenario_id = row.get("scenario_id")
+                break
+
+        if scenario_id is None:
+            return ChatResponse(
+                reply="לא הצלחתי ליצור תרחיש 'מקסימום הון' במערכת.",
+                computed_data=computed_data,
+            )
+
+        if wants_execute_max_capital:
+            try:
+                store_pending_approval_request(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_name="EXECUTE_RETIREMENT_SCENARIO",
+                    tool_args={"scenario_id": int(scenario_id)},
+                )
+            except Exception:
+                pass
+
+            return ChatResponse(
+                reply=build_approval_request_ui_action(
+                    tool_name="EXECUTE_RETIREMENT_SCENARIO",
+                    tool_args={"scenario_id": int(scenario_id)},
+                    reason=(
+                        "בקשת 'משיכה הונית מלאה' מחייבת שמירת קצבת מינימום 5,500 ₪. "
+                        "אצור ואבצע את תרחיש 'מקסימום הון' (שמשאיר קצבת מינימום) רק לאחר אישור."
+                    ),
+                    risk_level="high",
+                    rag_sources=None,
+                ),
+                computed_data=computed_data,
+            )
+
+        return ChatResponse(
+            reply=(
+                "יצרתי תרחיש 'מקסימום הון' (עם שמירת קצבת מינימום 5,500 ₪). "
+                "אם תרצה לבצע אותו בפועל במערכת, כתוב: 'בצע'."
+            ),
+            computed_data=computed_data,
+        )
 
     # Early deterministic handling for pension commutation requests.
     # Only run this path when the user provided a specific account identifier.
@@ -415,80 +512,6 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                         matched = data
                         break
 
-                if matched is not None:
-                    try:
-                        from app.models.pension_fund import PensionFund
-
-                        raw_balance = matched.get("יתרה")
-                        if raw_balance is None:
-                            raw_balance = matched.get("balance")
-                        try:
-                            balance = float(raw_balance or 0)
-                        except Exception:
-                            balance = 0.0
-
-                        fund = PensionFund(
-                            client_id=int(request.client_id),
-                            fund_name=str(
-                                matched.get("שם_תכנית")
-                                or matched.get("account_name")
-                                or "קצבה"
-                            ),
-                            fund_type=str(
-                                matched.get("סוג_מוצר")
-                                or matched.get("product_type")
-                                or "unknown"
-                            ),
-                            input_mode="manual",
-                            balance=float(balance),
-                            annuity_factor=200.0,
-                            pension_amount=round(float(balance) / 200.0)
-                            if float(balance) > 0
-                            else 0.0,
-                            pension_start_date=None,
-                            indexation_method="none",
-                            tax_treatment="taxable",
-                            deduction_file=str(
-                                matched.get("מספר_חשבון")
-                                or matched.get("account_number")
-                                or account_number
-                            ),
-                            conversion_source=json.dumps(
-                                {
-                                    "type": "pension_portfolio",
-                                    "source": "pension_portfolio",
-                                    "account_number": str(
-                                        matched.get("מספר_חשבון")
-                                        or matched.get("account_number")
-                                        or account_number
-                                    ),
-                                    "account_name": str(
-                                        matched.get("שם_תכנית")
-                                        or matched.get("account_name")
-                                        or ""
-                                    ),
-                                    "company": str(
-                                        matched.get("חברה_מנהלת")
-                                        or matched.get("company")
-                                        or ""
-                                    ),
-                                    "product_type": str(
-                                        matched.get("סוג_מוצר")
-                                        or matched.get("product_type")
-                                        or ""
-                                    ),
-                                    "amount": float(balance),
-                                    "conversion_date": date.today().isoformat(),
-                                },
-                                ensure_ascii=False,
-                            ),
-                        )
-                        db.add(fund)
-                        db.commit()
-                        db.refresh(fund)
-                    except Exception:
-                        fund = None
-
                 if fund is None:
                     return ChatResponse(
                         reply=(
@@ -526,23 +549,23 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                 "confirmed": True,
             }
 
-            tool_result = _execute_tool_call(
-                "EXECUTE_PENSION_COMMUTATION",
-                exec_args,
-                request.client_id,
-                db,
-                pension_portfolio=effective_portfolio,
-                force_max_exemption=False,
-                user_approved=True,
-                request_id=request_id,
-            )
+            try:
+                store_pending_approval_request(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_name="EXECUTE_PENSION_COMMUTATION",
+                    tool_args=exec_args,
+                )
+            except Exception:
+                pass
 
             return ChatResponse(
-                reply=sanitize_user_visible_text(
-                    format_tool_output_for_user_stream(
-                        "EXECUTE_PENSION_COMMUTATION",
-                        tool_result,
-                    )
+                reply=build_approval_request_ui_action(
+                    tool_name="EXECUTE_PENSION_COMMUTATION",
+                    tool_args=exec_args,
+                    reason="נדרש אישור לפני ביצוע היוון קצבה במערכת.",
+                    risk_level="high",
+                    rag_sources=None,
                 ),
                 computed_data=computed_data,
             )
@@ -1725,6 +1748,40 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                     tool_call_data, ensure_ascii=True
                 )
                 messages.append(ChatMessage(role="assistant", content=tool_msg_content))
+
+                if tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"}:
+                    already_approved = was_tool_call_previously_approved(
+                        request.messages,
+                        tool_name=tool_name,
+                        tool_args=tool_args if isinstance(tool_args, dict) else {},
+                    )
+                    if not already_approved:
+                        try:
+                            store_pending_approval_request(
+                                db=db,
+                                client_id=request.client_id,
+                                tool_name=tool_name,
+                                tool_args=tool_args if isinstance(tool_args, dict) else {},
+                            )
+                        except Exception:
+                            pass
+
+                        reason = "נדרש אישור לפני ביצוע פעולה במערכת."
+                        if tool_name == "EXECUTE_PENSION_COMMUTATION":
+                            reason = "נדרש אישור לפני ביצוע היוון קצבה במערכת."
+                        if tool_name == "SUBMIT_TAX_COMMUTATION":
+                            reason = "נדרש אישור לפני הגשת/ביצוע קיבוע/פריסה במערכת."
+
+                        return ChatResponse(
+                            reply=build_approval_request_ui_action(
+                                tool_name=tool_name,
+                                tool_args=tool_args if isinstance(tool_args, dict) else {},
+                                reason=reason,
+                                risk_level="high",
+                                rag_sources=None,
+                            ),
+                            computed_data=computed_data,
+                        )
 
                 tool_result = _execute_tool_call(
                     tool_name,

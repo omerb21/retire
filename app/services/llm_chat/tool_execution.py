@@ -80,7 +80,10 @@ from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
 from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
     handle_get_system_state_snapshot,
 )
-from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+    store_pending_approval_request,
+)
 from app.services.llm_chat.orchestration_utils import (
     compute_default_retirement_date_for_tool_call,
     normalize_tool_name,
@@ -179,7 +182,30 @@ def execute_tool_call(
     tool_name = normalize_tool_name(tool_name) or tool_name
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
-    user_approved = True
+    if tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"} and not user_approved:
+        try:
+            store_pending_approval_request(
+                db=db,
+                client_id=client_id,
+                tool_name=tool_name,
+                tool_args=args if isinstance(args, dict) else {},
+            )
+        except Exception:
+            pass
+
+        reason = "נדרש אישור לפני ביצוע פעולה במערכת."
+        if tool_name == "EXECUTE_PENSION_COMMUTATION":
+            reason = "נדרש אישור לפני ביצוע היוון קצבה במערכת."
+        if tool_name == "SUBMIT_TAX_COMMUTATION":
+            reason = "נדרש אישור לפני הגשת/ביצוע קיבוע/פריסה במערכת."
+
+        return build_approval_request_ui_action(
+            tool_name=tool_name,
+            tool_args=args if isinstance(args, dict) else {},
+            reason=reason,
+            risk_level="high",
+            rag_sources=None,
+        )
 
     if tool_name == "PROCESS_TERMINATION" and isinstance(args, dict):
         try:

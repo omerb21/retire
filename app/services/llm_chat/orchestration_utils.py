@@ -1801,6 +1801,28 @@ def is_full_report_request(user_message: str) -> bool:
     return any(k in lowered for k in report_keywords)
 
 
+def is_max_capital_request(user_message: str) -> bool:
+    if not user_message:
+        return False
+
+    lowered = (user_message or "").lower()
+    if not lowered.strip():
+        return False
+
+    if "מקסימום הון" in lowered:
+        return True
+    if "מקסימום הוני" in lowered:
+        return True
+    if "משיכה הונית" in lowered:
+        return True
+    if "בצורה הונית" in lowered:
+        return True
+    if "הונית" in lowered or "הוני" in lowered:
+        if any(k in lowered for k in ("משוך", "משיכה", "למשוך", "משוך את כל", "כל התיק", "כל הסכומים", "100%")):
+            return True
+    return False
+
+
 def infer_tax_document_type(user_message: str) -> str:
     lowered = (user_message or "").lower()
 

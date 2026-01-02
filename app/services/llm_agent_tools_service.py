@@ -1838,8 +1838,10 @@ class AgentToolsService:
         מחשב הערכת מס על הכנסה בפרישה.
         אם לא מסופקים פרמטרים, משתמש בנתונים מהתרחישים הקיימים.
         """
-        from app.services.tax_data.tax_brackets import TaxBracketsService
+        from app.models.additional_income import AdditionalIncome
         from app.models.fixation_result import FixationResult
+        from app.providers.tax_params import InMemoryTaxParamsProvider
+        from app.services.additional_income_service import AdditionalIncomeService
         
         client = self.client
         if not client:
@@ -1864,117 +1866,228 @@ class AgentToolsService:
                     monthly_pension = 0
             else:
                 monthly_pension = 0
+
+        # Fallback: if still missing, use existing pensions (DB) as a conservative default.
+        if not monthly_pension:
+            try:
+                pension_funds = (
+                    self.db.query(PensionFund)
+                    .filter(PensionFund.client_id == self.client_id)
+                    .all()
+                )
+                monthly_pension = sum(float(pf.pension_amount or 0) for pf in pension_funds)
+            except Exception:
+                monthly_pension = 0
         
         if additional_income is None:
             additional_income = 0
 
-        # בדיקת סף עבור קצבה חודשית ברוטו – משמשת גם לבדיקות עמידות (Run 13)
+        # Threshold for monthly pension gross – stability guardrail.
         gross_monthly_pension = float(monthly_pension or 0)
         if gross_monthly_pension < 1000:
-            raise ValueError("TAX_TOOL_ERROR: הקצבה החודשית נמוכה מ-1,000 ₪, לא ניתן לבצע הערכת מס אמינה.")
-        
-        # חישוב הכנסה שנתית
-        annual_pension = float(monthly_pension) * 12
-        annual_additional = float(additional_income) * 12
-        total_annual_income = annual_pension + annual_additional
-        
-        if total_annual_income <= 0:
-            return {
-                "success": True,
-                "tool_name": "GET_TAX_PROJECTION",
-                "result": {"annual_tax": 0, "monthly_tax": 0},
-                "explanation": "אין הכנסה לחישוב מס.",
-            }
-        
-        # קבלת מדרגות מס
+            raise ValueError(
+                "TAX_TOOL_ERROR: הקצבה החודשית נמוכה מ-1,000 ₪, לא ניתן לבצע הערכת מס אמינה."
+            )
+
+        # Collect additional incomes from DB (deterministically).
+        additional_income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
+        additional_rows = (
+            self.db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == self.client_id)
+            .all()
+        )
+
+        annual_salary_income = 0.0
+        annual_business_income = 0.0
+        annual_rental_income = 0.0
+        annual_interest_income = 0.0
+        annual_dividend_income = 0.0
+        annual_other_income = 0.0
+
+        fixed_rate_income_monthly = 0.0
+        fixed_rate_tax_annual = 0.0
+
+        for inc in additional_rows:
+            try:
+                if inc.start_date and inc.start_date > date.today():
+                    continue
+                if inc.end_date and inc.end_date < date.today():
+                    continue
+            except Exception:
+                pass
+
+            try:
+                monthly_val = float(additional_income_service.calculate_monthly_amount(inc) or 0)
+            except Exception:
+                try:
+                    monthly_val = float(getattr(inc, "amount", 0) or 0)
+                except Exception:
+                    monthly_val = 0.0
+
+            if monthly_val <= 0:
+                continue
+
+            tax_treatment = str(getattr(inc, "tax_treatment", "") or "").strip().lower()
+            if tax_treatment == "exempt":
+                continue
+
+            if tax_treatment == "fixed_rate":
+                fixed_rate_income_monthly += monthly_val
+                try:
+                    tax_rate = float(getattr(inc, "tax_rate", 0) or 0)
+                except Exception:
+                    tax_rate = 0.0
+                fixed_rate_tax_annual += (monthly_val * 12) * (tax_rate / 100.0)
+                continue
+
+            annual_val = monthly_val * 12
+            source_type = str(getattr(inc, "source_type", "") or "").strip().lower()
+            if source_type == "salary":
+                annual_salary_income += annual_val
+            elif source_type == "business":
+                annual_business_income += annual_val
+            elif source_type == "rental":
+                annual_rental_income += annual_val
+            elif source_type == "interest":
+                annual_interest_income += annual_val
+            elif source_type == "dividends":
+                annual_dividend_income += annual_val
+            else:
+                annual_other_income += annual_val
+
+        # Tool arg can add an extra taxable "other" income not in DB.
+        try:
+            manual_additional_monthly = float(additional_income or 0)
+        except Exception:
+            manual_additional_monthly = 0.0
+        if manual_additional_monthly > 0:
+            annual_other_income += manual_additional_monthly * 12
+
         current_year = date.today().year
-        tax_brackets = TaxBracketsService.get_tax_brackets(current_year)
-        
-        # חישוב מס לפי מדרגות
-        annual_tax = 0.0
-        remaining_income = total_annual_income
-        tax_breakdown: list[dict] = []
-        
-        for bracket in tax_brackets:
-            if remaining_income <= 0:
-                break
-            
-            bracket_min = bracket["min_income"]
-            bracket_max = bracket["max_income"]
-            rate = bracket["rate"]
-            
-            taxable_in_bracket = min(remaining_income, bracket_max - bracket_min + 1)
-            if taxable_in_bracket > 0:
-                tax_in_bracket = taxable_in_bracket * rate
-                annual_tax += tax_in_bracket
-                tax_breakdown.append({
-                    "bracket": f"{bracket_min:,}-{bracket_max:,}",
-                    "rate": f"{int(rate*100)}%",
-                    "taxable_amount": taxable_in_bracket,
-                    "tax": tax_in_bracket,
-                })
-                remaining_income -= taxable_in_bracket
-        
-        # התחשבות בפטור קצבה (אם יש קיבוע)
-        fixation = self.db.query(FixationResult).filter(
-            FixationResult.client_id == self.client_id
-        ).order_by(FixationResult.created_at.desc()).first()
-        
+
+        fixation = (
+            self.db.query(FixationResult)
+            .filter(FixationResult.client_id == self.client_id)
+            .order_by(FixationResult.created_at.desc())
+            .first()
+        )
         exempt_pension_pct = 0.0
         if fixation and fixation.raw_result:
             try:
-                fixation_data = fixation.raw_result if isinstance(fixation.raw_result, dict) else json.loads(fixation.raw_result)
-                exempt_pension_pct = fixation_data.get("exemption_summary", {}).get("exempt_pension_percentage", 0)
+                fixation_data = (
+                    fixation.raw_result
+                    if isinstance(fixation.raw_result, dict)
+                    else json.loads(fixation.raw_result)
+                )
+                exempt_pension_pct = float(
+                    (fixation_data.get("exemption_summary", {}) or {}).get(
+                        "exempt_pension_percentage", 0
+                    )
+                    or 0
+                )
             except Exception:
-                pass
-        
-        # הפחתת מס בגין פטור
-        if exempt_pension_pct > 0 and annual_pension > 0:
-            exempt_amount = annual_pension * exempt_pension_pct
-            # הערכה פשוטה - הפחתת מס יחסית
-            tax_reduction = exempt_amount * 0.3  # הערכה של מס שולי ממוצע
-            annual_tax = max(0, annual_tax - tax_reduction)
-        
+                exempt_pension_pct = 0.0
+
+        exempt_pension_amount_monthly = 0.0
+        if exempt_pension_pct > 0:
+            try:
+                exempt_pension_amount_monthly = float(get_monthly_cap(current_year)) * float(
+                    exempt_pension_pct
+                )
+            except Exception:
+                exempt_pension_amount_monthly = 0.0
+
+        personal_details = PersonalDetails(
+            birth_date=getattr(client, "birth_date", None),
+            marital_status=getattr(client, "marital_status", "single") or "single",
+            num_children=int(getattr(client, "num_children", 0) or 0),
+            is_new_immigrant=bool(getattr(client, "is_new_immigrant", False)),
+            is_veteran=bool(getattr(client, "is_veteran", False)),
+            is_disabled=bool(getattr(client, "is_disabled", False)),
+            disability_percentage=getattr(client, "disability_percentage", None),
+            is_student=bool(getattr(client, "is_student", False)),
+            reserve_duty_days=int(getattr(client, "reserve_duty_days", 0) or 0),
+        )
+
+        tax_input = TaxCalculationInput(
+            tax_year=current_year,
+            personal_details=personal_details,
+            salary_income=annual_salary_income,
+            pension_income=gross_monthly_pension * 12,
+            rental_income=annual_rental_income,
+            business_income=annual_business_income,
+            interest_income=annual_interest_income,
+            dividend_income=annual_dividend_income,
+            other_income=annual_other_income,
+            pension_contributions=float(getattr(client, "pension_contributions", 0) or 0),
+            study_fund_contributions=float(getattr(client, "study_fund_contributions", 0) or 0),
+            insurance_premiums=float(getattr(client, "insurance_premiums", 0) or 0),
+            charitable_donations=float(getattr(client, "charitable_donations", 0) or 0),
+            exempt_pension_amount=exempt_pension_amount_monthly,
+            pension_months_in_year=12,
+        )
+
+        calculator = TaxCalculator(tax_year=current_year)
+        tax_result = calculator.calculate_comprehensive_tax(tax_input)
+
+        annual_tax = float(tax_result.net_tax)
         monthly_tax = annual_tax / 12
-        effective_rate = (annual_tax / total_annual_income * 100) if total_annual_income > 0 else 0
-        
-        # בניית הסבר
+
+        # Explanations must be based on system-calculated outputs only.
         tax_explanation_parts: list[str] = []
-        tax_explanation_parts.append("💵 **הערכת מס בפרישה**")
+        tax_explanation_parts.append("💵 **הערכת מס בפרישה (דטרמיניסטי - מחשבון מערכת)**")
         tax_explanation_parts.append("")
-        tax_explanation_parts.append("**📊 הכנסות:**")
-        tax_explanation_parts.append(f"  • קצבה חודשית: {monthly_pension:,.0f} ₪")
-        if additional_income > 0:
-            tax_explanation_parts.append(f"  • הכנסות נוספות: {additional_income:,.0f} ₪/חודש")
-        tax_explanation_parts.append(f"  • סה\"כ שנתי: {total_annual_income:,.0f} ₪")
-        
+        tax_explanation_parts.append("**📊 הכנסות שנלקחו בחשבון:**")
+        tax_explanation_parts.append(f"  • קצבה חודשית: {gross_monthly_pension:,.0f} ₪")
+
+        taxable_additional_monthly = (
+            annual_salary_income
+            + annual_business_income
+            + annual_rental_income
+            + annual_interest_income
+            + annual_dividend_income
+            + annual_other_income
+        ) / 12
+        if taxable_additional_monthly > 0:
+            tax_explanation_parts.append(
+                f"  • הכנסות נוספות (חייבות/מיוחדות): {taxable_additional_monthly:,.0f} ₪/חודש"
+            )
+        if fixed_rate_income_monthly > 0:
+            tax_explanation_parts.append(
+                f"  • הכנסות נוספות במס קבוע (לא נכלל בחישוב מס ההכנסה): {fixed_rate_income_monthly:,.0f} ₪/חודש"
+            )
+
         tax_explanation_parts.append("")
-        tax_explanation_parts.append("**💰 מס משוער:**")
+        tax_explanation_parts.append("**💰 מס לפי מחשבון המערכת:**")
         tax_explanation_parts.append(f"  • מס שנתי: {annual_tax:,.0f} ₪")
         tax_explanation_parts.append(f"  • מס חודשי: {monthly_tax:,.0f} ₪")
-        tax_explanation_parts.append(f"  • שיעור מס אפקטיבי: {effective_rate:.1f}%")
-        
+        tax_explanation_parts.append(
+            f"  • שיעור מס אפקטיבי: {float(tax_result.effective_tax_rate):.1f}%"
+        )
+
         if exempt_pension_pct > 0:
             tax_explanation_parts.append("")
-            tax_explanation_parts.append(f"✅ **פטור קצבה**: {exempt_pension_pct*100:.1f}% מהקצבה פטורים ממס (מקיבוע זכויות)")
-        
-        tax_explanation_parts.append("")
-        tax_explanation_parts.append("**💡 שים לב:**")
-        tax_explanation_parts.append("  • זו הערכה בלבד - המס בפועל תלוי בנקודות זיכוי ובניכויים נוספים")
-        tax_explanation_parts.append("  • מומלץ להתייעץ עם יועץ מס לחישוב מדויק")
-        
+            tax_explanation_parts.append(
+                f"✅ **פטור קצבה מקיבוע זכויות**: {exempt_pension_pct*100:.1f}% מהתקרה המזכה (תורגם לסכום פטור חודשי לפי שנת {current_year})"
+            )
+
         return {
             "success": True,
             "tool_name": "GET_TAX_PROJECTION",
             "result": {
-                "monthly_pension": monthly_pension,
-                "additional_income": additional_income,
-                "total_annual_income": total_annual_income,
+                "monthly_pension": gross_monthly_pension,
+                "additional_income": float(additional_income or 0),
+                "portfolio_additional_income_monthly": taxable_additional_monthly,
+                "fixed_rate_income_monthly": fixed_rate_income_monthly,
+                "fixed_rate_tax_annual": fixed_rate_tax_annual,
+                "total_annual_income": float(tax_result.total_income),
                 "annual_tax": annual_tax,
                 "monthly_tax": monthly_tax,
-                "effective_rate": effective_rate,
+                "effective_rate": float(tax_result.effective_tax_rate),
                 "exempt_pension_percentage": exempt_pension_pct,
-                "tax_breakdown": tax_breakdown,
+                "exempt_pension_amount_monthly": exempt_pension_amount_monthly,
+                "tax_breakdown": _to_jsonable(getattr(tax_result, "tax_breakdown", [])),
+                "income_breakdown": _to_jsonable(getattr(tax_result, "income_breakdown", [])),
             },
             "explanation": "\n".join(tax_explanation_parts),
         }

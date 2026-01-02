@@ -43,5 +43,8 @@ def test_non_stream_commutation_blocks_transform_tool_call(db_session, client, m
 
     resp = run_pension_chat(req, db_session)
 
-    assert tool_calls == ["EXECUTE_PENSION_COMMUTATION"]
+    assert tool_calls == []
     assert isinstance(resp.reply, str)
+    assert "###UI_ACTION###" in resp.reply
+    assert "approval_request" in resp.reply
+    assert "EXECUTE_PENSION_COMMUTATION" in resp.reply

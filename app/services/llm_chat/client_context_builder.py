@@ -20,6 +20,8 @@ from app.services.llm_chat.message_utils import extract_executed_tools_from_hist
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.state_tools import get_agent_state_json
 from app.services.llm_chat.orchestration_utils import is_portfolio_analysis_request
+from app.services.additional_income_service import AdditionalIncomeService
+from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 from app.services.retirement_age_service import calculate_retirement_age
 from app.services.tax_data import TaxBracketsService
@@ -361,15 +363,33 @@ def build_llm_context_parts(
 
     additional_incomes = db.query(AdditionalIncome).filter(AdditionalIncome.client_id == request.client_id).all()
 
+    additional_income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
+
     total_additional_income: float = 0.0
     additional_income_info: list[str] = []
     for inc in additional_incomes:
-        monthly = float(inc.monthly_amount or 0)
+        try:
+            if inc.start_date and inc.start_date > date.today():
+                continue
+            if inc.end_date and inc.end_date < date.today():
+                continue
+        except Exception:
+            pass
+
+        try:
+            monthly = float(additional_income_service.calculate_monthly_amount(inc) or 0)
+        except Exception:
+            try:
+                monthly = float(inc.amount or 0)
+            except Exception:
+                monthly = 0.0
+
         total_additional_income += monthly
         if monthly > 0:
             tax_status = "פטור" if inc.tax_treatment == "exempt" else "חייב במס"
+            income_name = (inc.description or "").strip() or (inc.source_type or "").strip() or "הכנסה"
             additional_income_info.append(
-                f"• {inc.income_name or 'הכנסה'}: {monthly:,.0f} ₪/חודש ({tax_status})"
+                f"• {income_name}: {monthly:,.0f} ₪/חודש ({tax_status})"
             )
 
     context_parts: list[str] = []

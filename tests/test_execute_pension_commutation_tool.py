@@ -39,6 +39,7 @@ def test_execute_pension_commutation_creates_asset_and_updates_fund(db_session, 
         client.id,
         db_session,
         pension_portfolio=None,
+        user_approved=True,
     )
 
     parsed = json.loads(result)
@@ -110,6 +111,7 @@ def test_execute_pension_commutation_rejects_amount_over_balance(db_session, cli
         client.id,
         db_session,
         pension_portfolio=None,
+        user_approved=True,
     )
 
     assert isinstance(result, str)

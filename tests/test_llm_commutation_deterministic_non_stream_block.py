@@ -53,6 +53,7 @@ def test_non_stream_commutation_request_does_not_trigger_deterministic_transform
 
     assert "TRANSFORM_FUNDS_TO_ASSETS" not in tool_calls
     assert isinstance(resp.reply, str)
+    assert "קצבה קיימת במערכת" in resp.reply
 
     from app.models.pension_fund import PensionFund
 
@@ -62,4 +63,4 @@ def test_non_stream_commutation_request_does_not_trigger_deterministic_transform
         .filter(PensionFund.deduction_file == "10416027")
         .first()
     )
-    assert pf is not None
+    assert pf is None

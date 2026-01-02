@@ -157,6 +157,116 @@ def test_stream_transform_portfolio_wide_after2000_is_filtered(monkeypatch) -> N
     assert set(specific.keys()) == {"תגמולי_עובד_אחרי_2000", "תגמולי_מעביד_אחרי_2000"}
 
 
+def test_pension_chat_stream_does_not_500_with_additional_incomes(db_session, client, monkeypatch) -> None:
+    from app.models.additional_income import AdditionalIncome
+    from datetime import date
+    from decimal import Decimal
+
+    inc = AdditionalIncome(
+        client_id=client.id,
+        source_type="salary",
+        description="salary add",
+        amount=Decimal("1000"),
+        frequency="monthly",
+        start_date=date.today(),
+        end_date=None,
+        indexation_method="none",
+        tax_treatment="taxable",
+        tax_rate=None,
+    )
+    db_session.add(inc)
+    db_session.commit()
+
+    def fake_chat_stream(messages, client_id=None):
+        yield "PASS - done"
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client.id,
+            "messages": [{"role": "user", "content": "בדיקה"}],
+            "pension_portfolio": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "PASS - done" in response.text
+
+
+def test_stream_full_capital_withdrawal_routes_to_max_capital_scenario(monkeypatch) -> None:
+    import app.services.llm_chat.chat_stream_orchestration as stream_orch
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for deterministic max-capital routing")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    tool_calls: list[str] = []
+
+    def fake_execute_tool_call(
+        *,
+        tool_name: str,
+        args: dict,
+        client_id: int,
+        db,
+        pension_portfolio=None,
+        force_max_exemption: bool = False,
+        agent_reply: str | None = None,
+        user_approved: bool = False,
+    ) -> str:
+        tool_calls.append(tool_name)
+        if tool_name == "RUN_RETIREMENT_SCENARIOS":
+            return json.dumps(
+                {
+                    "retirement_age": 67,
+                    "scenarios": [
+                        {
+                            "scenario_id": 123,
+                            "scenario_key": "scenario_2_max_capital",
+                            "scenario_name": "מקסימום הון (קצבת מינימום: 5,500)",
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        return json.dumps({"success": True}, ensure_ascii=False)
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": 1,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "אני מעוניין למשוך את כל הסכומים בתיק בצורה הונית. בנה לי תכנית משיכה ובצע אותה",
+                }
+            ],
+            "pension_portfolio": [
+                {
+                    "מספר_חשבון": "494930",
+                    "שם_תכנית": "עדיף",
+                    "חברה_מנהלת": "",
+                    "סוג_מוצר": "פוליסת ביטוח חיים משולב חיסכון",
+                    "יתרה": 100000,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "EXECUTE_RETIREMENT_SCENARIO" in body
+    assert "###UI_ACTION###" in body
+    assert "approval_request" in body
+    assert tool_calls == ["RUN_RETIREMENT_SCENARIOS"]
+
+
 def test_stream_transform_portfolio_wide_severance_after_settlement_is_filtered(monkeypatch) -> None:
     portfolio_accounts = [
         {
