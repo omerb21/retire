@@ -322,6 +322,62 @@ def test_stream_cashflow_request_runs_cashflow_tool(monkeypatch) -> None:
     assert tool_calls == ["RUN_RETIREMENT_CASHFLOW_ANALYSIS"]
 
 
+def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
+    import app.services.llm_chat.chat_stream_orchestration as stream_orch
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for deterministic cashflow routing")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    captured: dict = {}
+
+    def fake_execute_tool_call(
+        *,
+        tool_name: str,
+        args: dict,
+        client_id: int,
+        db,
+        pension_portfolio=None,
+        force_max_exemption: bool = False,
+        agent_reply: str | None = None,
+        user_approved: bool = False,
+    ) -> str:
+        captured["tool_name"] = tool_name
+        captured["args"] = args
+        return json.dumps(
+            {
+                "retirement_date": "2030-01-01",
+                "projected_pension": 1,
+                "monthly_tax_deduction": 1,
+                "projected_pension_net": 1,
+            },
+            ensure_ascii=False,
+        )
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": 1,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח בחודש. אנא בנה לי תזרים",
+                }
+            ],
+            "pension_portfolio": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured.get("tool_name") == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+    args = captured.get("args") or {}
+    assert args.get("desired_monthly_income") == 40000.0
+
+
 def test_stream_commutation_without_account_asks_for_account(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 

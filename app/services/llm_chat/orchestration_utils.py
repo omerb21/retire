@@ -890,6 +890,23 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
         "יעד",
     )
 
+    # Support common shorthand: "40 אלף" / "40k".
+    # We treat these as explicit user-provided amounts (not estimates).
+    for m in re.finditer(r"\b(\d{1,3})\s*(?:אלף|k)\b", lowered_clean, flags=re.IGNORECASE):
+        raw_num = str(m.group(1) or "").strip()
+        start = int(m.start(1))
+        if not raw_num:
+            continue
+        if _is_year_marker(raw_num, start):
+            continue
+        try:
+            val = float(int(raw_num) * 1000)
+        except Exception:
+            continue
+        if val <= 0:
+            continue
+        return float(val)
+
     candidates: list[tuple[int, str]] = []
     for m in re.finditer(r"\b(\d{4,6}(?:,\d{3})*)\b", cleaned):
         raw_num = str(m.group(1) or "")
@@ -915,6 +932,26 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
         return float(val)
 
     return None
+
+
+def is_data_awareness_request(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+    lowered = str(user_message).lower()
+    if not lowered.strip():
+        return False
+    triggers = (
+        "מודע",
+        "אתה יודע",
+        "יודע",
+        "כל נתוני",
+        "כל הנתונים",
+        "נתוני התיק",
+        "מקורות הכנסה",
+        "מקורות ההכנסה",
+        "כל מקורות",
+    )
+    return any(t in lowered for t in triggers) and ("?" in lowered or "האם" in lowered)
 
 
 def is_retirement_cashflow_request(user_message: str) -> bool:

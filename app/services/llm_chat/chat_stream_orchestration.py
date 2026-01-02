@@ -76,6 +76,7 @@ from app.services.llm_chat.orchestration_utils import (
     is_transform_request,
     is_max_capital_request,
     extract_desired_monthly_income_from_text,
+    is_data_awareness_request,
     parse_partial_pension_conversion_request,
     parse_portfolio_wide_prev_employers_severance_conversion_request,
     parse_portfolio_wide_education_fund_conversion_request,
@@ -297,6 +298,43 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         lines.append("")
         lines.append("הערה: התשובה נבנתה ישירות מתוצאות החישוב של המערכת (ללא חישוב פנימי של הסוכן).")
+        return "\n".join(lines).strip()
+
+    def _format_data_awareness_snapshot(tool_result: str) -> str:
+        try:
+            parsed = json.loads(tool_result)
+        except Exception:
+            parsed = None
+
+        counts = parsed.get("counts") if isinstance(parsed, dict) else {}
+
+        def _count(name: str) -> int:
+            try:
+                return int(counts.get(name) or 0) if isinstance(counts, dict) else 0
+            except Exception:
+                return 0
+
+        lines: list[str] = []
+        lines.append("כן — אני עובד על בסיס הנתונים שנמצאים כרגע במערכת עבור הלקוח הזה.")
+
+        if isinstance(effective_portfolio, list):
+            lines.append("")
+            lines.append("תיק פנסיוני (מסלקה / טבלת מוצרים):")
+            lines.append(f"- מספר חשבונות שנטענו: {len(effective_portfolio)}")
+            if effective_snapshot_at:
+                lines.append(f"- תאריך snapshot אחרון: {effective_snapshot_at}")
+
+        lines.append("")
+        lines.append("מקורות/ישויות שנמצאו ב-DB:")
+        lines.append(f"- קצבאות (PensionFund): {_count('pension_funds')}")
+        lines.append(f"- נכסי הון (CapitalAsset): {_count('capital_assets')}")
+        lines.append(f"- הכנסות נוספות (AdditionalIncome): {_count('additional_incomes')}")
+        lines.append(f"- מעסיק נוכחי (CurrentEmployer): {_count('current_employers')}")
+
+        lines.append("")
+        lines.append(
+            "אם תרצה לוודא *בדיוק* אילו מקורות נכללים בתזרים (למשל העסק/נכסי הון), תגיד: 'תציג לי את כל ההכנסות הנוספות' או 'תציג לי את כל נכסי ההון'."
+        )
         return "\n".join(lines).strip()
 
     def _is_system_inventory_request(text: str | None) -> bool:
@@ -529,6 +567,34 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             yield sanitize_user_visible_text(_format_system_inventory_snapshot(tool_result))
 
         return StreamingResponse(generate_system_inventory(), media_type="text/plain; charset=utf-8")
+
+    if request.client_id is not None and is_data_awareness_request(original_user_msg):
+        def generate_data_awareness():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            tool_result = _execute_tool_call(
+                "GET_SYSTEM_STATE_SNAPSHOT",
+                {},
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+
+            if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+                yield sanitize_user_visible_text(tool_result)
+                return
+
+            yield sanitize_user_visible_text(_format_data_awareness_snapshot(tool_result))
+
+        return StreamingResponse(generate_data_awareness(), media_type="text/plain; charset=utf-8")
     if is_portfolio_breakdown_request(original_user_msg):
         portfolio = effective_portfolio or []
         if portfolio:
@@ -1970,6 +2036,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     if isinstance(resp, str) and resp.strip():
                         return resp, None
                     last_err = err or "empty_reply"
+                    if err and ("timeout_after_" in err or err in {"no_result", "llm_error"}):
+                        try:
+                            pension_llm_service.set_provider("ollama", None)
+                        except Exception:
+                            pass
                     if attempt < (retries - 1):
                         try:
                             delay = float(backoffs[attempt]) if attempt < len(backoffs) else float(backoffs[-1])

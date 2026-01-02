@@ -425,10 +425,20 @@ class PensionLLMService:
             raise RuntimeError("OpenAI client is not initialized")
 
         messages = self._history_to_openai_messages(history)
-        response = self._openai_client.chat.completions.create(  # type: ignore[union-attr]
-            model=self._openai_model,
-            messages=messages,
-        )
+        try:
+            response = self._openai_client.chat.completions.create(  # type: ignore[union-attr]
+                model=self._openai_model,
+                messages=messages,
+            )
+        except Exception as e:  # pragma: no cover - תקלה בספק חיצוני
+            logger.error("OpenAI chat.completions failed, falling back to Ollama: %s", e)
+            self._provider = "ollama"
+            self._openai_client = None
+            self._openai_model = None
+            if self._llm is not None:
+                ai_message = self._llm.invoke(history)
+                return ai_message.content
+            raise
 
         choice0 = response.choices[0] if getattr(response, "choices", None) else None
         message = getattr(choice0, "message", None) if choice0 else None
