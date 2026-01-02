@@ -954,6 +954,36 @@ def is_data_awareness_request(user_message: str | None) -> bool:
     return any(t in lowered for t in triggers) and ("?" in lowered or "האם" in lowered)
 
 
+def is_list_all_financial_entities_request(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+    lowered = str(user_message).strip().lower()
+    if not lowered:
+        return False
+
+    action_triggers = ("תציג", "הצג", "פרט", "פירוט", "רשימה", "show", "list")
+    entity_triggers = (
+        "הכנסות",
+        "הכנסה",
+        "קצבאות",
+        "קצבה",
+        "נכסי הון",
+        "נכס הון",
+        "נכסים",
+        "capital",
+        "income",
+        "pension",
+    )
+
+    if not any(t in lowered for t in action_triggers):
+        return False
+    if not any(t in lowered for t in entity_triggers):
+        return False
+    if "בפועל" in lowered and "במערכת" in lowered:
+        return False
+    return True
+
+
 def is_retirement_cashflow_request(user_message: str) -> bool:
     if not user_message:
         return False

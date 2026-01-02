@@ -77,6 +77,7 @@ from app.services.llm_chat.orchestration_utils import (
     is_max_capital_request,
     extract_desired_monthly_income_from_text,
     is_data_awareness_request,
+    is_list_all_financial_entities_request,
     parse_partial_pension_conversion_request,
     parse_portfolio_wide_prev_employers_severance_conversion_request,
     parse_portfolio_wide_education_fund_conversion_request,
@@ -298,6 +299,87 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         lines.append("")
         lines.append("הערה: התשובה נבנתה ישירות מתוצאות החישוב של המערכת (ללא חישוב פנימי של הסוכן).")
+        return "\n".join(lines).strip()
+
+    def _format_list_all_entities(tool_result: str) -> str:
+        try:
+            parsed = json.loads(tool_result)
+        except Exception:
+            parsed = None
+
+        entities = parsed.get("entities") if isinstance(parsed, dict) else {}
+        pension_funds = entities.get("pension_funds") if isinstance(entities, dict) else None
+        capital_assets = entities.get("capital_assets") if isinstance(entities, dict) else None
+        additional_incomes = entities.get("additional_incomes") if isinstance(entities, dict) else None
+
+        lines: list[str] = []
+        lines.append("הנתונים שנמצאים כרגע במערכת (DB) + תיק מסלקה שניטען:")
+
+        # Portfolio snapshot (Maslaka) summary
+        if isinstance(effective_portfolio, list):
+            lines.append("")
+            lines.append("תיק פנסיוני (מסלקה / טבלת מוצרים):")
+            lines.append(f"- מספר חשבונות: {len(effective_portfolio)}")
+            if effective_snapshot_at:
+                lines.append(f"- תאריך snapshot: {effective_snapshot_at}")
+
+        def _fmt_money(v: object) -> str:
+            try:
+                if v is None:
+                    return "0"
+                return f"{float(v):,.0f}"
+            except Exception:
+                return "0"
+
+        # Additional incomes
+        lines.append("")
+        lines.append("הכנסות נוספות (AdditionalIncome):")
+        if isinstance(additional_incomes, list) and additional_incomes:
+            for ai in additional_incomes:
+                if not isinstance(ai, dict):
+                    continue
+                desc = (ai.get("description") or ai.get("source_type") or "הכנסה").strip() if isinstance(ai.get("description") or ai.get("source_type") or "", str) else "הכנסה"
+                amount = _fmt_money(ai.get("amount"))
+                freq = ai.get("frequency") or ""
+                start = ai.get("start_date") or ""
+                end = ai.get("end_date") or ""
+                suffix = f" | תוקף: {start}–{end}" if start or end else ""
+                lines.append(f"- {desc}: {amount} ₪ ({freq}){suffix}")
+        else:
+            lines.append("- לא נמצאו הכנסות נוספות ב-DB")
+
+        # Pension funds
+        lines.append("")
+        lines.append("קצבאות / קופות (PensionFund):")
+        if isinstance(pension_funds, list) and pension_funds:
+            for pf in pension_funds:
+                if not isinstance(pf, dict):
+                    continue
+                name = (pf.get("fund_name") or "קופה").strip() if isinstance(pf.get("fund_name") or "", str) else "קופה"
+                p_amount = _fmt_money(pf.get("pension_amount"))
+                bal = _fmt_money(pf.get("balance"))
+                lines.append(f"- {name}: קצבה={p_amount} ₪/חודש | יתרה={bal} ₪")
+        else:
+            lines.append("- לא נמצאו קצבאות/קופות ב-DB (ייתכן שעדיין לא בוצעה המרה מהמסלקה לנכסים)")
+
+        # Capital assets
+        lines.append("")
+        lines.append("נכסי הון (CapitalAsset):")
+        if isinstance(capital_assets, list) and capital_assets:
+            for ca in capital_assets:
+                if not isinstance(ca, dict):
+                    continue
+                name = (ca.get("asset_name") or "נכס").strip() if isinstance(ca.get("asset_name") or "", str) else "נכס"
+                cur = _fmt_money(ca.get("current_value"))
+                mi = _fmt_money(ca.get("monthly_income"))
+                lines.append(f"- {name}: שווי={cur} ₪ | הכנסה חודשית={mi} ₪")
+        else:
+            lines.append("- לא נמצאו נכסי הון ב-DB")
+
+        lines.append("")
+        lines.append(
+            "אם תרצה שאציג גם את פירוט חשבונות המסלקה (9 חשבונות) לפי שם תכנית/מספר חשבון/יתרה — תגיד: 'תציג פירוט תיק מסלקה'."
+        )
         return "\n".join(lines).strip()
 
     def _format_data_awareness_snapshot(tool_result: str) -> str:
@@ -595,6 +677,34 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             yield sanitize_user_visible_text(_format_data_awareness_snapshot(tool_result))
 
         return StreamingResponse(generate_data_awareness(), media_type="text/plain; charset=utf-8")
+
+    if request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
+        def generate_list_all_entities():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            tool_result = _execute_tool_call(
+                "GET_SYSTEM_STATE_SNAPSHOT",
+                {},
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+
+            if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+                yield sanitize_user_visible_text(tool_result)
+                return
+
+            yield sanitize_user_visible_text(_format_list_all_entities(tool_result))
+
+        return StreamingResponse(generate_list_all_entities(), media_type="text/plain; charset=utf-8")
     if is_portfolio_breakdown_request(original_user_msg):
         portfolio = effective_portfolio or []
         if portfolio:

@@ -378,6 +378,45 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
     assert args.get("desired_monthly_income") == 40000.0
 
 
+def test_cashflow_includes_additional_income_in_gap_calculation(monkeypatch, db_session) -> None:
+    from datetime import date
+    from app.models.additional_income import AdditionalIncome
+    from app.services.llm_agent_tools_service import AgentToolsService
+
+    # Create taxable additional income: 12,000/month
+    ai = AdditionalIncome(
+        client_id=1,
+        source_type="business",
+        description="עסק",
+        amount=12000,
+        frequency="monthly",
+        start_date=date(2020, 1, 1),
+        end_date=None,
+        indexation_method="none",
+        tax_treatment="taxable",
+        tax_rate=None,
+        remarks=None,
+    )
+    db_session.add(ai)
+    db_session.commit()
+
+    agent = AgentToolsService(db_session, client_id=1, pension_portfolio_data=[])
+
+    # Run analysis with the same desired income. We don't assert numeric values,
+    # only structural expectations: additional income should be reflected.
+    res = agent.run_retirement_cashflow_analysis(
+        retirement_date="2026-01-02",
+        desired_monthly_income=40000.0,
+        apply_max_exemption=False,
+    )
+    assert res.get("success") is True
+    result = res.get("result") or {}
+    assert result.get("additional_income_gross_monthly") == 12000.0
+    assert result.get("additional_income_taxable_gross_monthly") == 12000.0
+    assert (result.get("monthly_income_tax_total") or 0) >= (result.get("monthly_income_tax") or 0)
+    assert (result.get("total_guaranteed_income_net") or 0) >= (result.get("projected_pension_net") or 0)
+
+
 def test_stream_commutation_without_account_asks_for_account(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 

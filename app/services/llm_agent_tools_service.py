@@ -20,6 +20,7 @@ from app.models.scenario import Scenario
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.current_employment import CurrentEmployer
+from app.models.additional_income import AdditionalIncome
 from app.services.retirement import RetirementScenariosBuilder
 from app.services.retirement.constants import PENSION_COEFFICIENT, MINIMUM_PENSION
 from app.services.annuity_coefficient import get_annuity_coefficient
@@ -2841,7 +2842,55 @@ class AgentToolsService:
             legal_retirement_age,
         )
 
-        total_guaranteed_income_gross = total_pension_income + social_security_amount
+        # ===== הכנסות נוספות (AdditionalIncome) =====
+        # משקלל לתוך התזרים (מול יעד ההכנסה) לפי ההכנסות שב-DB
+        # ללא שינוי מצב (קריאה בלבד)
+        additional_incomes = (
+            self.db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == self.client_id)
+            .order_by(AdditionalIncome.id.asc())
+            .all()
+        )
+
+        additional_income_taxable_gross_monthly = 0.0
+        additional_income_exempt_gross_monthly = 0.0
+
+        for ai in additional_incomes:
+            try:
+                if getattr(ai, "start_date", None) and ai.start_date > target_date:
+                    continue
+                if getattr(ai, "end_date", None) and ai.end_date < target_date:
+                    continue
+            except Exception:
+                pass
+
+            try:
+                raw_amount = float(getattr(ai, "amount", 0) or 0)
+            except Exception:
+                raw_amount = 0.0
+
+            if raw_amount <= 0:
+                continue
+
+            freq = str(getattr(ai, "frequency", "") or "").strip().lower()
+            if freq == "monthly":
+                monthly_amount = raw_amount
+            elif freq == "quarterly":
+                monthly_amount = raw_amount / 3
+            elif freq == "annually":
+                monthly_amount = raw_amount / 12
+            else:
+                monthly_amount = raw_amount
+
+            tax_treatment = str(getattr(ai, "tax_treatment", "taxable") or "taxable").strip().lower()
+            if tax_treatment == "exempt":
+                additional_income_exempt_gross_monthly += monthly_amount
+            else:
+                additional_income_taxable_gross_monthly += monthly_amount
+
+        additional_income_gross_monthly = additional_income_taxable_gross_monthly + additional_income_exempt_gross_monthly
+
+        total_guaranteed_income_gross = total_pension_income + additional_income_gross_monthly + social_security_amount
 
         # ===== חישוב מס על הקצבה (Tax Analysis) =====
         # יצירת פרטים אישיים לחישוב מס
@@ -2910,32 +2959,63 @@ class AgentToolsService:
 
         try:
             tax_calculator = TaxCalculator(tax_year=tax_year)
-            
-            # יצירת קלט לחישוב מס - עם פטור קיבוע זכויות אם מופעל
-            tax_input = TaxCalculationInput(
+
+            # ===== 1) מס על הקצבה בלבד (לשדות תאימות לאחור) =====
+            tax_input_pension_only = TaxCalculationInput(
                 tax_year=tax_year,
                 personal_details=tax_personal_details,
                 pension_income=annual_pension_gross,
                 exempt_pension_amount=exempt_pension_monthly,  # פטור חודשי מקיבוע זכויות
                 pension_months_in_year=12,
             )
+            tax_result_pension_only = tax_calculator.calculate_comprehensive_tax(tax_input_pension_only)
 
-            tax_result = tax_calculator.calculate_comprehensive_tax(tax_input)
+            annual_net_pension_only = float(tax_result_pension_only.net_income)
+            monthly_net_pension = annual_net_pension_only / 12
+            monthly_tax_deduction = float(tax_result_pension_only.net_tax) / 12
+            monthly_health_tax = float(tax_result_pension_only.health_tax) / 12
+            monthly_income_tax = float(tax_result_pension_only.income_tax) / 12
 
-            # חישוב נטו חודשי - המרה מפורשת ל-float למניעת שגיאת Decimal serialization
-            annual_net_income = float(tax_result.net_income)
-            monthly_net_pension = annual_net_income / 12
-            monthly_tax_deduction = float(tax_result.net_tax) / 12
-            monthly_health_tax = float(tax_result.health_tax) / 12
-            monthly_income_tax = float(tax_result.income_tax) / 12
+            # ===== 2) מס משוקלל: קצבה + הכנסות נוספות חייבות (לניתוח פער מול יעד) =====
+            annual_other_taxable = float(additional_income_taxable_gross_monthly * 12)
+            tax_input_total = TaxCalculationInput(
+                tax_year=tax_year,
+                personal_details=tax_personal_details,
+                pension_income=annual_pension_gross,
+                other_income=annual_other_taxable,
+                exempt_pension_amount=exempt_pension_monthly,
+                pension_months_in_year=12,
+            )
+            tax_result_total = tax_calculator.calculate_comprehensive_tax(tax_input_total)
+            annual_net_total_taxable = float(tax_result_total.net_income)
+            monthly_net_total_taxable = annual_net_total_taxable / 12
+            monthly_income_tax_total = float(tax_result_total.income_tax) / 12
+            monthly_tax_deduction_total = float(tax_result_total.net_tax) / 12
 
             logger.info(
-                "TAX ANALYSIS: Gross annual pension=%.2f, Net annual=%.2f, Tax=%.2f, Health=%.2f",
-                annual_pension_gross, annual_net_income, float(tax_result.income_tax), float(tax_result.health_tax)
+                "TAX ANALYSIS: Pension-only annual gross=%.2f, annual net=%.2f, income_tax=%.2f",
+                annual_pension_gross,
+                annual_net_pension_only,
+                float(tax_result_pension_only.income_tax),
             )
             logger.info(
-                "TAX ANALYSIS: Monthly gross=%.2f, Monthly net=%.2f, Monthly tax deduction=%.2f, Exempt=%.2f",
-                total_pension_income, monthly_net_pension, monthly_tax_deduction, exempt_pension_monthly
+                "TAX ANALYSIS: Combined annual gross=%.2f (pension + other taxable=%.2f), annual net=%.2f, income_tax=%.2f",
+                annual_pension_gross + annual_other_taxable,
+                annual_other_taxable,
+                annual_net_total_taxable,
+                float(tax_result_total.income_tax),
+            )
+            logger.info(
+                "TAX ANALYSIS: Monthly pension gross=%.2f, pension net=%.2f, pension tax deduction=%.2f, Exempt=%.2f",
+                total_pension_income,
+                monthly_net_pension,
+                monthly_tax_deduction,
+                exempt_pension_monthly,
+            )
+            logger.info(
+                "TAX ANALYSIS: Monthly total net taxable (pension+other)=%.2f, monthly income tax total=%.2f",
+                monthly_net_total_taxable,
+                monthly_income_tax_total,
             )
 
         except Exception as e:
@@ -2958,10 +3038,11 @@ class AgentToolsService:
             }
 
         # הכנסה מובטחת נטו (כולל ביטוח לאומי שהוא פטור ממס)
-        total_guaranteed_income_net = monthly_net_pension + social_security_amount
+        # לצורך פער מול יעד, משתמשים בנטו משוקלל: קצבה + הכנסות נוספות חייבות
+        total_guaranteed_income_net = monthly_net_total_taxable + additional_income_exempt_gross_monthly + social_security_amount
         total_guaranteed_income = total_guaranteed_income_gross  # לשמירה על תאימות לאחור
 
-        # 5. ניתוח גירעון (Gap Analysis) - מבוסס על נטו
+        # 5. ניתוח גירעון (Gap Analysis) - מבוסס על נטו משוקלל
         gap = desired_monthly_income - total_guaranteed_income_net
         
         # 6. חישוב הון זמין
@@ -3021,7 +3102,7 @@ class AgentToolsService:
             f"**דוח תזרים לפרישה בתאריך {target_date.strftime('%d/%m/%Y')} (גיל {age_at_retirement})**",
             f"",
             f"💰 **הכנסה ברוטו חודשית:** {total_guaranteed_income_gross:,.0f} ₪",
-            f"   (פנסיה ברוטו: {total_pension_income:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
+            f"   (פנסיה ברוטו: {total_pension_income:,.0f} ₪ + הכנסות נוספות: {additional_income_gross_monthly:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
         ]
 
         if exemption_info:
@@ -3030,10 +3111,11 @@ class AgentToolsService:
         explanation_lines.extend([
             f"",
             f"📊 **ניתוח מס הכנסה:**",
-            f"   מס הכנסה חודשי על הקצבה: {monthly_income_tax:,.0f} ₪",
+            f"   מס הכנסה חודשי (סה\"כ הכנסות חייבות): {monthly_income_tax_total:,.0f} ₪",
+            f"   (מתוך זה, מס על הקצבה בלבד: {monthly_income_tax:,.0f} ₪)",
             f"",
             f"✅ **הכנסה נטו חודשית:** {total_guaranteed_income_net:,.0f} ₪",
-            f"   (פנסיה נטו: {monthly_net_pension:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
+            f"   (פנסיה נטו: {monthly_net_pension:,.0f} ₪ + הכנסות נוספות נטו (כלולות במס): {additional_income_taxable_gross_monthly:,.0f} ₪ + הכנסות פטורות: {additional_income_exempt_gross_monthly:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
             f"",
             f"🎯 **יעד הכנסה:** {desired_monthly_income:,.0f} ₪",
             f"📉 **{deficit_status} חודשי (ברוטו):** {gap_abs:,.0f} ₪",
@@ -3066,9 +3148,14 @@ class AgentToolsService:
                 "monthly_income_tax": round(monthly_income_tax, 2),
                 "monthly_health_tax": round(monthly_health_tax, 2),
                 "monthly_tax_deduction": round(monthly_tax_deduction, 2),
+                "monthly_income_tax_total": round(monthly_income_tax_total, 2),
+                "monthly_tax_deduction_total": round(monthly_tax_deduction_total, 2),
                 # נטו
                 "projected_pension_net": round(monthly_net_pension, 2),
                 "total_guaranteed_income_net": round(total_guaranteed_income_net, 2),
+                "additional_income_gross_monthly": round(additional_income_gross_monthly, 2),
+                "additional_income_taxable_gross_monthly": round(additional_income_taxable_gross_monthly, 2),
+                "additional_income_exempt_gross_monthly": round(additional_income_exempt_gross_monthly, 2),
                 # יעד וגירעון
                 "desired_monthly_income": desired_monthly_income,
                 "monthly_deficit_or_surplus": round(-gap, 2),  # שלילי = גירעון
