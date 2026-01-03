@@ -483,14 +483,21 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
     assert args.get("desired_income_is_net") is False
 
 
-def test_cashflow_includes_additional_income_in_gap_calculation(monkeypatch, db_session) -> None:
+def test_cashflow_includes_additional_income_in_gap_calculation(
+    monkeypatch, db_session, client
+) -> None:
     from datetime import date
     from app.models.additional_income import AdditionalIncome
     from app.services.llm_agent_tools_service import AgentToolsService
 
+    db_session.query(AdditionalIncome).filter(
+        AdditionalIncome.client_id == client.id
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
     # Create taxable additional income: 12,000/month
     ai = AdditionalIncome(
-        client_id=1,
+        client_id=client.id,
         source_type="business",
         description="עסק",
         amount=12000,
@@ -505,7 +512,7 @@ def test_cashflow_includes_additional_income_in_gap_calculation(monkeypatch, db_
     db_session.add(ai)
     db_session.commit()
 
-    agent = AgentToolsService(db_session, client_id=1, pension_portfolio_data=[])
+    agent = AgentToolsService(db_session, client_id=client.id, pension_portfolio_data=[])
 
     # Run analysis with the same desired income. We don't assert numeric values,
     # only structural expectations: additional income should be reflected.
