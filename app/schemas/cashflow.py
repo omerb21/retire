@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class CashflowGenerateRequest(BaseModel):
@@ -11,7 +11,7 @@ class CashflowGenerateRequest(BaseModel):
     to: str = Field(..., description="YYYY-MM, e.g. 2025-12")
     frequency: Literal["monthly"] = "monthly"
     
-    @validator('from_', 'to')
+    @field_validator('from_', 'to')
     def validate_date_format(cls, v):
         if not isinstance(v, str) or len(v) != 7 or v[4] != "-":
             raise ValueError("Date must be in YYYY-MM format")
@@ -28,8 +28,8 @@ class CashflowGenerateRequest(BaseModel):
             raise
         return v
     
-    @validator('to')
-    def validate_date_range(cls, v, values):
+    @field_validator('to')
+    def validate_date_range(cls, v, info):
         # Range validation is handled in the service layer (generate_cashflow),
         # which raises ValueError mapped to HTTP 400. Here we only accept format.
         return v

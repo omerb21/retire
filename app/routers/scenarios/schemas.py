@@ -2,7 +2,7 @@
 Pydantic schemas for scenarios
 """
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 
@@ -50,8 +50,7 @@ class ScenarioResponse(BaseModel):
             created_at=db_scenario.created_at
         )
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RetirementScenariosRequest(BaseModel):

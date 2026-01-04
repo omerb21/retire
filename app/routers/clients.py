@@ -24,7 +24,7 @@ try:
     from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut
 except ImportError:
     # יצירת סכמות זמניות אם הקובץ לא קיים
-    from pydantic import BaseModel
+    from pydantic import BaseModel, ConfigDict
     from typing import Optional
     from datetime import date
     
@@ -48,9 +48,8 @@ except ImportError:
         client_id: int
         created_at: date
         updated_at: date
-        
-        class Config:
-            from_attributes = True
+
+        model_config = ConfigDict(from_attributes=True)
 
 # ייבוא סכמת תגובת API
 from app.schemas import APIResponse

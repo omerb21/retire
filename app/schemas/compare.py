@@ -1,4 +1,4 @@
-from pydantic import BaseModel, validator, Field, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, Field, model_validator
 from typing import List, Literal, Optional
 
 
@@ -8,28 +8,27 @@ class ScenarioCompareRequest(BaseModel):
     to: str                           # YYYY-MM
     frequency: Literal["monthly"] = "monthly"
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
-    @validator("from_")
+    @field_validator("from_")
     def v_from(cls, v):
         if not (len(v) == 7 and v[4] == '-' and v[:4].isdigit() and v[5:7].isdigit()):
             raise ValueError("from must be YYYY-MM format")
         return v
 
-    @validator("to")
+    @field_validator("to")
     def v_to(cls, v):
         if not (len(v) == 7 and v[4] == '-' and v[:4].isdigit() and v[5:7].isdigit()):
             raise ValueError("to must be YYYY-MM format")
         return v
 
-    @validator("scenarios")
+    @field_validator("scenarios")
     def v_scenarios(cls, v):
         if not v or any((not isinstance(x, int) or x <= 0) for x in v):
             raise ValueError("scenarios must be a non-empty list of positive integers")
         return v
 
-    @validator("frequency")
+    @field_validator("frequency")
     def v_frequency(cls, v):
         if v != "monthly":
             raise ValueError("frequency must be 'monthly' - other frequencies not supported")

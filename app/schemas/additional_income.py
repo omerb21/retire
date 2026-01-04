@@ -3,7 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.additional_income import IncomeSourceType, PaymentFrequency, IndexationMethod, TaxTreatment
 
@@ -22,25 +22,28 @@ class AdditionalIncomeBase(BaseModel):
     tax_rate: Optional[Decimal] = Field(None, ge=0, le=99, description="Tax rate for fixed rate tax (0-99%)")
     remarks: Optional[str] = Field(None, max_length=500, description="Additional remarks")
 
-    @validator('end_date')
-    def validate_end_date(cls, v, values):
+    @field_validator('end_date')
+    def validate_end_date(cls, v, info):
         """Validate that end_date is after start_date."""
-        if v is not None and 'start_date' in values and v < values['start_date']:
+        start_date = info.data.get('start_date') if info is not None else None
+        if v is not None and start_date is not None and v < start_date:
             raise ValueError('end_date must be after start_date')
         return v
 
-    @validator('fixed_rate')
-    def validate_fixed_rate(cls, v, values):
+    @field_validator('fixed_rate')
+    def validate_fixed_rate(cls, v, info):
         """Validate fixed_rate is provided when indexation_method is fixed."""
-        if 'indexation_method' in values and values['indexation_method'] == IndexationMethod.FIXED:
+        indexation_method = info.data.get('indexation_method') if info is not None else None
+        if indexation_method == IndexationMethod.FIXED:
             if v is None:
                 raise ValueError('fixed_rate is required when indexation_method is fixed')
         return v
 
-    @validator('tax_rate')
-    def validate_tax_rate(cls, v, values):
+    @field_validator('tax_rate')
+    def validate_tax_rate(cls, v, info):
         """Validate tax_rate is provided when tax_treatment is fixed_rate."""
-        if 'tax_treatment' in values and values['tax_treatment'] == TaxTreatment.FIXED_RATE:
+        tax_treatment = info.data.get('tax_treatment') if info is not None else None
+        if tax_treatment == TaxTreatment.FIXED_RATE:
             if v is None:
                 raise ValueError('tax_rate is required when tax_treatment is fixed_rate')
         return v
@@ -71,8 +74,7 @@ class AdditionalIncomeResponse(AdditionalIncomeBase):
     id: int
     client_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdditionalIncomeCashflowItem(BaseModel):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, Literal, Optional, List
 
 
@@ -16,7 +16,7 @@ class ReportPdfRequest(BaseModel):
         "scenarios_compare": True
     }
 
-    @validator('from_', 'to')
+    @field_validator('from_', 'to')
     def validate_date_format(cls, v):
         if not isinstance(v, str) or len(v) != 7 or v[4] != "-":
             raise ValueError("Date must be in YYYY-MM format")
@@ -33,13 +33,14 @@ class ReportPdfRequest(BaseModel):
             raise
         return v
     
-    @validator('to')
-    def validate_date_range(cls, v, values):
-        if 'from_' in values and v < values['from_']:
+    @field_validator('to')
+    def validate_date_range(cls, v, info):
+        from_ = info.data.get('from_') if info is not None else None
+        if from_ is not None and v < from_:
             raise ValueError("'to' date must be greater than or equal to 'from' date")
         return v
 
-    @validator("sections", pre=True)
+    @field_validator("sections", mode="before")
     def set_default_sections(cls, v):
         """Set default values for sections if not provided"""
         if v is None:

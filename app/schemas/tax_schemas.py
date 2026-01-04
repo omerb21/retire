@@ -2,7 +2,7 @@
 מודלי נתונים לחישוב מס הכנסה
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
@@ -13,10 +13,7 @@ class TaxCreditInput(BaseModel):
     amount: Optional[float] = Field(None, description="סכום הזיכוי (אם שונה מברירת המחדל)")
     description: Optional[str] = Field(None, description="תיאור הזיכוי")
     
-    class Config:
-        json_encoders = {
-            Decimal: float
-        }
+    model_config = ConfigDict()
 
 class IncomeSource(BaseModel):
     """מקור הכנסה"""
@@ -26,10 +23,12 @@ class IncomeSource(BaseModel):
     is_taxable: bool = Field(True, description="האם חייב במס")
     tax_exemption_amount: float = Field(0, ge=0, description="סכום פטור ממס")
     
-    @validator('monthly_amount', always=True)
-    def calculate_monthly_amount(cls, v, values):
-        if v is None and 'annual_amount' in values:
-            return values['annual_amount'] / 12
+    @field_validator('monthly_amount')
+    def calculate_monthly_amount(cls, v, info):
+        if v is None:
+            annual_amount = info.data.get('annual_amount') if info is not None else None
+            if annual_amount is not None:
+                return annual_amount / 12
         return v
 
 class PersonalDetails(BaseModel):
@@ -44,7 +43,7 @@ class PersonalDetails(BaseModel):
     is_student: bool = Field(False, description="סטודנט")
     reserve_duty_days: int = Field(0, ge=0, description="ימי מילואים בשנה")
     
-    @validator('birth_date')
+    @field_validator('birth_date')
     def validate_birth_date(cls, v):
         if v and v > date.today():
             raise ValueError('תאריך לידה לא יכול להיות בעתיד')
@@ -85,7 +84,7 @@ class TaxCalculationInput(BaseModel):
     exempt_pension_amount: float = Field(0, ge=0, description="קצבה פטורה ממס (מקיבוע זכויות)")
     pension_months_in_year: int = Field(12, ge=1, le=12, description="מספר חודשי קצבה בשנה")
     
-    @validator('tax_year')
+    @field_validator('tax_year')
     def validate_tax_year(cls, v):
         current_year = date.today().year
         # תרחישי פרישה יכולים להיות רחוק בעתיד (למשל 2045/2046), ולכן אין להגביל ל-20 שנה קדימה.
@@ -186,12 +185,7 @@ class TaxCalculationResult(BaseModel):
     calculation_date: datetime = Field(default_factory=datetime.now, description="תאריך החישוב")
     tax_year: int = Field(..., description="שנת המס")
     
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            date: lambda v: v.isoformat(),
-            Decimal: float
-        }
+    model_config = ConfigDict()
 
 class MonthlyTaxProjection(BaseModel):
     """תחזית מס חודשית"""

@@ -79,7 +79,7 @@ def update_retirement_age_settings(settings: RetirementAgeSettings):
     עדכון הגדרות גיל פרישה
     """
     try:
-        settings_dict = settings.dict()
+        settings_dict = settings.model_dump()
         success = save_retirement_age_settings(settings_dict)
         
         if success:
