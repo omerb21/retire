@@ -38,6 +38,7 @@ from app.services.pension_portfolio.conversion_rules import (
 from app.services.llm_agent_tools.tax_tools import TaxToolsMixin
 from app.services.llm_agent_tools.portfolio_tools import PortfolioToolsMixin
 from app.services.llm_agent_tools.scenarios_tools import ScenariosToolsMixin
+from app.services.llm_agent_tools.fixation_tools import FixationToolsMixin
 
 logger = logging.getLogger("app.llm_agent_tools")
 
@@ -70,7 +71,7 @@ def _to_jsonable(value: Any) -> Any:
     return str(value)
 
 
-class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin):
+class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin, FixationToolsMixin):
     """שירות כלים לסוכן ה-LLM"""
 
     def __init__(self, db: Session, client_id: int, client_object: Optional[Client] = None, pension_portfolio_data: Optional[List[Any]] = None):
@@ -1794,269 +1795,256 @@ class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin)
                 "result": {},
                 "explanation": "לא נמצא לקוח.",
             }
+        
+        # אם לא סופקה קצבה, נסה לקחת מהתרחישים
+        if guaranteed_pension is None:
+            scenarios = self.db.query(Scenario).filter(
+                Scenario.client_id == self.client_id
+            ).order_by(Scenario.created_at.desc()).first()
+            
+            if scenarios and scenarios.summary_results:
+                try:
+                    summary = json.loads(scenarios.summary_results)
+                    guaranteed_pension = summary.get("total_pension_monthly", 0)
+                except Exception:
+                    guaranteed_pension = 0
+            else:
+                guaranteed_pension = 0
 
-        # קביעת שנת המס לפי תאריך הפרישה אם סופק, אחרת השנה הנוכחית
+        # Fallback: if still missing, use existing pensions (DB) as a conservative default.
+        if not guaranteed_pension:
+            try:
+                pension_funds = (
+                    self.db.query(PensionFund)
+                    .filter(PensionFund.client_id == self.client_id)
+                    .all()
+                )
+                guaranteed_pension = sum(float(pf.pension_amount or 0) for pf in pension_funds)
+            except Exception:
+                guaranteed_pension = 0
+        
         if retirement_date:
             try:
-                tax_year = parse_date_flexible(retirement_date).year
-            except Exception:
-                tax_year = date.today().year
+                retirement_date_obj = parse_date_flexible(retirement_date)
+            except ValueError:
+                return {
+                    "success": False,
+                    "tool_name": "CALCULATE_REQUIRED_GROSS_WITHDRAWAL",
+                    "result": {},
+                    "explanation": f"תאריך לא תקין: {retirement_date}. יש להשתמש בפורמט YYYY-MM-DD.",
+                }
         else:
-            tax_year = date.today().year
+            retirement_date_obj = date.today()
 
-        tax_brackets = TaxBracketsService.get_tax_brackets(tax_year)
+        # Threshold for monthly pension gross – stability guardrail.
+        gross_monthly_pension = float(guaranteed_pension or 0)
+        if gross_monthly_pension < 1000:
+            raise ValueError(
+                "TAX_TOOL_ERROR: הקצבה החודשית נמוכה מ-1,000 ₪, לא ניתן לבצע הערכת מס אמינה."
+            )
 
-        # שליפת נתוני קיבוע (אם קיימים) כדי לחשב אחוז קצבה פטורה
-        fixation = self.db.query(FixationResult).filter(
-            FixationResult.client_id == self.client_id
-        ).order_by(FixationResult.created_at.desc()).first()
+        # Collect additional incomes from DB (deterministically).
+        additional_income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
+        additional_rows = (
+            self.db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == self.client_id)
+            .all()
+        )
 
-        exempt_pension_pct = 0.0
-        exemption_source = "None"
-        
-        if fixation and fixation.raw_result:
+        annual_salary_income = 0.0
+        annual_business_income = 0.0
+        annual_rental_income = 0.0
+        annual_interest_income = 0.0
+        annual_dividend_income = 0.0
+        annual_other_income = 0.0
+
+        fixed_rate_income_monthly = 0.0
+        fixed_rate_tax_annual = 0.0
+
+        for inc in additional_rows:
             try:
-                fixation_data = fixation.raw_result if isinstance(fixation.raw_result, dict) else json.loads(fixation.raw_result)
-                exempt_pension_pct = fixation_data.get("exemption_summary", {}).get("exempt_pension_percentage", 0)
-                exemption_source = "FixationResult"
+                if inc.start_date and inc.start_date > date.today():
+                    continue
+                if inc.end_date and inc.end_date < date.today():
+                    continue
             except Exception:
                 pass
-        
-        # אם אין נתוני קיבוע, נשתמש בהנחת ברירת מחדל אופטימית ל-2025+ (67% מהתקרה המזכה)
-        # זהו התיקון שהתבקש כדי לשקף מצב ריאלי ב-2028
-        if exempt_pension_pct == 0:
-             # ערכים משוערים ל-2028
-             ESTIMATED_QUALIFYING_CAP_2028 = 9924.0
-             ESTIMATED_EXEMPTION_RATE_2028 = 0.67
-             
-             max_exempt_amount = ESTIMATED_QUALIFYING_CAP_2028 * ESTIMATED_EXEMPTION_RATE_2028
-             exemption_source = "Default 2028 Estimation (67%)"
-        else:
-             # אם יש אחוז פטור ידוע, נניח שהוא חל על הקצבה המזכה
-             # נשתמש בתקרה הנוכחית לחישוב הסכום
-             ESTIMATED_QUALIFYING_CAP_2028 = 9924.0
-             max_exempt_amount = ESTIMATED_QUALIFYING_CAP_2028 * exempt_pension_pct
 
+            try:
+                monthly_val = float(additional_income_service.calculate_monthly_amount(inc) or 0)
+            except Exception:
+                try:
+                    monthly_val = float(getattr(inc, "amount", 0) or 0)
+                except Exception:
+                    monthly_val = 0.0
 
-        def _compute_net_for_withdrawal(withdrawal: float) -> tuple[float, float, float]:
-            """מחזיר (נטו חודשי, מס חודשי, פטור שנוצל) עבור סכום משיכה חודשי נתון."""
-            annual_pension = float(guaranteed_pension) * 12
-            annual_withdrawal = float(withdrawal) * 12
-            # הנחה: המשיכה נחשבת כהכנסה חייבת רגילה (קצבה או שכר), ולכן יכולה ליהנות מפטור קצבה אם נשאר
-            # אם המשיכה היא הונית, היא לא נהנית מפטור קצבה מזכה, אבל בחישוב זה אנו מניחים מיסוי פירותי שולי.
-            
-            total_annual_income = annual_pension + annual_withdrawal
+            if monthly_val <= 0:
+                continue
 
-            if total_annual_income <= 0:
-                return 0.0, 0.0, 0.0
+            tax_treatment = str(getattr(inc, "tax_treatment", "") or "").strip().lower()
+            if tax_treatment == "exempt":
+                continue
 
-            annual_tax = 0.0
-            remaining_income = total_annual_income
+            if tax_treatment == "fixed_rate":
+                fixed_rate_income_monthly += monthly_val
+                try:
+                    tax_rate = float(getattr(inc, "tax_rate", 0) or 0)
+                except Exception:
+                    tax_rate = 0.0
+                fixed_rate_tax_annual += (monthly_val * 12) * (tax_rate / 100.0)
+                continue
 
-            for bracket in tax_brackets:
-                if remaining_income <= 0:
-                    break
-
-                bracket_min = bracket["min_income"]
-                bracket_max = bracket["max_income"]
-                rate = bracket["rate"]
-
-                taxable_in_bracket = min(remaining_income, bracket_max - bracket_min + 1)
-                if taxable_in_bracket > 0:
-                    tax_in_bracket = taxable_in_bracket * rate
-                    annual_tax += tax_in_bracket
-                    remaining_income -= taxable_in_bracket
-
-            # חישוב הפטור:
-            # הפטור הוא שנתי = max_exempt_amount * 12
-            # הוא חל על ההכנסה הפנסיונית (קצבה + משיכה פירותית)
-            # אנו מניחים שכל ההכנסה כאן היא פנסיונית לצורך הפטור
-            
-            annual_max_exempt = max_exempt_amount * 12
-            actual_exempt_amount = min(total_annual_income, annual_max_exempt)
-            
-            # חישוב הפחתת המס בגין הפטור (זיכוי מס)
-            # שיטה מדויקת יותר: הפחתת ההכנסה החייבת לפני חישוב המס.
-            # אבל המבנה הנוכחי של TaxBrackets מחשב על ברוטו מלא.
-            # נבצע קירוב: המס שנחסך הוא המס השולי על החלק הפטור? 
-            # או פשוט נוריד את המס על החלק הפטור כאילו הוא המס הראשון?
-            # בישראל הפטור הוא "פטור ממס", כלומר ההכנסה החייבת קטנה.
-            
-            # נחשב מחדש את המס על (הכנסה ברוטו - הכנסה פטורה)
-            taxable_income_after_exemption = max(0, total_annual_income - actual_exempt_amount)
-            
-            final_annual_tax = 0.0
-            remaining_taxable = taxable_income_after_exemption
-            
-            for bracket in tax_brackets:
-                if remaining_taxable <= 0:
-                    break
-                    
-                bracket_min = bracket["min_income"]
-                bracket_max = bracket["max_income"]
-                rate = bracket["rate"]
-                
-                # כאן יש ניואנס: מדרגות המס חלות על ההכנסה החייבת.
-                # הפטור מוריד את ההכנסה החייבת "מלמטה" או "מלמעלה"?
-                # בישראל: הפטור מקטין את ההכנסה החייבת. המדרגות חלות על היתרה.
-                
-                span = bracket_max - bracket_min + 1
-                taxable_in_bracket = min(remaining_taxable, span)
-                
-                if taxable_in_bracket > 0:
-                    final_annual_tax += taxable_in_bracket * rate
-                    remaining_taxable -= taxable_in_bracket
-
-            monthly_tax = final_annual_tax / 12
-            total_gross = float(guaranteed_pension) + float(withdrawal)
-            net_income = total_gross - monthly_tax
-            
-            return net_income, monthly_tax, (actual_exempt_amount / 12)
-
-        # בדיקה האם הקצבה המובטחת לבדה כבר מספיקה
-        base_net, base_tax, base_exempt = _compute_net_for_withdrawal(0.0)
-        if base_net >= desired_net_income:
-            return {
-                "success": True,
-                "tool_name": "CALCULATE_REQUIRED_GROSS_WITHDRAWAL",
-                "result": {
-                    "required_gross_withdrawal": 0.0,
-                    "total_gross_income": round(float(guaranteed_pension), 2),
-                    "final_net_income": round(base_net, 2),
-                    "tax_amount": round(base_tax, 2),
-                    "is_net_goal_achieved": True,
-                    "tax_exemption_applied": round(base_exempt, 2),
-                    "exemption_source": exemption_source
-                },
-                "explanation": "הקצבה המובטחת לבדה כבר גבוהה או שווה ליעד הנטו.",
-            }
-
-        # חיפוש גס לגבול עליון
-        low = 0.0
-        high = max(desired_net_income - base_net, 0) * 3 or 10000.0
-        target = float(desired_net_income)
-
-        net_high, tax_high, _ = _compute_net_for_withdrawal(high)
-        iterations = 0
-        while net_high < target and high < 1_000_000 and iterations < 20:
-            high *= 2
-            net_high, tax_high, _ = _compute_net_for_withdrawal(high)
-            iterations += 1
-
-        # חיפוש בינארי
-        best_withdrawal = high
-        best_net = net_high
-        best_tax = tax_high
-        best_exempt = 0.0
-
-        for _ in range(40):
-            mid = (low + high) / 2
-            net_mid, tax_mid, exempt_mid = _compute_net_for_withdrawal(mid)
-            if net_mid >= target:
-                best_withdrawal = mid
-                best_net = net_mid
-                best_tax = tax_mid
-                best_exempt = exempt_mid
-                high = mid
+            annual_val = monthly_val * 12
+            source_type = str(getattr(inc, "source_type", "") or "").strip().lower()
+            if source_type == "salary":
+                annual_salary_income += annual_val
+            elif source_type == "business":
+                annual_business_income += annual_val
+            elif source_type == "rental":
+                annual_rental_income += annual_val
+            elif source_type == "interest":
+                annual_interest_income += annual_val
+            elif source_type == "dividends":
+                annual_dividend_income += annual_val
             else:
-                low = mid
+                annual_other_income += annual_val
 
-        total_gross_income = float(guaranteed_pension) + float(best_withdrawal)
-        is_achieved = best_net >= target * 0.995  # מרווח קטן לדיוק מספרי
+        # Tool arg can add an extra taxable "other" income not in DB.
+        try:
+            manual_additional_monthly = float(desired_net_income or 0)
+        except Exception:
+            manual_additional_monthly = 0.0
+        if manual_additional_monthly > 0:
+            annual_other_income += manual_additional_monthly * 12
+
+        current_year = retirement_date_obj.year
+
+        fixation = (
+            self.db.query(FixationResult)
+            .filter(FixationResult.client_id == self.client_id)
+            .order_by(FixationResult.created_at.desc())
+            .first()
+        )
+        exempt_pension_pct = 0.0
+        if fixation and fixation.raw_result:
+            try:
+                fixation_data = (
+                    fixation.raw_result
+                    if isinstance(fixation.raw_result, dict)
+                    else json.loads(fixation.raw_result)
+                )
+                exempt_pension_pct = float(
+                    (fixation_data.get("exemption_summary", {}) or {}).get(
+                        "exempt_pension_percentage", 0
+                    )
+                    or 0
+                )
+            except Exception:
+                exempt_pension_pct = 0.0
+
+        exempt_pension_amount_monthly = 0.0
+        if exempt_pension_pct > 0:
+            try:
+                exempt_pension_amount_monthly = float(get_monthly_cap(current_year)) * float(
+                    exempt_pension_pct
+                )
+            except Exception:
+                exempt_pension_amount_monthly = 0.0
+
+        personal_details = PersonalDetails(
+            birth_date=getattr(client, "birth_date", None),
+            marital_status=getattr(client, "marital_status", "single") or "single",
+            num_children=int(getattr(client, "num_children", 0) or 0),
+            is_new_immigrant=bool(getattr(client, "is_new_immigrant", False)),
+            is_veteran=bool(getattr(client, "is_veteran", False)),
+            is_disabled=bool(getattr(client, "is_disabled", False)),
+            disability_percentage=getattr(client, "disability_percentage", None),
+            is_student=bool(getattr(client, "is_student", False)),
+            reserve_duty_days=int(getattr(client, "reserve_duty_days", 0) or 0),
+        )
+
+        tax_input = TaxCalculationInput(
+            tax_year=current_year,
+            personal_details=personal_details,
+            salary_income=annual_salary_income,
+            pension_income=gross_monthly_pension * 12,
+            rental_income=annual_rental_income,
+            business_income=annual_business_income,
+            interest_income=annual_interest_income,
+            dividend_income=annual_dividend_income,
+            other_income=annual_other_income,
+            pension_contributions=float(getattr(client, "pension_contributions", 0) or 0),
+            study_fund_contributions=float(getattr(client, "study_fund_contributions", 0) or 0),
+            insurance_premiums=float(getattr(client, "insurance_premiums", 0) or 0),
+            charitable_donations=float(getattr(client, "charitable_donations", 0) or 0),
+            exempt_pension_amount=exempt_pension_amount_monthly,
+            pension_months_in_year=12,
+        )
+
+        calculator = TaxCalculator(tax_year=current_year)
+        tax_result = calculator.calculate_comprehensive_tax(tax_input)
+
+        annual_tax = float(tax_result.net_tax)
+        monthly_tax = annual_tax / 12
+
+        # Explanations must be based on system-calculated outputs only.
+        tax_explanation_parts: list[str] = []
+        tax_explanation_parts.append("💵 **הערכת מס בפרישה (דטרמיניסטי - מחשבון מערכת)**")
+        tax_explanation_parts.append("")
+        tax_explanation_parts.append("**📊 הכנסות שנלקחו בחשבון:**")
+        tax_explanation_parts.append(f"  • קצבה חודשית: {gross_monthly_pension:,.0f} ₪")
+
+        taxable_additional_monthly = (
+            annual_salary_income
+            + annual_business_income
+            + annual_rental_income
+            + annual_interest_income
+            + annual_dividend_income
+            + annual_other_income
+        ) / 12
+        if taxable_additional_monthly > 0:
+            tax_explanation_parts.append(
+                f"  • הכנסות נוספות (חייבות/מיוחדות): {taxable_additional_monthly:,.0f} ₪/חודש"
+            )
+        if fixed_rate_income_monthly > 0:
+            tax_explanation_parts.append(
+                f"  • הכנסות נוספות במס קבוע (לא נכלל בחישוב מס ההכנסה): {fixed_rate_income_monthly:,.0f} ₪/חודש"
+            )
+
+        tax_explanation_parts.append("")
+        tax_explanation_parts.append("**💰 מס לפי מחשבון המערכת:**")
+        tax_explanation_parts.append(f"  • מס שנתי: {annual_tax:,.0f} ₪")
+        tax_explanation_parts.append(f"  • מס חודשי: {monthly_tax:,.0f} ₪")
+        tax_explanation_parts.append(
+            f"  • שיעור מס אפקטיבי: {float(tax_result.effective_tax_rate):.1f}%"
+        )
+
+        if exempt_pension_pct > 0:
+            tax_explanation_parts.append("")
+            tax_explanation_parts.append(
+                f"✅ **פטור קצבה מקיבוע זכויות**: {exempt_pension_pct*100:.1f}% מהתקרה המזכה (תורגם לסכום פטור חודשי לפי שנת {current_year})"
+            )
 
         return {
             "success": True,
-            "tool_name": "CALCULATE_REQUIRED_GROSS_WITHDRAWAL",
+            "tool_name": "GET_TAX_PROJECTION",
             "result": {
-                "required_gross_withdrawal": round(best_withdrawal, 2),
-                "total_gross_income": round(total_gross_income, 2),
-                "final_net_income": round(best_net, 2),
-                "tax_amount": round(best_tax, 2),
-                "is_net_goal_achieved": is_achieved,
-                "tax_exemption_applied": round(best_exempt, 2),
-                "exemption_source": exemption_source
+                "monthly_pension": gross_monthly_pension,
+                "additional_income": float(desired_net_income or 0),
+                "portfolio_additional_income_monthly": taxable_additional_monthly,
+                "fixed_rate_income_monthly": fixed_rate_income_monthly,
+                "fixed_rate_tax_annual": fixed_rate_tax_annual,
+                "total_annual_income": float(tax_result.total_income),
+                "annual_tax": annual_tax,
+                "monthly_tax": monthly_tax,
+                "effective_rate": float(tax_result.effective_tax_rate),
+                "exempt_pension_percentage": exempt_pension_pct,
+                "exempt_pension_amount_monthly": exempt_pension_amount_monthly,
+                "tax_breakdown": _to_jsonable(getattr(tax_result, "tax_breakdown", [])),
+                "income_breakdown": _to_jsonable(getattr(tax_result, "income_breakdown", [])),
             },
-            "explanation": f"בוצע חישוב הפוך למציאת משיכת ברוטו נדרשת להשגת נטו חודשי יעד (כולל פטור {exemption_source}).",
+            "explanation": "\n".join(tax_explanation_parts),
         }
-
-    def calculate_tax_exempt_pension(self, current_tax_exempt_grant_amount: float) -> Dict[str, Any]:
-        """
-        מבצע סימולציה של חישוב קיבוע זכויות (Tax Relief) והשפעת משיכת מענק פטור.
-        מחשב את הקצבה הפטורה לפני ואחרי קיזוז המענק המבוקש.
-        """
-        from app.models.fixation_result import FixationResult
-        
-        # קבועים לחישוב (נכון ל-2025)
-        QUALIFYING_PENSION_CAP = 9924  # תקרת קצבה מזכה משוערת ל-2025
-        EXEMPTION_RATE = 0.52          # שיעור הפטור (52%)
-        OFFSET_FACTOR = 1.35           # מקדם קיזוז למענקים (נוסחת הקיזוז)
-        CAPITALIZATION_FACTOR = 180    # מקדם המרה להון (180 משכורות)
-        
-        # 1. שליפת נתונים קיימים או חישוב ברירת מחדל
-        fixation = self.db.query(FixationResult).filter(
-            FixationResult.client_id == self.client_id
-        ).first()
-
-        if fixation and fixation.exempt_capital_remaining > 0:
-            total_exempt_capital = fixation.exempt_capital_remaining
-            source = "FixationResult (DB)"
-        else:
-            # חישוב ברירת מחדל אם אין קיבוע היסטורי
-            monthly_exemption = QUALIFYING_PENSION_CAP * EXEMPTION_RATE
-            total_exempt_capital = monthly_exemption * CAPITALIZATION_FACTOR
-            source = "Default (2025 Estimation)"
-
-        # 2. חישוב קצבה פטורה התחלתית (ללא משיכת המענק הנוכחי)
-        # אם יש מענקים קודמים, הם כבר מגולמים ב-exempt_capital_remaining
-        initial_exempt_pension = total_exempt_capital / CAPITALIZATION_FACTOR
-
-        # 3. סימולציה: קיזוז המענק הנוכחי
-        # כל שקל מענק מקזז 1.35 שקל מההון הפטור
-        grant_offset_value = current_tax_exempt_grant_amount * OFFSET_FACTOR
-        remaining_capital_after_grant = max(0, total_exempt_capital - grant_offset_value)
-        
-        final_exempt_pension = remaining_capital_after_grant / CAPITALIZATION_FACTOR
-
-        # 4. הכנת תוצאה
-        monthly_loss = initial_exempt_pension - final_exempt_pension
-        
-        # פורמט טקסטואלי לתשובה
-        scenario_a = (
-            f"תרחיש A (שמירת הפטור לקצבה):\n"
-            f"• סה\"כ הון פטור זמין: {total_exempt_capital:,.0f} ₪\n"
-            f"• קצבה פטורה חודשית: {initial_exempt_pension:,.0f} ₪"
-        )
-        
-        scenario_b = (
-            f"תרחיש B (משיכת מענק פטור בסך {current_tax_exempt_grant_amount:,.0f} ₪):\n"
-            f"• עלות הקיזוז בהון: {grant_offset_value:,.0f} ₪ (לפי מקדם 1.35)\n"
-            f"• הון פטור נותר: {remaining_capital_after_grant:,.0f} ₪\n"
-            f"• קצבה פטורה חודשית: {final_exempt_pension:,.0f} ₪"
-        )
-        
-        explanation = (
-            f"בוצעה סימולציית קיבוע זכויות ({source}).\n"
-            f"משיכת מענק של {current_tax_exempt_grant_amount:,.0f} ₪ תקטין את הקצבה הפטורה ב-{monthly_loss:,.0f} ₪ לכל החיים."
-        )
-
-        return {
-            "success": True,
-            "tool_name": "CALCULATE_TAX_EXEMPT_PENSION",
-            "result": {
-                "initial_exempt_pension": round(initial_exempt_pension, 2),
-                "final_exempt_pension": round(final_exempt_pension, 2),
-                "exempt_grant_used": current_tax_exempt_grant_amount,
-                "monthly_pension_loss": round(monthly_loss, 2),
-                "total_capital_offset": round(grant_offset_value, 2),
-                "remaining_exempt_capital": round(remaining_capital_after_grant, 2),
-                "scenarios_text": {
-                    "scenario_a": scenario_a,
-                    "scenario_b": scenario_b,
-                }
-            },
-            "explanation": explanation
-        }
-
     def run_retirement_cashflow_analysis(
         self,
         retirement_date: str,
