@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from pathlib import Path
 
+from app.utils.trace_context import get_current_trace_id
+
 logger = logging.getLogger("app.utils.calculation_log")
 
 
@@ -34,6 +36,10 @@ def log_calc(event: str, payload: Dict[str, Any], result: Optional[Any] = None, 
         "event": event,
         "payload": payload,
     }
+
+    trace_id = get_current_trace_id()
+    if trace_id:
+        log_entry["trace_id"] = trace_id
     
     # Add result if provided
     if result is not None:

@@ -118,6 +118,10 @@ app.add_middleware(
 
 # Add ProxyHeadersMiddleware to trust headers from Railway load balancer
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from app.middleware.trace_id import TraceIdMiddleware
+
+app.add_middleware(TraceIdMiddleware)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # Include routers

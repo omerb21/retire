@@ -18,6 +18,8 @@ from pathlib import Path
 from contextvars import ContextVar
 from typing import Any, Optional
 
+from app.utils.trace_context import get_current_trace_id
+
 logger = logging.getLogger(__name__)
 
 _current_request_id: ContextVar[Optional[str]] = ContextVar("llm_request_id", default=None)
@@ -99,6 +101,12 @@ def log_llm_event(
         "client_id": client_id,
         "payload": payload_to_log,
     }
+
+    trace_id = get_current_trace_id()
+    if trace_id:
+        if extra is None:
+            extra = {}
+        extra.setdefault("trace_id", trace_id)
 
     if extra:
         entry["extra"] = extra
