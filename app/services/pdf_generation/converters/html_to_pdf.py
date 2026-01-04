@@ -9,6 +9,14 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _to_wkhtmltopdf_input_url(path: Path) -> str:
+    resolved = path.resolve()
+    raw = str(resolved).replace("\\", "/")
+    if len(raw) >= 3 and raw[1] == ":" and raw[2] == "/":
+        return f"file:///{raw}"
+    return raw
+
+
 def find_wkhtmltopdf() -> Optional[str]:
     """
     מחפש את wkhtmltopdf במיקומים נפוצים
@@ -73,20 +81,24 @@ def html_to_pdf(
             "wkhtmltopdf not found. Please install it from: "
             "https://wkhtmltopdf.org/downloads.html"
         )
+
+    html_input = _to_wkhtmltopdf_input_url(html_path)
     
     cmd = [
         wkhtmltopdf_path,
+        '--enable-local-file-access',
         '--encoding', 'UTF-8',
         '--page-size', page_size,
         '--margin-top', margin_top,
         '--margin-right', margin_right,
         '--margin-bottom', margin_bottom,
         '--margin-left', margin_left,
-        str(html_path),
+        html_input,
         str(pdf_path)
     ]
     
     logger.info(f"🔄 Converting HTML to PDF: {html_path} -> {pdf_path}")
+    logger.debug("wkhtmltopdf command: %s", cmd)
     
     try:
         result = subprocess.run(
