@@ -127,3 +127,5 @@ report_smoke.pdf
 
 # Generated packages
 packages/*/
+
+!frontend/src/pages/llmPensionChat/toolDisplayName.ts
