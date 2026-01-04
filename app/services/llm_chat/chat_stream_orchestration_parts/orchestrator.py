@@ -98,13 +98,18 @@ from app.services.pension_portfolio.snapshot_loader import (
 )
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
-from app.utils.llm_chat_log import generate_request_id, log_llm_event, set_current_request_id
+from app.utils.llm_chat_log import (
+    generate_request_id,
+    log_llm_event,
+    set_current_case_id,
+    set_current_request_id,
+)
 from app.services.llm_agent_tools_service import AgentToolsService
 
 logger = logging.getLogger("app.llm_chat")
 
 PC_LLM_MAX_RETRIES = 3
-PC_LLM_TIMEOUT_SECONDS = 45.0
+PC_LLM_TIMEOUT_SECONDS = 120.0
 PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 
 
@@ -242,6 +247,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     messages, computed_data = prepare_messages_with_context(request, db)
 
     original_user_msg = find_last_user_message(request.messages)
+
+    try:
+        case_router = importlib.import_module("app.services.llm_chat.case_router")
+        select_case = getattr(case_router, "select_case", None)
+        if callable(select_case):
+            decision = select_case(
+                user_message=original_user_msg,
+                messages=messages,
+                client_id=request.client_id,
+            )
+            case_id = getattr(decision, "case_id", None)
+            set_current_case_id(case_id or "interactive_readonly")
+        else:
+            set_current_case_id("interactive_readonly")
+    except Exception:
+        set_current_case_id("interactive_readonly")
 
     def _extract_commutation_account_number(text: str | None) -> str | None:
         raw = str(text or "").strip()
@@ -1062,9 +1083,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and (not is_qa_mode)
         and (not no_tools_requested)
     ):
+        wants_pdf = "pdf" in lowered_user_msg
         return _stream_execute_tool_no_approval(
             "GENERATE_FULL_REPORT",
-            {"output_format": "pdf", "report_type": "full"},
+            {
+                "output_format": "pdf" if wants_pdf else "html",
+                "report_type": "full",
+                "ensure_analysis": False,
+            },
         )
 
     def _last_assistant_message_text(messages: list[ChatMessage]) -> str:
@@ -1275,7 +1301,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         return StreamingResponse(generate_cashflow(), media_type="text/plain; charset=utf-8")
 
-    max_capital_request = is_max_capital_request(original_user_msg)
+    max_capital_request = (not explicit_termination) and is_max_capital_request(original_user_msg)
     wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
 
     if (
@@ -2100,6 +2126,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         current_pension_portfolio = effective_portfolio
 
         if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
+            wants_remaining_only = any(
+                token in (lowered_user_msg or "")
+                for token in (
+                    "שנותר",
+                    "שנשאר",
+                    "מה שנשאר",
+                    "remaining",
+                    "left",
+                )
+            )
             partial_req = parse_partial_pension_conversion_request(original_user_msg)
             if partial_req is not None:
                 acc_num, amount = partial_req
@@ -2219,6 +2255,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                                         "accounts": derived_accounts,
                                     }
 
+            if wants_remaining_only and partial_req is None:
+                tool_args["remaining_only"] = True
+
             if wants_capital_transform:
                 yield (
                     "המרה להון של רכיבים קצבתיים (למשל 'תגמולים אחרי 2000') לא מבוצעת דרך TRANSFORM_FUNDS_TO_ASSETS, "
@@ -2305,6 +2344,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             def _collect_llm_response_once(timeout_seconds: float) -> tuple[Optional[str], Optional[str]]:
                 out_q: "queue.Queue[tuple[str, Any]]" = queue.Queue(maxsize=1)
 
+                started = time.monotonic()
+
                 def _runner() -> None:
                     try:
                         buf: list[str] = []
@@ -2319,18 +2360,56 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 t = threading.Thread(target=_runner, daemon=True)
                 t.start()
                 t.join(timeout_seconds)
+                elapsed = time.monotonic() - started
                 if t.is_alive():
+                    logger.warning(
+                        "Public chat LLM call timed out (request_id=%s, client_id=%s, step=%s, elapsed=%.3fs, timeout=%.1fs, stream=%s)",
+                        stream_request_id,
+                        request.client_id,
+                        current_step,
+                        elapsed,
+                        timeout_seconds,
+                        True,
+                    )
                     return None, f"timeout_after_{timeout_seconds}s"
                 try:
                     status, payload = out_q.get_nowait()
                 except Exception:
+                    logger.warning(
+                        "Public chat LLM call returned no result (request_id=%s, client_id=%s, step=%s, elapsed=%.3fs, timeout=%.1fs, stream=%s)",
+                        stream_request_id,
+                        request.client_id,
+                        current_step,
+                        elapsed,
+                        timeout_seconds,
+                        True,
+                    )
                     return None, "no_result"
                 if status == "err":
                     try:
+                        logger.warning(
+                            "Public chat LLM call failed (request_id=%s, client_id=%s, step=%s, elapsed=%.3fs, timeout=%.1fs, stream=%s, error=%s)",
+                            stream_request_id,
+                            request.client_id,
+                            current_step,
+                            elapsed,
+                            timeout_seconds,
+                            True,
+                            str(payload) or "llm_error",
+                        )
                         return None, str(payload) or "llm_error"
                     except Exception:
                         return None, "llm_error"
                 try:
+                    logger.info(
+                        "Public chat LLM call succeeded (request_id=%s, client_id=%s, step=%s, elapsed=%.3fs, timeout=%.1fs, stream=%s)",
+                        stream_request_id,
+                        request.client_id,
+                        current_step,
+                        elapsed,
+                        timeout_seconds,
+                        True,
+                    )
                     return str(payload), None
                 except Exception:
                     return None, "invalid_response"
