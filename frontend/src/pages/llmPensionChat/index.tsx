@@ -38,6 +38,8 @@ const LlmPensionChat: React.FC = () => {
     statusText,
   } = useLlmPensionChat({ clientId, client });
 
+  void nextMessageUsage;
+
   const clientName = client?.full_name || (clientId ? `לקוח ${clientId}` : "");
 
   return (
@@ -84,14 +86,6 @@ const LlmPensionChat: React.FC = () => {
             placeholder="כתוב כאן שאלה או בקשה ליועץ הפרישה..."
             rows={3}
           />
-          {nextMessageUsage && nextMessageUsage.totalTokens > 0 && (
-            <div className="llm-chat-estimated-cost">
-              {`עלות משוערת לפרומפט זה: ${nextMessageUsage.totalTokens.toLocaleString()} טוקנים`}
-              {nextMessageUsage.estimatedCostIls > 0 && (
-                <span>{` (~${nextMessageUsage.estimatedCostIls.toFixed(3)} ₪, הערכה)`}</span>
-              )}
-            </div>
-          )}
           <button type="submit" className="btn btn-primary llm-chat-send-button" disabled={isSending || !input.trim()}>
             {isSending ? "שולח..." : "שלח"}
           </button>

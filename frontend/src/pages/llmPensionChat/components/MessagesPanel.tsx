@@ -16,6 +16,7 @@ export default function MessagesPanel({
   usageByMessageIndex,
   messagesEndRef,
 }: Props) {
+  void usageByMessageIndex;
   return (
     <div className="llm-chat-messages" dir="rtl">
       {messages.length === 0 && (
@@ -40,16 +41,6 @@ export default function MessagesPanel({
             {m.role === "user" ? "אתה" : m.role === "assistant" ? "יועץ" : "מערכת"}
           </div>
           <div className="llm-chat-message-content">{m.content}</div>
-          {m.role === "assistant" && usageByMessageIndex[idx] && (
-            <div className="llm-chat-message-usage">
-              {`צריכת מודל להודעה זו: ${usageByMessageIndex[idx].totalTokens.toLocaleString()} טוקנים`}
-              {usageByMessageIndex[idx].estimatedCostIls > 0 && (
-                <span>
-                  {` (~${usageByMessageIndex[idx].estimatedCostIls.toFixed(3)} ₪, הערכה)`}
-                </span>
-              )}
-            </div>
-          )}
         </div>
       ))}
 
