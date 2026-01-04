@@ -15,7 +15,7 @@ from app.services.pension_portfolio.snapshot_loader import (
 )
 
 PC_LLM_MAX_RETRIES = 3
-PC_LLM_TIMEOUT_SECONDS = 45.0
+PC_LLM_TIMEOUT_SECONDS = 120.0
 PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 
 logger = logging.getLogger("app.llm_chat")

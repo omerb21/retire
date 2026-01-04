@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.current_employment.employer import CurrentEmployer
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.utils.llm_chat_log import get_current_request_id, log_llm_event
+from app.utils.llm_chat_log import get_current_case_id, get_current_request_id, log_llm_event
 from app.services.llm_chat.tool_handlers.create_additional_income import (
     handle_create_additional_income,
 )
@@ -97,6 +97,20 @@ from app.services.llm_chat.orchestration_utils import (
 )
 
 logger = logging.getLogger("app.llm_chat.tools")
+
+
+WRITE_TOOLS: set[str] = {
+    "TRANSFORM_FUNDS_TO_ASSETS",
+    "CREATE_TAX_EXEMPT_GRANT",
+    "CREATE_ADDITIONAL_INCOME",
+    "CREATE_INDIVIDUAL_ASSET",
+    "SET_CURRENT_EMPLOYER_DETAILS",
+    "EXECUTE_WORK_TERMINATION",
+    "PROCESS_TERMINATION",
+    "EXECUTE_PENSION_COMMUTATION",
+    "SUBMIT_TAX_COMMUTATION",
+    "EXECUTE_RETIREMENT_SCENARIO",
+}
 
 
 def _is_placeholder_date_str(value: str) -> bool:
@@ -187,6 +201,34 @@ def execute_tool_call(
 ) -> str:
     tool_name = normalize_tool_name(tool_name) or tool_name
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
+
+    case_id = get_current_case_id()
+    if case_id == "interactive_readonly" and tool_name in WRITE_TOOLS:
+        req_id = get_current_request_id() or "unknown"
+        payload = {
+            "request_id": req_id,
+            "case_id": case_id,
+            "tool_name": tool_name,
+            "error": "TOOL_NOT_ALLOWED",
+        }
+        try:
+            log_llm_event(
+                request_id=req_id,
+                event_type="tool_blocked",
+                payload=payload,
+                client_id=client_id,
+            )
+        except Exception:
+            pass
+
+        return json.dumps(
+            {
+                "success": False,
+                "error": "TOOL_NOT_ALLOWED",
+                "tool_name": tool_name,
+            },
+            ensure_ascii=False,
+        )
 
     if tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"} and not user_approved:
         try:

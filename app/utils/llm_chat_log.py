@@ -21,6 +21,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 _current_request_id: ContextVar[Optional[str]] = ContextVar("llm_request_id", default=None)
+_current_case_id: ContextVar[Optional[str]] = ContextVar("llm_case_id", default=None)
 
 # Maximum characters to log for large payloads (tool results, answers)
 MAX_PAYLOAD_CHARS = 5000
@@ -49,8 +50,16 @@ def set_current_request_id(request_id: Optional[str]) -> None:
     _current_request_id.set(request_id)
 
 
+def set_current_case_id(case_id: Optional[str]) -> None:
+    _current_case_id.set(case_id)
+
+
 def get_current_request_id() -> Optional[str]:
     return _current_request_id.get()
+
+
+def get_current_case_id() -> Optional[str]:
+    return _current_case_id.get()
 
 
 def log_llm_event(
