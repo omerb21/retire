@@ -173,11 +173,14 @@ class SnapshotService:
         }
         missing_keys = sorted([k for k in required_keys if k not in data])
         if missing_keys:
-            raise ValueError(
-                "נתוני snapshot לא תקינים (חסרים שדות: "
-                + ", ".join(missing_keys)
-                + "). נא לשמור מצב מחדש לפני שחזור."
-            )
+            # Backward compatible: older snapshots may not include every key.
+            # We backfill with safe defaults and rely on the "snapshot נראה לא שלם" guardrail below
+            # to prevent accidental deletion when the snapshot is truly incomplete.
+            for key in missing_keys:
+                if key in {"pension_funds", "capital_assets", "additional_incomes", "grants", "legacy_grants"}:
+                    data[key] = []
+                else:
+                    data[key] = None
 
         try:
             logger.info(

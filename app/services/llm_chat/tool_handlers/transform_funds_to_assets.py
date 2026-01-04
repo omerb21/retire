@@ -505,6 +505,7 @@ def handle_transform_funds_to_assets(
 
     try:
         accounts = args.get("accounts", [])
+        remaining_only = bool(args.get("remaining_only"))
         pension_start_date_raw = args.get("pension_start_date")
         default_conversion_type = args.get("default_conversion_type", "pension")
         commute_pension_components_raw = args.get("commute_pension_components")
@@ -1122,20 +1123,81 @@ def handle_transform_funds_to_assets(
                 )
 
                 account_number = (task.get("account_number") or "").strip()
+
+                if remaining_only and account_number:
+                    already_converted = 0.0
+                    try:
+                        if conversion_type == "pension":
+                            rows = (
+                                db.query(PensionFund)
+                                .filter(
+                                    PensionFund.client_id == client_id,
+                                    PensionFund.deduction_file == account_number,
+                                    PensionFund.conversion_source.isnot(None),
+                                    PensionFund.conversion_source.like(
+                                        '%"source": "llm_transform_funds_to_assets"%'
+                                    ),
+                                )
+                                .all()
+                            )
+                        else:
+                            rows = (
+                                db.query(CapitalAsset)
+                                .filter(
+                                    CapitalAsset.client_id == client_id,
+                                    CapitalAsset.conversion_source.isnot(None),
+                                    CapitalAsset.conversion_source.like(
+                                        '%"source": "llm_transform_funds_to_assets"%'
+                                    ),
+                                    CapitalAsset.conversion_source.like(
+                                        f'%"account_number": "{account_number}"%'
+                                    ),
+                                )
+                                .all()
+                            )
+                        for row in rows or []:
+                            raw_src = getattr(row, "conversion_source", None)
+                            if not raw_src:
+                                continue
+                            try:
+                                src = json.loads(str(raw_src))
+                            except Exception:
+                                src = None
+                            if not isinstance(src, dict):
+                                continue
+                            try:
+                                already_converted += float(src.get("original_amount") or 0)
+                            except Exception:
+                                continue
+                    except Exception:
+                        already_converted = 0.0
+
+                    remaining = max(0.0, float(base_amount) - float(already_converted))
+                    if remaining <= 0.01:
+                        skipped_accounts += 1
+                        continue
+
+                    base_amount = remaining
+                    if conversion_type == "pension":
+                        balance = float(base_amount) * float(projection_factor)
+                    else:
+                        balance = float(base_amount)
+
                 if account_number:
-                    delete_pensions = conversion_type == "pension"
-                    delete_capitals = conversion_type != "pension"
-                    deletion_key = (account_number, "pensions" if delete_pensions else "capitals")
-                    if deletion_key not in deleted_for_accounts:
-                        _delete_existing_tool_created_records(
-                            db=db,
-                            client_id=client_id,
-                            account_number=account_number,
-                            delete_pensions=delete_pensions,
-                            delete_capitals=delete_capitals,
-                        )
-                        db.flush()
-                        deleted_for_accounts.add(deletion_key)
+                    if not remaining_only:
+                        delete_pensions = conversion_type == "pension"
+                        delete_capitals = conversion_type != "pension"
+                        deletion_key = (account_number, "pensions" if delete_pensions else "capitals")
+                        if deletion_key not in deleted_for_accounts:
+                            _delete_existing_tool_created_records(
+                                db=db,
+                                client_id=client_id,
+                                account_number=account_number,
+                                delete_pensions=delete_pensions,
+                                delete_capitals=delete_capitals,
+                            )
+                            db.flush()
+                            deleted_for_accounts.add(deletion_key)
 
                 if conversion_type == "pension":
                     # Convert to pension fund
@@ -1254,9 +1316,15 @@ def handle_transform_funds_to_assets(
                         existing_pf.fund_name = account_name
                         existing_pf.fund_type = product_type or existing_pf.fund_type
                         existing_pf.input_mode = "manual"
-                        existing_pf.balance = balance
+                        if remaining_only:
+                            try:
+                                existing_pf.balance = float(existing_pf.balance or 0) + float(balance or 0)
+                            except Exception:
+                                existing_pf.balance = balance
+                        else:
+                            existing_pf.balance = balance
                         existing_pf.annuity_factor = annuity_factor
-                        existing_pf.pension_amount = pension_amount
+                        existing_pf.pension_amount = float(existing_pf.balance or 0) / float(annuity_factor or 200.0)
                         existing_pf.pension_start_date = effective_pension_start_date
                         existing_pf.indexation_method = "none"
                         existing_pf.tax_treatment = tax_treatment
@@ -1569,7 +1637,13 @@ def handle_transform_funds_to_assets(
                         existing_ca.asset_name = account_name
                         existing_ca.asset_type = asset_type
                         existing_ca.current_value = Decimal("0")
-                        existing_ca.monthly_income = Decimal(str(balance))
+                        if remaining_only:
+                            try:
+                                existing_ca.monthly_income = Decimal(str(float(existing_ca.monthly_income or 0) + float(balance)))
+                            except Exception:
+                                existing_ca.monthly_income = Decimal(str(balance))
+                        else:
+                            existing_ca.monthly_income = Decimal(str(balance))
                         existing_ca.annual_return_rate = Decimal("0.03")
                         existing_ca.payment_frequency = "monthly"
                         existing_ca.start_date = payment_date
