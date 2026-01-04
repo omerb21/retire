@@ -91,7 +91,12 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
-from app.utils.llm_chat_log import generate_request_id, log_llm_event, set_current_request_id
+from app.utils.llm_chat_log import (
+    generate_request_id,
+    log_llm_event,
+    set_current_case_id,
+    set_current_request_id,
+)
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 
 logger = logging.getLogger("app.llm_chat")
@@ -235,6 +240,22 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
 
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
+
+    try:
+        case_router = importlib.import_module("app.services.llm_chat.case_router")
+        select_case = getattr(case_router, "select_case", None)
+        if callable(select_case):
+            decision = select_case(
+                user_message=original_user_msg,
+                messages=messages,
+                client_id=request.client_id,
+            )
+            case_id = getattr(decision, "case_id", None)
+            set_current_case_id(case_id or "interactive_readonly")
+        else:
+            set_current_case_id("interactive_readonly")
+    except Exception:
+        set_current_case_id("interactive_readonly")
 
     def _extract_commutation_account_number(text: str | None) -> str | None:
         raw = str(text or "").strip()
@@ -434,9 +455,10 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         and (not is_qa_request(original_user_msg))
         and (not is_no_tools_request(original_user_msg))
     ):
+        wants_pdf = "pdf" in (lowered_early or "")
         tool_result = _execute_tool_call(
             "GENERATE_FULL_REPORT",
-            {"output_format": "pdf", "report_type": "full"},
+            {"output_format": "pdf" if wants_pdf else "html", "report_type": "full"},
             request.client_id,
             db,
             pension_portfolio=effective_portfolio,
