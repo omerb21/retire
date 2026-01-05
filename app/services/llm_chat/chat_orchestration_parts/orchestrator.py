@@ -107,6 +107,10 @@ from .chat_helpers import (
     _user_wants_full_balance,
 )
 from .tool_calling import _execute_tool_call, _get_chat_orchestration_facade
+from .chat_top_level_helpers import (
+    _get_llm_service,
+    _load_latest_pension_portfolio_snapshot_models,
+)
 from app.utils.llm_chat_log import (
     generate_request_id,
     log_llm_event,
@@ -116,28 +120,6 @@ from app.utils.llm_chat_log import (
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 
 logger = logging.getLogger("app.llm_chat")
-
-
-def _get_llm_service():
-    facade = _get_chat_orchestration_facade()
-    svc = getattr(facade, "pension_llm_service", None)
-    if svc is not None:
-        return svc
-    from app.services.llm_pension_agent_service import pension_llm_service as _local_llm_service
-
-    return _local_llm_service
-
-
-def _load_latest_pension_portfolio_snapshot_models(*args: Any, **kwargs: Any) -> Any:
-    facade = _get_chat_orchestration_facade()
-    fn = getattr(facade, "load_latest_pension_portfolio_snapshot_models", None)
-    if callable(fn):
-        return fn(*args, **kwargs)
-    from app.services.pension_portfolio.snapshot_loader import (
-        load_latest_pension_portfolio_snapshot_models as _local_loader,
-    )
-
-    return _local_loader(*args, **kwargs)
 
 
 def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
