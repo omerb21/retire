@@ -4,3 +4,4 @@ from .retirement_cashflow_tools import RetirementCashflowToolsMixin
 from .commutation_tools import CommutationToolsMixin
 from .data_completeness_tools import DataCompletenessToolsMixin
 from .tax_projection_tools import TaxProjectionToolsMixin
+from .gross_withdrawal_tools import GrossWithdrawalToolsMixin
