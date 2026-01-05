@@ -1,3 +1,4 @@
 from .scenarios_tools import ScenariosToolsMixin
 from .fixation_tools import FixationToolsMixin
 from .retirement_cashflow_tools import RetirementCashflowToolsMixin
+from .commutation_tools import CommutationToolsMixin
