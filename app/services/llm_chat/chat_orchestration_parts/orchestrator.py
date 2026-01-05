@@ -26,9 +26,6 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
 )
-from app.services.llm_chat.chat_stream_orchestration import (
-    run_pension_chat_stream as run_pension_chat_stream_impl,
-)
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import (
     extract_latest_approval_request,
@@ -118,6 +115,7 @@ from app.utils.llm_chat_log import (
     set_current_request_id,
 )
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
+from .non_stream_stream_entrypoint import run_pension_chat_stream
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -2379,6 +2377,3 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         computed_data=computed_data,
     )
 
-
-def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingResponse:
-    return run_pension_chat_stream_impl(request, db)
