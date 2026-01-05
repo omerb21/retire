@@ -143,6 +143,7 @@ def extract_executed_tools_from_history(messages: list[ChatMessage]) -> set[str]
         "✅ התרחיש הוחל בהצלחה": "EXECUTE_RETIREMENT_SCENARIO",
         "📋 **בדיקת שלמות נתונים**": "CHECK_DATA_COMPLETENESS",
         "💵 **הערכת מס בפרישה**": "GET_TAX_PROJECTION",
+        "📌 **פרמטרי מס (שנה)**": "GET_TAX_PARAMS",
         "✅ **נמצא תרחיש שמגיע ליעד": "SELECT_TARGET_PENSION_SCENARIO",
         "✅ **התכנית הושלמה בהצלחה**": "BUILD_TARGET_PENSION_PLAN",
         "ניתוח רגישות": "FIND_OPTIMAL_SCENARIO",

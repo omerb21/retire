@@ -548,6 +548,7 @@ def build_llm_context_parts(
             "EXECUTE_RETIREMENT_SCENARIO": "החלת תרחיש",
             "CHECK_DATA_COMPLETENESS": "בדיקת שלמות נתונים",
             "GET_TAX_PROJECTION": "הערכת מס",
+            "GET_TAX_PARAMS": "פרמטרי מס",
             "SELECT_TARGET_PENSION_SCENARIO": "בחירת תרחיש ליעד",
             "BUILD_TARGET_PENSION_PLAN": "בניית תכנית קצבה",
             "FIND_OPTIMAL_SCENARIO": "מציאת תרחיש אופטימלי",
