@@ -44,6 +44,7 @@ from app.services.llm_agent_tools import CommutationToolsMixin
 from app.services.llm_agent_tools import DataCompletenessToolsMixin
 from app.services.llm_agent_tools import TaxProjectionToolsMixin
 from app.services.llm_agent_tools import GrossWithdrawalToolsMixin
+from app.services.llm_agent_tools import TaxParamsToolsMixin
 
 logger = logging.getLogger("app.llm_agent_tools")
 
@@ -76,7 +77,7 @@ def _to_jsonable(value: Any) -> Any:
     return str(value)
 
 
-class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin, FixationToolsMixin, RetirementCashflowToolsMixin, CommutationToolsMixin, DataCompletenessToolsMixin, TaxProjectionToolsMixin, GrossWithdrawalToolsMixin):
+class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin, FixationToolsMixin, RetirementCashflowToolsMixin, CommutationToolsMixin, DataCompletenessToolsMixin, TaxProjectionToolsMixin, GrossWithdrawalToolsMixin, TaxParamsToolsMixin):
     """שירות כלים לסוכן ה-LLM"""
 
     def __init__(self, db: Session, client_id: int, client_object: Optional[Client] = None, pension_portfolio_data: Optional[List[Any]] = None):

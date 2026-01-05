@@ -343,6 +343,18 @@ def execute_tool_call(
                 agent_tools=agent_tools,
             )
 
+        if tool_name == "GET_TAX_PARAMS":
+            tax_year = None
+            if isinstance(args, dict):
+                raw_tax_year = args.get("tax_year")
+                if raw_tax_year is not None:
+                    try:
+                        tax_year = int(raw_tax_year)
+                    except Exception:
+                        return "Error: invalid tax_year"
+            result = agent_tools.get_tax_params(tax_year=tax_year)
+            return json.dumps(result, ensure_ascii=False)
+
         if tool_name == "GET_PENSION_PRODUCTS":
             return handle_get_pension_products(agent_tools=agent_tools)
 

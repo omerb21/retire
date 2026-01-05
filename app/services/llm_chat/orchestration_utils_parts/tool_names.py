@@ -5,6 +5,7 @@ def get_tool_display_name_hebrew(tool_name: str | None) -> str:
     mapping = {
         "BUILD_TARGET_PENSION_PLAN": "בניית תכנית קצבה",
         "GET_TAX_PROJECTION": "הערכת מס",
+        "GET_TAX_PARAMS": "פרמטרי מס",
         "GET_PENSION_PRODUCTS": "שליפת מוצרים בתיק",
         "CHECK_DATA_COMPLETENESS": "בדיקת שלמות נתונים",
         "CALCULATE_TAX_EXEMPT_PENSION": "חישוב קצבה פטורה",
@@ -48,6 +49,7 @@ def normalize_tool_name(tool_name: str | None) -> str | None:
     known_constants = {
         "BUILD_TARGET_PENSION_PLAN",
         "GET_TAX_PROJECTION",
+        "GET_TAX_PARAMS",
         "GET_PENSION_PRODUCTS",
         "CHECK_DATA_COMPLETENESS",
         "CALCULATE_TAX_EXEMPT_PENSION",

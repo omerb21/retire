@@ -103,6 +103,20 @@ def get_tools_definitions_json() -> str:
             },
         },
         {
+            "name": "GET_TAX_PARAMS",
+            "description": "מחזיר פרמטרי מס (מדרגות, תקרות, CPI וכו') לשימוש בחישובי מס והצגה.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tax_year": {
+                        "type": "integer",
+                        "description": "שנת מס (אופציונלי). אם לא סופק - השנה הנוכחית.",
+                    }
+                },
+                "required": [],
+            },
+        },
+        {
             "name": "GET_PENSION_PRODUCTS",
             "description": "Retrieves a detailed list of all pension products and capital assets in the client's portfolio, including balances and types.",
             "parameters": {
