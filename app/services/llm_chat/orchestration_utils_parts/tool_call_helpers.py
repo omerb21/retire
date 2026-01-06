@@ -27,8 +27,6 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     normalize_tool_name,
 )
 
-
-
 def extract_desired_monthly_income_from_text(user_message: str | None) -> float | None:
     if not user_message:
         return None
@@ -586,33 +584,3 @@ def parse_portfolio_wide_component_conversion_request(user_message: str | None) 
         return fields, "capital_asset"
 
     return None
-
-def extract_retirement_ages_from_message(user_message: str) -> list[int]:
-    if not user_message:
-        return []
-
-    text = user_message.lower()
-
-    ages: list[int] = []
-
-    for m in re.finditer(r"גיל\s*(\d{2})", text):
-        try:
-            ages.append(int(m.group(1)))
-        except Exception:
-            continue
-
-    for m in re.finditer(r"(?:מול|לעומת|בין|vs|versus)\s*(\d{2})", text):
-        try:
-            ages.append(int(m.group(1)))
-        except Exception:
-            continue
-
-    normalized: list[int] = []
-    for a in ages:
-        if a < 40 or a > 80:
-            continue
-        if a not in normalized:
-            normalized.append(a)
-
-    return normalized
-
