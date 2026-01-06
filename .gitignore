@@ -129,3 +129,8 @@ report_smoke.pdf
 packages/*/
 
 !frontend/src/pages/llmPensionChat/toolDisplayName.ts
+# local scratch
+.fix_*.py
+.rebuild_*.py
+.restore_*.py
+.pytest_step_*.txt
