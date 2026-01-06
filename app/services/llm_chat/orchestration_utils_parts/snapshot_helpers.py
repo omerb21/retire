@@ -29,6 +29,36 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
 
 
 
+
+def extract_retirement_ages_from_message(user_message: str) -> list[int]:
+    if not user_message:
+        return []
+
+    text = user_message.lower()
+
+    ages: list[int] = []
+
+    for m in re.finditer(r"גיל\s*(\d{2})", text):
+        try:
+            ages.append(int(m.group(1)))
+        except Exception:
+            continue
+
+    for m in re.finditer(r"(?:מול|לעומת|בין|vs|versus)\s*(\d{2})", text):
+        try:
+            ages.append(int(m.group(1)))
+        except Exception:
+            continue
+
+    normalized: list[int] = []
+    for a in ages:
+        if a < 40 or a > 80:
+            continue
+        if a not in normalized:
+            normalized.append(a)
+
+    return normalized
+
 def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) -> str:
     tool_display = get_tool_display_name_hebrew(tool_name)
     if tool_name == "GENERATE_FULL_REPORT":
