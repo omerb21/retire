@@ -137,8 +137,14 @@ from .stream_more_nested_helpers import _format_system_inventory_snapshot
 from .stream_formatters import _format_data_awareness_snapshot, _format_list_all_entities
 from .stream_streaming_helpers import _stream_execute_tool_no_approval, _stream_request_approval
 from .stream_llm_collectors import _collect_llm_response_with_retry
+from .stream_commutation_generators import (
+    generate_commutation_need_account,
+    generate_commutation_need_amount_existing,
+    generate_commutation_need_amount,
+    generate_commutation_missing,
+)
 
-logger = logging.getLogger("app.llm_chat")
+logger = logging.getLogger(__name__)
 
 PC_LLM_MAX_RETRIES = 3
 PC_LLM_TIMEOUT_SECONDS = 120.0
@@ -713,23 +719,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     if commutation_intent and request.client_id is not None:
         account_number = _extract_commutation_account_number(original_user_msg)
         if not account_number:
-            def generate_commutation_need_account():
-                if computed_data is not None:
-                    computed_json = json.dumps(
-                        {"type": "computed_data", "data": computed_data.model_dump()},
-                        ensure_ascii=False,
-                    )
-                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-                yield (
-                    "כדי לחשב היוון בצורה נכונה אני צריך לזהות *איזו קצבה* אתה רוצה להוון. "
-                    "בבקשה ציין אחד מהבאים:\n"
-                    "1) מספר חשבון/תיק ניכויים של הקצבה (5+ ספרות)\n"
-                    "2) שם הקצבה כפי שמופיע במסך הקצבאות\n\n"
-                    "בנוסף: האם הכוונה היא ל*סכום חד-פעמי* שתרצה לקבל, או ל*הפחתה חודשית מהקצבה*?"
-                )
-
             return StreamingResponse(
-                generate_commutation_need_account(),
+                generate_commutation_need_account(computed_data=computed_data),
                 media_type="text/plain; charset=utf-8",
             )
 
@@ -938,20 +929,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     comm_amount = None
 
                 if not comm_amount or comm_amount <= 0:
-                    def generate_commutation_need_amount_existing():
-                        if computed_data is not None:
-                            computed_json = json.dumps(
-                                {"type": "computed_data", "data": computed_data.model_dump()},
-                                ensure_ascii=False,
-                            )
-                            yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-                        yield (
-                            "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
-                            "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
-                        )
-
                     return StreamingResponse(
-                        generate_commutation_need_amount_existing(),
+                        generate_commutation_need_amount_existing(computed_data=computed_data),
                         media_type="text/plain; charset=utf-8",
                     )
 
@@ -990,24 +969,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 fund = None
 
             if fund is None:
-                def generate_commutation_missing():
-                    if computed_data is not None:
-                        computed_json = json.dumps(
-                            {"type": "computed_data", "data": computed_data.model_dump()},
-                            ensure_ascii=False,
-                        )
-                        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-
-                    yield (
-                        "כדי לבצע היוון אני צריך לזהות **קצבה קיימת במערכת** שמתאימה לחשבון שביקשת. "
-                        f"לא מצאתי קצבה עם מספר חשבון/תיק ניכויים `{account_number}`.\n\n"
-                        "אפשרויות:\n"
-                        "1) כתוב את שם הקצבה כפי שהיא מופיעה במסך קצבאות, או את מזהה הקצבה (pension_fund_id).\n"
-                        "2) אם הכוונה היא לתכנית בתיק המסלקה בלבד (לא קצבה קיימת), ציין: 'הפוך את החשבון לקצבה ואז בצע היוון'."
-                    )
-
                 return StreamingResponse(
-                    generate_commutation_missing(),
+                    generate_commutation_missing(computed_data=computed_data, account_number=account_number),
                     media_type="text/plain; charset=utf-8",
                 )
 
@@ -1018,20 +981,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 comm_amount = None
             if not comm_amount or comm_amount <= 0:
-                def generate_commutation_need_amount():
-                    if computed_data is not None:
-                        computed_json = json.dumps(
-                            {"type": "computed_data", "data": computed_data.model_dump()},
-                            ensure_ascii=False,
-                        )
-                        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-                    yield (
-                        "מצאתי את הקצבה המתאימה, אבל חסר לי סכום היוון. "
-                        "כתוב סכום (למשל 50000 ₪) או 'כל היתרה'."
-                    )
-
                 return StreamingResponse(
-                    generate_commutation_need_amount(),
+                    generate_commutation_need_amount(computed_data=computed_data),
                     media_type="text/plain; charset=utf-8",
                 )
 
