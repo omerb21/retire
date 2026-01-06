@@ -135,6 +135,7 @@ from .stream_top_level_helpers import (
 from .stream_tool_execution import _execute_tool_call
 from .stream_more_nested_helpers import _format_system_inventory_snapshot
 from .stream_formatters import _format_data_awareness_snapshot, _format_list_all_entities
+from .stream_streaming_helpers import _stream_execute_tool_no_approval, _stream_request_approval
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -539,111 +540,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
             return StreamingResponse(generate_portfolio_analysis(), media_type="text/plain; charset=utf-8")
 
-    def _stream_execute_tool_no_approval(tool_name: str, tool_args: dict[str, Any]) -> StreamingResponse:
-        def generate_exec():
-            if computed_data is not None:
-                computed_json = json.dumps(
-                    {"type": "computed_data", "data": computed_data.model_dump()},
-                    ensure_ascii=False,
-                )
-                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-
-            tool_result = _execute_tool_call(
-                tool_name,
-                tool_args,
-                request.client_id,
-                db,
-                pension_portfolio=effective_portfolio,
-                force_max_exemption=force_max_exemption,
-                user_approved=True,
-                request_id=stream_request_id,
-            )
-
-            try:
-                clear_pending_approval_request(db=db, client_id=request.client_id)
-            except Exception:
-                pass
-
-            portfolio_update_marker = build_pension_portfolio_update_after_transform(
-                tool_name=tool_name,
-                tool_result=tool_result,
-                tool_args=tool_args,
-                current_pension_portfolio=effective_portfolio,
-            )
-            if portfolio_update_marker:
-                yield portfolio_update_marker
-
-            commutation_update_marker = build_pension_portfolio_update_after_commutation(
-                tool_name=tool_name,
-                tool_result=tool_result,
-                tool_args=tool_args,
-                current_pension_portfolio=effective_portfolio,
-            )
-            if commutation_update_marker:
-                yield commutation_update_marker
-
-            forced_document_reply = build_forced_document_reply(
-                tool_name=tool_name,
-                tool_result=tool_result,
-            )
-            if forced_document_reply:
-                yield "\n\n" + sanitize_user_visible_text(forced_document_reply)
-                return
-
-            if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
-                yield format_transform_result_for_user(tool_result=tool_result)
-                return
-
-            out = sanitize_user_visible_text(
-                format_tool_output_for_user_stream(tool_name, tool_result)
-            )
-            if is_portfolio_analysis and isinstance(out, str) and out.strip():
-                if "הערכה" not in out and "הערכה גסה" not in out and "ראשונית" not in out:
-                    out = (
-                        "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\n"
-                        + out
-                    )
-            yield out
-
-        return StreamingResponse(generate_exec(), media_type="text/plain; charset=utf-8")
-
-    def _stream_request_approval(
-        tool_name: str,
-        tool_args: dict[str, Any],
-        *,
-        reason: str,
-        risk_level: str = "high",
-    ) -> StreamingResponse:
-        def generate_approval():
-            if computed_data is not None:
-                computed_json = json.dumps(
-                    {"type": "computed_data", "data": computed_data.model_dump()},
-                    ensure_ascii=False,
-                )
-                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-
-            try:
-                _store_pending_approval_request(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_name=tool_name,
-                    tool_args=tool_args,
-                )
-            except Exception:
-                pass
-
-            yield build_approval_request_ui_action(
-                tool_name=tool_name,
-                tool_args=tool_args,
-                reason=reason,
-                risk_level=risk_level,
-                rag_sources=None,
-            )
-
-        return StreamingResponse(
-            generate_approval(),
-            media_type="text/plain; charset=utf-8",
-        )
     is_net_request = is_net_pension_request(original_user_msg)
     is_doc_request = is_document_request(original_user_msg)
     is_tax_doc_request = is_tax_documents_request(original_user_msg)
@@ -703,6 +599,13 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 "report_type": "full",
                 "ensure_analysis": False,
             },
+            computed_data=computed_data,
+            client_id=request.client_id,
+            db=db,
+            effective_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+            is_portfolio_analysis=is_portfolio_analysis,
         )
 
     last_assistant_text = _last_assistant_message_text(request.messages)
@@ -972,6 +875,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     "בקשת 'משיכה הונית מלאה' מחייבת שמירת קצבת מינימום 5,500 ₪. "
                     "אצור ואבצע את תרחיש 'מקסימום הון' (שמשאיר קצבת מינימום) רק לאחר אישור."
                 ),
+                computed_data=computed_data,
+                client_id=request.client_id,
+                db=db,
             )
 
         return StreamingResponse(
@@ -993,6 +899,13 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         return _stream_execute_tool_no_approval(
             "GENERATE_TAX_DEDUCTION_DOCUMENTS",
             {"document_type": "fixation_package"},
+            computed_data=computed_data,
+            client_id=request.client_id,
+            db=db,
+            effective_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+            is_portfolio_analysis=is_portfolio_analysis,
         )
 
     # Early deterministic handling for pension commutation requests.
@@ -1053,6 +966,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     "EXECUTE_PENSION_COMMUTATION",
                     exec_args,
                     reason="נדרש אישור לפני ביצוע היוון קצבה במערכת.",
+                    computed_data=computed_data,
+                    client_id=request.client_id,
+                    db=db,
                 )
 
             target_digits = _digits_only(account_number)
@@ -1130,6 +1046,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 "EXECUTE_PENSION_COMMUTATION",
                 exec_args,
                 reason="נדרש אישור לפני ביצוע היוון קצבה במערכת.",
+                computed_data=computed_data,
+                client_id=request.client_id,
+                db=db,
             )
 
     analysis_default_retirement_age: int | None = None
@@ -1201,7 +1120,17 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             tool_args["termination_date"] = termination_date_override
         tool_args.update(extract_process_termination_choice_overrides(original_user_msg))
 
-        return _stream_execute_tool_no_approval("PROCESS_TERMINATION", tool_args)
+        return _stream_execute_tool_no_approval(
+            "PROCESS_TERMINATION",
+            tool_args,
+            computed_data=computed_data,
+            client_id=request.client_id,
+            db=db,
+            effective_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+            is_portfolio_analysis=is_portfolio_analysis,
+        )
 
     if (
         request.client_id is not None
