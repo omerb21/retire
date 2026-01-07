@@ -37,7 +37,7 @@ from .transform_funds_conversion import (
     _validate_component_conversion,
     _zero_source_portfolio_pension_funds,
 )
-from .transform_funds_snapshot import apply_conversion_task_to_snapshot
+from .transform_funds_snapshot import execute_conversion_tasks
 from .transform_funds_validation import build_conversion_tasks_from_accounts
 
 logger = logging.getLogger("app.llm_chat.tools")
@@ -323,167 +323,38 @@ def handle_transform_funds_to_assets(
         snapshot_deltas: dict[str, dict] = {}
         converted_commutations = 0
 
-        for idx, task in enumerate(conversion_tasks):
-            try:
-                account = task.get("account") or {}
-                account_name = task.get("account_name")
-                base_amount = float(task.get("amount") or 0)
-                product_type = task.get("product_type")
-                rules_product_type = f"{product_type or ''} {account_name or ''}".strip()
-                company = task.get("company")
-                conversion_type = task.get("task_type")
-                components = task.get("components")
-
-                account_pension_start_date_raw = (
-                    account.get("pension_start_date")
-                    or account.get("תאריך_מימוש")
-                    or account.get("תאריך מימוש")
-                )
-                effective_pension_start_date = _parse_date_value(account_pension_start_date_raw) or global_pension_start_date
-                if effective_pension_start_date is None:
-                    effective_pension_start_date = retirement_date or date_type(retirement_year, 1, 1)
-
-                projection_factor = 1.0
-                if effective_pension_start_date and effective_pension_start_date > date_type.today():
-                    try:
-                        projection_factor = calculate_compound_factor(
-                            from_date=date_type.today(),
-                            to_date=effective_pension_start_date,
-                        )
-                    except Exception:
-                        projection_factor = 1.0
-
-                if conversion_type == "pension":
-                    balance = float(base_amount) * float(projection_factor)
-                else:
-                    balance = float(base_amount)
-
-                logger.info(
-                    "🔄 Converting account: name=%s, type=%s, balance=%.2f -> %s",
-                    account_name,
-                    product_type,
-                    balance,
-                    conversion_type,
-                )
-
-                account_number = (task.get("account_number") or "").strip()
-
-                if remaining_only and account_number:
-                    already_converted = 0.0
-                    try:
-                        if conversion_type == "pension":
-                            rows = (
-                                db.query(PensionFund)
-                                .filter(
-                                    PensionFund.client_id == client_id,
-                                    PensionFund.deduction_file == account_number,
-                                    PensionFund.conversion_source.isnot(None),
-                                    PensionFund.conversion_source.like(
-                                        '%"source": "llm_transform_funds_to_assets"%'
-                                    ),
-                                )
-                                .all()
-                            )
-                        else:
-                            rows = (
-                                db.query(CapitalAsset)
-                                .filter(
-                                    CapitalAsset.client_id == client_id,
-                                    CapitalAsset.conversion_source.isnot(None),
-                                    CapitalAsset.conversion_source.like(
-                                        '%"source": "llm_transform_funds_to_assets"%'
-                                    ),
-                                    CapitalAsset.conversion_source.like(
-                                        f'%"account_number": "{account_number}"%'
-                                    ),
-                                )
-                                .all()
-                            )
-                        for row in rows or []:
-                            raw_src = getattr(row, "conversion_source", None)
-                            if not raw_src:
-                                continue
-                            try:
-                                src = json.loads(str(raw_src))
-                            except Exception:
-                                src = None
-                            if not isinstance(src, dict):
-                                continue
-                            try:
-                                already_converted += float(src.get("original_amount") or 0)
-                            except Exception:
-                                continue
-                    except Exception:
-                        already_converted = 0.0
-
-                    remaining = max(0.0, float(base_amount) - float(already_converted))
-                    if remaining <= 0.01:
-                        skipped_accounts += 1
-                        continue
-
-                    base_amount = remaining
-                    if conversion_type == "pension":
-                        balance = float(base_amount) * float(projection_factor)
-                    else:
-                        balance = float(base_amount)
-
-                if account_number:
-                    if not remaining_only:
-                        delete_pensions = conversion_type == "pension"
-                        delete_capitals = conversion_type != "pension"
-                        deletion_key = (account_number, "pensions" if delete_pensions else "capitals")
-                        if deletion_key not in deleted_for_accounts:
-                            _delete_existing_tool_created_records(
-                                db=db,
-                                client_id=client_id,
-                                account_number=account_number,
-                                delete_pensions=delete_pensions,
-                                delete_capitals=delete_capitals,
-                            )
-                            db.flush()
-                            deleted_for_accounts.add(deletion_key)
-
-                (
-                    snapshot_deltas,
-                    source_zeroed_for_accounts,
-                    source_pension_funds_zeroed,
-                    converted_pensions,
-                    converted_capitals,
-                    converted_commutations,
-                    converted_items,
-                ) = apply_conversion_task_to_snapshot(
-                    db=db,
-                    client_id=client_id,
-                    retirement_year=retirement_year,
-                    retirement_age=retirement_age,
-                    client_obj=client_obj,
-                    use_provided_accounts_only=use_provided_accounts_only,
-                    remaining_only=remaining_only,
-                    task=task,
-                    account=account,
-                    account_name=account_name,
-                    product_type=product_type,
-                    rules_product_type=rules_product_type,
-                    company=company,
-                    conversion_type=conversion_type,
-                    components=components,
-                    account_number=account_number,
-                    balance=balance,
-                    base_amount=base_amount,
-                    projection_factor=projection_factor,
-                    effective_pension_start_date=effective_pension_start_date,
-                    snapshot_deltas=snapshot_deltas,
-                    source_zeroed_for_accounts=source_zeroed_for_accounts,
-                    source_pension_funds_zeroed=source_pension_funds_zeroed,
-                    converted_pensions=converted_pensions,
-                    converted_capitals=converted_capitals,
-                    converted_commutations=converted_commutations,
-                    converted_items=converted_items,
-                )
-
-            except Exception as acc_err:
-                errors.append(f"שגיאה בחשבון {account_name}: {str(acc_err)}")
-                logger.error("Error converting account %s: %s", account_name, acc_err)
+        (
+            skipped_accounts,
+            snapshot_deltas,
+            source_zeroed_for_accounts,
+            source_pension_funds_zeroed,
+            converted_pensions,
+            converted_capitals,
+            converted_commutations,
+            converted_items,
+            errors,
+        ) = execute_conversion_tasks(
+            conversion_tasks=conversion_tasks,
+            remaining_only=remaining_only,
+            db=db,
+            client_id=client_id,
+            global_pension_start_date=global_pension_start_date,
+            retirement_date=retirement_date,
+            retirement_year=retirement_year,
+            retirement_age=retirement_age,
+            use_provided_accounts_only=use_provided_accounts_only,
+            client_obj=client_obj,
+            deleted_for_accounts=deleted_for_accounts,
+            source_zeroed_for_accounts=source_zeroed_for_accounts,
+            snapshot_deltas=snapshot_deltas,
+            source_pension_funds_zeroed=source_pension_funds_zeroed,
+            converted_pensions=converted_pensions,
+            converted_capitals=converted_capitals,
+            converted_commutations=converted_commutations,
+            converted_items=converted_items,
+            skipped_accounts=skipped_accounts,
+            errors=errors,
+        )
 
         total_converted = converted_pensions + converted_capitals
 
