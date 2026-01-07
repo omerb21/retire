@@ -19,7 +19,6 @@ from app.services.llm_chat.orchestration_utils_parts.text_formatters import (
     sanitize_user_visible_text,
 )
 from app.services.llm_chat.orchestration_utils_parts.snapshot_helpers import (
-    extract_retirement_ages_from_message,
     compute_retirement_date_from_birth_date,
     normalize_retirement_date_if_jan1_placeholder,
     compute_default_retirement_date_for_tool_call,
