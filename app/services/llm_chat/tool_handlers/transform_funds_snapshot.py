@@ -27,6 +27,7 @@ from .transform_funds_conversion import (
 )
 
 from .transform_funds_validation import build_conversion_tasks_from_accounts
+from .transform_funds_markers import build_transform_funds_response
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -44,8 +45,8 @@ def run_transform_funds_execution_window(
     default_conversion_type: str,
     remaining_only: bool,
     use_provided_accounts_only: bool,
-    default_retirement_age_fallback: int,
-) -> str:
+    _DEFAULT_RETIREMENT_AGE_FALLBACK: int,
+) -> dict:
     from datetime import date
 
     from decimal import Decimal
@@ -57,7 +58,7 @@ def run_transform_funds_execution_window(
 
         retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
     except Exception:
-        retirement_age = int(default_retirement_age_fallback)
+        retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
     retirement_date: Optional[date] = None
     retirement_year = datetime.now().year
     if client_obj and getattr(client_obj, "birth_date", None) and getattr(client_obj, "gender", None):
@@ -175,17 +176,14 @@ def run_transform_funds_execution_window(
     )
 
     if validation_errors:
-        return json.dumps(
-            {
-                "success": False,
-                "error": "שגיאות ולידציה בהמרה",
-                "validation_errors": validation_errors,
-                "total_converted": 0,
-                "converted_pensions": 0,
-                "converted_capitals": 0,
-            },
-            ensure_ascii=False,
-        )
+        return {
+            "success": False,
+            "error": "שגיאות ולידציה בהמרה",
+            "validation_errors": validation_errors,
+            "total_converted": 0,
+            "converted_pensions": 0,
+            "converted_capitals": 0,
+        }
 
     try:
         conversion_tasks.sort(
@@ -282,36 +280,29 @@ def run_transform_funds_execution_window(
             _count_err,
         )
 
-    response = {
-        "success": True,
-        "message": f"✅ הומרו בהצלחה {total_converted} חשבונות: {converted_pensions} נכסי קצבה, {converted_capitals} נכסי הון.",
-        "converted_pensions": converted_pensions,
-        "converted_capitals": converted_capitals,
-        "converted_commutations": converted_commutations,
-        "total_converted": total_converted,
-        "skipped_zero_balance": skipped_accounts,
-        "skipped_non_convertible": skipped_non_convertible if skipped_non_convertible else None,
-        "converted_items": converted_items if converted_items else None,
-        "skipped_items": skipped_items if skipped_items else None,
-        "ignored_blocked_amount": blocked_field_amount if blocked_field_amount > 0 else None,
-        "employer_current_severance_not_converted": employer_current_severance_total if employer_current_severance_total > 0 else None,
-        "errors": errors if errors else None,
-        "next_step": "כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT" if total_converted > 0 else None,
-        "source_data_cleared": False,
-        "memory_cleared": False,
-        "persisted_source_scenarios_updated": scenarios_updated,
-        "persisted_source_cleanup_ok": scenario_source_cleanup_ok,
-        "source_pension_funds_zeroed": source_pension_funds_zeroed,
-    }
-
-    logger.info(
-        "✅ TRANSFORM_FUNDS_TO_ASSETS completed: pensions=%d, capitals=%d, skipped=%d",
-        converted_pensions,
-        converted_capitals,
-        skipped_accounts,
+    response = build_transform_funds_response(
+        success=True,
+        message=f"✅ הומרו בהצלחה {total_converted} חשבונות: {converted_pensions} נכסי קצבה, {converted_capitals} נכסי הון.",
+        converted_pensions=converted_pensions,
+        converted_capitals=converted_capitals,
+        converted_commutations=converted_commutations,
+        total_converted=total_converted,
+        skipped_accounts=skipped_accounts,
+        skipped_non_convertible=skipped_non_convertible,
+        converted_items=converted_items,
+        skipped_items=skipped_items,
+        blocked_field_amount=blocked_field_amount,
+        employer_current_severance_total=employer_current_severance_total,
+        errors=errors,
+        next_step="כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT" if total_converted > 0 else None,
+        source_data_cleared=False,
+        memory_cleared=False,
+        scenarios_updated=scenarios_updated,
+        scenario_source_cleanup_ok=scenario_source_cleanup_ok,
+        source_pension_funds_zeroed=source_pension_funds_zeroed,
     )
 
-    return json.dumps(response, ensure_ascii=False)
+    return response
 
 
 def execute_conversion_tasks(

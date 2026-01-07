@@ -164,7 +164,7 @@ def handle_transform_funds_to_assets(
                 ensure_ascii=False,
             )
 
-        return run_transform_funds_execution_window(
+        response = run_transform_funds_execution_window(
             client_id=client_id,
             db=db,
             agent_tools=agent_tools,
@@ -176,8 +176,10 @@ def handle_transform_funds_to_assets(
             default_conversion_type=default_conversion_type,
             remaining_only=remaining_only,
             use_provided_accounts_only=use_provided_accounts_only,
-            default_retirement_age_fallback=_DEFAULT_RETIREMENT_AGE_FALLBACK,
+            _DEFAULT_RETIREMENT_AGE_FALLBACK=_DEFAULT_RETIREMENT_AGE_FALLBACK,
         )
+
+        return json.dumps(response, ensure_ascii=False)
 
     except Exception as e:
         logger.error("TRANSFORM_FUNDS_TO_ASSETS failed: %s", e, exc_info=True)
