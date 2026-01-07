@@ -1,10 +1,3 @@
-def get_agent_state_json(*args, **kwargs):
-    from .state_tools import get_agent_state_json as _get_agent_state_json
+from .state_tools import get_agent_state_json, get_tools_definitions_json
 
-    return _get_agent_state_json(*args, **kwargs)
-
-
-def get_tools_definitions_json(*args, **kwargs):
-    from .state_tools import get_tools_definitions_json as _get_tools_definitions_json
-
-    return _get_tools_definitions_json(*args, **kwargs)
+__all__ = ["get_agent_state_json", "get_tools_definitions_json"]
