@@ -17,6 +17,7 @@ from app.services.pension_portfolio.conversion_rules import (
     preferred_conversion_type_for_component,
     validate_component_conversion,
 )
+from app.services.llm_chat.portfolio_context import _is_education_fund
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 from app.services.retirement_age_service import calculate_retirement_age
 
@@ -119,10 +120,6 @@ def _validate_component_conversion(
     return validate_component_conversion(
         field=field, amount=amount, conversion_type=conversion_type, product_type=product_type
     )
-
-
-def _is_education_fund(product_type: str) -> bool:
-    return is_education_fund(product_type)
 
 
 def _derive_capital_tax_treatment_from_components(*, components: dict, product_type: str) -> Optional[str]:
