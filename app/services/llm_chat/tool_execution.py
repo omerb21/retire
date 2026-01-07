@@ -95,6 +95,7 @@ from app.services.llm_chat.orchestration_utils import (
     normalize_tool_name,
     validate_tool_call_protocol_for_execution,
 )
+from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -157,26 +158,6 @@ def _maybe_fill_default_retirement_date(*, tool_name: str, args: dict, client_ob
         user_message="",
     )
     args["retirement_date"] = default_date_str
-
-
-def _extract_single_line_json_after_marker(text: str, marker: str) -> dict[str, Any] | None:
-    if marker not in (text or ""):
-        return None
-
-    after = text.split(marker, 1)[1].strip()
-    json_str = after.strip("`").strip()
-    json_str = json_str.splitlines()[0] if json_str else ""
-    if not json_str:
-        return None
-
-    try:
-        parsed = json.loads(json_str)
-    except Exception:
-        return None
-
-    if not isinstance(parsed, dict):
-        return None
-    return parsed
 
 
 def _is_high_risk_risk_review(risk_review: dict[str, Any] | None) -> bool:
