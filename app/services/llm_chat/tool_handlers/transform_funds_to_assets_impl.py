@@ -21,6 +21,8 @@ from app.services.llm_chat.portfolio_context import _is_education_fund
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 from app.services.retirement_age_service import calculate_retirement_age
 
+from .transform_funds_classification import classify_product_type
+
 logger = logging.getLogger("app.llm_chat.tools")
 
 try:
@@ -67,47 +69,6 @@ def _delete_existing_tool_created_records(
         )
         for row in capital_rows:
             db.delete(row)
-
-
-def classify_product_type(product_type_str: str, default_conversion_type: str = "pension") -> str:
-    """Classify product type to determine conversion destination."""
-    if not product_type_str:
-        return default_conversion_type
-
-    pt = (product_type_str or "").strip().lower()
-
-    if any(token in pt for token in ("education_fund", "klal_stud")):
-        return "capital_asset"
-
-    if any(token in pt for token in ("provident_fund", "savings_policy")):
-        return "capital_asset"
-
-    if "גמל להשקעה" in pt:
-        return "capital_asset"
-
-    if "השתלמות" in pt:
-        return "capital_asset"
-
-    if "פוליסת חיסכון" in pt and "טהור" in pt:
-        return "capital_asset"
-
-    if "ביטוח" in pt:
-        return "pension"
-
-    if "קרן פנסיה" in pt or "פנסיה" in pt:
-        return "pension"
-
-    # 'קופת גמל' can be either annuity-oriented or capital-oriented. We only classify
-    # as pension when annuity intent is explicit.
-    if "קופת גמל" in pt and ("לקצבה" in pt or "קצבה" in pt):
-        return "pension"
-    if "קופת גמל" in pt:
-        return "pension"
-
-    if "חיסכון" in pt:
-        return "capital_asset"
-
-    return default_conversion_type
 
 
 def _preferred_conversion_type_for_component(*, field: str, product_type: str) -> str:
