@@ -89,7 +89,6 @@ from app.services.llm_chat.orchestration_utils import (
     normalize_retirement_date_if_jan1_placeholder,
     parse_tool_call_from_reply,
     sanitize_user_visible_text,
-    validate_tool_call_protocol_for_execution,
 )
 from app.services.llm_chat.chat_orchestration_helpers import maybe_clear_pension_portfolio_after_transform
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
@@ -161,6 +160,40 @@ from ..stream_approval_generators import (
     generate_execute_target_after_termination,
     generate_approval_exec,
 )
+from .stream_loop_explicit_transform import _stream_handle_explicit_transform
+from .stream_loop_commutation_deterministic import _maybe_handle_commutation_deterministic
+from .stream_loop_commutation_approval import _stream_maybe_request_commutation_approval
+from .stream_loop_cashflow_retirement_date_normalization import _maybe_normalize_cashflow_retirement_date
+from .stream_loop_retirement_scenarios_portfolio_analysis import _maybe_prepare_retirement_scenarios_args_for_portfolio_analysis
+from .stream_loop_forced_fixation_chain import _stream_run_forced_fixation_chain_if_needed
+from .stream_loop_transform_tool_args_accounts_override import _maybe_override_transform_tool_args_accounts
+from .stream_loop_missing_required_tools_guardrail import _maybe_append_missing_required_tools_guardrail
+from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
+from .stream_loop_forced_document_reply import _stream_maybe_emit_forced_document_reply
+from .stream_loop_tax_force_chaining import _maybe_run_tax_force_chaining
+from .stream_loop_numeric_provenance_guardrail import _compute_final_out_with_numeric_provenance_guardrail
+from .stream_loop_numeric_provenance_allowed_sources import _build_allowed_sources_for_numeric_provenance
+from .stream_loop_build_target_pension_plan_guardrail import _maybe_apply_build_target_pension_plan_guardrail
+from .stream_loop_mandatory_fixation_chain import _stream_maybe_run_mandatory_fixation_chain
+from .stream_loop_ui_action_approval_short_circuit import _stream_maybe_short_circuit_on_ui_action_approval_request
+from .stream_loop_document_request_allowed_tools_guardrail import _maybe_guardrail_document_request_allowed_tools
+from .stream_loop_transform_funds_to_assets_guardrails import _maybe_guardrail_transform_funds_to_assets
+from .stream_loop_pre_tool_execution_guardrails import _maybe_apply_pre_tool_execution_guardrails
+from .stream_loop_post_tool_execution_processing import _stream_handle_post_tool_execution_processing
+from .stream_loop_non_tool_response_guardrails import _maybe_apply_non_tool_response_guardrails
+from .stream_loop_tool_call_preparation import _stream_prepare_tool_call_and_maybe_request_commutation_approval
+from .stream_loop_llm_response_with_retry import _stream_collect_llm_response_with_retry_or_yield_error
+from .stream_loop_tool_execution_and_processing import _stream_execute_tool_and_process_result
+from .stream_loop_approval_cancel_handling import _maybe_handle_approval_or_cancel_flow
+from .stream_loop_max_capital_deterministic import _maybe_handle_max_capital_request
+from .stream_loop_system_message_injection import (
+    _apply_wants_ignore_blocked_and_portfolio_analysis_messages,
+)
+from .stream_loop_termination_deterministic import _maybe_handle_termination_deterministic
+from .stream_loop_analysis_default_retirement_age import _compute_analysis_default_retirement_age
+from .stream_loop_fixation_documents_deterministic import _maybe_handle_fixation_documents_deterministic
+from .stream_loop_target_plan_deterministic import _maybe_handle_target_plan_deterministic
+from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_deterministic
 
 logger = logging.getLogger(__name__)
 
@@ -378,57 +411,21 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             is_portfolio_analysis=is_portfolio_analysis,
         )
 
-    last_assistant_text = _last_assistant_message_text(request.messages)
-    awaiting_target_plan_gross_net = False
-    if last_assistant_text:
-        lowered_assistant = last_assistant_text.lower()
-        awaiting_target_plan_gross_net = (
-            ("תכנית יעד קצבה" in lowered_assistant or "תכנית יעד" in lowered_assistant)
-            and ("ברוטו" in lowered_assistant)
-            and ("נטו" in lowered_assistant)
-        )
-
-    explicit_target_plan_request = False
-    try:
-        if ("תזרים" not in lowered_user_msg) and ("cashflow" not in lowered_user_msg):
-            planning_keywords = (
-                "יעד קצבה",
-                "תכנית",
-                "תוכנית",
-                "מתווה",
-                "בנה",
-                "צור",
-                "תכנן",
-                "תכנון",
-                "build_target_pension_plan",
-            )
-            if any(k in lowered_user_msg for k in planning_keywords):
-                extracted_target = float(extract_target_pension_from_message(original_user_msg) or 0)
-                explicit_target_plan_request = extracted_target > 0
-    except Exception:
-        explicit_target_plan_request = False
-
-    # Deterministic handling for target pension plan requests (avoid LLM timeouts/temporary failures).
-    # This is read-only: it produces a plan, does not execute conversions.
-    if (
-        request.client_id is not None
-        and (explicit_target_plan_request or awaiting_target_plan_gross_net)
-        and (not is_doc_request)
-        and (not is_qa_mode)
-        and (not no_tools_requested)
-        and (not wants_execute_target_plan)
-    ):
-        return StreamingResponse(
-            generate_target_plan(
-                computed_data=computed_data,
-                original_user_msg=original_user_msg,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                stream_request_id=stream_request_id,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
+    target_plan_response = _maybe_handle_target_plan_deterministic(
+        request=request,
+        db=db,
+        computed_data=computed_data,
+        effective_portfolio=effective_portfolio,
+        original_user_msg=original_user_msg,
+        lowered_user_msg=lowered_user_msg,
+        is_doc_request=is_doc_request,
+        is_qa_mode=is_qa_mode,
+        no_tools_requested=no_tools_requested,
+        wants_execute_target_plan=wants_execute_target_plan,
+        stream_request_id=stream_request_id,
+    )
+    if target_plan_response is not None:
+        return target_plan_response
 
     if commutation_intent and request.client_id is not None:
         account_number = _extract_commutation_account_number(original_user_msg)
@@ -438,534 +435,120 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 media_type="text/plain; charset=utf-8",
             )
 
-    if (
-        (explicit_cashflow_request or wants_cashflow_refresh)
-        and request.client_id is not None
-        and (not is_doc_request)
-        and (not is_qa_mode)
-        and (not no_tools_requested)
-        and (not commutation_intent)
-    ):
-        return StreamingResponse(
-            generate_cashflow(
-                computed_data=computed_data,
-                original_user_msg=original_user_msg,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                force_max_exemption=force_max_exemption,
-                stream_request_id=stream_request_id,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
+    cashflow_response = _maybe_handle_cashflow_deterministic(
+        request=request,
+        db=db,
+        computed_data=computed_data,
+        effective_portfolio=effective_portfolio,
+        original_user_msg=original_user_msg,
+        lowered_user_msg=lowered_user_msg,
+        is_doc_request=is_doc_request,
+        is_qa_mode=is_qa_mode,
+        no_tools_requested=no_tools_requested,
+        commutation_intent=commutation_intent,
+        force_max_exemption=force_max_exemption,
+        stream_request_id=stream_request_id,
+    )
+    if cashflow_response is not None:
+        return cashflow_response
 
-    max_capital_request = (not explicit_termination) and is_max_capital_request(original_user_msg)
-    wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
+    max_capital_response = _maybe_handle_max_capital_request(
+        request=request,
+        db=db,
+        original_user_msg=original_user_msg,
+        lowered_user_msg=lowered_user_msg,
+        explicit_termination=explicit_termination,
+        is_doc_request=is_doc_request,
+        is_qa_mode=is_qa_mode,
+        no_tools_requested=no_tools_requested,
+        computed_data=computed_data,
+        effective_portfolio=effective_portfolio,
+        force_max_exemption=force_max_exemption,
+        stream_request_id=stream_request_id,
+    )
+    if max_capital_response is not None:
+        return max_capital_response
 
-    if (
-        request.client_id is not None
-        and max_capital_request
-        and (not is_doc_request)
-        and (not is_qa_mode)
-        and (not no_tools_requested)
-    ):
-        retirement_age = None
-        try:
-            client = db.query(Client).filter(Client.id == request.client_id).first()
-            client_age = client.get_age() if client and hasattr(client, "get_age") else None
-            from app.services.retirement_age_service import (
-                DEFAULT_MALE_RETIREMENT_AGE,
-                get_retirement_age_simple,
-            )
-
-            legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-            try:
-                if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
-            except Exception:
-                legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-
-            retirement_age = max(int(legal_ret_age), int(client_age or legal_ret_age))
-        except Exception:
-            retirement_age = 67
-
-        scenarios_raw = _execute_tool_call(
-            "RUN_RETIREMENT_SCENARIOS",
-            {"retirement_age": int(retirement_age)},
-            request.client_id,
-            db,
-            pension_portfolio=effective_portfolio,
-            force_max_exemption=force_max_exemption,
-            user_approved=True,
-            request_id=stream_request_id,
-        )
-        try:
-            parsed = json.loads(scenarios_raw) if scenarios_raw else {}
-        except Exception:
-            parsed = {}
-
-        scenario_id = None
-        for row in (parsed.get("scenarios") if isinstance(parsed, dict) else []) or []:
-            if isinstance(row, dict) and row.get("scenario_key") == "scenario_2_max_capital":
-                scenario_id = row.get("scenario_id")
-                break
-
-        if scenario_id is None:
-            return StreamingResponse(
-                iter(["לא הצלחתי ליצור תרחיש 'מקסימום הון' במערכת."]),
-                media_type="text/plain; charset=utf-8",
-            )
-
-        if wants_execute_max_capital:
-            return _stream_request_approval(
-                "EXECUTE_RETIREMENT_SCENARIO",
-                {"scenario_id": int(scenario_id)},
-                reason=(
-                    "בקשת 'משיכה הונית מלאה' מחייבת שמירת קצבת מינימום 5,500 ₪. "
-                    "אצור ואבצע את תרחיש 'מקסימום הון' (שמשאיר קצבת מינימום) רק לאחר אישור."
-                ),
-                computed_data=computed_data,
-                client_id=request.client_id,
-                db=db,
-            )
-
-        return StreamingResponse(
-            iter([
-                "יצרתי תרחיש 'מקסימום הון' (עם שמירת קצבת מינימום 5,500 ₪). "
-                "אם תרצה לבצע אותו בפועל במערכת, כתוב: 'בצע'."
-            ]),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    # Deterministic handling for fixation-rights document requests.
-    # This avoids relying on the LLM to choose the correct GENERATE_* tool.
-    if (
-        request.client_id is not None
-        and wants_fixation_documents
-        and (not is_qa_mode)
-        and (not no_tools_requested)
-    ):
-        return _stream_execute_tool_no_approval(
-            "GENERATE_TAX_DEDUCTION_DOCUMENTS",
-            {"document_type": "fixation_package"},
-            computed_data=computed_data,
-            client_id=request.client_id,
-            db=db,
-            effective_portfolio=effective_portfolio,
-            force_max_exemption=force_max_exemption,
-            stream_request_id=stream_request_id,
-            is_portfolio_analysis=is_portfolio_analysis,
-        )
+    fixation_documents_response = _maybe_handle_fixation_documents_deterministic(
+        request=request,
+        db=db,
+        wants_fixation_documents=wants_fixation_documents,
+        is_qa_mode=is_qa_mode,
+        no_tools_requested=no_tools_requested,
+        computed_data=computed_data,
+        effective_portfolio=effective_portfolio,
+        force_max_exemption=force_max_exemption,
+        stream_request_id=stream_request_id,
+        is_portfolio_analysis=is_portfolio_analysis,
+    )
+    if fixation_documents_response is not None:
+        return fixation_documents_response
 
     # Early deterministic handling for pension commutation requests.
     # Only run this path when the user provided a specific account identifier.
     # If the request is vague (no account number), fall back to the LLM flow.
-    if commutation_intent and request.client_id is not None and (not is_doc_request) and (not is_qa_mode):
-        account_number = _extract_commutation_account_number(original_user_msg)
-        if account_number:
-            fund = None
-            try:
-                from app.models.pension_fund import PensionFund
+    commutation_response = _maybe_handle_commutation_deterministic(
+        commutation_intent=commutation_intent,
+        request=request,
+        is_doc_request=is_doc_request,
+        is_qa_mode=is_qa_mode,
+        original_user_msg=original_user_msg,
+        db=db,
+        effective_portfolio=effective_portfolio,
+        computed_data=computed_data,
+    )
+    if commutation_response is not None:
+        return commutation_response
 
-                fund = (
-                    db.query(PensionFund)
-                    .filter(PensionFund.client_id == request.client_id)
-                    .filter(PensionFund.deduction_file == account_number)
-                    .first()
-                )
-            except Exception:
-                fund = None
-
-            if fund is not None:
-                # Deterministic execution requires an explicit amount (or 'כל היתרה').
-                comm_amount = None
-                try:
-                    if _user_wants_full_balance(original_user_msg):
-                        comm_amount = float(getattr(fund, "balance", 0) or 0)
-                except Exception:
-                    comm_amount = None
-
-                if not comm_amount or comm_amount <= 0:
-                    return StreamingResponse(
-                        generate_commutation_need_amount_existing(computed_data=computed_data),
-                        media_type="text/plain; charset=utf-8",
-                    )
-
-                tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
-                exec_args = {
-                    "pension_fund_id": int(getattr(fund, "id")),
-                    "commutation_amount": float(comm_amount),
-                    "commutation_date": date.today().isoformat(),
-                    "commutation_type": tax_type,
-                    "confirmed": True,
-                }
-                return _stream_request_approval(
-                    "EXECUTE_PENSION_COMMUTATION",
-                    exec_args,
-                    reason="נדרש אישור לפני ביצוע היוון קצבה במערכת.",
-                    computed_data=computed_data,
-                    client_id=request.client_id,
-                    db=db,
-                )
-
-            target_digits = _digits_only(account_number)
-            matched: dict | None = None
-            for acc in (effective_portfolio or []):
-                data = _item_to_dict(acc)
-                acc_num = str(data.get("מספר_חשבון") or data.get("account_number") or "").strip()
-                if not acc_num:
-                    continue
-                if acc_num == account_number:
-                    matched = data
-                    break
-                if target_digits and _digits_only(acc_num) == target_digits:
-                    matched = data
-                    break
-
-            if matched is not None:
-                fund = None
-
-            if fund is None:
-                return StreamingResponse(
-                    generate_commutation_missing(computed_data=computed_data, account_number=account_number),
-                    media_type="text/plain; charset=utf-8",
-                )
-
-            comm_amount = None
-            try:
-                if _user_wants_full_balance(original_user_msg):
-                    comm_amount = float(getattr(fund, "balance", 0) or 0)
-            except Exception:
-                comm_amount = None
-            if not comm_amount or comm_amount <= 0:
-                return StreamingResponse(
-                    generate_commutation_need_amount(computed_data=computed_data),
-                    media_type="text/plain; charset=utf-8",
-                )
-
-            tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
-            exec_args = {
-                "pension_fund_id": int(getattr(fund, "id")),
-                "commutation_amount": float(comm_amount),
-                "commutation_date": date.today().isoformat(),
-                "commutation_type": tax_type,
-                "confirmed": True,
-            }
-            return _stream_request_approval(
-                "EXECUTE_PENSION_COMMUTATION",
-                exec_args,
-                reason="נדרש אישור לפני ביצוע היוון קצבה במערכת.",
-                computed_data=computed_data,
-                client_id=request.client_id,
-                db=db,
-            )
-
-    analysis_default_retirement_age: int | None = None
-    if is_portfolio_analysis and request.client_id is not None:
-        try:
-            client = db.query(Client).filter(Client.id == request.client_id).first()
-            client_age = client.get_age() if client and hasattr(client, "get_age") else None
-            from app.services.retirement_age_service import (
-                DEFAULT_MALE_RETIREMENT_AGE,
-                get_retirement_age_simple,
-            )
-
-            legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-            try:
-                if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
-            except Exception:
-                legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-
-            analysis_default_retirement_age = max(int(legal_ret_age), int(client_age or legal_ret_age))
-        except Exception:
-            analysis_default_retirement_age = None
-
-    termination_already_executed = False
-    if request.client_id is not None:
-        current_employer = (
-            db.query(CurrentEmployer)
-            .filter(CurrentEmployer.client_id == request.client_id)
-            .order_by(CurrentEmployer.id.desc())
-            .first()
-        )
-        if current_employer is not None and current_employer.end_date is not None:
-            grants_count = (
-                db.query(EmployerGrant)
-                .filter(
-                    EmployerGrant.employer_id == current_employer.id,
-                    EmployerGrant.grant_type == GrantType.severance,
-                )
-                .count()
-            )
-            confirmed = False
-            try:
-                other_grants = current_employer.other_grants or {}
-                if isinstance(other_grants, dict):
-                    confirmed = bool(other_grants.get("termination_confirmed"))
-            except Exception:
-                confirmed = False
-            termination_already_executed = confirmed or (grants_count > 0)
-
-    if (
-        explicit_termination
-        and request.client_id is not None
-        and (not no_tools_requested)
-        and (not is_qa_mode)
-        and (not (wants_execute_target_plan or wants_fixation_execute))
-    ):
-
-        recent_user_text = "\n".join(
-            [
-                str(getattr(m, "content", ""))
-                for m in (request.messages or [])
-                if getattr(m, "role", None) == "user"
-            ][-8:]
-        )
-        tool_args: dict[str, Any] = {"confirmed": True}
-        tool_args.update(extract_process_termination_choice_overrides(recent_user_text))
-        termination_date_override = extract_process_termination_date_override(recent_user_text)
-        if termination_date_override:
-            tool_args["termination_date"] = termination_date_override
-        tool_args.update(extract_process_termination_choice_overrides(original_user_msg))
-
-        return _stream_execute_tool_no_approval(
-            "PROCESS_TERMINATION",
-            tool_args,
-            computed_data=computed_data,
-            client_id=request.client_id,
-            db=db,
-            effective_portfolio=effective_portfolio,
-            force_max_exemption=force_max_exemption,
-            stream_request_id=stream_request_id,
-            is_portfolio_analysis=is_portfolio_analysis,
-        )
-
-    if (
-        request.client_id is not None
-        and (not no_tools_requested)
-        and (not is_qa_mode)
-        and (wants_execute_target_plan or wants_fixation_execute)
-    ):
-
-        return StreamingResponse(
-            generate_forced_approval(
-                computed_data=computed_data,
-                explicit_termination=explicit_termination,
-                termination_already_executed=termination_already_executed,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                force_max_exemption=force_max_exemption,
-                stream_request_id=stream_request_id,
-                wants_execute_target_plan=wants_execute_target_plan,
-                wants_fixation_execute=wants_fixation_execute,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    approval = extract_user_approval_for_tool_call(request.messages)
-    cancelled = extract_user_cancel_for_tool_call(request.messages)
-    if request.client_id is not None and (not no_tools_requested):
-        try:
-            pending_db = load_pending_approval_request(
-                db=db,
-                client_id=request.client_id,
-            )
-        except Exception:
-            pending_db = None
-
-        last_user_text = find_last_user_message(request.messages)
-        if pending_db is not None and isinstance(last_user_text, str) and last_user_text:
-            try:
-                if "###USER_APPROVED###" in last_user_text:
-                    after = last_user_text.split("###USER_APPROVED###", 1)[1].strip()
-                    raw_json = after.strip("`").strip()
-                    raw_json = raw_json.splitlines()[0] if raw_json else ""
-                    parsed = json.loads(raw_json) if raw_json else None
-                    if isinstance(parsed, dict):
-                        raw_tool = parsed.get("tool_name")
-                        raw_args = parsed.get("arguments")
-                        pending_tool_name, pending_tool_args = pending_db
-                        if (
-                            isinstance(raw_tool, str)
-                            and isinstance(raw_args, dict)
-                            and isinstance(pending_tool_name, str)
-                            and isinstance(pending_tool_args, dict)
-                            and raw_tool == pending_tool_name
-                        ):
-                            merged_args = dict(pending_tool_args)
-                            merged_args.update(raw_args)
-                            approval = (pending_tool_name, merged_args)
-                if "###USER_CANCELLED###" in last_user_text:
-                    after = last_user_text.split("###USER_CANCELLED###", 1)[1].strip()
-                    raw_json = after.strip("`").strip()
-                    raw_json = raw_json.splitlines()[0] if raw_json else ""
-                    parsed = json.loads(raw_json) if raw_json else None
-                    if isinstance(parsed, dict):
-                        raw_tool = parsed.get("tool_name")
-                        raw_args = parsed.get("arguments")
-                        pending_tool_name, pending_tool_args = pending_db
-                        if (
-                            isinstance(raw_tool, str)
-                            and isinstance(raw_args, dict)
-                            and isinstance(pending_tool_name, str)
-                            and isinstance(pending_tool_args, dict)
-                            and raw_tool == pending_tool_name
-                        ):
-                            merged_args = dict(pending_tool_args)
-                            merged_args.update(raw_args)
-                            cancelled = (pending_tool_name, merged_args)
-            except Exception:
-                pass
-
-        if approval is not None and pending_db is not None:
-            approved_tool_name, approved_tool_args = approval
-            pending_tool_name, pending_tool_args = pending_db
-            if (
-                isinstance(approved_tool_name, str)
-                and isinstance(pending_tool_name, str)
-                and approved_tool_name == pending_tool_name
-                and isinstance(approved_tool_args, dict)
-                and isinstance(pending_tool_args, dict)
-            ):
-                if len(approved_tool_args.keys()) < len(pending_tool_args.keys()):
-                    merged_args = dict(pending_tool_args)
-                    merged_args.update(approved_tool_args)
-                    approval = (approved_tool_name, merged_args)
-
-        if cancelled is not None and pending_db is not None:
-            cancelled_tool_name, cancelled_tool_args = cancelled
-            pending_tool_name, pending_tool_args = pending_db
-            if (
-                isinstance(cancelled_tool_name, str)
-                and isinstance(pending_tool_name, str)
-                and cancelled_tool_name == pending_tool_name
-                and isinstance(cancelled_tool_args, dict)
-                and isinstance(pending_tool_args, dict)
-            ):
-                if len(cancelled_tool_args.keys()) < len(pending_tool_args.keys()):
-                    merged_args = dict(pending_tool_args)
-                    merged_args.update(cancelled_tool_args)
-                    cancelled = (cancelled_tool_name, merged_args)
-
-    if approval is None and request.client_id is not None and (not no_tools_requested):
-        last_user_text = find_last_user_message(request.messages)
-        if is_user_approval_intent_text(last_user_text):
-            pending = extract_latest_approval_request(request.messages)
-            if pending is not None:
-                approval = pending
-            else:
-                pending_db = pending_db
-                if pending_db is not None:
-                    approval = pending_db
-    if approval and request.client_id is not None and (not no_tools_requested):
-        approved_tool_name, approved_tool_args = approval
-
-        if (
-            approved_tool_name == "PROCESS_TERMINATION"
-            and termination_already_executed
-            and (not termination_change)
-            and wants_execute_target_plan
-        ):
-            return StreamingResponse(
-                generate_execute_target_after_termination(
-                    computed_data=computed_data,
-                    request=request,
-                    db=db,
-                    effective_portfolio=effective_portfolio,
-                    force_max_exemption=force_max_exemption,
-                    stream_request_id=stream_request_id,
-                ),
-                media_type="text/plain; charset=utf-8",
-            )
-
-        if approved_tool_name == "PROCESS_TERMINATION":
-            overrides = extract_process_termination_choice_overrides(original_user_msg)
-            if overrides and isinstance(approved_tool_args, dict):
-                approved_tool_args = dict(approved_tool_args)
-                approved_tool_args.update(overrides)
-
-        if is_doc_request and not is_qa_mode:
-            allowed_doc_tools = {"GENERATE_FULL_REPORT", "GENERATE_TAX_DEDUCTION_DOCUMENTS", "TRANSFORM_FUNDS_TO_ASSETS"}
-            if approved_tool_name not in allowed_doc_tools:
-                return StreamingResponse(
-                    iter(
-                        [
-                            "אזהרה: המשתמש ביקש דוח/מסמך (ללא QA). הכלי המאושר אינו מותר במצב זה."
-                        ]
-                    ),
-                    media_type="text/plain; charset=utf-8",
-                )
-
-        if is_qa_mode and approved_tool_name not in {
-            "GET_PENSION_PRODUCTS",
-            "TRANSFORM_FUNDS_TO_ASSETS",
-            "GENERATE_FULL_REPORT",
-        }:
-            return StreamingResponse(
-                iter(["אזהרה: במצב QA הכלי המאושר אינו מותר."]),
-                media_type="text/plain; charset=utf-8",
-            )
-
-        return StreamingResponse(
-            generate_approval_exec(
-                computed_data=computed_data,
-                approved_tool_name=approved_tool_name,
-                approved_tool_args=approved_tool_args,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                force_max_exemption=force_max_exemption,
-                stream_request_id=stream_request_id,
-                is_portfolio_analysis=is_portfolio_analysis,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    if cancelled and request.client_id is not None and (not no_tools_requested):
-        cancelled_tool_name, _cancelled_tool_args = cancelled
-        return StreamingResponse(
-            iter([f"בוצעה ביטול להפעלת הכלי: {cancelled_tool_name}. לא בוצע שינוי במערכת."]),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    wants_ignore_blocked = any(
-        _is_ignore_blocked_text(getattr(m, "content", ""))
-        for m in (request.messages or [])
-        if getattr(m, "role", None) == "user"
+    analysis_default_retirement_age = _compute_analysis_default_retirement_age(
+        request=request,
+        db=db,
+        is_portfolio_analysis=is_portfolio_analysis,
     )
 
-    wants_ignore_blocked = wants_ignore_blocked or any(
-        is_no_termination_request(getattr(m, "content", ""))
-        for m in (request.messages or [])
-        if getattr(m, "role", None) == "user"
+    termination_already_executed, termination_response = _maybe_handle_termination_deterministic(
+        request=request,
+        db=db,
+        original_user_msg=original_user_msg,
+        explicit_termination=explicit_termination,
+        termination_change=termination_change,
+        no_tools_requested=no_tools_requested,
+        is_qa_mode=is_qa_mode,
+        wants_execute_target_plan=wants_execute_target_plan,
+        wants_fixation_execute=wants_fixation_execute,
+        computed_data=computed_data,
+        effective_portfolio=effective_portfolio,
+        force_max_exemption=force_max_exemption,
+        stream_request_id=stream_request_id,
+        is_portfolio_analysis=is_portfolio_analysis,
     )
+    if termination_response is not None:
+        return termination_response
 
-    if wants_ignore_blocked:
-        messages.append(
-            ChatMessage(
-                role="system",
-                content=(
-                    "המשתמש אישר להתעלם מיתרות חסומות/יתרות לטיפול במסך עזיבת עבודה ולהמשיך בחישוב רק על מה שניתן. "
-                    "אל תשאל שוב לאישור על זה. אל תבצע עזיבת עבודה בשיחה זו, והמשך עם שאר הכלים הרלוונטיים בלבד."
-                ),
-            )
-        )
+    approval_response = _maybe_handle_approval_or_cancel_flow(
+        request=request,
+        db=db,
+        no_tools_requested=no_tools_requested,
+        computed_data=computed_data,
+        termination_already_executed=termination_already_executed,
+        termination_change=termination_change,
+        wants_execute_target_plan=wants_execute_target_plan,
+        original_user_msg=original_user_msg,
+        effective_portfolio=effective_portfolio,
+        force_max_exemption=force_max_exemption,
+        stream_request_id=stream_request_id,
+        is_portfolio_analysis=is_portfolio_analysis,
+        is_doc_request=is_doc_request,
+        is_qa_mode=is_qa_mode,
+    )
+    if approval_response is not None:
+        return approval_response
 
-    if is_portfolio_analysis:
-        messages.append(
-            ChatMessage(
-                role="system",
-                content=(
-                    "הנחיה: המשתמש ביקש ניתוח תיק. חובה להחזיר ניתוח מיד (Advisory Mode). "
-                    "אסור לבצע אימות/בדיקת חוקיות של סכום הפיצויים מול נוסחה או מול 'חובת מעסיק'. "
-                    "ברירת מחדל: אסור לפרט מדרגות מס. חריג: אם המשתמש ביקש פרמטרים/מדרגות/תקרות והרצת GET_TAX_PARAMS — מותר לצטט מספרים רק מתוך תוצאת הכלי. "
-                    "כאשר אתה מדבר עם המשתמש על הפעולה, השתמש במונח 'עזיבת עבודה' בלבד. "
-                    "אם מציגים תרחישים אוטומטיים: הם הערכה גסה/ראשונית בלבד, והצג אותם כ'תרחיש 1/2/3'."
-                ),
-            )
-        )
+    wants_ignore_blocked = _apply_wants_ignore_blocked_and_portfolio_analysis_messages(
+        request=request,
+        messages=messages,
+        is_portfolio_analysis=is_portfolio_analysis,
+    )
 
     log_llm_event(
         request_id=stream_request_id,
@@ -986,185 +569,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         current_pension_portfolio = effective_portfolio
 
         if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
-            wants_remaining_only = any(
-                token in (lowered_user_msg or "")
-                for token in (
-                    "שנותר",
-                    "שנשאר",
-                    "מה שנשאר",
-                    "remaining",
-                    "left",
-                )
-            )
-            partial_req = parse_partial_pension_conversion_request(original_user_msg)
-            if partial_req is not None:
-                acc_num, amount = partial_req
-                partial_accounts = build_partial_pension_transform_accounts_from_portfolio(
-                    pension_portfolio=current_pension_portfolio,
-                    account_number=acc_num,
-                    amount=amount,
-                )
-                if not partial_accounts:
-                    yield (
-                        f"לא הצלחתי למצוא חשבון מספר {acc_num} בתיק כדי לבצע המרה חלקית. "
-                        "אנא ודא שמספר החשבון נכון ושיש סנאפשוט תיק מעודכן."
-                    )
-                    return
-                tool_args: dict[str, Any] = {
-                    "accounts": partial_accounts,
-                    "use_provided_accounts_only": True,
-                }
-            else:
-                targeted_req = parse_targeted_component_conversion_request(original_user_msg)
-                if targeted_req is not None:
-                    acc_num, fields, conv_type = targeted_req
-                    targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                        pension_portfolio=current_pension_portfolio,
-                        account_number=acc_num,
-                        fields=fields,
-                        conversion_type=conv_type,
-                    )
-                    if not targeted_accounts:
-                        yield (
-                            f"לא הצלחתי למצוא רכיבים מתאימים בחשבון מספר {acc_num} כדי לבצע המרה ממוקדת. "
-                            "אנא ודא שמספר החשבון נכון ושיש רכיב רלוונטי בתיק."
-                        )
-                        return
-                    tool_args = {
-                        "accounts": targeted_accounts,
-                        "use_provided_accounts_only": True,
-                    }
-                else:
-                    prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(original_user_msg)
-                    if prev_sev_req is not None:
-                        fields, conv_type = prev_sev_req
-                        if conv_type == "blocked":
-                            yield (
-                                "מצאתי בקשה ל'פיצויים מעסיקים קודמים (רצף זכויות)', אך רכיב זה חסום להמרה במערכת "
-                                "ודורש טיפול חיצוני/התחשבנות. אם תרצה, אוכל להציג באילו חשבונות הוא מופיע."
-                            )
-                            return
-                        portfolio_accounts = build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio(
-                            pension_portfolio=current_pension_portfolio,
-                            conversion_type=conv_type,
-                        )
-                        if not portfolio_accounts:
-                            yield "לא מצאתי בתיק רכיב 'פיצויים מעסיקים קודמים (רצף קצבה)' להמרה."
-                            return
-                        tool_args = {"accounts": portfolio_accounts, "use_provided_accounts_only": True}
-                    else:
-                        after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
-                            original_user_msg
-                        )
-                        if after_settle_req is not None:
-                            fields, conv_type = after_settle_req
-                            portfolio_accounts = build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio(
-                                pension_portfolio=current_pension_portfolio,
-                                conversion_type=conv_type,
-                            )
-                            if not portfolio_accounts:
-                                yield "לא מצאתי בתיק רכיב 'פיצויים לאחר התחשבנות' להמרה."
-                                return
-                            tool_args = {
-                                "accounts": portfolio_accounts,
-                                "use_provided_accounts_only": True,
-                            }
-                        else:
-                            portfolio_wide_req = parse_portfolio_wide_component_conversion_request(original_user_msg)
-                            if portfolio_wide_req is not None:
-                                fields, conv_type = portfolio_wide_req
-                                portfolio_accounts = build_portfolio_wide_component_transform_accounts_from_portfolio(
-                                    pension_portfolio=current_pension_portfolio,
-                                    fields=fields,
-                                    conversion_type=conv_type,
-                                )
-                                if not portfolio_accounts:
-                                    yield (
-                                        "לא מצאתי בתיק רכיבי 'תגמולים אחרי 2000' להמרה. "
-                                        "אם אתה מתכוון לרכיבים אחרים, ציין במפורש אילו רכיבים להמיר."
-                                    )
-                                    return
-                                tool_args = {
-                                    "accounts": portfolio_accounts,
-                                    "use_provided_accounts_only": True,
-                                }
-                            else:
-                                edu_req = parse_portfolio_wide_education_fund_conversion_request(original_user_msg)
-                                if edu_req is not None:
-                                    _fields, conv_type = edu_req
-                                    edu_accounts = build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
-                                        pension_portfolio=current_pension_portfolio,
-                                        conversion_type=conv_type,
-                                    )
-                                    if not edu_accounts:
-                                        yield "לא מצאתי בתיק קרנות השתלמות להמרה."
-                                        return
-                                    tool_args = {
-                                        "accounts": edu_accounts,
-                                        "use_provided_accounts_only": True,
-                                    }
-                                else:
-                                    derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
-                                    if not derived_accounts:
-                                        yield (
-                                            "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "
-                                            "כדי לבצע המרה מלאה צריך קודם לטעון תיק מסלקה כך שיופיע פירוט חשבונות."
-                                        )
-                                        return
-                                    tool_args = {
-                                        "accounts": derived_accounts,
-                                    }
-
-            if wants_remaining_only and partial_req is None:
-                tool_args["remaining_only"] = True
-
-            if wants_capital_transform:
-                yield (
-                    "המרה להון של רכיבים קצבתיים (למשל 'תגמולים אחרי 2000') לא מבוצעת דרך TRANSFORM_FUNDS_TO_ASSETS, "
-                    "כדי למנוע הפרת קצבת מינימום.\n\n"
-                    "אם הכוונה ל*משיכה הונית מלאה* — בקש: 'משיכה הונית מלאה' ואז אשר את תרחיש 'מקסימום הון' "
-                    "(ששומר קצבת מינימום 5,500).\n"
-                    "אם הכוונה ל*היוון קצבה ספציפית* — בקש: 'הוון קצבה' וציין מספר חשבון/שם קצבה."
-                )
-                return
-
-            log_llm_event(
-                request_id=req_id,
-                event_type="tool_call",
-                payload={"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": tool_args},
-                client_id=request.client_id,
-                extra={"endpoint": "stream"},
-            )
-
-            tool_result = _execute_tool_call(
-                "TRANSFORM_FUNDS_TO_ASSETS",
-                tool_args,
-                request.client_id,
-                db,
-                pension_portfolio=current_pension_portfolio,
-                force_max_exemption=False,
-                request_id=req_id,
-            )
-
-            log_llm_event(
-                request_id=req_id,
-                event_type="tool_result",
-                payload={"tool_name": "TRANSFORM_FUNDS_TO_ASSETS", "result": tool_result},
-                client_id=request.client_id,
-                extra={"endpoint": "stream"},
-            )
-
-            portfolio_update_marker = build_pension_portfolio_update_after_transform(
-                tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                tool_result=tool_result,
-                tool_args=tool_args,
+            yield from _stream_handle_explicit_transform(
+                lowered_user_msg=lowered_user_msg,
+                original_user_msg=original_user_msg,
                 current_pension_portfolio=current_pension_portfolio,
+                request=request,
+                db=db,
+                req_id=req_id,
+                wants_capital_transform=wants_capital_transform,
             )
-
-            if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
-                yield portfolio_update_marker
-
-            yield format_transform_result_for_user(tool_result=tool_result)
             return
 
         report_open_path: str | None = None
@@ -1201,7 +614,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         while current_step < max_steps:
             current_step += 1
 
-            full_response, llm_err = _collect_llm_response_with_retry(
+            should_break, full_response = yield from _stream_collect_llm_response_with_retry_or_yield_error(
+                collect_llm_response_with_retry=_collect_llm_response_with_retry,
                 history_messages=history_messages,
                 client_id=request.client_id,
                 stream_request_id=stream_request_id,
@@ -1210,161 +624,27 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 get_llm_service=_get_llm_service,
                 get_retry_settings=_get_retry_settings,
             )
-            if not isinstance(full_response, str) or not full_response.strip():
-                logger.error(
-                    "Public chat LLM call failed (request_id=%s, client_id=%s, step=%s, error=%s)",
-                    stream_request_id,
-                    request.client_id,
-                    current_step,
-                    llm_err,
-                )
-                yield (
-                    "שגיאה: לא הצלחתי לקבל תשובה מהמערכת כרגע (כשל זמני). "
-                    "נסה שוב בעוד רגע. "
-                    f"(request_id: {stream_request_id})"
-                )
+            if should_break:
                 break
 
             if tool_call_marker not in full_response:
-                lowered = (full_response or "").lower()
-                has_pass_fail = ("pass" in lowered) or ("fail" in lowered)
-
-                user_msg_for_default_date = find_last_user_message(request.messages) or ""
-                birth_date_for_default_date = None
-                client = None
-                if request.client_id is not None:
-                    client = (
-                        db.query(Client)
-                        .filter(Client.id == request.client_id)
-                        .first()
-                    )
-                    birth_date_for_default_date = (
-                        getattr(client, "birth_date", None) if client else None
-                    )
-
-                gender_for_default_date = None
-                try:
-                    gender_for_default_date = getattr(client, "gender", None) if client else None
-                except Exception:
-                    gender_for_default_date = None
-
-                default_retirement_date = compute_default_retirement_date_for_tool_call(
-                    birth_date=birth_date_for_default_date,
-                    gender=gender_for_default_date,
-                    user_message=user_msg_for_default_date,
+                should_continue, has_pass_fail = _maybe_apply_non_tool_response_guardrails(
+                    full_response=full_response,
+                    request=request,
+                    db=db,
+                    history_messages=history_messages,
+                    is_qa_mode=is_qa_mode,
+                    no_tools_requested=no_tools_requested,
+                    required_tools=required_tools,
+                    executed_tools=executed_tools,
+                    is_tax_doc_request=is_tax_doc_request,
+                    qa_summary_required=qa_summary_required,
+                    is_cashflow_request=is_cashflow_request,
+                    is_comparison_request=is_comparison_request,
+                    is_net_request=is_net_request,
+                    is_doc_request=is_doc_request,
                 )
-
-                if is_qa_mode and no_tools_requested and not has_pass_fail:
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: המשתמש ביקש QA להסבר בלבד וביקש במפורש לא להפעיל כלים. "
-                                "אסור להחזיר TOOL_CALL. כעת החזר תשובת PASS או FAIL בלבד + 3-6 שורות סיכום קצר."
-                            ),
-                        )
-                    )
-                    continue
-
-                missing_tools = required_tools.difference(executed_tools)
-
-                if missing_tools and not no_tools_requested:
-                    preferred_order = ["TRANSFORM_FUNDS_TO_ASSETS"]
-                    if is_tax_doc_request:
-                        preferred_order.append("GENERATE_TAX_DEDUCTION_DOCUMENTS")
-                    else:
-                        preferred_order.append("GENERATE_FULL_REPORT")
-                    suggested_tool = next(
-                        (name for name in preferred_order if name in missing_tools),
-                        next(iter(missing_tools)),
-                    )
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: טרם הושלמו שלבי החובה לבקשה. "
-                                f"כעת עליך להפעיל את הכלי: {suggested_tool}. "
-                                "החזר רק בלוקים בפורמט: "
-                                '###TRANSPARENCY_LOG### {...} ואז ###RISK_REVIEW### {...} ואז ###TOOL_CALL### {"name": "TOOL_NAME", "arguments": {...}} ללא טקסט נוסף.'
-                            ),
-                        )
-                    )
-                    continue
-
-                if qa_summary_required and not has_pass_fail:
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: במצב QA חובה לסיים בתשובת PASS/FAIL וסיכום קצר. "
-                                "החזר כעת תשובת PASS או FAIL בלבד + 3-6 שורות סיכום + open_path של הדוח."
-                            ),
-                        )
-                    )
-                    continue
-
-                has_tool_results = any(
-                    (m.role == "system")
-                    and (
-                        ("Tool Result (" in (m.content or ""))
-                        or ("פלט כלי (" in (m.content or ""))
-                    )
-                    for m in history_messages
-                )
-
-                if is_cashflow_request and (not no_tools_requested) and (not has_tool_results):
-                    if _user_requested_target_pension_plan(user_msg_for_default_date):
-                        warning_msg = (
-                            "אזהרה: המשתמש ביקש מתווה/תכנית ליעד קצבה עם מספר. אסור לענות ללא הרצת הכלי הייעודי. "
-                            "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
-                            '###TRANSPARENCY_LOG### {...} ואז ###RISK_REVIEW### {...} ואז ###TOOL_CALL### {"name": "BUILD_TARGET_PENSION_PLAN", "arguments": {"target_monthly_pension": 28000}} ללא טקסט נוסף.'
-                        )
-                        history_messages.append(ChatMessage(role="system", content=warning_msg))
-                        continue
-
-                    warning_msg = (
-                        "אזהרה: אסור לך לענות על בקשות חישוב/השוואת קצבה ללא הרצת כלים. "
-                        "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
-                        f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {{"retirement_date": "{default_retirement_date}"}}}} ללא טקסט נוסף.'
-                    )
-                    history_messages.append(ChatMessage(role="system", content=warning_msg))
-                    continue
-
-                if is_comparison_request and (not no_tools_requested):
-                    cashflow_results = sum(
-                        1
-                        for m in history_messages
-                        if (m.role == "system")
-                        and ("Tool Result (RUN_RETIREMENT_CASHFLOW_ANALYSIS" in m.content)
-                    )
-                    if cashflow_results < 2:
-                        warning_msg = (
-                            "אזהרה: המשתמש ביקש השוואה בין שני תרחישי פרישה (למשל גיל 68 מול 69). "
-                            "אסור לספק תשובה מספרית לפני שתי הרצות של RUN_RETIREMENT_CASHFLOW_ANALYSIS (אחת לכל תרחיש). "
-                            "כעת עליך להחזיר רק בלוק יחיד בפורמט "
-                            f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {{"retirement_date": "{default_retirement_date}"}}}} ללא טקסט נוסף.'
-                        )
-                        history_messages.append(ChatMessage(role="system", content=warning_msg))
-                        continue
-
-                if is_net_request and (not no_tools_requested) and not has_tool_results:
-                    warning_msg = (
-                        "אזהרה: אסור לך לענות על שאלות נטו או אחרי מס ללא הרצת כלים. "
-                        "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
-                        f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {{"retirement_date": "{default_retirement_date}"}}}} ללא טקסט נוסף.'
-                    )
-                    history_messages.append(ChatMessage(role="system", content=warning_msg))
-                    continue
-
-                if is_doc_request and not has_tool_results:
-                    doc_tool = "GENERATE_TAX_DEDUCTION_DOCUMENTS" if is_tax_doc_request else "GENERATE_FULL_REPORT"
-                    warning_msg = (
-                        "אזהרה: המשתמש ביקש דוח/מסמך להורדה. אסור לך להשיב טקסט חופשי או לטעון שהופק מסמך ללא הפעלת כלי GENERATE_* "
-                        "והחזרת download_url או open_path. התשובה האחרונה שלך בוטלה. "
-                        "כעת עליך להחזיר רק בלוק יחיד בפורמט "
-                        f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "{doc_tool}", "arguments": {{}}}} ללא טקסט נוסף.'
-                    )
-                    history_messages.append(ChatMessage(role="system", content=warning_msg))
+                if should_continue:
                     continue
 
                 log_llm_event(
@@ -1377,735 +657,83 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 if qa_summary_required and has_pass_fail:
                     qa_summary_satisfied = True
 
-                allowed_sources: list[str] = []
-                try:
-                    for msg in (request.messages or []):
-                        if getattr(msg, "role", None) == "user":
-                            allowed_sources.append(getattr(msg, "content", "") or "")
-                except Exception:
-                    pass
-
-                try:
-                    for msg in (history_messages or []):
-                        if getattr(msg, "role", None) != "system":
-                            continue
-                        content = getattr(msg, "content", "") or ""
-                        if ("Tool Result (" in content) or ("פלט כלי (" in content):
-                            allowed_sources.append(content)
-                except Exception:
-                    pass
-
-                violation = validate_reply_numeric_provenance(
-                    reply_text=full_response,
-                    allowed_source_texts=allowed_sources,
+                allowed_sources = _build_allowed_sources_for_numeric_provenance(
+                    request=request,
+                    history_messages=history_messages,
                 )
-                if violation is not None:
-                    try:
-                        log_llm_event(
-                            request_id=req_id,
-                            event_type="numeric_provenance_violation",
-                            payload={"tokens": list(violation.tokens)},
-                            client_id=request.client_id,
-                            extra={"endpoint": "stream"},
-                        )
-                    except Exception:
-                        pass
-                    final_out = (
-                        "שגיאה: המערכת חסמה תשובה שכללה מספרים שלא הגיעו מחישוב מערכת. "
-                        "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
-                    )
-                else:
-                    final_out = sanitize_user_visible_text(full_response)
-                if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
-                    final_out = "\n".join(
-                        ln for ln in final_out.splitlines() if "מדרגות מס" not in ln
-                    )
-                if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
-                    if "הערכה" not in final_out and "הערכה גסה" not in final_out and "ראשונית" not in final_out:
-                        final_out = (
-                            "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\n"
-                            + final_out
-                        )
+                final_out = _compute_final_out_with_numeric_provenance_guardrail(
+                    req_id=req_id,
+                    request=request,
+                    full_response=full_response,
+                    allowed_sources=allowed_sources,
+                    is_portfolio_analysis=is_portfolio_analysis,
+                )
                 yield final_out
                 break
 
             try:
-                parsed = parse_tool_call_from_reply(full_response)
-                if parsed is None:
+                (
+                    should_continue,
+                    should_break,
+                    should_return,
+                    tool_name,
+                    tool_args,
+                    current_pension_portfolio,
+                ) = yield from _stream_prepare_tool_call_and_maybe_request_commutation_approval(
+                    full_response=full_response,
+                    request=request,
+                    db=db,
+                    req_id=req_id,
+                    history_messages=history_messages,
+                    original_user_msg=original_user_msg,
+                    is_portfolio_analysis=is_portfolio_analysis,
+                    analysis_default_retirement_age=analysis_default_retirement_age,
+                    no_tools_requested=no_tools_requested,
+                    is_qa_mode=is_qa_mode,
+                    is_doc_request=is_doc_request,
+                    is_tax_doc_request=is_tax_doc_request,
+                    wants_ignore_blocked=wants_ignore_blocked,
+                    explicit_termination=explicit_termination,
+                    termination_already_executed=termination_already_executed,
+                    termination_change=termination_change,
+                    current_pension_portfolio=current_pension_portfolio,
+                    wants_capital_transform=wants_capital_transform,
+                    force_max_exemption_val=force_max_exemption_val,
+                )
+                if should_continue:
+                    continue
+                if should_break:
                     break
-
-                text_part, tool_data = parsed
-                tool_name = tool_data.get("name")
-                tool_args = tool_data.get("arguments", {})
-
-                if tool_name == "RUN_RETIREMENT_SCENARIOS" and is_portfolio_analysis:
-                    if not isinstance(tool_args, dict):
-                        tool_args = {}
-                    if analysis_default_retirement_age is not None:
-                        tool_args["retirement_age"] = analysis_default_retirement_age
-
-                if _user_requested_target_pension_plan(original_user_msg) and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: המשתמש ביקש לבנות תכנית יעד קצבה (מתווה להשגת יעד חודשי). "
-                                "אסור להפעיל RUN_RETIREMENT_CASHFLOW_ANALYSIS בהקשר זה. "
-                                "כעת אל תחזיר TOOL_CALL. במקום זאת החזר TOOL_CALL ל-BUILD_TARGET_PENSION_PLAN בלבד "
-                                "עם target_monthly_pension כפי שמופיע בבקשת המשתמש."
-                            ),
-                        )
-                    )
-                    continue
-
-                if tool_name == "BUILD_TARGET_PENSION_PLAN":
-                    if not isinstance(tool_args, dict):
-                        tool_args = {}
-                    user_wants_plan = _user_requested_target_pension_plan(original_user_msg)
-                    raw_target = tool_args.get("target_monthly_pension")
-                    target_ok = False
-                    try:
-                        target_ok = float(raw_target or 0) > 0
-                    except Exception:
-                        target_ok = False
-
-                    if user_wants_plan:
-                        extracted_target = _extract_target_monthly_pension(original_user_msg)
-                        if extracted_target and extracted_target > 0:
-                            tool_args["target_monthly_pension"] = extracted_target
-                            try:
-                                target_ok = float(extracted_target) > 0
-                            except Exception:
-                                target_ok = False
-
-                        tool_args["target_is_net"] = _infer_target_is_net(original_user_msg)
-
-                    if (not user_wants_plan) or (not target_ok):
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "אזהרה: אסור לבצע BUILD_TARGET_PENSION_PLAN כאשר המשתמש ביקש ניתוח/אפשרויות משיכה בלבד, "
-                                    "או כאשר לא סופק יעד קצבה חודשי מספרי מפורש. "
-                                    "כעת אל תחזיר TOOL_CALL. במקום זאת: "
-                                    "(1) אם המשתמש ביקש ניתוח/אפשרויות משיכה – השב טקסטואלית על סמך טבלת המוצרים והחוקים; "
-                                    "(2) אם המשתמש מבקש תכנית יעד קצבה – שאל שאלה אחת: מה יעד הקצבה החודשי במספר (למשל 20000)."
-                                ),
-                            )
-                        )
-                        continue
-
-                if tool_name == "PROCESS_TERMINATION" and wants_ignore_blocked:
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: המשתמש ביקש במפורש להתעלם מיתרות חסומות/עזיבת עבודה ולהמשיך ללא טיפול בעזיבת עבודה. "
-                                "אסור לבצע עזיבת עבודה. כעת המשך ללא TOOL_CALL ובחר כלי אחר שמתאים לבקשה."
-                            ),
-                        )
-                    )
-                    continue
-
-                if tool_name == "PROCESS_TERMINATION" and (not explicit_termination):
-                    allow_change_after_execution = bool(
-                        termination_already_executed and termination_change
-                    )
-                    if not allow_change_after_execution:
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "אזהרה: אסור לבצע עזיבת עבודה ללא בקשה מפורשת לביצוע עזיבת עבודה/פיצויים. "
-                                    "כעת המשך ללא TOOL_CALL."
-                                ),
-                            )
-                        )
-                        continue
-
-                if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
-                    # Guardrail: if the user is asking about current-employer severance / work termination,
-                    # do not transform the whole portfolio. The correct action is PROCESS_TERMINATION.
-                    # This prevents accidental portfolio conversion when the user asked to withdraw an exempt grant
-                    # during work termination.
-                    if (
-                        (not wants_ignore_blocked)
-                        and (not is_doc_request)
-                        and (not is_qa_mode)
-                        and is_process_termination_request(original_user_msg)
-                    ):
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "אזהרה: המשתמש ביקש עזיבת עבודה/פיצויים/מענק. "
-                                    "אסור לבצע המרת תיק לנכסים. "
-                                    "כעת אל תחזיר TOOL_CALL ל-TRANSFORM_FUNDS_TO_ASSETS. "
-                                    "במקום זאת החזר TOOL_CALL ל-PROCESS_TERMINATION בלבד (עם confirmed=true)."
-                                ),
-                            )
-                        )
-                        continue
-
-                    # Guardrail: pension commutation (היוון קצבה) must not be routed to TRANSFORM_FUNDS_TO_ASSETS.
-                    if (
-                        (not is_doc_request)
-                        and (not is_qa_mode)
-                        and is_pension_commutation_request(original_user_msg)
-                    ):
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "אזהרה: המשתמש ביקש היוון קצבה. "
-                                    "אסור לבצע TRANSFORM_FUNDS_TO_ASSETS. "
-                                    "כעת אל תחזיר TOOL_CALL להמרת תיק. "
-                                    "במקום זאת החזר TOOL_CALL ל-EXECUTE_PENSION_COMMUTATION בלבד (עם confirmed=true) "
-                                    "ועם pension_fund_id, commutation_amount, commutation_date, commutation_type."
-                                ),
-                            )
-                        )
-                        continue
-
-                    # Deterministic override: if the user asked to convert a specific component bucket
-                    # (e.g., "תגמולים לפני 2000"), do NOT allow a full-portfolio tool call.
-                    if (not current_pension_portfolio) and request.client_id is not None:
-                        loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
-                        if loaded is not None:
-                            current_pension_portfolio, _effective_snapshot_at = loaded
-
-                    if isinstance(current_pension_portfolio, list) and current_pension_portfolio:
-                        targeted_req = parse_targeted_component_conversion_request(original_user_msg)
-                        if targeted_req is not None:
-                            acc_num, fields, conv_type = targeted_req
-                            targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                                pension_portfolio=current_pension_portfolio,
-                                account_number=acc_num,
-                                fields=fields,
-                                conversion_type=conv_type,
-                            )
-                            if targeted_accounts:
-                                tool_args["accounts"] = targeted_accounts
-                                tool_args["use_provided_accounts_only"] = True
-                        else:
-                            prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(
-                                original_user_msg
-                            )
-                            if prev_sev_req is not None:
-                                _fields, conv_type = prev_sev_req
-                                if conv_type != "blocked":
-                                    portfolio_accounts = build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio(
-                                        pension_portfolio=current_pension_portfolio,
-                                        conversion_type=conv_type,
-                                    )
-                                    if portfolio_accounts:
-                                        tool_args["accounts"] = portfolio_accounts
-                                        tool_args["use_provided_accounts_only"] = True
-                            else:
-                                after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
-                                    original_user_msg
-                                )
-                                if after_settle_req is not None:
-                                    _fields, conv_type = after_settle_req
-                                    portfolio_accounts = build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio(
-                                        pension_portfolio=current_pension_portfolio,
-                                        conversion_type=conv_type,
-                                    )
-                                    if portfolio_accounts:
-                                        tool_args["accounts"] = portfolio_accounts
-                                        tool_args["use_provided_accounts_only"] = True
-                                else:
-                                    portfolio_wide_req = parse_portfolio_wide_component_conversion_request(
-                                        original_user_msg
-                                    )
-                                    if portfolio_wide_req is not None:
-                                        fields, conv_type = portfolio_wide_req
-                                        portfolio_accounts = build_portfolio_wide_component_transform_accounts_from_portfolio(
-                                            pension_portfolio=current_pension_portfolio,
-                                            fields=fields,
-                                            conversion_type=conv_type,
-                                        )
-                                        if portfolio_accounts:
-                                            tool_args["accounts"] = portfolio_accounts
-                                            tool_args["use_provided_accounts_only"] = True
-                                    else:
-                                        edu_req = parse_portfolio_wide_education_fund_conversion_request(
-                                            original_user_msg
-                                        )
-                                        if edu_req is not None:
-                                            _fields, conv_type = edu_req
-                                            edu_accounts = build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
-                                                pension_portfolio=current_pension_portfolio,
-                                                conversion_type=conv_type,
-                                            )
-                                            if edu_accounts:
-                                                tool_args["accounts"] = edu_accounts
-                                                tool_args["use_provided_accounts_only"] = True
-
-                    if wants_ignore_blocked:
-                        tool_args["ignore_blocked_balances"] = True
-                        tool_args["skip_non_convertible_accounts"] = True
-
-                    if wants_capital_transform:
-                        tool_args.setdefault("default_conversion_type", "capital_asset")
-                        tool_args["commute_pension_components"] = True
-
-                if no_tools_requested:
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: המשתמש ביקש QA להסבר בלבד וביקש במפורש לא להפעיל כלים. "
-                                "אסור לבצע TOOL_CALL. החזר תשובת PASS או FAIL בלבד + 3-6 שורות סיכום קצר, ללא כלים."
-                            ),
-                        )
-                    )
-                    continue
-
-                if is_doc_request and not is_qa_mode:
-                    allowed_doc_tools = {"GENERATE_FULL_REPORT"}
-                    if (
-                        isinstance(current_pension_portfolio, list)
-                        and current_pension_portfolio
-                    ):
-                        allowed_doc_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
-
-                    if is_tax_doc_request:
-                        allowed_doc_tools = {"GENERATE_TAX_DEDUCTION_DOCUMENTS"}
-                        if (
-                            isinstance(current_pension_portfolio, list)
-                            and current_pension_portfolio
-                        ):
-                            allowed_doc_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
-
-                    if tool_name not in allowed_doc_tools:
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "אזהרה: המשתמש ביקש דוח/מסמך להורדה (ללא QA). "
-                                    "אסור לבצע פעולות שמשנות נתונים או תהליכים אחרים. "
-                                    "כעת עליך לבחור רק אחד מהכלים המותרים: "
-                                    + ", ".join(sorted(allowed_doc_tools))
-                                    + "."
-                                ),
-                            )
-                        )
-                        continue
-
-                if is_qa_mode and tool_name not in {
-                    "GET_PENSION_PRODUCTS",
-                    "TRANSFORM_FUNDS_TO_ASSETS",
-                    "GENERATE_FULL_REPORT",
-                }:
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: המשתמש ביקש בדיקת מערכת (QA). "
-                                "במצב QA אסור להפעיל כלים שמשנים נתונים או עוסקים בתהליכים אחרים. "
-                                "כעת עליך לבחור רק אחד מהכלים: GET_PENSION_PRODUCTS, TRANSFORM_FUNDS_TO_ASSETS, GENERATE_FULL_REPORT."
-                            ),
-                        )
-                    )
-                    continue
-
-                ok, error_msg = validate_tool_call_protocol_for_execution(full_response)
-                if not ok:
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=(
-                                "אזהרה: אסור לבצע TOOL_CALL כי חסרים שלבי החובה/הפרוטוקול לא תקין. "
-                                "כעת החזר רק בלוקים בפורמט: "
-                                '###TRANSPARENCY_LOG### {...} ואז ###RISK_REVIEW### {...} ואז ###TOOL_CALL### {"name": "TOOL_NAME", "arguments": {...}} ללא טקסט נוסף.'
-                            ),
-                        )
-                    )
-                    continue
-
-                log_llm_event(
-                    request_id=req_id,
-                    event_type="tool_call",
-                    payload={"name": tool_name, "arguments": tool_args},
-                    client_id=request.client_id,
-                    extra={"endpoint": "stream"},
-                )
-
-                apply_max_exemption_if_requested(
-                    tool_name=tool_name,
-                    tool_args=tool_args,
-                    force_max_exemption=force_max_exemption_val,
-                )
-
-                if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
-                    date_str = tool_args.get("retirement_date")
-                    if isinstance(date_str, str) and date_str.strip() and request.client_id is not None:
-                        client = (
-                            db.query(Client)
-                            .filter(Client.id == request.client_id)
-                            .first()
-                        )
-                        birth_date = getattr(client, "birth_date", None) if client else None
-                        if birth_date is not None:
-                            tool_args["retirement_date"] = normalize_retirement_date_if_jan1_placeholder(
-                                retirement_date=date_str.strip(),
-                                birth_date=birth_date,
-                                user_message=original_user_msg,
-                            )
-
-                if text_part:
-                    history_messages.append(ChatMessage(role="assistant", content=text_part))
-
-                tool_msg_content = build_tool_call_message_content(
-                    tool_data, ensure_ascii=False
-                )
-                history_messages.append(ChatMessage(role="assistant", content=tool_msg_content))
-
-                if tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"}:
-                    reason = "נדרש אישור לפני ביצוע פעולה במערכת."
-                    if tool_name == "EXECUTE_PENSION_COMMUTATION":
-                        reason = "נדרש אישור לפני ביצוע היוון קצבה במערכת."
-                    if tool_name == "SUBMIT_TAX_COMMUTATION":
-                        reason = "נדרש אישור לפני הגשת/ביצוע קיבוע/פריסה במערכת."
-
-                    try:
-                        _store_pending_approval_request(
-                            db=db,
-                            client_id=request.client_id,
-                            tool_name=tool_name,
-                            tool_args=tool_args,
-                        )
-                    except Exception:
-                        pass
-
-                    yield build_approval_request_ui_action(
-                        tool_name=tool_name,
-                        tool_args=tool_args if isinstance(tool_args, dict) else {},
-                        reason=reason,
-                        risk_level="high",
-                        rag_sources=None,
-                    )
+                if should_return:
                     return
 
-                tool_db = SessionLocal()
-                try:
-                    tool_result = _execute_tool_call(
-                        tool_name,
-                        tool_args,
-                        request.client_id,
-                        tool_db,
-                        pension_portfolio=current_pension_portfolio,
-                        force_max_exemption=force_max_exemption_val,
-                        agent_reply=full_response,
-                        request_id=req_id,
-                    )
-
-                    if tool_name == "BUILD_TARGET_PENSION_PLAN" and request.client_id is not None:
-                        try:
-                            store_latest_target_pension_plan(
-                                db=tool_db,
-                                client_id=request.client_id,
-                                tool_result=tool_result,
-                            )
-                        except Exception:
-                            pass
-
-                    if (
-                        isinstance(tool_result, str)
-                        and "###UI_ACTION###" in tool_result
-                        and "approval_request" in tool_result
-                    ):
-                        pending = extract_latest_approval_request(request.messages)
-                        if pending is not None:
-                            pending_tool, pending_args = pending
-                            pending_sig = get_tool_call_approval_signature(
-                                pending_tool, pending_args
-                            )
-                            current_sig = get_tool_call_approval_signature(
-                                tool_name, tool_args if isinstance(tool_args, dict) else {}
-                            )
-                            if pending_sig and current_sig and pending_sig == current_sig:
-                                log_llm_event(
-                                    request_id=req_id,
-                                    event_type="final_answer",
-                                    payload=(
-                                        "נדרש אישור לפני הפעלת כלי (כבר נשלחה בקשת אישור). ממתין לאישור בחלונית."
-                                    ),
-                                    client_id=request.client_id,
-                                    extra={"endpoint": "stream"},
-                                )
-                                yield "נדרש אישור לפני הפעלת כלי. ממתין לאישור בחלונית."
-                                break
-
-                        log_llm_event(
-                            request_id=req_id,
-                            event_type="final_answer",
-                            payload=tool_result,
-                            client_id=request.client_id,
-                            extra={"endpoint": "stream"},
-                        )
-                        yield tool_result
-                        break
-
-                    if tool_name:
-                        executed_tools.add(tool_name)
-
-                    portfolio_update_marker = build_pension_portfolio_update_after_transform(
-                        tool_name=tool_name,
-                        tool_result=tool_result,
-                        tool_args=tool_args,
-                        current_pension_portfolio=current_pension_portfolio,
-                    )
-                    if portfolio_update_marker:
-                        yield "\n\n" + portfolio_update_marker
-
-                    missing_tools_after = required_tools.difference(executed_tools)
-                    if missing_tools_after:
-                        preferred_order = ["TRANSFORM_FUNDS_TO_ASSETS"]
-                        if is_tax_doc_request:
-                            preferred_order.append("GENERATE_TAX_DEDUCTION_DOCUMENTS")
-                        else:
-                            preferred_order.append("GENERATE_FULL_REPORT")
-                        suggested_tool = next(
-                            (
-                                name
-                                for name in preferred_order
-                                if name in missing_tools_after
-                            ),
-                        )
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "אזהרה: נותרו שלבי חובה לבקשה. "
-                                    f"כעת עליך להפעיל את הכלי: {suggested_tool}. "
-                                    "החזר רק בלוקים בפורמט: "
-                                    '###TRANSPARENCY_LOG### {...} ואז ###RISK_REVIEW### {...} ואז ###TOOL_CALL### {"name": "TOOL_NAME", "arguments": {...}} ללא טקסט נוסף.'
-                                ),
-                            )
-                        )
-
-                    if is_qa_mode and tool_name == "GENERATE_FULL_REPORT":
-                        qa_summary_required = True
-                        try:
-                            parsed_tool = json.loads(tool_result)
-                            report_open_path = parsed_tool.get("open_path")
-                        except Exception:
-                            report_open_path = report_open_path
-
-                    current_pension_portfolio = maybe_clear_pension_portfolio_after_transform(
-                        tool_name=tool_name,
-                        tool_result=tool_result,
-                        current_pension_portfolio=current_pension_portfolio,
-                    )
-
-                    forced_document_reply = build_forced_document_reply(
-                        tool_name=tool_name,
-                        tool_result=tool_result,
-                    )
-
-                    if forced_document_reply:
-                        yield "\n\n" + sanitize_user_visible_text(forced_document_reply)
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    "המסמך הופק בהצלחה (UI_ACTION כבר נשלח למשתמש). "
-                                    "כעת עליך להמשיך ולספק תשובת סיכום טקסטואלית מלאה בהתאם לבקשה (למשל QA / PASS/FAIL), "
-                                    "ולהזכיר בבירור את open_path או קישור הדוח."
-                                ),
-                            )
-                        )
-
-                    user_tool_output = format_tool_output_for_user_stream(
-                        tool_name, tool_result
-                    )
-
-                    tool_display = get_tool_display_name_hebrew(tool_name)
-                    yield f"\n\n🔧 **פלט כלי ({tool_display}):**\n{sanitize_user_visible_text(user_tool_output)}"
-
-                    log_llm_event(
-                        request_id=req_id,
-                        event_type="tool_result",
-                        payload={"tool_name": tool_name, "result": tool_result},
-                        client_id=request.client_id,
-                        extra={"endpoint": "stream"},
-                    )
-
-                    history_messages.append(
-                        ChatMessage(
-                            role="system",
-                            content=build_tool_result_system_message_for_stream(
-                                tool_name, tool_result
-                            ),
-                        )
-                    )
-
-                    current_user_msg = find_last_user_message(request.messages)
-                    is_net = is_net_pension_request(current_user_msg)
-                    is_doc = is_document_request(current_user_msg)
-
-                    logger.info(
-                        "🔗 Checking Force Chaining (Stream): Tool=%s, IsNet=%s, Msg='%s'",
-                        tool_name,
-                        is_net,
-                        current_user_msg[:50],
-                    )
-
-                    gross_for_tax = get_gross_for_tax_chaining(
-                        is_net=is_net,
-                        tool_name=tool_name,
-                        tool_result=tool_result,
-                    )
-
-                    logger.info(
-                        "🔗 Force Chaining (Stream): Tool=%s, IsNet=%s, GrossForTax=%s",
-                        tool_name,
-                        is_net,
-                        gross_for_tax,
-                    )
-
-                    tax_result = run_tax_projection_autochain(
-                        gross_for_tax=gross_for_tax,
-                        execute_tool_call_fn=lambda name, args: _execute_tool_call(
-                            name,
-                            args,
-                            request.client_id,
-                            tool_db,
-                            pension_portfolio=current_pension_portfolio,
-                            force_max_exemption=force_max_exemption_val,
-                            request_id=req_id,
-                        ),
-                    )
-                    if tax_result is not None:
-                        logger.info(
-                            "🔗 Force Chaining (Stream): Running GET_TAX_PROJECTION with gross=%s",
-                            gross_for_tax,
-                        )
-                        yield (
-                            "\n\n🔧 **פלט כלי (הערכת מס - שרשור אוטומטי):**\n"
-                            f"{tax_result}"
-                        )
-                        history_messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=build_tax_result_system_message_for_stream(
-                                    tax_result
-                                ),
-                            )
-                        )
-
-                    # Mandatory chaining for NET target pension plans (stream):
-                    if False and (
-                        (not forced_fixation_chain_done)
-                        and tool_name in {"TRANSFORM_FUNDS_TO_ASSETS", "PROCESS_TERMINATION"}
-                    ):
-                        user_msg_for_chain = find_last_user_message(request.messages) or ""
-                        user_wants_target_plan = _user_requested_target_pension_plan(user_msg_for_chain)
-                        if user_wants_target_plan and _infer_target_is_net(user_msg_for_chain):
-                            target_val = None
-                            try:
-                                target_val = float(extract_target_pension_from_message(user_msg_for_chain) or 0)
-                            except Exception:
-                                target_val = None
-                            if target_val and target_val > 0:
-                                fixation_result = _execute_tool_call(
-                                    "CALCULATE_FIXATION_OF_RIGHTS",
-                                    {"save_result": True},
-                                    request.client_id,
-                                    tool_db,
-                                    pension_portfolio=current_pension_portfolio,
-                                    force_max_exemption=False,
-                                    agent_reply=None,
-                                    user_approved=True,
-                                    request_id=req_id,
-                                )
-                                yield (
-                                    "\n\n🔧 **פלט כלי (קיבוע זכויות - שרשור חובה):**\n"
-                                    + sanitize_user_visible_text(
-                                        format_tool_output_for_user_stream(
-                                            "CALCULATE_FIXATION_OF_RIGHTS",
-                                            fixation_result,
-                                        )
-                                    )
-                                )
-                                history_messages.append(
-                                    ChatMessage(
-                                        role="system",
-                                        content=build_tool_result_system_message_for_stream(
-                                            "CALCULATE_FIXATION_OF_RIGHTS",
-                                            fixation_result,
-                                        ),
-                                    )
-                                )
-
-                                plan_result = _execute_tool_call(
-                                    "BUILD_TARGET_PENSION_PLAN",
-                                    {"target_monthly_pension": float(target_val), "target_is_net": True},
-                                    request.client_id,
-                                    tool_db,
-                                    pension_portfolio=current_pension_portfolio,
-                                    force_max_exemption=False,
-                                    agent_reply=None,
-                                    user_approved=True,
-                                    request_id=req_id,
-                                )
-                                yield (
-                                    "\n\n🔧 **פלט כלי (בניית תכנית קצבה - אחרי קיבוע זכויות):**\n"
-                                    + sanitize_user_visible_text(
-                                        format_tool_output_for_user_stream(
-                                            "BUILD_TARGET_PENSION_PLAN",
-                                            plan_result,
-                                        )
-                                    )
-                                )
-                                history_messages.append(
-                                    ChatMessage(
-                                        role="system",
-                                        content=build_tool_result_system_message_for_stream(
-                                            "BUILD_TARGET_PENSION_PLAN",
-                                            plan_result,
-                                        ),
-                                    )
-                                )
-
-                                gross_for_tax_after = get_gross_for_tax_chaining(
-                                    is_net=True,
-                                    tool_name="BUILD_TARGET_PENSION_PLAN",
-                                    tool_result=plan_result,
-                                )
-                                tax_after = run_tax_projection_autochain(
-                                    gross_for_tax=gross_for_tax_after,
-                                    execute_tool_call_fn=lambda name, args: _execute_tool_call(
-                                        name,
-                                        args,
-                                        request.client_id,
-                                        tool_db,
-                                        pension_portfolio=current_pension_portfolio,
-                                        force_max_exemption=False,
-                                        agent_reply=None,
-                                        user_approved=True,
-                                        request_id=req_id,
-                                    ),
-                                )
-                                if tax_after is not None:
-                                    yield (
-                                        "\n\n🔧 **פלט כלי (הערכת מס - אחרי קיבוע זכויות):**\n" + tax_after
-                                    )
-                                    history_messages.append(
-                                        ChatMessage(
-                                            role="system",
-                                            content=build_tax_result_system_message_for_stream(
-                                                tax_after
-                                            ),
-                                        )
-                                    )
-
-                                forced_fixation_chain_done = True
-
-                finally:
-                    tool_db.close()
+                (
+                    should_break,
+                    qa_summary_required,
+                    report_open_path,
+                    current_pension_portfolio,
+                    forced_fixation_chain_done,
+                ) = yield from _stream_execute_tool_and_process_result(
+                    logger=logger,
+                    req_id=req_id,
+                    request=request,
+                    db=db,
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    current_pension_portfolio=current_pension_portfolio,
+                    force_max_exemption_val=force_max_exemption_val,
+                    full_response=full_response,
+                    qa_summary_required=qa_summary_required,
+                    report_open_path=report_open_path,
+                    forced_fixation_chain_done=forced_fixation_chain_done,
+                    required_tools=required_tools,
+                    executed_tools=executed_tools,
+                    is_tax_doc_request=is_tax_doc_request,
+                    is_qa_mode=is_qa_mode,
+                    history_messages=history_messages,
+                )
+                if should_break:
+                    break
 
             except Exception as e:
                 logger.error("Stream Tool Execution Failed: %s", e, exc_info=True)
