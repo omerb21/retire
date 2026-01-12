@@ -19,8 +19,71 @@ def _normalize_numeric_token(token: str) -> str:
         return ""
     if t.endswith("₪"):
         t = t[:-1].strip()
+    if t.endswith("%"):
+        t = t[:-1].strip()
     t = t.replace(",", "")
-    return t
+
+    sign = ""
+    if t[:1] in {"+", "-"}:
+        sign = t[:1]
+        t = t[1:]
+    if not t:
+        return ""
+
+    if "." in t:
+        int_part, frac_part = t.split(".", 1)
+        if int_part.isdigit():
+            int_part = int_part.lstrip("0") or "0"
+        frac_part = frac_part.rstrip("0")
+        if not frac_part:
+            t = int_part
+        else:
+            t = int_part + "." + frac_part
+    else:
+        if t.isdigit():
+            t = t.lstrip("0") or "0"
+    return sign + t
+
+
+def extract_numeric_matches(text: str | None) -> list[str]:
+    if not isinstance(text, str) or not text:
+        return []
+    return [m.group(0) for m in _NUM_TOKEN_RE.finditer(text)]
+
+
+def _is_simple_list_index(*, text: str, start: int, end: int) -> bool:
+    """Return True for small numeric list markers like '1)' or '2.' at start-of-line.
+
+    This is intentionally narrow so we don't weaken the guard for substantive numbers.
+    """
+    if not isinstance(text, str) or not text:
+        return False
+    if start < 0 or end <= start or end > len(text):
+        return False
+
+    raw = (text[start:end] or "").strip()
+    if not raw.isdigit():
+        return False
+
+    try:
+        n = int(raw)
+    except Exception:
+        return False
+    if n < 1 or n > 20:
+        return False
+
+    next_ch = text[end:end + 1]
+    if next_ch not in {")", "."}:
+        return False
+
+    line_start = text.rfind("\n", 0, start)
+    line_start = 0 if line_start < 0 else line_start + 1
+    prefix = text[line_start:start]
+    prefix_stripped = (prefix or "").strip()
+    if prefix_stripped not in {"", "-", "*", "•"}:
+        return False
+
+    return True
 
 
 def extract_numeric_tokens(text: str | None) -> set[str]:
@@ -29,6 +92,8 @@ def extract_numeric_tokens(text: str | None) -> set[str]:
 
     tokens: set[str] = set()
     for m in _NUM_TOKEN_RE.finditer(text):
+        if _is_simple_list_index(text=text, start=m.start(), end=m.end()):
+            continue
         raw = m.group(0)
         norm = _normalize_numeric_token(raw)
         if norm:

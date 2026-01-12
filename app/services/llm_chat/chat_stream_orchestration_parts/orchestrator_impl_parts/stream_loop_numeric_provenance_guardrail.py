@@ -1,7 +1,11 @@
 from app.schemas.llm_chat import ChatRequest
-from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
+from app.services.llm_chat.numeric_provenance import (
+    extract_numeric_matches,
+    validate_reply_numeric_provenance,
+)
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import log_llm_event
+from app.utils.trace_context import get_current_trace_id
 
 
 def _compute_final_out_with_numeric_provenance_guardrail(
@@ -17,13 +21,25 @@ def _compute_final_out_with_numeric_provenance_guardrail(
         allowed_source_texts=allowed_sources,
     )
     if violation is not None:
+        trace_id = get_current_trace_id()
+        matches = extract_numeric_matches(full_response)
+        head_preview = full_response[:300] if isinstance(full_response, str) else ""
+        tail_preview = full_response[-300:] if isinstance(full_response, str) else ""
         try:
             log_llm_event(
                 request_id=req_id,
                 event_type="numeric_provenance_violation",
-                payload={"tokens": list(violation.tokens)},
+                payload={
+                    "tokens": list(violation.tokens),
+                    "matches": matches,
+                    "blocked_preview_head": head_preview,
+                    "blocked_preview_tail": tail_preview,
+                },
                 client_id=request.client_id,
-                extra={"endpoint": "stream"},
+                extra={
+                    "endpoint": "stream",
+                    "trace_id": trace_id,
+                },
             )
         except Exception:
             pass

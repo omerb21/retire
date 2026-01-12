@@ -19,7 +19,7 @@ def _build_allowed_sources_for_numeric_provenance(
             if getattr(msg, "role", None) != "system":
                 continue
             content = getattr(msg, "content", "") or ""
-            if ("Tool Result (" in content) or ("פלט כלי (" in content):
+            if ("Tool Result (" in content) or ("פלט כלי (" in content) or ("🔧 **פלט כלי" in content):
                 allowed_sources.append(content)
     except Exception:
         pass

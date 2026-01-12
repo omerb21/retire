@@ -38,6 +38,8 @@ def _handle_tool_call_step(
     current_step: int,
     computed_data,
  ):
+    from app.services.llm_chat.numeric_provenance import extract_numeric_matches
+    from app.utils.trace_context import get_current_trace_id
     if "###TOOL_CALL###" not in raw_reply:
         return (
             False,
@@ -1084,18 +1086,24 @@ def _handle_no_tool_call_step(
     current_step: int,
  ):
     from app.models.client import Client
+    from app.services.llm_chat.numeric_provenance import extract_numeric_matches
     from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
     from app.services.llm_chat.orchestration_utils import (
         compute_default_retirement_date_for_tool_call,
         is_tax_documents_request,
     )
+    from app.utils.trace_context import get_current_trace_id
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import _user_requested_target_pension_plan
     from app.services.llm_chat.message_utils import find_last_user_message
     from app.services.llm_chat.orchestration_utils import is_net_pension_request
 
     has_tool_results = any(
         (m.role == "system")
-        and (("Tool Result (" in (m.content or "")) or ("פלט כלי (" in (m.content or "")))
+        and (
+            ("Tool Result (" in (m.content or ""))
+            or ("פלט כלי (" in (m.content or ""))
+            or ("🔧 **פלט כלי" in (m.content or ""))
+        )
         for m in messages
     )
 
@@ -1188,7 +1196,7 @@ def _handle_no_tool_call_step(
             if getattr(msg, "role", None) != "system":
                 continue
             content = getattr(msg, "content", "") or ""
-            if ("Tool Result (" in content) or ("פלט כלי (" in content):
+            if ("Tool Result (" in content) or ("פלט כלי (" in content) or ("🔧 **פלט כלי" in content):
                 allowed_sources.append(content)
     except Exception:
         pass
@@ -1201,12 +1209,22 @@ def _handle_no_tool_call_step(
         allowed_source_texts=allowed_sources,
     )
     if violation is not None:
+        trace_id = get_current_trace_id()
+        matches = extract_numeric_matches(raw_reply)
+        head_preview = raw_reply[:300] if isinstance(raw_reply, str) else ""
+        tail_preview = raw_reply[-300:] if isinstance(raw_reply, str) else ""
         try:
             log_llm_event_fn(
                 request_id=request_id,
                 event_type="numeric_provenance_violation",
-                payload={"tokens": list(violation.tokens)},
+                payload={
+                    "tokens": list(violation.tokens),
+                    "matches": matches,
+                    "blocked_preview_head": head_preview,
+                    "blocked_preview_tail": tail_preview,
+                },
                 client_id=request.client_id,
+                extra={"endpoint": "non_stream", "trace_id": trace_id},
             )
         except Exception:
             pass
