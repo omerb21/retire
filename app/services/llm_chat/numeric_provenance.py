@@ -235,7 +235,14 @@ def validate_reply_numeric_provenance(
     allowed_text = "\n".join([t for t in allowed_source_texts if isinstance(t, str) and t])
     allowed_tokens = extract_numeric_tokens(allowed_text)
 
-    violations = sorted(t for t in reply_tokens if t not in allowed_tokens)
+    violations: list[str] = []
+    for t in reply_tokens:
+        if t in allowed_tokens:
+            continue
+        if t[:1] in {"-", "+"} and (t[1:] in allowed_tokens):
+            continue
+        violations.append(t)
+    violations = sorted(violations)
     if not violations:
         return None
 
