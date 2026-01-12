@@ -4,6 +4,7 @@ from app.schemas.llm_chat import ChatRequest
 from app.services.llm_chat.numeric_provenance import (
     extract_inline_tool_output_blocks,
     extract_numeric_matches,
+    sanitize_transparency_and_risk_blocks,
     validate_reply_numeric_provenance,
 )
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
@@ -22,11 +23,12 @@ def _compute_final_out_with_numeric_provenance_guardrail(
     allowed_sources: list[str],
     is_portfolio_analysis: bool,
 ):
+    scrubbed_response = sanitize_transparency_and_risk_blocks(full_response)
     inline_tool_blocks = extract_inline_tool_output_blocks(full_response)
     effective_allowed_sources = list(allowed_sources or []) + inline_tool_blocks
 
     violation = validate_reply_numeric_provenance(
-        reply_text=full_response,
+        reply_text=scrubbed_response,
         allowed_source_texts=effective_allowed_sources,
     )
     if violation is not None:
@@ -71,7 +73,7 @@ def _compute_final_out_with_numeric_provenance_guardrail(
             "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
         )
     else:
-        final_out = sanitize_user_visible_text(full_response)
+        final_out = sanitize_user_visible_text(scrubbed_response)
     if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
         final_out = "\n".join(
             ln for ln in final_out.splitlines() if "מדרגות מס" not in ln

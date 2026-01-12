@@ -106,6 +106,59 @@ def extract_inline_tool_output_blocks(text: str | None) -> list[str]:
     return blocks
 
 
+_TR_BLOCK_HEADERS = ("###TRANSPARENCY_LOG###", "###RISK_REVIEW###")
+
+
+def _scrub_digits_to_provided(text: str) -> str:
+    if not text:
+        return text
+    out = re.sub(r"\d[\d,./:%-]*", "provided", text)
+    out = re.sub(r"\d", "", out)
+    return out
+
+
+def sanitize_transparency_and_risk_blocks(text: str | None) -> str | None:
+    if not isinstance(text, str) or not text:
+        return text
+
+    lines = text.splitlines()
+    out_lines: list[str] = []
+    in_block = False
+    empty_streak = 0
+
+    for line in lines:
+        is_header = any(line.startswith(h) for h in _TR_BLOCK_HEADERS)
+        is_other_block = (line.startswith("###") and not is_header)
+
+        if is_header:
+            in_block = True
+            empty_streak = 0
+            header = next(h for h in _TR_BLOCK_HEADERS if line.startswith(h))
+            rest = line[len(header) :]
+            out_lines.append(header + _scrub_digits_to_provided(rest))
+            continue
+
+        if in_block and is_other_block:
+            in_block = False
+            empty_streak = 0
+
+        if in_block:
+            scrubbed = _scrub_digits_to_provided(line)
+            out_lines.append(scrubbed)
+            if not (line or "").strip():
+                empty_streak += 1
+            else:
+                empty_streak = 0
+            if empty_streak >= 2:
+                in_block = False
+                empty_streak = 0
+            continue
+
+        out_lines.append(line)
+
+    return "\n".join(out_lines)
+
+
 def _is_simple_list_index(*, text: str, start: int, end: int) -> bool:
     """Return True for small numeric list markers like '1)' or '2.' at start-of-line.
 

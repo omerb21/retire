@@ -37,9 +37,13 @@ def _handle_tool_call_step(
     forced_fixation_chain_done: bool,
     current_step: int,
     computed_data,
- ):
+):
     from app.services.llm_chat.numeric_provenance import extract_numeric_matches
+    from app.services.llm_chat.numeric_provenance import sanitize_transparency_and_risk_blocks
     from app.utils.trace_context import get_current_trace_id
+
+    raw_reply = sanitize_transparency_and_risk_blocks(raw_reply) or ""
+
     if "###TOOL_CALL###" not in raw_reply:
         return (
             False,
@@ -1088,6 +1092,7 @@ def _handle_no_tool_call_step(
     from app.models.client import Client
     from app.services.llm_chat.numeric_provenance import extract_inline_tool_output_blocks
     from app.services.llm_chat.numeric_provenance import extract_numeric_matches
+    from app.services.llm_chat.numeric_provenance import sanitize_transparency_and_risk_blocks
     from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
     from app.services.llm_chat.orchestration_utils import (
         compute_default_retirement_date_for_tool_call,
@@ -1205,12 +1210,14 @@ def _handle_no_tool_call_step(
     if isinstance(forced_user_prefix, str) and forced_user_prefix:
         allowed_sources.append(forced_user_prefix)
 
+    scrubbed_reply = sanitize_transparency_and_risk_blocks(raw_reply)
+
     inline_tool_blocks = extract_inline_tool_output_blocks(raw_reply)
     if inline_tool_blocks:
         allowed_sources.extend(inline_tool_blocks)
 
     violation = validate_reply_numeric_provenance(
-        reply_text=raw_reply,
+        reply_text=scrubbed_reply,
         allowed_source_texts=allowed_sources,
     )
     if violation is not None:
@@ -1252,6 +1259,6 @@ def _handle_no_tool_call_step(
             "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
         )
     else:
-        final_reply = raw_reply
+        final_reply = scrubbed_reply
 
     return False, True, final_reply, current_step
