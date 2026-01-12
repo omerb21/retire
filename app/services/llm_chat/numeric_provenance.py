@@ -198,8 +198,19 @@ def extract_numeric_tokens(text: str | None) -> set[str]:
     if not isinstance(text, str) or not text:
         return set()
 
+    iso_spans: list[tuple[int, int]] = []
+    try:
+        for m in re.finditer(r"\b\d{4}-\d{2}-\d{2}\b", text):
+            iso_spans.append((m.start(), m.end()))
+        for m in re.finditer(r"\b\d{4}-\d{2}\b", text):
+            iso_spans.append((m.start(), m.end()))
+    except Exception:
+        iso_spans = []
+
     tokens: set[str] = set()
     for m in _NUM_TOKEN_RE.finditer(text):
+        if iso_spans and any(m.start() < e and m.end() > s for (s, e) in iso_spans):
+            continue
         if _is_simple_list_index(text=text, start=m.start(), end=m.end()):
             continue
         raw = m.group(0)
