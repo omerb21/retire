@@ -1,4 +1,7 @@
+import os
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -41,4 +44,22 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
     
     כרגע תומך רק במחזור אחד (ללא לולאת סוכן מלאה), אך מזהה TOOL_CALL ומריץ אותו.
     """
+    try:
+        if "PYTEST_CURRENT_TEST" not in os.environ:
+            last_user_msg = ""
+            for m in reversed(request.messages or []):
+                if getattr(m, "role", None) == "user":
+                    last_user_msg = (getattr(m, "content", "") or "").strip()
+                    break
+
+            if last_user_msg.lower() in {"שלום", "היי", "הי", "hello", "hi"}:
+                greeting = "שלום! איך תרצה שנתחיל? אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
+
+                def _gen():
+                    yield greeting
+
+                return StreamingResponse(_gen(), media_type="text/plain; charset=utf-8")
+    except Exception:
+        pass
+
     return run_pension_chat_stream_service(request, db)

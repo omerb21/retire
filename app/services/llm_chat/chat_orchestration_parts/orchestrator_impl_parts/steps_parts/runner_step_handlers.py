@@ -1213,6 +1213,20 @@ def _handle_no_tool_call_step(
         matches = extract_numeric_matches(raw_reply)
         head_preview = raw_reply[:300] if isinstance(raw_reply, str) else ""
         tail_preview = raw_reply[-300:] if isinstance(raw_reply, str) else ""
+
+        try:
+            logger.warning(
+                "numeric_provenance_blocked non_stream trace_id=%s request_id=%s client_id=%s tokens=%s matches=%s preview_head=%s preview_tail=%s",
+                trace_id,
+                request_id,
+                getattr(request, "client_id", None),
+                list(getattr(violation, "tokens", ()) or ()),
+                matches,
+                head_preview,
+                tail_preview,
+            )
+        except Exception:
+            pass
         try:
             log_llm_event_fn(
                 request_id=request_id,

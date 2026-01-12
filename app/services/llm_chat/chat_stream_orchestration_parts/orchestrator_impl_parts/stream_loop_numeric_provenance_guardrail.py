@@ -1,3 +1,5 @@
+import logging
+
 from app.schemas.llm_chat import ChatRequest
 from app.services.llm_chat.numeric_provenance import (
     extract_numeric_matches,
@@ -6,6 +8,9 @@ from app.services.llm_chat.numeric_provenance import (
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import log_llm_event
 from app.utils.trace_context import get_current_trace_id
+
+
+logger = logging.getLogger("app.llm_chat")
 
 
 def _compute_final_out_with_numeric_provenance_guardrail(
@@ -25,6 +30,20 @@ def _compute_final_out_with_numeric_provenance_guardrail(
         matches = extract_numeric_matches(full_response)
         head_preview = full_response[:300] if isinstance(full_response, str) else ""
         tail_preview = full_response[-300:] if isinstance(full_response, str) else ""
+
+        try:
+            logger.warning(
+                "numeric_provenance_blocked stream trace_id=%s request_id=%s client_id=%s tokens=%s matches=%s preview_head=%s preview_tail=%s",
+                trace_id,
+                req_id,
+                getattr(request, "client_id", None),
+                list(getattr(violation, "tokens", ()) or ()),
+                matches,
+                head_preview,
+                tail_preview,
+            )
+        except Exception:
+            pass
         try:
             log_llm_event(
                 request_id=req_id,
