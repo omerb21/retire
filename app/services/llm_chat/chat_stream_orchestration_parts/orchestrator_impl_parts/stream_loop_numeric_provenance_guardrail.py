@@ -2,6 +2,7 @@ import logging
 
 from app.schemas.llm_chat import ChatRequest
 from app.services.llm_chat.numeric_provenance import (
+    extract_inline_tool_output_blocks,
     extract_numeric_matches,
     validate_reply_numeric_provenance,
 )
@@ -21,9 +22,12 @@ def _compute_final_out_with_numeric_provenance_guardrail(
     allowed_sources: list[str],
     is_portfolio_analysis: bool,
 ):
+    inline_tool_blocks = extract_inline_tool_output_blocks(full_response)
+    effective_allowed_sources = list(allowed_sources or []) + inline_tool_blocks
+
     violation = validate_reply_numeric_provenance(
         reply_text=full_response,
-        allowed_source_texts=allowed_sources,
+        allowed_source_texts=effective_allowed_sources,
     )
     if violation is not None:
         trace_id = get_current_trace_id()

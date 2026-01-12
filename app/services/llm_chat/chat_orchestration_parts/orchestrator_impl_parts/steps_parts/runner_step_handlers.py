@@ -1086,6 +1086,7 @@ def _handle_no_tool_call_step(
     current_step: int,
  ):
     from app.models.client import Client
+    from app.services.llm_chat.numeric_provenance import extract_inline_tool_output_blocks
     from app.services.llm_chat.numeric_provenance import extract_numeric_matches
     from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
     from app.services.llm_chat.orchestration_utils import (
@@ -1203,6 +1204,10 @@ def _handle_no_tool_call_step(
 
     if isinstance(forced_user_prefix, str) and forced_user_prefix:
         allowed_sources.append(forced_user_prefix)
+
+    inline_tool_blocks = extract_inline_tool_output_blocks(raw_reply)
+    if inline_tool_blocks:
+        allowed_sources.extend(inline_tool_blocks)
 
     violation = validate_reply_numeric_provenance(
         reply_text=raw_reply,

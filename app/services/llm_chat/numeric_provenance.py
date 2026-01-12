@@ -51,6 +51,61 @@ def extract_numeric_matches(text: str | None) -> list[str]:
     return [m.group(0) for m in _NUM_TOKEN_RE.finditer(text)]
 
 
+def extract_inline_tool_output_blocks(text: str | None) -> list[str]:
+    if not isinstance(text, str) or not text:
+        return []
+
+    markers = (
+        "🔧 **פלט כלי",
+        "🔧 פלט כלי",
+        "Tool Result (",
+        "פלט כלי (",
+    )
+
+    lines = text.splitlines()
+    blocks: list[str] = []
+    current: list[str] = []
+    in_block = False
+    empty_streak = 0
+
+    for line in lines:
+        is_marker_line = any(m in line for m in markers)
+
+        if is_marker_line:
+            if in_block and current:
+                block_text = "\n".join(current).strip("\n")
+                if block_text.strip():
+                    blocks.append(block_text)
+            in_block = True
+            current = [line]
+            empty_streak = 0
+            continue
+
+        if not in_block:
+            continue
+
+        current.append(line)
+        if not (line or "").strip():
+            empty_streak += 1
+        else:
+            empty_streak = 0
+
+        if empty_streak >= 2:
+            block_text = "\n".join(current).strip("\n")
+            if block_text.strip():
+                blocks.append(block_text)
+            in_block = False
+            current = []
+            empty_streak = 0
+
+    if in_block and current:
+        block_text = "\n".join(current).strip("\n")
+        if block_text.strip():
+            blocks.append(block_text)
+
+    return blocks
+
+
 def _is_simple_list_index(*, text: str, start: int, end: int) -> bool:
     """Return True for small numeric list markers like '1)' or '2.' at start-of-line.
 
