@@ -106,6 +106,55 @@ def extract_inline_tool_output_blocks(text: str | None) -> list[str]:
     return blocks
 
 
+def sanitize_numbers_outside_tool_blocks(text: str | None) -> str | None:
+    if not isinstance(text, str) or not text:
+        return text
+
+    markers = (
+        "🔧 **פלט כלי",
+        "🔧 פלט כלי",
+        "Tool Result (",
+        "פלט כלי (",
+    )
+
+    has_marker = False
+    try:
+        has_marker = any(m in text for m in markers)
+    except Exception:
+        has_marker = False
+    if not has_marker:
+        return text
+
+    lines = text.splitlines()
+    out_lines: list[str] = []
+    in_block = False
+    empty_streak = 0
+
+    for line in lines:
+        is_marker_line = any(m in line for m in markers)
+
+        if is_marker_line:
+            in_block = True
+            empty_streak = 0
+            out_lines.append(line)
+            continue
+
+        if in_block:
+            out_lines.append(line)
+            if not (line or "").strip():
+                empty_streak += 1
+            else:
+                empty_streak = 0
+            if empty_streak >= 2:
+                in_block = False
+                empty_streak = 0
+            continue
+
+        out_lines.append(_NUM_TOKEN_RE.sub("provided", line))
+
+    return "\n".join(out_lines)
+
+
 _TR_BLOCK_HEADERS = ("###TRANSPARENCY_LOG###", "###RISK_REVIEW###")
 
 
