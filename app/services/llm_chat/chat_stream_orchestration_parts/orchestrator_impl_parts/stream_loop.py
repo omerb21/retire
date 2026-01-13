@@ -600,6 +600,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         history_messages: list[ChatMessage] = list(messages)
 
+        if no_tools_requested:
+            history_messages.append(
+                ChatMessage(
+                    role="system",
+                    content=(
+                        "אזהרה: המשתמש ביקש במפורש לא להפעיל כלים. "
+                        "אסור להחזיר TOOL_CALL. החזר תשובה במילים בלבד (ללא מספרים אם אפשר), "
+                        "וללא ביצוע פעולות או חישובים."
+                    ),
+                )
+            )
+
         if wants_ignore_blocked:
             history_messages.append(
                 ChatMessage(
