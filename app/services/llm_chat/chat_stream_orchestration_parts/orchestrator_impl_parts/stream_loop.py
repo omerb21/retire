@@ -735,6 +735,19 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 if should_break:
                     break
 
+                # IMPORTANT: After we stream any tool output, we end the stream immediately.
+                # This prevents the model from appending post-tool narrative that may include
+                # unprovenanced numbers and get blocked by the numeric provenance guardrail.
+                #
+                # Exception: in QA mode, after generating a full report, we must continue
+                # streaming to allow the model to emit the final QA summary.
+                if not qa_summary_required:
+                    yield (
+                        "\n\n"
+                        + "הפקתי את תוצאות הניתוח מהמערכת. אם תרצה שאסביר במילים בלי מספרים מה המשמעות, כתוב: הסבר במילים.\n"
+                    )
+                    return
+
             except Exception as e:
                 logger.error("Stream Tool Execution Failed: %s", e, exc_info=True)
                 yield f"\n\n(Error executing tool: {sanitize_user_visible_text(str(e))})"
