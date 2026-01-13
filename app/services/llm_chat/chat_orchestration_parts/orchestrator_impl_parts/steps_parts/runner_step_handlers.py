@@ -1092,7 +1092,6 @@ def _handle_no_tool_call_step(
     from app.models.client import Client
     from app.services.llm_chat.numeric_provenance import extract_inline_tool_output_blocks
     from app.services.llm_chat.numeric_provenance import extract_numeric_matches
-    from app.services.llm_chat.numeric_provenance import sanitize_numbers_outside_tool_blocks
     from app.services.llm_chat.numeric_provenance import sanitize_transparency_and_risk_blocks
     from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
     from app.services.llm_chat.orchestration_utils import (
@@ -1213,6 +1212,15 @@ def _handle_no_tool_call_step(
                 or ("סיכום מהיר" in content)
                 or ("סה\"כ יתרות" in content)
                 or ("תרחישי פרישה" in content)
+                or ("📋 **פרטי הלקוח**" in content)
+                or ("💰 **סיכום פיננסי**" in content)
+                or ("📜 **קיבוע זכויות**" in content)
+                or ("פיצויים צבורים" in content)
+                or ("יתרת הון פטורה" in content)
+                or ("אחוז קצבה פטורה" in content)
+                or ("🎯 **תרחישי פרישה" in content)
+                or ("📈 **סיכום תרחישים**" in content)
+                or ("להלן נתוני הלקוח האמיתיים" in content)
             ):
                 allowed_sources.append(content)
     except Exception:
@@ -1222,14 +1230,13 @@ def _handle_no_tool_call_step(
         allowed_sources.append(forced_user_prefix)
 
     scrubbed_reply = sanitize_transparency_and_risk_blocks(raw_reply)
-    safe_reply = sanitize_numbers_outside_tool_blocks(scrubbed_reply)
 
     inline_tool_blocks = extract_inline_tool_output_blocks(raw_reply)
     if inline_tool_blocks:
         allowed_sources.extend(inline_tool_blocks)
 
     violation = validate_reply_numeric_provenance(
-        reply_text=safe_reply,
+        reply_text=scrubbed_reply,
         allowed_source_texts=allowed_sources,
     )
     if violation is not None:
@@ -1271,6 +1278,6 @@ def _handle_no_tool_call_step(
             "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
         )
     else:
-        final_reply = safe_reply
+        final_reply = scrubbed_reply
 
     return False, True, final_reply, current_step

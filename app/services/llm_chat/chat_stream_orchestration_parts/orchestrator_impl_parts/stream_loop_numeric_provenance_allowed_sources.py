@@ -29,6 +29,15 @@ def _build_allowed_sources_for_numeric_provenance(
                 or ("סיכום מהיר" in content)
                 or ("סה\"כ יתרות" in content)
                 or ("תרחישי פרישה" in content)
+                or ("📋 **פרטי הלקוח**" in content)
+                or ("💰 **סיכום פיננסי**" in content)
+                or ("📜 **קיבוע זכויות**" in content)
+                or ("פיצויים צבורים" in content)
+                or ("יתרת הון פטורה" in content)
+                or ("אחוז קצבה פטורה" in content)
+                or ("🎯 **תרחישי פרישה" in content)
+                or ("📈 **סיכום תרחישים**" in content)
+                or ("להלן נתוני הלקוח האמיתיים" in content)
             ):
                 allowed_sources.append(content)
     except Exception:

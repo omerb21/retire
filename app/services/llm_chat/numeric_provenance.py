@@ -253,6 +253,8 @@ def extract_numeric_tokens(text: str | None) -> set[str]:
             iso_spans.append((m.start(), m.end()))
         for m in re.finditer(r"\b\d{4}-\d{2}\b", text):
             iso_spans.append((m.start(), m.end()))
+        for m in re.finditer(r"\b\d{1,2}/\d{1,2}/\d{4}\b", text):
+            iso_spans.append((m.start(), m.end()))
     except Exception:
         iso_spans = []
 
