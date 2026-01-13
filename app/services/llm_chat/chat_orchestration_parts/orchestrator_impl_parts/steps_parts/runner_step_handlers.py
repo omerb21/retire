@@ -1203,7 +1203,17 @@ def _handle_no_tool_call_step(
             if getattr(msg, "role", None) != "system":
                 continue
             content = getattr(msg, "content", "") or ""
-            if ("Tool Result (" in content) or ("פלט כלי (" in content) or ("🔧 **פלט כלי" in content):
+            if (
+                ("Tool Result (" in content)
+                or ("פלט כלי (" in content)
+                or ("🔧 **פלט כלי" in content)
+                or ("תיק פנסיוני (נתונים גולמיים" in content)
+                or ("📂 **תיק פנסיוני" in content)
+                or ("סיכום נתונים גולמיים" in content)
+                or ("סיכום מהיר" in content)
+                or ("סה\"כ יתרות" in content)
+                or ("תרחישי פרישה" in content)
+            ):
                 allowed_sources.append(content)
     except Exception:
         pass
