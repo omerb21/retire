@@ -23,8 +23,17 @@ def _compute_final_out_with_numeric_provenance_guardrail(
     allowed_sources: list[str],
     is_portfolio_analysis: bool,
 ):
-    scrubbed_response = sanitize_transparency_and_risk_blocks(full_response)
     inline_tool_blocks = extract_inline_tool_output_blocks(full_response)
+    if inline_tool_blocks:
+        tool_only_text = "\n\n".join(b for b in inline_tool_blocks if isinstance(b, str) and b.strip()).strip()
+        safe_user_out = (
+            tool_only_text
+            + "\n\n"
+            + "הפקתי את תוצאות הניתוח מהמערכת. אם תרצה שאסביר במילים בלי מספרים מה המשמעות, כתוב: הסבר במילים.\n"
+        )
+        return sanitize_user_visible_text(safe_user_out)
+
+    scrubbed_response = sanitize_transparency_and_risk_blocks(full_response)
     effective_allowed_sources = list(allowed_sources or []) + inline_tool_blocks
 
     violation = validate_reply_numeric_provenance(
