@@ -1,4 +1,14 @@
 # Multi-stage build for retirement planning system
+FROM node:20-alpine as frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim as builder
 
 # Set environment variables
@@ -45,6 +55,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY . .
+
+# Copy built frontend dist into the image
+COPY --from=frontend-builder /frontend/dist /app/frontend/dist
 
 # Create necessary directories
 RUN mkdir -p logs artifacts temp && \

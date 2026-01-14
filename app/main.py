@@ -3,8 +3,9 @@ FastAPI application entrypoint
 """
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import logging
 import os
@@ -165,10 +166,18 @@ app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+frontend_dist_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+frontend_assets_dir = frontend_dist_dir / "assets"
+if frontend_assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_assets_dir)), name="frontend-assets")
+
 
 @app.get("/")
 def read_root():
     """Root endpoint"""
+    index_html = frontend_dist_dir / "index.html"
+    if index_html.exists():
+        return FileResponse(str(index_html), media_type="text/html")
     return {"message": "Welcome to Retirement Planning System API"}
 
 
@@ -190,6 +199,21 @@ def health_check():
 def health_check_v1():
     """Health check endpoint with API prefix"""
     return {"status": "ok"}
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa_fallback(full_path: str):
+    if full_path.startswith("api"):
+        raise HTTPException(status_code=404)
+    if ".." in Path(full_path).parts:
+        raise HTTPException(status_code=404)
+    index_html = frontend_dist_dir / "index.html"
+    if not index_html.exists():
+        raise HTTPException(status_code=404)
+    candidate = frontend_dist_dir / full_path
+    if candidate.is_file():
+        return FileResponse(str(candidate))
+    return FileResponse(str(index_html), media_type="text/html")
 
 
 
