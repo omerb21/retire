@@ -120,8 +120,10 @@ app.add_middleware(
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.middleware.trace_id import TraceIdMiddleware
+from app.middleware.stream_trace_logger import StreamTraceLoggerMiddleware
 
 app.add_middleware(TraceIdMiddleware)
+app.add_middleware(StreamTraceLoggerMiddleware)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 # Include routers
