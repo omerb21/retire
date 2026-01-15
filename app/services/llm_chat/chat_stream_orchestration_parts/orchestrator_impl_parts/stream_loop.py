@@ -213,6 +213,31 @@ from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_determini
 
 logger = logging.getLogger("app.llm_chat")
 
+_NO_TOOLS_DECISION_PHRASES: tuple[str, ...] = (
+    "האם",
+    "תרצה",
+    "רוצה",
+    "בחר",
+    "תעדיף",
+    "מעוניין",
+    "שאלה אחת",
+)
+
+_NO_TOOLS_FIXED_ENDING = "קיבלתי. אפשר להמשיך בהסבר מילולי בלבד על בסיס הנתונים שנשלחו."
+
+
+def _postprocess_no_tools_user_visible_text(text: str) -> str:
+    original = text or ""
+    out = original.replace("?", "")
+    for phrase in _NO_TOOLS_DECISION_PHRASES:
+        out = out.replace(phrase, "")
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    out = out.strip()
+    if not out.endswith(_NO_TOOLS_FIXED_ENDING):
+        out = (out + "\n\n" if out else "") + _NO_TOOLS_FIXED_ENDING
+    return out
+
 @lru_cache(maxsize=1)
 def _load_stream_intents_playbook_text() -> str | None:
     try:
@@ -902,6 +927,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     allowed_sources=allowed_sources,
                     is_portfolio_analysis=is_portfolio_analysis,
                 )
+                if resolved_intent == ChatIntent.NO_TOOLS and (not exec_only_active):
+                    final_out = _postprocess_no_tools_user_visible_text(final_out)
                 if exec_only_active and resolved_intent != ChatIntent.REPORT:
                     try:
                         validate_execution_only_output(final_out)
@@ -1011,7 +1038,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         return
                     yield (
                         "\n\n"
-                        + "הפקתי את תוצאות הניתוח מהמערכת. אם תרצה שאסביר במילים בלי מספרים מה המשמעות, כתוב: הסבר במילים.\n"
+                        + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
                     )
                     return
 
