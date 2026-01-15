@@ -9,10 +9,23 @@ logger = logging.getLogger("app.llm_chat")
 
 AGENT_MODE = "EXECUTION_ONLY"
 
+BLOCKED_REASON_HAS_QUESTION_MARK = "HAS_QUESTION_MARK"
+BLOCKED_REASON_HAS_DECISION_PHRASE = "HAS_DECISION_PHRASE"
+BLOCKED_REASON_FORMAT_INVALID = "FORMAT_INVALID"
+
 
 @dataclass(frozen=True)
 class ExecutionOnlyViolation(Exception):
     reason: str
+
+
+def _map_violation_reason_to_blocked_reason(reason: str) -> str:
+    r = (reason or "").strip()
+    if r == "contains_question_mark":
+        return BLOCKED_REASON_HAS_QUESTION_MARK
+    if r == "contains_forbidden_phrase":
+        return BLOCKED_REASON_HAS_DECISION_PHRASE
+    return BLOCKED_REASON_FORMAT_INVALID
 
 
 _FORBIDDEN_PHRASES = (
@@ -103,6 +116,8 @@ def execution_only_blocked(reason: str) -> str:
     safe_reason = (reason or "blocked").strip()
     safe_reason = safe_reason.replace("?", "").strip()
 
+    blocked_reason = _map_violation_reason_to_blocked_reason(safe_reason)
+
     trace_id = get_current_request_id() or "unknown"
     logger.warning(
         "EXECUTION_ONLY BLOCKED trace_id=%s reason=%s",
@@ -118,5 +133,5 @@ def execution_only_blocked(reason: str) -> str:
         "קריטריון הצלחה:\n"
         "- הפלט תואם את המבנה המחייב\n"
         "- אין סימני שאלה ואין ביטויי בקשת החלטה\n"
-        "סטטוס: BLOCKED"
+        f"סטטוס: BLOCKED | סיבה: {blocked_reason}"
     )
