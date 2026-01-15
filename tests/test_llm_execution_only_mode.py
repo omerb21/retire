@@ -133,3 +133,61 @@ def test_stream_report_ignores_executor_only_and_emits_ui_action(monkeypatch) ->
     assert "###END_UI_ACTION###" in body
     assert "סטטוס: BLOCKED" not in body
     assert tool_calls == ["GENERATE_FULL_REPORT"]
+
+
+def test_stream_executor_only_success_accepts_instructions_heading_execution(monkeypatch) -> None:
+    def fake_chat_stream(messages, client_id=None):
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות לביצוע:\n"
+            "א. בצע פעולה טכנית אחת\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "בדיקה"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "?" not in body
+    assert "סטטוס: SUCCESS" in body
+
+
+def test_stream_executor_only_success_accepts_instructions_heading_programmer_model(monkeypatch) -> None:
+    def fake_chat_stream(messages, client_id=None):
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. בצע פעולה טכנית אחת\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "בדיקה"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "?" not in body
+    assert "סטטוס: SUCCESS" in body

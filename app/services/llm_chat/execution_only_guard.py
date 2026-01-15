@@ -13,6 +13,12 @@ BLOCKED_REASON_HAS_QUESTION_MARK = "HAS_QUESTION_MARK"
 BLOCKED_REASON_HAS_DECISION_PHRASE = "HAS_DECISION_PHRASE"
 BLOCKED_REASON_FORMAT_INVALID = "FORMAT_INVALID"
 
+ALLOWED_INSTRUCTIONS_HEADINGS = {
+    "הנחיות לביצוע:",
+    "הנחיות למודל המתכנת:",
+    "הנחיות טכניות:",
+}
+
 
 @dataclass(frozen=True)
 class ExecutionOnlyViolation(Exception):
@@ -46,7 +52,10 @@ _FORBIDDEN_PHRASES = (
     "1 או 2",
 )
 
-_HEADER_RE = re.compile(r"^(מטרה|הנחיות לביצוע|קריטריון הצלחה|סטטוס):", flags=re.MULTILINE)
+_HEADER_RE = re.compile(
+    r"^(מטרה|הנחיות לביצוע|הנחיות למודל המתכנת|הנחיות טכניות|קריטריון הצלחה|סטטוס):",
+    flags=re.MULTILINE,
+)
 _STEP_RE = re.compile(r"^\s*(?:\d+|[א-ת])[\.)]\s+", flags=re.MULTILINE)
 
 
@@ -79,8 +88,14 @@ def validate_execution_only_output(text: str) -> None:
                 return i
         return -1
 
+    def _find_instructions_heading_line() -> int:
+        for i, ln in enumerate(lines):
+            if ln.strip() in ALLOWED_INSTRUCTIONS_HEADINGS:
+                return i
+        return -1
+
     idx_goal = _find_line("מטרה:")
-    idx_steps = _find_line("הנחיות לביצוע:")
+    idx_steps = _find_instructions_heading_line()
     idx_criteria = _find_line("קריטריון הצלחה:")
     idx_status = _find_line("סטטוס:")
 
@@ -104,11 +119,28 @@ def validate_execution_only_output(text: str) -> None:
         raise ExecutionOnlyViolation("missing_criteria")
 
     status_line = lines[idx_status].strip()
-    if status_line not in {"סטטוס: SUCCESS", "סטטוס: BLOCKED"}:
+    if status_line == "סטטוס: SUCCESS":
+        pass
+    elif status_line == "סטטוס: BLOCKED" or status_line.startswith("סטטוס: BLOCKED | סיבה: "):
+        pass
+    else:
         raise ExecutionOnlyViolation("invalid_status")
 
     extra_headers = _HEADER_RE.findall(text)
-    if len(extra_headers) < 4:
+    allowed_instruction_header_names = {
+        "הנחיות לביצוע",
+        "הנחיות למודל המתכנת",
+        "הנחיות טכניות",
+    }
+    if len(extra_headers) != 4:
+        raise ExecutionOnlyViolation("invalid_format")
+    if extra_headers[0] != "מטרה":
+        raise ExecutionOnlyViolation("invalid_format")
+    if extra_headers[1] not in allowed_instruction_header_names:
+        raise ExecutionOnlyViolation("invalid_format")
+    if extra_headers[2] != "קריטריון הצלחה":
+        raise ExecutionOnlyViolation("invalid_format")
+    if extra_headers[3] != "סטטוס":
         raise ExecutionOnlyViolation("invalid_format")
 
 
