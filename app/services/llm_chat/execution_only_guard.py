@@ -38,7 +38,11 @@ def get_execution_only_system_prompt() -> str:
         "תוכן חובה בתוך 'הנחיות למודל המתכנת':\n"
         "- רשימת קבצים לשינוי או 'לא ידוע עדיין'\n"
         "- צעדים ממוספרים לביצוע\n"
-        "- פקודות PowerShell מוכנות להדבקה כולל curl.exe, pytest -q, git add, git commit, git push\n"
+        "- חובה לכלול: curl.exe\n"
+        "- חובה לכלול: python -m pytest -q\n"
+        "- חובה לכלול: git add, git commit, git push\n"
+        "- חובה לכלול לפחות נתיב אחד שמתחיל ב app/ או tests/ או Dockerfile\n"
+        "- פקודות PowerShell מוכנות להדבקה\n"
         "- קריטריון הצלחה מדיד\n"
     )
 
@@ -80,6 +84,19 @@ _HEADER_RE = re.compile(
     flags=re.MULTILINE,
 )
 _STEP_RE = re.compile(r"^\s*(?:\d+|[א-ת])[\.)]\s+", flags=re.MULTILINE)
+
+_REQUIRED_TECH_TOKENS = ("curl.exe", "pytest", "git")
+_REQUIRED_PATH_PREFIXES = ("app/", "tests/", "Dockerfile")
+
+
+def _has_required_exec_only_tech_payload(text: str) -> bool:
+    t = (text or "")
+    t_lower = t.lower()
+    if not all(tok.lower() in t_lower for tok in _REQUIRED_TECH_TOKENS):
+        return False
+    if any(pfx.lower() in t_lower for pfx in _REQUIRED_PATH_PREFIXES):
+        return True
+    return False
 
 
 def is_execution_only(request: ChatRequest) -> bool:
@@ -143,7 +160,8 @@ def validate_execution_only_output(text: str) -> None:
 
     status_line = lines[idx_status].strip()
     if status_line == "סטטוס: SUCCESS":
-        pass
+        if not _has_required_exec_only_tech_payload(text):
+            raise ExecutionOnlyViolation("invalid_format")
     elif status_line == "סטטוס: BLOCKED" or status_line.startswith("סטטוס: BLOCKED | סיבה: "):
         pass
     else:

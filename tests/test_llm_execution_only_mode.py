@@ -12,8 +12,10 @@ def test_stream_executor_only_header_success(monkeypatch) -> None:
         yield (
             "מטרה: לבצע בדיקת מערכת\n"
             "הנחיות לביצוע:\n"
-            "א. הפק תשובה בפורמט המחייב\n"
-            "ב. ודא שאין סימני שאלה ואין בקשת החלטה\n"
+            "א. קבצים לשינוי: app/services/llm_chat/execution_only_guard.py\n"
+            "ב. בדיקות: python -m pytest -q\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add app/services/llm_chat/execution_only_guard.py ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
             "- הפלט תואם את המבנה\n"
             "- אין סימן שאלה\n"
@@ -56,7 +58,10 @@ def test_exec_only_stream_rewrites_on_question_mark_then_succeeds(monkeypatch) -
         yield (
             "מטרה: לבצע בדיקת מערכת\n"
             "הנחיות טכניות:\n"
-            "א. בצע פעולה\n"
+            "א. קבצים לשינוי: app/services/llm_chat/execution_only_guard.py\n"
+            "ב. בדיקות: python -m pytest -q\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add app/services/llm_chat/execution_only_guard.py ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
             "- הושלם\n"
             "סטטוס: SUCCESS"
@@ -98,7 +103,10 @@ def test_exec_only_non_stream_rewrites_on_question_mark_then_succeeds(monkeypatc
         return (
             "מטרה: לבצע בדיקת מערכת\n"
             "הנחיות טכניות:\n"
-            "א. בצע פעולה\n"
+            "א. קבצים לשינוי: app/services/llm_chat/execution_only_guard.py\n"
+            "ב. בדיקות: python -m pytest -q\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add app/services/llm_chat/execution_only_guard.py ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
             "- הושלם\n"
             "סטטוס: SUCCESS"
@@ -171,6 +179,10 @@ def test_non_stream_executor_only_blocks_forbidden_phrase(monkeypatch) -> None:
     assert "האם" not in body
     assert "בחר" not in body
     assert "אשר" not in body
+    assert "curl.exe" in body
+    assert "pytest" in body
+    assert "git" in body
+    assert ("app/" in body) or ("tests/" in body) or ("Dockerfile" in body)
 
 
 def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> None:
@@ -180,8 +192,8 @@ def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> 
         yield (
             "מטרה: להפיק הנחיות טכניות למודל המתכנת לביצוע המשימה שהתקבלה\n"
             "הנחיות למודל המתכנת:\n"
-            "א. קבצים לשינוי: לא ידוע עדיין\n"
-            "ב. הרץ pytest -q ועצור בכשל הראשון\n"
+            "א. קבצים לשינוי: app/services/llm_chat/execution_only_guard.py\n"
+            "ב. הרץ python -m pytest -q ועצור בכשל הראשון\n"
             "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
             "ד. Git: git add . ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
@@ -220,8 +232,10 @@ def test_exec_only_stream_hostile_request_still_technical_no_questions(monkeypat
         yield (
             "מטרה: להפיק הנחיות טכניות למודל המתכנת לביצוע המשימה שהתקבלה\n"
             "הנחיות למודל המתכנת:\n"
-            "א. הרץ pytest -q ועצור בכשל הראשון\n"
-            "ב. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "א. קבצים לשינוי: app/services/llm_chat/execution_only_guard.py\n"
+            "ב. הרץ python -m pytest -q ועצור בכשל הראשון\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add app/services/llm_chat/execution_only_guard.py ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
             "- אין סימן שאלה ואין ניסוח שמבקש החלטה\n"
             "סטטוס: SUCCESS"
@@ -356,7 +370,10 @@ def test_stream_executor_only_success_accepts_instructions_heading_execution(mon
         yield (
             "מטרה: לבצע בדיקת מערכת\n"
             "הנחיות לביצוע:\n"
-            "א. בצע פעולה טכנית אחת\n"
+            "א. קבצים לשינוי: tests/test_llm_execution_only_mode.py\n"
+            "ב. בדיקות: python -m pytest -q\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add tests/test_llm_execution_only_mode.py ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
             "- הושלם\n"
             "סטטוס: SUCCESS"
@@ -385,7 +402,10 @@ def test_stream_executor_only_success_accepts_instructions_heading_programmer_mo
         yield (
             "מטרה: לבצע בדיקת מערכת\n"
             "הנחיות למודל המתכנת:\n"
-            "א. בצע פעולה טכנית אחת\n"
+            "א. קבצים לשינוי: tests/test_llm_execution_only_mode.py\n"
+            "ב. בדיקות: python -m pytest -q\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add tests/test_llm_execution_only_mode.py ואז git commit -m ... ואז git push\n"
             "קריטריון הצלחה:\n"
             "- הושלם\n"
             "סטטוס: SUCCESS"
@@ -407,3 +427,90 @@ def test_stream_executor_only_success_accepts_instructions_heading_programmer_mo
     body = response.text
     assert "?" not in body
     assert "סטטוס: SUCCESS" in body
+
+
+def test_exec_only_success_requires_tech_tokens_stream(monkeypatch) -> None:
+    calls: list[int] = []
+
+    def fake_chat_stream(messages, client_id=None):
+        calls.append(1)
+        if len(calls) == 1:
+            yield (
+                "מטרה: לבצע בדיקת מערכת\n"
+                "הנחיות למודל המתכנת:\n"
+                "א. בצע פעולה טכנית אחת\n"
+                "קריטריון הצלחה:\n"
+                "- הושלם\n"
+                "סטטוס: SUCCESS"
+            )
+            return
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. קבצים לשינוי: app/services/llm_chat/execution_only_guard.py\n"
+            "ב. בדיקות: python -m pytest -q\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add app/services/llm_chat/execution_only_guard.py ואז git commit -m ... ואז git push\n"
+            "קריטריון הצלחה:\n"
+            "- הפלט כולל curl.exe ו pytest ו git וגם נתיב app/\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "סטטוס: SUCCESS" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert "curl.exe" in body
+    assert "pytest" in body
+    assert "git" in body
+    assert ("app/" in body) or ("tests/" in body) or ("Dockerfile" in body)
+
+
+def test_exec_only_fallback_contains_tokens(monkeypatch) -> None:
+    calls: list[int] = []
+
+    def fake_chat_stream(messages, client_id=None):
+        calls.append(1)
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. בצע פעולה טכנית אחת\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "סטטוס: SUCCESS" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert "curl.exe" in body
+    assert "pytest" in body
+    assert "git" in body
+    assert ("app/" in body) or ("tests/" in body) or ("Dockerfile" in body)

@@ -17,8 +17,11 @@ def build_exec_only_rewrite_prompt(bad_text: str, user_request_text: str) -> lis
         "  3) קריטריון הצלחה:\n"
         "  4) סטטוס: SUCCESS\n"
         "- אין כותרות נוספות מעבר לארבע הללו\n"
-        "- חובה לכלול תוכן טכני אמיתי בתוך סעיף ההנחיות: קבצים לשינוי, צעדים ממוספרים, "
-        "פקודות PowerShell מוכנות להדבקה כולל curl.exe, pytest -q, git add, git commit, git push"
+        "- חובה לכלול תוכן טכני אמיתי בתוך סעיף ההנחיות לפי הצ'קליסט הבא (לא להחסיר אף סעיף):\n"
+        "  [ ] בלוק PowerShell שמכיל פקודת curl.exe\n"
+        "  [ ] פקודת בדיקות: python -m pytest -q\n"
+        "  [ ] פקודות Git: git add, git commit, git push\n"
+        "  [ ] לפחות נתיב קובץ אחד שמתחיל ב app/ או tests/ או Dockerfile\n"
     )
 
     user = (
