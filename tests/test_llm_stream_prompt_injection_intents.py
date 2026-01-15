@@ -1,4 +1,4 @@
-from fastapi.testclient import TestClient
+﻿from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop as stream_loop
@@ -34,6 +34,12 @@ def test_stream_injects_base_prompt_and_playbook_into_llm_messages_no_tools(monk
     assert any("PLAYBOOK_INTENTS_TEST" in c for c in system_contents)
 
 
+    base_idx = next(i for i, c in enumerate(system_contents) if "/api/v1/llm/pension-chat-stream" in c)
+    playbook_idx = next(i for i, c in enumerate(system_contents) if "PLAYBOOK_INTENTS_TEST" in c)
+    intent_idx = next(i for i, c in enumerate(system_contents) if "מצב: NO_TOOLS" in c)
+    assert base_idx < playbook_idx < intent_idx
+
+
 def test_stream_injects_base_prompt_and_playbook_into_llm_messages_analysis(monkeypatch) -> None:
     captured = {"messages": None}
 
@@ -66,3 +72,8 @@ def test_stream_injects_base_prompt_and_playbook_into_llm_messages_analysis(monk
     assert any("/api/v1/llm/pension-chat-stream" in c for c in system_contents)
     assert any("NO_TOOLS" in c and "REPORT" in c and "ANALYSIS" in c for c in system_contents)
     assert any("PLAYBOOK_INTENTS_TEST" in c for c in system_contents)
+
+    base_idx = next(i for i, c in enumerate(system_contents) if "/api/v1/llm/pension-chat-stream" in c)
+    playbook_idx = next(i for i, c in enumerate(system_contents) if "PLAYBOOK_INTENTS_TEST" in c)
+    intent_idx = next(i for i, c in enumerate(system_contents) if "מצב: ANALYSIS" in c)
+    assert base_idx < playbook_idx < intent_idx

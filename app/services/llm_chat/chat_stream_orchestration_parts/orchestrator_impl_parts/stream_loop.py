@@ -263,17 +263,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     if resolved_intent == ChatIntent.REPORT and request.client_id is not None:
         lowered_user_msg = (original_user_msg or "").lower()
         wants_pdf = "pdf" in lowered_user_msg
-        report_tool_name = (
-            "GENERATE_TAX_DEDUCTION_DOCUMENTS"
-            if is_tax_documents_request(original_user_msg)
-            else "GENERATE_FULL_REPORT"
-        )
-        report_tool_args: dict[str, Any] = {}
-        if report_tool_name == "GENERATE_FULL_REPORT":
-            report_tool_args = {
-                "output_format": "pdf" if wants_pdf else "html",
-                "report_type": "full",
-            }
+        report_tool_name = "GENERATE_FULL_REPORT"
+        report_tool_args: dict[str, Any] = {
+            "output_format": "pdf" if wants_pdf else "html",
+            "report_type": "full",
+        }
 
         def _generate_report_only(req_id: str):
             tool_db = SessionLocal()
@@ -807,13 +801,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             ChatMessage(role="system", content=get_stream_base_system_prompt())
         )
 
-        intent_system_prompt = get_stream_system_prompt_for_intent(resolved_intent)
-        if intent_system_prompt:
-            history_messages.append(ChatMessage(role="system", content=intent_system_prompt))
-
         playbook_text = _load_stream_intents_playbook_text()
         if playbook_text:
             history_messages.append(ChatMessage(role="system", content=playbook_text))
+
+        if resolved_intent in (ChatIntent.NO_TOOLS, ChatIntent.ANALYSIS):
+            intent_system_prompt = get_stream_system_prompt_for_intent(resolved_intent)
+            if intent_system_prompt:
+                history_messages.append(ChatMessage(role="system", content=intent_system_prompt))
 
         if wants_ignore_blocked:
             history_messages.append(

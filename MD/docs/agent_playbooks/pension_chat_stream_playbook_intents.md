@@ -29,3 +29,45 @@ No numbers.
 - Tool usage is allowed.
 - If a tool was executed and the stream included a tool output section like: `🔧 **פלט כלי ...**`,
   the stream must end immediately after that with a short Hebrew sentence without numbers (stop-after-tool).
+
+## Production smoke (manual)
+
+Use fixed `X-Trace-Id` values and verify response bodies.
+
+### REPORT only
+```bash
+curl -sS -X POST "https://<YOUR_PROD_HOST>/api/v1/llm/pension-chat-stream" \
+  -H "Content-Type: application/json" \
+  -H "X-Trace-Id: train-report-001" \
+  -d '{"client_id": 1, "messages": [{"role": "user", "content": "שלח דוח מסכם"}]}'
+```
+
+Expected:
+- Exactly one `###UI_ACTION###...###END_UI_ACTION###` block
+- No `🔧` and no tool output text
+
+### REPORT QA
+```bash
+curl -sS -X POST "https://<YOUR_PROD_HOST>/api/v1/llm/pension-chat-stream" \
+  -H "Content-Type: application/json" \
+  -H "X-Trace-Id: train-report-qa-001" \
+  -d '{"client_id": 1, "messages": [{"role": "user", "content": "אנא הפק דוח מלא (QA)"}]}'
+```
+
+Expected:
+- Exactly one `###UI_ACTION###...###END_UI_ACTION###` block
+- Then only this exact line:
+
+PASS - סיכום QA סופי לאחר יצירת הדוח
+
+### NO_TOOLS
+```bash
+curl -sS -X POST "https://<YOUR_PROD_HOST>/api/v1/llm/pension-chat-stream" \
+  -H "Content-Type: application/json" \
+  -H "X-Trace-Id: train-no-tools-001" \
+  -d '{"client_id": 1, "messages": [{"role": "user", "content": "ענה רק במילים בלבד בלי כלים ובלי מספרים"}]}'
+```
+
+Expected:
+- Verbal Hebrew response
+- No tools, no `###TOOL_CALL###`, no numbers
