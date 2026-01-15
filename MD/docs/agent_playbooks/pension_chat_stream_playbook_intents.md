@@ -71,3 +71,38 @@ curl -sS -X POST "https://<YOUR_PROD_HOST>/api/v1/llm/pension-chat-stream" \
 Expected:
 - Verbal Hebrew response
 - No tools, no `###TOOL_CALL###`, no numbers
+
+## Smoke commands (PowerShell)
+
+Set the local vars:
+
+$BASE="https://retire-production.up.railway.app"
+$PW="Benzvi5090"
+
+### NO_TOOLS
+
+$json='{"messages":[{"role":"user","content":"אל תפעיל כלים. ענה רק במילים."}],"client_id":36,"pension_portfolio":[]}'
+Set-Content -Encoding UTF8 -Value $json .\smoke_no_tools_020.json
+curl.exe -sS -N --http1.1 --tlsv1.2 --connect-timeout 10 --max-time 60 `
+  -H "X-System-Password: $PW" `
+  -H "Content-Type: application/json; charset=utf-8" `
+  -H "Accept: text/event-stream" `
+  -H "X-Trace-Id: smoke-no-tools-020" `
+  --data-binary "@smoke_no_tools_020.json" `
+  "$BASE/api/v1/llm/pension-chat-stream"
+
+Success criteria: no `?` and none of: "האם" "תרצה" "בחר".
+
+### ANALYSIS
+
+$json='{"messages":[{"role":"user","content":"ניתוח ותיזמון פרישה"}],"client_id":36,"pension_portfolio":[]}'
+Set-Content -Encoding UTF8 -Value $json .\smoke_analysis_020.json
+curl.exe -sS -N --http1.1 --tlsv1.2 --connect-timeout 10 --max-time 180 `
+  -H "X-System-Password: $PW" `
+  -H "Content-Type: application/json; charset=utf-8" `
+  -H "Accept: text/event-stream" `
+  -H "X-Trace-Id: smoke-analysis-020" `
+  --data-binary "@smoke_analysis_020.json" `
+  "$BASE/api/v1/llm/pension-chat-stream"
+
+Success criteria: after tool output the new fixed ending sentence appears, and there is no "אם תרצה" and no "האם" and no `?`.
