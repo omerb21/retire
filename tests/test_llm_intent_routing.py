@@ -96,6 +96,9 @@ def test_stream_intent_report_emits_ui_action_only_and_optional_exact_qa(monkeyp
     assert "###END_UI_ACTION###" in body
     assert "PASS - סיכום QA סופי לאחר יצירת הדוח" in body
     assert "###TOOL_CALL###" not in body
+    assert "🔧" not in body
+    assert "פלט כלי" not in body
+    assert "ניתוח פרישה" not in body
     assert tool_calls == ["GENERATE_FULL_REPORT"]
 
 
@@ -152,6 +155,9 @@ def test_stream_intent_report_without_qa_emits_ui_action_only(monkeypatch) -> No
     assert "###END_UI_ACTION###" in body
     assert "PASS - סיכום QA סופי לאחר יצירת הדוח" not in body
     assert "###TOOL_CALL###" not in body
+    assert "🔧" not in body
+    assert "פלט כלי" not in body
+    assert "ניתוח פרישה" not in body
     assert tool_calls == ["GENERATE_FULL_REPORT"]
 
 

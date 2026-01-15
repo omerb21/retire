@@ -55,6 +55,7 @@ _REPORT_QA_TRIGGERS: tuple[str, ...] = (
 
 def detect_intent(last_user_message: str | None) -> ChatIntent:
     msg = (last_user_message or "").strip().lower()
+    msg = msg.replace("״", '"').replace("׳", "'")
 
     if any(t in msg for t in _NO_TOOLS_TRIGGERS):
         return ChatIntent.NO_TOOLS

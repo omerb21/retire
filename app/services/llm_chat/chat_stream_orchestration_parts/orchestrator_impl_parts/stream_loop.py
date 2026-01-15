@@ -231,6 +231,19 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     except Exception:
         pass
 
+    original_user_msg = find_last_user_message(request.messages)
+    resolved_intent = detect_intent(original_user_msg)
+    try:
+        log_llm_event(
+            request_id=stream_request_id,
+            event_type="intent_resolution",
+            payload={"intent": resolved_intent.value},
+            client_id=request.client_id,
+            extra={"endpoint": "stream"},
+        )
+    except Exception:
+        pass
+
     effective_portfolio = request.pension_portfolio
     effective_snapshot_at = request.pension_portfolio_snapshot_at
     if request.client_id is not None:
@@ -247,21 +260,93 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 pass
 
-    messages, computed_data = prepare_messages_with_context(request, db)
-
-    original_user_msg = find_last_user_message(request.messages)
-
-    resolved_intent = detect_intent(original_user_msg)
-    try:
-        log_llm_event(
-            request_id=stream_request_id,
-            event_type="intent_resolution",
-            payload={"intent": resolved_intent.value},
-            client_id=request.client_id,
-            extra={"endpoint": "stream"},
+    if resolved_intent == ChatIntent.REPORT and request.client_id is not None:
+        lowered_user_msg = (original_user_msg or "").lower()
+        wants_pdf = "pdf" in lowered_user_msg
+        report_tool_name = (
+            "GENERATE_TAX_DEDUCTION_DOCUMENTS"
+            if is_tax_documents_request(original_user_msg)
+            else "GENERATE_FULL_REPORT"
         )
-    except Exception:
-        pass
+        report_tool_args: dict[str, Any] = {}
+        if report_tool_name == "GENERATE_FULL_REPORT":
+            report_tool_args = {
+                "output_format": "pdf" if wants_pdf else "html",
+                "report_type": "full",
+            }
+
+        def _generate_report_only(req_id: str):
+            tool_db = SessionLocal()
+            try:
+                tool_result = _execute_tool_call(
+                    report_tool_name,
+                    report_tool_args,
+                    request.client_id,
+                    tool_db,
+                    pension_portfolio=effective_portfolio,
+                    force_max_exemption=False,
+                    user_approved=True,
+                    request_id=req_id,
+                )
+            finally:
+                tool_db.close()
+
+            status_message: str | None = None
+            open_path: str | None = None
+            download_url: str | None = None
+            try:
+                parsed_tool = json.loads(tool_result)
+                if isinstance(parsed_tool, dict):
+                    open_path = parsed_tool.get("open_path")
+                    download_url = parsed_tool.get("download_url")
+                    status_message = parsed_tool.get("status_message") or parsed_tool.get(
+                        "message"
+                    )
+            except Exception:
+                pass
+
+            actions: list[dict[str, str]] = []
+            if isinstance(open_path, str) and open_path.strip():
+                actions.append({"type": "navigate", "path": open_path.strip(), "label": "פתח דוח"})
+            elif isinstance(download_url, str) and download_url.strip():
+                actions.append(
+                    {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
+                )
+                actions.append(
+                    {
+                        "type": "navigate",
+                        "path": f"/clients/{request.client_id}/reports",
+                        "label": "פתח עמוד דוחות",
+                    }
+                )
+            else:
+                actions.append(
+                    {
+                        "type": "navigate",
+                        "path": f"/clients/{request.client_id}/reports",
+                        "label": "פתח עמוד דוחות",
+                    }
+                )
+
+            ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
+            if isinstance(status_message, str) and status_message.strip():
+                ui_payload["status_message"] = status_message.strip()
+
+            yield (
+                "###UI_ACTION###"
+                + json.dumps(ui_payload, ensure_ascii=False)
+                + "###END_UI_ACTION###\n"
+            )
+
+            if is_qa_request(original_user_msg) or report_requires_qa_line(original_user_msg):
+                yield "\n\nPASS - סיכום QA סופי לאחר יצירת הדוח"
+
+        return StreamingResponse(
+            _generate_report_only(stream_request_id),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    messages, computed_data = prepare_messages_with_context(request, db)
 
     try:
         case_router = importlib.import_module("app.services.llm_chat.case_router")
