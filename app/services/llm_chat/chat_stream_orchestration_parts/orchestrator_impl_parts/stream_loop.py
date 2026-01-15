@@ -7,6 +7,8 @@ import uuid
 import time
 import threading
 import queue
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi.responses import StreamingResponse
@@ -45,6 +47,7 @@ from app.services.llm_chat.intent_classifier import (
     ChatIntent,
     detect_intent,
     get_stream_system_prompt_for_intent,
+    report_requires_qa_line,
 )
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
@@ -199,16 +202,33 @@ from .stream_loop_fixation_documents_deterministic import _maybe_handle_fixation
 from .stream_loop_target_plan_deterministic import _maybe_handle_target_plan_deterministic
 from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_deterministic
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.llm_chat")
+
+@lru_cache(maxsize=1)
+def _load_stream_intents_playbook_text() -> str | None:
+    try:
+        repo_root = Path(__file__).resolve().parents[5]
+        p = repo_root / "MD" / "docs" / "agent_playbooks" / "pension_chat_stream_playbook_intents.md"
+        if not p.exists():
+            return None
+        txt = p.read_text(encoding="utf-8")
+        cleaned = (txt or "").strip()
+        return cleaned or None
+    except Exception:
+        return None
 
 PC_LLM_MAX_RETRIES = 3
 PC_LLM_TIMEOUT_SECONDS = 120.0
 PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 
-
 def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingResponse:
     stream_request_id = generate_request_id()
     set_current_request_id(stream_request_id)
+
+    try:
+        object.__setattr__(request, "prompt_variant", "pension_chat_stream_v2")
+    except Exception:
+        pass
 
     effective_portfolio = request.pension_portfolio
     effective_snapshot_at = request.pension_portfolio_snapshot_at
@@ -661,7 +681,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 + "###END_UI_ACTION###\n"
             )
 
-            if is_qa_mode:
+            if is_qa_mode or report_requires_qa_line(original_user_msg):
                 yield "\n\nPASS - סיכום QA סופי לאחר יצירת הדוח"
             return
 
@@ -700,6 +720,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         intent_system_prompt = get_stream_system_prompt_for_intent(resolved_intent)
         if intent_system_prompt:
             history_messages.append(ChatMessage(role="system", content=intent_system_prompt))
+
+        playbook_text = _load_stream_intents_playbook_text()
+        if playbook_text:
+            history_messages.append(ChatMessage(role="system", content=playbook_text))
 
         if wants_ignore_blocked:
             history_messages.append(
@@ -842,7 +866,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 #
                 # Exception: in QA mode, after generating a full report, we must continue
                 # streaming to allow the model to emit the final QA summary.
-                if not qa_summary_required:
+                if resolved_intent == ChatIntent.ANALYSIS and (not qa_summary_required):
                     yield (
                         "\n\n"
                         + "הפקתי את תוצאות הניתוח מהמערכת. אם תרצה שאסביר במילים בלי מספרים מה המשמעות, כתוב: הסבר במילים.\n"

@@ -10,20 +10,26 @@ class ChatIntent(str, Enum):
 
 
 _NO_TOOLS_TRIGGERS: tuple[str, ...] = (
-    "בלי כלים",
-    "בלי להשתמש בכלי",
     "אל תפעיל כלים",
-    "אין להריץ שום כלי",
+    "בלי כלים",
     "רק במילים",
     "במילים בלבד",
-    "רק הסבר",
+    "בלי מספרים",
 )
 
 _REPORT_TRIGGERS: tuple[str, ...] = (
     "דוח",
     "דו\"ח",
     "מסמך",
+    "מסמכים",
+    "הפקת דוח",
+    "שלח דוח",
     "pdf",
+)
+
+_REPORT_QA_TRIGGERS: tuple[str, ...] = (
+    "qa",
+    "בדיקת מערכת",
 )
 
 
@@ -39,19 +45,31 @@ def detect_intent(last_user_message: str | None) -> ChatIntent:
     return ChatIntent.ANALYSIS
 
 
-def get_stream_system_prompt_for_intent(intent: ChatIntent) -> str | None:
+def report_requires_qa_line(last_user_message: str | None) -> bool:
+    msg = (last_user_message or "").strip().lower()
+    if not msg:
+        return False
+    return any(t.lower() in msg for t in _REPORT_QA_TRIGGERS)
+
+
+def get_stream_system_prompt(intent: ChatIntent) -> str:
     if intent == ChatIntent.NO_TOOLS:
         return (
-            "מצב: NO_TOOLS. המשתמש ביקש במפורש לא להפעיל כלים. "
-            "אסור להחזיר TOOL_CALL. אסור לבצע חישובים או להציג מספרים שאינם מתוך פלט מערכת. "
-            "החזר תשובה מילולית בלבד בעברית פשוטה וסיים בשאלה אחת בלבד."
+            "מצב: NO_TOOLS. אסור להחזיר TOOL_CALL. אסור להציג מספרים. "
+            "ענה בעברית בקצרה ובמילים בלבד."
         )
 
-    if intent == ChatIntent.ANALYSIS:
+    if intent == ChatIntent.REPORT:
         return (
-            "מצב: ANALYSIS. מותר להפעיל כלים רק כאשר זה נדרש כדי לענות על הבקשה. "
-            "אם אתה עומד להפעיל כלי, החזר אך ורק את הבלוקים: ###TRANSPARENCY_LOG###, ###RISK_REVIEW###, ###TOOL_CALL### "
-            "ללא טקסט נוסף."
+            "מצב: REPORT. אל תכתוב דוח ואל תציע צעדים. "
+            "יש להפיק דוח דרך כלי ולהחזיר רק ###UI_ACTION###...###END_UI_ACTION###."
         )
 
-    return None
+    return (
+        "מצב: ANALYSIS. מותר להפעיל כלים. "
+        "אם מפעילים כלי, החזר אך ורק: ###TRANSPARENCY_LOG###, ###RISK_REVIEW###, ###TOOL_CALL### ללא טקסט נוסף."
+    )
+
+
+def get_stream_system_prompt_for_intent(intent: ChatIntent) -> str | None:
+    return get_stream_system_prompt(intent)
