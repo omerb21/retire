@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from app.schemas.llm_chat import ChatRequest
 from app.utils.llm_chat_log import get_current_request_id
+from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -142,6 +143,10 @@ def validate_execution_only_output(text: str) -> None:
         raise ExecutionOnlyViolation("invalid_format")
     if extra_headers[3] != "סטטוס":
         raise ExecutionOnlyViolation("invalid_format")
+
+
+def execution_only_success_fallback(user_request_text: str) -> str:
+    return build_execution_only_fallback(user_request_text)
 
 
 def execution_only_blocked(reason: str) -> str:

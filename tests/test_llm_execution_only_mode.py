@@ -142,9 +142,10 @@ def test_stream_executor_only_header_blocks_question_mark(monkeypatch) -> None:
 
     assert response.status_code == 200
     body = response.text
-    assert "סטטוס: BLOCKED" in body
+    assert "סטטוס: SUCCESS" in body
     assert "?" not in body
     assert body.startswith("מטרה:")
+    assert "הנחיות למודל המתכנת:" in body
 
 
 def test_non_stream_executor_only_blocks_forbidden_phrase(monkeypatch) -> None:
@@ -165,8 +166,64 @@ def test_non_stream_executor_only_blocks_forbidden_phrase(monkeypatch) -> None:
 
     assert response.status_code == 200
     body = response.json()["reply"]
-    assert "סטטוס: BLOCKED" in body
+    assert "סטטוס: SUCCESS" in body
     assert "?" not in body
+    assert "האם" not in body
+    assert "בחר" not in body
+    assert "אשר" not in body
+    assert "הנחיות למודל המתכנת:" in body
+
+
+def test_exec_only_stream_falls_back_to_success_when_rewrite_fails(monkeypatch) -> None:
+    def fake_chat_stream(messages, client_id=None):
+        yield "האם תרצה שאמשיך עכשיו"
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "סטטוס: SUCCESS" in body
+    assert "הנחיות למודל המתכנת:" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert "בחר" not in body
+    assert "אשר" not in body
+
+
+def test_exec_only_non_stream_falls_back_to_success_when_rewrite_fails(monkeypatch) -> None:
+    def fake_chat(messages, client_id=None):
+        return "האם תרצה שאמשיך עכשיו"
+
+    monkeypatch.setattr(pension_llm_service, "chat", fake_chat)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat",
+        json={
+            "client_id": 1,
+            "executor_only": True,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()["reply"]
+    assert "סטטוס: SUCCESS" in body
+    assert "הנחיות למודל המתכנת:" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert "בחר" not in body
+    assert "אשר" not in body
 
 
 def test_stream_report_ignores_executor_only_and_emits_ui_action(monkeypatch) -> None:

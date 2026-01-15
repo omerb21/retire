@@ -109,6 +109,7 @@ from app.services.llm_chat.execution_only_guard import (
     execution_only_blocked,
 )
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
+from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.utils.llm_chat_log import (
@@ -914,7 +915,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                                 stream_request_id,
                                 reason,
                             )
-                            yield execution_only_blocked(reason)
+                            yield build_execution_only_fallback(original_user_msg or "")
                             return
                 yield final_out
                 break

@@ -24,6 +24,7 @@ from app.services.llm_chat.execution_only_guard import (
     execution_only_blocked,
 )
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
+from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -93,8 +94,8 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
                     trace_id,
                     reason,
                 )
-                blocked = execution_only_blocked(reason)
-                return ChatResponse(reply=blocked, computed_data=None)
+                fallback = build_execution_only_fallback(last_user_msg)
+                return ChatResponse(reply=fallback, computed_data=None)
     return res
 
 
