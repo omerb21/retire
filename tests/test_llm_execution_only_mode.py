@@ -36,6 +36,91 @@ def test_stream_executor_only_header_success(monkeypatch) -> None:
     body = response.text
     assert "?" not in body
     assert "סטטוס: SUCCESS" in body
+
+
+def test_exec_only_stream_rewrites_on_question_mark_then_succeeds(monkeypatch) -> None:
+    calls: list[int] = []
+
+    def fake_chat_stream(messages, client_id=None):
+        calls.append(1)
+        if len(calls) == 1:
+            yield (
+                "מטרה: לבצע בדיקת מערכת?\n"
+                "הנחיות טכניות:\n"
+                "א. בצע פעולה\n"
+                "קריטריון הצלחה:\n"
+                "- הושלם\n"
+                "סטטוס: SUCCESS"
+            )
+            return
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות טכניות:\n"
+            "א. בצע פעולה\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "בדיקה"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "?" not in body
+    assert "סטטוס: SUCCESS" in body
+    assert "סטטוס: BLOCKED" not in body
+
+
+def test_exec_only_non_stream_rewrites_on_question_mark_then_succeeds(monkeypatch) -> None:
+    calls: list[int] = []
+
+    def fake_chat(messages, client_id=None):
+        calls.append(1)
+        if len(calls) == 1:
+            return (
+                "מטרה: לבצע בדיקת מערכת?\n"
+                "הנחיות טכניות:\n"
+                "א. בצע פעולה\n"
+                "קריטריון הצלחה:\n"
+                "- הושלם\n"
+                "סטטוס: SUCCESS"
+            )
+        return (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות טכניות:\n"
+            "א. בצע פעולה\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(pension_llm_service, "chat", fake_chat)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat",
+        json={
+            "client_id": 1,
+            "executor_only": True,
+            "messages": [{"role": "user", "content": "בדיקה"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()["reply"]
+    assert "?" not in body
+    assert "סטטוס: SUCCESS" in body
+    assert "סטטוס: BLOCKED" not in body
     assert body.startswith("מטרה:")
 
 

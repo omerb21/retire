@@ -9,6 +9,7 @@ from app.database import get_db
 from app.schemas.llm_chat import (
     ChatRequest,
     ChatResponse,
+    ChatMessage,
     LlmProviderUpdateRequest,
     LlmProviderUpdateResponse,
 )
@@ -22,6 +23,7 @@ from app.services.llm_chat.execution_only_guard import (
     validate_execution_only_output,
     execution_only_blocked,
 )
+from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -54,24 +56,45 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
 
     res = run_pension_chat_service(request, db)
     if is_execution_only(request):
+        if isinstance(res.reply, str) and "###UI_ACTION###" in res.reply and "###END_UI_ACTION###" in res.reply:
+            return res
         try:
             validate_execution_only_output(res.reply)
         except Exception as e:
-            reason = getattr(e, "reason", "policy_violation")
-            trace_id = getattr(res, "request_id", None)
+            last_user_msg = ""
             try:
-                from app.utils.llm_chat_log import get_current_request_id
-
-                trace_id = get_current_request_id() or trace_id
+                for m in reversed(request.messages or []):
+                    if getattr(m, "role", None) == "user":
+                        last_user_msg = (getattr(m, "content", "") or "").strip()
+                        break
             except Exception:
-                pass
-            logger.warning(
-                "EXECUTION_ONLY BLOCKED endpoint=non_stream trace_id=%s reason=%s",
-                trace_id,
-                reason,
-            )
-            blocked = execution_only_blocked(reason)
-            return ChatResponse(reply=blocked, computed_data=None)
+                last_user_msg = ""
+
+            rewritten: str | None = None
+            try:
+                rewrite_prompt = build_exec_only_rewrite_prompt(res.reply, last_user_msg)
+                rewrite_messages = [
+                    ChatMessage(role=m["role"], content=m["content"]) for m in rewrite_prompt
+                ]
+                rewritten = pension_llm_service.chat(rewrite_messages, request.client_id)
+                validate_execution_only_output(rewritten)
+                return ChatResponse(reply=rewritten, computed_data=res.computed_data)
+            except Exception as e2:
+                reason = getattr(e2, "reason", getattr(e, "reason", "policy_violation"))
+                trace_id = getattr(res, "request_id", None)
+                try:
+                    from app.utils.llm_chat_log import get_current_request_id
+
+                    trace_id = get_current_request_id() or trace_id
+                except Exception:
+                    pass
+                logger.warning(
+                    "EXECUTION_ONLY BLOCKED endpoint=non_stream trace_id=%s reason=%s",
+                    trace_id,
+                    reason,
+                )
+                blocked = execution_only_blocked(reason)
+                return ChatResponse(reply=blocked, computed_data=None)
     return res
 
 

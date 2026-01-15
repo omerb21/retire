@@ -108,6 +108,7 @@ from app.services.llm_chat.execution_only_guard import (
     validate_execution_only_output,
     execution_only_blocked,
 )
+from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.utils.llm_chat_log import (
@@ -889,14 +890,32 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     try:
                         validate_execution_only_output(final_out)
                     except Exception as e:
-                        reason = getattr(e, "reason", "policy_violation")
-                        logger.warning(
-                            "EXECUTION_ONLY BLOCKED endpoint=stream trace_id=%s reason=%s",
-                            stream_request_id,
-                            reason,
-                        )
-                        yield execution_only_blocked(reason)
-                        return
+                        try:
+                            rewrite_prompt = build_exec_only_rewrite_prompt(
+                                bad_text=final_out,
+                                user_request_text=original_user_msg or "",
+                            )
+                            rewrite_messages = [
+                                ChatMessage(role=m["role"], content=m["content"])
+                                for m in rewrite_prompt
+                            ]
+                            _buf: list[str] = []
+                            llm_service = _get_llm_service()
+                            for _chunk in llm_service.chat_stream(rewrite_messages, request.client_id):
+                                if _chunk:
+                                    _buf.append(str(_chunk))
+                            rewritten = "".join(_buf)
+                            validate_execution_only_output(rewritten)
+                            final_out = rewritten
+                        except Exception as e2:
+                            reason = getattr(e2, "reason", getattr(e, "reason", "policy_violation"))
+                            logger.warning(
+                                "EXECUTION_ONLY BLOCKED endpoint=stream trace_id=%s reason=%s",
+                                stream_request_id,
+                                reason,
+                            )
+                            yield execution_only_blocked(reason)
+                            return
                 yield final_out
                 break
 
