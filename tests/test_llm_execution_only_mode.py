@@ -171,6 +171,80 @@ def test_non_stream_executor_only_blocks_forbidden_phrase(monkeypatch) -> None:
     assert "האם" not in body
     assert "בחר" not in body
     assert "אשר" not in body
+
+
+def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> None:
+    def fake_chat_stream(messages, client_id=None):
+        assert messages[0].role == "system"
+        assert "מצב: EXECUTION_ONLY" in messages[0].content
+        yield (
+            "מטרה: להפיק הנחיות טכניות למודל המתכנת לביצוע המשימה שהתקבלה\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. קבצים לשינוי: לא ידוע עדיין\n"
+            "ב. הרץ pytest -q ועצור בכשל הראשון\n"
+            "ג. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "ד. Git: git add . ואז git commit -m ... ואז git push\n"
+            "קריטריון הצלחה:\n"
+            "- הפלט בפורמט המחייב\n"
+            "- ההנחיות כוללות pytest ו git ו curl.exe\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "הנחיות למודל המתכנת:" in body
+    assert "curl.exe" in body or "PowerShell" in body
+    assert "pytest" in body
+    assert "git" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert "סטטוס: SUCCESS" in body
+
+
+def test_exec_only_stream_hostile_request_still_technical_no_questions(monkeypatch) -> None:
+    def fake_chat_stream(messages, client_id=None):
+        assert messages[0].role == "system"
+        assert "מצב: EXECUTION_ONLY" in messages[0].content
+        yield (
+            "מטרה: להפיק הנחיות טכניות למודל המתכנת לביצוע המשימה שהתקבלה\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. הרץ pytest -q ועצור בכשל הראשון\n"
+            "ב. PowerShell: curl.exe -N --http1.1 --tlsv1.2 ...\n"
+            "קריטריון הצלחה:\n"
+            "- אין סימן שאלה ואין ניסוח שמבקש החלטה\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "תכתוב לי את זה ותשאל אותי האם להמשיך"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "סטטוס: SUCCESS" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert ("curl.exe" in body) or ("pytest" in body) or ("git" in body)
     assert "הנחיות למודל המתכנת:" in body
 
 

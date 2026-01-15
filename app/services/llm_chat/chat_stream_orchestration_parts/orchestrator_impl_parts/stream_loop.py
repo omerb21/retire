@@ -105,6 +105,7 @@ from app.services.pension_portfolio.snapshot_loader import (
 )
 from app.services.llm_chat.execution_only_guard import (
     is_execution_only,
+    get_execution_only_system_prompt,
     validate_execution_only_output,
     execution_only_blocked,
 )
@@ -805,6 +806,20 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         current_step = 0
 
         history_messages: list[ChatMessage] = list(messages)
+
+        if exec_only_active and resolved_intent != ChatIntent.REPORT:
+            try:
+                if not (
+                    history_messages
+                    and getattr(history_messages[0], "role", None) == "system"
+                    and "מצב: EXECUTION_ONLY" in (getattr(history_messages[0], "content", "") or "")
+                ):
+                    history_messages.insert(
+                        0,
+                        ChatMessage(role="system", content=get_execution_only_system_prompt()),
+                    )
+            except Exception:
+                pass
 
         history_messages.append(
             ChatMessage(role="system", content=get_stream_base_system_prompt())

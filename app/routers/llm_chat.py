@@ -22,9 +22,11 @@ from app.services.llm_chat.execution_only_guard import (
     is_execution_only,
     validate_execution_only_output,
     execution_only_blocked,
+    get_execution_only_system_prompt,
 )
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
+from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -52,6 +54,28 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
             header_val = http_request.headers.get("X-Executor-Only")
         if header_val is not None:
             object.__setattr__(request, "executor_only", header_val == "1")
+    except Exception:
+        pass
+
+    last_user_msg_for_intent = ""
+    try:
+        for m in reversed(request.messages or []):
+            if getattr(m, "role", None) == "user":
+                last_user_msg_for_intent = (getattr(m, "content", "") or "").strip()
+                break
+    except Exception:
+        last_user_msg_for_intent = ""
+
+    try:
+        if is_execution_only(request) and detect_intent(last_user_msg_for_intent) != ChatIntent.REPORT:
+            msgs = list(request.messages or [])
+            if not (
+                msgs
+                and getattr(msgs[0], "role", None) == "system"
+                and "מצב: EXECUTION_ONLY" in (getattr(msgs[0], "content", "") or "")
+            ):
+                msgs.insert(0, ChatMessage(role="system", content=get_execution_only_system_prompt()))
+                object.__setattr__(request, "messages", msgs)
     except Exception:
         pass
 
