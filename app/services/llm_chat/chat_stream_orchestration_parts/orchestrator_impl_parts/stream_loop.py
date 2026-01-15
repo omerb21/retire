@@ -109,10 +109,12 @@ from app.services.llm_chat.execution_only_guard import (
     validate_execution_only_output,
     execution_only_blocked,
 )
+from app.services.llm_chat.prompts_stream_retirement_kb import get_stream_professional_system_prompt
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
+from app.utils.knowledge_loader import get_retirement_kb_for_stream
 from app.utils.llm_chat_log import (
     generate_request_id,
     log_llm_event,
@@ -832,6 +834,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         history_messages: list[ChatMessage] = list(messages)
 
+        insertion_idx = next(
+            (i for i, m in enumerate(history_messages) if getattr(m, "role", None) != "system"),
+            len(history_messages),
+        )
+
         if exec_only_active and resolved_intent != ChatIntent.REPORT:
             try:
                 if not (
@@ -846,18 +853,62 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 pass
 
-        history_messages.append(
-            ChatMessage(role="system", content=get_stream_base_system_prompt())
+            insertion_idx = next(
+                (
+                    i
+                    for i, m in enumerate(history_messages)
+                    if getattr(m, "role", None) != "system"
+                ),
+                len(history_messages),
+            )
+
+        if resolved_intent in (ChatIntent.NO_TOOLS, ChatIntent.ANALYSIS) or (
+            exec_only_active and resolved_intent != ChatIntent.REPORT
+        ):
+            try:
+                kb_text = get_retirement_kb_for_stream()
+                if kb_text:
+                    history_messages.insert(
+                        insertion_idx, ChatMessage(role="system", content=kb_text)
+                    )
+                    insertion_idx += 1
+            except Exception:
+                pass
+
+        history_messages.insert(
+            insertion_idx,
+            ChatMessage(role="system", content=get_stream_base_system_prompt()),
         )
+        insertion_idx += 1
+
+        if resolved_intent in (ChatIntent.NO_TOOLS, ChatIntent.ANALYSIS) or (
+            exec_only_active and resolved_intent != ChatIntent.REPORT
+        ):
+            try:
+                prof_prompt = get_stream_professional_system_prompt()
+                if prof_prompt:
+                    history_messages.insert(
+                        insertion_idx, ChatMessage(role="system", content=prof_prompt)
+                    )
+                    insertion_idx += 1
+            except Exception:
+                pass
 
         playbook_text = _load_stream_intents_playbook_text()
         if playbook_text:
-            history_messages.append(ChatMessage(role="system", content=playbook_text))
+            history_messages.insert(
+                insertion_idx, ChatMessage(role="system", content=playbook_text)
+            )
+            insertion_idx += 1
 
         if resolved_intent in (ChatIntent.NO_TOOLS, ChatIntent.ANALYSIS):
             intent_system_prompt = get_stream_system_prompt_for_intent(resolved_intent)
             if intent_system_prompt:
-                history_messages.append(ChatMessage(role="system", content=intent_system_prompt))
+                history_messages.insert(
+                    insertion_idx,
+                    ChatMessage(role="system", content=intent_system_prompt),
+                )
+                insertion_idx += 1
 
         if wants_ignore_blocked:
             history_messages.append(
