@@ -41,6 +41,11 @@ from app.services.llm_chat.message_utils import (
     find_last_user_message,
     is_user_approval_intent_text,
 )
+from app.services.llm_chat.intent_classifier import (
+    ChatIntent,
+    detect_intent,
+    get_stream_system_prompt_for_intent,
+)
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
@@ -90,7 +95,6 @@ from app.services.llm_chat.orchestration_utils import (
     parse_tool_call_from_reply,
     sanitize_user_visible_text,
 )
-from app.services.llm_chat.chat_orchestration_helpers import maybe_clear_pension_portfolio_after_transform
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
@@ -226,6 +230,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     original_user_msg = find_last_user_message(request.messages)
 
+    resolved_intent = detect_intent(original_user_msg)
+    try:
+        log_llm_event(
+            request_id=stream_request_id,
+            event_type="intent_resolution",
+            payload={"intent": resolved_intent.value},
+            client_id=request.client_id,
+            extra={"endpoint": "stream"},
+        )
+    except Exception:
+        pass
+
     try:
         case_router = importlib.import_module("app.services.llm_chat.case_router")
         select_case = getattr(case_router, "select_case", None)
@@ -344,10 +360,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
 
     is_net_request = is_net_pension_request(original_user_msg)
-    is_doc_request = is_document_request(original_user_msg)
+    is_doc_request = is_document_request(original_user_msg) or (resolved_intent == ChatIntent.REPORT)
     is_tax_doc_request = is_tax_documents_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
-    no_tools_requested = is_no_tools_request(original_user_msg)
+    no_tools_requested = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(original_user_msg)
     force_max_exemption = is_max_exemption_request(original_user_msg)
     commutation_intent = is_pension_commutation_request(original_user_msg)
     explicit_transform = (not commutation_intent) and is_transform_request(original_user_msg)
@@ -393,6 +409,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and (not is_tax_doc_request)
         and (not is_qa_mode)
         and (not no_tools_requested)
+        and (resolved_intent != ChatIntent.REPORT)
     ):
         wants_pdf = "pdf" in lowered_user_msg
         return _stream_execute_tool_no_approval(
@@ -568,6 +585,86 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         current_pension_portfolio = effective_portfolio
 
+        if (
+            resolved_intent == ChatIntent.REPORT
+            and request.client_id is not None
+            and (not no_tools_requested)
+        ):
+            wants_pdf = "pdf" in lowered_user_msg
+            report_tool_name = (
+                "GENERATE_TAX_DEDUCTION_DOCUMENTS" if is_tax_doc_request else "GENERATE_FULL_REPORT"
+            )
+            report_tool_args: dict[str, Any] = {}
+            if report_tool_name == "GENERATE_FULL_REPORT":
+                report_tool_args = {
+                    "output_format": "pdf" if wants_pdf else "html",
+                    "report_type": "full",
+                }
+
+            tool_db = SessionLocal()
+            try:
+                tool_result = _execute_tool_call(
+                    report_tool_name,
+                    report_tool_args,
+                    request.client_id,
+                    tool_db,
+                    pension_portfolio=current_pension_portfolio,
+                    force_max_exemption=force_max_exemption_val,
+                    user_approved=True,
+                    request_id=req_id,
+                )
+            finally:
+                tool_db.close()
+
+            status_message: str | None = None
+            open_path: str | None = None
+            download_url: str | None = None
+            try:
+                parsed_tool = json.loads(tool_result)
+                if isinstance(parsed_tool, dict):
+                    open_path = parsed_tool.get("open_path")
+                    download_url = parsed_tool.get("download_url")
+                    status_message = parsed_tool.get("status_message") or parsed_tool.get("message")
+            except Exception:
+                pass
+
+            actions: list[dict[str, str]] = []
+            if isinstance(open_path, str) and open_path.strip():
+                actions.append({"type": "navigate", "path": open_path.strip(), "label": "פתח דוח"})
+            elif isinstance(download_url, str) and download_url.strip():
+                actions.append(
+                    {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
+                )
+                actions.append(
+                    {
+                        "type": "navigate",
+                        "path": f"/clients/{request.client_id}/reports",
+                        "label": "פתח עמוד דוחות",
+                    }
+                )
+            else:
+                actions.append(
+                    {
+                        "type": "navigate",
+                        "path": f"/clients/{request.client_id}/reports",
+                        "label": "פתח עמוד דוחות",
+                    }
+                )
+
+            ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
+            if isinstance(status_message, str) and status_message.strip():
+                ui_payload["status_message"] = status_message.strip()
+
+            yield (
+                "###UI_ACTION###"
+                + json.dumps(ui_payload, ensure_ascii=False)
+                + "###END_UI_ACTION###\n"
+            )
+
+            if is_qa_mode:
+                yield "\n\nPASS - סיכום QA סופי לאחר יצירת הדוח"
+            return
+
         if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
             yield from _stream_handle_explicit_transform(
                 lowered_user_msg=lowered_user_msg,
@@ -600,17 +697,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         history_messages: list[ChatMessage] = list(messages)
 
-        if no_tools_requested:
-            history_messages.append(
-                ChatMessage(
-                    role="system",
-                    content=(
-                        "אזהרה: המשתמש ביקש במפורש לא להפעיל כלים. "
-                        "אסור להחזיר TOOL_CALL. החזר תשובה במילים בלבד (ללא מספרים אם אפשר), "
-                        "וללא ביצוע פעולות או חישובים."
-                    ),
-                )
-            )
+        intent_system_prompt = get_stream_system_prompt_for_intent(resolved_intent)
+        if intent_system_prompt:
+            history_messages.append(ChatMessage(role="system", content=intent_system_prompt))
 
         if wants_ignore_blocked:
             history_messages.append(
