@@ -1,8 +1,9 @@
 import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import logging
 
 from app.database import get_db
 from app.schemas.llm_chat import (
@@ -16,6 +17,13 @@ from app.services.llm_chat.chat_orchestration import (
     run_pension_chat as run_pension_chat_service,
     run_pension_chat_stream as run_pension_chat_stream_service,
 )
+from app.services.llm_chat.execution_only_guard import (
+    is_execution_only,
+    validate_execution_only_output,
+    execution_only_blocked,
+)
+
+logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
 
 
@@ -33,17 +41,55 @@ async def update_llm_provider(payload: LlmProviderUpdateRequest) -> LlmProviderU
 
 
 @router.post("/pension-chat", response_model=ChatResponse)
-async def pension_chat(request: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
+async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http_request: Request = None) -> ChatResponse:
     """נקודת קצה לצ'אט עם סוכן ה-LLM הפנסיוני - כולל לולאת הרצה (Execution Loop)."""
-    return run_pension_chat_service(request, db)
+    try:
+        header_val = None
+        if http_request is not None:
+            header_val = http_request.headers.get("X-Executor-Only")
+        if header_val is not None:
+            object.__setattr__(request, "executor_only", header_val == "1")
+    except Exception:
+        pass
+
+    res = run_pension_chat_service(request, db)
+    if is_execution_only(request):
+        try:
+            validate_execution_only_output(res.reply)
+        except Exception as e:
+            reason = getattr(e, "reason", "policy_violation")
+            trace_id = getattr(res, "request_id", None)
+            try:
+                from app.utils.llm_chat_log import get_current_request_id
+
+                trace_id = get_current_request_id() or trace_id
+            except Exception:
+                pass
+            logger.warning(
+                "EXECUTION_ONLY BLOCKED endpoint=non_stream trace_id=%s reason=%s",
+                trace_id,
+                reason,
+            )
+            blocked = execution_only_blocked(reason)
+            return ChatResponse(reply=blocked, computed_data=None)
+    return res
 
 
 @router.post("/pension-chat-stream")
-async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db)):
+async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db), http_request: Request = None):
     """נקודת קצה לצ'אט עם סוכן ה-LLM הפנסיוני בזרימה (streaming).
     
     כרגע תומך רק במחזור אחד (ללא לולאת סוכן מלאה), אך מזהה TOOL_CALL ומריץ אותו.
     """
+    try:
+        header_val = None
+        if http_request is not None:
+            header_val = http_request.headers.get("X-Executor-Only")
+        if header_val is not None:
+            object.__setattr__(request, "executor_only", header_val == "1")
+    except Exception:
+        pass
+
     try:
         if "PYTEST_CURRENT_TEST" not in os.environ:
             last_user_msg = ""
@@ -52,8 +98,8 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                     last_user_msg = (getattr(m, "content", "") or "").strip()
                     break
 
-            if last_user_msg.lower() in {"שלום", "היי", "הי", "hello", "hi"}:
-                greeting = "שלום! איך תרצה שנתחיל? אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
+            if (not is_execution_only(request)) and last_user_msg.lower() in {"שלום", "היי", "הי", "hello", "hi"}:
+                greeting = "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
 
                 def _gen():
                     yield greeting

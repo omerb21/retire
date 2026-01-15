@@ -103,6 +103,11 @@ from app.services.llm_chat.numeric_provenance import validate_reply_numeric_prov
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
 )
+from app.services.llm_chat.execution_only_guard import (
+    is_execution_only,
+    validate_execution_only_output,
+    execution_only_blocked,
+)
 from app.models.client import Client
 from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.utils.llm_chat_log import (
@@ -339,6 +344,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             _generate_report_only(stream_request_id),
             media_type="text/plain; charset=utf-8",
         )
+
+    exec_only_active = is_execution_only(request)
 
     messages, computed_data = prepare_messages_with_context(request, db)
 
@@ -878,6 +885,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     allowed_sources=allowed_sources,
                     is_portfolio_analysis=is_portfolio_analysis,
                 )
+                if exec_only_active and resolved_intent != ChatIntent.REPORT:
+                    try:
+                        validate_execution_only_output(final_out)
+                    except Exception as e:
+                        reason = getattr(e, "reason", "policy_violation")
+                        logger.warning(
+                            "EXECUTION_ONLY BLOCKED endpoint=stream trace_id=%s reason=%s",
+                            stream_request_id,
+                            reason,
+                        )
+                        yield execution_only_blocked(reason)
+                        return
                 yield final_out
                 break
 
@@ -952,6 +971,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 # Exception: in QA mode, after generating a full report, we must continue
                 # streaming to allow the model to emit the final QA summary.
                 if resolved_intent == ChatIntent.ANALYSIS and (not qa_summary_required):
+                    if exec_only_active:
+                        yield execution_only_blocked("policy_violation")
+                        return
                     yield (
                         "\n\n"
                         + "הפקתי את תוצאות הניתוח מהמערכת. אם תרצה שאסביר במילים בלי מספרים מה המשמעות, כתוב: הסבר במילים.\n"
@@ -960,6 +982,9 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
             except Exception as e:
                 logger.error("Stream Tool Execution Failed: %s", e, exc_info=True)
+                if exec_only_active and resolved_intent != ChatIntent.REPORT:
+                    yield execution_only_blocked("tool_execution_failed")
+                    return
                 yield f"\n\n(Error executing tool: {sanitize_user_visible_text(str(e))})"
                 break
 

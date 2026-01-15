@@ -104,6 +104,7 @@ class ChatRequest(BaseModel):
     client_id: int | None = None
     pension_portfolio: Optional[List[PensionPortfolioAccount]] = None
     pension_portfolio_snapshot_at: Optional[str] = None
+    executor_only: bool | None = None
 
 
 class ComputedPensionSource(BaseModel):
