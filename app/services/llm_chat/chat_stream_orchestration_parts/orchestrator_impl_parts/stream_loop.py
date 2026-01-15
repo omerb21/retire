@@ -46,6 +46,7 @@ from app.services.llm_chat.message_utils import (
 from app.services.llm_chat.intent_classifier import (
     ChatIntent,
     detect_intent,
+    get_stream_base_system_prompt,
     get_stream_system_prompt_for_intent,
     report_requires_qa_line,
 )
@@ -716,6 +717,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         current_step = 0
 
         history_messages: list[ChatMessage] = list(messages)
+
+        history_messages.append(
+            ChatMessage(role="system", content=get_stream_base_system_prompt())
+        )
 
         intent_system_prompt = get_stream_system_prompt_for_intent(resolved_intent)
         if intent_system_prompt:
