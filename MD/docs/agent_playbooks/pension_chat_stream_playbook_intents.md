@@ -106,3 +106,25 @@ curl.exe -sS -N --http1.1 --tlsv1.2 --connect-timeout 10 --max-time 180 `
   "$BASE/api/v1/llm/pension-chat-stream"
 
 Success criteria: after tool output the new fixed ending sentence appears, and there is no "אם תרצה" and no "האם" and no `?`.
+
+### Smoke hardening helper (PowerShell)
+
+If the response file contains NUL bytes and cannot be viewed normally, capture as binary and decode UTF-8 with a nul-strip.
+
+```powershell
+$outFile = ".\\smoke_response.bin"
+curl.exe -sS --http1.1 --tlsv1.2 --connect-timeout 10 --max-time 60 `
+  -H "X-System-Password: $PW" `
+  -H "Content-Type: application/json; charset=utf-8" `
+  -H "Accept: text/event-stream" `
+  -H "X-Trace-Id: <TRACE_ID>" `
+  --data-binary "@<JSON_FILE>.json" `
+  --output $outFile `
+  "$BASE/api/v1/llm/pension-chat-stream"
+
+$exit = $LASTEXITCODE
+if ($exit -ne 0) { throw "curl failed: exit=$exit" }
+
+$bytes = Get-Content -Encoding Byte -Raw $outFile
+$body = [System.Text.Encoding]::UTF8.GetString($bytes) -replace "`0", ""
+```
