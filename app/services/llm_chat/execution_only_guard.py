@@ -84,6 +84,7 @@ _HEADER_RE = re.compile(
     flags=re.MULTILINE,
 )
 _STEP_RE = re.compile(r"^\s*(?:\d+|[א-ת])[\.)]\s+", flags=re.MULTILINE)
+_STEP_PREFIX_LINE_RE = re.compile(r"^\s*(?:\d+|[א-ת])[\.)]\s+")
 
 _REQUIRED_TECH_TOKENS = ("curl.exe", "pytest", "git")
 _REQUIRED_PATH_PREFIXES = ("app/", "tests/", "Dockerfile")
@@ -97,6 +98,58 @@ def _has_required_exec_only_tech_payload(text: str) -> bool:
     if any(pfx.lower() in t_lower for pfx in _REQUIRED_PATH_PREFIXES):
         return True
     return False
+
+
+def _has_required_exec_only_actionable_payload(*, full_text: str, steps_block: str) -> bool:
+    text = (full_text or "")
+    steps = (steps_block or "")
+
+    steps_lines = [ln.strip() for ln in steps.splitlines() if (ln or "").strip()]
+
+    def _step_action_line(line: str) -> str:
+        return _STEP_PREFIX_LINE_RE.sub("", (line or "").strip()).strip()
+
+    normalized_steps = [_step_action_line(ln) for ln in steps_lines]
+    normalized_steps_lower = [ln.lower() for ln in normalized_steps]
+
+    def _is_actionable_curl_trace_line(ln_lower: str) -> bool:
+        if "curl.exe" not in ln_lower:
+            return False
+        if "x-trace-id" not in ln_lower:
+            return False
+        prefix = (ln_lower.split("curl.exe", 1)[0] or "").strip()
+        if not prefix:
+            return True
+        if prefix.endswith(":") and ("powershell" in prefix or prefix == "ps:" or prefix.startswith("ps ")):
+            return True
+        return False
+
+    has_git_add = any("git add" in ln for ln in normalized_steps_lower)
+    has_git_commit = any("git commit" in ln for ln in normalized_steps_lower)
+    has_git_push = any("git push" in ln for ln in normalized_steps_lower)
+    has_git_step = any(ln.startswith("git ") or "git " in ln for ln in normalized_steps_lower)
+
+    has_pytest_step = any(
+        ln.startswith("python -m pytest") or ("pytest -q" in ln) for ln in normalized_steps_lower
+    )
+
+    has_curl_trace_step = any(_is_actionable_curl_trace_line(ln) for ln in normalized_steps_lower)
+
+    has_path = (
+        re.search(r"(?i)\b(app/|tests/)[^\s\"']+", text) is not None
+        or re.search(r"(?i)\bDockerfile\b", text) is not None
+    )
+
+    if not (has_git_step and has_git_add and has_git_commit and has_git_push):
+        return False
+    if not has_pytest_step:
+        return False
+    if not has_curl_trace_step:
+        return False
+    if not has_path:
+        return False
+
+    return True
 
 
 def is_execution_only(request: ChatRequest) -> bool:
@@ -161,6 +214,8 @@ def validate_execution_only_output(text: str) -> None:
     status_line = lines[idx_status].strip()
     if status_line == "סטטוס: SUCCESS":
         if not _has_required_exec_only_tech_payload(text):
+            raise ExecutionOnlyViolation("invalid_format")
+        if not _has_required_exec_only_actionable_payload(full_text=text, steps_block=steps_block):
             raise ExecutionOnlyViolation("invalid_format")
     elif status_line == "סטטוס: BLOCKED" or status_line.startswith("סטטוס: BLOCKED | סיבה: "):
         pass

@@ -185,6 +185,98 @@ def test_non_stream_executor_only_blocks_forbidden_phrase(monkeypatch) -> None:
     assert ("app/" in body) or ("tests/" in body) or ("Dockerfile" in body)
 
 
+def test_exec_only_success_without_actionable_commands_triggers_rewrite_then_fallback(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_chat_stream(messages, client_id=None):
+        system_text = (getattr(messages[0], "content", "") or "") if messages else ""
+
+        if "עורך-שכתוב" in system_text:
+            calls.append("rewrite")
+            yield (
+                "מטרה: פלט שגוי\n"
+                "הנחיות למודל המתכנת:\n"
+                "א. יש לכלול curl.exe pytest git app/ אבל בלי פקודות\n"
+                "קריטריון הצלחה:\n"
+                "- הושלם\n"
+                "סטטוס: SUCCESS"
+            )
+            return
+
+        calls.append("initial")
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. curl.exe pytest git app/services/llm_chat/execution_only_guard.py\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "סטטוס: SUCCESS" in body
+    assert "?" not in body
+    assert "האם" not in body
+    assert "תרצה" not in body
+    assert "בחר" not in body
+    assert "python -m pytest -q" in body
+    assert "git add" in body
+    assert "git commit" in body
+    assert "git push" in body
+    assert "curl.exe" in body
+    assert "X-Trace-Id" in body
+    assert ("app/" in body) or ("tests/" in body) or ("Dockerfile" in body)
+    assert "rewrite" in calls
+
+
+def test_exec_only_fallback_contains_actionable_commands(monkeypatch) -> None:
+    def fake_chat_stream(messages, client_id=None):
+        yield (
+            "מטרה: לבצע בדיקת מערכת\n"
+            "הנחיות למודל המתכנת:\n"
+            "א. בצע פעולה טכנית אחת\n"
+            "קריטריון הצלחה:\n"
+            "- הושלם\n"
+            "סטטוס: SUCCESS"
+        )
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        headers={"X-Executor-Only": "1"},
+        json={
+            "client_id": 1,
+            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.text
+    assert "סטטוס: SUCCESS" in body
+    assert "python -m pytest -q" in body
+    assert "git add" in body
+    assert "git commit" in body
+    assert "git push" in body
+    assert "curl.exe" in body
+    assert "X-Trace-Id" in body
+    assert "app/services/llm_chat/execution_only_guard.py" in body
+
+
 def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         assert messages[0].role == "system"
