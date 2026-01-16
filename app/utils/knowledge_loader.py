@@ -16,6 +16,12 @@ def get_retirement_kb_for_stream() -> str:
         "scenarios_how_to_read.md",
         "no_tools_mode_guidelines.md",
         "execution_only_mode_guidelines.md",
+        "explaining_cashflow_in_words.md",
+        "blocked_compensation_explainer.md",
+        "rights_fixation_in_words.md",
+        "capital_vs_pension_no_numbers.md",
+        "clearinghouse_data_loading_faq.md",
+        "summary_report_faq.md",
     ]
 
     parts: list[str] = []
