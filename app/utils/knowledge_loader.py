@@ -32,4 +32,4 @@ def get_retirement_kb_for_stream() -> str:
     if not combined:
         return ""
 
-    return "###RAG_RETIREMENT_KB###\n" + combined + "\n###END_RAG_RETIREMENT_KB###"
+    return "ידע מקצועי לפרישה (לשימוש פנימי בלבד):\n\n" + combined

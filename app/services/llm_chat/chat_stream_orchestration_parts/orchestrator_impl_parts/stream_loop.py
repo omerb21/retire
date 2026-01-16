@@ -230,6 +230,11 @@ _NO_TOOLS_FIXED_ENDING = "קיבלתי. אפשר להמשיך בהסבר מיל�
 
 def _postprocess_no_tools_user_visible_text(text: str) -> str:
     original = text or ""
+    original = "\n".join(
+        line
+        for line in original.splitlines()
+        if ("RAG_RETIREMENT_KB" not in line and "END_RAG_RETIREMENT_KB" not in line)
+    )
     out = original.replace("?", "")
     for phrase in _NO_TOOLS_DECISION_PHRASES:
         out = out.replace(phrase, "")
