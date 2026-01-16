@@ -22,6 +22,12 @@ def get_retirement_kb_for_stream() -> str:
         "capital_vs_pension_no_numbers.md",
         "clearinghouse_data_loading_faq.md",
         "summary_report_faq.md",
+        "early_retirement_overview.md",
+        "pension_types_map.md",
+        "tax_basics_no_numbers.md",
+        "fixation_common_mistakes.md",
+        "how_to_prepare_for_meeting.md",
+        "post_retirement_checklist.md",
     ]
 
     parts: list[str] = []
