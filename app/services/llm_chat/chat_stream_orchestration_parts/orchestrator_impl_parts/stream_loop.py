@@ -50,6 +50,7 @@ from app.services.llm_chat.intent_classifier import (
     get_stream_system_prompt_for_intent,
     report_requires_qa_line,
 )
+from app.guards.advisor_behavior_guard import enforce_behavioral_limits
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
@@ -1015,6 +1016,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                             )
                             yield build_execution_only_fallback(original_user_msg or "")
                             return
+                if (not exec_only_active) and (
+                    "###UI_ACTION###" not in (final_out or "")
+                    and "###END_UI_ACTION###" not in (final_out or "")
+                ):
+                    allowed, final_out = enforce_behavioral_limits(final_out)
                 yield final_out
                 break
 

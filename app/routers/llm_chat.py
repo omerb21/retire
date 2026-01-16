@@ -27,6 +27,7 @@ from app.services.llm_chat.execution_only_guard import (
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
+from app.guards.advisor_behavior_guard import enforce_behavioral_limits
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -120,6 +121,12 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
                 )
                 fallback = build_execution_only_fallback(last_user_msg)
                 return ChatResponse(reply=fallback, computed_data=None)
+
+    if isinstance(res.reply, str) and "###UI_ACTION###" not in res.reply and "###END_UI_ACTION###" not in res.reply:
+        allowed, final_text = enforce_behavioral_limits(res.reply)
+        if not allowed:
+            return ChatResponse(reply=final_text, computed_data=res.computed_data)
+
     return res
 
 
