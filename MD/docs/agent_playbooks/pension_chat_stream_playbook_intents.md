@@ -128,3 +128,23 @@ if ($exit -ne 0) { throw "curl failed: exit=$exit" }
 $bytes = Get-Content -Encoding Byte -Raw $outFile
 $body = [System.Text.Encoding]::UTF8.GetString($bytes) -replace "`0", ""
 ```
+
+## EXECUTION_ONLY Smoke (Production)
+
+```powershell
+$BASE="https://retire-production.up.railway.app"
+$PW="Benzvi5090"
+$json='{"messages":[{"role":"user","content":"כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],"client_id":36,"pension_portfolio":[],"executor_only":true}'
+Set-Content -Encoding UTF8 -Value $json .\smoke_exec_only_actionable.json
+
+curl.exe -sS -N --http1.1 --tlsv1.2 --connect-timeout 10 --max-time 180 `
+  -H "X-System-Password: $PW" `
+  -H "X-Executor-Only: 1" `
+  -H "Content-Type: application/json; charset=utf-8" `
+  -H "Accept: text/event-stream" `
+  -H "X-Trace-Id: smoke-exec-only-actionable-002" `
+  --data-binary "@smoke_exec_only_actionable.json" `
+  "$BASE/api/v1/llm/pension-chat-stream" `
+  -D .\smoke_exec_only_actionable_headers.txt `
+  -o .\smoke_exec_only_actionable_body.txt
+```
