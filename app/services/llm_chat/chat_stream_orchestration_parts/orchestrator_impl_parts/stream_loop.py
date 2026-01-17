@@ -294,9 +294,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     resolved_intent = detect_intent(original_user_msg)
 
     tools_enabled_reason: str | None = None
+    tools_disabled_reason: str | None = None
     tools_enabled = allow_tools_for_intent(original_user_msg or "", resolved_intent)
     if not tools_enabled:
         tools_enabled_reason = get_tools_disabled_reason(original_user_msg or "", resolved_intent)
+        tools_disabled_reason = tools_enabled_reason
         try:
             if tools_enabled_reason is not None:
                 object.__setattr__(request, "tools_disabled_reason", tools_enabled_reason)
@@ -906,6 +908,27 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 )
                 insertion_idx += 1
 
+        try:
+            if (
+                (not exec_only_active)
+                and (resolved_intent != ChatIntent.REPORT)
+                and (tools_disabled_reason == "conceptual")
+            ):
+                history_messages.insert(
+                    insertion_idx,
+                    ChatMessage(
+                        role="system",
+                        content=(
+                            "ענה רק על השאלה האחרונה של המשתמש. "
+                            "אל תסכם נושאים אחרים מה־KB. "
+                            "ציין במפורש את מונח המפתח שמופיע בשאלה."
+                        ),
+                    ),
+                )
+                insertion_idx += 1
+        except Exception:
+            pass
+
         if wants_ignore_blocked:
             history_messages.append(
                 ChatMessage(
@@ -974,7 +997,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     allowed_sources=allowed_sources,
                     is_portfolio_analysis=is_portfolio_analysis,
                 )
-                if resolved_intent == ChatIntent.NO_TOOLS and (not exec_only_active):
+                if (
+                    resolved_intent == ChatIntent.NO_TOOLS
+                    and (not exec_only_active)
+                    and (tools_disabled_reason != "conceptual")
+                ):
                     final_out = _postprocess_no_tools_user_visible_text(final_out)
                 if exec_only_active and resolved_intent != ChatIntent.REPORT:
                     try:
@@ -1016,7 +1043,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 try:
                     if (
                         (not exec_only_active)
-                        and (getattr(request, "tools_disabled_reason", None) == "conceptual")
+                        and (tools_disabled_reason == "conceptual")
                         and ("###UI_ACTION###" not in (final_out or ""))
                         and ("###END_UI_ACTION###" not in (final_out or ""))
                     ):

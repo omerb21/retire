@@ -118,14 +118,17 @@ def sanitize_words_only_conceptual(text: str) -> str:
 
     raw_lines = (text or "").splitlines()
     out_lines: list[str] = []
+    removed_any = False
 
     for line in raw_lines:
         stripped = (line or "").strip()
 
         if any(phrase in stripped for phrase in _CONCEPTUAL_LEAK_LINE_TRIGGERS):
+            removed_any = True
             continue
 
         if any(stripped.startswith(prefix) for prefix in _CONCEPTUAL_LEAK_PREFIXES):
+            removed_any = True
             continue
 
         out_lines.append(line)
@@ -135,7 +138,12 @@ def sanitize_words_only_conceptual(text: str) -> str:
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     cleaned = cleaned.strip()
 
-    if len(cleaned) < 60:
+    paragraphs = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
+    word_count = len(re.findall(r"\S+", cleaned))
+    if removed_any and (
+        (len(paragraphs) < 1)
+        or ((len(cleaned) < 80) and (word_count < 8))
+    ):
         return _CONCEPTUAL_FALLBACK_TEXT
 
     return cleaned
