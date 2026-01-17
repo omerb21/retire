@@ -62,6 +62,40 @@ _CONCEPTUAL_FALLBACK_TEXT = (
 )
 
 
+def _conceptual_fallback_for_user_message(user_message: str) -> str:
+    normalized = (user_message or "")
+    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = normalized.replace("‘", "'").replace("’", "'")
+    normalized = normalized.strip().lower()
+
+    if (
+        ("קיבוע" in normalized)
+        or ("קיבוע זכויות" in normalized)
+        or ("161ד" in normalized)
+    ):
+        return (
+            "קיבוע זכויות הוא תהליך/החלטה תכנונית בתחום הפרישה שמטרתה לקבע מול רשות המסים את אופן מימוש הזכויות שנצברו.\n"
+            "בפועל זה מתייחס להסדרה של פטורים והטבות מס אפשריות הקשורות לקצבה ולהמשך הדרך.\n"
+            "המשמעות היא שלאחר הקיבוע, חלק מהבחירות לגבי מימוש הזכויות מוגדרות מראש בהתאם למסמכים שהוגשו.\n"
+            "זו תשובה מושגית כללית בלבד, בלי מספרים ובלי המלצה."
+        )
+
+    if ("קצבה" in normalized) and ("הון" in normalized):
+        return _CONCEPTUAL_FALLBACK_TEXT
+
+    if "פיצויים" in normalized:
+        return (
+            "פיצויי פרישה הם רכיב כספי שנצבר במסגרת יחסי עבודה ויכול להיות ממומש בעת סיום עבודה בהתאם לכללים.\n"
+            "הדילמות הכלליות סביב פיצויים קשורות לאופן המימוש, השלכות מס, ושילוב עם תכנון הפרישה הכולל.\n"
+            "זו תשובה מושגית כללית בלבד, בלי מספרים ובלי המלצה."
+        )
+
+    return (
+        "זו שאלה מושגית בתחום הפרישה, והתשובה המדויקת תלויה בהקשר ובמסמכים הרלוונטיים.\n"
+        "אפשר להסביר כאן רק עיקרון כללי, בלי מספרים ובלי המלצה."
+    )
+
+
 def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bool:
     candidate = (user_message or "").strip()
     lowered = candidate.lower()
@@ -112,9 +146,9 @@ def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) ->
     return None
 
 
-def sanitize_words_only_conceptual(text: str) -> str:
+def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     if not isinstance(text, str) or not text:
-        return _CONCEPTUAL_FALLBACK_TEXT
+        return _conceptual_fallback_for_user_message(user_message)
 
     raw_lines = (text or "").splitlines()
     out_lines: list[str] = []
@@ -144,7 +178,7 @@ def sanitize_words_only_conceptual(text: str) -> str:
         (len(paragraphs) < 1)
         or ((len(cleaned) < 80) and (word_count < 8))
     ):
-        return _CONCEPTUAL_FALLBACK_TEXT
+        return _conceptual_fallback_for_user_message(user_message)
 
     return cleaned
 

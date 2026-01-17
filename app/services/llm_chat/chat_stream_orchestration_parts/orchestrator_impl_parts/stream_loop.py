@@ -1047,7 +1047,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         and ("###UI_ACTION###" not in (final_out or ""))
                         and ("###END_UI_ACTION###" not in (final_out or ""))
                     ):
-                        final_out = sanitize_words_only_conceptual(final_out)
+                        final_out = sanitize_words_only_conceptual(final_out, original_user_msg or "")
                 except Exception:
                     pass
                 yield final_out
