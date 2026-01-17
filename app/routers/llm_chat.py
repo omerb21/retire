@@ -28,7 +28,12 @@ from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrit
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
 from app.guards.advisor_behavior_guard import enforce_behavioral_limits
-from app.guards.tool_intent_guard import allow_tools_for_intent, sanitize_words_only_output
+from app.guards.tool_intent_guard import (
+    allow_tools_for_intent,
+    get_tools_disabled_reason,
+    sanitize_words_only_conceptual,
+    sanitize_words_only_output,
+)
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -82,8 +87,13 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
         pass
 
     try:
-        tools_enabled = allow_tools_for_intent(last_user_msg_for_intent or "", detect_intent(last_user_msg_for_intent))
+        detected_intent = detect_intent(last_user_msg_for_intent)
+        tools_enabled = allow_tools_for_intent(last_user_msg_for_intent or "", detected_intent)
         object.__setattr__(request, "tools_enabled", bool(tools_enabled))
+        if bool(tools_enabled) is False:
+            reason = get_tools_disabled_reason(last_user_msg_for_intent or "", detected_intent)
+            if reason is not None:
+                object.__setattr__(request, "tools_disabled_reason", reason)
     except Exception:
         pass
 
@@ -133,6 +143,16 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
         try:
             if bool(getattr(request, "tools_enabled", True)) is False:
                 res.reply = sanitize_words_only_output(res.reply)
+        except Exception:
+            pass
+
+        try:
+            if (
+                bool(getattr(request, "tools_enabled", True)) is False
+                and (not is_execution_only(request))
+                and getattr(request, "tools_disabled_reason", None) == "conceptual"
+            ):
+                res.reply = sanitize_words_only_conceptual(res.reply)
         except Exception:
             pass
 

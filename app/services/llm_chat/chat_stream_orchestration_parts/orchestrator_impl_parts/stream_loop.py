@@ -51,7 +51,12 @@ from app.services.llm_chat.intent_classifier import (
     report_requires_qa_line,
 )
 from app.guards.advisor_behavior_guard import enforce_behavioral_limits
-from app.guards.tool_intent_guard import allow_tools_for_intent, sanitize_words_only_output
+from app.guards.tool_intent_guard import (
+    allow_tools_for_intent,
+    get_tools_disabled_reason,
+    sanitize_words_only_conceptual,
+    sanitize_words_only_output,
+)
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
@@ -288,8 +293,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     original_user_msg = raw_user_msg
     resolved_intent = detect_intent(original_user_msg)
 
+    tools_enabled_reason: str | None = None
     tools_enabled = allow_tools_for_intent(original_user_msg or "", resolved_intent)
     if not tools_enabled:
+        tools_enabled_reason = get_tools_disabled_reason(original_user_msg or "", resolved_intent)
+        try:
+            if tools_enabled_reason is not None:
+                object.__setattr__(request, "tools_disabled_reason", tools_enabled_reason)
+        except Exception:
+            pass
         resolved_intent = ChatIntent.NO_TOOLS
 
     try:
@@ -1001,6 +1013,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     allowed, final_out = enforce_behavioral_limits(final_out)
                 if no_tools_requested:
                     final_out = sanitize_words_only_output(final_out)
+                try:
+                    if (
+                        (not exec_only_active)
+                        and (getattr(request, "tools_disabled_reason", None) == "conceptual")
+                        and ("###UI_ACTION###" not in (final_out or ""))
+                        and ("###END_UI_ACTION###" not in (final_out or ""))
+                    ):
+                        final_out = sanitize_words_only_conceptual(final_out)
+                except Exception:
+                    pass
                 yield final_out
                 break
 
