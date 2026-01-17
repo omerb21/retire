@@ -14,6 +14,14 @@ _CONCEPTUAL_TRIGGERS: tuple[str, ...] = (
     "באופן כללי",
 )
 
+_CONCEPTUAL_DEFINITION_TRIGGERS: tuple[str, ...] = (
+    "מה המשמעות",
+    "מה זה",
+    "מה ההבדל",
+    "הסבר עקרוני",
+    "הסבר במילים",
+)
+
 _BLOCKED_INTENT_STRINGS: tuple[str, ...] = (
     "KNOWLEDGE",
     "EXPLANATION",
@@ -86,6 +94,21 @@ def _conceptual_form_fallback(user_message: str) -> str:
     )
 
 
+def _conceptual_form_fallback_161d() -> str:
+    return (
+        "טופס 161ד הוא טופס הצהרה/בחירה במסגרת קיבוע זכויות.\n"
+        "התפקיד שלו הוא לרכז בצורה ברורה את הבחירות וההחלטות שקשורות לאופן מימוש הזכויות במסגרת הפרישה מול רשות המסים.\n"
+        "זהו הסבר מושגי בלבד, בלי מספרים ובלי המלצה."
+    )
+
+
+def is_conceptual_definition(user_message: str) -> bool:
+    candidate = (user_message or "").strip()
+    if not candidate:
+        return False
+    return any(token in candidate for token in _CONCEPTUAL_DEFINITION_TRIGGERS)
+
+
 def _conceptual_fallback_for_user_message(user_message: str) -> str:
     normalized = (user_message or "")
     normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
@@ -129,9 +152,6 @@ def _is_conceptual_form_question(user_message: str) -> bool:
     normalized = normalized.replace("‘", "'").replace("’", "'")
     normalized = normalized.replace("161 ד", "161ד")
 
-    if "161ד" in normalized or "161d" in normalized:
-        return True
-
     wants_meaning = (
         ("מה זה" in normalized)
         or ("מה המשמעות" in normalized)
@@ -139,6 +159,9 @@ def _is_conceptual_form_question(user_message: str) -> bool:
         or ("מה התפקיד" in normalized)
         or ("תפקיד" in normalized)
     )
+
+    if ("161ד" in normalized or "161d" in normalized) and wants_meaning:
+        return True
 
     if ("טופס" in normalized) and wants_meaning:
         return True
@@ -153,6 +176,9 @@ def _is_conceptual_form_question(user_message: str) -> bool:
 def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bool:
     candidate = (user_message or "").strip()
     lowered = candidate.lower()
+
+    if is_conceptual_definition(candidate):
+        return False
 
     if _is_conceptual_form_question(candidate):
         return False
@@ -186,6 +212,9 @@ def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bo
 def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) -> str | None:
     candidate = (user_message or "").strip()
 
+    if is_conceptual_definition(candidate):
+        return "conceptual"
+
     if _is_conceptual_form_question(candidate):
         return "conceptual_form"
 
@@ -208,6 +237,12 @@ def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) ->
 
 def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     conceptual_form_request = _is_conceptual_form_question(user_message)
+    normalized_user_message = (user_message or "")
+    normalized_user_message = normalized_user_message.replace("161 ד", "161ד")
+    user_has_161d = ("161ד" in normalized_user_message) or ("161d" in normalized_user_message.lower())
+
+    if user_has_161d:
+        return _conceptual_form_fallback_161d()
 
     if not isinstance(text, str) or not text:
         if conceptual_form_request:
@@ -260,9 +295,14 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     word_count = len(re.findall(r"\S+", cleaned))
 
     if conceptual_form_request:
-        if ("161ד" in cleaned) or ("טופס" in cleaned):
-            return cleaned
-        return _conceptual_form_fallback(user_message)
+        return _conceptual_form_fallback_161d()
+
+    cleaned = cleaned.replace("₪", "")
+    cleaned = cleaned.replace("%", "")
+    cleaned = _DIGIT_RE.sub("", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = cleaned.strip()
 
     if removed_any and (
         (len(paragraphs) < 1)

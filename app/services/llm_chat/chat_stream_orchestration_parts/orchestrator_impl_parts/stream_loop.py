@@ -291,6 +291,39 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         computed_data = None
 
     original_user_msg = raw_user_msg
+
+    def is_advice_request(user_msg: str) -> bool:
+        candidate = (user_msg or "").strip()
+        if not candidate:
+            return False
+        return any(
+            token in candidate
+            for token in (
+                "מה הכי נכון",
+                "מה לעשות",
+                "תן לי המלצה",
+                "ממליץ",
+                "עדיף",
+                "כולם עושים ככה",
+                "רואה חשבון אמר לי",
+                "אין לי זמן תן תשובה",
+                "רק תשובה קצרה",
+            )
+        )
+
+    if (not exec_only_active) and is_advice_request(original_user_msg):
+        lowered_for_report = (original_user_msg or "").lower()
+        if ("דוח" not in lowered_for_report) and ("pdf" not in lowered_for_report) and ("report" not in lowered_for_report):
+            def generate_advice_block():
+                yield (
+                    " כדי לענות על זה בצורה נכונה נדרש חישוב מדויק במערכת הפרישה. אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה. "
+                )
+
+            return StreamingResponse(
+                generate_advice_block(),
+                media_type="text/plain; charset=utf-8",
+            )
+
     resolved_intent = detect_intent(original_user_msg)
 
     tools_enabled_reason: str | None = None
@@ -1140,7 +1173,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                             )
                             yield build_execution_only_fallback(original_user_msg or "")
                             return
-                if (not exec_only_active) and (
+                if (not exec_only_active) and (not conceptual_tools_disabled) and (
                     "###UI_ACTION###" not in (final_out or "")
                     and "###END_UI_ACTION###" not in (final_out or "")
                 ):
