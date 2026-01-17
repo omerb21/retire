@@ -544,6 +544,101 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
+    requested_cashflow_calc = bool(
+        explicit_cashflow_request
+        or wants_cashflow_refresh
+        or ("תחשב לי תזרים" in lowered_user_msg)
+        or ("תחשב לי תזרים פרישה" in lowered_user_msg)
+        or ("חישוב תזרים" in lowered_user_msg)
+        or ("תזרים פרישה" in lowered_user_msg)
+    )
+
+    if requested_cashflow_calc and (not conceptual_tools_disabled) and (resolved_intent != ChatIntent.REPORT):
+        if (
+            tools_enabled
+            and (request.client_id is not None)
+            and (not is_qa_mode)
+            and (not no_tools_requested)
+            and (not commutation_intent)
+        ):
+            def generate_cashflow_tool_exec():
+                if computed_data is not None:
+                    computed_json = json.dumps(
+                        {"type": "computed_data", "data": computed_data.model_dump()},
+                        ensure_ascii=False,
+                    )
+                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+                birth_date_for_default_date = None
+                gender_for_default_date = None
+                try:
+                    client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+                    birth_date_for_default_date = getattr(client_obj, "birth_date", None) if client_obj else None
+                    gender_for_default_date = getattr(client_obj, "gender", None) if client_obj else None
+                except Exception:
+                    birth_date_for_default_date = None
+                    gender_for_default_date = None
+
+                default_retirement_date = compute_default_retirement_date_for_tool_call(
+                    birth_date=birth_date_for_default_date,
+                    gender=gender_for_default_date,
+                    user_message=original_user_msg or "",
+                )
+                desired_income = extract_desired_monthly_income_from_text(original_user_msg)
+                desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
+
+                if desired_income is not None and desired_income_is_net is None:
+                    yield (
+                        "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
+                        "כתוב אחת מהאפשרויות:\n"
+                        "- '40 אלף ברוטו'\n"
+                        "- '40 אלף נטו'"
+                    )
+                    return
+
+                tool_args: dict[str, Any] = {"retirement_date": default_retirement_date}
+                if desired_income is not None and desired_income_is_net is not None:
+                    tool_args["desired_monthly_income"] = float(desired_income)
+                    tool_args["desired_income_is_net"] = bool(desired_income_is_net)
+
+                tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+                tool_result = _execute_tool_call(
+                    tool_name,
+                    tool_args,
+                    request.client_id,
+                    db,
+                    pension_portfolio=effective_portfolio,
+                    force_max_exemption=force_max_exemption,
+                    user_approved=True,
+                    request_id=stream_request_id,
+                )
+
+                tool_display = get_tool_display_name_hebrew(tool_name)
+                user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
+                yield (
+                    f"🔧 **פלט כלי ({tool_display}):**\n"
+                    + sanitize_user_visible_text(user_tool_output)
+                )
+                yield (
+                    "\n\n"
+                    + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
+                )
+
+            return StreamingResponse(
+                generate_cashflow_tool_exec(),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        return StreamingResponse(
+            iter(
+                [
+                    "כדי להריץ חישוב תזרים/ניתוח תזרים אני צריך הפעלה עם לקוח פעיל וכלים זמינים. "
+                    "בבקשה נסה שוב עם client_id תקין (או בטל מצב ללא-כלים אם הופעל)."
+                ]
+            ),
+            media_type="text/plain; charset=utf-8",
+        )
+
     if (
         request.client_id is not None
         and is_doc_request
