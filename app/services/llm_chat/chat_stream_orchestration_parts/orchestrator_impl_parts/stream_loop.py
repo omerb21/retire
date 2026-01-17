@@ -312,17 +312,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         )
 
     if (not exec_only_active) and is_advice_request(original_user_msg):
-        lowered_for_report = (original_user_msg or "").lower()
-        if ("דוח" not in lowered_for_report) and ("pdf" not in lowered_for_report) and ("report" not in lowered_for_report):
-            def generate_advice_block():
-                yield (
+        return StreamingResponse(
+            iter(
+                [
                     " כדי לענות על זה בצורה נכונה נדרש חישוב מדויק במערכת הפרישה. אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה. "
-                )
-
-            return StreamingResponse(
-                generate_advice_block(),
-                media_type="text/plain; charset=utf-8",
-            )
+                ]
+            ),
+            media_type="text/plain; charset=utf-8",
+        )
 
     resolved_intent = detect_intent(original_user_msg)
 
