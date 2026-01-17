@@ -115,6 +115,7 @@ from app.utils.llm_chat_log import (
     set_current_request_id,
 )
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
+from app.guards.tool_intent_guard import sanitize_words_only_output
 from .non_stream_stream_entrypoint import run_pension_chat_stream
 from .orchestrator_impl_parts.steps import (
     _build_chat_response,
@@ -129,6 +130,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     request_id = generate_request_id()
     set_current_request_id(request_id)
 
+    def _sanitize_if_words_only(resp: ChatResponse) -> ChatResponse:
+        try:
+            if bool(getattr(request, "tools_enabled", True)) is False:
+                if isinstance(resp.reply, str) and "###UI_ACTION###" not in resp.reply and "###END_UI_ACTION###" not in resp.reply:
+                    return ChatResponse(reply=sanitize_words_only_output(resp.reply), computed_data=resp.computed_data)
+        except Exception:
+            return resp
+        return resp
+
     prepared = _prepare_orchestration_inputs(
         request=request,
         db=db,
@@ -137,7 +147,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         log_llm_event_fn=log_llm_event,
     )
     if isinstance(prepared, ChatResponse):
-        return prepared
+        return _sanitize_if_words_only(prepared)
 
     orch_res = _run_orchestration(
         request=request,
@@ -166,7 +176,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         log_llm_event_fn=log_llm_event,
     )
     if isinstance(orch_res, ChatResponse):
-        return orch_res
+        return _sanitize_if_words_only(orch_res)
     final_reply = orch_res.final_reply
     forced_user_prefix = orch_res.forced_user_prefix
     qa_summary_required = orch_res.qa_summary_required
@@ -183,14 +193,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         client_id=request.client_id,
     )
 
-    return _build_chat_response(
-        final_reply=final_reply,
-        forced_user_prefix=forced_user_prefix,
-        is_portfolio_analysis=is_portfolio_analysis,
-        qa_summary_required=qa_summary_required,
-        report_open_path=report_open_path,
-        current_step=current_step,
-        max_steps=max_steps,
-        computed_data=computed_data,
+    return _sanitize_if_words_only(
+        _build_chat_response(
+            final_reply=final_reply,
+            forced_user_prefix=forced_user_prefix,
+            is_portfolio_analysis=is_portfolio_analysis,
+            qa_summary_required=qa_summary_required,
+            report_open_path=report_open_path,
+            current_step=current_step,
+            max_steps=max_steps,
+            computed_data=computed_data,
+        )
     )
-

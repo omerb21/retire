@@ -23,6 +23,7 @@ def _prepare_orchestration_inputs(
 
     from app.models.client import Client
     from app.models import CurrentEmployer, EmployerGrant, GrantType
+    from app.guards.tool_intent_guard import allow_tools_for_intent
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _digits_only,
         _extract_commutation_account_number,
@@ -115,7 +116,22 @@ def _prepare_orchestration_inputs(
         client_id=request.client_id,
     )
 
-    if request.client_id is not None and (
+    try:
+        tools_enabled = getattr(request, "tools_enabled")
+    except Exception:
+        tools_enabled = None
+
+    if tools_enabled is None:
+        try:
+            detected_intent = detect_intent(original_user_msg)
+            tools_enabled = allow_tools_for_intent(original_user_msg or "", detected_intent)
+            object.__setattr__(request, "tools_enabled", bool(tools_enabled))
+        except Exception:
+            tools_enabled = True
+
+    tools_enabled = bool(tools_enabled)
+
+    if tools_enabled and request.client_id is not None and (
         _is_target_plan_adjust_request(original_user_msg)
         or _is_target_plan_adjust_followup(original_user_msg, request.messages)
     ):
@@ -192,45 +208,48 @@ def _prepare_orchestration_inputs(
 
     from ..steps.prepare_inputs_parts.portfolio_breakdown import _maybe_handle_portfolio_breakdown
 
-    handled_breakdown = _maybe_handle_portfolio_breakdown(
-        original_user_msg=original_user_msg,
-        effective_portfolio=effective_portfolio,
-        effective_snapshot_at=effective_snapshot_at,
-        computed_data=computed_data,
-    )
-    if handled_breakdown is not None:
-        return handled_breakdown
+    if tools_enabled:
+        handled_breakdown = _maybe_handle_portfolio_breakdown(
+            original_user_msg=original_user_msg,
+            effective_portfolio=effective_portfolio,
+            effective_snapshot_at=effective_snapshot_at,
+            computed_data=computed_data,
+        )
+        if handled_breakdown is not None:
+            return handled_breakdown
 
     from ..steps.prepare_inputs_parts.data_awareness import _maybe_handle_data_awareness
 
-    handled_data_awareness = _maybe_handle_data_awareness(
-        request=request,
-        db=db,
-        request_id=request_id,
-        original_user_msg=original_user_msg,
-        effective_portfolio=effective_portfolio,
-        effective_snapshot_at=effective_snapshot_at,
-        computed_data=computed_data,
-        _execute_tool_call=_execute_tool_call,
-    )
-    if handled_data_awareness is not None:
-        return handled_data_awareness
+    if tools_enabled:
+        handled_data_awareness = _maybe_handle_data_awareness(
+            request=request,
+            db=db,
+            request_id=request_id,
+            original_user_msg=original_user_msg,
+            effective_portfolio=effective_portfolio,
+            effective_snapshot_at=effective_snapshot_at,
+            computed_data=computed_data,
+            _execute_tool_call=_execute_tool_call,
+        )
+        if handled_data_awareness is not None:
+            return handled_data_awareness
 
     from ..steps.prepare_inputs_parts.system_results_report import _maybe_handle_system_results_report
 
-    handled_system_results_report = _maybe_handle_system_results_report(
-        request=request,
-        db=db,
-        request_id=request_id,
-        original_user_msg=original_user_msg,
-        effective_portfolio=effective_portfolio,
-        computed_data=computed_data,
-        _execute_tool_call=_execute_tool_call,
-        sanitize_user_visible_text=sanitize_user_visible_text,
-        format_tool_output_for_user_stream=format_tool_output_for_user_stream,
-    )
-    if handled_system_results_report is not None:
-        return handled_system_results_report
+    if tools_enabled:
+        handled_system_results_report = _maybe_handle_system_results_report(
+            request=request,
+            db=db,
+            request_id=request_id,
+            original_user_msg=original_user_msg,
+            effective_portfolio=effective_portfolio,
+            computed_data=computed_data,
+            _execute_tool_call=_execute_tool_call,
+            sanitize_user_visible_text=sanitize_user_visible_text,
+            format_tool_output_for_user_stream=format_tool_output_for_user_stream,
+        )
+        if handled_system_results_report is not None:
+            return handled_system_results_report
 
     # Deterministic handling for target pension plan requests (avoid LLM timeouts/temporary failures).
     explicit_target_plan_request = False
@@ -342,7 +361,7 @@ def _prepare_orchestration_inputs(
 
     is_doc_request = is_document_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
-    no_tools_requested = is_no_tools_request(original_user_msg)
+    no_tools_requested = is_no_tools_request(original_user_msg) or (not tools_enabled)
     force_max_exemption = is_max_exemption_request(original_user_msg)
     is_net_request = is_net_pension_request(original_user_msg)
     is_cashflow_request = is_retirement_cashflow_request(original_user_msg)

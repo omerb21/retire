@@ -51,6 +51,7 @@ from app.services.llm_chat.intent_classifier import (
     report_requires_qa_line,
 )
 from app.guards.advisor_behavior_guard import enforce_behavioral_limits
+from app.guards.tool_intent_guard import allow_tools_for_intent, sanitize_words_only_output
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
@@ -272,8 +273,25 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     except Exception:
         pass
 
-    original_user_msg = find_last_user_message(request.messages)
+    exec_only_active = is_execution_only(request)
+
+    computed_data = None
+
+    raw_user_msg = find_last_user_message(request.messages)
+
+    try:
+        messages, computed_data = prepare_messages_with_context(request=request, db=db)
+    except Exception:
+        messages = list(request.messages or [])
+        computed_data = None
+
+    original_user_msg = raw_user_msg
     resolved_intent = detect_intent(original_user_msg)
+
+    tools_enabled = allow_tools_for_intent(original_user_msg or "", resolved_intent)
+    if not tools_enabled:
+        resolved_intent = ChatIntent.NO_TOOLS
+
     try:
         log_llm_event(
             request_id=stream_request_id,
@@ -301,7 +319,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 pass
 
-    if resolved_intent == ChatIntent.REPORT and request.client_id is not None:
+    if tools_enabled and resolved_intent == ChatIntent.REPORT and request.client_id is not None:
         lowered_user_msg = (original_user_msg or "").lower()
         wants_pdf = "pdf" in lowered_user_msg
         report_tool_name = "GENERATE_FULL_REPORT"
@@ -381,73 +399,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             media_type="text/plain; charset=utf-8",
         )
 
-    exec_only_active = is_execution_only(request)
-
-    messages, computed_data = prepare_messages_with_context(request, db)
-
-    try:
-        case_router = importlib.import_module("app.services.llm_chat.case_router")
-        select_case = getattr(case_router, "select_case", None)
-        if callable(select_case):
-            decision = select_case(
-                user_message=original_user_msg,
-                messages=messages,
-                client_id=request.client_id,
-            )
-            case_id = getattr(decision, "case_id", None)
-            set_current_case_id(case_id or "interactive_readonly")
-        else:
-            set_current_case_id("interactive_readonly")
-    except Exception:
-        set_current_case_id("interactive_readonly")
-
-    if request.client_id is not None and (
-        _is_target_plan_adjust_request(original_user_msg)
-        or _is_target_plan_adjust_followup(original_user_msg, request.messages)
-    ):
-        payload = extract_latest_target_pension_plan_payload(request.messages)
-        if payload is None:
-            payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-
-        return StreamingResponse(
-            generate_adjust_reply(
-                computed_data=computed_data,
-                payload=payload,
-                original_user_msg=original_user_msg,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                stream_request_id=stream_request_id,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    if request.client_id is not None and _is_system_results_request(original_user_msg):
-        return StreamingResponse(
-            generate_system_results(
-                computed_data=computed_data,
-                original_user_msg=original_user_msg,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                stream_request_id=stream_request_id,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    if request.client_id is not None and _is_system_inventory_request(original_user_msg):
-        return StreamingResponse(
-            generate_system_inventory(
-                computed_data=computed_data,
-                request=request,
-                db=db,
-                effective_portfolio=effective_portfolio,
-                stream_request_id=stream_request_id,
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
-
-    if request.client_id is not None and is_data_awareness_request(original_user_msg):
+    if tools_enabled and request.client_id is not None and is_data_awareness_request(original_user_msg):
         return StreamingResponse(
             generate_data_awareness(
                 computed_data=computed_data,
@@ -460,7 +412,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             media_type="text/plain; charset=utf-8",
         )
 
-    if request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
+    if tools_enabled and request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
         return StreamingResponse(
             generate_list_all_entities(
                 computed_data=computed_data,
@@ -472,7 +424,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             ),
             media_type="text/plain; charset=utf-8",
         )
-    if is_portfolio_breakdown_request(original_user_msg):
+
+    if tools_enabled and is_portfolio_breakdown_request(original_user_msg):
         portfolio = effective_portfolio or []
         if portfolio:
 
@@ -486,7 +439,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 media_type="text/plain; charset=utf-8",
             )
 
-    if is_portfolio_analysis_request(original_user_msg):
+    if tools_enabled and is_portfolio_analysis_request(original_user_msg):
         portfolio = effective_portfolio or []
         if portfolio:
 
@@ -501,6 +454,31 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 ),
                 media_type="text/plain; charset=utf-8",
             )
+
+    if tools_enabled and request.client_id is not None and _is_system_inventory_request(original_user_msg):
+        return StreamingResponse(
+            generate_system_inventory(
+                computed_data=computed_data,
+                request=request,
+                db=db,
+                effective_portfolio=effective_portfolio,
+                stream_request_id=stream_request_id,
+            ),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if tools_enabled and request.client_id is not None and _is_system_results_request(original_user_msg):
+        return StreamingResponse(
+            generate_system_results(
+                computed_data=computed_data,
+                original_user_msg=original_user_msg,
+                request=request,
+                db=db,
+                effective_portfolio=effective_portfolio,
+                stream_request_id=stream_request_id,
+            ),
+            media_type="text/plain; charset=utf-8",
+        )
 
     is_net_request = is_net_pension_request(original_user_msg)
     is_doc_request = is_document_request(original_user_msg) or (resolved_intent == ChatIntent.REPORT)
@@ -1021,6 +999,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     and "###END_UI_ACTION###" not in (final_out or "")
                 ):
                     allowed, final_out = enforce_behavioral_limits(final_out)
+                if no_tools_requested:
+                    final_out = sanitize_words_only_output(final_out)
                 yield final_out
                 break
 

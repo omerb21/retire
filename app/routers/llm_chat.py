@@ -28,6 +28,7 @@ from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrit
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
 from app.guards.advisor_behavior_guard import enforce_behavioral_limits
+from app.guards.tool_intent_guard import allow_tools_for_intent, sanitize_words_only_output
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -80,6 +81,12 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
     except Exception:
         pass
 
+    try:
+        tools_enabled = allow_tools_for_intent(last_user_msg_for_intent or "", detect_intent(last_user_msg_for_intent))
+        object.__setattr__(request, "tools_enabled", bool(tools_enabled))
+    except Exception:
+        pass
+
     res = run_pension_chat_service(request, db)
     if is_execution_only(request):
         if isinstance(res.reply, str) and "###UI_ACTION###" in res.reply and "###END_UI_ACTION###" in res.reply:
@@ -123,6 +130,12 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
                 return ChatResponse(reply=fallback, computed_data=None)
 
     if isinstance(res.reply, str) and "###UI_ACTION###" not in res.reply and "###END_UI_ACTION###" not in res.reply:
+        try:
+            if bool(getattr(request, "tools_enabled", True)) is False:
+                res.reply = sanitize_words_only_output(res.reply)
+        except Exception:
+            pass
+
         allowed, final_text = enforce_behavioral_limits(res.reply)
         if not allowed:
             return ChatResponse(reply=final_text, computed_data=res.computed_data)
