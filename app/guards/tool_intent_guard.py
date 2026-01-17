@@ -63,6 +63,29 @@ _CONCEPTUAL_FALLBACK_TEXT = (
 )
 
 
+def _conceptual_form_fallback(user_message: str) -> str:
+    normalized = (user_message or "")
+    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = normalized.replace("‘", "'").replace("’", "'")
+    normalized = normalized.replace("161 ד", "161ד")
+
+    lowered = normalized.lower()
+    is_161d = ("161ד" in normalized) or ("161d" in lowered) or ("טופס" in normalized and "161" in normalized)
+    if is_161d:
+        return (
+            "טופס 161ד הוא טופס הצהרה/בחירה במסגרת קיבוע זכויות.\n"
+            "הוא מרכז בצורה מסודרת את פרטי הבחירות וההחלטות לגבי אופן מימוש הזכויות בהקשר הפרישה.\n"
+            "הטופס משמש בסיס תיעודי להצגת הבחירות מול רשות המסים ולעיתים גם מול המעסיק/המשלם.\n"
+            "בדרך כלל הוא מוגש יחד עם מסמכים תומכים, כדי לשמור על עקביות בין הגופים המעורבים.\n"
+            "זו תשובה מושגית כללית בלבד, בלי מספרים ובלי המלצה."
+        )
+
+    return (
+        "זו שאלה מושגית על טופס/מסמך, והתשובה המדויקת תלויה בהקשר ובמסמכים הרלוונטיים.\n"
+        "אפשר להסביר כאן רק עיקרון כללי, בלי מספרים ובלי המלצה."
+    )
+
+
 def _conceptual_fallback_for_user_message(user_message: str) -> str:
     normalized = (user_message or "")
     normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
@@ -164,7 +187,7 @@ def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) ->
     candidate = (user_message or "").strip()
 
     if _is_conceptual_form_question(candidate):
-        return "conceptual"
+        return "conceptual_form"
 
     if any(t in candidate for t in _CONCEPTUAL_TRIGGERS):
         return "conceptual"
@@ -184,7 +207,11 @@ def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) ->
 
 
 def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
+    conceptual_form_request = _is_conceptual_form_question(user_message)
+
     if not isinstance(text, str) or not text:
+        if conceptual_form_request:
+            return _conceptual_form_fallback(user_message)
         return _conceptual_fallback_for_user_message(user_message)
 
     raw_lines_initial = (text or "").splitlines()
@@ -231,6 +258,12 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
 
     paragraphs = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
     word_count = len(re.findall(r"\S+", cleaned))
+
+    if conceptual_form_request:
+        if ("161ד" in cleaned) or ("טופס" in cleaned):
+            return cleaned
+        return _conceptual_form_fallback(user_message)
+
     if removed_any and (
         (len(paragraphs) < 1)
         or ((len(cleaned) < 80) and (word_count < 8))

@@ -509,7 +509,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     is_portfolio_analysis = is_portfolio_analysis_request(original_user_msg)
 
     conceptual_tools_disabled = (
-        (tools_disabled_reason == "conceptual")
+        (tools_disabled_reason in {"conceptual", "conceptual_form"})
         and (resolved_intent != ChatIntent.REPORT)
         and (not exec_only_active)
     )
@@ -1012,7 +1012,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 if (
                     resolved_intent == ChatIntent.NO_TOOLS
                     and (not exec_only_active)
-                    and (tools_disabled_reason != "conceptual")
+                    and (tools_disabled_reason not in {"conceptual", "conceptual_form"})
                 ):
                     final_out = _postprocess_no_tools_user_visible_text(final_out)
                 if exec_only_active and resolved_intent != ChatIntent.REPORT:
@@ -1055,7 +1055,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 try:
                     if (
                         (not exec_only_active)
-                        and (tools_disabled_reason == "conceptual")
+                        and (tools_disabled_reason in {"conceptual", "conceptual_form"})
                         and ("###UI_ACTION###" not in (final_out or ""))
                         and ("###END_UI_ACTION###" not in (final_out or ""))
                     ):
