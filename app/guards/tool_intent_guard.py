@@ -8,6 +8,7 @@ _CONCEPTUAL_TRIGGERS: tuple[str, ...] = (
     "מה המשמעות",
     "מה זה",
     "מה תפקיד",
+    "מה התפקיד",
     "איך עובד",
     "באופן עקרוני",
     "באופן כללי",
@@ -96,9 +97,42 @@ def _conceptual_fallback_for_user_message(user_message: str) -> str:
     )
 
 
+def _is_conceptual_form_question(user_message: str) -> bool:
+    normalized = (user_message or "").strip().lower()
+    if not normalized:
+        return False
+
+    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = normalized.replace("‘", "'").replace("’", "'")
+    normalized = normalized.replace("161 ד", "161ד")
+
+    if "161ד" in normalized or "161d" in normalized:
+        return True
+
+    wants_meaning = (
+        ("מה זה" in normalized)
+        or ("מה המשמעות" in normalized)
+        or ("מה תפקיד" in normalized)
+        or ("מה התפקיד" in normalized)
+        or ("תפקיד" in normalized)
+    )
+
+    if ("טופס" in normalized) and wants_meaning:
+        return True
+    if ("סעיף" in normalized) and (("מה זה" in normalized) or ("מה המשמעות" in normalized)):
+        return True
+    if ("מסמך" in normalized) and (("מה זה" in normalized) or ("מה המשמעות" in normalized)):
+        return True
+
+    return False
+
+
 def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bool:
     candidate = (user_message or "").strip()
     lowered = candidate.lower()
+
+    if _is_conceptual_form_question(candidate):
+        return False
 
     if any(t in candidate for t in _CONCEPTUAL_TRIGGERS):
         return False
@@ -129,6 +163,9 @@ def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bo
 def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) -> str | None:
     candidate = (user_message or "").strip()
 
+    if _is_conceptual_form_question(candidate):
+        return "conceptual"
+
     if any(t in candidate for t in _CONCEPTUAL_TRIGGERS):
         return "conceptual"
 
@@ -149,6 +186,26 @@ def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) ->
 def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     if not isinstance(text, str) or not text:
         return _conceptual_fallback_for_user_message(user_message)
+
+    raw_lines_initial = (text or "").splitlines()
+    filtered_lines: list[str] = []
+    in_ui_action_block = False
+    for line in raw_lines_initial:
+        stripped = (line or "").strip()
+        if "###UI_ACTION###" in stripped:
+            if "###END_UI_ACTION###" in stripped:
+                # Single-line UI action block
+                continue
+            in_ui_action_block = True
+            continue
+        if "###END_UI_ACTION###" in stripped:
+            in_ui_action_block = False
+            continue
+        if in_ui_action_block:
+            continue
+        filtered_lines.append(line)
+
+    text = "\n".join(filtered_lines)
 
     raw_lines = (text or "").splitlines()
     out_lines: list[str] = []

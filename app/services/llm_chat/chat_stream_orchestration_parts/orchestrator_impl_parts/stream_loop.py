@@ -495,7 +495,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         )
 
     is_net_request = is_net_pension_request(original_user_msg)
-    is_doc_request = is_document_request(original_user_msg) or (resolved_intent == ChatIntent.REPORT)
+    is_doc_request = is_document_request(original_user_msg)
     is_tax_doc_request = is_tax_documents_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
     no_tools_requested = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(original_user_msg)
@@ -507,6 +507,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     is_cashflow_request = is_retirement_cashflow_request(original_user_msg)
     is_comparison_request = is_retirement_comparison_request(original_user_msg)
     is_portfolio_analysis = is_portfolio_analysis_request(original_user_msg)
+
+    conceptual_tools_disabled = (
+        (tools_disabled_reason == "conceptual")
+        and (resolved_intent != ChatIntent.REPORT)
+        and (not exec_only_active)
+    )
 
     lowered_user_msg = (original_user_msg or "").lower()
     wants_capital_transform = (
@@ -544,6 +550,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and (not is_tax_doc_request)
         and (not is_qa_mode)
         and (not no_tools_requested)
+        and (not conceptual_tools_disabled)
         and (resolved_intent != ChatIntent.REPORT)
     ):
         wants_pdf = "pdf" in lowered_user_msg
@@ -563,21 +570,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             is_portfolio_analysis=is_portfolio_analysis,
         )
 
-    target_plan_response = _maybe_handle_target_plan_deterministic(
-        request=request,
-        db=db,
-        computed_data=computed_data,
-        effective_portfolio=effective_portfolio,
-        original_user_msg=original_user_msg,
-        lowered_user_msg=lowered_user_msg,
-        is_doc_request=is_doc_request,
-        is_qa_mode=is_qa_mode,
-        no_tools_requested=no_tools_requested,
-        wants_execute_target_plan=wants_execute_target_plan,
-        stream_request_id=stream_request_id,
-    )
-    if target_plan_response is not None:
-        return target_plan_response
+    if not conceptual_tools_disabled:
+        target_plan_response = _maybe_handle_target_plan_deterministic(
+            request=request,
+            db=db,
+            computed_data=computed_data,
+            effective_portfolio=effective_portfolio,
+            original_user_msg=original_user_msg,
+            lowered_user_msg=lowered_user_msg,
+            is_doc_request=is_doc_request,
+            is_qa_mode=is_qa_mode,
+            no_tools_requested=no_tools_requested,
+            wants_execute_target_plan=wants_execute_target_plan,
+            stream_request_id=stream_request_id,
+        )
+        if target_plan_response is not None:
+            return target_plan_response
 
     if commutation_intent and request.client_id is not None:
         account_number = _extract_commutation_account_number(original_user_msg)
@@ -587,54 +595,57 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 media_type="text/plain; charset=utf-8",
             )
 
-    cashflow_response = _maybe_handle_cashflow_deterministic(
-        request=request,
-        db=db,
-        computed_data=computed_data,
-        effective_portfolio=effective_portfolio,
-        original_user_msg=original_user_msg,
-        lowered_user_msg=lowered_user_msg,
-        is_doc_request=is_doc_request,
-        is_qa_mode=is_qa_mode,
-        no_tools_requested=no_tools_requested,
-        commutation_intent=commutation_intent,
-        force_max_exemption=force_max_exemption,
-        stream_request_id=stream_request_id,
-    )
-    if cashflow_response is not None:
-        return cashflow_response
+    if not conceptual_tools_disabled:
+        cashflow_response = _maybe_handle_cashflow_deterministic(
+            request=request,
+            db=db,
+            computed_data=computed_data,
+            effective_portfolio=effective_portfolio,
+            original_user_msg=original_user_msg,
+            lowered_user_msg=lowered_user_msg,
+            is_doc_request=is_doc_request,
+            is_qa_mode=is_qa_mode,
+            no_tools_requested=no_tools_requested,
+            commutation_intent=commutation_intent,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+        )
+        if cashflow_response is not None:
+            return cashflow_response
 
-    max_capital_response = _maybe_handle_max_capital_request(
-        request=request,
-        db=db,
-        original_user_msg=original_user_msg,
-        lowered_user_msg=lowered_user_msg,
-        explicit_termination=explicit_termination,
-        is_doc_request=is_doc_request,
-        is_qa_mode=is_qa_mode,
-        no_tools_requested=no_tools_requested,
-        computed_data=computed_data,
-        effective_portfolio=effective_portfolio,
-        force_max_exemption=force_max_exemption,
-        stream_request_id=stream_request_id,
-    )
-    if max_capital_response is not None:
-        return max_capital_response
+    if not conceptual_tools_disabled:
+        max_capital_response = _maybe_handle_max_capital_request(
+            request=request,
+            db=db,
+            original_user_msg=original_user_msg,
+            lowered_user_msg=lowered_user_msg,
+            explicit_termination=explicit_termination,
+            is_doc_request=is_doc_request,
+            is_qa_mode=is_qa_mode,
+            no_tools_requested=no_tools_requested,
+            computed_data=computed_data,
+            effective_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+        )
+        if max_capital_response is not None:
+            return max_capital_response
 
-    fixation_documents_response = _maybe_handle_fixation_documents_deterministic(
-        request=request,
-        db=db,
-        wants_fixation_documents=wants_fixation_documents,
-        is_qa_mode=is_qa_mode,
-        no_tools_requested=no_tools_requested,
-        computed_data=computed_data,
-        effective_portfolio=effective_portfolio,
-        force_max_exemption=force_max_exemption,
-        stream_request_id=stream_request_id,
-        is_portfolio_analysis=is_portfolio_analysis,
-    )
-    if fixation_documents_response is not None:
-        return fixation_documents_response
+    if not conceptual_tools_disabled:
+        fixation_documents_response = _maybe_handle_fixation_documents_deterministic(
+            request=request,
+            db=db,
+            wants_fixation_documents=wants_fixation_documents,
+            is_qa_mode=is_qa_mode,
+            no_tools_requested=no_tools_requested,
+            computed_data=computed_data,
+            effective_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+            is_portfolio_analysis=is_portfolio_analysis,
+        )
+        if fixation_documents_response is not None:
+            return fixation_documents_response
 
     # Early deterministic handling for pension commutation requests.
     # Only run this path when the user provided a specific account identifier.
@@ -724,6 +735,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             resolved_intent == ChatIntent.REPORT
             and request.client_id is not None
             and (not no_tools_requested)
+            and (not conceptual_tools_disabled)
         ):
             wants_pdf = "pdf" in lowered_user_msg
             report_tool_name = (
