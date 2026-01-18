@@ -57,6 +57,15 @@ def get_tools_definitions_json() -> str:
             },
         },
         {
+            "name": "GET_FIXATION_STATUS_SNAPSHOT",
+            "description": "מחזיר סטטוס מכני (yes/no/unknown) של קיבוע זכויות והמסמכים/אירועים הנלווים כפי שהם קיימים בפועל במערכת (DB), כולל רשימת חוסרים. הכלי לא מבצע חישובים ולא מחזיר מספרים.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
             "name": "GET_SYSTEM_NUMERIC_CONSTANTS",
             "description": "מחזיר קבועים מספריים מאושרים מהמערכת (למשל MINIMUM_PENSION) לצורך שימוש בטקסט/הסבר בלי לבצע חישוב עצמאי ובלי להמציא מספרים.",
             "parameters": {

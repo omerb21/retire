@@ -59,6 +59,8 @@ from app.guards.tool_intent_guard import (
 )
 from app.guards.advice_domain import AdviceDomain
 from app.guards.advice_domain_resolver import resolve_advice_domain
+from app.guards.orchestration_plan import OrchestrationPlan
+from app.guards.orchestration_plan_resolver import resolve_orchestration_plan
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
@@ -625,6 +627,207 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         return StreamingResponse(
             _generate_report_only(stream_request_id),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    plan_advice_domain = advice_domain if advice_mode else None
+    plan = resolve_orchestration_plan(
+        original_user_msg or "",
+        resolved_intent,
+        bool(tools_enabled),
+        plan_advice_domain,
+    )
+
+    if plan == OrchestrationPlan.SYSTEM_SNAPSHOT and request.client_id is not None:
+        def _generate_orchestration_plan_system_snapshot(req_id: str):
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            tool_result = _execute_tool_call(
+                "GET_SYSTEM_STATE_SNAPSHOT",
+                {},
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=req_id,
+            )
+            if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+                yield sanitize_user_visible_text(tool_result)
+                return
+
+            yield sanitize_user_visible_text(_format_system_inventory_snapshot(tool_result))
+
+        return StreamingResponse(
+            _generate_orchestration_plan_system_snapshot(stream_request_id),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if plan == OrchestrationPlan.FIXATION_STATUS and request.client_id is not None:
+        def _generate_orchestration_plan_fixation_status(req_id: str):
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            tool_result = _execute_tool_call(
+                "GET_FIXATION_STATUS_SNAPSHOT",
+                {},
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=req_id,
+            )
+
+            yield (
+                "🔧 **פלט כלי (סטטוס קיבוע זכויות):**\n"
+                + sanitize_user_visible_text(tool_result)
+                + "\n\n"
+            )
+
+            try:
+                parsed = json.loads(tool_result) if isinstance(tool_result, str) else {}
+            except Exception:
+                parsed = {}
+
+            has_prior_fixation = str(parsed.get("has_prior_fixation") or "unknown")
+            has_161 = str(parsed.get("has_161") or "unknown")
+            has_161d = str(parsed.get("has_161d") or "unknown")
+            has_commutation = str(parsed.get("has_commutation") or "unknown")
+            has_exempt_grants = str(parsed.get("has_exempt_grants") or "unknown")
+            employment_ended = str(parsed.get("employment_ended") or "unknown")
+            missing_inputs = parsed.get("missing_inputs") if isinstance(parsed.get("missing_inputs"), list) else []
+
+            def _yn(value: str) -> str:
+                v = (value or "").strip().lower()
+                if v == "yes":
+                    return "כן"
+                if v == "no":
+                    return "לא"
+                return "לא ידוע"
+
+            yield (
+                "כותרת: סטטוס קיבוע זכויות במערכת\n\n"
+                "מה נמצא:\n"
+                f"- קיבוע קודם: {_yn(has_prior_fixation)}\n"
+                f"- טופס 161: {_yn(has_161)}\n"
+                f"- טופס 161ד: {_yn(has_161d)}\n"
+                f"- היוונים: {_yn(has_commutation)}\n"
+                f"- מענקים פטורים: {_yn(has_exempt_grants)}\n"
+                f"- סטטוס סיום עבודה: {_yn(employment_ended)}\n\n"
+                "מה חסר:\n"
+            )
+
+            if missing_inputs:
+                for item in missing_inputs:
+                    if isinstance(item, str) and item.strip():
+                        yield f"- {item.strip()}\n"
+            else:
+                yield "- לא זוהה חוסר נתונים ספציפי\n"
+
+            yield "\nפעולה הבאה במערכת:\n- להשלים את החוסרים ואז להריץ קיבוע/מסמכים בהתאם."
+
+        return StreamingResponse(
+            _generate_orchestration_plan_fixation_status(stream_request_id),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if plan == OrchestrationPlan.CASHFLOW_ONLY and request.client_id is not None:
+        def _generate_orchestration_plan_cashflow(req_id: str):
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            birth_date_for_default_date = None
+            gender_for_default_date = None
+            try:
+                client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+                birth_date_for_default_date = getattr(client_obj, "birth_date", None) if client_obj else None
+                gender_for_default_date = getattr(client_obj, "gender", None) if client_obj else None
+            except Exception:
+                birth_date_for_default_date = None
+                gender_for_default_date = None
+
+            default_retirement_date = compute_default_retirement_date_for_tool_call(
+                birth_date=birth_date_for_default_date,
+                gender=gender_for_default_date,
+                user_message=original_user_msg or "",
+            )
+
+            desired_income = extract_desired_monthly_income_from_text(original_user_msg)
+            desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
+            if desired_income is not None and desired_income_is_net is None:
+                yield (
+                    "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
+                    "כתוב אחת מהאפשרויות:\n"
+                    "- '40 אלף ברוטו'\n"
+                    "- '40 אלף נטו'"
+                )
+                return
+
+            tool_args: dict[str, Any] = {"retirement_date": default_retirement_date}
+            if desired_income is not None and desired_income_is_net is not None:
+                tool_args["desired_monthly_income"] = float(desired_income)
+                tool_args["desired_income_is_net"] = bool(desired_income_is_net)
+
+            force_max_exemption = is_max_exemption_request(original_user_msg)
+
+            tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+            tool_result = _execute_tool_call(
+                tool_name,
+                tool_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=force_max_exemption,
+                user_approved=True,
+                request_id=req_id,
+            )
+
+            tool_display = get_tool_display_name_hebrew(tool_name)
+            user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
+            yield (
+                f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(user_tool_output)
+            )
+
+            if advice_compensation_mode:
+                yield (
+                    "\n\n"
+                    + "כותרת: סיכום החלטה לגבי פיצויים\n\n"
+                    + "מה בדקתי במערכת:\n"
+                    + "- תזרים\n"
+                    + "- מס\n"
+                    + "- יתרות\n"
+                    + "- סטטוסים (כולל חסומים) ואירוע סיום עבודה\n\n"
+                    + "מה המשמעות של שתי אפשרויות עיקריות:\n"
+                    + "- מימוש כהון: שינוי באופי המימוש והנזילות; עשוי להשפיע על רכיבי המס והיתרות שנצפות בדוחות\n"
+                    + "- השארה כהמשך קצבתי/אחר: המשך צבירה/תשלום במבנה קצבתי בהתאם להגדרות הקופות והסטטוסים במערכת\n\n"
+                    + "מה חסר כדי לתת המלצה סופית (אם חסר):\n"
+                    + "- בחירת יעד (נזילות מול קצבה)\n"
+                    + "- סטטוס תהליך סיום עבודה ומסמכים נלווים\n"
+                    + "- אישור שהנתונים במערכת עדכניים לכל הגופים\n\n"
+                    + "פעולה הבאה במערכת:\n"
+                    + "- להפיק דוח מסכם מהמערכת כדי לקבל מסמך תומך החלטה על בסיס הנתונים והחישובים שבוצעו\n"
+                )
+            else:
+                yield (
+                    "\n\n" + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
+                )
+
+        return StreamingResponse(
+            _generate_orchestration_plan_cashflow(stream_request_id),
             media_type="text/plain; charset=utf-8",
         )
 

@@ -86,6 +86,9 @@ from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
 from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
     handle_get_system_numeric_constants,
 )
+from app.services.llm_chat.tools.get_fixation_status_snapshot import (
+    handle_get_fixation_status_snapshot,
+)
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     store_pending_approval_request,
@@ -449,6 +452,9 @@ def execute_tool_call(
 
         if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
             return handle_get_system_state_snapshot(args=args, client_id=client_id, db=db)
+
+        if tool_name == "GET_FIXATION_STATUS_SNAPSHOT":
+            return handle_get_fixation_status_snapshot(args=args, client_id=client_id, db=db)
 
         # ===== OPERATION TOOLS - Data Input & Transformation =====
 
