@@ -370,6 +370,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             pass
         resolved_intent = ChatIntent.NO_TOOLS
 
+    ui_action_short_circuit_allowed = tools_disabled_reason not in {"conceptual", "conceptual_form"}
+
     try:
         log_llm_event(
             request_id=stream_request_id,
@@ -397,7 +399,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 pass
 
-    if tools_enabled and resolved_intent == ChatIntent.REPORT and request.client_id is not None:
+    if (
+        tools_enabled
+        and ui_action_short_circuit_allowed
+        and resolved_intent == ChatIntent.REPORT
+        and request.client_id is not None
+    ):
         lowered_user_msg = (original_user_msg or "").lower()
         wants_pdf = "pdf" in lowered_user_msg
         report_tool_name = "GENERATE_FULL_REPORT"
@@ -710,6 +717,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and (not is_qa_mode)
         and (not no_tools_requested)
         and (not conceptual_tools_disabled)
+        and ui_action_short_circuit_allowed
         and (resolved_intent != ChatIntent.REPORT)
     ):
         wants_pdf = "pdf" in lowered_user_msg
