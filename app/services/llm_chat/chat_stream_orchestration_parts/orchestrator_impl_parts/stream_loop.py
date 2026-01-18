@@ -57,6 +57,8 @@ from app.guards.tool_intent_guard import (
     sanitize_words_only_conceptual,
     sanitize_words_only_output,
 )
+from app.guards.advice_domain import AdviceDomain
+from app.guards.advice_domain_resolver import resolve_advice_domain
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
@@ -299,6 +301,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         return any(
             token in candidate
             for token in (
+                "ייעוץ",
+                "יעוץ",
                 "מה הכי נכון",
                 "מה לעשות",
                 "מה אתה מציע",
@@ -354,13 +358,147 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     )
 
     resolved_intent = detect_intent(original_user_msg)
+
+    advice_domain = AdviceDomain.UNKNOWN
     if advice_mode:
+        advice_domain = resolve_advice_domain(original_user_msg or "")
+
+    if advice_mode and advice_domain == AdviceDomain.COMMUTATION:
+        def _advice_commutation_questions():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+            yield (
+                "כותרת: הבהרה לפני היוון\n\n"
+                "כדי להמשיך אני צריך 3 הבהרות קצרות:\n"
+                "- איזו קצבה מדובר (שם קצבה או מספר חשבון/תיק ניכויים)\n"
+                "- האם הכוונה ל**סכום חד-פעמי** או ל**הפחתה חודשית מהקצבה**\n"
+                "- אם יש כמה קצבאות: לאיזו מהן זה מתייחס?\n"
+            )
+
+        return StreamingResponse(
+            _advice_commutation_questions(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if advice_mode and advice_domain == AdviceDomain.FIXATION:
+        def _advice_fixation_checklist():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+            yield (
+                "כותרת: בדיקת קיבוע זכויות – שלב אבחון\n\n"
+                "בדיקות נדרשות:\n"
+                "- האם בוצע קיבוע זכויות בעבר\n"
+                "- האם התקבלו מענקי פרישה\n"
+                "- האם בוצעו היוונים\n"
+                "- האם קיימים טפסי 161 / 161ד\n"
+                "- מועד פרישה בפועל\n\n"
+                "המשמעות:\n"
+                "- בלי הנתונים האלו אי אפשר לקבוע פטור קצבה או מס\n\n"
+                "פעולה הבאה:\n"
+                "- איסוף נתונים והפקת מסמך קיבוע\n"
+            )
+
+        return StreamingResponse(
+            _advice_fixation_checklist(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if advice_mode and advice_domain == AdviceDomain.INVESTMENT_RISK:
+        def _advice_investment_risk_answer():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+            yield (
+                "כותרת: סיכון השקעה בגיל פרישה\n\n"
+                "איך סיכון משפיע בגיל פרישה\n"
+                "- הסיכון המרכזי הוא תנודתיות סביב נקודת מימוש/משיכה, במיוחד אם מתכננים משיכות בזמן קצר.\n"
+                "- ככל שהאופק קצר יותר, תנודות יכולות להכריח שינוי תכנית או דחיית החלטות.\n\n"
+                "ההבדל בין תנודתיות לתשואה\n"
+                "- תנודתיות מתארת את התזוזה בדרך (עליות/ירידות).\n"
+                "- תשואה מתארת את התוצאה לאורך זמן, אך אינה מבטיחה מה יקרה בטווח קצר.\n\n"
+                'למה אין מסלול "נכון לכולם"\n'
+                "- כי זה תלוי בהרכב מקורות ההכנסה, גמישות תקציבית, צרכים משפחתיים, והיכולת לספוג ירידות.\n\n"
+                "מתי כן צריך חישוב\n"
+                "- כשיש החלטה אופרטיבית (תזמון משיכה/המרה/שינוי מסלול) או כשיש כמה מקורות הכנסה ורוצים לראות השלכות.\n\n"
+                "בלי מספרים. בלי המלצה חד משמעית.\n"
+            )
+
+        return StreamingResponse(
+            _advice_investment_risk_answer(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if advice_mode and advice_domain == AdviceDomain.TAX_OPTIMIZATION:
+        def _advice_tax_mapping_answer():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+            yield (
+                "כותרת: תכנון מס בפרישה – מיפוי ראשוני\n\n"
+                "מקורות מס עיקריים בפרישה\n"
+                "- קצבאות ותשלומים חודשיים\n"
+                "- משיכות הון/מענקים בהתאם למקור ולסיווג\n"
+                "- אירועים חד-פעמיים (למשל מענקי פרישה/היוון)\n\n"
+                "איפה לרוב נשרף כסף\n"
+                "- החלטות שמתבצעות בלי לוודא סטטוסים ומסמכים\n"
+                "- חוסר עקביות בין גופים/נתונים שמוביל לבחירות לא נכונות\n\n"
+                "מה דורש חישוב מדויק\n"
+                "- כל החלטה שיש לה רכיב מס בפועל (נטו/ברוטו), במיוחד כשיש שילוב של כמה מקורות\n\n"
+                "אילו החלטות בלתי הפיכות\n"
+                "- בחירות שמוגשות למסמכי מס/קיבוע/היוון ושמשנות את מצב הזכויות\n"
+            )
+
+        return StreamingResponse(
+            _advice_tax_mapping_answer(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if advice_mode and advice_domain == AdviceDomain.UNKNOWN:
+        def _advice_unknown_domain_questions():
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+            yield (
+                "כותרת: הבהרה לפני ייעוץ\n\n"
+                "כדי לבחור את הזרימה הנכונה אני צריך להבין על מה השאלה: \n"
+                "- פיצויים / מענק פרישה\n"
+                "- היוון קצבה\n"
+                "- קיבוע זכויות / 161ד\n"
+                "- סיכון השקעה / מסלול השקעה\n"
+                "- תכנון מס\n\n"
+                "כתוב משפט קצר עם אחד מהנושאים (אפשר גם לצרף שאלה)."
+            )
+
+        return StreamingResponse(
+            _advice_unknown_domain_questions(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    advice_compensation_mode = advice_mode and (advice_domain == AdviceDomain.COMPENSATION)
+    if advice_compensation_mode:
         resolved_intent = ChatIntent.ANALYSIS
 
     tools_enabled_reason: str | None = None
     tools_disabled_reason: str | None = None
     tools_enabled = allow_tools_for_intent(original_user_msg or "", resolved_intent)
-    if advice_mode:
+    if advice_compensation_mode:
         tools_enabled = True
     if not tools_enabled:
         tools_enabled_reason = get_tools_disabled_reason(original_user_msg or "", resolved_intent)
@@ -576,7 +714,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     is_tax_doc_request = is_tax_documents_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
     no_tools_requested = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(original_user_msg)
-    if advice_mode:
+    if advice_compensation_mode:
         no_tools_requested = False
     force_max_exemption = is_max_exemption_request(original_user_msg)
     commutation_intent = is_pension_commutation_request(original_user_msg)
@@ -632,7 +770,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         or ("תזרים פרישה" in lowered_user_msg)
         or is_comparison_request
         or is_net_request
-        or advice_mode
+        or advice_compensation_mode
     )
 
     if (
@@ -706,7 +844,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     f"🔧 **פלט כלי ({tool_display}):**\n"
                     + sanitize_user_visible_text(user_tool_output)
                 )
-                if advice_mode:
+                if advice_compensation_mode:
                     yield (
                         "\n\n"
                         + "כותרת: סיכום החלטה לגבי פיצויים\n\n"
