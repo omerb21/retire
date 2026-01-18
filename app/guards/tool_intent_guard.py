@@ -82,6 +82,46 @@ _CONCEPTUAL_FALLBACK_TEXT = (
 _FIXATION_DOCUMENTS_REQUIRED_HEADER = "כותרת: מסמכים לקיבוע זכויות"
 
 
+def _is_read_cashflow_question(user_message: str) -> bool:
+    normalized = (user_message or "").strip()
+    if not normalized:
+        return False
+    return (
+        ("איך לקרוא דוח תזרים" in normalized)
+        or ("איך להבין דוח תזרים" in normalized)
+        or ("איך לפרש דוח תזרים" in normalized)
+    )
+
+
+def _conceptual_read_cashflow_fallback() -> str:
+    return (
+        "כותרת: איך לקרוא דוח תזרים\n\n"
+        "זו שאלה מושגית על קריאת דוח תזרים.\n\n"
+        "א. מבט על הכותרת והתקופה\n"
+        "ב. להבין ברוטו מול נטו כעיקרון\n"
+        "ג. לזהות רכיבי קצבה מול הון כעיקרון\n"
+        "ד. לזהות הנחות ואיכות נתונים\n"
+        "ה. מה עושים עם הפערים שזיהית\n"
+    )
+
+
+def _is_blocked_compensation_question(user_message: str) -> bool:
+    normalized = (user_message or "").strip()
+    if not normalized:
+        return False
+    return ("פיצויים חסומים" in normalized) or ("חסומים" in normalized)
+
+
+def _conceptual_blocked_comp_fallback() -> str:
+    return (
+        "כותרת: פיצויים חסומים במערכת\n\n"
+        "- מה זה אומר בפועל במערכת: רכיב מסומן כחסום/בחסימה ולכן לא זמין לכל פעולה\n"
+        "- למה זה קורה בדרך כלל: חסר מידע תפעולי, מסמך, או קישוריות בין גופים\n"
+        "- מה ההשפעה על דוחות ותרחישים: פלט יכול להיות חלקי או לא עקבי עד טיפול בחסימה\n"
+        "- איך בדרך כלל משתחרר במערכת באופן כללי: לאחר השלמת נתונים/מסמכים והשלמת תהליך סיום עבודה במערכת\n"
+    )
+
+
 def _is_fixation_documents_question(user_message: str) -> bool:
     normalized = (user_message or "").strip()
     if not normalized:
@@ -355,6 +395,22 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
         _FIXATION_DOCUMENTS_REQUIRED_HEADER not in cleaned
     ):
         return _conceptual_fixation_documents_fallback()
+
+    if _is_read_cashflow_question(user_message) and (
+        ("כותרת:" not in cleaned)
+        or any(token not in cleaned for token in ("א.", "ב.", "ג.", "ד."))
+        or (len(cleaned) < 250)
+    ):
+        return _conceptual_read_cashflow_fallback()
+
+    if _is_blocked_compensation_question(user_message):
+        bullet_lines = [line for line in cleaned.splitlines() if line.strip().startswith("-")]
+        if (
+            ("כותרת:" not in cleaned)
+            or (("חסומ" not in cleaned) and ("חסימ" not in cleaned))
+            or (len(bullet_lines) < 2)
+        ):
+            return _conceptual_blocked_comp_fallback()
 
     if removed_any and (
         (len(paragraphs) < 1)
