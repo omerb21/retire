@@ -115,11 +115,63 @@ def _is_blocked_compensation_question(user_message: str) -> bool:
 def _conceptual_blocked_comp_fallback() -> str:
     return (
         "כותרת: פיצויים חסומים במערכת\n\n"
-        "- מה זה אומר בפועל במערכת: רכיב מסומן כחסום/בחסימה ולכן לא זמין לכל פעולה\n"
+        "- מה זה אומר בפועל במערכת: רכיב מוגדר כחסום/בחסימה ולכן לא זמין לכל פעולה\n"
         "- למה זה קורה בדרך כלל: חסר מידע תפעולי, מסמך, או קישוריות בין גופים\n"
         "- מה ההשפעה על דוחות ותרחישים: פלט יכול להיות חלקי או לא עקבי עד טיפול בחסימה\n"
         "- איך בדרך כלל משתחרר במערכת באופן כללי: לאחר השלמת נתונים/מסמכים והשלמת תהליך סיום עבודה במערכת\n"
     )
+
+
+def is_words_only_report_explainer(user_message: str) -> bool:
+    normalized = (user_message or "").strip()
+    if not normalized:
+        return False
+
+    words_triggers = (
+        "הסבר במילים",
+        "פרש במילים",
+        "תסביר",
+        "בלי מספרים",
+    )
+    report_triggers = (
+        "דוח",
+        "דוח תזרים",
+        "ברוטו",
+        "נטו",
+        "יעד",
+        "עודף",
+        "מס הכנסה",
+        "תזרים",
+    )
+
+    return any(token in normalized for token in words_triggers) and any(
+        token in normalized for token in report_triggers
+    )
+
+
+_CONCEPTUAL_LINES_TO_STRIP = (
+    "קיבלתי. אפשר להמשיך",
+    "בתיק שלך",
+    "פיצויים צבורים",
+    "מסומן כחסום",
+    "פטור ממס",
+    "צריך להחליט",
+    "צעדים אופרטיביים",
+)
+
+
+def _strip_conceptual_meta_and_leaks(text: str) -> str:
+    if not text:
+        return text
+
+    lines = text.splitlines()
+    kept_lines: list[str] = []
+    for line in lines:
+        if any(token in line for token in _CONCEPTUAL_LINES_TO_STRIP):
+            continue
+        kept_lines.append(line)
+
+    return "\n".join(kept_lines).strip()
 
 
 def _is_fixation_documents_question(user_message: str) -> bool:
@@ -264,6 +316,9 @@ def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bo
     candidate = (user_message or "").strip()
     lowered = candidate.lower()
 
+    if is_words_only_report_explainer(candidate):
+        return False
+
     if is_conceptual_definition(candidate):
         return False
 
@@ -298,6 +353,9 @@ def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bo
 
 def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) -> str | None:
     candidate = (user_message or "").strip()
+
+    if is_words_only_report_explainer(candidate):
+        return "conceptual"
 
     if is_conceptual_definition(candidate):
         return "conceptual"
@@ -390,6 +448,11 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     cleaned = cleaned.strip()
+
+    cleaned = _strip_conceptual_meta_and_leaks(cleaned)
+
+    if is_words_only_report_explainer(user_message):
+        return _conceptual_read_cashflow_fallback()
 
     if _is_fixation_documents_question(user_message) and (
         _FIXATION_DOCUMENTS_REQUIRED_HEADER not in cleaned
