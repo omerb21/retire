@@ -79,6 +79,45 @@ _CONCEPTUAL_FALLBACK_TEXT = (
 )
 
 
+_FIXATION_DOCUMENTS_REQUIRED_HEADER = "כותרת: מסמכים לקיבוע זכויות"
+
+
+def _is_fixation_documents_question(user_message: str) -> bool:
+    normalized = (user_message or "").strip()
+    if not normalized:
+        return False
+
+    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = normalized.replace("‘", "'").replace("’", "'")
+    normalized = normalized.strip()
+
+    if normalized.startswith("איזה מסמכים"):
+        return True
+    if "מה צריך להגיש" in normalized:
+        return True
+    if "מה לצרף" in normalized:
+        return True
+    return False
+
+
+def _conceptual_fixation_documents_fallback() -> str:
+    return (
+        "כותרת: מסמכים לקיבוע זכויות\n\n"
+        "זיהוי:\n"
+        "- תעודת זהות\n"
+        "- פרטי קשר מעודכנים\n\n"
+        "מעסיק וסיום עבודה:\n"
+        "- אישור סיום עבודה\n"
+        "- פירוט תנאי פרישה/מועד פרישה\n\n"
+        "קופות ויתרות:\n"
+        "- דוחות יתרות עדכניים\n"
+        "- פרטי קופות ומסמכי הצטרפות רלוונטיים\n\n"
+        "טפסים והחלטות:\n"
+        "- טפסי הצהרה/בקשה לרשות המסים לפי הצורך\n"
+        "- מסמכים תומכים שמסבירים חריגים או החלטות קודמות\n"
+    )
+
+
 def _conceptual_form_fallback(user_message: str) -> str:
     normalized = (user_message or "")
     normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
@@ -311,6 +350,11 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     cleaned = cleaned.strip()
+
+    if _is_fixation_documents_question(user_message) and (
+        _FIXATION_DOCUMENTS_REQUIRED_HEADER not in cleaned
+    ):
+        return _conceptual_fixation_documents_fallback()
 
     if removed_any and (
         (len(paragraphs) < 1)
