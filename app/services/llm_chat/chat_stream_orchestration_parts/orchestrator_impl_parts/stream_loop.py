@@ -308,10 +308,38 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 "רואה חשבון אמר לי",
                 "אין לי זמן תן תשובה",
                 "רק תשובה קצרה",
+                "כן או לא",
+                "נכון או לא נכון",
+                "טעות או לא טעות",
+                "רק מילה אחת",
+                "תענה רק",
+                "תגיד רק",
+                "רק תגיד",
+                "רק תענה",
+                "זה נכון",
+                "זה לא נכון",
+                "זו טעות",
+                "לא טעות",
+                "זה בסדר",
+                "זה לא בסדר",
             )
         )
 
-    if (not exec_only_active) and is_advice_request(original_user_msg):
+    def _is_report_request_for_early_block(user_msg: str) -> bool:
+        lowered = ((user_msg or "").strip()).lower()
+        return any(
+            token in lowered
+            for token in (
+                "דוח",
+                'דו"ח',
+                "שלח דוח",
+                "הפק דוח",
+                "pdf",
+                "report",
+            )
+        )
+
+    if (not exec_only_active) and is_advice_request(original_user_msg) and (not _is_report_request_for_early_block(original_user_msg)):
         return StreamingResponse(
             iter(
                 [
