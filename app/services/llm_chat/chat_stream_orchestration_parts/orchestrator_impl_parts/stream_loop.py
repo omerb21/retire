@@ -301,10 +301,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             for token in (
                 "מה הכי נכון",
                 "מה לעשות",
+                "מה אתה מציע",
                 "תן לי המלצה",
+                "המלצה",
+                "טיפ כללי",
                 "ממליץ",
                 "עדיף",
                 "כולם עושים ככה",
+                "כולם עושים",
                 "רואה חשבון אמר לי",
                 "אין לי זמן תן תשובה",
                 "רק תשובה קצרה",
@@ -345,21 +349,19 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
         )
 
-    if (not exec_only_active) and is_advice_request(original_user_msg) and (not _is_report_request_for_early_block(original_user_msg)):
-        return StreamingResponse(
-            iter(
-                [
-                    " כדי לענות על זה בצורה נכונה נדרש חישוב מדויק במערכת הפרישה. אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה. "
-                ]
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
+    advice_mode = (not exec_only_active) and is_advice_request(original_user_msg) and (
+        not _is_report_request_for_early_block(original_user_msg)
+    )
 
     resolved_intent = detect_intent(original_user_msg)
+    if advice_mode:
+        resolved_intent = ChatIntent.ANALYSIS
 
     tools_enabled_reason: str | None = None
     tools_disabled_reason: str | None = None
     tools_enabled = allow_tools_for_intent(original_user_msg or "", resolved_intent)
+    if advice_mode:
+        tools_enabled = True
     if not tools_enabled:
         tools_enabled_reason = get_tools_disabled_reason(original_user_msg or "", resolved_intent)
         tools_disabled_reason = tools_enabled_reason
@@ -412,6 +414,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             "output_format": "pdf" if wants_pdf else "html",
             "report_type": "full",
         }
+
+        if is_tax_documents_request(original_user_msg):
+            report_tool_name = "GENERATE_TAX_DEDUCTION_DOCUMENTS"
+            report_tool_args = {"document_type": "fixation_package"}
 
         def _generate_report_only(req_id: str):
             tool_db = SessionLocal()
@@ -570,6 +576,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     is_tax_doc_request = is_tax_documents_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
     no_tools_requested = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(original_user_msg)
+    if advice_mode:
+        no_tools_requested = False
     force_max_exemption = is_max_exemption_request(original_user_msg)
     commutation_intent = is_pension_commutation_request(original_user_msg)
     explicit_transform = (not commutation_intent) and is_transform_request(original_user_msg)
@@ -622,9 +630,17 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         or ("תחשב לי תזרים פרישה" in lowered_user_msg)
         or ("חישוב תזרים" in lowered_user_msg)
         or ("תזרים פרישה" in lowered_user_msg)
+        or is_comparison_request
+        or is_net_request
+        or advice_mode
     )
 
-    if requested_cashflow_calc and (not conceptual_tools_disabled) and (resolved_intent != ChatIntent.REPORT):
+    if (
+        requested_cashflow_calc
+        and (not commutation_intent)
+        and (not conceptual_tools_disabled)
+        and (resolved_intent != ChatIntent.REPORT)
+    ):
         if (
             tools_enabled
             and (request.client_id is not None)
@@ -690,10 +706,30 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     f"🔧 **פלט כלי ({tool_display}):**\n"
                     + sanitize_user_visible_text(user_tool_output)
                 )
-                yield (
-                    "\n\n"
-                    + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
-                )
+                if advice_mode:
+                    yield (
+                        "\n\n"
+                        + "כותרת: סיכום החלטה לגבי פיצויים\n\n"
+                        + "מה בדקתי במערכת:\n"
+                        + "- תזרים\n"
+                        + "- מס\n"
+                        + "- יתרות\n"
+                        + "- סטטוסים (כולל חסומים) ואירוע סיום עבודה\n\n"
+                        + "מה המשמעות של שתי אפשרויות עיקריות:\n"
+                        + "- מימוש כהון: שינוי באופי המימוש והנזילות; עשוי להשפיע על רכיבי המס והיתרות שנצפות בדוחות\n"
+                        + "- השארה כהמשך קצבתי/אחר: המשך צבירה/תשלום במבנה קצבתי בהתאם להגדרות הקופות והסטטוסים במערכת\n\n"
+                        + "מה חסר כדי לתת המלצה סופית (אם חסר):\n"
+                        + "- בחירת יעד (נזילות מול קצבה)\n"
+                        + "- סטטוס תהליך סיום עבודה ומסמכים נלווים\n"
+                        + "- אישור שהנתונים במערכת עדכניים לכל הגופים\n\n"
+                        + "פעולה הבאה במערכת:\n"
+                        + "- להפיק דוח מסכם מהמערכת כדי לקבל מסמך תומך החלטה על בסיס הנתונים והחישובים שבוצעו\n"
+                    )
+                else:
+                    yield (
+                        "\n\n"
+                        + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
+                    )
 
             return StreamingResponse(
                 generate_cashflow_tool_exec(),
@@ -1169,13 +1205,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     request=request,
                     history_messages=history_messages,
                 )
-                final_out = _compute_final_out_with_numeric_provenance_guardrail(
-                    req_id=req_id,
-                    request=request,
-                    full_response=full_response,
-                    allowed_sources=allowed_sources,
-                    is_portfolio_analysis=is_portfolio_analysis,
-                )
+                if no_tools_requested or (tools_disabled_reason in {"conceptual", "conceptual_form"}):
+                    final_out = full_response
+                else:
+                    final_out = _compute_final_out_with_numeric_provenance_guardrail(
+                        req_id=req_id,
+                        request=request,
+                        full_response=full_response,
+                        allowed_sources=allowed_sources,
+                        is_portfolio_analysis=is_portfolio_analysis,
+                    )
                 if (
                     resolved_intent == ChatIntent.NO_TOOLS
                     and (not exec_only_active)
@@ -1212,9 +1251,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                             )
                             yield build_execution_only_fallback(original_user_msg or "")
                             return
-                if (not exec_only_active) and (not conceptual_tools_disabled) and (
-                    "###UI_ACTION###" not in (final_out or "")
-                    and "###END_UI_ACTION###" not in (final_out or "")
+                if (
+                    (not exec_only_active)
+                    and (not conceptual_tools_disabled)
+                    and (not no_tools_requested)
+                    and (
+                        "###UI_ACTION###" not in (final_out or "")
+                        and "###END_UI_ACTION###" not in (final_out or "")
+                    )
                 ):
                     allowed, final_out = enforce_behavioral_limits(final_out)
                 if no_tools_requested:

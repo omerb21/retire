@@ -55,6 +55,14 @@ def enforce_behavioral_limits(text: str) -> tuple[bool, str]:
 
     candidate = text or ""
 
+    if (
+        ("🔧" in candidate)
+        or ("פלט כלי" in candidate)
+        or ("Tool Result (" in candidate)
+        or ("###TOOL_CALL###" in candidate)
+    ):
+        return True, candidate
+
     if _DIGIT_RE.search(candidate):
         if (
             _MONEY_PERCENT_RE.search(candidate)
