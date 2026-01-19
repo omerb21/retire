@@ -273,6 +273,54 @@ PC_LLM_MAX_RETRIES = 3
 PC_LLM_TIMEOUT_SECONDS = 120.0
 PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 
+
+def extract_target_net_ils(user_text: str) -> int | None:
+    if not isinstance(user_text, str) or not user_text.strip():
+        return None
+
+    cleaned = user_text.replace(",", "")
+    lowered = cleaned.lower()
+
+    nums: list[tuple[int, int, int]] = []
+    for m in re.finditer(r"\b\d{4,6}\b", cleaned):
+        try:
+            nums.append((m.start(), m.end(), int(m.group(0))))
+        except Exception:
+            continue
+    if not nums:
+        return None
+
+    net_positions = [m.start() for m in re.finditer(r"נטו|\bnet\b", lowered)]
+    if net_positions:
+        best = None
+        best_dist = None
+        for s, e, val in nums:
+            d = min(abs(s - p) for p in net_positions)
+            if best_dist is None or d < best_dist:
+                best = val
+                best_dist = d
+        return best
+
+    keyword_positions: list[int] = []
+    for kw in (
+        "קצבת יעד",
+        "יעד הכנסה",
+        "יעד",
+    ):
+        keyword_positions.extend([m.start() for m in re.finditer(re.escape(kw), lowered)])
+
+    if not keyword_positions:
+        return None
+
+    best = None
+    best_dist = None
+    for s, e, val in nums:
+        d = min(abs(s - p) for p in keyword_positions)
+        if best_dist is None or d < best_dist:
+            best = val
+            best_dist = d
+    return best
+
 def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingResponse:
     stream_request_id = generate_request_id()
     set_current_request_id(stream_request_id)
@@ -295,6 +343,53 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         computed_data = None
 
     original_user_msg = raw_user_msg
+
+    if (
+        request.client_id is not None
+        and isinstance(original_user_msg, str)
+        and original_user_msg.strip().startswith("###USER_APPROVED###")
+    ):
+        approved = extract_user_approval_for_tool_call(messages)
+        if approved is not None:
+            approved_tool, approved_args = approved
+
+            def _generate_user_approved_exec(req_id: str):
+                if computed_data is not None:
+                    computed_json = json.dumps(
+                        {"type": "computed_data", "data": computed_data.model_dump()},
+                        ensure_ascii=False,
+                    )
+                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+                tool_result = _execute_tool_call(
+                    approved_tool,
+                    approved_args,
+                    request.client_id,
+                    db,
+                    pension_portfolio=request.pension_portfolio,
+                    force_max_exemption=False,
+                    user_approved=True,
+                    request_id=req_id,
+                )
+
+                try:
+                    clear_pending_approval_request(db=db, client_id=request.client_id)
+                except Exception:
+                    pass
+
+                tool_display = get_tool_display_name_hebrew(approved_tool)
+                user_tool_output = format_tool_output_for_user_stream(
+                    approved_tool, tool_result
+                )
+                yield (
+                    f"🔧 **פלט כלי ({tool_display}):**\n"
+                    + sanitize_user_visible_text(user_tool_output)
+                )
+
+            return StreamingResponse(
+                _generate_user_approved_exec(stream_request_id),
+                media_type="text/plain; charset=utf-8",
+            )
 
     def is_advice_request(user_msg: str) -> bool:
         candidate = (user_msg or "").strip()
@@ -541,6 +636,68 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 pass
 
+    target_net_for_plan = extract_target_net_ils(original_user_msg or "")
+    lowered_user_msg = (original_user_msg or "").lower()
+    has_target_plan_keywords = any(
+        token in lowered_user_msg
+        for token in (
+            "קצבת יעד",
+            "יעד קצבה",
+            "בנה תכנית פרישה",
+            "בנה תוכנית פרישה",
+            "תכנית משיכה",
+            "תוכנית משיכה",
+            "תכנית יעד",
+            "תוכנית יעד",
+            "תכנית פרישה",
+            "תוכנית פרישה",
+        )
+    )
+    no_tools_requested_local = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(
+        original_user_msg
+    )
+    is_qa_mode_local = is_qa_request(original_user_msg)
+    if (
+        tools_enabled
+        and (resolved_intent != ChatIntent.REPORT)
+        and request.client_id is not None
+        and (not no_tools_requested_local)
+        and (not is_qa_mode_local)
+        and (target_net_for_plan is not None)
+        and has_target_plan_keywords
+    ):
+        def _generate_target_plan_tools_first(req_id: str):
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            plan_args = {
+                "target_monthly_pension": float(target_net_for_plan),
+                "target_is_net": True,
+            }
+            plan_result = _execute_tool_call(
+                "BUILD_TARGET_PENSION_PLAN",
+                plan_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=req_id,
+            )
+            yield sanitize_user_visible_text(
+                "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+            )
+
+        return StreamingResponse(
+            _generate_target_plan_tools_first(stream_request_id),
+            media_type="text/plain; charset=utf-8",
+        )
+
     if (
         tools_enabled
         and ui_action_short_circuit_allowed
@@ -766,8 +923,13 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_message=original_user_msg or "",
             )
 
+            target_net = extract_target_net_ils(original_user_msg or "")
             desired_income = extract_desired_monthly_income_from_text(original_user_msg)
             desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
+
+            if target_net is not None:
+                desired_income = float(target_net)
+                desired_income_is_net = True
             if desired_income is not None and desired_income_is_net is None:
                 yield (
                     "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
@@ -781,6 +943,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             if desired_income is not None and desired_income_is_net is not None:
                 tool_args["desired_monthly_income"] = float(desired_income)
                 tool_args["desired_income_is_net"] = bool(desired_income_is_net)
+                if bool(desired_income_is_net):
+                    tool_args["desired_net_monthly_income"] = int(float(desired_income))
 
             force_max_exemption = is_max_exemption_request(original_user_msg)
 
@@ -935,6 +1099,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     )
 
     lowered_user_msg = (original_user_msg or "").lower()
+    target_net_for_cashflow = extract_target_net_ils(original_user_msg or "")
     wants_capital_transform = (
         (
             ("להון" in lowered_user_msg)
@@ -974,6 +1139,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         or is_comparison_request
         or is_net_request
         or advice_compensation_mode
+        or (target_net_for_cashflow is not None)
     )
 
     if (
@@ -1015,6 +1181,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 desired_income = extract_desired_monthly_income_from_text(original_user_msg)
                 desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
 
+                if target_net_for_cashflow is not None:
+                    desired_income = float(target_net_for_cashflow)
+                    desired_income_is_net = True
+
                 if desired_income is not None and desired_income_is_net is None:
                     yield (
                         "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
@@ -1028,6 +1198,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 if desired_income is not None and desired_income_is_net is not None:
                     tool_args["desired_monthly_income"] = float(desired_income)
                     tool_args["desired_income_is_net"] = bool(desired_income_is_net)
+                    if bool(desired_income_is_net):
+                        tool_args["desired_net_monthly_income"] = int(float(desired_income))
 
                 tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
                 tool_result = _execute_tool_call(

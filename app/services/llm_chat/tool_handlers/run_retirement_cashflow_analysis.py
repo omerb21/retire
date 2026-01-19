@@ -30,6 +30,7 @@ def handle_run_retirement_cashflow_analysis(
 ) -> str:
     date_str = args.get("retirement_date")
     income = args.get("desired_monthly_income")
+    desired_net_income = args.get("desired_net_monthly_income")
     desired_income_is_net = args.get("desired_income_is_net")
     apply_max_exemption_arg = args.get("apply_max_exemption", False)
 
@@ -64,6 +65,12 @@ def handle_run_retirement_cashflow_analysis(
         return "Error: Missing argument 'retirement_date'"
 
     income_val = float(income) if income else None
+    if desired_net_income is not None:
+        try:
+            income_val = float(desired_net_income)
+            desired_income_is_net = True
+        except Exception:
+            pass
 
     if isinstance(apply_max_exemption_arg, str):
         apply_max_exemption = apply_max_exemption_arg.strip().lower() in {
