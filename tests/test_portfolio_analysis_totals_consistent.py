@@ -1,4 +1,6 @@
+import json
 import re
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
@@ -7,11 +9,18 @@ from app.main import app
 
 
 def _parse_ils_amount(text: str) -> int:
-    cleaned = (text or "").replace(",", "")
+    cleaned = (
+        (text or "")
+        .replace(",", "")
+        .replace("₪", "")
+        .replace("\u00a0", " ")
+        .replace(" ", "")
+        .strip()
+    )
     return int(cleaned)
 
 
-def test_portfolio_analysis_totals_consistent(monkeypatch) -> None:
+def test_portfolio_analysis_totals_consistent(monkeypatch, db_session, client) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic portfolio analysis")
 
@@ -31,18 +40,40 @@ def test_portfolio_analysis_totals_consistent(monkeypatch) -> None:
         },
         {
             "מספר_חשבון": "A1",
-            "שם_תכנית": "קרן פנסיה",
+            "שם_תכנית": "קרן פנסיה (duplicate)",
             "חברה_מנהלת": "חברה",
             "סוג_מוצר": "קרן פנסיה",
             "יתרה": 10000,
+            "תגמולים": 10000,
+        },
+        {
+            "מספר_חשבון": "B1",
+            "שם_תכנית": "קרן השתלמות",
+            "חברה_מנהלת": "חברה",
+            "סוג_מוצר": "קרן השתלמות",
+            "יתרה": 7000,
         },
     ]
+
+    from app.models.scenario import Scenario
+
+    snapshot = Scenario(
+        client_id=client.id,
+        scenario_name="pension_portfolio_snapshot",
+        apply_tax_planning=False,
+        apply_capitalization=False,
+        apply_exemption_shield=False,
+        parameters=json.dumps({"pension_portfolio": portfolio}, ensure_ascii=False),
+        created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(snapshot)
+    db_session.commit()
 
     response = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
+            "client_id": client.id,
             "messages": [{"role": "user", "content": "בצע ניתוח תיק פנסיוני"}],
-            "pension_portfolio": portfolio,
         },
     )
 

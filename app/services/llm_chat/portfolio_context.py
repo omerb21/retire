@@ -201,6 +201,7 @@ def build_pension_portfolio_context(
     investment_provident_total_balance = 0.0
 
     seen_accounts_for_totals: set[tuple[str, str, str]] = set()
+    summary_components_by_key: dict[str, dict[str, object]] = {}
 
     for idx, acc in enumerate(portfolio):
         account_number_for_key = str(getattr(acc, "מספר_חשבון", "") or "").strip()
@@ -290,6 +291,143 @@ def build_pension_portfolio_context(
         account_number = (acc.מספר_חשבון or "").strip() or None
         start_date_raw = (acc.תאריך_התחלה or "").strip() or None
         start_date = _normalize_start_date_for_display(start_date_raw)
+
+        raw_specific_amounts = getattr(acc, "specific_amounts", None)
+        specific_amounts_for_summary = (
+            raw_specific_amounts
+            if isinstance(raw_specific_amounts, dict)
+            else {}
+        )
+
+        def _summary_component_dedupe_key(*, component_key: str, amount: float) -> str:
+            if account_number_for_key:
+                return f"{account_number_for_key}::{component_key}"
+            stable_amount = round(float(amount or 0), 6)
+            stable_start_date = str(start_date_raw or "").strip()
+            stable_product_type = str(product_type_for_key or "").strip()
+            return f"__fallback__::{stable_product_type}::{component_key}::{stable_amount}::{stable_start_date}"
+
+        def _classify_summary_component(*, component_key: str, product_type: str) -> str:
+            if _is_education_fund(product_type):
+                return "capital"
+            if component_key in (
+                "פיצויים_מעסיק_נוכחי",
+                "פיצויים_לאחר_התחשבנות",
+                "פיצויים_שלא_עברו_התחשבנות",
+                "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            ):
+                return "capital"
+            if component_key in ("פיצויים_ממעסיקים_קודמים_רצף_קצבה",):
+                return "pension"
+            if component_key in (
+                "תגמולי_עובד_עד_2000",
+                "תגמולי_מעביד_עד_2000",
+            ):
+                return "capital"
+            if component_key in (
+                "תגמולי_עובד_אחרי_2000",
+                "תגמולי_מעביד_אחרי_2000",
+                "תגמולי_עובד_אחרי_2008_לא_משלמת",
+                "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+            ):
+                return "pension"
+            if component_key in ("קרן_השתלמות",):
+                return "capital"
+            if component_key in ("תגמולים", "סך_תגמולים"):
+                if (
+                    _is_investment_provident_fund(product_type)
+                    or _is_regular_provident_fund(product_type)
+                ):
+                    return "capital"
+                if _is_pension_or_insurance(product_type):
+                    return "pension"
+                return "capital"
+            return "capital"
+
+        def _push_summary_component(*, component_key: str, amount: float, product_type: str) -> None:
+            amt = float(amount or 0)
+            if amt <= 0:
+                return
+            classification = _classify_summary_component(
+                component_key=component_key,
+                product_type=product_type,
+            )
+            dkey = _summary_component_dedupe_key(component_key=component_key, amount=amt)
+            existing = summary_components_by_key.get(dkey)
+            if existing is not None:
+                try:
+                    prev_amt = float(existing.get("amount") or 0)
+                except Exception:
+                    prev_amt = 0.0
+                if amt <= prev_amt:
+                    return
+            summary_components_by_key[dkey] = {
+                "amount": float(amt),
+                "classification": classification,
+            }
+
+        if _is_education_fund(product_type):
+            education_amount = 0.0
+            try:
+                education_amount = float(specific_amounts_for_summary.get("קרן_השתלמות") or 0)
+            except Exception:
+                education_amount = 0.0
+            if education_amount <= 0:
+                education_amount = float(balance or 0)
+            if education_amount <= 0:
+                try:
+                    education_amount = float(sum(float(v or 0) for v in specific_amounts_for_summary.values()))
+                except Exception:
+                    education_amount = 0.0
+            _push_summary_component(
+                component_key="קרן_השתלמות",
+                amount=education_amount,
+                product_type=product_type,
+            )
+        else:
+            component_candidates: dict[str, float] = {}
+            if specific_amounts_for_summary:
+                for k, v in specific_amounts_for_summary.items():
+                    try:
+                        component_candidates[str(k)] = float(v or 0)
+                    except Exception:
+                        continue
+            else:
+                for field in (
+                    "פיצויים_מעסיק_נוכחי",
+                    "פיצויים_לאחר_התחשבנות",
+                    "פיצויים_שלא_עברו_התחשבנות",
+                    "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+                    "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+                    "תגמולי_עובד_עד_2000",
+                    "תגמולי_מעביד_עד_2000",
+                    "תגמולי_עובד_אחרי_2000",
+                    "תגמולי_מעביד_אחרי_2000",
+                    "תגמולי_עובד_אחרי_2008_לא_משלמת",
+                    "תגמולי_מעביד_אחרי_2008_לא_משלמת",
+                    "קרן_השתלמות",
+                    "תגמולים",
+                    "סך_תגמולים",
+                ):
+                    try:
+                        component_candidates[field] = float(_as_float(getattr(acc, field, 0)) or 0)
+                    except Exception:
+                        continue
+
+            has_detailed_tagmulim_summary = any(
+                (k.startswith("תגמולי_") and float(v or 0) > 0)
+                for k, v in component_candidates.items()
+            )
+            if has_detailed_tagmulim_summary:
+                component_candidates.pop("תגמולים", None)
+                component_candidates.pop("סך_תגמולים", None)
+
+            for k, v in component_candidates.items():
+                _push_summary_component(
+                    component_key=str(k),
+                    amount=float(v or 0),
+                    product_type=product_type,
+                )
 
         is_capital_only = False
         is_capital_candidate = False
@@ -471,19 +609,33 @@ def build_pension_portfolio_context(
 
     requested_split = _detect_requested_split(user_message)
 
+    summary_capital_sum = float(
+        sum(
+            float(row.get("amount") or 0)
+            for row in summary_components_by_key.values()
+            if row.get("classification") == "capital"
+        )
+    )
+    summary_pension_sum = float(
+        sum(
+            float(row.get("amount") or 0)
+            for row in summary_components_by_key.values()
+            if row.get("classification") == "pension"
+        )
+    )
+    summary_total_balance = float(summary_capital_sum + summary_pension_sum)
+
     context_lines.append("## סיכום מהיר")
     context_lines.append("**סיכום נתונים גולמיים:**")
-    context_lines.append(f"  • סה\"כ יתרות: {total_balance:,.0f} ₪")
-    if total_capital_by_columns > 0 or total_pension_by_columns > 0 or total_unspecified_by_columns > 0:
+    context_lines.append(f"  • סה\"כ יתרות: {summary_total_balance:,.0f} ₪")
+    if summary_capital_sum > 0 or summary_pension_sum > 0:
         context_lines.append(
             "  • חלוקה דטרמיניסטית (לפי עמודות + חריגים לפי חוקי המרה/קרן השתלמות):"
         )
-        if total_pension_by_columns > 0:
-            context_lines.append(f"    ◦ סכומים קצבתיים: {total_pension_by_columns:,.0f} ₪")
-        if total_capital_by_columns > 0:
-            context_lines.append(f"    ◦ סכומים הוניים: {total_capital_by_columns:,.0f} ₪")
-        if total_unspecified_by_columns > 0:
-            context_lines.append(f"    ◦ סכומים לא מסווגים/חסומים (לא התחשבנות/רצף זכויות): {total_unspecified_by_columns:,.0f} ₪")
+        if summary_pension_sum > 0:
+            context_lines.append(f"    ◦ סכומים קצבתיים: {summary_pension_sum:,.0f} ₪")
+        if summary_capital_sum > 0:
+            context_lines.append(f"    ◦ סכומים הוניים: {summary_capital_sum:,.0f} ₪")
 
     context_lines.append("")
     context_lines.append("## לוגיקת משיכה/המרה לפי טורי טבלת המוצרים")
