@@ -164,6 +164,9 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
         if not isinstance(item, dict):
             continue
         row = dict(item)
+        specific_amounts = row.get("specific_amounts")
+        if not isinstance(specific_amounts, dict):
+            specific_amounts = None
         account_number = str(
             row.get("מספר_חשבון")
             or row.get("account_number")
@@ -197,6 +200,14 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
                 remaining_val = max(0.0, current_val - delta_val)
                 row[field] = 0.0 if remaining_val <= zero_epsilon else remaining_val
 
+                if specific_amounts is not None:
+                    nested_current = _coerce_float(specific_amounts.get(field))
+                    nested_remaining = max(0.0, nested_current - delta_val)
+                    specific_amounts[field] = 0.0 if nested_remaining <= zero_epsilon else nested_remaining
+
+            if specific_amounts is not None:
+                row["specific_amounts"] = specific_amounts
+
         prior_balance = None
         if "יתרה" in row:
             prior_balance = _coerce_float(row.get("יתרה"))
@@ -212,6 +223,15 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
             if max(0.0, prior_balance - total) <= zero_epsilon:
                 for key in list(row.keys()):
                     if key in protected_fields:
+                        continue
+                    if key == "specific_amounts" and isinstance(row.get("specific_amounts"), dict):
+                        nested = row.get("specific_amounts")
+                        for nested_key in list(nested.keys()):
+                            if nested_key in protected_fields:
+                                continue
+                            if nested_key.startswith(component_prefixes) or nested_key in component_exact:
+                                nested[nested_key] = 0
+                        row["specific_amounts"] = nested
                         continue
                     if key.startswith(component_prefixes) or key in component_exact:
                         row[key] = 0

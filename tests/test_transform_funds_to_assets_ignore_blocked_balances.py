@@ -105,5 +105,5 @@ def test_transform_ignores_blocked_and_skips_employer_current_severance(db_sessi
     if created_pf is not None:
         assert float(created_pf.balance or 0) == convertible_after_settlement
     if created_ca is not None:
-        # The handler uses monthly_income to store payout for capital assets; accept either field.
-        assert float(created_ca.monthly_income or 0) == convertible_after_settlement
+        assert float(created_ca.current_value or 0) == convertible_after_settlement
+        assert float(created_ca.monthly_income or 0) == 0.0

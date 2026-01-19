@@ -84,8 +84,8 @@ def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client
     )
     assert ca is not None
 
-    assert float(ca.current_value or 0) == 0.0
-    assert float(ca.monthly_income or 0) == 100000.0
+    assert float(ca.current_value or 0) == 100000.0
+    assert float(ca.monthly_income or 0) == 0.0
     assert ca.start_date == date(2047, 1, 1)
 
     db_session.refresh(source_pf)
@@ -104,6 +104,129 @@ def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client
     assert len(cashflow) == 1
     assert float(cashflow[0]["gross_return"]) == 100000.0
     assert float(cashflow[0]["net_return"]) == 100000.0
+
+
+def test_transform_creates_capital_assets_with_current_value(db_session, client) -> None:
+    account_number = "ACC-API-CAP-1"
+    db_session.query(CapitalAsset).filter(
+        CapitalAsset.client_id == client.id,
+        CapitalAsset.conversion_source.isnot(None),
+        CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    result_str = handle_transform_funds_to_assets(
+        args={
+            "accounts": [
+                {
+                    "account_name": "API Capital",
+                    "product_type": "קרן השתלמות",
+                    "company": "TestCo",
+                    "account_number": account_number,
+                    "specific_amounts": {"קרן_השתלמות": 100000.0},
+                }
+            ],
+            "pension_start_date": "2047-01-01",
+            "use_provided_accounts_only": True,
+        },
+        client_id=client.id,
+        db=db_session,
+        agent_tools=agent_tools,
+    )
+    payload = json.loads(result_str)
+    assert payload["success"] is True
+
+    resp = client.get(f"/api/v1/clients/{client.id}/capital-assets/")
+    assert resp.status_code == 200
+    assets = resp.json()
+    assert isinstance(assets, list)
+
+    created = [
+        a
+        for a in assets
+        if isinstance(a, dict)
+        and str(a.get("conversion_source") or "").find(account_number) >= 0
+        and str(a.get("conversion_source") or "").find("llm_transform_funds_to_assets") >= 0
+    ]
+    assert created
+
+    for a in created:
+        assert float(a.get("current_value") or 0) > 0
+        assert float(a.get("monthly_income") or 0) == 0
+
+
+def test_transform_reduces_pension_portfolio_components(db_session, client) -> None:
+    account_number = "ACC-API-SNAP-1"
+
+    db_session.query(Scenario).filter(
+        Scenario.client_id == client.id,
+        Scenario.scenario_name == "pension_portfolio_snapshot",
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    portfolio = [
+        {
+            "מספר_חשבון": account_number,
+            "שם_תכנית": "כלל תמר",
+            "סוג_מוצר": "קופת גמל",
+            "יתרה": 100000.0,
+            "תגמולי_עובד_אחרי_2000": 40000.0,
+            "תגמולי_מעביד_אחרי_2000": 60000.0,
+            "specific_amounts": {
+                "תגמולי_עובד_אחרי_2000": 40000.0,
+                "תגמולי_מעביד_אחרי_2000": 60000.0,
+            },
+        }
+    ]
+    snapshot = Scenario(
+        client_id=client.id,
+        scenario_name="pension_portfolio_snapshot",
+        apply_tax_planning=False,
+        apply_capitalization=False,
+        apply_exemption_shield=False,
+        parameters=json.dumps({"pension_portfolio": portfolio}, ensure_ascii=False),
+    )
+    db_session.add(snapshot)
+    db_session.commit()
+
+    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    result_str = handle_transform_funds_to_assets(
+        args={
+            "accounts": [
+                {
+                    "account_name": "כלל תמר",
+                    "product_type": "קופת גמל",
+                    "company": "TestCo",
+                    "account_number": account_number,
+                    "specific_amounts": {
+                        "תגמולי_עובד_אחרי_2000": 40000.0,
+                        "תגמולי_מעביד_אחרי_2000": 60000.0,
+                    },
+                }
+            ],
+            "pension_start_date": "2047-01-01",
+            "use_provided_accounts_only": True,
+        },
+        client_id=client.id,
+        db=db_session,
+        agent_tools=agent_tools,
+    )
+    payload = json.loads(result_str)
+    assert payload["success"] is True
+
+    resp = client.get(f"/api/v1/clients/{client.id}/pension-portfolio/")
+    assert resp.status_code == 200
+    updated = resp.json()
+    assert isinstance(updated, list)
+    row = next((r for r in updated if isinstance(r, dict) and r.get("מספר_חשבון") == account_number), None)
+    assert row is not None
+    assert float(row.get("יתרה") or 0) == 0.0
+    assert float(row.get("תגמולי_עובד_אחרי_2000") or 0) == 0.0
+    assert float(row.get("תגמולי_מעביד_אחרי_2000") or 0) == 0.0
+    assert isinstance(row.get("specific_amounts"), dict)
+    assert float(row["specific_amounts"].get("תגמולי_עובד_אחרי_2000") or 0) == 0.0
+    assert float(row["specific_amounts"].get("תגמולי_מעביד_אחרי_2000") or 0) == 0.0
 
 
 def test_transform_does_not_convert_current_employer_severance_via_tagmulim(db_session, client) -> None:

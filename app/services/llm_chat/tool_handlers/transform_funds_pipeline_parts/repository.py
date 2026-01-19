@@ -343,7 +343,7 @@ def apply_conversion_task_to_snapshot(
         conversion_source_json = json.dumps(
             {
                 "source": "llm_transform_funds_to_assets",
-                "type": "pension_portfolio",
+                "type": "funds_to_assets_conversion",
                 "account_number": account_number,
                 "account_name": account_name,
                 "company": company,
@@ -517,7 +517,7 @@ def apply_conversion_task_to_snapshot(
         conversion_source_json = json.dumps(
             {
                 "source": "llm_transform_funds_to_assets",
-                "type": "pension_portfolio",
+                "type": "funds_to_assets_conversion",
                 "account_number": account_number,
                 "account_name": account_name,
                 "company": company,
@@ -542,8 +542,8 @@ def apply_conversion_task_to_snapshot(
             client_id=client_id,
             asset_name=f"הון מהיוון - {account_name}",
             asset_type="provident_fund",
-            current_value=Decimal("0"),
-            monthly_income=Decimal(str(balance)),
+            current_value=Decimal(str(balance)),
+            monthly_income=Decimal("0"),
             annual_return_rate=Decimal("0"),
             payment_frequency="annually",
             start_date=effective_pension_start_date,
@@ -651,7 +651,7 @@ def apply_conversion_task_to_snapshot(
         conversion_source_json = json.dumps(
             {
                 "source": "llm_transform_funds_to_assets",
-                "type": "pension_portfolio",
+                "type": "funds_to_assets_conversion",
                 "account_number": account_number,
                 "account_name": account_name,
                 "company": company,
@@ -706,18 +706,18 @@ def apply_conversion_task_to_snapshot(
         if existing_ca:
             existing_ca.asset_name = account_name
             existing_ca.asset_type = asset_type
-            existing_ca.current_value = Decimal("0")
             if remaining_only:
                 try:
-                    existing_ca.monthly_income = Decimal(
-                        str(float(existing_ca.monthly_income or 0) + float(balance))
+                    existing_ca.current_value = Decimal(
+                        str(float(existing_ca.current_value or 0) + float(balance))
                     )
                 except Exception:
-                    existing_ca.monthly_income = Decimal(str(balance))
+                    existing_ca.current_value = Decimal(str(balance))
             else:
-                existing_ca.monthly_income = Decimal(str(balance))
+                existing_ca.current_value = Decimal(str(balance))
+            existing_ca.monthly_income = Decimal("0")
             existing_ca.annual_return_rate = Decimal("0.03")
-            existing_ca.payment_frequency = "monthly"
+            existing_ca.payment_frequency = "annually"
             existing_ca.start_date = payment_date
             existing_ca.indexation_method = "none"
             existing_ca.tax_treatment = tax_treatment
@@ -728,10 +728,10 @@ def apply_conversion_task_to_snapshot(
                 client_id=client_id,
                 asset_name=account_name,
                 asset_type=asset_type,
-                current_value=Decimal("0"),
-                monthly_income=Decimal(str(balance)),
+                current_value=Decimal(str(balance)),
+                monthly_income=Decimal("0"),
                 annual_return_rate=Decimal("0.03"),
-                payment_frequency="monthly",
+                payment_frequency="annually",
                 start_date=payment_date,
                 indexation_method="none",
                 tax_treatment=tax_treatment,
