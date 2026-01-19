@@ -638,6 +638,24 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     target_net_for_plan = extract_target_net_ils(original_user_msg or "")
     lowered_user_msg = (original_user_msg or "").lower()
+    plan_tokens = re.findall(r"[א-תA-Za-z]+", lowered_user_msg)
+    plan_token_pairs = set(zip(plan_tokens, plan_tokens[1:]))
+    has_plan_build_token = (
+        ("בנה" in plan_tokens)
+        or ("צור" in plan_tokens)
+        or ("תכנן" in plan_tokens)
+        or ("תכנון" in plan_tokens)
+    )
+    has_plan_noun_token = ("תכנית" in plan_tokens) or ("תוכנית" in plan_tokens) or ("מתווה" in plan_tokens)
+    has_plan_domain_token = ("פרישה" in plan_tokens) or ("משיכה" in plan_tokens)
+    has_target_plan_phrase_tokens = (
+        (("קצבת", "יעד") in plan_token_pairs)
+        or (("יעד", "קצבה") in plan_token_pairs)
+        or (("יעד", "הכנסה") in plan_token_pairs)
+    )
+    is_plan_request_tokens = has_target_plan_phrase_tokens or (
+        (has_plan_build_token or has_plan_noun_token) and has_plan_domain_token
+    )
     has_target_plan_keywords = any(
         token in lowered_user_msg
         for token in (
@@ -657,6 +675,25 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         original_user_msg
     )
     is_qa_mode_local = is_qa_request(original_user_msg)
+    max_capital_requested_local = is_max_capital_request(original_user_msg or "")
+    if (
+        (resolved_intent != ChatIntent.REPORT)
+        and is_plan_request_tokens
+        and (target_net_for_plan is None)
+        and (not max_capital_requested_local)
+    ):
+
+        def _prompt_for_target_net():
+            yield (
+                "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
+                "כתוב: יעד נטו: <מספר>.\n"
+                "לדוגמה: יעד נטו: 28000"
+            )
+
+        return StreamingResponse(
+            _prompt_for_target_net(),
+            media_type="text/plain; charset=utf-8",
+        )
     if (
         tools_enabled
         and (resolved_intent != ChatIntent.REPORT)

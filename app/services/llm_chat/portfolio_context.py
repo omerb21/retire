@@ -200,7 +200,19 @@ def build_pension_portfolio_context(
     education_fund_total_balance = 0.0
     investment_provident_total_balance = 0.0
 
-    for acc in portfolio:
+    seen_accounts_for_totals: set[tuple[str, str, str]] = set()
+
+    for idx, acc in enumerate(portfolio):
+        account_number_for_key = str(getattr(acc, "מספר_חשבון", "") or "").strip()
+        product_type_for_key = str(getattr(acc, "סוג_מוצר", "") or "").strip()
+        company_for_key = str(getattr(acc, "חברה_מנהלת", "") or "").strip()
+        dedupe_key = (account_number_for_key, product_type_for_key, company_for_key)
+        if not (account_number_for_key or product_type_for_key or company_for_key):
+            dedupe_key = (f"__idx_{idx}", "", "")
+        if dedupe_key in seen_accounts_for_totals:
+            continue
+        seen_accounts_for_totals.add(dedupe_key)
+
         balance = _as_float(getattr(acc, "יתרה", 0))
         if balance <= 0:
             continue
