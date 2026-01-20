@@ -236,8 +236,38 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
                     if key.startswith(component_prefixes) or key in component_exact:
                         row[key] = 0
 
+        row = _recompute_snapshot_row_totals(row)
         updated.append(row)
     return updated
+
+
+def _recompute_snapshot_row_totals(row: dict) -> dict:
+    balance_key = "יתרה" if "יתרה" in row else ("balance" if "balance" in row else None)
+    computed_balance = _coerce_float(row.get(balance_key)) if balance_key else 0.0
+
+    if "סך_תגמולים" in row or "סך_פיצויים" in row:
+        computed_components_sum = _coerce_float(row.get("סך_תגמולים")) + _coerce_float(
+            row.get("סך_פיצויים")
+        )
+    else:
+        component_prefixes = ("תגמולי_", "פיצויים_")
+        computed_components_sum = 0.0
+        for k, v in row.items():
+            if isinstance(k, str) and k.startswith(component_prefixes):
+                computed_components_sum += _coerce_float(v)
+        if "קרן_השתלמות" in row:
+            computed_components_sum += _coerce_float(row.get("קרן_השתלמות"))
+
+    row["סך_רכיבים"] = computed_components_sum
+
+    computed_gap = computed_balance - computed_components_sum
+    if (computed_balance <= 0.01) and (computed_components_sum <= 0.01):
+        computed_gap = 0.0
+    elif abs(computed_gap) <= 0.01:
+        computed_gap = 0.0
+
+    row["פער_יתרה_מול_רכיבים"] = computed_gap
+    return row
 
 
 def _create_updated_snapshot_scenario(

@@ -109,6 +109,53 @@ async def process_pension_xml_files(
 @router.get("/clients/{client_id}/pension-portfolio/")
 async def get_pension_portfolio(client_id: int, db: Session = Depends(get_db)):
     """קבלת נתוני תיק פנסיוני קיימים"""
+
+    def _coerce_float(value) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return 0.0
+            cleaned = raw.replace(",", "").replace("₪", "").replace(" ", "")
+            try:
+                return float(cleaned)
+            except (TypeError, ValueError):
+                return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _recompute_row(row: dict) -> dict:
+        balance_key = "יתרה" if "יתרה" in row else ("balance" if "balance" in row else None)
+        computed_balance = _coerce_float(row.get(balance_key)) if balance_key else 0.0
+
+        if "סך_תגמולים" in row or "סך_פיצויים" in row:
+            computed_components_sum = _coerce_float(row.get("סך_תגמולים")) + _coerce_float(
+                row.get("סך_פיצויים")
+            )
+        else:
+            component_prefixes = ("תגמולי_", "פיצויים_")
+            computed_components_sum = 0.0
+            for k, v in row.items():
+                if isinstance(k, str) and k.startswith(component_prefixes):
+                    computed_components_sum += _coerce_float(v)
+            if "קרן_השתלמות" in row:
+                computed_components_sum += _coerce_float(row.get("קרן_השתלמות"))
+
+        row["סך_רכיבים"] = computed_components_sum
+
+        computed_gap = computed_balance - computed_components_sum
+        if (computed_balance <= 0.01) and (computed_components_sum <= 0.01):
+            computed_gap = 0.0
+        elif abs(computed_gap) <= 0.01:
+            computed_gap = 0.0
+
+        row["פער_יתרה_מול_רכיבים"] = computed_gap
+        return row
     snapshot = (
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
@@ -137,7 +184,12 @@ async def get_pension_portfolio(client_id: int, db: Session = Depends(get_db)):
             continue
         portfolio = params.get("pension_portfolio")
         if isinstance(portfolio, list):
-            return portfolio
+            normalized = []
+            for item in portfolio:
+                if not isinstance(item, dict):
+                    continue
+                normalized.append(_recompute_row(dict(item)))
+            return normalized
 
     return []
 
