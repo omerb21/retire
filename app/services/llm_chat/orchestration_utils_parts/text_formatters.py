@@ -1,6 +1,9 @@
-
 import json
+import logging
 import re
+
+
+logger = logging.getLogger("app.llm_chat.text_formatters")
 
 
 def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
@@ -9,6 +12,29 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
 
     if isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:"):
         return tool_result
+
+    if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
+        raw = tool_result or ""
+        if not isinstance(raw, str) or not raw.strip():
+            try:
+                logger.warning("GET_SYSTEM_STATE_SNAPSHOT returned empty payload")
+            except Exception:
+                pass
+            return "(tool returned empty payload)"
+        try:
+            parsed_snapshot = json.loads(raw)
+        except Exception:
+            return raw
+        if not isinstance(parsed_snapshot, dict) or not parsed_snapshot:
+            try:
+                logger.warning("GET_SYSTEM_STATE_SNAPSHOT returned non-dict/empty payload")
+            except Exception:
+                pass
+            return "(tool returned empty payload)"
+        try:
+            return json.dumps(parsed_snapshot, ensure_ascii=False, indent=2, sort_keys=True)
+        except Exception:
+            return raw
 
     if tool_name in {
         "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
@@ -248,123 +274,124 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                     lines.append(f"• קצבה חודשית חדשה: {parsed.get('new_pension_amount')} ₪")
             return "\n".join(lines)
 
+        if tool_name == "GENERATE_FULL_REPORT" or tool_name == "GENERATE_TAX_DEDUCTION_DOCUMENTS":
+            try:
+                parsed_doc = json.loads(tool_result)
+            except Exception:
+                return tool_result
+            if not isinstance(parsed_doc, dict):
+                return tool_result
+
+            status_message = parsed_doc.get("status_message") or parsed_doc.get("message")
+            open_path = parsed_doc.get("open_path")
+            download_url = parsed_doc.get("download_url")
+
+            lines: list[str] = []
+            if isinstance(status_message, str) and status_message.strip():
+                lines.append(status_message.strip())
+            if isinstance(open_path, str) and open_path.strip():
+                lines.append(f"open_path: {open_path.strip()}")
+            if isinstance(download_url, str) and download_url.strip():
+                lines.append(f"download_url: {download_url.strip()}")
+            return "\n".join(lines) if lines else tool_result
+
+        if tool_name == "CALCULATE_FIXATION_OF_RIGHTS":
+            try:
+                parsed_fix = json.loads(tool_result)
+            except Exception:
+                return tool_result
+            if not isinstance(parsed_fix, dict):
+                return tool_result
+            if parsed_fix.get("success") is False:
+                msg = parsed_fix.get("message") or parsed_fix.get("error")
+                return f"שגיאה בחישוב קיבוע זכויות: {msg}" if msg else tool_result
+
+            lines: list[str] = []
+            lines.append("קיבוע זכויות – סיכום:")
+            if parsed_fix.get("fixation_id") is not None:
+                lines.append(f"• מזהה קיבוע: {parsed_fix.get('fixation_id')}")
+            if parsed_fix.get("eligibility_year") is not None:
+                lines.append(f"• שנת קיבוע: {parsed_fix.get('eligibility_year')}")
+            if parsed_fix.get("monthly_exempt_pension") is not None:
+                try:
+                    lines.append(f"• קצבה פטורה חודשית: {float(parsed_fix.get('monthly_exempt_pension')):,.2f} ₪")
+                except Exception:
+                    lines.append(f"• קצבה פטורה חודשית: {parsed_fix.get('monthly_exempt_pension')} ₪")
+            if parsed_fix.get("exempt_pension_percentage") is not None:
+                try:
+                    lines.append(f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.2f}%")
+                except Exception:
+                    lines.append(f"• אחוז קצבה פטורה: {parsed_fix.get('exempt_pension_percentage')}")
+            if parsed_fix.get("exempt_capital_initial") is not None:
+                try:
+                    lines.append(f"• הון פטור ראשוני: {float(parsed_fix.get('exempt_capital_initial')):,.2f} ₪")
+                except Exception:
+                    lines.append(f"• הון פטור ראשוני: {parsed_fix.get('exempt_capital_initial')} ₪")
+            return "\n".join(lines)
+
+        if tool_name == "SUBMIT_TAX_COMMUTATION":
+            try:
+                parsed_submit = json.loads(tool_result)
+            except Exception:
+                return tool_result
+            if not isinstance(parsed_submit, dict):
+                return tool_result
+            if parsed_submit.get("success") is False:
+                msg = parsed_submit.get("message") or parsed_submit.get("error")
+                return f"שגיאה בביצוע: {msg}" if msg else tool_result
+            lines: list[str] = []
+            lines.append("✅ ביצוע קיבוע/היוון/פריסה – בוצע בהצלחה")
+            if parsed_submit.get("commutation_type"):
+                lines.append(f"• סוג פעולה: {parsed_submit.get('commutation_type')}")
+            if parsed_submit.get("submission_id"):
+                lines.append(f"• מזהה הגשה: {parsed_submit.get('submission_id')}")
+            if parsed_submit.get("final_net_amount") is not None:
+                try:
+                    lines.append(f"• נטו מאושר לתיעוד: {float(parsed_submit.get('final_net_amount')):,.0f} ₪")
+                except Exception:
+                    lines.append(f"• נטו מאושר לתיעוד: {parsed_submit.get('final_net_amount')} ₪")
+            return "\n".join(lines)
+
+        if tool_name == "EXECUTE_PENSION_COMMUTATION":
+            try:
+                parsed_exec = json.loads(tool_result)
+            except Exception:
+                return tool_result
+            if not isinstance(parsed_exec, dict):
+                return tool_result
+            if parsed_exec.get("success") is False:
+                msg = parsed_exec.get("message") or parsed_exec.get("error")
+                return f"שגיאה בביצוע היוון: {msg}" if msg else tool_result
+
+            lines: list[str] = []
+            lines.append("✅ ביצוע היוון קצבה – בוצע בהצלחה")
+            if parsed_exec.get("pension_fund_id") is not None:
+                lines.append(f"• מזהה קצבה: {parsed_exec.get('pension_fund_id')}")
+            if parsed_exec.get("commutation_asset_id") is not None:
+                lines.append(f"• מזהה נכס היוון: {parsed_exec.get('commutation_asset_id')}")
+            if parsed_exec.get("commutation_amount") is not None:
+                try:
+                    lines.append(f"• סכום היוון: {float(parsed_exec.get('commutation_amount')):,.0f} ₪")
+                except Exception:
+                    lines.append(f"• סכום היוון: {parsed_exec.get('commutation_amount')} ₪")
+            if parsed_exec.get("commutation_date"):
+                lines.append(f"• תאריך: {parsed_exec.get('commutation_date')}")
+            if parsed_exec.get("tax_treatment"):
+                lines.append(f"• יחס מס: {parsed_exec.get('tax_treatment')}")
+            if parsed_exec.get("new_balance") is not None:
+                try:
+                    lines.append(f"• יתרה חדשה בקצבה: {float(parsed_exec.get('new_balance')):,.0f} ₪")
+                except Exception:
+                    lines.append(f"• יתרה חדשה בקצבה: {parsed_exec.get('new_balance')} ₪")
+            if parsed_exec.get("new_pension_amount") is not None:
+                try:
+                    lines.append(f"• קצבה חודשית חדשה: {float(parsed_exec.get('new_pension_amount')):,.0f} ₪")
+                except Exception:
+                    lines.append(f"• קצבה חודשית חדשה: {parsed_exec.get('new_pension_amount')} ₪")
+            return "\n".join(lines)
+
+    if tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
         return tool_result
-
-    if tool_name in {"GENERATE_FULL_REPORT", "GENERATE_TAX_DEDUCTION_DOCUMENTS"}:
-        try:
-            parsed_doc = json.loads(tool_result)
-        except Exception:
-            return tool_result
-        if not isinstance(parsed_doc, dict):
-            return tool_result
-
-        status_message = parsed_doc.get("status_message") or parsed_doc.get("message")
-        open_path = parsed_doc.get("open_path")
-        download_url = parsed_doc.get("download_url")
-
-        lines: list[str] = []
-        if isinstance(status_message, str) and status_message.strip():
-            lines.append(status_message.strip())
-        if isinstance(open_path, str) and open_path.strip():
-            lines.append(f"open_path: {open_path.strip()}")
-        if isinstance(download_url, str) and download_url.strip():
-            lines.append(f"download_url: {download_url.strip()}")
-        return "\n".join(lines) if lines else tool_result
-
-    if tool_name == "CALCULATE_FIXATION_OF_RIGHTS":
-        try:
-            parsed_fix = json.loads(tool_result)
-        except Exception:
-            return tool_result
-        if not isinstance(parsed_fix, dict):
-            return tool_result
-        if parsed_fix.get("success") is False:
-            msg = parsed_fix.get("message") or parsed_fix.get("error")
-            return f"שגיאה בחישוב קיבוע זכויות: {msg}" if msg else tool_result
-
-        lines: list[str] = []
-        lines.append("קיבוע זכויות – סיכום:")
-        if parsed_fix.get("fixation_id") is not None:
-            lines.append(f"• מזהה קיבוע: {parsed_fix.get('fixation_id')}")
-        if parsed_fix.get("eligibility_year") is not None:
-            lines.append(f"• שנת קיבוע: {parsed_fix.get('eligibility_year')}")
-        if parsed_fix.get("monthly_exempt_pension") is not None:
-            try:
-                lines.append(f"• קצבה פטורה חודשית: {float(parsed_fix.get('monthly_exempt_pension')):,.2f} ₪")
-            except Exception:
-                lines.append(f"• קצבה פטורה חודשית: {parsed_fix.get('monthly_exempt_pension')} ₪")
-        if parsed_fix.get("exempt_pension_percentage") is not None:
-            try:
-                lines.append(f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.2f}%")
-            except Exception:
-                lines.append(f"• אחוז קצבה פטורה: {parsed_fix.get('exempt_pension_percentage')}")
-        if parsed_fix.get("exempt_capital_initial") is not None:
-            try:
-                lines.append(f"• הון פטור ראשוני: {float(parsed_fix.get('exempt_capital_initial')):,.2f} ₪")
-            except Exception:
-                lines.append(f"• הון פטור ראשוני: {parsed_fix.get('exempt_capital_initial')} ₪")
-        return "\n".join(lines)
-
-    if tool_name == "SUBMIT_TAX_COMMUTATION":
-        try:
-            parsed_submit = json.loads(tool_result)
-        except Exception:
-            return tool_result
-        if not isinstance(parsed_submit, dict):
-            return tool_result
-        if parsed_submit.get("success") is False:
-            msg = parsed_submit.get("message") or parsed_submit.get("error")
-            return f"שגיאה בביצוע: {msg}" if msg else tool_result
-        lines: list[str] = []
-        lines.append("✅ ביצוע קיבוע/היוון/פריסה – בוצע בהצלחה")
-        if parsed_submit.get("commutation_type"):
-            lines.append(f"• סוג פעולה: {parsed_submit.get('commutation_type')}")
-        if parsed_submit.get("submission_id"):
-            lines.append(f"• מזהה הגשה: {parsed_submit.get('submission_id')}")
-        if parsed_submit.get("final_net_amount") is not None:
-            try:
-                lines.append(f"• נטו מאושר לתיעוד: {float(parsed_submit.get('final_net_amount')):,.0f} ₪")
-            except Exception:
-                lines.append(f"• נטו מאושר לתיעוד: {parsed_submit.get('final_net_amount')} ₪")
-        return "\n".join(lines)
-
-    if tool_name == "EXECUTE_PENSION_COMMUTATION":
-        try:
-            parsed_exec = json.loads(tool_result)
-        except Exception:
-            return tool_result
-        if not isinstance(parsed_exec, dict):
-            return tool_result
-        if parsed_exec.get("success") is False:
-            msg = parsed_exec.get("message") or parsed_exec.get("error")
-            return f"שגיאה בביצוע היוון: {msg}" if msg else tool_result
-
-        lines: list[str] = []
-        lines.append("✅ ביצוע היוון קצבה – בוצע בהצלחה")
-        if parsed_exec.get("pension_fund_id") is not None:
-            lines.append(f"• מזהה קצבה: {parsed_exec.get('pension_fund_id')}")
-        if parsed_exec.get("commutation_asset_id") is not None:
-            lines.append(f"• מזהה נכס היוון: {parsed_exec.get('commutation_asset_id')}")
-        if parsed_exec.get("commutation_amount") is not None:
-            try:
-                lines.append(f"• סכום היוון: {float(parsed_exec.get('commutation_amount')):,.0f} ₪")
-            except Exception:
-                lines.append(f"• סכום היוון: {parsed_exec.get('commutation_amount')} ₪")
-        if parsed_exec.get("commutation_date"):
-            lines.append(f"• תאריך: {parsed_exec.get('commutation_date')}")
-        if parsed_exec.get("tax_treatment"):
-            lines.append(f"• יחס מס: {parsed_exec.get('tax_treatment')}")
-        if parsed_exec.get("new_balance") is not None:
-            try:
-                lines.append(f"• יתרה חדשה בקצבה: {float(parsed_exec.get('new_balance')):,.0f} ₪")
-            except Exception:
-                lines.append(f"• יתרה חדשה בקצבה: {parsed_exec.get('new_balance')} ₪")
-        if parsed_exec.get("new_pension_amount") is not None:
-            try:
-                lines.append(f"• קצבה חודשית חדשה: {float(parsed_exec.get('new_pension_amount')):,.0f} ₪")
-            except Exception:
-                lines.append(f"• קצבה חודשית חדשה: {parsed_exec.get('new_pension_amount')} ₪")
-        return "\n".join(lines)
 
     try:
         parsed = json.loads(tool_result)
@@ -374,7 +401,7 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
     # Support both payload shapes:
     # 1) legacy: flat dict with computed fields
     # 2) full tool payload: {success, tool_name, result: {...}, explanation: "..."}
-    if isinstance(parsed, dict) and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
+    if isinstance(parsed, dict):
         explanation = parsed.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
             return explanation.strip()
