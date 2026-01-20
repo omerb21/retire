@@ -2,6 +2,7 @@ from app.database import SessionLocal
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.services.llm_chat.chat_orchestration_helpers import store_latest_target_pension_plan
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 from ..stream_tool_execution import _execute_tool_call
 from .stream_loop_ui_action_approval_short_circuit import (
@@ -61,6 +62,25 @@ def _stream_execute_tool_and_process_result(
                 and "###UI_ACTION###" in tool_result
                 and "approval_request" in tool_result
             ):
+                if tool_name in {"TRANSFORM_FUNDS_TO_ASSETS", "EXECUTE_RETIREMENT_SCENARIO"}:
+                    request_kind = (
+                        "transform_tool"
+                        if tool_name == "TRANSFORM_FUNDS_TO_ASSETS"
+                        else "execute_retirement_scenario"
+                    )
+                    try:
+                        store_pending_approval_ui_action(
+                            db=tool_db,
+                            client_id=request.client_id,
+                            request_kind=request_kind,
+                            tool_name=tool_name,
+                            tool_args=tool_args if isinstance(tool_args, dict) else {},
+                            ui_action=tool_result,
+                            trace_id=req_id,
+                        )
+                    except Exception:
+                        pass
+
                 should_break = yield from _stream_maybe_short_circuit_on_ui_action_approval_request(
                     req_id=req_id,
                     request=request,

@@ -8,6 +8,7 @@ from app.services.pension_portfolio.snapshot_loader import (
     load_current_effective_state,
     load_latest_pension_portfolio_snapshot_models,
 )
+from app.services.llm_chat.pending_approvals import load_pending_approval_ui_action_if_match
 
 from ..stream_tool_execution import _execute_tool_call
 from ..stream_streaming_helpers import _stream_request_approval
@@ -30,6 +31,19 @@ def _maybe_handle_max_capital_request(
 ):
     max_capital_request = (not explicit_termination) and is_max_capital_request(original_user_msg)
     wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
+
+    if request.client_id is not None and wants_execute_max_capital:
+        try:
+            pending_ui = load_pending_approval_ui_action_if_match(
+                db=db,
+                client_id=request.client_id,
+                request_kind="max_capital_execute",
+                tool_name="EXECUTE_RETIREMENT_SCENARIO",
+            )
+        except Exception:
+            pending_ui = None
+        if isinstance(pending_ui, str) and pending_ui.strip():
+            return StreamingResponse(iter([pending_ui]), media_type="text/plain; charset=utf-8")
 
     if (
         request.client_id is not None
@@ -117,6 +131,7 @@ def _maybe_handle_max_capital_request(
                 computed_data=computed_data,
                 client_id=request.client_id,
                 db=db,
+                request_kind="max_capital_execute",
             )
 
         lines = [

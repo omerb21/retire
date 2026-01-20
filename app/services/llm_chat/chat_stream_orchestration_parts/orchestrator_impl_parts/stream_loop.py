@@ -29,7 +29,9 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
+    store_pending_approval_request,
 )
+from app.services.llm_chat.pending_approvals import load_pending_approval_ui_action_if_match
 
 from datetime import date
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
@@ -338,6 +340,79 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     raw_user_msg = find_last_user_message(request.messages)
 
+    if request.client_id is not None and isinstance(raw_user_msg, str) and raw_user_msg.strip():
+        candidate = raw_user_msg.strip().lower().replace("'", "").replace('"', "")
+        tokens = re.findall(r"[א-תA-Za-z]+", candidate)
+        pairs = set(zip(tokens, tokens[1:]))
+        is_summary_report = (
+            ("דוח" in tokens and "מסכם" in tokens)
+            or (("דוח", "מסכם") in pairs)
+            or (("שלח", "דוח") in pairs and "מסכם" in tokens)
+            or (("פתח", "דוח") in pairs and "מסכם" in tokens)
+            or (("הפק", "דוח") in pairs)
+        )
+        if is_summary_report:
+            actions: list[dict[str, str]] = [
+                {
+                    "type": "navigate",
+                    "path": f"/clients/{request.client_id}/reports?auto_html=1",
+                    "label": "פתח דוח",
+                }
+            ]
+            ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
+            ui_action = (
+                "###UI_ACTION###"
+                + json.dumps(ui_payload, ensure_ascii=False)
+                + "###END_UI_ACTION###\n"
+            )
+            return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+
+        if not raw_user_msg.strip().startswith("###USER_APPROVED###"):
+            wants_transform = False
+            try:
+                wants_transform = is_transform_request(raw_user_msg)
+            except Exception:
+                wants_transform = False
+            if wants_transform:
+                try:
+                    pending_ui = load_pending_approval_ui_action_if_match(
+                        db=db,
+                        client_id=request.client_id,
+                        request_kind="transform_tool",
+                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                    )
+                except Exception:
+                    pending_ui = None
+                if isinstance(pending_ui, str) and pending_ui.strip():
+                    return StreamingResponse(
+                        iter([pending_ui]),
+                        media_type="text/plain; charset=utf-8",
+                    )
+
+            wants_execute_scenario = False
+            try:
+                wants_execute_scenario = (
+                    ("execute_retirement_scenario" in candidate)
+                    or ("בצע" in tokens and ("תרחיש" in tokens or "scenario" in tokens))
+                )
+            except Exception:
+                wants_execute_scenario = False
+            if wants_execute_scenario:
+                try:
+                    pending_ui = load_pending_approval_ui_action_if_match(
+                        db=db,
+                        client_id=request.client_id,
+                        request_kind="execute_retirement_scenario",
+                        tool_name="EXECUTE_RETIREMENT_SCENARIO",
+                    )
+                except Exception:
+                    pending_ui = None
+                if isinstance(pending_ui, str) and pending_ui.strip():
+                    return StreamingResponse(
+                        iter([pending_ui]),
+                        media_type="text/plain; charset=utf-8",
+                    )
+
     try:
         messages, computed_data = prepare_messages_with_context(request=request, db=db)
     except Exception:
@@ -394,6 +469,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             wants_execute_or_transform = True
 
         wants_plan_build = ("תכנית" in candidate) or ("תוכנית" in candidate)
+        has_numeric_target = False
+        try:
+            cleaned = candidate.replace(",", "")
+            has_numeric_target = bool(re.search(r"\b\d{4,6}\b", cleaned))
+        except Exception:
+            has_numeric_target = False
 
         if wants_execute_or_transform:
             return StreamingResponse(
@@ -401,7 +482,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 media_type="text/plain; charset=utf-8",
             )
 
-        if wants_plan_build:
+        if wants_plan_build and has_numeric_target:
             return StreamingResponse(
                 iter([_build_post_conversion_plan_message()]),
                 media_type="text/plain; charset=utf-8",
@@ -433,21 +514,29 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     )
                     yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
+                try:
+                    clear_pending_approval_request(db=db, client_id=request.client_id)
+                except Exception:
+                    pass
+
+                effective_portfolio = request.pension_portfolio
+                try:
+                    loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                    if loaded is not None:
+                        effective_portfolio, _snapshot_at = loaded
+                except Exception:
+                    pass
+
                 tool_result = _execute_tool_call(
                     approved_tool,
                     approved_args,
                     request.client_id,
                     db,
-                    pension_portfolio=request.pension_portfolio,
+                    pension_portfolio=effective_portfolio,
                     force_max_exemption=False,
                     user_approved=True,
                     request_id=req_id,
                 )
-
-                try:
-                    clear_pending_approval_request(db=db, client_id=request.client_id)
-                except Exception:
-                    pass
 
                 tool_display = get_tool_display_name_hebrew(approved_tool)
                 user_tool_output = format_tool_output_for_user_stream(

@@ -17,6 +17,11 @@ from app.services.llm_chat.orchestration_utils import (
     sanitize_user_visible_text,
 )
 
+from app.services.llm_chat.pending_approvals import (
+    load_pending_approval_ui_action_if_match,
+    store_pending_approval_ui_action,
+)
+
 from .stream_top_level_helpers import (
     _build_transform_accounts_from_target_plan_payload,
     _store_pending_approval_request,
@@ -83,6 +88,19 @@ def generate_forced_approval(
         return
 
     if wants_execute_target_plan:
+        try:
+            pending_ui = load_pending_approval_ui_action_if_match(
+                db=db,
+                client_id=request.client_id,
+                request_kind="execute_target_plan",
+                tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+            )
+        except Exception:
+            pending_ui = None
+        if isinstance(pending_ui, str) and pending_ui.strip():
+            yield pending_ui
+            return
+
         payload = extract_latest_target_pension_plan_payload(request.messages)
         if payload is None:
             payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
@@ -102,23 +120,35 @@ def generate_forced_approval(
             "skip_non_convertible_accounts": True,
         }
 
-        try:
-            _store_pending_approval_request(
-                db=db,
-                client_id=request.client_id,
-                tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                tool_args=transform_args,
-            )
-        except Exception:
-            pass
-
-        yield build_approval_request_ui_action(
+        ui_action = build_approval_request_ui_action(
             tool_name="TRANSFORM_FUNDS_TO_ASSETS",
             tool_args=transform_args,
             reason="נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת.",
             risk_level="high",
             rag_sources=None,
         )
+
+        try:
+            store_pending_approval_ui_action(
+                db=db,
+                client_id=request.client_id,
+                request_kind="execute_target_plan",
+                tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                tool_args=transform_args,
+                ui_action=ui_action,
+            )
+        except Exception:
+            try:
+                _store_pending_approval_request(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                    tool_args=transform_args,
+                )
+            except Exception:
+                pass
+
+        yield ui_action
         return
 
     if wants_fixation_execute:

@@ -11,6 +11,10 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     clear_pending_approval_request,
 )
+from app.services.llm_chat.pending_approvals import (
+    load_pending_approval_ui_action_if_match,
+    store_pending_approval_ui_action,
+)
 from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
@@ -101,7 +105,6 @@ def _stream_execute_tool_no_approval(
     return StreamingResponse(generate_exec(), media_type="text/plain; charset=utf-8")
 
 
-
 def _stream_request_approval(
     tool_name: str,
     tool_args: dict[str, Any],
@@ -111,6 +114,7 @@ def _stream_request_approval(
     computed_data: Any,
     client_id: int,
     db: Session,
+    request_kind: str | None = None,
 ) -> StreamingResponse:
     def generate_approval():
         if computed_data is not None:
@@ -120,23 +124,53 @@ def _stream_request_approval(
             )
             yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-        try:
-            _store_pending_approval_request(
-                db=db,
-                client_id=client_id,
-                tool_name=tool_name,
-                tool_args=tool_args,
-            )
-        except Exception:
-            pass
+        replayable_tools = {"TRANSFORM_FUNDS_TO_ASSETS", "EXECUTE_RETIREMENT_SCENARIO"}
+        if request_kind and tool_name in replayable_tools:
+            try:
+                pending_ui = load_pending_approval_ui_action_if_match(
+                    db=db,
+                    client_id=client_id,
+                    request_kind=request_kind,
+                    tool_name=tool_name,
+                )
+            except Exception:
+                pending_ui = None
+            if isinstance(pending_ui, str) and pending_ui.strip():
+                yield pending_ui
+                return
 
-        yield build_approval_request_ui_action(
+        ui_action = build_approval_request_ui_action(
             tool_name=tool_name,
             tool_args=tool_args,
             reason=reason,
             risk_level=risk_level,
             rag_sources=None,
         )
+
+        if request_kind and tool_name in replayable_tools:
+            try:
+                store_pending_approval_ui_action(
+                    db=db,
+                    client_id=client_id,
+                    request_kind=request_kind,
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    ui_action=ui_action,
+                )
+            except Exception:
+                pass
+        else:
+            try:
+                _store_pending_approval_request(
+                    db=db,
+                    client_id=client_id,
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                )
+            except Exception:
+                pass
+
+        yield ui_action
 
     return StreamingResponse(
         generate_approval(),

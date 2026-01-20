@@ -407,37 +407,15 @@ def test_exec_only_non_stream_falls_back_to_success_when_rewrite_fails(monkeypat
 
 
 def test_stream_report_ignores_executor_only_and_emits_ui_action(monkeypatch) -> None:
-    tool_calls: list[str] = []
-
-    def fake_execute_tool_call(
-        *,
-        tool_name: str,
-        args: dict,
-        client_id: int,
-        db,
-        pension_portfolio=None,
-        force_max_exemption: bool = False,
-        agent_reply: str | None = None,
-        user_approved: bool = False,
-        request_id: str | None = None,
-    ) -> str:
-        tool_calls.append(tool_name)
-        return json.dumps(
-            {
-                "success": True,
-                "client_id": client_id,
-                "open_path": f"/clients/{client_id}/reports?auto_html=1",
-                "status_message": "הדוח נוצר בהצלחה",
-            },
-            ensure_ascii=False,
-        )
-
-    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
-
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called in REPORT intent")
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    def fake_execute_tool_call(*args, **kwargs) -> str:
+        raise AssertionError("No tool must be executed for report summary routing")
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
     api = TestClient(app)
     response = api.post(
@@ -454,7 +432,7 @@ def test_stream_report_ignores_executor_only_and_emits_ui_action(monkeypatch) ->
     assert "###UI_ACTION###" in body
     assert "###END_UI_ACTION###" in body
     assert "סטטוס: BLOCKED" not in body
-    assert tool_calls == ["GENERATE_FULL_REPORT"]
+    assert "/clients/1/reports?auto_html=1" in body
 
 
 def test_stream_executor_only_success_accepts_instructions_heading_execution(monkeypatch) -> None:
