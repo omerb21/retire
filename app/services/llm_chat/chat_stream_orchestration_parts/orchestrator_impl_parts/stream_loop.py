@@ -29,11 +29,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
-    store_pending_approval_request,
 )
-from app.services.llm_chat.pending_approvals import load_pending_approval_ui_action_if_match
-
-from datetime import date
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import (
     extract_user_approval_for_tool_call,
@@ -339,79 +335,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     computed_data = None
 
     raw_user_msg = find_last_user_message(request.messages)
-
-    if request.client_id is not None and isinstance(raw_user_msg, str) and raw_user_msg.strip():
-        candidate = raw_user_msg.strip().lower().replace("'", "").replace('"', "")
-        tokens = re.findall(r"[א-תA-Za-z]+", candidate)
-        pairs = set(zip(tokens, tokens[1:]))
-        is_summary_report = (
-            ("דוח" in tokens and "מסכם" in tokens)
-            or (("דוח", "מסכם") in pairs)
-            or (("שלח", "דוח") in pairs and "מסכם" in tokens)
-            or (("פתח", "דוח") in pairs and "מסכם" in tokens)
-            or (("הפק", "דוח") in pairs)
-        )
-        if is_summary_report:
-            actions: list[dict[str, str]] = [
-                {
-                    "type": "navigate",
-                    "path": f"/clients/{request.client_id}/reports?auto_html=1",
-                    "label": "פתח דוח",
-                }
-            ]
-            ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
-            ui_action = (
-                "###UI_ACTION###"
-                + json.dumps(ui_payload, ensure_ascii=False)
-                + "###END_UI_ACTION###\n"
-            )
-            return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
-
-        if not raw_user_msg.strip().startswith("###USER_APPROVED###"):
-            wants_transform = False
-            try:
-                wants_transform = is_transform_request(raw_user_msg)
-            except Exception:
-                wants_transform = False
-            if wants_transform:
-                try:
-                    pending_ui = load_pending_approval_ui_action_if_match(
-                        db=db,
-                        client_id=request.client_id,
-                        request_kind="transform_tool",
-                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                    )
-                except Exception:
-                    pending_ui = None
-                if isinstance(pending_ui, str) and pending_ui.strip():
-                    return StreamingResponse(
-                        iter([pending_ui]),
-                        media_type="text/plain; charset=utf-8",
-                    )
-
-            wants_execute_scenario = False
-            try:
-                wants_execute_scenario = (
-                    ("execute_retirement_scenario" in candidate)
-                    or ("בצע" in tokens and ("תרחיש" in tokens or "scenario" in tokens))
-                )
-            except Exception:
-                wants_execute_scenario = False
-            if wants_execute_scenario:
-                try:
-                    pending_ui = load_pending_approval_ui_action_if_match(
-                        db=db,
-                        client_id=request.client_id,
-                        request_kind="execute_retirement_scenario",
-                        tool_name="EXECUTE_RETIREMENT_SCENARIO",
-                    )
-                except Exception:
-                    pending_ui = None
-                if isinstance(pending_ui, str) and pending_ui.strip():
-                    return StreamingResponse(
-                        iter([pending_ui]),
-                        media_type="text/plain; charset=utf-8",
-                    )
 
     try:
         messages, computed_data = prepare_messages_with_context(request=request, db=db)
@@ -923,94 +846,104 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             media_type="text/plain; charset=utf-8",
         )
 
+    if tools_enabled and request.client_id is not None:
+        lowered_for_report = (original_user_msg or "").lower()
+        is_system_results_report_request = (
+            (("דוח" in lowered_for_report) and ("תוצאות" in lowered_for_report))
+            or (("report" in lowered_for_report) and ("results" in lowered_for_report))
+        )
+        if (
+            is_system_results_report_request
+            and is_document_request(original_user_msg)
+            and (not is_tax_documents_request(original_user_msg))
+            and (not is_qa_request(original_user_msg))
+            and (not is_no_tools_request(original_user_msg))
+        ):
+
+            def _generate_system_results_report_only(req_id: str):
+                tool_db = SessionLocal()
+                try:
+                    tool_result = _execute_tool_call(
+                        "GENERATE_FULL_REPORT",
+                        {"output_format": "html", "report_type": "full"},
+                        request.client_id,
+                        tool_db,
+                        pension_portfolio=effective_portfolio,
+                        force_max_exemption=False,
+                        user_approved=True,
+                        request_id=req_id,
+                    )
+                finally:
+                    tool_db.close()
+
+                status_message: str | None = None
+                open_path: str | None = None
+                download_url: str | None = None
+                try:
+                    parsed_tool = json.loads(tool_result)
+                    if isinstance(parsed_tool, dict):
+                        open_path = parsed_tool.get("open_path")
+                        download_url = parsed_tool.get("download_url")
+                        status_message = parsed_tool.get("status_message") or parsed_tool.get(
+                            "message"
+                        )
+                except Exception:
+                    pass
+
+                actions: list[dict[str, str]] = []
+                if isinstance(open_path, str) and open_path.strip():
+                    actions.append({"type": "navigate", "path": open_path.strip(), "label": "פתח דוח"})
+                elif isinstance(download_url, str) and download_url.strip():
+                    actions.append(
+                        {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
+                    )
+                    actions.append(
+                        {
+                            "type": "navigate",
+                            "path": f"/clients/{request.client_id}/reports",
+                            "label": "פתח עמוד דוחות",
+                        }
+                    )
+                else:
+                    actions.append(
+                        {
+                            "type": "navigate",
+                            "path": f"/clients/{request.client_id}/reports",
+                            "label": "פתח עמוד דוחות",
+                        }
+                    )
+
+                ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
+                if isinstance(status_message, str) and status_message.strip():
+                    ui_payload["status_message"] = status_message.strip()
+
+                yield (
+                    "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+                )
+
+            return StreamingResponse(
+                _generate_system_results_report_only(stream_request_id),
+                media_type="text/plain; charset=utf-8",
+            )
+
     if (
         tools_enabled
         and ui_action_short_circuit_allowed
         and resolved_intent == ChatIntent.REPORT
         and request.client_id is not None
     ):
-        lowered_user_msg = (original_user_msg or "").lower()
-        wants_pdf = "pdf" in lowered_user_msg
-        report_tool_name = "GENERATE_FULL_REPORT"
-        report_tool_args: dict[str, Any] = {
-            "output_format": "pdf" if wants_pdf else "html",
-            "report_type": "full",
-        }
-
-        if is_tax_documents_request(original_user_msg):
-            report_tool_name = "GENERATE_TAX_DEDUCTION_DOCUMENTS"
-            report_tool_args = {"document_type": "fixation_package"}
-
-        def _generate_report_only(req_id: str):
-            tool_db = SessionLocal()
-            try:
-                tool_result = _execute_tool_call(
-                    report_tool_name,
-                    report_tool_args,
-                    request.client_id,
-                    tool_db,
-                    pension_portfolio=effective_portfolio,
-                    force_max_exemption=False,
-                    user_approved=True,
-                    request_id=req_id,
-                )
-            finally:
-                tool_db.close()
-
-            status_message: str | None = None
-            open_path: str | None = None
-            download_url: str | None = None
-            try:
-                parsed_tool = json.loads(tool_result)
-                if isinstance(parsed_tool, dict):
-                    open_path = parsed_tool.get("open_path")
-                    download_url = parsed_tool.get("download_url")
-                    status_message = parsed_tool.get("status_message") or parsed_tool.get(
-                        "message"
-                    )
-            except Exception:
-                pass
-
-            actions: list[dict[str, str]] = []
-            if isinstance(open_path, str) and open_path.strip():
-                actions.append({"type": "navigate", "path": open_path.strip(), "label": "פתח דוח"})
-            elif isinstance(download_url, str) and download_url.strip():
-                actions.append(
-                    {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
-                )
-                actions.append(
-                    {
-                        "type": "navigate",
-                        "path": f"/clients/{request.client_id}/reports",
-                        "label": "פתח עמוד דוחות",
-                    }
-                )
-            else:
-                actions.append(
-                    {
-                        "type": "navigate",
-                        "path": f"/clients/{request.client_id}/reports",
-                        "label": "פתח עמוד דוחות",
-                    }
-                )
-
-            ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
-            if isinstance(status_message, str) and status_message.strip():
-                ui_payload["status_message"] = status_message.strip()
-
-            yield (
-                "###UI_ACTION###"
-                + json.dumps(ui_payload, ensure_ascii=False)
-                + "###END_UI_ACTION###\n"
-            )
-
-            if is_qa_request(original_user_msg) or report_requires_qa_line(original_user_msg):
-                yield "\n\nPASS - סיכום QA סופי לאחר יצירת הדוח"
-
-        return StreamingResponse(
-            _generate_report_only(stream_request_id),
-            media_type="text/plain; charset=utf-8",
+        actions: list[dict[str, str]] = [
+            {
+                "type": "navigate",
+                "path": f"/clients/{request.client_id}/reports?auto_html=1",
+                "label": "פתח דוח",
+            }
+        ]
+        ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
+        ui_action = (
+            "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
         )
+        return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
     plan_advice_domain = advice_domain if advice_mode else None
     plan = resolve_orchestration_plan(
@@ -1702,79 +1635,17 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             and (not no_tools_requested)
             and (not conceptual_tools_disabled)
         ):
-            wants_pdf = "pdf" in lowered_user_msg
-            report_tool_name = (
-                "GENERATE_TAX_DEDUCTION_DOCUMENTS" if is_tax_doc_request else "GENERATE_FULL_REPORT"
-            )
-            report_tool_args: dict[str, Any] = {}
-            if report_tool_name == "GENERATE_FULL_REPORT":
-                report_tool_args = {
-                    "output_format": "pdf" if wants_pdf else "html",
-                    "report_type": "full",
+            actions: list[dict[str, str]] = [
+                {
+                    "type": "navigate",
+                    "path": f"/clients/{request.client_id}/reports?auto_html=1",
+                    "label": "פתח דוח",
                 }
-
-            tool_db = SessionLocal()
-            try:
-                tool_result = _execute_tool_call(
-                    report_tool_name,
-                    report_tool_args,
-                    request.client_id,
-                    tool_db,
-                    pension_portfolio=current_pension_portfolio,
-                    force_max_exemption=force_max_exemption_val,
-                    user_approved=True,
-                    request_id=req_id,
-                )
-            finally:
-                tool_db.close()
-
-            status_message: str | None = None
-            open_path: str | None = None
-            download_url: str | None = None
-            try:
-                parsed_tool = json.loads(tool_result)
-                if isinstance(parsed_tool, dict):
-                    open_path = parsed_tool.get("open_path")
-                    download_url = parsed_tool.get("download_url")
-                    status_message = parsed_tool.get("status_message") or parsed_tool.get("message")
-            except Exception:
-                pass
-
-            actions: list[dict[str, str]] = []
-            if isinstance(open_path, str) and open_path.strip():
-                actions.append({"type": "navigate", "path": open_path.strip(), "label": "פתח דוח"})
-            elif isinstance(download_url, str) and download_url.strip():
-                actions.append(
-                    {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
-                )
-                actions.append(
-                    {
-                        "type": "navigate",
-                        "path": f"/clients/{request.client_id}/reports",
-                        "label": "פתח עמוד דוחות",
-                    }
-                )
-            else:
-                actions.append(
-                    {
-                        "type": "navigate",
-                        "path": f"/clients/{request.client_id}/reports",
-                        "label": "פתח עמוד דוחות",
-                    }
-                )
-
+            ]
             ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
-            if isinstance(status_message, str) and status_message.strip():
-                ui_payload["status_message"] = status_message.strip()
-
             yield (
-                "###UI_ACTION###"
-                + json.dumps(ui_payload, ensure_ascii=False)
-                + "###END_UI_ACTION###\n"
+                "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
             )
-
-            if is_qa_mode or report_requires_qa_line(original_user_msg):
-                yield "\n\nPASS - סיכום QA סופי לאחר יצירת הדוח"
             return
 
         if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):

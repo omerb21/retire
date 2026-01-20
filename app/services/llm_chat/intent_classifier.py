@@ -57,6 +57,11 @@ def detect_intent(last_user_message: str | None) -> ChatIntent:
     msg = (last_user_message or "").strip().lower()
     msg = msg.replace("״", '"').replace("׳", "'")
 
+    # System-check requests are handled as ANALYSIS even if they mention reports,
+    # because the stream uses an LLM+tool document-flow for QA runs.
+    if ("בדיקת מערכת" in msg) or ("system check" in msg):
+        return ChatIntent.ANALYSIS
+
     if any(t in msg for t in _NO_TOOLS_TRIGGERS):
         return ChatIntent.NO_TOOLS
 

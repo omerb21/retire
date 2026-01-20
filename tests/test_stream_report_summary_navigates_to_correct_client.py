@@ -20,7 +20,7 @@ def test_stream_report_summary_navigates_to_correct_client(monkeypatch) -> None:
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 424242,
-            "messages": [{"role": "user", "content": "שלח דוח מסכם"}],
+            "messages": [{"role": "user", "content": "פתח דוח מסכם"}],
             "pension_portfolio": [],
         },
     )
