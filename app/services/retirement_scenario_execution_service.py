@@ -24,6 +24,91 @@ from app.services.retirement.services.commutation_exemption_service import (
 logger = logging.getLogger(__name__)
 
 
+def _compute_snapshot_deltas_from_portfolio_pension_funds(
+    *,
+    db: Session,
+    client_id: int,
+) -> dict[str, dict]:
+    deltas: dict[str, dict] = {}
+
+    pension_funds = (
+        db.query(PensionFund)
+        .filter(PensionFund.client_id == client_id)
+        .filter(PensionFund.conversion_source.isnot(None))
+        .filter(PensionFund.conversion_source.like('%%"source": "pension_portfolio"%%'))
+        .all()
+    )
+
+    for pf in pension_funds:
+        raw_source = getattr(pf, "conversion_source", None)
+        if not raw_source:
+            continue
+
+        try:
+            source_data = json.loads(raw_source)
+        except Exception:
+            continue
+        if not isinstance(source_data, dict):
+            continue
+
+        account_number = (
+            (source_data.get("account_number") or source_data.get("account") or source_data.get("accountNo"))
+            or getattr(pf, "deduction_file", None)
+        )
+        if not account_number:
+            continue
+        account_number = str(account_number).strip()
+        if not account_number:
+            continue
+
+        original_balance = source_data.get("original_balance") or source_data.get("amount")
+        try:
+            original_total = float(original_balance or 0)
+        except (TypeError, ValueError):
+            original_total = 0.0
+
+        try:
+            current_total = float(getattr(pf, "balance", None) or 0)
+        except (TypeError, ValueError):
+            current_total = 0.0
+
+        if original_total <= 0:
+            continue
+
+        delta_total = max(0.0, original_total - current_total)
+        if delta_total <= 0.01:
+            continue
+
+        entry = deltas.setdefault(account_number, {"total": 0.0, "fields": {}})
+        entry["total"] = float(entry.get("total") or 0.0) + float(delta_total)
+
+        specific_amounts = source_data.get("specific_amounts")
+        if isinstance(specific_amounts, dict) and specific_amounts:
+            ratio = 0.0
+            try:
+                ratio = delta_total / original_total
+            except Exception:
+                ratio = 0.0
+            fields = entry.get("fields")
+            if not isinstance(fields, dict):
+                fields = {}
+
+            for k, v in specific_amounts.items():
+                try:
+                    numeric = float(v or 0)
+                except (TypeError, ValueError):
+                    numeric = 0.0
+                if numeric <= 0:
+                    continue
+                fields[str(k)] = float(fields.get(str(k), 0.0)) + (numeric * ratio)
+
+            entry["fields"] = fields
+
+        deltas[account_number] = entry
+
+    return deltas
+
+
 def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -> dict:
     logger.info("⚡ Executing scenario %s for client %s", scenario_id, client_id)
 
@@ -178,6 +263,24 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
             result = builder._build_max_npv_scenario()
         else:
             raise ValueError(f"סוג תרחיש לא ידוע: {scenario_type}")
+
+        try:
+            from app.services.llm_chat.tool_handlers.transform_funds_conversion import (
+                _create_updated_snapshot_scenario,
+            )
+
+            deltas = _compute_snapshot_deltas_from_portfolio_pension_funds(
+                db=db,
+                client_id=client_id,
+            )
+            if deltas:
+                _create_updated_snapshot_scenario(
+                    db=db,
+                    client_id=client_id,
+                    deltas=deltas,
+                )
+        except Exception:
+            pass
 
         if include_current_employer_termination:
             try:
