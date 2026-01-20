@@ -4,6 +4,10 @@ from fastapi.responses import StreamingResponse
 
 from app.models.client import Client
 from app.services.llm_chat.orchestration_utils import is_max_capital_request
+from app.services.pension_portfolio.snapshot_loader import (
+    load_current_effective_state,
+    load_latest_pension_portfolio_snapshot_models,
+)
 
 from ..stream_tool_execution import _execute_tool_call
 from ..stream_streaming_helpers import _stream_request_approval
@@ -34,6 +38,27 @@ def _maybe_handle_max_capital_request(
         and (not is_qa_mode)
         and (not no_tools_requested)
     ):
+        effective_state = None
+        try:
+            effective_state = load_current_effective_state(db, request.client_id)
+        except Exception:
+            effective_state = None
+
+        banner = None
+        if isinstance(effective_state, dict) and bool(effective_state.get("recent_update")):
+            op_type = str(effective_state.get("last_operation_type") or "").strip()
+            if op_type:
+                banner = f"מצב מערכת: עודכן לאחר פעולה אחרונה ({op_type})"
+            else:
+                banner = "מצב מערכת: עודכן לאחר פעולה אחרונה"
+
+        try:
+            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            if loaded is not None:
+                effective_portfolio, _snapshot_at = loaded
+        except Exception:
+            pass
+
         retirement_age = None
         try:
             client = db.query(Client).filter(Client.id == request.client_id).first()
@@ -76,10 +101,10 @@ def _maybe_handle_max_capital_request(
                 break
 
         if scenario_id is None:
-            return StreamingResponse(
-                iter(["לא הצלחתי ליצור תרחיש 'מקסימום הון' במערכת."]),
-                media_type="text/plain; charset=utf-8",
-            )
+            lines = ["לא הצלחתי ליצור תרחיש 'מקסימום הון' במערכת."]
+            if banner:
+                lines = [banner, "", *lines]
+            return StreamingResponse(iter(lines), media_type="text/plain; charset=utf-8")
 
         if wants_execute_max_capital:
             return _stream_request_approval(
@@ -94,14 +119,12 @@ def _maybe_handle_max_capital_request(
                 db=db,
             )
 
-        return StreamingResponse(
-            iter(
-                [
-                    "יצרתי תרחיש 'מקסימום הון' (עם שמירת קצבת מינימום 5,500 ₪). "
-                    "אם תרצה לבצע אותו בפועל במערכת, כתוב: 'בצע'."
-                ]
-            ),
-            media_type="text/plain; charset=utf-8",
-        )
+        lines = [
+            "יצרתי תרחיש 'מקסימום הון' (עם שמירת קצבת מינימום 5,500 ₪). "
+            "אם תרצה לבצע אותו בפועל במערכת, כתוב: 'בצע'."
+        ]
+        if banner:
+            lines = [banner, "", *lines]
+        return StreamingResponse(iter(lines), media_type="text/plain; charset=utf-8")
 
     return None

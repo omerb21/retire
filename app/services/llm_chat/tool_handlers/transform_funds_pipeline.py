@@ -25,6 +25,7 @@ from .transform_funds_conversion import (
     _parse_date_value,
     _zero_source_portfolio_pension_funds,
 )
+from app.utils.trace_context import get_current_trace_id
 from .transform_funds_markers import build_transform_funds_response
 from .transform_funds_validation import build_conversion_tasks_from_accounts
 from .transform_funds_pipeline_parts.repository import (
@@ -156,6 +157,8 @@ def execute_transform_funds_pipeline(
             db=db,
             client_id=client_id,
             deltas=snapshot_deltas,
+            trace_id=get_current_trace_id(),
+            operation_type="TRANSFORM_FUNDS_TO_ASSETS",
         )
     except Exception:
         scenario_source_cleanup_ok = False

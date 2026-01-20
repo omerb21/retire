@@ -112,8 +112,10 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 from app.services.pension_portfolio.snapshot_loader import (
+    load_current_effective_state,
     load_latest_pension_portfolio_snapshot_models,
 )
+from app.services.state.effective_client_state_loader import load_effective_client_state
 from app.services.llm_chat.execution_only_guard import (
     is_execution_only,
     get_execution_only_system_prompt,
@@ -344,6 +346,67 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     original_user_msg = raw_user_msg
 
+    effective_client_state = None
+    if request.client_id is not None:
+        try:
+            effective_client_state = load_effective_client_state(db, request.client_id)
+        except Exception:
+            effective_client_state = None
+
+    def _is_post_conversion_locked() -> bool:
+        if effective_client_state is None:
+            return False
+        try:
+            return str(getattr(effective_client_state, "mode", "")).strip() == "POST_CONVERSION_LOCKED"
+        except Exception:
+            return False
+
+    def _build_post_conversion_lock_message() -> str:
+        return (
+            "כותרת: מצב תיק לאחר המרה\n\n"
+            "המערכת מזהה שכבר בוצעו המרות בתיק (Post Conversion).\n"
+            "כדי למנוע דריסה/כפל המרות, לא מבצעים שוב המרה על בסיס snapshot.\n\n"
+            "מה אפשר לעשות עכשיו:\n"
+            "- להפיק דוח מסכם\n"
+            "- לבצע משיכה/פעולות נוספות על בסיס הנכסים שנוצרו\n"
+            "- לבצע קיבוע זכויות אם נדרש\n\n"
+            'אם רצית לבצע פעולה אחרת, כתוב במפורש: "דוח מסכם" / "משיכה מהנכסים" / "קיבוע זכויות".\n'
+        )
+
+    def _build_post_conversion_plan_message() -> str:
+        return (
+            "כותרת: תכנית לאחר המרה\n\n"
+            "לא בונים מחדש תכנית יעד על בסיס התיק המקורי אחרי שכבר בוצעה המרה.\n"
+            "אם המטרה היא לבצע משיכה/קצבה מהמצב החדש - נדרש מסלול ייעודי שמחשב מהנכסים שנוצרו.\n"
+            'כתוב: "חשב תזרים על בסיס המצב הנוכחי" או "דוח מסכם".\n'
+        )
+
+    if _is_post_conversion_locked() and isinstance(original_user_msg, str):
+        candidate = original_user_msg.strip()
+        lowered = candidate.lower()
+
+        wants_execute_or_transform = False
+        if is_transform_request(candidate) or ("transform" in lowered) or ("המר" in candidate) or ("המרה" in candidate):
+            wants_execute_or_transform = True
+        if ("בצע את התכנית" in candidate) or ("בצע את התוכנית" in candidate) or ("יישם" in candidate):
+            wants_execute_or_transform = True
+        if ("משיכה" in candidate) and ("הונית" in candidate) and (("כל השאר" in candidate) or ("כל-ה\u05e9\u05d0\u05e8" in candidate)):
+            wants_execute_or_transform = True
+
+        wants_plan_build = ("תכנית" in candidate) or ("תוכנית" in candidate)
+
+        if wants_execute_or_transform:
+            return StreamingResponse(
+                iter([_build_post_conversion_lock_message()]),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        if wants_plan_build:
+            return StreamingResponse(
+                iter([_build_post_conversion_plan_message()]),
+                media_type="text/plain; charset=utf-8",
+            )
+
     if (
         request.client_id is not None
         and isinstance(original_user_msg, str)
@@ -352,6 +415,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         approved = extract_user_approval_for_tool_call(messages)
         if approved is not None:
             approved_tool, approved_args = approved
+
+            if _is_post_conversion_locked() and approved_tool in {
+                "TRANSFORM_FUNDS_TO_ASSETS",
+                "EXECUTE_RETIREMENT_SCENARIO",
+            }:
+                return StreamingResponse(
+                    iter([_build_post_conversion_lock_message()]),
+                    media_type="text/plain; charset=utf-8",
+                )
 
             def _generate_user_approved_exec(req_id: str):
                 if computed_data is not None:
@@ -622,7 +694,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     effective_portfolio = request.pension_portfolio
     effective_snapshot_at = request.pension_portfolio_snapshot_at
+    effective_state: dict | None = None
     if request.client_id is not None:
+        try:
+            effective_state = load_current_effective_state(db, request.client_id)
+        except Exception:
+            effective_state = None
         loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
         if loaded is not None:
             effective_portfolio, effective_snapshot_at = loaded
@@ -635,6 +712,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 )
             except Exception:
                 pass
+
+    def _build_recent_state_banner() -> str | None:
+        if not isinstance(effective_state, dict):
+            return None
+        if not bool(effective_state.get("recent_update")):
+            return None
+        op_type = str(effective_state.get("last_operation_type") or "").strip()
+        if op_type:
+            return f"מצב מערכת: עודכן לאחר פעולה אחרונה ({op_type})"
+        return "מצב מערכת: עודכן לאחר פעולה אחרונה"
 
     target_net_for_plan = extract_target_net_ils(original_user_msg or "")
     lowered_user_msg = (original_user_msg or "").lower()
@@ -710,6 +797,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     ensure_ascii=False,
                 )
                 yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            banner = _build_recent_state_banner()
+            if banner:
+                yield banner + "\n\n"
+
+            try:
+                loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                if loaded is not None:
+                    nonlocal effective_portfolio, effective_snapshot_at
+                    effective_portfolio, effective_snapshot_at = loaded
+            except Exception:
+                pass
 
             plan_args = {
                 "target_monthly_pension": float(target_net_for_plan),
@@ -943,6 +1042,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     ensure_ascii=False,
                 )
                 yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            banner = _build_recent_state_banner()
+            if banner:
+                yield banner + "\n\n"
+
+            try:
+                loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                if loaded is not None:
+                    nonlocal effective_portfolio, effective_snapshot_at
+                    effective_portfolio, effective_snapshot_at = loaded
+            except Exception:
+                pass
 
             birth_date_for_default_date = None
             gender_for_default_date = None
@@ -1199,6 +1310,18 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         ensure_ascii=False,
                     )
                     yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+                banner = _build_recent_state_banner()
+                if banner:
+                    yield banner + "\n\n"
+
+                try:
+                    loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                    if loaded is not None:
+                        nonlocal effective_portfolio, effective_snapshot_at
+                        effective_portfolio, effective_snapshot_at = loaded
+                except Exception:
+                    pass
 
                 birth_date_for_default_date = None
                 gender_for_default_date = None

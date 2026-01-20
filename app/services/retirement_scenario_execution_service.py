@@ -20,6 +20,7 @@ from app.services.retirement import RetirementScenariosBuilder
 from app.services.retirement.services.commutation_exemption_service import (
     CommutationExemptionService,
 )
+from app.utils.trace_context import get_current_trace_id
 
 logger = logging.getLogger(__name__)
 
@@ -273,12 +274,13 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                 db=db,
                 client_id=client_id,
             )
-            if deltas:
-                _create_updated_snapshot_scenario(
-                    db=db,
-                    client_id=client_id,
-                    deltas=deltas,
-                )
+            _create_updated_snapshot_scenario(
+                db=db,
+                client_id=client_id,
+                deltas=deltas,
+                trace_id=get_current_trace_id(),
+                operation_type="EXECUTE_RETIREMENT_SCENARIO",
+            )
         except Exception:
             pass
 

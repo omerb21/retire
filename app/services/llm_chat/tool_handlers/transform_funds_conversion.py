@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -245,8 +245,10 @@ def _create_updated_snapshot_scenario(
     db: Session,
     client_id: int,
     deltas: dict[str, dict],
+    trace_id: str | None = None,
+    operation_type: str | None = None,
 ) -> tuple[bool, int]:
-    if not deltas:
+    if (not deltas) and (not trace_id) and (not operation_type):
         return True, 0
 
     snapshot = (
@@ -257,7 +259,27 @@ def _create_updated_snapshot_scenario(
         .first()
     )
     if snapshot is None or not snapshot.parameters:
-        return False, 0
+        if not (trace_id or operation_type):
+            return False, 0
+
+        new_params: dict = {"pension_portfolio": []}
+        meta: dict = {}
+        if trace_id:
+            meta["trace_id"] = trace_id
+        if operation_type:
+            meta["operation_type"] = operation_type
+        new_params["_meta"] = meta
+
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="pension_portfolio_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(new_params, ensure_ascii=False),
+        )
+        db.add(scenario)
+        return True, 1
 
     try:
         params = json.loads(snapshot.parameters)
@@ -265,15 +287,26 @@ def _create_updated_snapshot_scenario(
         return False, 0
 
     portfolio = params.get("pension_portfolio")
-    if not isinstance(portfolio, list) or not portfolio:
-        return False, 0
+    if not isinstance(portfolio, list):
+        portfolio = []
 
-    updated_portfolio = _apply_snapshot_deltas(portfolio=portfolio, deltas=deltas)
-    if not updated_portfolio:
-        return False, 0
+    updated_portfolio = portfolio
+    if deltas:
+        updated_portfolio = _apply_snapshot_deltas(portfolio=portfolio, deltas=deltas)
+        if updated_portfolio is None:
+            return False, 0
 
     new_params = dict(params)
     new_params["pension_portfolio"] = updated_portfolio
+
+    if trace_id or operation_type:
+        existing_meta = new_params.get("_meta")
+        meta: dict = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        if trace_id:
+            meta["trace_id"] = trace_id
+        if operation_type:
+            meta["operation_type"] = operation_type
+        new_params["_meta"] = meta
 
     scenario = Scenario(
         client_id=client_id,
