@@ -22,6 +22,13 @@ def _stable_json(obj) -> str:
         return "{}"
 
 
+def compute_args_hash(tool_args: dict) -> str:
+    if not isinstance(tool_args, dict):
+        tool_args = {}
+    raw = _stable_json(tool_args).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
 def compute_intent_key(
     *,
     client_id: int,
@@ -63,6 +70,7 @@ def store_pending_approval_ui_action(
         request_kind=request_kind,
         tool_args=tool_args,
     )
+    args_hash = compute_args_hash(tool_args)
 
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
@@ -79,6 +87,7 @@ def store_pending_approval_ui_action(
     payload = {
         "version": 2,
         "intent_key": intent_key,
+        "args_hash": args_hash,
         "request_kind": request_kind,
         "tool_name": tool_name,
         "arguments": tool_args,
@@ -117,6 +126,28 @@ def load_pending_approval_ui_action_if_match(
     request_kind: str,
     tool_name: str,
 ) -> str | None:
+
+    parsed = load_pending_approval_payload_if_match(
+        db=db,
+        client_id=client_id,
+        request_kind=request_kind,
+        tool_name=tool_name,
+    )
+    if parsed is None:
+        return None
+    ui_action = parsed.get("ui_action")
+    if not isinstance(ui_action, str) or not ui_action.strip():
+        return None
+    return ui_action
+
+
+def load_pending_approval_payload_if_match(
+    *,
+    db: Session,
+    client_id: int,
+    request_kind: str,
+    tool_name: str,
+) -> dict | None:
     if client_id is None:
         return None
     if not isinstance(request_kind, str) or not request_kind.strip():
@@ -161,7 +192,30 @@ def load_pending_approval_ui_action_if_match(
         except Exception:
             return None
 
-    ui_action = parsed.get("ui_action")
-    if not isinstance(ui_action, str) or not ui_action.strip():
+    return parsed
+
+
+def load_pending_approval_payload_if_match_and_args_hash(
+    *,
+    db: Session,
+    client_id: int,
+    request_kind: str,
+    tool_name: str,
+    args_hash: str,
+) -> dict | None:
+    if not isinstance(args_hash, str) or not args_hash.strip():
         return None
-    return ui_action
+    parsed = load_pending_approval_payload_if_match(
+        db=db,
+        client_id=client_id,
+        request_kind=request_kind,
+        tool_name=tool_name,
+    )
+    if parsed is None:
+        return None
+    stored = parsed.get("args_hash")
+    if not isinstance(stored, str) or not stored.strip():
+        return None
+    if stored.strip() != args_hash.strip():
+        return None
+    return parsed
