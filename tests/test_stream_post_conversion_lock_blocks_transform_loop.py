@@ -65,5 +65,6 @@ def test_stream_post_conversion_lock_blocks_transform_loop(monkeypatch, _test_db
     body = response.text
     assert "###UI_ACTION###" not in body
     assert "🔧" not in body
-    assert "כותרת: מצב תיק לאחר המרה" in body
-    assert "TRANSFORM_FUNDS_TO_ASSETS" not in body
+    assert "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר" in body
+    assert "כתוב: יעד נטו: <מספר>." in body
+    assert "###TOOL_CALL###" not in body

@@ -30,6 +30,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
 )
+from app.services.llm_chat.pending_approvals import load_pending_approval_ui_action_if_match
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import (
     extract_user_approval_for_tool_call,
@@ -383,33 +384,80 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         candidate = original_user_msg.strip()
         lowered = candidate.lower()
 
-        wants_execute_or_transform = False
-        if is_transform_request(candidate) or ("transform" in lowered) or ("המר" in candidate) or ("המרה" in candidate):
-            wants_execute_or_transform = True
-        if ("בצע את התכנית" in candidate) or ("בצע את התוכנית" in candidate) or ("יישם" in candidate):
-            wants_execute_or_transform = True
-        if ("משיכה" in candidate) and ("הונית" in candidate) and (("כל השאר" in candidate) or ("כל-ה\u05e9\u05d0\u05e8" in candidate)):
-            wants_execute_or_transform = True
+        wants_execute_target_plan_local = (
+            ("בצע" in lowered)
+            and ("תכנית" in lowered or "תוכנית" in lowered or "מתווה" in lowered)
+        )
 
-        wants_plan_build = ("תכנית" in candidate) or ("תוכנית" in candidate)
-        has_numeric_target = False
-        try:
-            cleaned = candidate.replace(",", "")
-            has_numeric_target = bool(re.search(r"\b\d{4,6}\b", cleaned))
-        except Exception:
+        pending_execute_target_plan = False
+        pending_execute_scenario = False
+        if request.client_id is not None:
+            try:
+                pending_execute_target_plan = bool(
+                    load_pending_approval_ui_action_if_match(
+                        db=db,
+                        client_id=request.client_id,
+                        request_kind="execute_target_plan",
+                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                    )
+                )
+            except Exception:
+                pending_execute_target_plan = False
+
+            try:
+                pending_execute_scenario = bool(
+                    load_pending_approval_ui_action_if_match(
+                        db=db,
+                        client_id=request.client_id,
+                        request_kind="execute_retirement_scenario",
+                        tool_name="EXECUTE_RETIREMENT_SCENARIO",
+                    )
+                )
+            except Exception:
+                pending_execute_scenario = False
+
+        # The post-conversion lock must not prevent returning an approval UI_ACTION
+        # (or its deterministic replay) for execute-target-plan.
+        if not wants_execute_target_plan_local:
+            wants_plan_build = ("תכנית" in candidate) or ("תוכנית" in candidate)
             has_numeric_target = False
+            try:
+                cleaned = candidate.replace(",", "")
+                has_numeric_target = bool(re.search(r"\b\d{4,6}\b", cleaned))
+            except Exception:
+                has_numeric_target = False
 
-        if wants_execute_or_transform:
-            return StreamingResponse(
-                iter([_build_post_conversion_lock_message()]),
-                media_type="text/plain; charset=utf-8",
+            wants_direct_transform = bool(
+                is_transform_request(candidate)
+                or ("transform" in lowered)
+                or ("המר" in candidate)
+                or ("המרה" in candidate)
             )
 
-        if wants_plan_build and has_numeric_target:
-            return StreamingResponse(
-                iter([_build_post_conversion_plan_message()]),
-                media_type="text/plain; charset=utf-8",
-            )
+            if wants_direct_transform or (wants_plan_build and has_numeric_target):
+                logger.info(
+                    "post_conversion_lock_early_cutoff",
+                    extra={
+                        "endpoint": "stream",
+                        "request_id": stream_request_id,
+                        "client_id": request.client_id,
+                        "post_conversion_locked": True,
+                        "wants_execute_target_plan": bool(wants_execute_target_plan_local),
+                        "pending_execute_target_plan": bool(pending_execute_target_plan),
+                        "pending_execute_retirement_scenario": bool(pending_execute_scenario),
+                    },
+                )
+
+                if wants_plan_build and has_numeric_target:
+                    return StreamingResponse(
+                        iter([_build_post_conversion_plan_message()]),
+                        media_type="text/plain; charset=utf-8",
+                    )
+
+                return StreamingResponse(
+                    iter([_build_post_conversion_lock_message()]),
+                    media_type="text/plain; charset=utf-8",
+                )
 
     if (
         request.client_id is not None
@@ -801,6 +849,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and (not is_qa_mode_local)
         and (target_net_for_plan is not None)
         and has_target_plan_keywords
+        and (not _is_post_conversion_locked())
     ):
         def _generate_target_plan_tools_first(req_id: str):
             if computed_data is not None:
@@ -1468,6 +1517,69 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             is_portfolio_analysis=is_portfolio_analysis,
         )
 
+    if _is_post_conversion_locked() and isinstance(original_user_msg, str):
+        candidate = original_user_msg.strip()
+        lowered = candidate.lower()
+
+        # IMPORTANT: post-conversion lock must NOT block deterministic approval/replay
+        # for execute-target-plan (TRANSFORM_FUNDS_TO_ASSETS), but it should block
+        # rebuilding plans or direct transform execution on the original snapshot.
+        if not wants_execute_target_plan:
+            wants_plan_build = ("תכנית" in candidate) or ("תוכנית" in candidate)
+            has_numeric_target = False
+            try:
+                cleaned = candidate.replace(",", "")
+                has_numeric_target = bool(re.search(r"\b\d{4,6}\b", cleaned))
+            except Exception:
+                has_numeric_target = False
+
+            wants_direct_transform = bool(
+                explicit_transform
+                or is_transform_request(candidate)
+                or ("transform" in lowered)
+                or ("המר" in candidate)
+                or ("המרה" in candidate)
+            )
+
+            if wants_direct_transform or (wants_plan_build and has_numeric_target):
+                pending_execute_target_plan = False
+                try:
+                    pending_execute_target_plan = bool(
+                        load_pending_approval_ui_action_if_match(
+                            db=db,
+                            client_id=request.client_id,
+                            request_kind="execute_target_plan",
+                            tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                        )
+                    )
+                except Exception:
+                    pending_execute_target_plan = False
+
+                logger.info(
+                    "post_conversion_lock_early_block",
+                    extra={
+                        "endpoint": "stream",
+                        "request_id": stream_request_id,
+                        "client_id": request.client_id,
+                        "post_conversion_locked": True,
+                        "wants_execute_target_plan": bool(wants_execute_target_plan),
+                        "pending_execute_target_plan": bool(pending_execute_target_plan),
+                        "blocked_plan_build": bool(wants_plan_build and has_numeric_target),
+                        "blocked_direct_transform": bool(wants_direct_transform),
+                    },
+                )
+
+                if wants_plan_build and has_numeric_target:
+                    return StreamingResponse(
+                        iter([_build_post_conversion_plan_message()]),
+                        media_type="text/plain; charset=utf-8",
+                    )
+
+                return StreamingResponse(
+                    iter([_build_post_conversion_lock_message()]),
+                    media_type="text/plain; charset=utf-8",
+                )
+
     if not conceptual_tools_disabled:
         target_plan_response = _maybe_handle_target_plan_deterministic(
             request=request,
@@ -1604,6 +1716,78 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     )
     if approval_response is not None:
         return approval_response
+
+    if _is_post_conversion_locked() and isinstance(original_user_msg, str):
+        candidate = original_user_msg.strip()
+        lowered = candidate.lower()
+
+        wants_plan_build = ("תכנית" in candidate) or ("תוכנית" in candidate)
+        has_numeric_target = False
+        try:
+            cleaned = candidate.replace(",", "")
+            has_numeric_target = bool(re.search(r"\b\d{4,6}\b", cleaned))
+        except Exception:
+            has_numeric_target = False
+
+        pending_execute_target_plan = False
+        pending_execute_scenario = False
+        if request.client_id is not None:
+            try:
+                pending_execute_target_plan = bool(
+                    load_pending_approval_ui_action_if_match(
+                        db=db,
+                        client_id=request.client_id,
+                        request_kind="execute_target_plan",
+                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                    )
+                )
+            except Exception:
+                pending_execute_target_plan = False
+
+            try:
+                pending_execute_scenario = bool(
+                    load_pending_approval_ui_action_if_match(
+                        db=db,
+                        client_id=request.client_id,
+                        request_kind="execute_retirement_scenario",
+                        tool_name="EXECUTE_RETIREMENT_SCENARIO",
+                    )
+                )
+            except Exception:
+                pending_execute_scenario = False
+
+        logger.info(
+            "post_conversion_lock_evaluation",
+            extra={
+                "endpoint": "stream",
+                "request_id": stream_request_id,
+                "client_id": request.client_id,
+                "post_conversion_locked": True,
+                "wants_execute_target_plan": bool(wants_execute_target_plan),
+                "pending_execute_target_plan": bool(pending_execute_target_plan),
+                "pending_execute_retirement_scenario": bool(pending_execute_scenario),
+            },
+        )
+
+        wants_direct_transform = bool(
+            explicit_transform
+            or is_transform_request(candidate)
+            or ("transform" in lowered)
+            or ("המר" in candidate)
+            or ("המרה" in candidate)
+        )
+
+        if wants_direct_transform:
+            return StreamingResponse(
+                iter([_build_post_conversion_lock_message()]),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        if wants_plan_build and has_numeric_target and (not wants_execute_target_plan):
+            return StreamingResponse(
+                iter([_build_post_conversion_plan_message()]),
+                media_type="text/plain; charset=utf-8",
+            )
 
     wants_ignore_blocked = _apply_wants_ignore_blocked_and_portfolio_analysis_messages(
         request=request,

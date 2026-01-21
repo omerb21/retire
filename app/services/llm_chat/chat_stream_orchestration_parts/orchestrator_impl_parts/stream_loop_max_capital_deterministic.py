@@ -37,7 +37,7 @@ def _maybe_handle_max_capital_request(
             pending_ui = load_pending_approval_ui_action_if_match(
                 db=db,
                 client_id=request.client_id,
-                request_kind="max_capital_execute",
+                request_kind="execute_retirement_scenario",
                 tool_name="EXECUTE_RETIREMENT_SCENARIO",
             )
         except Exception:
@@ -131,7 +131,7 @@ def _maybe_handle_max_capital_request(
                 computed_data=computed_data,
                 client_id=request.client_id,
                 db=db,
-                request_kind="max_capital_execute",
+                request_kind="execute_retirement_scenario",
             )
 
         lines = [

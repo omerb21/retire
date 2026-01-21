@@ -121,6 +121,101 @@ def build_target_pension_plan(
 
     target = float(target_monthly_pension)
 
+    # Net target requires a tax projection conversion (net -> required gross).
+    # This must run before checking pension sources availability so that
+    # tax projection failures are reported deterministically.
+    required_gross_for_target = target
+    required_gross_tax_projection = None
+    if target_is_net:
+
+        def _gross_for_net_target(
+            target_net: float,
+        ) -> tuple[Optional[float], Optional[dict], Optional[str]]:
+            try:
+                target_net_val = float(target_net or 0)
+            except Exception:
+                target_net_val = 0.0
+            if target_net_val <= 0:
+                return None, None, "invalid_target_net"
+
+            def _net_from_gross(
+                gross: float,
+            ) -> tuple[Optional[float], Optional[dict], Optional[str]]:
+                try:
+                    proj = self.get_tax_projection(monthly_pension=float(gross))
+                    if not (
+                        isinstance(proj, dict) and isinstance(proj.get("result"), dict)
+                    ):
+                        return None, None, "invalid_tax_projection_response"
+                    res = proj.get("result")
+                    monthly_tax = res.get("monthly_tax")
+                    try:
+                        tax_val = float(monthly_tax or 0)
+                    except Exception:
+                        tax_val = 0.0
+                    return float(gross) - tax_val, res, None
+                except Exception as e:
+                    return None, None, str(e) or "tax_projection_failed"
+
+            low = max(1000.0, target_net_val)
+            low_net, low_res, low_err = _net_from_gross(low)
+            if low_net is None:
+                return None, None, low_err
+            if low_net >= target_net_val:
+                return low, low_res, None
+
+            high = low
+            high_net = low_net
+            high_res: Optional[dict] = low_res
+            high_err: Optional[str] = None
+            for _ in range(16):
+                high = min(high * 1.5, 500_000.0)
+                high_net, high_res, high_err = _net_from_gross(high)
+                if high_net is not None and high_net >= target_net_val:
+                    break
+            if high_net is None or high_net < target_net_val:
+                return None, None, high_err
+
+            best_gross = high
+            best_res = high_res
+            for _ in range(30):
+                mid = (low + high) / 2.0
+                mid_net, mid_res, _ = _net_from_gross(mid)
+                if mid_net is None:
+                    low = mid
+                    continue
+                if mid_net >= target_net_val:
+                    best_gross = mid
+                    best_res = mid_res
+                    high = mid
+                else:
+                    low = mid
+                if abs(high - low) < 1.0:
+                    break
+
+            try:
+                best_gross = float(round(best_gross, 2))
+            except Exception:
+                pass
+            return best_gross, best_res, None
+
+        computed_gross, tax_result, gross_err = _gross_for_net_target(target)
+        if computed_gross is None:
+            err = ((gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)").strip())
+            return {
+                "success": False,
+                "tool_name": "BUILD_TARGET_PENSION_PLAN",
+                "result": {},
+                "explanation": (
+                    "לא ניתן לתכנן יעד קצבה נטו ללא הערכת מס תקינה. "
+                    "הערכת המס נכשלה ולכן לא ניתן להמיר יעד נטו לברוטו נדרש. "
+                    f"פרטי שגיאה: {err}"
+                ),
+            }
+
+        required_gross_for_target = float(computed_gross)
+        required_gross_tax_projection = tax_result
+
     # שלב 1: איסוף כל מקורות הקצבה הפוטנציאליים
     pension_sources = []
 
@@ -440,102 +535,6 @@ def build_target_pension_plan(
     blocked_for_execution_capital = 0.0
     sources_used = []
     sources_not_used = []
-
-    # יעד להשגה בברוטו/נטו
-    required_gross_for_target = target
-    required_gross_tax_projection = None
-    if target_is_net:
-
-        def _gross_for_net_target(
-            target_net: float,
-        ) -> tuple[Optional[float], Optional[dict], Optional[str]]:
-            try:
-                target_net_val = float(target_net or 0)
-            except Exception:
-                target_net_val = 0.0
-            if target_net_val <= 0:
-                return None, None, "invalid_target_net"
-
-            def _net_from_gross(
-                gross: float,
-            ) -> tuple[Optional[float], Optional[dict], Optional[str]]:
-                try:
-                    proj = self.get_tax_projection(monthly_pension=float(gross))
-                    if not (
-                        isinstance(proj, dict) and isinstance(proj.get("result"), dict)
-                    ):
-                        return None, None, "invalid_tax_projection_response"
-                    res = proj.get("result")
-                    monthly_tax = res.get("monthly_tax")
-                    try:
-                        tax_val = float(monthly_tax or 0)
-                    except Exception:
-                        tax_val = 0.0
-                    return float(gross) - tax_val, res, None
-                except Exception as e:
-                    return None, None, str(e) or "tax_projection_failed"
-
-            low = max(1000.0, target_net_val)
-            low_net, low_res, low_err = _net_from_gross(low)
-            if low_net is None:
-                return None, None, low_err
-            if low_net >= target_net_val:
-                return low, low_res, None
-
-            high = low
-            high_net = low_net
-            high_res: Optional[dict] = low_res
-            high_err: Optional[str] = None
-            for _ in range(16):
-                high = min(high * 1.5, 500_000.0)
-                high_net, high_res, high_err = _net_from_gross(high)
-                if high_net is not None and high_net >= target_net_val:
-                    break
-            if high_net is None or high_net < target_net_val:
-                return None, None, high_err
-
-            best_gross = high
-            best_res = high_res
-            for _ in range(30):
-                mid = (low + high) / 2.0
-                mid_net, mid_res, _ = _net_from_gross(mid)
-                if mid_net is None:
-                    low = mid
-                    continue
-                if mid_net >= target_net_val:
-                    best_gross = mid
-                    best_res = mid_res
-                    high = mid
-                else:
-                    low = mid
-                if abs(high - low) < 1.0:
-                    break
-
-            try:
-                best_gross = float(round(best_gross, 2))
-            except Exception:
-                pass
-            return best_gross, best_res, None
-
-        computed_gross, tax_result, gross_err = _gross_for_net_target(target)
-        if computed_gross is None:
-            err = (
-                (gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)")
-                .strip()
-            )
-            return {
-                "success": False,
-                "tool_name": "BUILD_TARGET_PENSION_PLAN",
-                "result": {},
-                "explanation": (
-                    "לא ניתן לתכנן יעד קצבה נטו ללא הערכת מס תקינה. "
-                    "הערכת המס נכשלה ולכן לא ניתן להמיר יעד נטו לברוטו נדרש. "
-                    f"פרטי שגיאה: {err}"
-                ),
-            }
-
-        required_gross_for_target = float(computed_gross)
-        required_gross_tax_projection = tax_result
 
     existing_sources: list[dict[str, Any]] = []
     pension_only_sources: list[dict[str, Any]] = []

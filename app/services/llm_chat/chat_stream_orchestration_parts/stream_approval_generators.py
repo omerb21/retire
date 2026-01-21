@@ -105,7 +105,11 @@ def generate_forced_approval(
         if payload is None:
             payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
         if not isinstance(payload, dict):
-            yield "\n\nלא נמצאה תכנית יעד אחרונה לביצוע. קודם צריך לבנות תכנית יעד קצבה ואז לבקש לבצע אותה בפועל."
+            yield (
+                "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר.\n"
+                "כתוב: יעד נטו: <מספר>.\n"
+                "לדוגמה: יעד נטו: 28000"
+            )
             return
 
         accounts = _build_transform_accounts_from_target_plan_payload(payload)
@@ -196,7 +200,11 @@ def generate_execute_target_after_termination(
     if payload is None:
         payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
     if not isinstance(payload, dict):
-        yield "עזיבת עבודה כבר בוצעה. לא נמצאה תכנית יעד אחרונה לביצוע. קודם צריך לבנות תכנית יעד קצבה ואז לבקש לבצע אותה."
+        yield (
+            "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר.\n"
+            "כתוב: יעד נטו: <מספר>.\n"
+            "לדוגמה: יעד נטו: 28000"
+        )
         return
 
     accounts = _build_transform_accounts_from_target_plan_payload(payload)
