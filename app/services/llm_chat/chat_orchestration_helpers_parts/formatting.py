@@ -141,4 +141,7 @@ def format_transform_result_for_user(*, tool_result: str) -> str:
         if len(skipped_items) > 15:
             lines.append(f"(הוצגו 15 מתוך {len(skipped_items)} פריטים שדולגו)")
 
+    if total_converted > 0:
+        lines.append("\nהשלב הבא המומלץ: הפקת דוח")
+
     return "\n".join(lines)

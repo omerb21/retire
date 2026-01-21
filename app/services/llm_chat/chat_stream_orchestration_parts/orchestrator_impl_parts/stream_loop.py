@@ -1079,6 +1079,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             return None
         return "מצב מערכת: שוחזר סנאפסוט (restore_snapshot). אפשר להמשיך לתכנית/תרחיש."
 
+    def _latest_snapshot_operation_type() -> str | None:
+        if request.client_id is None:
+            return None
+        meta = _load_latest_snapshot_meta()
+        if not isinstance(meta, dict):
+            return None
+        op_type = str(meta.get("operation_type") or "").strip()
+        return op_type if op_type else None
+
     def _wrap_with_restore_banner(inner):
         now = datetime.now(timezone.utc)
         banner = _build_restore_snapshot_banner(now_utc=now)
@@ -1226,6 +1235,24 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             and (not is_qa_request(original_user_msg))
             and (not is_no_tools_request(original_user_msg))
         ):
+
+            latest_op = _latest_snapshot_operation_type()
+            if latest_op is not None and latest_op != "TRANSFORM_FUNDS_TO_ASSETS":
+                ui_payload: dict[str, Any] = {
+                    "type": "ui_actions",
+                    "actions": [
+                        {
+                            "type": "navigate",
+                            "path": f"/clients/{request.client_id}/pension-portfolio",
+                            "label": "פתח תיק",
+                        }
+                    ],
+                    "status_message": "כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב.",
+                }
+                ui_action = (
+                    "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+                )
+                return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
             def _generate_system_results_report_only(req_id: str):
                 tool_db = SessionLocal()
@@ -1826,6 +1853,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and ui_action_short_circuit_allowed
         and (resolved_intent != ChatIntent.REPORT)
     ):
+        latest_op = _latest_snapshot_operation_type()
+        if latest_op is not None and latest_op != "TRANSFORM_FUNDS_TO_ASSETS":
+            return StreamingResponse(
+                iter(
+                    [
+                        "כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב."
+                    ]
+                ),
+                media_type="text/plain; charset=utf-8",
+            )
         wants_pdf = "pdf" in lowered_user_msg
         return _stream_execute_tool_no_approval(
             "GENERATE_FULL_REPORT",

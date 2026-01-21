@@ -2,6 +2,7 @@ from typing import Any
 
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_pension_portfolio_update_after_transform,
+    clear_pending_approval_request,
     format_transform_result_for_user,
 )
 from app.services.llm_chat.orchestration_utils import (
@@ -193,6 +194,11 @@ def _stream_handle_explicit_transform(
         force_max_exemption=False,
         request_id=req_id,
     )
+
+    try:
+        clear_pending_approval_request(db=db, client_id=request.client_id)
+    except Exception:
+        pass
 
     log_llm_event(
         request_id=req_id,

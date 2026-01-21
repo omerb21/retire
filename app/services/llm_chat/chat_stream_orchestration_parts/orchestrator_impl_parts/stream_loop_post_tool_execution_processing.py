@@ -3,6 +3,7 @@ import json
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_pension_portfolio_update_after_transform,
+    clear_pending_approval_request,
     maybe_clear_pension_portfolio_after_transform,
 )
 from app.utils.llm_chat_log import log_llm_event
@@ -73,6 +74,12 @@ def _stream_handle_post_tool_execution_processing(
         tool_result=tool_result,
         current_pension_portfolio=current_pension_portfolio,
     )
+
+    if tool_name == "TRANSFORM_FUNDS_TO_ASSETS" and request.client_id is not None:
+        try:
+            clear_pending_approval_request(db=db, client_id=request.client_id)
+        except Exception:
+            pass
 
     yield from _stream_maybe_emit_forced_document_reply(
         tool_name=tool_name,
