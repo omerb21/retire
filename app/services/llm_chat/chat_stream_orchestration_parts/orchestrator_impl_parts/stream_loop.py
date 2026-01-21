@@ -466,6 +466,21 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     user_approved=True,
                     request_id=req_id,
                 )
+
+                if approved_tool == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT":
+                    try:
+                        _refreshed = load_current_effective_state(db, request.client_id)
+                    except Exception:
+                        _refreshed = None
+
+                    try:
+                        loaded_after = _load_latest_pension_portfolio_snapshot_models(
+                            db, request.client_id
+                        )
+                        if loaded_after is not None:
+                            effective_portfolio, _snapshot_at = loaded_after
+                    except Exception:
+                        pass
             finally:
                 try:
                     clear_pending_approval_request(db=db, client_id=request.client_id)

@@ -18,3 +18,4 @@ class EffectiveClientState:
     has_any_capital_assets: bool
     latest_snapshot_id: int | None
     latest_snapshot_at_utc: datetime | None
+    unlock_reason: str | None = None

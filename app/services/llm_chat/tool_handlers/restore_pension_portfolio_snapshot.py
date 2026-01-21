@@ -3,6 +3,7 @@ import json
 from sqlalchemy.orm import Session
 
 from app.models.scenario import Scenario
+from app.services.llm_chat.chat_orchestration_helpers import clear_pending_approval_request
 from app.utils.llm_chat_log import get_current_request_id
 
 
@@ -95,6 +96,10 @@ def handle_restore_pension_portfolio_snapshot(
         db.add(scenario)
         db.commit()
         db.refresh(scenario)
+        try:
+            clear_pending_approval_request(db=db, client_id=client_id)
+        except Exception:
+            pass
     except Exception as e:
         try:
             db.rollback()

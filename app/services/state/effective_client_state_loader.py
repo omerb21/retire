@@ -108,6 +108,8 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
             if latest_snapshot_at_utc is not None:
                 last_state_change_at_utc = latest_snapshot_at_utc
 
+    restore_snapshot_unlock = str(last_operation_type or "").strip() == "restore_snapshot"
+
     has_any_conversion_assets = False
     has_any_commutation_assets = False
 
@@ -140,7 +142,9 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
     }
 
     mode: Literal["PRE_CONVERSION", "POST_CONVERSION_LOCKED"]
-    if has_any_conversion_assets or meta_indicates_conversion:
+    if restore_snapshot_unlock:
+        mode = "PRE_CONVERSION"
+    elif has_any_conversion_assets or meta_indicates_conversion:
         mode = "POST_CONVERSION_LOCKED"
     else:
         mode = "PRE_CONVERSION"
@@ -148,6 +152,7 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
     return EffectiveClientState(
         client_id=int(client_id),
         mode=mode,
+        unlock_reason="restore_snapshot" if restore_snapshot_unlock else None,
         last_state_change_at_utc=last_state_change_at_utc,
         last_operation_type=last_operation_type,
         last_trace_id=last_trace_id,
