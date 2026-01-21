@@ -1,5 +1,7 @@
 import json
 
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.scenario import Scenario
@@ -81,6 +83,7 @@ def handle_restore_pension_portfolio_snapshot(
     meta["trace_id"] = trace_id
     meta["source_snapshot_id"] = int(snapshot_id_int)
     meta["safety_mode"] = str(safety_mode)
+    meta["restored_at_utc"] = datetime.now(timezone.utc).isoformat()
     params["_meta"] = meta
 
     scenario = Scenario(

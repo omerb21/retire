@@ -1,6 +1,8 @@
 import json
+from datetime import datetime, timezone
 from typing import Any
 
+from app.models.scenario import Scenario
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     build_forced_document_reply,
@@ -27,6 +29,52 @@ from .stream_top_level_helpers import (
     _store_pending_approval_request,
 )
 from .stream_tool_execution import _execute_tool_call
+
+
+def _parse_iso_datetime_utc(raw: object) -> datetime | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    cleaned = raw.strip()
+    try:
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1] + "+00:00"
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _should_apply_restore_transform_cooldown(*, db, client_id: int) -> bool:
+    latest = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    if latest is None:
+        return False
+    try:
+        params = json.loads(latest.parameters) if latest.parameters else {}
+    except Exception:
+        params = {}
+    if not isinstance(params, dict):
+        return False
+    meta = params.get("_meta")
+    if not isinstance(meta, dict):
+        return False
+    if str(meta.get("operation_type") or "").strip() != "restore_snapshot":
+        return False
+    restored_at = _parse_iso_datetime_utc(meta.get("restored_at_utc"))
+    if restored_at is None:
+        return False
+    try:
+        age_sec = (datetime.now(timezone.utc) - restored_at).total_seconds()
+    except Exception:
+        return False
+    return 0 <= age_sec <= 30
 
 
 def generate_forced_approval(
@@ -124,10 +172,17 @@ def generate_forced_approval(
             "skip_non_convertible_accounts": True,
         }
 
+        reason = "נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת."
+        try:
+            if _should_apply_restore_transform_cooldown(db=db, client_id=request.client_id):
+                reason = "בוצע שחזור סנאפסוט ממש עכשיו. כדי למנוע כפל המרות, ודא שזו הפעולה הנכונה ואז אשר."
+        except Exception:
+            pass
+
         ui_action = build_approval_request_ui_action(
             tool_name="TRANSFORM_FUNDS_TO_ASSETS",
             tool_args=transform_args,
-            reason="נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת.",
+            reason=reason,
             risk_level="high",
             rag_sources=None,
         )
