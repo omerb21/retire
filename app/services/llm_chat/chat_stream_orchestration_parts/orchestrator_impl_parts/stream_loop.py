@@ -26,6 +26,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     load_pending_approval_request,
     clear_pending_approval_request,
+    store_pending_approval_request,
     load_latest_target_pension_plan,
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
@@ -379,6 +380,97 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             "אם המטרה היא לבצע משיכה/קצבה מהמצב החדש - נדרש מסלול ייעודי שמחשב מהנכסים שנוצרו.\n"
             'כתוב: "חשב תזרים על בסיס המצב הנוכחי" או "דוח מסכם".\n'
         )
+
+    if (
+        request.client_id is not None
+        and isinstance(original_user_msg, str)
+        and original_user_msg.strip()
+        and (not is_no_tools_request(original_user_msg))
+    ):
+        candidate = original_user_msg.strip()
+        wants_restore_snapshot = any(
+            phrase in candidate
+            for phrase in (
+                "שחזר תיק",
+                "שחזר סנאפסוט",
+                "החזר מצב קודם",
+                "חזור לסנאפסוט מלא",
+            )
+        )
+        if wants_restore_snapshot:
+            history_raw = _execute_tool_call(
+                "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY",
+                {},
+                request.client_id,
+                db,
+                pension_portfolio=request.pension_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+
+            try:
+                history = json.loads(history_raw) if isinstance(history_raw, str) else None
+            except Exception:
+                history = None
+
+            if not isinstance(history, list) or not history:
+                return StreamingResponse(
+                    iter(["לא נמצאה היסטוריית סנאפסוטים לשחזור. אנא העלה/שמור תיק פנסיוני ואז נסה שוב."]),
+                    media_type="text/plain; charset=utf-8",
+                )
+
+            selected_snapshot_id: int | None = None
+            for item in history:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    nonzero = int(item.get("estimated_nonzero_balance_rows") or 0)
+                except Exception:
+                    nonzero = 0
+                if nonzero >= 2:
+                    try:
+                        selected_snapshot_id = int(item.get("scenario_id") or 0)
+                    except Exception:
+                        selected_snapshot_id = 0
+                    if selected_snapshot_id and selected_snapshot_id > 0:
+                        break
+
+            if selected_snapshot_id is None:
+                last_item = history[-1]
+                if isinstance(last_item, dict):
+                    try:
+                        selected_snapshot_id = int(last_item.get("scenario_id") or 0)
+                    except Exception:
+                        selected_snapshot_id = 0
+
+            if not selected_snapshot_id or selected_snapshot_id <= 0:
+                return StreamingResponse(
+                    iter(["לא הצלחתי לבחור סנאפסוט לשחזור מתוך ההיסטוריה."]),
+                    media_type="text/plain; charset=utf-8",
+                )
+
+            tool_args = {
+                "snapshot_scenario_id": int(selected_snapshot_id),
+                "safety_mode": "strict",
+            }
+            ui_action = build_approval_request_ui_action(
+                tool_name="RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+                tool_args=tool_args,
+                reason="שחזור תיק לסנאפסוט קודם עלול לדרוס מצב אחרי המרות. נדרש אישור.",
+                risk_level="high",
+                rag_sources=None,
+            )
+            try:
+                store_pending_approval_request(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_name="RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+                    tool_args=tool_args,
+                )
+            except Exception:
+                pass
+            return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
     if _is_post_conversion_locked() and isinstance(original_user_msg, str):
         candidate = original_user_msg.strip()

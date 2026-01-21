@@ -86,8 +86,14 @@ from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
 from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
     handle_get_system_numeric_constants,
 )
+from app.services.llm_chat.tool_handlers.get_pension_portfolio_snapshot_history import (
+    handle_get_pension_portfolio_snapshot_history,
+)
 from app.services.llm_chat.tools.get_fixation_status_snapshot import (
     handle_get_fixation_status_snapshot,
+)
+from app.services.llm_chat.tool_handlers.restore_pension_portfolio_snapshot import (
+    handle_restore_pension_portfolio_snapshot,
 )
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
@@ -114,6 +120,7 @@ WRITE_TOOLS: set[str] = {
     "EXECUTE_PENSION_COMMUTATION",
     "SUBMIT_TAX_COMMUTATION",
     "EXECUTE_RETIREMENT_SCENARIO",
+    "RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
 }
 
 
@@ -453,6 +460,13 @@ def execute_tool_call(
         if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
             return handle_get_system_state_snapshot(args=args, client_id=client_id, db=db)
 
+        if tool_name == "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY":
+            return handle_get_pension_portfolio_snapshot_history(
+                args=args,
+                client_id=client_id,
+                db=db,
+            )
+
         if tool_name == "GET_FIXATION_STATUS_SNAPSHOT":
             return handle_get_fixation_status_snapshot(args=args, client_id=client_id, db=db)
 
@@ -464,6 +478,13 @@ def execute_tool_call(
                 client_id=client_id,
                 db=db,
                 agent_tools=agent_tools,
+            )
+
+        if tool_name == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT":
+            return handle_restore_pension_portfolio_snapshot(
+                args=args,
+                client_id=client_id,
+                db=db,
             )
 
         if tool_name == "CREATE_TAX_EXEMPT_GRANT":
