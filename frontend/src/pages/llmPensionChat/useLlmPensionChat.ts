@@ -428,7 +428,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
 
           try {
             const parsed = JSON.parse(actionJsonStr);
-            console.log("Parsed UI_ACTION payload:", parsed);
             if (parsed?.type === "ui_actions" && Array.isArray(parsed.actions)) {
               pendingUiActions.push(...parsed.actions);
 
@@ -489,7 +488,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
       };
 
       const didNavigate = applyUiNavigateIfPresent({ type: "ui_actions", actions: pendingUiActions }, (path) => {
-        console.log("UI_ACTION navigate target:", path);
         routerNavigate(path);
       });
 
@@ -503,7 +501,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         if (action.type === "open_url" && typeof action.url === "string" && action.url.trim()) {
           const url = normalizeUrl(action.url);
           if (!url) return;
-          console.log("UI_ACTION open_url:", url);
           try {
             const link = document.createElement("a");
             link.href = url;
