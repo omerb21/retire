@@ -20,8 +20,8 @@ export default function ApprovalRow({ pendingApprovalRequest, isSending, onAppro
         {(() => {
           const rawToolName =
             typeof pendingApprovalRequest?.tool_name === "string" ? pendingApprovalRequest.tool_name : "";
-          const toolLabel = rawToolName ? getToolDisplayNameHebrew(rawToolName) : "×›×œ×™";
-          return `× ×“×¨×© ××™×©×•×¨ ×œ×¤× ×™ ×”×¤×¢×œ×ª ×›×œ×™: ${toolLabel}. ××©×¨/×‘×˜×œ:`;
+          const toolLabel = rawToolName ? getToolDisplayNameHebrew(rawToolName) : "כלי";
+          return `נדרש אישור לפני הפעלת כלי: ${toolLabel}. אשר/בטל:`;
         })()}
       </div>
       <div className="llm-chat-approval-actions">
@@ -31,7 +31,7 @@ export default function ApprovalRow({ pendingApprovalRequest, isSending, onAppro
           onClick={onApprove}
           disabled={isSending}
         >
-          ××©×¨
+          אשר
         </button>
         <button
           type="button"
@@ -39,7 +39,7 @@ export default function ApprovalRow({ pendingApprovalRequest, isSending, onAppro
           onClick={onCancel}
           disabled={isSending}
         >
-          ×‘×˜×œ
+          בטל
         </button>
       </div>
     </div>

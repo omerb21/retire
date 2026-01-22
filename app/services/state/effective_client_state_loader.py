@@ -108,20 +108,26 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
             if latest_snapshot_at_utc is not None:
                 last_state_change_at_utc = latest_snapshot_at_utc
 
-    restore_snapshot_unlock = str(last_operation_type or "").strip() == "restore_snapshot"
+    op = str(last_operation_type or "").strip()
+    restore_snapshot_unlock = op == "restore_snapshot"
 
+    has_any_capital_assets = bool(capital_assets_count > 0)
     has_any_conversion_assets = False
     has_any_commutation_assets = False
 
-    conversion_candidates = (
-        db.query(CapitalAsset)
-        .filter(CapitalAsset.client_id == client_id)
-        .filter(
-            (CapitalAsset.conversion_source.isnot(None))
-            | (CapitalAsset.remarks.isnot(None))
+    try:
+        conversion_candidates = (
+            db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == client_id)
+            .filter(
+                (CapitalAsset.conversion_source.isnot(None))
+                | (CapitalAsset.remarks.isnot(None))
+            )
+            .all()
         )
-        .all()
-    )
+    except Exception:
+        conversion_candidates = []
+
     for asset in conversion_candidates:
         conv, comm = _looks_like_conversion_asset(
             conversion_source_raw=getattr(asset, "conversion_source", None),
@@ -134,12 +140,7 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
         if has_any_conversion_assets and has_any_commutation_assets:
             break
 
-    has_any_capital_assets = bool(capital_assets_count > 0)
-
-    meta_indicates_conversion = str(last_operation_type or "").strip() in {
-        "TRANSFORM_FUNDS_TO_ASSETS",
-        "EXECUTE_RETIREMENT_SCENARIO",
-    }
+    meta_indicates_conversion = op in {"TRANSFORM_FUNDS_TO_ASSETS", "EXECUTE_RETIREMENT_SCENARIO"}
 
     mode: Literal["PRE_CONVERSION", "POST_CONVERSION_LOCKED"]
     if restore_snapshot_unlock:

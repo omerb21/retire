@@ -1,6 +1,8 @@
 import hashlib
 import json
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+import re
 
 from sqlalchemy.orm import Session
 
@@ -22,10 +24,82 @@ def _stable_json(obj) -> str:
         return "{}"
 
 
+_NUMERIC_STRING_RE = re.compile(r"^[+-]?(?:\d+)(?:\.\d+)?$")
+
+
+def _decimal_to_canonical_str(value: Decimal) -> str:
+    try:
+        normalized = value.normalize()
+    except Exception:
+        normalized = value
+    try:
+        rendered = format(normalized, "f")
+    except Exception:
+        rendered = str(normalized)
+    return rendered
+
+
+def _should_convert_numeric_string(raw: str) -> bool:
+    s = raw.strip()
+    if not s:
+        return False
+    if not _NUMERIC_STRING_RE.match(s):
+        return False
+    body = s
+    if body[0] in ("+", "-"):
+        body = body[1:]
+        if not body:
+            return False
+    if "." not in body and len(body) > 1 and body.startswith("0"):
+        return False
+    return True
+
+
+def canonicalize_args(obj):
+    if obj is None:
+        return None
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, (int, float, Decimal)):
+        try:
+            as_decimal = Decimal(str(obj))
+        except Exception:
+            return str(obj)
+        return _decimal_to_canonical_str(as_decimal)
+    if isinstance(obj, str):
+        if not _should_convert_numeric_string(obj):
+            return obj
+        try:
+            as_decimal = Decimal(obj.strip())
+        except InvalidOperation:
+            return obj
+        except Exception:
+            return obj
+        return _decimal_to_canonical_str(as_decimal)
+    if isinstance(obj, dict):
+        out = {}
+        for k in sorted(obj.keys(), key=lambda x: str(x)):
+            out[k] = canonicalize_args(obj.get(k))
+        return out
+    if isinstance(obj, (list, tuple)):
+        return [canonicalize_args(v) for v in obj]
+    return str(obj)
+
+
 def compute_args_hash(tool_args: dict) -> str:
     if not isinstance(tool_args, dict):
         tool_args = {}
-    raw = _stable_json(tool_args).encode("utf-8")
+    try:
+        canonicalized = canonicalize_args(tool_args)
+        raw_json = json.dumps(
+            canonicalized,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except Exception:
+        raw_json = "{}"
+    raw = raw_json.encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 

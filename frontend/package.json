@@ -34,6 +34,7 @@
     "start": "vite",
     "test": "react-scripts test",
     "test:ui-actions": "node --test src/pages/llmPensionChat/uiActions.test.js",
+    "test:utf8": "node --test src/pages/llmPensionChat/utf8Decode.test.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

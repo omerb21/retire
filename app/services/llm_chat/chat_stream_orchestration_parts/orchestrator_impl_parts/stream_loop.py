@@ -7,7 +7,7 @@ import uuid
 import time
 import threading
 import queue
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
@@ -352,6 +352,78 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     original_user_msg = raw_user_msg
 
+    def _parse_user_approved_payload(user_msg: str) -> tuple[str, dict] | None:
+        marker = "###USER_APPROVED###"
+        if not isinstance(user_msg, str) or marker not in user_msg:
+            return None
+        after = user_msg.split(marker, 1)[1].strip()
+        json_str = after.strip("`").strip()
+        json_str = json_str.splitlines()[0] if json_str else ""
+        if not json_str:
+            return None
+        try:
+            parsed = json.loads(json_str)
+        except Exception:
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        tool_name = parsed.get("tool_name")
+        tool_args = parsed.get("arguments")
+        if not isinstance(tool_name, str) or not isinstance(tool_args, dict):
+            return None
+        return tool_name, tool_args
+
+    def _should_route_to_reports_page(user_msg: str) -> bool:
+        lowered = (user_msg or "").strip().lower()
+        if not lowered:
+            return False
+
+        # Do NOT intercept system results reports ("דוח תוצאות") or conceptual questions
+        # like "איך לקרוא דוח תזרים".
+        if ("תוצאות" in lowered) or ("results" in lowered):
+            return False
+        if ("תזרים" in lowered) or ("cashflow" in lowered):
+            return False
+        if lowered.startswith("איך ") or lowered.startswith("כיצד ") or lowered.startswith("how "):
+            return False
+
+        # Do not intercept full report generation / QA flows.
+        if ("מלא" in lowered) or ("full" in lowered) or ("qa" in lowered):
+            return False
+
+        report_verbs = ("שלח", "הפק", "צור", "תפיק", "פתח")
+        has_verb = any(tok in lowered for tok in report_verbs)
+        has_report_word = ("דוח" in lowered) or ('דו"ח' in lowered) or ("report" in lowered) or ("reports" in lowered)
+        if not has_report_word:
+            return False
+
+        lowered_compact = lowered.strip()
+        if lowered_compact in {"report", "reports"}:
+            return True
+
+        # For generic "דוח" requests we only route when it's clearly a document open request.
+        wants_summary = ("דוח מסכם" in lowered) or ("מסכם" in lowered) or ("summary" in lowered)
+        return bool(has_verb or wants_summary)
+
+    if (
+        request.client_id is not None
+        and isinstance(original_user_msg, str)
+        and (not original_user_msg.strip().startswith("###USER_APPROVED###"))
+        and _should_route_to_reports_page(original_user_msg)
+    ):
+        ui_payload: dict[str, Any] = {
+            "type": "ui_actions",
+            "actions": [
+                {
+                    "type": "navigate",
+                    "path": f"/clients/{request.client_id}/reports?auto_html=1",
+                    "label": "פתח דוח",
+                }
+            ],
+        }
+        ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+        return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+
     def _extract_first_json_object(raw: str) -> dict | None:
         if not isinstance(raw, str) or not raw:
             return None
@@ -407,37 +479,31 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and isinstance(original_user_msg, str)
         and original_user_msg.strip().startswith("###USER_APPROVED###")
     ):
-        effective_client_state_for_approval = None
-        try:
-            effective_client_state_for_approval = load_effective_client_state(
-                db, request.client_id
-            )
-        except Exception:
-            effective_client_state_for_approval = None
+        def _approval_refusal_lines() -> list[str]:
+            return [
+                "אין בקשת אישור פתוחה תואמת לביצוע הפעולה הזו. בקש שוב ביצוע כדי לקבל אישור חדש.",
+                "טיפ: לחץ על אשר מתוך חלון האישור, או בקש שוב אישור כדי לקבל JSON עדכני.",
+            ]
 
-        def _is_post_conversion_locked_for_approval() -> bool:
-            if effective_client_state_for_approval is None:
-                return False
-            try:
-                return (
-                    str(getattr(effective_client_state_for_approval, "mode", "")).strip()
-                    == "POST_CONVERSION_LOCKED"
-                )
-            except Exception:
-                return False
-
-        approved = extract_user_approval_for_tool_call(messages)
+        approved = _parse_user_approved_payload(original_user_msg)
         if approved is None:
             return StreamingResponse(
-                iter(
-                    [
-                        "אין בקשת אישור פתוחה תואמת לביצוע הפעולה הזו. בקש שוב ביצוע כדי לקבל אישור חדש."
-                    ]
-                ),
+                iter(_approval_refusal_lines()),
                 media_type="text/plain; charset=utf-8",
             )
 
         approved_tool, approved_args = approved
+
+        effective_mode = ""
+        try:
+            _st = load_effective_client_state(db, request.client_id)
+            effective_mode = str(getattr(_st, "mode", "") or "")
+        except Exception:
+            effective_mode = ""
+        is_locked_now = effective_mode.strip() == "POST_CONVERSION_LOCKED"
+
+        accounts_obj = approved_args.get("accounts") if isinstance(approved_args, dict) else None
+        has_nonempty_accounts = isinstance(accounts_obj, list) and len(accounts_obj) > 0
 
         dangerous_request_kind: str | None = None
         if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS":
@@ -445,7 +511,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         elif approved_tool == "EXECUTE_RETIREMENT_SCENARIO":
             dangerous_request_kind = "execute_retirement_scenario"
 
-        if dangerous_request_kind is not None and _is_post_conversion_locked_for_approval():
+        must_require_pending = bool(
+            dangerous_request_kind is not None and (is_locked_now or has_nonempty_accounts)
+        )
+
+        if must_require_pending and dangerous_request_kind is not None:
             args_hash = compute_args_hash(approved_args)
             pending = load_pending_approval_payload_if_match_and_args_hash(
                 db=db,
@@ -456,11 +526,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
             if pending is None:
                 return StreamingResponse(
-                    iter(
-                        [
-                            "אין בקשת אישור פתוחה תואמת לביצוע הפעולה הזו. בקש שוב ביצוע כדי לקבל אישור חדש."
-                        ]
-                    ),
+                    iter(_approval_refusal_lines()),
                     media_type="text/plain; charset=utf-8",
                 )
 
@@ -497,6 +563,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 )
 
         def _generate_user_approved_exec(req_id: str):
+            should_clear_pending = True
             try:
                 effective_portfolio = request.pension_portfolio
                 try:
@@ -519,6 +586,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     request_id=req_id,
                 )
 
+                if must_require_pending:
+                    parsed = _extract_first_json_object(tool_result)
+                    if isinstance(parsed, dict) and parsed.get("success") is False:
+                        should_clear_pending = False
+
                 if approved_tool == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT":
                     try:
                         _refreshed = load_current_effective_state(db, request.client_id)
@@ -535,7 +607,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         pass
             finally:
                 try:
-                    clear_pending_approval_request(db=db, client_id=request.client_id)
+                    if should_clear_pending:
+                        clear_pending_approval_request(db=db, client_id=request.client_id)
                 except Exception:
                     pass
 
@@ -1093,7 +1166,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             db.query(Scenario)
             .filter(Scenario.client_id == request.client_id)
             .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-            .order_by(Scenario.created_at.desc())
+            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
             .first()
         )
         if latest is None:
@@ -1202,12 +1275,115 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     )
     is_qa_mode_local = is_qa_request(original_user_msg)
     max_capital_requested_local = is_max_capital_request(original_user_msg or "")
+
+    _PENDING_PLAN_TARGET_SCENARIO_NAME = "pending_plan_target"
+    _PENDING_PLAN_TARGET_TTL_SECONDS = 5 * 60
+
+    def _store_pending_plan_target(*, client_id: int) -> None:
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(seconds=_PENDING_PLAN_TARGET_TTL_SECONDS)
+        payload = {
+            "kind": "pending_plan_target",
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+        }
+        try:
+            (
+                db.query(Scenario)
+                .filter(Scenario.client_id == client_id)
+                .filter(Scenario.scenario_name == _PENDING_PLAN_TARGET_SCENARIO_NAME)
+                .delete(synchronize_session=False)
+            )
+            db.flush()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return
+
+        try:
+            scenario = Scenario(
+                client_id=client_id,
+                scenario_name=_PENDING_PLAN_TARGET_SCENARIO_NAME,
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps(payload, ensure_ascii=False),
+            )
+            db.add(scenario)
+            db.flush()
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    def _clear_pending_plan_target(*, client_id: int) -> None:
+        try:
+            (
+                db.query(Scenario)
+                .filter(Scenario.client_id == client_id)
+                .filter(Scenario.scenario_name == _PENDING_PLAN_TARGET_SCENARIO_NAME)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    def _load_pending_plan_target(*, client_id: int) -> dict | None:
+        try:
+            row = (
+                db.query(Scenario)
+                .filter(Scenario.client_id == client_id)
+                .filter(Scenario.scenario_name == _PENDING_PLAN_TARGET_SCENARIO_NAME)
+                .order_by(Scenario.created_at.desc())
+                .first()
+            )
+        except Exception:
+            row = None
+        if row is None or not getattr(row, "parameters", None):
+            return None
+
+        try:
+            parsed = json.loads(row.parameters)
+        except Exception:
+            return None
+        if not isinstance(parsed, dict):
+            return None
+
+        expires_raw = parsed.get("expires_at")
+        expired = False
+        if isinstance(expires_raw, str) and expires_raw.strip():
+            try:
+                expires_at = datetime.fromisoformat(expires_raw.strip())
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                expired = datetime.now(timezone.utc) >= expires_at
+            except Exception:
+                expired = False
+
+        if str(parsed.get("kind") or "").strip() != "pending_plan_target":
+            return None
+        if expired:
+            parsed = dict(parsed)
+            parsed["_expired"] = True
+        return parsed
     if (
         (resolved_intent != ChatIntent.REPORT)
         and is_plan_request_tokens
         and (target_net_for_plan is None)
         and (not max_capital_requested_local)
     ):
+        try:
+            if request.client_id is not None:
+                _store_pending_plan_target(client_id=request.client_id)
+        except Exception:
+            pass
 
         def _prompt_for_target_net():
             yield (
@@ -1218,6 +1394,108 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         return StreamingResponse(
             _prompt_for_target_net(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    pending_plan_target = None
+    try:
+        if request.client_id is not None:
+            pending_plan_target = _load_pending_plan_target(client_id=request.client_id)
+    except Exception:
+        pending_plan_target = None
+
+    any_target_numeric: int | None = None
+    if isinstance(original_user_msg, str) and original_user_msg.strip():
+        try:
+            cleaned = (original_user_msg or "").replace(",", "")
+            m = re.search(r"\b\d{4,6}\b", cleaned)
+            if m:
+                any_target_numeric = int(m.group(0))
+        except Exception:
+            any_target_numeric = None
+
+    if (
+        tools_enabled
+        and (resolved_intent != ChatIntent.REPORT)
+        and request.client_id is not None
+        and (not no_tools_requested_local)
+        and (not is_qa_mode_local)
+        and (any_target_numeric is not None)
+        and (pending_plan_target is not None)
+        and (not bool(pending_plan_target.get("_expired")))
+        and (not _is_post_conversion_locked())
+    ):
+
+        def _generate_target_plan_tools_first_from_pending(req_id: str):
+            if computed_data is not None:
+                computed_json = json.dumps(
+                    {"type": "computed_data", "data": computed_data.model_dump()},
+                    ensure_ascii=False,
+                )
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+            banner = _build_recent_state_banner()
+            if banner:
+                yield banner + "\n\n"
+
+            try:
+                loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                if loaded is not None:
+                    nonlocal effective_portfolio, effective_snapshot_at
+                    effective_portfolio, effective_snapshot_at = loaded
+            except Exception:
+                pass
+
+            plan_args = {
+                "target_monthly_pension": float(any_target_numeric),
+                "target_is_net": True,
+            }
+            plan_result = _execute_tool_call(
+                "BUILD_TARGET_PENSION_PLAN",
+                plan_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=req_id,
+            )
+
+            try:
+                _clear_pending_plan_target(client_id=request.client_id)
+            except Exception:
+                pass
+
+            yield sanitize_user_visible_text(
+                "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+            )
+
+        return StreamingResponse(
+            _generate_target_plan_tools_first_from_pending(stream_request_id),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if (
+        request.client_id is not None
+        and pending_plan_target is not None
+        and bool(pending_plan_target.get("_expired"))
+        and any_target_numeric is not None
+    ):
+        try:
+            _store_pending_plan_target(client_id=request.client_id)
+        except Exception:
+            pass
+
+        def _prompt_for_target_net_again():
+            yield (
+                "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
+                "כתוב: יעד נטו: <מספר>.\n"
+                "לדוגמה: יעד נטו: 28000"
+            )
+
+        return StreamingResponse(
+            _prompt_for_target_net_again(),
             media_type="text/plain; charset=utf-8",
         )
     if (
