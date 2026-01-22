@@ -4,6 +4,7 @@ from datetime import date
 from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
+import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop as stream_loop
 from app.main import app
 from app.models.client import Client
 
@@ -33,24 +34,14 @@ def test_stream_pending_plan_target_continue_triggers_build_target_plan(monkeypa
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(
-        *,
-        tool_name: str,
-        args: dict,
-        client_id: int,
-        db,
-        pension_portfolio=None,
-        force_max_exemption: bool = False,
-        agent_reply: str | None = None,
-        user_approved: bool = False,
-        request_id: str | None = None,
-    ) -> str:
+    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
         tool_calls.append((tool_name, args))
+        assert tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
-        assert user_approved is True
+        assert args.get("target_is_net") is True
         return json.dumps({"result": {"accumulated_pension": 0}}, ensure_ascii=False)
 
-    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(stream_loop, "_execute_tool_call", fake_execute_tool_call)
 
     api = TestClient(app)
 
@@ -69,7 +60,7 @@ def test_stream_pending_plan_target_continue_triggers_build_target_plan(monkeypa
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "31000"}],
+            "messages": [{"role": "user", "content": "יעד נטו: 31000"}],
             "pension_portfolio": [],
         },
     )

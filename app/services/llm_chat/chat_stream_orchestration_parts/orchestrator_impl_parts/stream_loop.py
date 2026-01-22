@@ -7,6 +7,7 @@ import uuid
 import time
 import threading
 import queue
+from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -329,6 +330,79 @@ def extract_target_net_ils(user_text: str) -> int | None:
             best_dist = d
     return best
 
+
+@dataclass(frozen=True)
+class PendingPlanTargetMarker:
+    row: Scenario
+    session: Session
+    expires_at: datetime | None
+
+    def is_expired(self) -> bool:
+        if self.expires_at is None:
+            return False
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= expires_at
+
+
+def load_pending_plan_target_marker_direct(
+    *, session: Session, client_id: int | None
+) -> PendingPlanTargetMarker | None:
+    if client_id is None:
+        return None
+    try:
+        row = (
+            session.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "pending_plan_target")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if str(parsed.get("kind") or "").strip() != "pending_plan_target":
+        return None
+    if parsed.get("active", True) is False:
+        return None
+
+    expires_at = None
+    expires_raw = parsed.get("expires_at")
+    if isinstance(expires_raw, str) and expires_raw.strip():
+        try:
+            expires_at = datetime.fromisoformat(expires_raw.strip())
+        except Exception:
+            expires_at = None
+
+    return PendingPlanTargetMarker(row=row, session=session, expires_at=expires_at)
+
+
+def delete_marker(marker: PendingPlanTargetMarker) -> None:
+    try:
+        parsed = json.loads(marker.row.parameters or "{}")
+    except Exception:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        parsed = {}
+    parsed["active"] = False
+    marker.row.parameters = json.dumps(parsed, ensure_ascii=False)
+    try:
+        marker.session.add(marker.row)
+        marker.session.commit()
+    except Exception:
+        try:
+            marker.session.rollback()
+        except Exception:
+            pass
+
 def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingResponse:
     stream_request_id = generate_request_id()
     set_current_request_id(stream_request_id)
@@ -344,13 +418,63 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     raw_user_msg = find_last_user_message(request.messages)
 
+    original_user_msg = (raw_user_msg or "").strip()
+
+    client_id = request.client_id
+    pending_plan = load_pending_plan_target_marker_direct(
+        session=db,
+        client_id=client_id,
+    )
+
+    target_net = extract_target_net_ils(original_user_msg)
+
+    if pending_plan is not None and target_net is not None and (not original_user_msg.startswith("###USER_APPROVED###")):
+        if pending_plan.is_expired():
+            delete_marker(pending_plan)
+
+            def _prompt_for_target_net_again():
+                yield sanitize_user_visible_text(
+                    "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
+                    "כתוב: יעד נטו: <מספר>."
+                )
+
+            return StreamingResponse(
+                _prompt_for_target_net_again(),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        def _exec_target_plan_tools_first():
+            tool_name = "BUILD_TARGET_PENSION_PLAN"
+            tool_args = {
+                "target_monthly_pension": float(target_net),
+                "target_is_net": True,
+            }
+            tool_result = _execute_tool_call(
+                tool_name,
+                tool_args,
+                client_id,
+                db,
+                pension_portfolio=request.pension_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+            yield sanitize_user_visible_text(
+                "🔧 **פלט כלי (" + get_tool_display_name_hebrew(tool_name) + "):**\n"
+                + format_tool_output_for_user_stream(tool_name, tool_result)
+            )
+            delete_marker(pending_plan)
+
+        return StreamingResponse(
+            _exec_target_plan_tools_first(),
+            media_type="text/plain; charset=utf-8",
+        )
+
     try:
         messages, computed_data = prepare_messages_with_context(request=request, db=db)
     except Exception:
         messages = list(request.messages or [])
         computed_data = None
-
-    original_user_msg = raw_user_msg
 
     def _parse_user_approved_payload(user_msg: str) -> tuple[str, dict] | None:
         marker = "###USER_APPROVED###"
@@ -1284,6 +1408,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         expires_at = now + timedelta(seconds=_PENDING_PLAN_TARGET_TTL_SECONDS)
         payload = {
             "kind": "pending_plan_target",
+            "active": True,
             "created_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
         }
@@ -1348,12 +1473,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             row = None
         if row is None or not getattr(row, "parameters", None):
             return None
-
         try:
             parsed = json.loads(row.parameters)
         except Exception:
             return None
         if not isinstance(parsed, dict):
+            return None
+
+        if parsed.get("active", True) is False:
             return None
 
         expires_raw = parsed.get("expires_at")
