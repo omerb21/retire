@@ -33,6 +33,7 @@
     "preview": "vite preview",
     "start": "vite",
     "test": "react-scripts test",
+    "test:ui-actions": "node --test src/pages/llmPensionChat/uiActions.test.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

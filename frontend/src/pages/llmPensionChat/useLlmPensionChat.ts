@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { applyUiNavigateIfPresent } from "./uiActions";
 
 import {
   apiFetch,
@@ -52,6 +55,7 @@ type Return = {
 };
 
 export function useLlmPensionChat({ clientId, client }: Params): Return {
+  const routerNavigate = useNavigate();
   const [messages, setMessages] = useState<LlmChatMessageDto[]>([]);
   const [input, setInput] = useState("");
   const [pendingApprovalRequest, setPendingApprovalRequest] = useState<any | null>(null);
@@ -424,6 +428,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
 
           try {
             const parsed = JSON.parse(actionJsonStr);
+            console.log("Parsed UI_ACTION payload:", parsed);
             if (parsed?.type === "ui_actions" && Array.isArray(parsed.actions)) {
               pendingUiActions.push(...parsed.actions);
 
@@ -483,12 +488,22 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         return `${window.location.origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
       };
 
+      const didNavigate = applyUiNavigateIfPresent({ type: "ui_actions", actions: pendingUiActions }, (path) => {
+        console.log("UI_ACTION navigate target:", path);
+        routerNavigate(path);
+      });
+
       pendingUiActions.forEach((action: any) => {
         if (!action || typeof action !== "object") return;
+
+        if (didNavigate && action.type === "navigate") {
+          return;
+        }
 
         if (action.type === "open_url" && typeof action.url === "string" && action.url.trim()) {
           const url = normalizeUrl(action.url);
           if (!url) return;
+          console.log("UI_ACTION open_url:", url);
           try {
             const link = document.createElement("a");
             link.href = url;
@@ -501,12 +516,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
             window.open(url, "_blank");
           }
           return;
-        }
-
-        if (action.type === "navigate" && typeof action.path === "string" && action.path.trim()) {
-          const url = normalizeUrl(action.path);
-          if (!url) return;
-          window.open(url, "_blank");
         }
       });
 
