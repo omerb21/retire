@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+﻿import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -121,7 +121,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
       return;
     }
 
-    const confirmed = window.confirm("לנקות את השיחה לחלוטין ולהתחיל שיחה חדשה עם הסוכן?");
+    const confirmed = window.confirm("×œ× ×§×•×ª ××ª ×”×©×™×—×” ×œ×—×œ×•×˜×™×Ÿ ×•×œ×”×ª×—×™×œ ×©×™×—×” ×—×“×©×” ×¢× ×”×¡×•×›×Ÿ?");
     if (!confirmed) {
       return;
     }
@@ -165,7 +165,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
 
   async function handleOpenPublicChat() {
     if (!client?.id_number) {
-      setError("לא ניתן לפתוח Public Chat: חסרה תעודת זהות ללקוח.");
+      setError("×œ× × ×™×ª×Ÿ ×œ×¤×ª×•×— Public Chat: ×—×¡×¨×” ×ª×¢×•×“×ª ×–×”×•×ª ×œ×œ×§×•×—.");
       return;
     }
 
@@ -261,15 +261,15 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
           try {
             const resetInfo = JSON.parse(resetJsonStr);
             if (resetInfo.portfolio_severance_to_reset) {
-              console.log("📋 D3.11: Resetting severance in pension portfolio", resetInfo);
+              console.log("ðŸ“‹ D3.11: Resetting severance in pension portfolio", resetInfo);
               resetSeveranceInPortfolio(clientId);
               await persistPortfolioUpdateToDb(clientId, (accounts) =>
                 accounts.map((acc) => ({
                   ...acc,
-                  פיצויים_מעסיק_נוכחי: 0,
+                  ×¤×™×¦×•×™×™×_×ž×¢×¡×™×§_× ×•×›×—×™: 0,
                 })),
               );
-              console.log("✅ D3.11: Severance reset in localStorage completed");
+              console.log("âœ… D3.11: Severance reset in localStorage completed");
             }
           } catch (parseErr) {
             console.warn("Failed to parse severance reset JSON:", parseErr);
@@ -303,7 +303,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
                   let sum = 0;
                   let sawComponent = false;
                   Object.keys(account).forEach((field) => {
-                    if (field.startsWith("תגמולי_") || field.startsWith("פיצויים_") || field === "קרן_השתלמות") {
+                    if (field.startsWith("×ª×’×ž×•×œ×™_") || field.startsWith("×¤×™×¦×•×™×™×_") || field === "×§×¨×Ÿ_×”×©×ª×œ×ž×•×ª") {
                       sawComponent = true;
                       const v = Number((account as any)[field] ?? 0) || 0;
                       if (v > 0) {
@@ -322,7 +322,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
                   if (!accountNumber) return;
 
                   const idx = updatedAccounts.findIndex(
-                    (acc: any) => String(acc.מספר_חשבון || "").trim() === accountNumber,
+                    (acc: any) => String(acc.×ž×¡×¤×¨_×—×©×‘×•×Ÿ || "").trim() === accountNumber,
                   );
                   if (idx === -1) return;
 
@@ -346,55 +346,55 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
                       (account as any)[field] = Math.abs(remaining) < BALANCE_ZERO_EPSILON ? 0 : remaining;
                     });
 
-                    const eduDelta = Number((specific as any).קרן_השתלמות ?? 0) || 0;
+                    const eduDelta = Number((specific as any).×§×¨×Ÿ_×”×©×ª×œ×ž×•×ª ?? 0) || 0;
                     if (eduDelta > 0) {
                       Object.keys(account).forEach((field) => {
                         if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
                           return;
                         }
                         if (
-                          field.startsWith("תגמולי_") ||
-                          field === "תגמולים" ||
-                          field === "סך_תגמולים" ||
-                          field === "קרן_השתלמות"
+                          field.startsWith("×ª×’×ž×•×œ×™_") ||
+                          field === "×ª×’×ž×•×œ×™×" ||
+                          field === "×¡×š_×ª×’×ž×•×œ×™×" ||
+                          field === "×§×¨×Ÿ_×”×©×ª×œ×ž×•×ª"
                         ) {
                           (account as any)[field] = 0;
                         }
                       });
-                      account.יתרה = 0;
+                      account.×™×ª×¨×” = 0;
                     }
                   }
 
-                  const originalBalance = Number(account.יתרה ?? 0) || 0;
+                  const originalBalance = Number(account.×™×ª×¨×” ?? 0) || 0;
                   const convertedAmount = Number(u.converted_amount ?? 0) || 0;
                   if (hasSpecific) {
                     const remainingFromComponents = computeRemainingBalanceFromComponents(account);
                     if (remainingFromComponents > 0 || convertedAmount > 0) {
-                      account.יתרה = remainingFromComponents;
+                      account.×™×ª×¨×” = remainingFromComponents;
                     }
                   } else {
                     if (convertedAmount > 0) {
-                      account.יתרה = Math.max(0, originalBalance - convertedAmount);
+                      account.×™×ª×¨×” = Math.max(0, originalBalance - convertedAmount);
                     }
                   }
 
-                  if (Math.abs(Number(account.יתרה ?? 0) || 0) < BALANCE_ZERO_EPSILON) {
-                    account.יתרה = 0;
+                  if (Math.abs(Number(account.×™×ª×¨×” ?? 0) || 0) < BALANCE_ZERO_EPSILON) {
+                    account.×™×ª×¨×” = 0;
                   }
 
-                  if (!hasSpecific && Number(account.יתרה ?? 0) === 0) {
+                  if (!hasSpecific && Number(account.×™×ª×¨×” ?? 0) === 0) {
                     Object.keys(account).forEach((field) => {
                       if (PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION.has(field)) {
                         return;
                       }
                       if (
-                        field.startsWith("תגמולי_") ||
-                        field.startsWith("פיצויים_") ||
-                        field === "תגמולים" ||
-                        field === "סך_תגמולים" ||
-                        field === "סך_פיצויים" ||
-                        field === "סך_רכיבים" ||
-                        field === "קרן_השתלמות"
+                        field.startsWith("×ª×’×ž×•×œ×™_") ||
+                        field.startsWith("×¤×™×¦×•×™×™×_") ||
+                        field === "×ª×’×ž×•×œ×™×" ||
+                        field === "×¡×š_×ª×’×ž×•×œ×™×" ||
+                        field === "×¡×š_×¤×™×¦×•×™×™×" ||
+                        field === "×¡×š_×¨×›×™×‘×™×" ||
+                        field === "×§×¨×Ÿ_×”×©×ª×œ×ž×•×ª"
                       ) {
                         (account as any)[field] = 0;
                       }
@@ -428,7 +428,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
 
           try {
             const parsed = JSON.parse(actionJsonStr);
-            console.log("Parsed UI_ACTION payload:", parsed);
             if (parsed?.type === "ui_actions" && Array.isArray(parsed.actions)) {
               pendingUiActions.push(...parsed.actions);
 
@@ -451,7 +450,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
 
         const visible = (fullContent || "").trim();
         if (!visible && (sawApprovalRequestInStream || pendingApprovalRequest)) {
-          setStreamingContent("נדרש אישור לפני הפעלת כלי. אשר/בטל בחלונית האישור.");
+          setStreamingContent("× ×“×¨×© ××™×©×•×¨ ×œ×¤× ×™ ×”×¤×¢×œ×ª ×›×œ×™. ××©×¨/×‘×˜×œ ×‘×—×œ×•× ×™×ª ×”××™×©×•×¨.");
         } else {
           setStreamingContent(fullContent);
         }
@@ -489,7 +488,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
       };
 
       const didNavigate = applyUiNavigateIfPresent({ type: "ui_actions", actions: pendingUiActions }, (path) => {
-        console.log("UI_ACTION navigate target:", path);
         routerNavigate(path);
       });
 
@@ -503,7 +501,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         if (action.type === "open_url" && typeof action.url === "string" && action.url.trim()) {
           const url = normalizeUrl(action.url);
           if (!url) return;
-          console.log("UI_ACTION open_url:", url);
           try {
             const link = document.createElement("a");
             link.href = url;
@@ -569,18 +566,18 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
     if (pendingApprovalRequest) {
       const raw = (input || "").trim().toLowerCase();
       const isApprovalText =
-        raw === "מאשר" ||
-        raw === "אני מאשר" ||
-        raw === "מאשרת" ||
-        raw === "אני מאשרת" ||
-        raw === "כן" ||
-        raw === "אשר" ||
+        raw === "×ž××©×¨" ||
+        raw === "×× ×™ ×ž××©×¨" ||
+        raw === "×ž××©×¨×ª" ||
+        raw === "×× ×™ ×ž××©×¨×ª" ||
+        raw === "×›×Ÿ" ||
+        raw === "××©×¨" ||
         raw === "approve" ||
         raw === "ok";
-      const isCancelText = raw === "בטל" || raw === "ביטול" || raw === "לא" || raw === "cancel";
+      const isCancelText = raw === "×‘×˜×œ" || raw === "×‘×™×˜×•×œ" || raw === "×œ×" || raw === "cancel";
 
       if (!isApprovalText && !isCancelText) {
-        setError("נדרש אישור לפני הפעלת כלי. אנא אשר/בטל (בחלונית או ע" + "י כתיבה 'מאשר'/'בטל').");
+        setError("× ×“×¨×© ××™×©×•×¨ ×œ×¤× ×™ ×”×¤×¢×œ×ª ×›×œ×™. ×× × ××©×¨/×‘×˜×œ (×‘×—×œ×•× ×™×ª ××• ×¢" + "×™ ×›×ª×™×‘×” '×ž××©×¨'/'×‘×˜×œ').");
         return;
       }
 
@@ -593,7 +590,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
   }
 
   const statusText = llmStatus
-    ? `מודל: ${llmStatus.backend || "לא ידוע"}${llmStatus.model_name ? ` (${llmStatus.model_name})` : ""}`
+    ? `×ž×•×“×œ: ${llmStatus.backend || "×œ× ×™×“×•×¢"}${llmStatus.model_name ? ` (${llmStatus.model_name})` : ""}`
     : "";
 
   useEffect(() => {
