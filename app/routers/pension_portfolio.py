@@ -8,7 +8,10 @@ from pathlib import Path
 
 from app.database import get_db
 from app.services.pension_portfolio import PensionPortfolioProcessor
-from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    dedupe_pension_portfolio_snapshot,
+    upsert_snapshot,
+)
 from app.models.scenario import Scenario
 from app.models.client import Client
 
@@ -218,14 +221,16 @@ async def save_pension_portfolio(
         accounts,
         meta={"operation_type": "portfolio_import"},
     )
-    db.commit()
-    db.refresh(scenario)
+    kept_snapshot_id, deleted_ids = dedupe_pension_portfolio_snapshot(db, client_id)
 
     return {
         'message': 'נתוני התיק הפנסיוני נשמרו בהצלחה',
         'client_id': client_id,
         'accounts_count': len(accounts),
-        'scenario_id': scenario.id,
+        'scenario_id': int(kept_snapshot_id or getattr(scenario, 'id', 0) or 0),
+        'kept_snapshot_id': kept_snapshot_id,
+        'dedupe_deleted_count': int(len(deleted_ids)),
+        'dedupe_deleted_ids': deleted_ids,
     }
 
 @router.post("/clients/{client_id}/pension-portfolio/convert")
@@ -248,6 +253,7 @@ async def convert_pension_accounts(
             meta={"operation_type": "portfolio_import"},
         )
         db.commit()
+        dedupe_pension_portfolio_snapshot(db, client_id)
     except Exception:
         try:
             db.rollback()

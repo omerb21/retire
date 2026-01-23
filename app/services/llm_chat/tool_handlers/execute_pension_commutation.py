@@ -10,12 +10,13 @@ from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.utils.date_serializer import parse_date_flexible
+from app.services.pension_portfolio.snapshot_loader import dedupe_pension_portfolio_snapshot
 
 logger = logging.getLogger("app.llm_chat.tools")
 
 
 def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Session) -> str:
-    logger.info("🔴 EXECUTE_PENSION_COMMUTATION called - Execution Mode!")
+    logger.info(" EXECUTE_PENSION_COMMUTATION called - Execution Mode!")
 
     pension_fund_id = args.get("pension_fund_id")
     raw_amount = (
@@ -168,12 +169,12 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
             .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-            .order_by(Scenario.created_at.desc())
+            .order_by(Scenario.id.desc())
             .first()
         )
         if scenario is None:
             logger.warning(
-                "⚠️ Commutation: no pension_portfolio_snapshot scenario found (client_id=%s)",
+                " Commutation: no pension_portfolio_snapshot scenario found (client_id=%s)",
                 client_id,
             )
         else:
@@ -184,7 +185,7 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
             portfolio = params.get("pension_portfolio")
             if not (isinstance(portfolio, list) and portfolio):
                 logger.warning(
-                    "⚠️ Commutation: pension_portfolio_snapshot has no portfolio list (client_id=%s scenario_id=%s)",
+                    " Commutation: pension_portfolio_snapshot has no portfolio list (client_id=%s scenario_id=%s)",
                     client_id,
                     getattr(scenario, "id", None),
                 )
@@ -269,7 +270,7 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
                     portfolio_snapshot_updated = True
                 else:
                     logger.warning(
-                        "⚠️ Commutation: could not find matching account in snapshot (client_id=%s scenario_id=%s account_number=%s)",
+                        " Commutation: could not find matching account in snapshot (client_id=%s scenario_id=%s account_number=%s)",
                         client_id,
                         getattr(scenario, "id", None),
                         portfolio_account_number,
@@ -277,9 +278,14 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
 
     db.commit()
 
+    try:
+        dedupe_pension_portfolio_snapshot(db, client_id)
+    except Exception:
+        pass
+
     response = {
         "success": True,
-        "message": "✅ היוון בוצע בהצלחה",
+        "message": " היוון בוצע בהצלחה",
         "commutation_asset_id": getattr(asset, "id", None),
         "pension_fund_id": fund.id,
         "commutation_amount": amount,

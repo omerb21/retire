@@ -18,8 +18,11 @@ from app.schemas.public_chat import PublicChatMessageDto
 from app.services.client_service import normalize_id_number
 from app.services.llm_chat.chat_orchestration import run_pension_chat_stream
 from app.schemas.llm_chat import ChatRequest
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
-from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot_models,
+    dedupe_pension_portfolio_snapshot,
+    upsert_snapshot,
+)
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import get_current_request_id
 
@@ -106,7 +109,7 @@ def _save_snapshot_accounts(db: Session, client_id: int, accounts: list[dict[str
         accounts,
         meta={"operation_type": "portfolio_import"},
     )
-    db.commit()
+    dedupe_pension_portfolio_snapshot(db, client_id)
 
 
 def _safe_number(value: Any) -> float:

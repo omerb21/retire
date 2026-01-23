@@ -5,7 +5,10 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.scenario import Scenario
-from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    dedupe_pension_portfolio_snapshot,
+    upsert_snapshot,
+)
 from app.services.llm_chat.chat_orchestration_helpers import clear_pending_approval_request
 from app.utils.llm_chat_log import get_current_request_id
 
@@ -98,7 +101,7 @@ def handle_restore_pension_portfolio_snapshot(
             portfolio,
             meta=meta,
         )
-        db.commit()
+        kept_snapshot_id, _deleted_ids = dedupe_pension_portfolio_snapshot(db, client_id)
         db.refresh(scenario)
         try:
             clear_pending_approval_request(db=db, client_id=client_id)
@@ -122,7 +125,9 @@ def handle_restore_pension_portfolio_snapshot(
     return json.dumps(
         {
             "success": True,
-            "restored_snapshot_scenario_id": int(getattr(scenario, "id", 0) or 0),
+            "restored_snapshot_scenario_id": int(
+                kept_snapshot_id or getattr(scenario, "id", 0) or 0
+            ),
             "previous_snapshot_scenario_id": previous_snapshot_scenario_id,
             "message": "שוחזר סנאפסוט תיק בהצלחה.",
         },

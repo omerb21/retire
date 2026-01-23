@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.models import PensionFund, Scenario
 from app.models.capital_asset import CapitalAsset
-from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    dedupe_pension_portfolio_snapshot,
+    upsert_snapshot,
+)
 from app.services.pension_portfolio.conversion_rules import (
     preferred_conversion_type_for_component,
     validate_component_conversion,
@@ -299,6 +302,7 @@ def _create_updated_snapshot_scenario(
         if operation_type:
             meta["operation_type"] = operation_type
         upsert_snapshot(db, client_id, [], meta=meta)
+        dedupe_pension_portfolio_snapshot(db, client_id)
         return True, 1
 
     try:
@@ -322,6 +326,7 @@ def _create_updated_snapshot_scenario(
     if operation_type:
         meta["operation_type"] = operation_type
     upsert_snapshot(db, client_id, updated_portfolio, meta=meta)
+    dedupe_pension_portfolio_snapshot(db, client_id)
     return True, 1
 
 

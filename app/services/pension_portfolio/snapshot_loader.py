@@ -41,15 +41,6 @@ def upsert_snapshot(
         db.flush()
         return keep
 
-    if len(snapshots) > 1:
-        keep_id = int(getattr(keep, "id", 0) or 0)
-        to_delete = [int(getattr(s, "id", 0) or 0) for s in snapshots[1:]]
-        to_delete = [sid for sid in to_delete if sid and sid != keep_id]
-        if to_delete:
-            db.query(Scenario).filter(Scenario.id.in_(to_delete)).delete(
-                synchronize_session=False
-            )
-
     try:
         params = json.loads(keep.parameters) if keep.parameters else {}
     except Exception:
@@ -70,6 +61,34 @@ def upsert_snapshot(
     db.add(keep)
     db.flush()
     return keep
+
+
+def dedupe_pension_portfolio_snapshot(db: Session, client_id: int) -> tuple[int | None, list[int]]:
+    snapshots = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.id.desc())
+        .all()
+    )
+
+    if not snapshots:
+        return None, []
+
+    keep = snapshots[0]
+    keep_id = int(getattr(keep, "id", 0) or 0) or None
+
+    deleted_ids: list[int] = []
+    if len(snapshots) > 1:
+        deleted_ids = [int(getattr(s, "id", 0) or 0) for s in snapshots[1:]]
+        deleted_ids = [sid for sid in deleted_ids if sid and (keep_id is None or sid != keep_id)]
+        if deleted_ids:
+            db.query(Scenario).filter(Scenario.id.in_(deleted_ids)).delete(
+                synchronize_session=False
+            )
+
+    db.commit()
+    return keep_id, deleted_ids
 
 
 def load_latest_pension_portfolio_snapshot(

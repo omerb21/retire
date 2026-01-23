@@ -17,7 +17,11 @@ from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
 from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot, upsert_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    dedupe_pension_portfolio_snapshot,
+    load_latest_pension_portfolio_snapshot,
+    upsert_snapshot,
+)
 
 logger = logging.getLogger("app.snapshot")
 
@@ -458,6 +462,11 @@ class SnapshotService:
 
             self.db.flush()
             self.db.commit()
+
+            try:
+                dedupe_pension_portfolio_snapshot(self.db, client_id)
+            except Exception:
+                pass
             
             logger.info(f"  ✅ Restored {restored_count} items")
             
