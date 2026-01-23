@@ -421,6 +421,96 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     original_user_msg = (raw_user_msg or "").strip()
 
     client_id = request.client_id
+
+    if request.client_id is not None and isinstance(original_user_msg, str):
+        lowered_user_msg = original_user_msg.strip().lower()
+        if lowered_user_msg in {"מאשר", "אשר", "כן", "approve", "ok"}:
+            def _load_latest_pending_approval_payload() -> tuple[str, dict] | None:
+                try:
+                    row = (
+                        db.query(Scenario)
+                        .filter(Scenario.client_id == request.client_id)
+                        .filter(Scenario.scenario_name == "pending_approval")
+                        .order_by(Scenario.created_at.desc())
+                        .first()
+                    )
+                except Exception:
+                    row = None
+                if row is None or not getattr(row, "parameters", None):
+                    return None
+                try:
+                    parsed = json.loads(row.parameters)
+                except Exception:
+                    return None
+                if not isinstance(parsed, dict):
+                    return None
+                tool_name = parsed.get("tool_name")
+                tool_args = parsed.get("arguments")
+                if not isinstance(tool_name, str) or not isinstance(tool_args, dict):
+                    return None
+                return tool_name, tool_args
+
+            pending = _load_latest_pending_approval_payload()
+            if pending is None:
+                return StreamingResponse(
+                    iter(["אין בקשת אישור פתוחה."]),
+                    media_type="text/plain; charset=utf-8",
+                )
+
+            approved_tool, approved_args = pending
+
+            def _append_transform_hint_if_needed(*, tool_name: str, rendered_output: str) -> str:
+                if tool_name != "TRANSFORM_FUNDS_TO_ASSETS":
+                    return rendered_output
+                try:
+                    parsed = json.loads(rendered_output)
+                except Exception:
+                    parsed = None
+                if not (isinstance(parsed, dict) and parsed.get("success") is True):
+                    return rendered_output
+                if "השלב הבא המומלץ: הפקת דוח" in rendered_output:
+                    return rendered_output
+                return rendered_output + "\n\nהשלב הבא המומלץ: הפקת דוח"
+
+            def _generate_text_approved_exec(req_id: str):
+                try:
+                    effective_portfolio = request.pension_portfolio
+                    try:
+                        loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                        if loaded is not None:
+                            effective_portfolio, _snapshot_at = loaded
+                    except Exception:
+                        pass
+
+                    tool_result = _execute_tool_call(
+                        approved_tool,
+                        approved_args,
+                        request.client_id,
+                        db,
+                        pension_portfolio=effective_portfolio,
+                        force_max_exemption=False,
+                        user_approved=True,
+                        request_id=req_id,
+                    )
+                finally:
+                    try:
+                        clear_pending_approval_request(db=db, client_id=request.client_id)
+                    except Exception:
+                        pass
+
+                tool_display = get_tool_display_name_hebrew(approved_tool)
+                user_tool_output = format_tool_output_for_user_stream(approved_tool, tool_result)
+                rendered = (
+                    f"🔧 **פלט כלי ({tool_display}):**\n"
+                    + sanitize_user_visible_text(user_tool_output)
+                )
+                yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
+
+            return StreamingResponse(
+                _generate_text_approved_exec(stream_request_id),
+                media_type="text/plain; charset=utf-8",
+            )
+
     pending_plan = load_pending_plan_target_marker_direct(
         session=db,
         client_id=client_id,
@@ -764,6 +854,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         except Exception:
             return False
 
+    def _should_show_post_conversion_messages() -> bool:
+        if not _is_post_conversion_locked():
+            return False
+        if effective_client_state is None:
+            return False
+        try:
+            return bool(getattr(effective_client_state, "has_any_conversion_assets", False))
+        except Exception:
+            return False
+
     def _build_post_conversion_lock_message() -> str:
         return (
             "כותרת: מצב תיק לאחר המרה\n\n"
@@ -852,7 +952,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 pass
             return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
-    if _is_post_conversion_locked() and isinstance(original_user_msg, str):
+    if _should_show_post_conversion_messages() and isinstance(original_user_msg, str):
         candidate = original_user_msg.strip()
         lowered = candidate.lower()
 
@@ -940,7 +1040,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         if approved is not None:
             approved_tool, approved_args = approved
 
-            if _is_post_conversion_locked() and approved_tool in {
+            if _should_show_post_conversion_messages() and approved_tool in {
                 "TRANSFORM_FUNDS_TO_ASSETS",
                 "EXECUTE_RETIREMENT_SCENARIO",
             }:
@@ -2314,7 +2414,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             is_portfolio_analysis=is_portfolio_analysis,
         )
 
-    if _is_post_conversion_locked() and isinstance(original_user_msg, str):
+    if _should_show_post_conversion_messages() and isinstance(original_user_msg, str):
         candidate = original_user_msg.strip()
         lowered = candidate.lower()
 
@@ -2514,7 +2614,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     if approval_response is not None:
         return approval_response
 
-    if _is_post_conversion_locked() and isinstance(original_user_msg, str):
+    if _should_show_post_conversion_messages() and isinstance(original_user_msg, str):
         candidate = original_user_msg.strip()
         lowered = candidate.lower()
 
