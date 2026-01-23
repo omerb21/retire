@@ -58,6 +58,10 @@ def test_stream_restore_unlocks_allows_transform_approval_again(monkeypatch, _te
         db.add(asset)
 
         # Provide a snapshot that can be restored
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == "pension_portfolio_snapshot"
+        ).delete(synchronize_session=False)
+
         source_snapshot_params = {
             "pension_portfolio": [{"account_number": "A", "יתרה": 100}],
             "_meta": {"operation_type": "pension_portfolio_upload", "trace_id": "t1"},

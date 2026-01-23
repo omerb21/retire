@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 from app.models.client import Client
+from app.models.scenario import Scenario
 
 
 def _extract_ui_action_payload(body: str) -> dict:
@@ -30,6 +31,18 @@ def test_stream_restore_snapshot_user_approved_executes(monkeypatch, _test_db) -
             db.commit()
         client_id = int(getattr(client, "id", 0) or 0)
 
+        snapshot = Scenario(
+            client_id=client_id,
+            scenario_name="pension_portfolio_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps({"pension_portfolio": [{"account_number": "A", "balance": 1.0}]}, ensure_ascii=False),
+        )
+        db.add(snapshot)
+        db.commit()
+        snapshot_id = int(getattr(snapshot, "id", 0) or 0)
+
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic restore snapshot flow")
 
@@ -51,18 +64,8 @@ def test_stream_restore_snapshot_user_approved_executes(monkeypatch, _test_db) -
     ) -> str:
         tool_calls.append((tool_name, args))
         assert user_approved is True
-        if tool_name == "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY":
-            history = [
-                {
-                    "scenario_id": 333,
-                    "created_at": "2026-01-01T00:00:00Z",
-                    "meta": {"operation_type": "pension_portfolio_upload"},
-                    "estimated_nonzero_balance_rows": 2,
-                }
-            ]
-            return json.dumps(history, ensure_ascii=False)
         if tool_name == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT":
-            assert args.get("snapshot_scenario_id") == 333
+            assert args.get("snapshot_scenario_id") == snapshot_id
             assert args.get("safety_mode") == "strict"
             return json.dumps(
                 {
@@ -98,7 +101,7 @@ def test_stream_restore_snapshot_user_approved_executes(monkeypatch, _test_db) -
             "messages": [
                 {
                     "role": "user",
-                    "content": '###USER_APPROVED### {"tool_name": "RESTORE_PENSION_PORTFOLIO_SNAPSHOT", "arguments": {"snapshot_scenario_id": 333, "safety_mode": "strict"}}',
+                    "content": f'###USER_APPROVED### {{"tool_name": "RESTORE_PENSION_PORTFOLIO_SNAPSHOT", "arguments": {{"snapshot_scenario_id": {snapshot_id}, "safety_mode": "strict"}}}}',
                 }
             ],
         },
@@ -109,5 +112,4 @@ def test_stream_restore_snapshot_user_approved_executes(monkeypatch, _test_db) -
     assert "🔧" in body2
     assert "נדרש אישור" not in body2
 
-    assert tool_calls[0][0] == "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY"
-    assert tool_calls[1][0] == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT"
+    assert tool_calls[0][0] == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT"

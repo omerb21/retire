@@ -58,8 +58,8 @@ def handle_get_pension_portfolio_snapshot_history(*, args: dict, client_id: int,
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
         .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
-        .limit(10)
+        .order_by(Scenario.id.desc())
+        .limit(1)
         .all()
     )
 

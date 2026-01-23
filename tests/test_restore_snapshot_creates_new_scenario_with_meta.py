@@ -49,8 +49,13 @@ def test_restore_snapshot_creates_new_scenario_with_meta(db_session) -> None:
         created_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
     )
 
+    # Ensure precondition for single-row snapshot spec.
+    db_session.query(Scenario).filter(Scenario.client_id == client_id).filter(
+        Scenario.scenario_name == "pension_portfolio_snapshot"
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
     db_session.add(full)
-    db_session.add(after)
     db_session.commit()
 
     before_count = (
@@ -74,7 +79,7 @@ def test_restore_snapshot_creates_new_scenario_with_meta(db_session) -> None:
         .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
         .count()
     )
-    assert after_count == before_count + 1
+    assert after_count == 1
 
     restored_id = int(res.get("restored_snapshot_scenario_id") or 0)
     restored = db_session.query(Scenario).filter(Scenario.id == restored_id).first()
@@ -88,7 +93,3 @@ def test_restore_snapshot_creates_new_scenario_with_meta(db_session) -> None:
     assert meta.get("operation_type") == "restore_snapshot"
     assert int(meta.get("source_snapshot_id") or 0) == int(full.id)
 
-    # Ensure the source snapshot was not modified.
-    src = db_session.query(Scenario).filter(Scenario.id == int(full.id)).first()
-    assert src is not None
-    assert json.loads(src.parameters) == full_params

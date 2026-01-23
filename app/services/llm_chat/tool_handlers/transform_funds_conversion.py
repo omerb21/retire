@@ -1,4 +1,7 @@
 import json
+import logging
+import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Optional
 
@@ -6,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import PensionFund, Scenario
 from app.models.capital_asset import CapitalAsset
+from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
 from app.services.pension_portfolio.conversion_rules import (
     preferred_conversion_type_for_component,
     validate_component_conversion,
@@ -285,30 +289,16 @@ def _create_updated_snapshot_scenario(
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
         .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
+        .order_by(Scenario.id.desc())
         .first()
     )
     if snapshot is None or not snapshot.parameters:
-        if not (trace_id or operation_type):
-            return False, 0
-
-        new_params: dict = {"pension_portfolio": []}
         meta: dict = {}
         if trace_id:
             meta["trace_id"] = trace_id
         if operation_type:
             meta["operation_type"] = operation_type
-        new_params["_meta"] = meta
-
-        scenario = Scenario(
-            client_id=client_id,
-            scenario_name="pension_portfolio_snapshot",
-            apply_tax_planning=False,
-            apply_capitalization=False,
-            apply_exemption_shield=False,
-            parameters=json.dumps(new_params, ensure_ascii=False),
-        )
-        db.add(scenario)
+        upsert_snapshot(db, client_id, [], meta=meta)
         return True, 1
 
     try:
@@ -326,27 +316,12 @@ def _create_updated_snapshot_scenario(
         if updated_portfolio is None:
             return False, 0
 
-    new_params = dict(params)
-    new_params["pension_portfolio"] = updated_portfolio
-
-    if trace_id or operation_type:
-        existing_meta = new_params.get("_meta")
-        meta: dict = dict(existing_meta) if isinstance(existing_meta, dict) else {}
-        if trace_id:
-            meta["trace_id"] = trace_id
-        if operation_type:
-            meta["operation_type"] = operation_type
-        new_params["_meta"] = meta
-
-    scenario = Scenario(
-        client_id=client_id,
-        scenario_name="pension_portfolio_snapshot",
-        apply_tax_planning=False,
-        apply_capitalization=False,
-        apply_exemption_shield=False,
-        parameters=json.dumps(new_params, ensure_ascii=False),
-    )
-    db.add(scenario)
+    meta: dict = {}
+    if trace_id:
+        meta["trace_id"] = trace_id
+    if operation_type:
+        meta["operation_type"] = operation_type
+    upsert_snapshot(db, client_id, updated_portfolio, meta=meta)
     return True, 1
 
 

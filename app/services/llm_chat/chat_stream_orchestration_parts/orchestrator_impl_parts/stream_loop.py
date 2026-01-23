@@ -801,55 +801,32 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
         )
         if wants_restore_snapshot:
-            history_raw = _execute_tool_call(
-                "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY",
-                {},
-                request.client_id,
-                db,
-                pension_portfolio=request.pension_portfolio,
-                force_max_exemption=False,
-                user_approved=True,
-                request_id=stream_request_id,
-            )
-
+            selected_snapshot_id: int | None = None
             try:
-                history = json.loads(history_raw) if isinstance(history_raw, str) else None
+                snapshot = (
+                    db.query(Scenario)
+                    .filter(Scenario.client_id == request.client_id)
+                    .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+                    .order_by(Scenario.id.desc())
+                    .first()
+                )
             except Exception:
-                history = None
+                snapshot = None
 
-            if not isinstance(history, list) or not history:
+            if snapshot is None:
                 return StreamingResponse(
-                    iter(["לא נמצאה היסטוריית סנאפסוטים לשחזור. אנא העלה/שמור תיק פנסיוני ואז נסה שוב."]),
+                    iter(["לא נמצא סנאפסוט תיק לשחזור. אנא העלה/שמור תיק פנסיוני ואז נסה שוב."]),
                     media_type="text/plain; charset=utf-8",
                 )
 
-            selected_snapshot_id: int | None = None
-            for item in history:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    nonzero = int(item.get("estimated_nonzero_balance_rows") or 0)
-                except Exception:
-                    nonzero = 0
-                if nonzero >= 2:
-                    try:
-                        selected_snapshot_id = int(item.get("scenario_id") or 0)
-                    except Exception:
-                        selected_snapshot_id = 0
-                    if selected_snapshot_id and selected_snapshot_id > 0:
-                        break
-
-            if selected_snapshot_id is None:
-                last_item = history[-1]
-                if isinstance(last_item, dict):
-                    try:
-                        selected_snapshot_id = int(last_item.get("scenario_id") or 0)
-                    except Exception:
-                        selected_snapshot_id = 0
+            try:
+                selected_snapshot_id = int(getattr(snapshot, "id", 0) or 0)
+            except Exception:
+                selected_snapshot_id = 0
 
             if not selected_snapshot_id or selected_snapshot_id <= 0:
                 return StreamingResponse(
-                    iter(["לא הצלחתי לבחור סנאפסוט לשחזור מתוך ההיסטוריה."]),
+                    iter(["לא הצלחתי לזהות סנאפסוט תיק לשחזור."]),
                     media_type="text/plain; charset=utf-8",
                 )
 

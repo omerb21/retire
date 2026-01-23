@@ -10,6 +10,68 @@ from app.models.pension_fund import PensionFund
 from app.schemas.llm_chat import PensionPortfolioAccount
 
 
+def upsert_snapshot(
+    db: Session,
+    client_id: int,
+    pension_portfolio: list[dict[str, Any]],
+    meta: dict[str, Any] | None = None,
+) -> Scenario:
+    snapshots = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.id.desc())
+        .all()
+    )
+
+    keep: Scenario | None = snapshots[0] if snapshots else None
+    if keep is None:
+        keep = Scenario(
+            client_id=client_id,
+            scenario_name="pension_portfolio_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(
+                {"pension_portfolio": pension_portfolio or [], "_meta": dict(meta or {})},
+                ensure_ascii=False,
+            ),
+        )
+        db.add(keep)
+        db.flush()
+        return keep
+
+    if len(snapshots) > 1:
+        keep_id = int(getattr(keep, "id", 0) or 0)
+        to_delete = [int(getattr(s, "id", 0) or 0) for s in snapshots[1:]]
+        to_delete = [sid for sid in to_delete if sid and sid != keep_id]
+        if to_delete:
+            db.query(Scenario).filter(Scenario.id.in_(to_delete)).delete(
+                synchronize_session=False
+            )
+
+    try:
+        params = json.loads(keep.parameters) if keep.parameters else {}
+    except Exception:
+        params = {}
+    if not isinstance(params, dict):
+        params = {}
+
+    params["pension_portfolio"] = pension_portfolio or []
+
+    if meta is not None:
+        existing_meta = params.get("_meta")
+        merged_meta: dict[str, Any] = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        for k, v in dict(meta).items():
+            merged_meta[str(k)] = v
+        params["_meta"] = merged_meta
+
+    keep.parameters = json.dumps(params, ensure_ascii=False)
+    db.add(keep)
+    db.flush()
+    return keep
+
+
 def load_latest_pension_portfolio_snapshot(
     db: Session,
     client_id: int,

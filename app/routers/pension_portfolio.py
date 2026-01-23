@@ -8,6 +8,7 @@ from pathlib import Path
 
 from app.database import get_db
 from app.services.pension_portfolio import PensionPortfolioProcessor
+from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
 from app.models.scenario import Scenario
 from app.models.client import Client
 
@@ -211,36 +212,14 @@ async def save_pension_portfolio(
     if not isinstance(accounts, list):
         raise HTTPException(status_code=400, detail="מבנה תיק פנסיוני לא תקין (accounts)")
 
-    scenario = (
-        db.query(Scenario)
-        .filter(Scenario.client_id == client_id)
-        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
-        .first()
+    scenario = upsert_snapshot(
+        db,
+        client_id,
+        accounts,
+        meta={"operation_type": "portfolio_import"},
     )
-
-    if scenario is None:
-        scenario = Scenario(
-            client_id=client_id,
-            scenario_name="pension_portfolio_snapshot",
-            apply_tax_planning=False,
-            apply_capitalization=False,
-            apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": accounts}, ensure_ascii=False),
-        )
-        db.add(scenario)
-        db.commit()
-        db.refresh(scenario)
-    else:
-        try:
-            params = json.loads(scenario.parameters) if scenario.parameters else {}
-        except Exception:
-            params = {}
-        params["pension_portfolio"] = accounts
-        scenario.parameters = json.dumps(params, ensure_ascii=False)
-        db.add(scenario)
-        db.commit()
-        db.refresh(scenario)
+    db.commit()
+    db.refresh(scenario)
 
     return {
         'message': 'נתוני התיק הפנסיוני נשמרו בהצלחה',
@@ -260,6 +239,21 @@ async def convert_pension_accounts(
     accounts = conversion_data.get('accounts', [])
     if not accounts:
         raise HTTPException(status_code=400, detail="לא נבחרו חשבונות להמרה")
+
+    try:
+        upsert_snapshot(
+            db,
+            client_id,
+            accounts,
+            meta={"operation_type": "portfolio_import"},
+        )
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
     
     from app.models.client import Client
     from app.models.pension_fund import PensionFund

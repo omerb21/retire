@@ -19,6 +19,7 @@ from app.services.client_service import normalize_id_number
 from app.services.llm_chat.chat_orchestration import run_pension_chat_stream
 from app.schemas.llm_chat import ChatRequest
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import get_current_request_id
 
@@ -99,30 +100,12 @@ def _load_snapshot_accounts(db: Session, client_id: int) -> list[dict[str, Any]]
 
 
 def _save_snapshot_accounts(db: Session, client_id: int, accounts: list[dict[str, Any]]) -> None:
-    scenario = (
-        db.query(Scenario)
-        .filter(Scenario.client_id == client_id)
-        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
-        .first()
+    upsert_snapshot(
+        db,
+        client_id,
+        accounts,
+        meta={"operation_type": "portfolio_import"},
     )
-    if scenario is None:
-        scenario = Scenario(
-            client_id=client_id,
-            scenario_name="pension_portfolio_snapshot",
-            apply_tax_planning=False,
-            apply_capitalization=False,
-            apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": accounts}, ensure_ascii=False),
-        )
-    else:
-        try:
-            params = json.loads(scenario.parameters) if scenario.parameters else {}
-        except Exception:
-            params = {}
-        params["pension_portfolio"] = accounts
-        scenario.parameters = json.dumps(params, ensure_ascii=False)
-    db.add(scenario)
     db.commit()
 
 

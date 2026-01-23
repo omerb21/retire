@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.scenario import Scenario
+from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
 from app.services.llm_chat.chat_orchestration_helpers import clear_pending_approval_request
 from app.utils.llm_chat_log import get_current_request_id
 
@@ -60,7 +61,7 @@ def handle_restore_pension_portfolio_snapshot(
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
         .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-        .order_by(Scenario.created_at.desc())
+        .order_by(Scenario.id.desc())
         .first()
     )
     previous_snapshot_scenario_id = int(getattr(latest, "id", 0) or 0) if latest is not None else None
@@ -86,17 +87,17 @@ def handle_restore_pension_portfolio_snapshot(
     meta["restored_at_utc"] = datetime.now(timezone.utc).isoformat()
     params["_meta"] = meta
 
-    scenario = Scenario(
-        client_id=client_id,
-        scenario_name="pension_portfolio_snapshot",
-        apply_tax_planning=False,
-        apply_capitalization=False,
-        apply_exemption_shield=False,
-        parameters=json.dumps(params, ensure_ascii=False),
-    )
-
     try:
-        db.add(scenario)
+        portfolio = params.get("pension_portfolio")
+        if not isinstance(portfolio, list):
+            portfolio = []
+
+        scenario = upsert_snapshot(
+            db,
+            client_id,
+            portfolio,
+            meta=meta,
+        )
         db.commit()
         db.refresh(scenario)
         try:
@@ -123,7 +124,7 @@ def handle_restore_pension_portfolio_snapshot(
             "success": True,
             "restored_snapshot_scenario_id": int(getattr(scenario, "id", 0) or 0),
             "previous_snapshot_scenario_id": previous_snapshot_scenario_id,
-            "message": "שוחזר סנאפסוט תיק בהצלחה (נוצר Scenario חדש).",
+            "message": "שוחזר סנאפסוט תיק בהצלחה.",
         },
         ensure_ascii=False,
     )

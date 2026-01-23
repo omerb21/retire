@@ -17,7 +17,7 @@ from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
 from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot, upsert_snapshot
 
 logger = logging.getLogger("app.snapshot")
 
@@ -447,35 +447,12 @@ class SnapshotService:
             pension_portfolio_snapshot_accounts = data.get("pension_portfolio_snapshot")
             if isinstance(pension_portfolio_snapshot_accounts, list):
                 try:
-                    from app.models.scenario import Scenario
-
-                    scenario = (
-                        self.db.query(Scenario)
-                        .filter(Scenario.client_id == client_id)
-                        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-                        .order_by(Scenario.created_at.desc())
-                        .first()
+                    upsert_snapshot(
+                        self.db,
+                        client_id,
+                        pension_portfolio_snapshot_accounts,
+                        meta={"operation_type": "restore_snapshot"},
                     )
-                    if scenario is None:
-                        scenario = Scenario(
-                            client_id=client_id,
-                            scenario_name="pension_portfolio_snapshot",
-                            apply_tax_planning=False,
-                            apply_capitalization=False,
-                            apply_exemption_shield=False,
-                            parameters=json.dumps(
-                                {"pension_portfolio": pension_portfolio_snapshot_accounts},
-                                ensure_ascii=False,
-                            ),
-                        )
-                    else:
-                        try:
-                            params = json.loads(scenario.parameters) if scenario.parameters else {}
-                        except Exception:
-                            params = {}
-                        params["pension_portfolio"] = pension_portfolio_snapshot_accounts
-                        scenario.parameters = json.dumps(params, ensure_ascii=False)
-                    self.db.add(scenario)
                 except Exception:
                     pass
 
