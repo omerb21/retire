@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
-from typing import List, Optional
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from typing import Any, List, Optional
 from sqlalchemy.orm import Session
 import json
 from datetime import datetime
@@ -92,7 +92,7 @@ async def process_pension_xml_files(
     try:
         saved_snapshot_result = await save_pension_portfolio(
             client_id=client_id,
-            portfolio_data={"accounts": all_accounts},
+            portfolio_data={"pension_portfolio": all_accounts},
             db=db,
         )
     except HTTPException:
@@ -200,7 +200,7 @@ async def get_pension_portfolio(client_id: int, db: Session = Depends(get_db)):
 @router.post("/clients/{client_id}/pension-portfolio/save")
 async def save_pension_portfolio(
     client_id: int,
-    portfolio_data: dict,
+    portfolio_data: Any = Body(...),
     db: Session = Depends(get_db),
 ):
     """שמירת נתוני תיק פנסיוני"""
@@ -208,12 +208,17 @@ async def save_pension_portfolio(
     if not client:
         raise HTTPException(status_code=404, detail="לקוח לא נמצא")
 
-    accounts = None
-    if isinstance(portfolio_data, dict):
-        accounts = portfolio_data.get("accounts")
+    accounts: Any = None
+    if isinstance(portfolio_data, list):
+        accounts = portfolio_data
+    elif isinstance(portfolio_data, dict) and "pension_portfolio" in portfolio_data:
+        accounts = portfolio_data.get("pension_portfolio")
 
     if not isinstance(accounts, list):
-        raise HTTPException(status_code=400, detail="מבנה תיק פנסיוני לא תקין (accounts)")
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid payload: expected a JSON list of accounts or an object with pension_portfolio: [ ... ]",
+        )
 
     scenario = upsert_snapshot(
         db,

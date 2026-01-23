@@ -46,7 +46,7 @@ def test_save_dedupes_multiple_snapshot_rows(_test_db) -> None:
     api = TestClient(app)
     resp = api.post(
         f"/api/v1/clients/{client_id}/pension-portfolio/save",
-        json={"accounts": [{"account_number": "X", "balance": 1.0}]},
+        json=[{"account_number": "X", "balance": 1.0}],
     )
     assert resp.status_code == 200
     payload = resp.json()
