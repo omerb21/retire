@@ -211,13 +211,19 @@ async def save_pension_portfolio(
     accounts: Any = None
     if isinstance(portfolio_data, list):
         accounts = portfolio_data
-    elif isinstance(portfolio_data, dict) and "pension_portfolio" in portfolio_data:
-        accounts = portfolio_data.get("pension_portfolio")
+    elif isinstance(portfolio_data, dict):
+        if "pension_portfolio" in portfolio_data:
+            accounts = portfolio_data.get("pension_portfolio")
+        elif "accounts" in portfolio_data:
+            accounts = portfolio_data.get("accounts")
 
     if not isinstance(accounts, list):
         raise HTTPException(
             status_code=422,
-            detail="Invalid payload: expected a JSON list of accounts or an object with pension_portfolio: [ ... ]",
+            detail=(
+                "Invalid payload: expected a JSON list of accounts or an object with "
+                "pension_portfolio: [ ... ]"
+            ),
         )
 
     scenario = upsert_snapshot(

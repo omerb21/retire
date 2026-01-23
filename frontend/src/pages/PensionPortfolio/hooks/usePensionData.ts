@@ -128,7 +128,7 @@ export function usePensionData(clientId: string | undefined) {
 
       await apiFetch(`/clients/${clientId}/pension-portfolio/save`, {
         method: 'POST',
-        body: JSON.stringify({ accounts: pensionData })
+        body: JSON.stringify({ pension_portfolio: selectedAccounts })
       });
       setProcessingStatus(`✅ נשמרו בהצלחה ${selectedAccounts.length} תכניות בתיק הפנסיוני!`);
       

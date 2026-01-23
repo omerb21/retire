@@ -226,7 +226,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
         const portfolioRes = await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ accounts: pensionPortfolio })
+          body: JSON.stringify({ pension_portfolio: pensionPortfolio })
         });
 
         if (!portfolioRes.ok) {
@@ -341,7 +341,7 @@ const SystemSnapshot: React.FC<SystemSnapshotProps> = ({ clientId, onSnapshotRes
           const portfolioRes = await fetch(`${API_BASE}/clients/${clientId}/pension-portfolio/save`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ accounts: savedSnapshot.pension_portfolio })
+            body: JSON.stringify({ pension_portfolio: savedSnapshot.pension_portfolio })
           });
 
           if (!portfolioRes.ok) {

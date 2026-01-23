@@ -15,7 +15,7 @@ export async function persistPortfolioUpdateToDb(
   const updated = updater(Array.isArray(portfolio) ? portfolio : []);
   await apiFetch(`/clients/${clientId}/pension-portfolio/save`, {
     method: "POST",
-    body: JSON.stringify({ accounts: updated }),
+    body: JSON.stringify({ pension_portfolio: updated }),
   });
 }
 
