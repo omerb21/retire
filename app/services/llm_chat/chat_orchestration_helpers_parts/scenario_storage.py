@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -138,6 +139,114 @@ def load_latest_target_pension_plan(*, db: Session, client_id: int) -> dict | No
     except Exception:
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_result: str) -> bool:
+    payload = _extract_target_plan_payload_from_tool_result(tool_result)
+    if not payload:
+        return False
+
+    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
+    meta = dict(meta)
+    meta["operation_type"] = "BUILD_TARGET_PENSION_PLAN"
+    meta["stored_at_utc"] = datetime.now(timezone.utc).isoformat()
+    payload = dict(payload)
+    payload["_meta"] = meta
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="target_pension_plan_data",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def load_latest_target_pension_plan_data(*, db: Session, client_id: int) -> dict | None:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "target_pension_plan_data")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def store_pending_plan_target_marker(
+    *, db: Session, client_id: int, ttl_seconds: int = 300, source: str = ""
+) -> bool:
+    if client_id is None:
+        return False
+    try:
+        ttl_seconds_int = int(ttl_seconds or 0)
+    except Exception:
+        ttl_seconds_int = 300
+    if ttl_seconds_int <= 0:
+        ttl_seconds_int = 300
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=ttl_seconds_int)
+    payload = {
+        "kind": "pending_plan_target",
+        "active": True,
+        "created_at": now.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "_meta": {"source": str(source or "").strip()},
+    }
+
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == "pending_plan_target"
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="pending_plan_target",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
 
 
 def _extract_target_plan_payload_from_tool_result(tool_result: str) -> dict | None:

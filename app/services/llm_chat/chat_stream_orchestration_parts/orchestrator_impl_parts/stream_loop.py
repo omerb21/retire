@@ -32,6 +32,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
+    store_latest_target_pension_plan_data,
 )
 from app.services.llm_chat.pending_approvals import (
     compute_args_hash,
@@ -549,6 +550,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_approved=True,
                 request_id=stream_request_id,
             )
+            try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=client_id,
+                    tool_result=tool_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=client_id,
+                    tool_result=tool_result,
+                )
+            except Exception:
+                pass
             yield sanitize_user_visible_text(
                 "🔧 **פלט כלי (" + get_tool_display_name_hebrew(tool_name) + "):**\n"
                 + format_tool_output_for_user_stream(tool_name, tool_result)
@@ -1703,6 +1720,23 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
 
             try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+
+            try:
                 _clear_pending_plan_target(client_id=request.client_id)
             except Exception:
                 pass
@@ -1783,6 +1817,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_approved=True,
                 request_id=req_id,
             )
+            try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
             yield sanitize_user_visible_text(
                 "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
                 + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)

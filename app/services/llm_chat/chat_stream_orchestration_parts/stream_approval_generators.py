@@ -10,6 +10,8 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     clear_pending_approval_request,
     format_transform_result_for_user,
     load_latest_target_pension_plan,
+    load_latest_target_pension_plan_data,
+    store_pending_plan_target_marker,
 )
 from app.services.llm_chat.message_utils import extract_latest_target_pension_plan_payload
 from app.services.llm_chat.orchestration_utils import (
@@ -151,8 +153,19 @@ def generate_forced_approval(
 
         payload = extract_latest_target_pension_plan_payload(request.messages)
         if payload is None:
+            payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+        if payload is None:
             payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
         if not isinstance(payload, dict):
+            try:
+                store_pending_plan_target_marker(
+                    db=db,
+                    client_id=request.client_id,
+                    ttl_seconds=300,
+                    source="execute_target_plan_prompt",
+                )
+            except Exception:
+                pass
             yield (
                 "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר.\n"
                 "כתוב: יעד נטו: <מספר>.\n"
@@ -253,8 +266,19 @@ def generate_execute_target_after_termination(
 
     payload = extract_latest_target_pension_plan_payload(request.messages)
     if payload is None:
+        payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+    if payload is None:
         payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
     if not isinstance(payload, dict):
+        try:
+            store_pending_plan_target_marker(
+                db=db,
+                client_id=request.client_id,
+                ttl_seconds=300,
+                source="execute_target_plan_prompt",
+            )
+        except Exception:
+            pass
         yield (
             "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר.\n"
             "כתוב: יעד נטו: <מספר>.\n"
