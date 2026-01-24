@@ -287,7 +287,7 @@ def extract_target_net_ils(user_text: str) -> int | None:
     if not isinstance(user_text, str) or not user_text.strip():
         return None
 
-    cleaned = user_text.replace(",", "")
+    cleaned = user_text.replace(",", "").replace(".", "")
     lowered = cleaned.lower()
 
     nums: list[tuple[int, int, int]] = []
@@ -1447,20 +1447,45 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         or ("תכנון" in plan_tokens)
     )
     has_plan_noun_token = ("תכנית" in plan_tokens) or ("תוכנית" in plan_tokens) or ("מתווה" in plan_tokens)
+    has_plan_pension_token = ("קצבה" in plan_tokens) or ("קצבת" in plan_tokens)
     has_plan_domain_token = ("פרישה" in plan_tokens) or ("משיכה" in plan_tokens)
     has_target_plan_phrase_tokens = (
         (("קצבת", "יעד") in plan_token_pairs)
         or (("יעד", "קצבה") in plan_token_pairs)
         or (("יעד", "הכנסה") in plan_token_pairs)
     )
-    is_plan_request_tokens = has_target_plan_phrase_tokens or (
-        (has_plan_build_token or has_plan_noun_token) and has_plan_domain_token
+    has_pension_plan_phrase = any(
+        token in lowered_user_msg
+        for token in (
+            "חשב תכנית קצבה",
+            "חשב תוכנית קצבה",
+            "תכנית קצבה",
+            "תוכנית קצבה",
+            "תכנית יעד",
+            "תוכנית יעד",
+            "בנה תכנית קצבה",
+            "בנה תוכנית קצבה",
+        )
+    )
+    is_plan_request_tokens = (
+        has_target_plan_phrase_tokens
+        or has_pension_plan_phrase
+        or ((has_plan_build_token or has_plan_noun_token) and has_plan_domain_token)
+        or (has_plan_noun_token and has_plan_pension_token)
     )
     has_target_plan_keywords = any(
         token in lowered_user_msg
         for token in (
             "קצבת יעד",
             "יעד קצבה",
+            "תכנית קצבה",
+            "תוכנית קצבה",
+            "תכנית יעד",
+            "תוכנית יעד",
+            "בנה תכנית קצבה",
+            "בנה תוכנית קצבה",
+            "חשב תכנית קצבה",
+            "חשב תוכנית קצבה",
             "בנה תכנית פרישה",
             "בנה תוכנית פרישה",
             "תכנית משיכה",
@@ -1474,6 +1499,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     no_tools_requested_local = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(
         original_user_msg
     )
+    commutation_intent_local = is_pension_commutation_request(original_user_msg)
+    explicit_transform_local = is_transform_request(original_user_msg)
     is_qa_mode_local = is_qa_request(original_user_msg)
     max_capital_requested_local = is_max_capital_request(original_user_msg or "")
 
@@ -1581,6 +1608,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         (resolved_intent != ChatIntent.REPORT)
         and is_plan_request_tokens
         and (target_net_for_plan is None)
+        and (not commutation_intent_local)
+        and (not explicit_transform_local)
         and (not max_capital_requested_local)
     ):
         try:
@@ -1608,15 +1637,21 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     except Exception:
         pending_plan_target = None
 
-    any_target_numeric: int | None = None
-    if isinstance(original_user_msg, str) and original_user_msg.strip():
+    def _extract_target_net_reply(user_msg: str) -> int | None:
+        if not isinstance(user_msg, str) or not user_msg.strip():
+            return None
+        cleaned = user_msg.replace(",", "").replace(".", "").strip()
+        if re.fullmatch(r"\d{4,6}", cleaned):
+            try:
+                return int(cleaned)
+            except Exception:
+                return None
         try:
-            cleaned = (original_user_msg or "").replace(",", "")
-            m = re.search(r"\b\d{4,6}\b", cleaned)
-            if m:
-                any_target_numeric = int(m.group(0))
+            return extract_target_net_ils(user_msg)
         except Exception:
-            any_target_numeric = None
+            return None
+
+    target_net_reply = _extract_target_net_reply(original_user_msg or "")
 
     if (
         tools_enabled
@@ -1624,9 +1659,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         and request.client_id is not None
         and (not no_tools_requested_local)
         and (not is_qa_mode_local)
-        and (any_target_numeric is not None)
+        and (target_net_reply is not None)
         and (pending_plan_target is not None)
         and (not bool(pending_plan_target.get("_expired")))
+        and (not commutation_intent_local)
+        and (not explicit_transform_local)
         and (not _is_post_conversion_locked())
     ):
 
@@ -1651,7 +1688,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 pass
 
             plan_args = {
-                "target_monthly_pension": float(any_target_numeric),
+                "target_monthly_pension": float(target_net_reply),
                 "target_is_net": True,
             }
             plan_result = _execute_tool_call(
@@ -1684,7 +1721,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         request.client_id is not None
         and pending_plan_target is not None
         and bool(pending_plan_target.get("_expired"))
-        and any_target_numeric is not None
+        and (target_net_reply is not None)
     ):
         try:
             _store_pending_plan_target(client_id=request.client_id)

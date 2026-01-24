@@ -589,7 +589,7 @@ class RetirementCashflowToolsMixin:
         # נניח שגם קרנות השתלמות נזילות בפרישה
         
         # 7. חישוב משך כיסוי (Sufficiency)
-        sufficiency_years = 999.0 # אינסוף
+        sufficiency_years: float | None = 999.0 # אינסוף
         is_sustainable = True
         required_capital_withdrawal = 0.0
 
@@ -598,7 +598,13 @@ class RetirementCashflowToolsMixin:
             total_pension_income, total_capital_available, gap
         )
 
-        if gap > 0:
+        gap_epsilon = 0.01
+        if gap <= gap_epsilon:
+            # אין גירעון חודשי (או זניח ברמת אגורות) – לא מחלקים כדי למנוע שנים לא סבירות.
+            required_capital_withdrawal = 0.0
+            sufficiency_years = None
+            is_sustainable = True
+        elif gap > 0:
             is_sustainable = False
             required_capital_withdrawal = gap
             if total_capital_available > 0:
@@ -610,7 +616,7 @@ class RetirementCashflowToolsMixin:
                 sufficiency_years = 0.0
         else:
             # עודף תזרימי
-            sufficiency_years = 999.0
+            sufficiency_years = None
             
         # 8. בניית התשובה
         
@@ -649,7 +655,7 @@ class RetirementCashflowToolsMixin:
             f"📉 **{deficit_status} חודשי (לפי {basis_label}):** {gap_abs:,.0f} ₪",
         ])
         
-        if gap > 0:
+        if gap > gap_epsilon:
             explanation_lines.append(f"")
             explanation_lines.append(f"🏦 **שימוש בהון פנוי:**")
             explanation_lines.append(f"   סך הון זמין: {total_capital_available:,.0f} ₪")
@@ -657,6 +663,9 @@ class RetirementCashflowToolsMixin:
                 explanation_lines.append(f"   ההון יספיק לכיסוי הגירעון למשך **{sufficiency_years:.1f} שנים** (עד גיל {age_at_retirement + sufficiency_years:.1f}).")
             else:
                 explanation_lines.append(f"   ⚠️ אין הון פנוי לכיסוי הגירעון!")
+        elif gap <= gap_epsilon:
+            explanation_lines.append(f"")
+            explanation_lines.append("✅ **אין גירעון חודשי ביחס ליעד**")
 
         return {
             "success": True,
@@ -692,7 +701,9 @@ class RetirementCashflowToolsMixin:
                 "monthly_deficit_or_surplus": round(-gap, 2),  # שלילי = גירעון
                 "required_capital_withdrawal": round(required_capital_withdrawal, 2),
                 "total_liquid_capital": round(total_capital_available, 2),
-                "capital_sufficiency_years": round(sufficiency_years, 1),
+                "capital_sufficiency_years": (
+                    round(float(sufficiency_years), 1) if sufficiency_years is not None else None
+                ),
                 "is_sustainable": is_sustainable
             },
             "explanation": "\n".join(explanation_lines)

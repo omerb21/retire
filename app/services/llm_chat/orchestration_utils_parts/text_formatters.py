@@ -465,6 +465,8 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             lines.append(f"• קיימות כספית (שנים): {float(suff_years):g}")
         except Exception:
             lines.append(f"• קיימות כספית (שנים): {suff_years}")
+    else:
+        lines.append("• קיימות כספית: אין גירעון חודשי")
     if is_sustainable is not None:
         lines.append(f"• בר-קיימא: {'כן' if bool(is_sustainable) else 'לא'}")
 
