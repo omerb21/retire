@@ -45,6 +45,7 @@ def _prepare_orchestration_inputs(
         build_transform_accounts_from_target_plan_payload,
         clear_pending_plan_target_marker,
         clear_pending_approval_request,
+        execute_pending_approval_request,
         load_latest_target_pension_plan,
         load_pending_plan_target_marker,
         load_pending_approval_request,
@@ -134,6 +135,51 @@ def _prepare_orchestration_inputs(
             tools_enabled = True
 
     tools_enabled = bool(tools_enabled)
+
+    if request.client_id is not None:
+        last_user_text = find_last_user_message(request.messages)
+        if is_user_approval_intent_text(last_user_text):
+            executed = execute_pending_approval_request(
+                db=db,
+                client_id=request.client_id,
+                execute_tool_call_fn=_execute_tool_call,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                request_id=request_id,
+            )
+            if executed is None:
+                return ChatResponse(
+                    reply=(
+                        "לא נמצאה בקשת אישור פעילה לביצוע. "
+                        "כדי לבצע פעולה במערכת צריך קודם לקבל בקשת אישור (כפתור אשר), "
+                        "או לבקש שוב במפורש לבצע את הפעולה."
+                    ),
+                    computed_data=computed_data,
+                )
+
+            approved_tool_name, approved_tool_args, tool_result = executed
+            portfolio_update_marker = build_pension_portfolio_update_after_transform(
+                tool_name=approved_tool_name,
+                tool_result=tool_result,
+                tool_args=approved_tool_args if isinstance(approved_tool_args, dict) else {},
+                current_pension_portfolio=effective_portfolio,
+            )
+            forced_document_reply = build_forced_document_reply(
+                tool_name=approved_tool_name,
+                tool_result=tool_result,
+            )
+
+            reply_text = forced_document_reply or tool_result
+            if approved_tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
+                reply_text = format_transform_result_for_user(tool_result=tool_result)
+            else:
+                reply_text = format_tool_output_for_user_stream(approved_tool_name, reply_text)
+            if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
+                reply_text = f"{portfolio_update_marker}{reply_text}"
+            return ChatResponse(
+                reply=sanitize_user_visible_text(reply_text),
+                computed_data=computed_data,
+            )
 
     pending_plan_target = None
     try:

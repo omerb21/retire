@@ -34,7 +34,7 @@ def _maybe_handle_approval_or_cancel_flow(
 ):
     approval = extract_user_approval_for_tool_call(request.messages)
     cancelled = extract_user_cancel_for_tool_call(request.messages)
-    if request.client_id is not None and (not no_tools_requested):
+    if request.client_id is not None:
         try:
             pending_db = load_pending_approval_request(
                 db=db,
@@ -117,7 +117,7 @@ def _maybe_handle_approval_or_cancel_flow(
                     merged_args.update(cancelled_tool_args)
                     cancelled = (cancelled_tool_name, merged_args)
 
-    if approval is None and request.client_id is not None and (not no_tools_requested):
+    if approval is None and request.client_id is not None:
         last_user_text = find_last_user_message(request.messages)
         if is_user_approval_intent_text(last_user_text):
             pending = extract_latest_approval_request(request.messages)
@@ -127,7 +127,17 @@ def _maybe_handle_approval_or_cancel_flow(
                 pending_db = pending_db
                 if pending_db is not None:
                     approval = pending_db
-    if approval and request.client_id is not None and (not no_tools_requested):
+            if approval is None and pending_db is None:
+                return StreamingResponse(
+                    iter(
+                        [
+                            "לא נמצאה בקשת אישור פעילה לביצוע. כדי לבצע פעולה במערכת צריך קודם לקבל בקשת אישור (כפתור אשר), או לבקש שוב במפורש לבצע את הפעולה."
+                        ]
+                    ),
+                    media_type="text/plain; charset=utf-8",
+                )
+
+    if approval and request.client_id is not None:
         approved_tool_name, approved_tool_args = approval
 
         if (
