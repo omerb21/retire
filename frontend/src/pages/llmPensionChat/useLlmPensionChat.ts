@@ -488,6 +488,21 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         return `${window.location.origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
       };
 
+      const openUrlAction = pendingUiActions.find(
+        (a: any) => a && typeof a === "object" && a.type === "open_url" && typeof a.url === "string" && a.url.trim(),
+      );
+      if (openUrlAction) {
+        const url = normalizeUrl(openUrlAction.url);
+        if (url) {
+          try {
+            window.open(url, "_blank", "noopener,noreferrer");
+          } catch {
+            window.open(url, "_blank");
+          }
+        }
+        return;
+      }
+
       const didNavigate = applyUiNavigateIfPresent({ type: "ui_actions", actions: pendingUiActions }, (path) => {
         console.log("UI_ACTION navigate target:", path);
         routerNavigate(path);

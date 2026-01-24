@@ -29,3 +29,5 @@ def test_stream_report_summary_navigates_to_correct_client(monkeypatch) -> None:
     body = response.text
     assert "###UI_ACTION###" in body
     assert "/clients/424242/reports?auto_html=1" in body
+    assert '"type": "open_url"' in body
+    assert '"type": "navigate"' not in body

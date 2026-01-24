@@ -755,14 +755,17 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             "type": "ui_actions",
             "actions": [
                 {
-                    "type": "navigate",
-                    "path": f"/clients/{request.client_id}/reports?auto_html=1",
+                    "type": "open_url",
+                    "url": f"/clients/{request.client_id}/reports?auto_html=1",
                     "label": "פתח דוח",
                 }
             ],
         }
         ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
-        return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+        return StreamingResponse(
+            iter([ui_action, "פתחתי את הדוח בטאב חדש."]),
+            media_type="text/plain; charset=utf-8",
+        )
 
     def _extract_first_json_object(raw: str) -> dict | None:
         if not isinstance(raw, str) or not raw:
@@ -2019,23 +2022,23 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
                 actions: list[dict[str, str]] = []
                 if isinstance(open_path, str) and open_path.strip():
-                    actions.append({"type": "navigate", "path": open_path.strip(), "label": "פתח דוח"})
+                    actions.append({"type": "open_url", "url": open_path.strip(), "label": "פתח דוח"})
                 elif isinstance(download_url, str) and download_url.strip():
                     actions.append(
                         {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
                     )
                     actions.append(
                         {
-                            "type": "navigate",
-                            "path": f"/clients/{request.client_id}/reports",
+                            "type": "open_url",
+                            "url": f"/clients/{request.client_id}/reports",
                             "label": "פתח עמוד דוחות",
                         }
                     )
                 else:
                     actions.append(
                         {
-                            "type": "navigate",
-                            "path": f"/clients/{request.client_id}/reports",
+                            "type": "open_url",
+                            "url": f"/clients/{request.client_id}/reports",
                             "label": "פתח עמוד דוחות",
                         }
                     )
@@ -2047,6 +2050,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 yield (
                     "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
                 )
+                yield "פתחתי את הדוח בטאב חדש."
 
             return StreamingResponse(
                 _generate_system_results_report_only(stream_request_id),
@@ -2061,8 +2065,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     ):
         actions: list[dict[str, str]] = [
             {
-                "type": "navigate",
-                "path": f"/clients/{request.client_id}/reports?auto_html=1",
+                "type": "open_url",
+                "url": f"/clients/{request.client_id}/reports?auto_html=1",
                 "label": "פתח דוח",
             }
         ]
@@ -2070,7 +2074,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         ui_action = (
             "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
         )
-        return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+        return StreamingResponse(
+            iter([ui_action, "פתחתי את הדוח בטאב חדש."]),
+            media_type="text/plain; charset=utf-8",
+        )
 
     plan_advice_domain = advice_domain if advice_mode else None
     plan = resolve_orchestration_plan(
