@@ -2,7 +2,11 @@ import json
 from typing import Any
 
 from app.models.client import Client
-from app.services.llm_chat.chat_orchestration_helpers import store_latest_target_pension_plan
+from app.services.llm_chat.chat_orchestration_helpers import (
+    load_latest_target_pension_plan,
+    store_latest_target_pension_plan,
+    store_latest_target_pension_plan_data,
+)
 from app.services.llm_chat.message_utils import extract_target_pension_from_message
 
 from app.services.llm_chat.orchestration_utils import (
@@ -78,6 +82,10 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
 
     try:
         store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+    except Exception:
+        pass
+    try:
+        store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
     except Exception:
         pass
     yield (
@@ -271,6 +279,10 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
 
     try:
         store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+    except Exception:
+        pass
+    try:
+        store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
     except Exception:
         pass
 

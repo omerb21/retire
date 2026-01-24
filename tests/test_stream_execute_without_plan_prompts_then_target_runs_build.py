@@ -58,7 +58,7 @@ def test_stream_execute_without_plan_prompts_then_target_runs_build(monkeypatch,
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בצע את התכנית בפועל"}],
+            "messages": [{"role": "user", "content": "בצע תכנית בפועל"}],
             "pension_portfolio": [],
         },
     )

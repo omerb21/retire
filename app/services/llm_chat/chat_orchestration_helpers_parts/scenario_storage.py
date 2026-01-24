@@ -249,6 +249,66 @@ def store_pending_plan_target_marker(
         return False
 
 
+def load_pending_plan_target_marker(*, db: Session, client_id: int) -> dict | None:
+    if client_id is None:
+        return None
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "pending_plan_target")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if str(parsed.get("kind") or "").strip() != "pending_plan_target":
+        return None
+    if parsed.get("active", True) is False:
+        return None
+
+    expires_raw = parsed.get("expires_at")
+    if isinstance(expires_raw, str) and expires_raw.strip():
+        try:
+            expires_at = datetime.fromisoformat(expires_raw.strip())
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) >= expires_at:
+                parsed = dict(parsed)
+                parsed["_expired"] = True
+        except Exception:
+            pass
+    return parsed
+
+
+def clear_pending_plan_target_marker(*, db: Session, client_id: int) -> bool:
+    if client_id is None:
+        return False
+    try:
+        (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "pending_plan_target")
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
 def _extract_target_plan_payload_from_tool_result(tool_result: str) -> dict | None:
     marker = "###TARGET_PENSION_PLAN_DATA###"
     end_marker = "###END_TARGET_PENSION_PLAN_DATA###"

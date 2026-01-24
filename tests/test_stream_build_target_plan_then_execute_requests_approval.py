@@ -82,7 +82,7 @@ def test_stream_build_target_plan_then_execute_requests_approval(monkeypatch, _t
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בצע את התכנית בפועל"}],
+            "messages": [{"role": "user", "content": "בצע תכנית בפועל"}],
             "pension_portfolio": [],
         },
     )

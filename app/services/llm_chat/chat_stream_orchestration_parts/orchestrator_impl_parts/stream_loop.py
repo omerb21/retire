@@ -1513,6 +1513,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             "תוכנית פרישה",
         )
     )
+
+    wants_execute_target_plan_text = (
+        ("בצע" in lowered_user_msg)
+        and ("תכנית" in lowered_user_msg or "תוכנית" in lowered_user_msg or "מתווה" in lowered_user_msg)
+    )
     no_tools_requested_local = (resolved_intent == ChatIntent.NO_TOOLS) or is_no_tools_request(
         original_user_msg
     )
@@ -1625,6 +1630,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         (resolved_intent != ChatIntent.REPORT)
         and is_plan_request_tokens
         and (target_net_for_plan is None)
+        and (not wants_execute_target_plan_text)
         and (not commutation_intent_local)
         and (not explicit_transform_local)
         and (not max_capital_requested_local)

@@ -63,12 +63,16 @@ def _handle_tool_call_step(
     from app.services.llm_chat.chat_orchestration_helpers import (
         build_approval_request_ui_action,
         build_forced_document_reply,
+        build_pension_portfolio_update_after_commutation,
         build_pension_portfolio_update_after_transform,
         get_gross_for_tax_chaining,
         run_tax_projection_autochain,
-        store_latest_target_pension_plan,
-        store_pending_approval_request,
+        load_latest_target_pension_plan,
+        load_pending_approval_request,
         maybe_clear_pension_portfolio_after_transform,
+        store_latest_target_pension_plan,
+        store_latest_target_pension_plan_data,
+        store_pending_approval_request,
     )
     from app.services.llm_chat.message_utils import (
         extract_target_pension_from_message,
@@ -786,6 +790,14 @@ def _handle_tool_call_step(
         if tool_name == "BUILD_TARGET_PENSION_PLAN" and request.client_id is not None:
             try:
                 store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=tool_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan_data(
                     db=db,
                     client_id=request.client_id,
                     tool_result=tool_result,

@@ -43,11 +43,15 @@ def _prepare_orchestration_inputs(
         build_pension_portfolio_update_after_transform,
         format_transform_result_for_user,
         build_transform_accounts_from_target_plan_payload,
+        clear_pending_plan_target_marker,
         clear_pending_approval_request,
         load_latest_target_pension_plan,
+        load_pending_plan_target_marker,
         load_pending_approval_request,
         store_latest_target_pension_plan,
+        store_latest_target_pension_plan_data,
         store_pending_approval_request,
+        store_pending_plan_target_marker,
     )
     from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
     from app.services.llm_chat.message_utils import (
@@ -131,6 +135,111 @@ def _prepare_orchestration_inputs(
 
     tools_enabled = bool(tools_enabled)
 
+    pending_plan_target = None
+    try:
+        if request.client_id is not None:
+            pending_plan_target = load_pending_plan_target_marker(
+                db=db,
+                client_id=request.client_id,
+            )
+    except Exception:
+        pending_plan_target = None
+
+    if (
+        tools_enabled
+        and request.client_id is not None
+        and (pending_plan_target is not None)
+        and (not bool(pending_plan_target.get("_expired")))
+    ):
+        raw = (original_user_msg or "").strip()
+        cleaned = raw.replace(",", "").replace(".", "").strip()
+
+        target_net_val: int | None = None
+        if cleaned.isdigit() and (4 <= len(cleaned) <= 6):
+            try:
+                target_net_val = int(cleaned)
+            except Exception:
+                target_net_val = None
+
+        if target_net_val is None:
+            lowered = raw.lower()
+            if any(tok in lowered for tok in ("יעד", "נטו", "net")):
+                try:
+                    extracted = float(extract_target_pension_from_message(raw) or 0)
+                except Exception:
+                    extracted = 0.0
+                if extracted > 0:
+                    try:
+                        target_net_val = int(extracted)
+                    except Exception:
+                        target_net_val = None
+
+        if target_net_val is not None:
+            plan_args = {
+                "target_monthly_pension": float(target_net_val),
+                "target_is_net": True,
+            }
+            plan_result = _execute_tool_call(
+                "BUILD_TARGET_PENSION_PLAN",
+                plan_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=request_id,
+            )
+
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+            try:
+                clear_pending_plan_target_marker(db=db, client_id=request.client_id)
+            except Exception:
+                pass
+
+            return ChatResponse(
+                reply=(
+                    "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                    + sanitize_user_visible_text(
+                        format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                    )
+                ),
+                computed_data=computed_data,
+            )
+
+        # Marker active but reply not target-net: re-prompt and BLOCK other flows (incl cashflow)
+        try:
+            store_pending_plan_target_marker(
+                db=db,
+                client_id=request.client_id,
+                ttl_seconds=300,
+                source=str((pending_plan_target.get("_meta") or {}).get("source") or "pending_plan_target"),
+            )
+        except Exception:
+            pass
+        return ChatResponse(
+            reply=(
+                "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
+                "כתוב: יעד נטו: <מספר>.\n"
+                "לדוגמה: יעד נטו: 28000"
+            ),
+            computed_data=computed_data,
+        )
+
     if tools_enabled and request.client_id is not None and (
         _is_target_plan_adjust_request(original_user_msg)
         or _is_target_plan_adjust_followup(original_user_msg, request.messages)
@@ -194,6 +303,10 @@ def _prepare_orchestration_inputs(
         )
         try:
             store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+        except Exception:
+            pass
+        try:
+            store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
         except Exception:
             pass
         return ChatResponse(
@@ -329,6 +442,10 @@ def _prepare_orchestration_inputs(
         )
         try:
             store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+        except Exception:
+            pass
+        try:
+            store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
         except Exception:
             pass
         return ChatResponse(

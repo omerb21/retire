@@ -1,7 +1,10 @@
 from app.database import SessionLocal
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
-from app.services.llm_chat.chat_orchestration_helpers import store_latest_target_pension_plan
+from app.services.llm_chat.chat_orchestration_helpers import (
+    store_latest_target_pension_plan,
+    store_latest_target_pension_plan_data,
+)
 from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 from ..stream_tool_execution import _execute_tool_call
@@ -50,6 +53,14 @@ def _stream_execute_tool_and_process_result(
             if tool_name == "BUILD_TARGET_PENSION_PLAN" and request.client_id is not None:
                 try:
                     store_latest_target_pension_plan(
+                        db=tool_db,
+                        client_id=request.client_id,
+                        tool_result=tool_result,
+                    )
+                except Exception:
+                    pass
+                try:
+                    store_latest_target_pension_plan_data(
                         db=tool_db,
                         client_id=request.client_id,
                         tool_result=tool_result,

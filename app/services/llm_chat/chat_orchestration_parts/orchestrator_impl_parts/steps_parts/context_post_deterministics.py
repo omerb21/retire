@@ -56,8 +56,10 @@ def _handle_post_deterministics_and_finalize(
         build_transform_accounts_from_target_plan_payload,
         clear_pending_approval_request,
         load_latest_target_pension_plan,
+        load_latest_target_pension_plan_data,
         load_pending_approval_request,
         store_pending_approval_request,
+        store_pending_plan_target_marker,
     )
     from app.services.llm_chat.message_utils import (
         extract_latest_approval_request,
@@ -180,10 +182,25 @@ def _handle_post_deterministics_and_finalize(
         if wants_execute_target_plan:
             payload = extract_latest_target_pension_plan_payload(request.messages)
             if payload is None:
+                payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+            if payload is None:
                 payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
             if not isinstance(payload, dict):
+                try:
+                    store_pending_plan_target_marker(
+                        db=db,
+                        client_id=request.client_id,
+                        ttl_seconds=300,
+                        source="execute_target_plan_prompt",
+                    )
+                except Exception:
+                    pass
                 return ChatResponse(
-                    reply="לא נמצאה תכנית יעד אחרונה לביצוע. קודם צריך לבנות תכנית יעד קצבה ואז לבקש לבצע אותה בפועל.",
+                    reply=(
+                        "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר.\n"
+                        "כתוב: יעד נטו: <מספר>.\n"
+                        "לדוגמה: יעד נטו: 28000"
+                    ),
                     computed_data=computed_data,
                 )
 
@@ -297,6 +314,8 @@ def _handle_post_deterministics_and_finalize(
             and wants_execute_target_plan
         ):
             payload = extract_latest_target_pension_plan_payload(request.messages)
+            if payload is None:
+                payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
             if payload is None:
                 payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
             if not isinstance(payload, dict):

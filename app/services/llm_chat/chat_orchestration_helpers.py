@@ -9,9 +9,11 @@ from app.services.llm_chat.chat_orchestration_helpers_parts.portfolio_updates im
 )
 from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
     _extract_target_plan_payload_from_tool_result,
+    clear_pending_plan_target_marker,
     clear_pending_approval_request,
     load_latest_target_pension_plan,
     load_latest_target_pension_plan_data,
+    load_pending_plan_target_marker,
     load_pending_approval_request,
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
