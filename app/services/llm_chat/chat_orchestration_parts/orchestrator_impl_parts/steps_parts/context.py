@@ -192,8 +192,7 @@ def _prepare_orchestration_inputs(
         pending_plan_target = None
 
     if (
-        tools_enabled
-        and request.client_id is not None
+        request.client_id is not None
         and (pending_plan_target is not None)
         and (not bool(pending_plan_target.get("_expired")))
     ):

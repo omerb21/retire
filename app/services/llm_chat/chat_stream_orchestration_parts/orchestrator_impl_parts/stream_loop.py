@@ -1677,11 +1677,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     target_net_reply = _extract_target_net_reply(original_user_msg or "")
 
     if (
-        tools_enabled
-        and (resolved_intent != ChatIntent.REPORT)
+        (resolved_intent != ChatIntent.REPORT)
         and request.client_id is not None
-        and (not no_tools_requested_local)
-        and (not is_qa_mode_local)
         and (target_net_reply is not None)
         and (pending_plan_target is not None)
         and (not bool(pending_plan_target.get("_expired")))

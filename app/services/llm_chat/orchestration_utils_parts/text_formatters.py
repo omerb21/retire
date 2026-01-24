@@ -533,6 +533,11 @@ def sanitize_user_visible_text(text: str) -> str:
     except Exception:
         pass
 
+    try:
+        updated = re.sub(r"conversation transcript", "", updated, flags=re.IGNORECASE)
+    except Exception:
+        pass
+
     lowered_preview = updated.lower()
     has_llm_thought_sections = any(
         token in lowered_preview
