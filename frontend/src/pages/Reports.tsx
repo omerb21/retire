@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useParams, Link } from 'react-router-dom';
 import { ReportHeader } from './Reports/components/ReportHeader';
 import { ExportControls } from './Reports/components/ExportControls';
@@ -13,6 +13,12 @@ const ReportsPage: React.FC = () => {
   const location = useLocation();
   const autoTriggeredRef = useRef(false);
   const [autoHtmlPreview, setAutoHtmlPreview] = useState<string>("");
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const isAutoHtml = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('auto_html') === '1';
+  }, [location.search]);
 
   const {
     loading,
@@ -73,6 +79,56 @@ const ReportsPage: React.FC = () => {
     handleGenerateHTML,
   ]);
 
+  if (isAutoHtml) {
+    return (
+      <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            height: 48,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 8,
+            padding: '0 12px',
+            borderBottom: '1px solid #ddd',
+            background: '#fff',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const cw = iframeRef.current?.contentWindow;
+              if (cw?.print) {
+                cw.print();
+              } else {
+                window.print();
+              }
+            }}
+          >
+            הדפס
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.history.back();
+            }}
+          >
+            חזרה
+          </button>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <iframe
+            ref={iframeRef}
+            title="HTML Report Viewer"
+            srcDoc={autoHtmlPreview || '<html><body></body></html>'}
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // טעינה
   if (loading) {
     return (
@@ -128,12 +184,6 @@ const ReportsPage: React.FC = () => {
           onGenerateFixationDocuments={fixationData ? handleGenerateFixationDocuments : undefined}
         />
       </div>
-
-      {autoHtmlPreview ? (
-        <div className="reports-auto-html-preview">
-          <iframe title="HTML Report Preview" srcDoc={autoHtmlPreview} style={{ width: "100%", height: "85vh", border: "1px solid #ddd" }} />
-        </div>
-      ) : null}
 
       <ReportHeader client={client} fixationData={fixationData} />
 
