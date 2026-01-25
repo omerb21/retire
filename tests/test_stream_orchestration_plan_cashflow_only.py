@@ -33,7 +33,7 @@ def test_stream_orchestration_plan_cashflow_only_runs_tool_once_no_llm(monkeypat
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "תחשב לי תזרים פרישה"}],
+            "messages": [{"role": "user", "content": "תחשב לי תזרים פרישה יעד נטו: 28000"}],
         },
     )
 

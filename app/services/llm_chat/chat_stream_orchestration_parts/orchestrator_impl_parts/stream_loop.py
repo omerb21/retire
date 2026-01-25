@@ -424,6 +424,26 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     original_user_msg = (raw_user_msg or "").strip()
 
+    def _is_tool_error_text(value: str | None) -> bool:
+        if not isinstance(value, str):
+            return False
+        raw = value.strip()
+        if not raw:
+            return False
+        lowered = raw.lower()
+        return lowered.startswith("tool error:") or lowered.startswith("error:")
+
+    def _cashflow_missing_target_prompt() -> str:
+        return (
+            "כדי לחשב תזרים פרישה אני צריך יעד הכנסה חודשי מפורש (ברוטו או נטו).\n\n"
+            "דוגמאות להעתקה:\n"
+            "יעד נטו: <מספר>\n"
+            "יעד ברוטו: <מספר>\n\n"
+            "דוגמאות מלאות:\n"
+            "יעד נטו: 28000\n"
+            "יעד ברוטו: 31000"
+        )
+
     def _has_any_digit(text: str) -> bool:
         return any(ch.isdigit() for ch in (text or ""))
 
@@ -1961,15 +1981,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
 
             try:
-                store_latest_retirement_cashflow_analysis(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_result=tool_result,
-                )
-            except Exception:
-                pass
-
-            try:
                 store_latest_target_pension_plan_data(
                     db=db,
                     client_id=request.client_id,
@@ -2362,6 +2373,23 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 user_message=original_user_msg or "",
             )
 
+            lowered_user_msg = (original_user_msg or "").lower()
+            explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
+            wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
+            cashflow_compute_tokens = (
+                "תחשב",
+                "תחישב",
+                "חישוב",
+                "ניתוח",
+                "תריץ",
+                "הרץ",
+                "חשב",
+            )
+            explicit_cashflow_calc_request = bool(
+                wants_cashflow_refresh
+                or (explicit_cashflow_request and any(t in lowered_user_msg for t in cashflow_compute_tokens))
+            )
+
             target_net = extract_target_net_ils(original_user_msg or "")
             desired_income = extract_desired_monthly_income_from_text(original_user_msg)
             desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
@@ -2369,6 +2397,19 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             if target_net is not None:
                 desired_income = float(target_net)
                 desired_income_is_net = True
+            if desired_income is None and explicit_cashflow_calc_request:
+                try:
+                    logger.info(
+                        "cashflow_only_missing_target_short_circuit",
+                        extra={
+                            "endpoint": "stream",
+                            "trace_id": req_id,
+                        },
+                    )
+                except Exception:
+                    pass
+                yield _cashflow_missing_target_prompt()
+                return
             if desired_income is not None and desired_income_is_net is None:
                 yield (
                     "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
@@ -2388,6 +2429,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             force_max_exemption = is_max_exemption_request(original_user_msg)
 
             tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+            try:
+                logger.info(
+                    "cashflow_only_tool_call",
+                    extra={
+                        "endpoint": "stream",
+                        "trace_id": req_id,
+                    },
+                )
+            except Exception:
+                pass
             tool_result = _execute_tool_call(
                 tool_name,
                 tool_args,
@@ -2399,14 +2450,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 request_id=req_id,
             )
 
-            try:
-                store_latest_retirement_cashflow_analysis(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_result=tool_result,
-                )
-            except Exception:
-                pass
+            if not _is_tool_error_text(tool_result):
+                try:
+                    store_latest_retirement_cashflow_analysis(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=tool_result,
+                    )
+                except Exception:
+                    pass
 
             tool_display = get_tool_display_name_hebrew(tool_name)
             user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
@@ -2434,9 +2486,10 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     + "- להפיק דוח מסכם מהמערכת כדי לקבל מסמך תומך החלטה על בסיס הנתונים והחישובים שבוצעו\n"
                 )
             else:
-                yield (
-                    "\n\n" + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
-                )
+                if not _is_tool_error_text(tool_result):
+                    yield (
+                        "\n\n" + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
+                    )
 
         return StreamingResponse(
             _generate_orchestration_plan_cashflow(stream_request_id),
@@ -2585,6 +2638,45 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
+    cashflow_compute_tokens = (
+        "תחשב",
+        "תחישב",
+        "חישוב",
+        "ניתוח",
+        "תריץ",
+        "הרץ",
+        "חשב",
+    )
+
+    explicit_cashflow_calc_request = bool(
+        wants_cashflow_refresh
+        or (explicit_cashflow_request and any(t in lowered_user_msg for t in cashflow_compute_tokens))
+    )
+
+    if (
+        explicit_cashflow_calc_request
+        and (not advice_compensation_mode)
+        and (not is_net_request)
+        and (not is_comparison_request)
+        and (resolved_intent != ChatIntent.REPORT)
+    ):
+        desired_income_for_gate = extract_desired_monthly_income_from_text(original_user_msg)
+        if (target_net_for_cashflow is None) and (desired_income_for_gate is None):
+            try:
+                logger.info(
+                    "cashflow_missing_target_short_circuit",
+                    extra={
+                        "endpoint": "stream",
+                        "trace_id": stream_request_id,
+                    },
+                )
+            except Exception:
+                pass
+            return StreamingResponse(
+                iter([_cashflow_missing_target_prompt()]),
+                media_type="text/plain; charset=utf-8",
+            )
+
     requested_cashflow_calc = bool(
         explicit_cashflow_request
         or wants_cashflow_refresh
@@ -2656,6 +2748,20 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     desired_income = float(target_net_for_cashflow)
                     desired_income_is_net = True
 
+                if desired_income is None and explicit_cashflow_calc_request:
+                    try:
+                        logger.info(
+                            "requested_cashflow_calc_missing_target_short_circuit",
+                            extra={
+                                "endpoint": "stream",
+                                "trace_id": stream_request_id,
+                            },
+                        )
+                    except Exception:
+                        pass
+                    yield _cashflow_missing_target_prompt()
+                    return
+
                 if desired_income is not None and desired_income_is_net is None:
                     yield (
                         "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
@@ -2673,6 +2779,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         tool_args["desired_net_monthly_income"] = int(float(desired_income))
 
                 tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+                try:
+                    logger.info(
+                        "requested_cashflow_calc_tool_call",
+                        extra={
+                            "endpoint": "stream",
+                            "trace_id": stream_request_id,
+                        },
+                    )
+                except Exception:
+                    pass
                 tool_result = _execute_tool_call(
                     tool_name,
                     tool_args,
@@ -2684,14 +2800,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     request_id=stream_request_id,
                 )
 
-                try:
-                    store_latest_retirement_cashflow_analysis(
-                        db=db,
-                        client_id=request.client_id,
-                        tool_result=tool_result,
-                    )
-                except Exception:
-                    pass
+                if not _is_tool_error_text(tool_result):
+                    try:
+                        store_latest_retirement_cashflow_analysis(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=tool_result,
+                        )
+                    except Exception:
+                        pass
 
                 tool_display = get_tool_display_name_hebrew(tool_name)
                 user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
@@ -2720,10 +2837,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         + "- להפיק דוח מסכם מהמערכת כדי לקבל מסמך תומך החלטה על בסיס הנתונים והחישובים שבוצעו\n"
                     )
                 else:
-                    yield (
-                        "\n\n"
-                        + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
-                    )
+                    if not _is_tool_error_text(tool_result):
+                        yield (
+                            "\n\n"
+                            + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
+                        )
 
             return StreamingResponse(
                 generate_cashflow_tool_exec(),
@@ -3394,12 +3512,53 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 if should_return:
                     return
 
+                if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
+                    lowered_user_msg2 = (original_user_msg or "").lower()
+                    explicit_cashflow_request2 = ("תזרים" in lowered_user_msg2) or ("cashflow" in lowered_user_msg2)
+                    wants_cashflow_refresh2 = is_cashflow_missing_income_followup(original_user_msg)
+                    cashflow_compute_tokens2 = (
+                        "תחשב",
+                        "תחישב",
+                        "חישוב",
+                        "ניתוח",
+                        "תריץ",
+                        "הרץ",
+                        "חשב",
+                    )
+                    explicit_cashflow_calc_request2 = bool(
+                        wants_cashflow_refresh2
+                        or (explicit_cashflow_request2 and any(t in lowered_user_msg2 for t in cashflow_compute_tokens2))
+                    )
+                    if (
+                        explicit_cashflow_calc_request2
+                        and (not advice_compensation_mode)
+                        and (not is_net_request)
+                        and (not is_comparison_request)
+                        and (resolved_intent != ChatIntent.REPORT)
+                    ):
+                        target_net_gate = extract_target_net_ils(original_user_msg or "")
+                        desired_income_gate = extract_desired_monthly_income_from_text(original_user_msg)
+                        if (target_net_gate is None) and (desired_income_gate is None):
+                            try:
+                                logger.info(
+                                    "llm_tool_call_cashflow_missing_target_short_circuit",
+                                    extra={
+                                        "endpoint": "stream",
+                                        "trace_id": stream_request_id,
+                                    },
+                                )
+                            except Exception:
+                                pass
+                            yield _cashflow_missing_target_prompt()
+                            return
+
                 (
                     should_break,
                     qa_summary_required,
                     report_open_path,
                     current_pension_portfolio,
                     forced_fixation_chain_done,
+                    last_tool_result,
                 ) = yield from _stream_execute_tool_and_process_result(
                     logger=logger,
                     req_id=req_id,
@@ -3432,10 +3591,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     if exec_only_active:
                         yield execution_only_blocked("policy_violation")
                         return
-                    yield (
-                        "\n\n"
-                        + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
-                    )
+                    if not _is_tool_error_text(last_tool_result):
+                        yield (
+                            "\n\n"
+                            + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
+                        )
                     return
 
             except Exception as e:

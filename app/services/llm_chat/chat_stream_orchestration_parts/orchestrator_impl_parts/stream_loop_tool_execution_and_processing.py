@@ -50,6 +50,9 @@ def _stream_execute_tool_and_process_result(
                 request_id=req_id,
             )
 
+            if isinstance(tool_result, str) and tool_result.strip():
+                full_response = tool_result
+
             if tool_name == "BUILD_TARGET_PENSION_PLAN" and request.client_id is not None:
                 try:
                     store_latest_target_pension_plan(
@@ -106,6 +109,7 @@ def _stream_execute_tool_and_process_result(
                         report_open_path,
                         current_pension_portfolio,
                         forced_fixation_chain_done,
+                        tool_result,
                     )
 
             (
@@ -140,6 +144,7 @@ def _stream_execute_tool_and_process_result(
                 report_open_path,
                 current_pension_portfolio,
                 forced_fixation_chain_done,
+                tool_result,
             )
 
         finally:
@@ -154,4 +159,5 @@ def _stream_execute_tool_and_process_result(
             report_open_path,
             current_pension_portfolio,
             forced_fixation_chain_done,
+            None,
         )
