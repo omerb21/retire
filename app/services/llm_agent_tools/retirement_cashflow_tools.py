@@ -53,11 +53,15 @@ class RetirementCashflowToolsMixin:
             }
 
         if desired_monthly_income is None:
-            # ברירת מחדל: 70% מהשכר האחרון או 15,000 ש"ח
-            if client.annual_salary:
-                desired_monthly_income = (client.annual_salary / 12) * 0.7
-            else:
-                desired_monthly_income = 15000.0
+            return {
+                "success": False,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {},
+                "explanation": (
+                    "חסר יעד הכנסה חודשי. "
+                    "כדי להריץ תזרים במערכת צריך יעד חודשי מפורש (ברוטו או נטו)."
+                ),
+            }
 
         # 2. חישוב גיל הפרישה המתוכנן
         # שימוש בלוגיקה קיימת של המודל אם אפשר, או חישוב פשוט

@@ -178,28 +178,30 @@ def is_retirement_cashflow_request(user_message: str) -> bool:
     if is_tax_documents_request(user_message):
         return False
 
-    triggers = [
-        "תזרים",
-        "cashflow",
+    compute_tokens = (
+        "תחשב",
+        "תחישב",
+        "חשב",
+        "חישוב",
+        "ניתוח",
+        "תריץ",
+        "הרץ",
+    )
+    domain_tokens = (
+        "פרישה",
+        "תאריך פרישה",
+        "גיל פרישה",
         "קצבה",
         "פנסיה",
-        "פרישה",
-        "גיל פרישה",
-        "תאריך פרישה",
-        "השווא",
-        "לעומת",
-        "מול",
-        "תרחיש",
-        "גובה הקצבה",
-        "משוך קצבה",
-        "להתחיל קצבה",
-        "קיבוע",
-        "פטור",
+        "נטו",
         "ברוטו",
         "מס",
-    ]
+        "יעד",
+        "תרחיש",
+    )
 
-    return any(t in lowered for t in triggers)
+    # Only treat as a cashflow request when the user explicitly asked to compute/run an analysis.
+    return any(t in lowered for t in compute_tokens) and any(t in lowered for t in domain_tokens)
 
 def is_process_termination_request(user_message: str) -> bool:
     if not user_message:
@@ -384,7 +386,19 @@ def is_retirement_comparison_request(user_message: str) -> bool:
     if not has_comparison:
         return False
 
-    return is_retirement_cashflow_request(user_message)
+    lowered = user_message.lower()
+    retirement_tokens = (
+        "פרישה",
+        "גיל פרישה",
+        "תאריך פרישה",
+        "קצבה",
+        "פנסיה",
+        "תזרים",
+        "cashflow",
+        "נטו",
+        "ברוטו",
+    )
+    return any(t in lowered for t in retirement_tokens)
 
 def is_max_exemption_request(user_message: str) -> bool:
     if not user_message:

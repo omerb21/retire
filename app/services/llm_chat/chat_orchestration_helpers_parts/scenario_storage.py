@@ -141,6 +141,70 @@ def load_latest_target_pension_plan(*, db: Session, client_id: int) -> dict | No
     return parsed if isinstance(parsed, dict) else None
 
 
+def store_latest_retirement_cashflow_analysis(
+    *, db: Session, client_id: int, tool_result: str
+) -> bool:
+    if client_id is None:
+        return False
+
+    payload: dict
+    try:
+        parsed = json.loads(tool_result) if isinstance(tool_result, str) else None
+    except Exception:
+        parsed = None
+
+    if isinstance(parsed, dict):
+        payload = dict(parsed)
+    else:
+        payload = {"raw": str(tool_result or "")}
+
+    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
+    meta = dict(meta)
+    meta["operation_type"] = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+    meta["stored_at_utc"] = datetime.now(timezone.utc).isoformat()
+    payload["_meta"] = meta
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="retirement_cashflow_analysis",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def load_latest_retirement_cashflow_analysis(*, db: Session, client_id: int) -> dict | None:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "retirement_cashflow_analysis")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_result: str) -> bool:
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:

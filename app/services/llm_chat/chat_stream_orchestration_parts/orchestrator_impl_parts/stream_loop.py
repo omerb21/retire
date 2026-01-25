@@ -34,6 +34,8 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
+    store_latest_retirement_cashflow_analysis,
+    load_latest_retirement_cashflow_analysis,
 )
 from app.services.llm_chat.pending_approvals import (
     compute_args_hash,
@@ -421,6 +423,130 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     raw_user_msg = find_last_user_message(request.messages)
 
     original_user_msg = (raw_user_msg or "").strip()
+
+    def _has_any_digit(text: str) -> bool:
+        return any(ch.isdigit() for ch in (text or ""))
+
+    def _is_explain_in_words_request(user_msg: str) -> bool:
+        normalized = (user_msg or "").strip()
+        if not normalized:
+            return False
+        lowered = normalized.lower()
+        cleaned = lowered.replace(".", "").replace("!", "").replace("?", "").strip()
+        if cleaned in {"הסבר במילים", "הסבר במילים בלבד", "הסבר במילים בבקשה"}:
+            return True
+        return False
+
+    def _is_general_retirement_help_request(user_msg: str) -> bool:
+        lowered = (user_msg or "").strip().lower()
+        if not lowered:
+            return False
+        has_domain = any(tok in lowered for tok in ("פרשתי", "פרישה", "פנסיה"))
+        has_help = (
+            ("עזרה" in lowered)
+            or ("איך" in lowered and ("מתכנ" in lowered or "מתכננים" in lowered))
+            or ("מה עושים" in lowered and "עכשיו" in lowered)
+        )
+        if not (has_domain and has_help):
+            return False
+
+        # Do not hijack advice-domain flows like tax optimization or investment risk.
+        if any(tok in lowered for tok in ("מס", "מיסוי", "סיכון", "מסלול", "השקעה", "תנודתיות", "אגח", "מניות", "קיבוע", "היוון", "פיצויים")):
+            return False
+        has_explicit_calc = any(
+            tok in lowered
+            for tok in (
+                "תזרים",
+                "cashflow",
+                "דוח",
+                'דו"ח',
+                "הפק",
+                "חשב",
+                "תחשב",
+                "הרץ",
+                "בנה",
+                "תכנית",
+                "תוכנית",
+                "יעד",
+                "נטו",
+                "ברוטו",
+            )
+        )
+        if has_explicit_calc:
+            return False
+        return True
+
+    if _is_general_retirement_help_request(original_user_msg):
+        def _general_retirement_help_answer():
+            yield (
+                "כותרת: תכנון פרישה – מיפוי ראשוני\n\n"
+                "כדי לעזור לך לתכנן נכון, אני צריך קודם למפות את התמונה: מקורות הכנסה, הוצאות, הון נזיל, והחלטות שעומדות על הפרק.\n\n"
+                "שאלות קצרות כדי להתקדם:\n"
+                "- מה יעד ההכנסה החודשית שאתה רוצה להגיע אליו (במילים: נטו או ברוטו)?\n"
+                "- מה מקורות ההכנסה שיש לך כרגע (קצבאות, עבודה חלקית, שכירות, הכנסות נוספות)?\n"
+                "- האם יש לך הון נזיל או סכומים חד-פעמיים שצפויים להיכנס/לצאת בתקופה הקרובה?\n"
+                "- האם יש הוצאות חריגות/צרכים מיוחדים שחשוב לקחת בחשבון?\n\n"
+                "אפשרויות פעולה במערכת (לבחירה שלך):\n"
+                "- לחשב תזרים לפי יעד שתגדיר\n"
+                "- להפיק דוח מסכם\n"
+                "- לבנות תכנית יעד קצבה אחרי שתציין יעד חודשי\n"
+            )
+
+        return StreamingResponse(
+            _general_retirement_help_answer(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if _is_explain_in_words_request(original_user_msg):
+        def _explain_in_words_answer():
+            latest = None
+            if request.client_id is not None:
+                try:
+                    latest = load_latest_retirement_cashflow_analysis(db=db, client_id=request.client_id)
+                except Exception:
+                    latest = None
+
+            result = latest.get("result") if isinstance(latest, dict) else None
+            if isinstance(result, dict):
+                deficit_or_surplus = result.get("monthly_deficit_or_surplus")
+                status = "עודף" if isinstance(deficit_or_surplus, (int, float)) and deficit_or_surplus >= 0 else "גירעון"
+                is_sustainable = result.get("is_sustainable")
+                has_target_net = bool(result.get("desired_income_is_net"))
+
+                yield (
+                    "כותרת: הסבר מילולי לתוצאת התזרים האחרונה\n\n"
+                    "מה המערכת בדקה\n"
+                    "- הכנסות חודשיות מול יעד ההכנסה שהוגדר\n"
+                    "- מס על רכיבי ההכנסה כפי שחושבו במערכת\n"
+                    "- פער בין ההכנסה לבין היעד\n\n"
+                    "מה המשמעות בשורה אחת\n"
+                    f"- לפי החישוב האחרון יש {status} ביחס ליעד.\n\n"
+                    "מה זה אומר פרקטית\n"
+                    "- עודף: לרוב אין צורך למשוך הון כדי לעמוד ביעד, וההחלטות הן בעיקר סביב יציבות מול גמישות\n"
+                    "- גירעון: לרוב צריך להחליט האם משלימים מהון, משנים את יעד ההכנסה, או משנים את מבנה המשיכות/הקצבאות\n\n"
+                    "איך לפרש נטו מול ברוטו\n"
+                    + ("- היעד הוגדר כנטו, כלומר ההשוואה היא אחרי מס.\n" if has_target_net else "- היעד לא הוגדר כנטו, ולכן חשוב לוודא האם היעד הוא ברוטו או נטו לפני השוואה.\n")
+                    + ("\nהערכת קיימות\n- לפי המערכת התרחיש נראה בר-קיימא ביחס ליעד.\n" if is_sustainable is True else ("\nהערכת קיימות\n- לפי המערכת התרחיש אינו בר-קיימא ביחס ליעד ללא השלמה/שינוי.\n" if is_sustainable is False else ""))
+                    + "\nצעד הבא\n- אם תרצה מספרים או שינוי יעד, כתוב במפורש את יעד ההכנסה ואת האם הוא נטו או ברוטו.\n"
+                )
+                return
+
+            yield (
+                "כותרת: הסבר במילים\n\n"
+                "אם אין תוצאת חישוב אחרונה להצמד אליה, ההסבר כאן הוא עקרונות כלליים בלבד.\n\n"
+                "איך ניגשים לתכנון פרישה באופן כללי\n"
+                "- מיפוי מקורות הכנסה והאם הם קבועים או משתנים\n"
+                "- מיפוי הוצאות שוטפות והוצאות חד-פעמיות צפויות\n"
+                "- הבחנה בין הכנסה נטו לברוטו והשפעת המס\n"
+                "- בדיקת פער בין היעד לבין ההכנסה והחלטה אם משלימים מהון\n"
+                "- זיהוי החלטות בלתי הפיכות מול החלטות שניתנות לשינוי\n\n"
+                "אם תרצה שאסביר את המצב שלך על סמך חישוב מערכת, בקש לחשב תזרים עם יעד מפורש.\n"
+            )
+
+        return StreamingResponse(
+            _explain_in_words_answer(),
+            media_type="text/plain; charset=utf-8",
+        )
 
     plan_phrase_detected = False
     try:
@@ -1835,6 +1961,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             )
 
             try:
+                store_latest_retirement_cashflow_analysis(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=tool_result,
+                )
+            except Exception:
+                pass
+
+            try:
                 store_latest_target_pension_plan_data(
                     db=db,
                     client_id=request.client_id,
@@ -2264,6 +2399,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 request_id=req_id,
             )
 
+            try:
+                store_latest_retirement_cashflow_analysis(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=tool_result,
+                )
+            except Exception:
+                pass
+
             tool_display = get_tool_display_name_hebrew(tool_name)
             user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
             yield (
@@ -2540,11 +2684,21 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     request_id=stream_request_id,
                 )
 
+                try:
+                    store_latest_retirement_cashflow_analysis(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=tool_result,
+                    )
+                except Exception:
+                    pass
+
                 tool_display = get_tool_display_name_hebrew(tool_name)
                 user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
                 yield (
                     f"🔧 **פלט כלי ({tool_display}):**\n"
                     + sanitize_user_visible_text(user_tool_output)
+                    + "\n\n"
                 )
                 if advice_compensation_mode:
                     yield (
