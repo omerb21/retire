@@ -474,32 +474,13 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         }
       }
 
-      const normalizeUrl = (raw: string): string => {
-        const trimmed = (raw || "").trim();
-        if (!trimmed) return "";
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-          return trimmed;
-        }
-        if (trimmed.startsWith("/api/v1/")) {
-          return `${API_BASE}${trimmed.slice("/api/v1".length)}`;
-        }
-        if (trimmed === "/api/v1") {
-          return API_BASE;
-        }
-        return `${window.location.origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
-      };
-
       const openUrlAction = pendingUiActions.find(
         (a: any) => a && typeof a === "object" && a.type === "open_url" && typeof a.url === "string" && a.url.trim(),
       );
       if (openUrlAction) {
         const finalUrl = buildOpenUrl(openUrlAction.url, window.location.origin, window.location.hash);
         if (finalUrl) {
-          try {
-            window.open(finalUrl, "_blank", "noopener,noreferrer");
-          } catch {
-            window.open(finalUrl, "_blank");
-          }
+          window.open(finalUrl, "_blank", "noopener,noreferrer");
         }
         return;
       }
@@ -516,22 +497,6 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
           return;
         }
 
-        if (action.type === "open_url" && typeof action.url === "string" && action.url.trim()) {
-          const url = normalizeUrl(action.url);
-          if (!url) return;
-          try {
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = "";
-            link.rel = "noopener";
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-          } catch {
-            window.open(url, "_blank");
-          }
-          return;
-        }
       });
 
       const effectiveProvider = llmStatus?.provider || "ollama";
