@@ -3,6 +3,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { applyUiNavigateIfPresent } from "./uiActions";
+import { buildOpenUrl } from "./openUrl";
 
 import {
   apiFetch,
@@ -492,18 +493,18 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         (a: any) => a && typeof a === "object" && a.type === "open_url" && typeof a.url === "string" && a.url.trim(),
       );
       if (openUrlAction) {
-        const url = normalizeUrl(openUrlAction.url);
-        if (url) {
+        const finalUrl = buildOpenUrl(openUrlAction.url, window.location.origin, window.location.hash);
+        if (finalUrl) {
           try {
-            window.open(url, "_blank", "noopener,noreferrer");
+            window.open(finalUrl, "_blank", "noopener,noreferrer");
           } catch {
-            window.open(url, "_blank");
+            window.open(finalUrl, "_blank");
           }
         }
         return;
       }
 
-      const didNavigate = applyUiNavigateIfPresent({ type: "ui_actions", actions: pendingUiActions }, (path) => {
+      const didNavigate = applyUiNavigateIfPresent({ type: "ui_actions", actions: pendingUiActions }, (path: string) => {
         console.log("UI_ACTION navigate target:", path);
         routerNavigate(path);
       });
