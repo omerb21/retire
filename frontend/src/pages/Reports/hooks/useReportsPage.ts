@@ -4,6 +4,9 @@ import { useReportData } from '../../../components/reports/hooks/useReportData';
 import { generateYearlyProjection } from '../../../components/reports/calculations/cashflowCalculations';
 import { calculateNPVComparison } from '../../../components/reports/calculations/npvCalculations';
 import { generateHTMLReport } from '../utils/htmlReportGenerator';
+import { renderHtmlReport } from '../utils/htmlReportRenderer';
+
+type HtmlReportMode = 'auto' | 'manual';
 
 export function useReportsPage(clientId: string | undefined) {
   const {
@@ -150,7 +153,8 @@ export function useReportsPage(clientId: string | undefined) {
 
   const totalMonthlyIncome = totalMonthlyPension + totalAdditionalIncome;
 
-  const handleGenerateHTML = useCallback(() => {
+  const handleGenerateHTML = useCallback((options?: { mode?: HtmlReportMode }) => {
+    const mode: HtmlReportMode = options?.mode || 'manual';
     const htmlContent = generateHTMLReport(
       client,
       fixationData,
@@ -164,17 +168,7 @@ export function useReportsPage(clientId: string | undefined) {
       totalMonthlyIncome
     );
 
-    const reportWindow = window.open('', '_blank');
-
-    if (!reportWindow) {
-      alert('יש לאפשר פתיחת חלונות קופצים להצגת הדוח');
-      return;
-    }
-
-    reportWindow.document.open();
-    reportWindow.document.write(htmlContent);
-    reportWindow.document.close();
-    reportWindow.focus();
+    return renderHtmlReport({ mode, htmlContent }).htmlContent;
   }, [
     client,
     fixationData,

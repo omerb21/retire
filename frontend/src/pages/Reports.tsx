@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useParams, Link } from 'react-router-dom';
 import { ReportHeader } from './Reports/components/ReportHeader';
 import { ExportControls } from './Reports/components/ExportControls';
@@ -12,6 +12,7 @@ const ReportsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const autoTriggeredRef = useRef(false);
+  const [autoHtmlPreview, setAutoHtmlPreview] = useState<string>("");
 
   const {
     loading,
@@ -56,7 +57,10 @@ const ReportsPage: React.FC = () => {
     }
 
     autoTriggeredRef.current = true;
-    handleGenerateHTML();
+    const html = handleGenerateHTML({ mode: 'auto' });
+    if (typeof html === 'string') {
+      setAutoHtmlPreview(html);
+    }
   }, [
     location.search,
     loading,
@@ -120,10 +124,16 @@ const ReportsPage: React.FC = () => {
           capitalAssets={capitalAssets}
           client={client}
           fixationData={fixationData}
-          onGenerateHTML={handleGenerateHTML}
+          onGenerateHTML={() => handleGenerateHTML({ mode: 'manual' })}
           onGenerateFixationDocuments={fixationData ? handleGenerateFixationDocuments : undefined}
         />
       </div>
+
+      {autoHtmlPreview ? (
+        <div className="reports-auto-html-preview">
+          <iframe title="HTML Report Preview" srcDoc={autoHtmlPreview} style={{ width: "100%", height: "85vh", border: "1px solid #ddd" }} />
+        </div>
+      ) : null}
 
       <ReportHeader client={client} fixationData={fixationData} />
 

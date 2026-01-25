@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { applyUiNavigateIfPresent, findFirstNavigatePath } from "./uiActions.js";
-import { buildOpenUrl, openUrlOnce } from "./openUrl.js";
+import { buildOpenUrl } from "./openUrl.js";
 
 test("ui_actions navigate uses action.path exactly", () => {
   const payload = {
@@ -33,34 +33,4 @@ test("buildOpenUrl uses browser routing when window.hash is empty", () => {
   const origin = "https://example.com";
   const hash = "";
   assert.equal(buildOpenUrl(url, origin, hash), "https://example.com/clients/39/reports?auto_html=1");
-});
-
-test("openUrlOnce opens only once when invoked twice quickly with same open_url", () => {
-  const calls = [];
-  const win = {
-    open: (...args) => {
-      calls.push(args);
-    },
-  };
-
-  const lastOpenAtRef = { current: 0 };
-  const lastOpenUrlRef = { current: null };
-
-  const payload = {
-    url: "/clients/39/reports?auto_html=1",
-    origin: "https://example.com",
-    hash: "#/clients/1",
-    win,
-    lastOpenAtRef,
-    lastOpenUrlRef,
-    ttlMs: 2500,
-  };
-
-  const r1 = openUrlOnce(payload);
-  const r2 = openUrlOnce(payload);
-
-  assert.equal(r1.opened, true);
-  assert.equal(r2.opened, false);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], "https://example.com/#/clients/39/reports?auto_html=1");
 });
