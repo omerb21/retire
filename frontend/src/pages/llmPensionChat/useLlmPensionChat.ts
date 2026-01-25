@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { applyUiNavigateIfPresent } from "./uiActions";
 import { buildOpenUrl } from "./openUrl";
+import { shouldOpenOnce } from "./openOnce";
 
 import {
   apiFetch,
@@ -480,6 +481,10 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
       if (openUrlAction) {
         const finalUrl = buildOpenUrl(openUrlAction.url, window.location.origin, window.location.hash);
         if (finalUrl) {
+          const key = "report:" + finalUrl.split("?")[0];
+          if (!shouldOpenOnce(key, 2000)) {
+            return;
+          }
           window.open(finalUrl, "_blank", "noopener,noreferrer");
         }
         return;
