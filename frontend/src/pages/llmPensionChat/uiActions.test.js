@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { applyUiNavigateIfPresent, findFirstNavigatePath } from "./uiActions.js";
-import { buildOpenUrl } from "./openUrl.js";
-import { shouldOpenOnce } from "./openOnce.js";
+import { buildOpenUrl, openUrlOnce } from "./openUrl.js";
 
 test("ui_actions navigate uses action.path exactly", () => {
   const payload = {
@@ -36,27 +35,32 @@ test("buildOpenUrl uses browser routing when window.hash is empty", () => {
   assert.equal(buildOpenUrl(url, origin, hash), "https://example.com/clients/39/reports?auto_html=1");
 });
 
-test("shouldOpenOnce allows first open and blocks immediate duplicate", () => {
-  const originalSessionStorage = globalThis.sessionStorage;
-
-  const store = new Map();
-  globalThis.sessionStorage = {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => {
-      store.set(k, String(v));
-    },
-    removeItem: (k) => {
-      store.delete(k);
-    },
-    clear: () => {
-      store.clear();
+test("openUrlOnce opens only once when invoked twice quickly with same open_url", () => {
+  const calls = [];
+  const win = {
+    open: (...args) => {
+      calls.push(args);
     },
   };
 
-  try {
-    assert.equal(shouldOpenOnce("report:/#/clients/39/reports", 2000), true);
-    assert.equal(shouldOpenOnce("report:/#/clients/39/reports", 2000), false);
-  } finally {
-    globalThis.sessionStorage = originalSessionStorage;
-  }
+  const lastOpenAtRef = { current: 0 };
+  const lastOpenUrlRef = { current: null };
+
+  const payload = {
+    url: "/clients/39/reports?auto_html=1",
+    origin: "https://example.com",
+    hash: "#/clients/1",
+    win,
+    lastOpenAtRef,
+    lastOpenUrlRef,
+    ttlMs: 2500,
+  };
+
+  const r1 = openUrlOnce(payload);
+  const r2 = openUrlOnce(payload);
+
+  assert.equal(r1.opened, true);
+  assert.equal(r2.opened, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "https://example.com/#/clients/39/reports?auto_html=1");
 });

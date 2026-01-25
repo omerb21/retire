@@ -3,8 +3,7 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { applyUiNavigateIfPresent } from "./uiActions";
-import { buildOpenUrl } from "./openUrl";
-import { shouldOpenOnce } from "./openOnce";
+import { openUrlOnce } from "./openUrl";
 
 import {
   apiFetch,
@@ -69,6 +68,8 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
   const [isSwitchingProvider, setIsSwitchingProvider] = useState(false);
   const [isOpeningPublicChat, setIsOpeningPublicChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastOpenAtRef = useRef<number>(0);
+  const lastOpenUrlRef = useRef<string | null>(null);
   const [usageByMessageIndex, setUsageByMessageIndex] = useState<Record<number, UsageInfo>>({});
   const [nextMessageUsage, setNextMessageUsage] = useState<UsageInfo | null>(null);
   const [computedData, setComputedData] = useState<ComputedPensionData | null>(null);
@@ -479,14 +480,16 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
         (a: any) => a && typeof a === "object" && a.type === "open_url" && typeof a.url === "string" && a.url.trim(),
       );
       if (openUrlAction) {
-        const finalUrl = buildOpenUrl(openUrlAction.url, window.location.origin, window.location.hash);
-        if (finalUrl) {
-          const key = "report:" + finalUrl.split("?")[0];
-          if (!shouldOpenOnce(key, 2000)) {
-            return;
-          }
-          window.open(finalUrl, "_blank", "noopener,noreferrer");
-        }
+        openUrlOnce({
+          url: openUrlAction.url,
+          origin: window.location.origin,
+          hash: window.location.hash,
+          win: window,
+          lastOpenAtRef,
+          lastOpenUrlRef,
+          ttlMs: 2500,
+        });
+        pendingUiActions.length = 0;
         return;
       }
 
