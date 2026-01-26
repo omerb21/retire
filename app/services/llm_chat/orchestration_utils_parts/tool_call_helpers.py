@@ -113,6 +113,50 @@ def extract_explicit_retirement_date_from_text(user_message: str | None) -> str 
 
     return f"{y:04d}-{mo:02d}-{d:02d}"
 
+
+def extract_explicit_retirement_age_from_text(user_message: str | None) -> int | None:
+    if not user_message:
+        return None
+
+    text = str(user_message).strip()
+    if not text:
+        return None
+
+    normalized = text.replace("׳", "'").replace("״", '"')
+    m = re.search(r"\b(?:לגיל|בגיל|גיל)\s*(\d{2})\b", normalized)
+    if not m:
+        return None
+
+    try:
+        age = int(m.group(1))
+    except Exception:
+        return None
+
+    if age < 40 or age > 80:
+        return None
+    return age
+
+
+def extract_relative_retirement_years_from_text(user_message: str | None) -> int | None:
+    if not user_message:
+        return None
+    text = str(user_message).strip()
+    if not text:
+        return None
+
+    normalized = text.replace("׳", "'").replace("״", '"')
+    m = re.search(r"\b(?:עוד|בעוד)\s*(\d{1,2})\s*שנ", normalized)
+    if not m:
+        return None
+
+    try:
+        years = int(m.group(1))
+    except Exception:
+        return None
+    if years <= 0 or years > 60:
+        return None
+    return years
+
 def extract_desired_monthly_income_from_text(user_message: str | None) -> float | None:
     if not user_message:
         return None

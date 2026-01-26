@@ -259,7 +259,13 @@ def load_latest_target_pension_plan_data(*, db: Session, client_id: int) -> dict
 
 
 def store_pending_plan_target_marker(
-    *, db: Session, client_id: int, ttl_seconds: int = 300, source: str = ""
+    *,
+    db: Session,
+    client_id: int,
+    ttl_seconds: int = 300,
+    source: str = "",
+    pending_retirement_age: int | None = None,
+    pending_retirement_date: str | None = None,
 ) -> bool:
     if client_id is None:
         return False
@@ -279,6 +285,17 @@ def store_pending_plan_target_marker(
         "expires_at": expires_at.isoformat(),
         "_meta": {"source": str(source or "").strip()},
     }
+
+    if pending_retirement_age is not None:
+        try:
+            age_val = int(pending_retirement_age)
+        except Exception:
+            age_val = None
+        if age_val is not None and 40 <= age_val <= 80:
+            payload["pending_retirement_age"] = int(age_val)
+
+    if isinstance(pending_retirement_date, str) and pending_retirement_date.strip():
+        payload["pending_retirement_date"] = pending_retirement_date.strip()
 
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(

@@ -52,6 +52,8 @@ from app.services.llm_chat.orchestration_utils_parts.guards_and_validations impo
 from app.services.llm_chat.orchestration_utils_parts.tool_call_helpers import (
     extract_explicit_gender_and_age_from_text,
     extract_explicit_retirement_date_from_text,
+    extract_explicit_retirement_age_from_text,
+    extract_relative_retirement_years_from_text,
     extract_desired_monthly_income_from_text,
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,

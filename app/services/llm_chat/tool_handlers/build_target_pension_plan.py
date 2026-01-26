@@ -105,6 +105,8 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
 
     summary_lines: list[str] = []
     summary_lines.append("תכנית יעד קצבה – סיכום:")
+    if retirement_age_val is not None:
+        summary_lines.append(f"- גיל פרישה בתכנון: {int(retirement_age_val)}")
     summary_lines.append(f"- יעד קצבה חודשי ({mode_label}): {float(plan_res.get('target_monthly_pension') or 0):,.0f} ₪")
 
     if plan_res.get("target_is_net"):

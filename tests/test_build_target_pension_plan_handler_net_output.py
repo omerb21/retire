@@ -74,3 +74,23 @@ def test_build_target_pension_plan_handler_emits_target_plan_payload_block() -> 
     payload = json.loads(payload_raw)
     assert payload["tool_name"] == "BUILD_TARGET_PENSION_PLAN"
     assert payload["result"]["target_is_net"] is True
+
+
+def test_build_target_pension_plan_handler_mentions_retirement_age_when_provided() -> None:
+    tool_res = {
+        "success": True,
+        "result": {
+            "target_monthly_pension": 28000,
+            "target_is_net": True,
+            "target_achieved": True,
+            "accumulated_pension": 28000,
+            "remaining_capital": 0,
+        },
+        "explanation": "demo",
+    }
+    out = handle_build_target_pension_plan(
+        args={"target_monthly_pension": 28000, "retirement_age": 75},
+        agent_tools=_FakeAgentTools(tool_res),
+    )
+    assert "גיל פרישה בתכנון" in out
+    assert "75" in out
