@@ -100,33 +100,25 @@ def normalize_retirement_date_if_jan1_placeholder(
 
 def compute_default_retirement_date_for_tool_call(*, birth_date: date | None, gender: str | None, user_message: str) -> str:
     if birth_date is None:
-        return date.today().isoformat()
+        return ""
+
+    try:
+        if birth_date == date(1970, 1, 1):
+            return ""
+    except Exception:
+        pass
+
+    if not gender or not str(gender).strip():
+        return ""
 
     requested_ages = extract_retirement_ages_from_message(user_message)
     if len(requested_ages) == 1:
         return compute_retirement_date_from_birth_date(birth_date, requested_ages[0]).isoformat()
 
     try:
-        legal_retirement_date = get_retirement_date(birth_date, gender or "")
+        legal_retirement_date = get_retirement_date(birth_date, str(gender))
     except Exception:
-        try:
-            from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
-
-            fallback_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-        except Exception:
-            fallback_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
-        try:
-            from app.services.retirement_age_service import get_retirement_age_simple
-
-            fallback_age = int(get_retirement_age_simple(birth_date, gender or ""))
-        except Exception:
-            try:
-                from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
-
-                fallback_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-            except Exception:
-                fallback_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
-        legal_retirement_date = compute_retirement_date_from_birth_date(birth_date, fallback_age)
+        return ""
 
     today = date.today()
     if legal_retirement_date < today:

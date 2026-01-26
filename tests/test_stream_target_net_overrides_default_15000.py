@@ -54,7 +54,12 @@ def test_stream_target_net_overrides_default_15000(monkeypatch) -> None:
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "יעד נטו 28000"}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "יעד נטו 28000 תאריך פרישה: 2030-01-01 אישה בת 62",
+                }
+            ],
         },
     )
 

@@ -415,7 +415,7 @@ def test_stream_cashflow_request_runs_cashflow_tool(monkeypatch) -> None:
             "messages": [
                 {
                     "role": "user",
-                    "content": "אני זקוק להכנסה כללית של 40000 שח ברוטו בחודש. בנה לי תזרים חודשי",
+                    "content": "אני זקוק להכנסה כללית של 40000 שח ברוטו בחודש. תחשב לי תזרים חודשי. תאריך פרישה: 2030-01-01 גבר בן 67",
                 }
             ],
             "pension_portfolio": [],
@@ -469,7 +469,7 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
             "messages": [
                 {
                     "role": "user",
-                    "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח ברוטו בחודש. אנא בנה לי תזרים",
+                    "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח ברוטו בחודש. תחשב לי תזרים. תאריך פרישה: 2030-01-01 גבר בן 67",
                 }
             ],
             "pension_portfolio": [],
@@ -521,6 +521,8 @@ def test_cashflow_includes_additional_income_in_gap_calculation(
         desired_monthly_income=40000.0,
         apply_max_exemption=False,
         desired_income_is_net=True,
+        explicit_age=67,
+        explicit_gender="male",
     )
     assert res.get("success") is True
     result = res.get("result") or {}

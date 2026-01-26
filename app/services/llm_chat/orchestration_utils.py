@@ -50,6 +50,8 @@ from app.services.llm_chat.orchestration_utils_parts.guards_and_validations impo
 )
 
 from app.services.llm_chat.orchestration_utils_parts.tool_call_helpers import (
+    extract_explicit_gender_and_age_from_text,
+    extract_explicit_retirement_date_from_text,
     extract_desired_monthly_income_from_text,
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,
@@ -60,6 +62,7 @@ from app.services.llm_chat.orchestration_utils_parts.tool_call_helpers import (
     parse_portfolio_wide_prev_employers_severance_conversion_request,
     parse_targeted_component_conversion_request,
 )
+
 from app.services.llm_chat.orchestration_utils_parts.portfolio_helpers import (
     build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio,
     build_portfolio_wide_component_transform_accounts_from_portfolio,

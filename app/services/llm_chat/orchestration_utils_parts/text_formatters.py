@@ -36,6 +36,61 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
         except Exception:
             return raw
 
+    if tool_name == "GET_PENSION_PRODUCTS":
+        raw = tool_result or ""
+        if not isinstance(raw, str) or not raw.strip():
+            return "(tool returned empty payload)"
+        try:
+            parsed_products = json.loads(raw)
+        except Exception:
+            return raw
+
+        products = None
+        if isinstance(parsed_products, dict):
+            products = parsed_products.get("products")
+        if not isinstance(products, list):
+            products = []
+
+        def _n(v: object) -> float:
+            try:
+                return float(v or 0)
+            except Exception:
+                return 0.0
+
+        lines: list[str] = []
+        lines.append("תוצאות בפועל במערכת – רשימת מוצרים")
+        if not products:
+            lines.append("לא נמצאו מוצרים (קרנות פנסיה / נכסי הון) במערכת ללקוח.")
+            return "\n".join(lines)
+
+        total = 0.0
+        for p in products:
+            if not isinstance(p, dict):
+                continue
+            amt = _n(p.get("balance"))
+            if amt <= 0:
+                amt = _n(p.get("current_value"))
+            total += amt
+
+        lines.append(f"נמצאו {len(products)} מוצרים.")
+        lines.append(f"סה\"כ צבירה (כפי שמופיע במערכת): {total:,.0f} ₪")
+        lines.append("")
+        lines.append("פירוט (עד 10 פריטים):")
+
+        for idx, p in enumerate(products[:10], start=1):
+            if not isinstance(p, dict):
+                continue
+            category = str(p.get("category") or "").strip() or "unknown"
+            name = str(p.get("fund_name") or p.get("asset_name") or "ללא שם").strip()
+            amt = _n(p.get("balance"))
+            if amt <= 0:
+                amt = _n(p.get("current_value"))
+            lines.append(f"{idx}. {name} ({category}) – {amt:,.0f} ₪")
+
+        lines.append("")
+        lines.append("הערה: התשובה מוצגת כפי שנשלפה מהמערכת (ללא חישוב פנימי של הסוכן).")
+        return "\n".join(lines).strip()
+
     if tool_name in {
         "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
         "CALCULATE_TAX_SPREAD_BENEFIT",

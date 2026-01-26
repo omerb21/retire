@@ -583,21 +583,6 @@ def _prepare_orchestration_inputs(
         and (not no_tools_requested)
         and (not commutation_intent)
     ):
-        birth_date_for_default_date = None
-        gender_for_default_date = None
-        try:
-            client_obj = db.query(Client).filter(Client.id == request.client_id).first()
-            birth_date_for_default_date = getattr(client_obj, "birth_date", None) if client_obj else None
-            gender_for_default_date = getattr(client_obj, "gender", None) if client_obj else None
-        except Exception:
-            birth_date_for_default_date = None
-            gender_for_default_date = None
-
-        default_retirement_date = compute_default_retirement_date_for_tool_call(
-            birth_date=birth_date_for_default_date,
-            gender=gender_for_default_date,
-            user_message=original_user_msg or "",
-        )
         desired_income = extract_desired_monthly_income_from_text(original_user_msg)
         desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
         if desired_income is not None and desired_income_is_net is None:
@@ -610,9 +595,74 @@ def _prepare_orchestration_inputs(
                 ),
                 computed_data=computed_data,
             )
-        tool_args: dict[str, Any] = {"retirement_date": default_retirement_date}
-        if desired_income is not None:
-            tool_args["desired_monthly_income"] = float(desired_income)
+
+        if desired_income is None:
+            return ChatResponse(
+                reply=(
+                    "כדי לחשב תזרים פרישה אני צריך יעד הכנסה חודשי מפורש (ברוטו או נטו).\n\n"
+                    "דוגמאות להעתקה:\n"
+                    "יעד נטו: <מספר>\n"
+                    "יעד ברוטו: <מספר>\n\n"
+                    "דוגמאות מלאות:\n"
+                    "יעד נטו: 28000\n"
+                    "יעד ברוטו: 31000"
+                ),
+                computed_data=computed_data,
+            )
+
+        explicit_gender, explicit_age = extract_explicit_gender_and_age_from_text(original_user_msg)
+
+        client = None
+        try:
+            client = db.query(Client).filter(Client.id == request.client_id).first()
+        except Exception:
+            client = None
+
+        birth_date = getattr(client, "birth_date", None) if client else None
+        try:
+            from datetime import date
+
+            if birth_date == date(1970, 1, 1):
+                birth_date = None
+        except Exception:
+            birth_date = None
+        db_gender = getattr(client, "gender", None) if client else None
+
+        gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
+
+        retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
+        if not retirement_date:
+            retirement_date = compute_default_retirement_date_for_tool_call(
+                birth_date=birth_date,
+                gender=gender_final,
+                user_message=original_user_msg or "",
+            )
+
+        age_final = explicit_age
+        if age_final is None and birth_date and retirement_date:
+            try:
+                from datetime import datetime
+
+                target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
+                age_years = target_date.year - birth_date.year
+                if (target_date.month, target_date.day) < (birth_date.month, birth_date.day):
+                    age_years -= 1
+                age_final = int(age_years)
+            except Exception:
+                age_final = None
+
+        if (not retirement_date) or (gender_final is None) or (age_final is None):
+            return ChatResponse(
+                reply="כדי לחשב צריך לציין מין וגיל",
+                computed_data=computed_data,
+            )
+
+        tool_args: dict[str, Any] = {
+            "retirement_date": retirement_date,
+            "desired_monthly_income": float(desired_income),
+            "age": int(age_final),
+            "gender": gender_final,
+        }
         if desired_income_is_net is not None:
             tool_args["desired_income_is_net"] = bool(desired_income_is_net)
 

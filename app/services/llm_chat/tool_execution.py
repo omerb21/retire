@@ -143,6 +143,8 @@ def _maybe_fill_default_retirement_date(*, tool_name: str, args: dict, client_ob
     if not isinstance(args, dict):
         return
 
+    return
+
     tools_requiring_retirement_date = {
         "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
         "CALCULATE_PENSION_COMMUTATION",

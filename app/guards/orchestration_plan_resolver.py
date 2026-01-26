@@ -44,9 +44,6 @@ def resolve_orchestration_plan(
 
     tokens = _tokenize(user_text or "")
 
-    if advice_domain == AdviceDomain.COMPENSATION:
-        return OrchestrationPlan.CASHFLOW_ONLY
-
     # CASHFLOW_ONLY is only triggered for explicit cashflow wording.
     # Do not treat generic retirement analysis/planning phrases as cashflow.
     if ("תזרים" in tokens) or ("cashflow" in tokens):

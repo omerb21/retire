@@ -221,7 +221,7 @@ def is_user_approval_intent_text(text: str) -> bool:
         "ok",
         "כן",
     )
-    return any(token in raw for token in approval_tokens)
+    return raw in approval_tokens
 
 
 def was_tool_call_previously_approved(

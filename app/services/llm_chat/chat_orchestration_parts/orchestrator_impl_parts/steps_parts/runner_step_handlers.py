@@ -1148,10 +1148,15 @@ def _handle_no_tool_call_step(
             messages.append(ChatMessage(role="system", content=warning_msg))
             current_step += 1
             return True, False, final_reply, current_step
+        cashflow_args = (
+            f'{{"retirement_date": "{default_retirement_date}"}}'
+            if isinstance(default_retirement_date, str) and default_retirement_date.strip()
+            else "{}"
+        )
         warning_msg = (
             "אזהרה: אסור לך לענות על בקשות חישוב/השוואת קצבה ללא הרצת כלים. "
             "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוקים בפורמט "
-            f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {{"retirement_date": "{default_retirement_date}"}}}} ללא טקסט נוסף.'
+            f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {cashflow_args}}} ללא טקסט נוסף.'
         )
         messages.append(ChatMessage(role="system", content=warning_msg))
         current_step += 1
@@ -1168,21 +1173,31 @@ def _handle_no_tool_call_step(
             )
         )
         if cashflow_results < 2:
+            cashflow_args = (
+                f'{{"retirement_date": "{default_retirement_date}"}}'
+                if isinstance(default_retirement_date, str) and default_retirement_date.strip()
+                else "{}"
+            )
             warning_msg = (
                 "אזהרה: המשתמש ביקש השוואה בין שני תרחישי פרישה (למשל גיל 68 מול 69). "
                 "אסור לספק תשובה מספרית לפני שתי הרצות של RUN_RETIREMENT_CASHFLOW_ANALYSIS (אחת לכל תרחיש). "
                 "כעת עליך להחזיר רק בלוקים בפורמט "
-                f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {{"retirement_date": "{default_retirement_date}"}}}} ללא טקסט נוסף.'
+                f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {cashflow_args}}} ללא טקסט נוסף.'
             )
             messages.append(ChatMessage(role="system", content=warning_msg))
             current_step += 1
             return True, False, final_reply, current_step
 
     if is_net_request and (not no_tools_requested) and (not has_tool_results):
+        cashflow_args = (
+            f'{{"retirement_date": "{default_retirement_date}"}}'
+            if isinstance(default_retirement_date, str) and default_retirement_date.strip()
+            else "{}"
+        )
         warning_msg = (
             "אזהרה: אסור לך לענות על שאלות נטו/אחרי מס ללא הרצת כלים. "
             "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "
-            f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {{"retirement_date": "{default_retirement_date}"}}}} ללא טקסט נוסף.'
+            f'###TRANSPARENCY_LOG### {{...}} ואז ###RISK_REVIEW### {{...}} ואז ###TOOL_CALL### {{"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {cashflow_args}}} ללא טקסט נוסף.'
         )
         messages.append(ChatMessage(role="system", content=warning_msg))
         current_step += 1

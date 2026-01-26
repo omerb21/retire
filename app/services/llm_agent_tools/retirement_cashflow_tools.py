@@ -21,6 +21,8 @@ class RetirementCashflowToolsMixin:
         desired_monthly_income: Optional[float] = None,
         apply_max_exemption: bool = False,
         desired_income_is_net: Optional[bool] = None,
+        explicit_age: Optional[int] = None,
+        explicit_gender: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         מבצע ניתוח תזרים מזומנים בפרישה:
@@ -70,8 +72,42 @@ class RetirementCashflowToolsMixin:
 
         # 2. חישוב גיל הפרישה המתוכנן
         # שימוש בלוגיקה קיימת של המודל אם אפשר, או חישוב פשוט
-        birth_date = client.birth_date or date(1970, 1, 1)
-        age_at_retirement = relativedelta(target_date, birth_date).years
+        birth_date = getattr(client, "birth_date", None)
+        if birth_date is None:
+            return {
+                "success": False,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {},
+                "explanation": "חסר תאריך לידה של הלקוח במערכת ולכן לא ניתן לבצע חישוב מס בצורה תקינה.",
+            }
+
+        if explicit_age is None:
+            return {
+                "success": False,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {},
+                "explanation": "חסר גיל מפורש לביצוע חישוב. אנא ציין גיל (למשל: 'גבר בן <גיל>' / 'אישה בת <גיל>').",
+            }
+
+        if explicit_gender is None:
+            return {
+                "success": False,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {},
+                "explanation": "חסר מין מפורש לביצוע חישוב. אנא ציין מין (למשל: 'גבר בן <גיל>' / 'אישה בת <גיל>').",
+            }
+
+        try:
+            age_at_retirement = int(explicit_age)
+        except Exception:
+            age_at_retirement = None
+        if age_at_retirement is None or age_at_retirement < 40 or age_at_retirement > 80:
+            return {
+                "success": False,
+                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+                "result": {},
+                "explanation": "גיל לא תקין לביצוע חישוב. אנא ציין גיל בין 40 ל-80.",
+            }
         
         # Refresh client to ensure relationships are loaded
         self.db.refresh(client)
@@ -304,7 +340,7 @@ class RetirementCashflowToolsMixin:
             coeff_result = get_annuity_coefficient(
                 product_type="קרן פנסיה",  # שימוש בזיהוי קרן פנסיה כמו בשאר המערכת
                 start_date=target_date,
-                gender=client.gender or "זכר",
+                gender=str(explicit_gender),
                 retirement_age=age_at_retirement,
                 target_year=target_date.year,
                 birth_date=birth_date,
@@ -358,7 +394,9 @@ class RetirementCashflowToolsMixin:
         
         # התאמה לפי גיל הזכאות (נשים 62-65, גברים 67)
         # אם פורש לפני הזמן - 0
-        legal_retirement_age = 67 if (client.gender == "male" or not client.gender) else 65
+        gender_norm = str(explicit_gender or "").strip().lower()
+        is_female = gender_norm in {"female", "f", "נקבה", "נ"}
+        legal_retirement_age = 65 if is_female else 67
         if age_at_retirement < legal_retirement_age:
             social_security_amount = 0.0
 

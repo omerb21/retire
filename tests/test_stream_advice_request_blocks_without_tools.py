@@ -11,7 +11,7 @@ def test_stream_advice_request_blocks_without_tools(monkeypatch) -> None:
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        return "OK"
+        raise AssertionError("Tools must not be executed when advice request is missing cashflow inputs")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -33,5 +33,5 @@ def test_stream_advice_request_blocks_without_tools(monkeypatch) -> None:
     body = response.text
 
     assert "###UI_ACTION###" not in body
-    assert "🔧" in body
-    assert "כדי לענות על זה בצורה נכונה נדרש חישוב מדויק" not in body
+    assert "🔧" not in body
+    assert "כדי לענות על זה בצורה נכונה" in body

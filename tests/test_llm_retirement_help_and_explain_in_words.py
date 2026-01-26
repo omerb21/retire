@@ -77,7 +77,7 @@ def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch
             "messages": [
                 {
                     "role": "user",
-                    "content": "יעד נטו: 40000. תחשב לי תזרים פרישה",
+                    "content": "יעד נטו: 40000. תחשב לי תזרים פרישה תאריך פרישה: 2030-01-01 גבר בן 67",
                 }
             ],
             "pension_portfolio": [],
@@ -96,7 +96,10 @@ def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch
         json={
             "client_id": 1,
             "messages": [
-                {"role": "user", "content": "יעד נטו: 40000. תחשב לי תזרים פרישה"},
+                {
+                    "role": "user",
+                    "content": "יעד נטו: 40000. תחשב לי תזרים פרישה תאריך פרישה: 2030-01-01 גבר בן 67",
+                },
                 {"role": "assistant", "content": resp1.text},
                 {"role": "user", "content": "הסבר במילים"},
             ],

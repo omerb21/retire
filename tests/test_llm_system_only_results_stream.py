@@ -6,7 +6,7 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_system_results_bypasses_llm_and_uses_cashflow_tool(monkeypatch) -> None:
+def test_stream_system_results_bypasses_llm_and_uses_get_products_tool(monkeypatch) -> None:
     # If the LLM is called, the test must fail.
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM should not be called for system results requests")
@@ -25,18 +25,13 @@ def test_stream_system_results_bypasses_llm_and_uses_cashflow_tool(monkeypatch) 
         force_max_exemption: bool = False,
     ) -> str:
         tool_calls.append((tool_name, args))
-        assert tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-        # Return a minimal shape compatible with _format_system_results_from_cashflow.
+        assert tool_name == "GET_PENSION_PRODUCTS"
         return json.dumps(
             {
-                "retirement_date": args.get("retirement_date"),
-                "retirement_age": 72,
-                "projected_pension": 49327.2,
-                "monthly_tax_deduction": 13552.89,
-                "projected_pension_net": 35774.32,
-                "exemption_percentage": 0.0,
-                "exempt_pension_monthly": 0.0,
-                "total_liquid_capital": 35475.0,
+                "products": [
+                    {"category": "pension", "fund_name": "פנסיה א", "balance": 1000},
+                    {"category": "capital", "asset_name": "הון ב", "current_value": 2000},
+                ]
             },
             ensure_ascii=False,
         )
@@ -65,5 +60,5 @@ def test_stream_system_results_bypasses_llm_and_uses_cashflow_tool(monkeypatch) 
     assert response.status_code == 200
     body = response.text
     assert "תוצאות בפועל במערכת" in body
-    assert "קצבה ברוטו" in body
-    assert tool_calls and tool_calls[0][0] == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+    assert "רשימת מוצרים" in body
+    assert tool_calls and tool_calls[0][0] == "GET_PENSION_PRODUCTS"

@@ -2,7 +2,6 @@ import json
 import logging
 
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.llm_chat.orchestration_utils import compute_default_retirement_date_for_tool_call
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -33,36 +32,14 @@ def handle_run_retirement_cashflow_analysis(
     desired_net_income = args.get("desired_net_monthly_income")
     desired_income_is_net = args.get("desired_income_is_net")
     apply_max_exemption_arg = args.get("apply_max_exemption", False)
+    explicit_age = args.get("age")
+    explicit_gender = args.get("gender")
 
-    if not isinstance(date_str, str) or _is_placeholder_date_str(date_str):
-        raw_before = date_str
-        birth_date = None
-        gender = None
-        try:
-            birth_date = getattr(getattr(agent_tools, "client", None), "birth_date", None)
-        except Exception:
-            birth_date = None
-        try:
-            gender = getattr(getattr(agent_tools, "client", None), "gender", None)
-        except Exception:
-            gender = None
-        filled = compute_default_retirement_date_for_tool_call(
-            birth_date=birth_date,
-            gender=gender,
-            user_message="",
-        )
-        logger.warning(
-            "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Replaced placeholder retirement_date=%s with %s (birth_date=%s)",
-            raw_before,
-            filled,
-            birth_date,
-        )
-        if isinstance(args, dict):
-            args["retirement_date"] = filled
-        date_str = filled
+    if date_str is None:
+        date_str = ""
 
-    if not date_str:
-        return "Error: Missing argument 'retirement_date'"
+    if isinstance(date_str, str) and _is_placeholder_date_str(date_str):
+        date_str = ""
 
     income_val = float(income) if income else None
     if desired_net_income is not None:
@@ -94,6 +71,8 @@ def handle_run_retirement_cashflow_analysis(
         desired_monthly_income=income_val,
         apply_max_exemption=apply_max_exemption,
         desired_income_is_net=desired_income_is_net_val,
+        explicit_age=explicit_age,
+        explicit_gender=explicit_gender,
     )
 
     if not result.get("success"):

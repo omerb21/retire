@@ -27,6 +27,92 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     normalize_tool_name,
 )
 
+
+def extract_explicit_gender_and_age_from_text(user_message: str | None) -> tuple[str | None, int | None]:
+    if not user_message:
+        return None, None
+
+    text = str(user_message).strip()
+    if not text:
+        return None, None
+
+    normalized = text.replace("׳", "'").replace("״", '"')
+    lowered = normalized.lower()
+
+    gender: str | None = None
+    age: int | None = None
+
+    if any(t in lowered for t in ("אישה", "נקבה", "female", "woman")):
+        gender = "female"
+    if any(t in lowered for t in ("גבר", "זכר", "male", "man")):
+        gender = "male"
+
+    m_ben = re.search(r"\bבן\s*(\d{2})\b", normalized)
+    m_bat = re.search(r"\bבת\s*(\d{2})\b", normalized)
+    if m_ben:
+        gender = "male"
+        try:
+            age = int(m_ben.group(1))
+        except Exception:
+            age = None
+    if m_bat:
+        gender = "female"
+        try:
+            age = int(m_bat.group(1))
+        except Exception:
+            age = None
+
+    if age is None:
+        m_age = re.search(r"\bבגיל\s*(\d{2})\b", normalized)
+        if m_age:
+            try:
+                age = int(m_age.group(1))
+            except Exception:
+                age = None
+
+    if age is None:
+        m_age2 = re.search(r"\bגיל\s*(\d{2})\b", normalized)
+        if m_age2:
+            try:
+                age = int(m_age2.group(1))
+            except Exception:
+                age = None
+
+    if "לגבר" in normalized or "לזכר" in normalized:
+        gender = "male"
+    if "לאישה" in normalized or "לנקבה" in normalized:
+        gender = "female"
+
+    if age is not None and (age < 40 or age > 80):
+        age = None
+
+    return gender, age
+
+
+def extract_explicit_retirement_date_from_text(user_message: str | None) -> str | None:
+    if not user_message:
+        return None
+
+    text = str(user_message).strip()
+    if not text:
+        return None
+
+    normalized = text.replace("/", "-")
+
+    m = re.search(r"\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b", normalized)
+    if not m:
+        return None
+
+    y = int(m.group(1))
+    mo = int(m.group(2))
+    d = int(m.group(3))
+    if mo < 1 or mo > 12:
+        return None
+    if d < 1 or d > 31:
+        return None
+
+    return f"{y:04d}-{mo:02d}-{d:02d}"
+
 def extract_desired_monthly_income_from_text(user_message: str | None) -> float | None:
     if not user_message:
         return None

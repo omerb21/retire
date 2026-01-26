@@ -50,10 +50,37 @@ _FORBIDDEN_PERCENT_WORDS: tuple[str, ...] = (
 )
 
 
+_ALLOWED_CASHFLOW_TARGET_GUIDANCE_RE = re.compile(
+    r"^כדי לחשב תזרים פרישה אני צריך יעד הכנסה חודשי מפורש \(ברוטו או נטו\)\.\s*\n\s*\n"
+    r"דוגמאות להעתקה:\s*\n"
+    r"יעד נטו:\s*<מספר>\s*\n"
+    r"יעד ברוטו:\s*<מספר>\s*\n\s*\n"
+    r"דוגמאות מלאות:\s*\n"
+    r"יעד נטו:\s*\d+\s*\n"
+    r"יעד ברוטו:\s*\d+\s*$",
+    flags=re.MULTILINE,
+)
+
+
+_ALLOWED_MISSING_AGE_GENDER_PROMPT_RE = re.compile(
+    r"^כדי לחשב תזרים פרישה אני צריך לציין מין וגיל\.\s*\n"
+    r"כתוב למשל:\s*\n"
+    r"- גבר בן \d{2}\s*\n"
+    r"- אישה בת \d{2}\s*$",
+    flags=re.MULTILINE,
+)
+
+
 def enforce_behavioral_limits(text: str) -> tuple[bool, str]:
     """Returns (is_allowed, final_text)."""
 
     candidate = text or ""
+
+    if _ALLOWED_CASHFLOW_TARGET_GUIDANCE_RE.match(candidate.strip()):
+        return True, candidate
+
+    if _ALLOWED_MISSING_AGE_GENDER_PROMPT_RE.match(candidate.strip()):
+        return True, candidate
 
     if (
         ("🔧" in candidate)

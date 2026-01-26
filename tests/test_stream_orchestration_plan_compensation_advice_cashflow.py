@@ -34,7 +34,10 @@ def test_stream_orchestration_plan_compensation_advice_runs_cashflow_tool_and_ap
         json={
             "client_id": 1,
             "messages": [
-                {"role": "user", "content": "מה עדיף לעשות עם הפיצויים שלי?"}
+                {
+                    "role": "user",
+                    "content": "מה עדיף לעשות עם הפיצויים שלי? תחשב לי תזרים פרישה יעד נטו: 28000 תאריך פרישה: 2030-01-01 גבר בן 67",
+                }
             ],
         },
     )
