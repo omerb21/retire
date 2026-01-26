@@ -193,7 +193,12 @@ def ui_redirect():
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
-    return {"status": "ok", "version": "1.0.8"}
+    return {
+        "status": "ok",
+        "version": "1.0.8",
+        "git_sha": os.getenv("GIT_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
+        "build_time": os.getenv("BUILD_TIME") or "unknown",
+    }
 
 @app.get("/api/v1/health")
 def health_check_v1():
