@@ -20,6 +20,11 @@ _CONCEPTUAL_TRIGGERS: tuple[str, ...] = (
     "איך לפרש דוח",
     "באופן עקרוני",
     "באופן כללי",
+    "עיקרון בלבד",
+    "הסבר בלבד",
+    "רק להסביר",
+    "בלי לבצע",
+    "ללא ביצוע",
 )
 
 _CONCEPTUAL_DEFINITION_TRIGGERS: tuple[str, ...] = (
