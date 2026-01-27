@@ -89,15 +89,31 @@ def build_forced_document_reply(
                 )
 
             if isinstance(download_url, str) and download_url.strip():
+                normalized_url = _normalize_open_url(download_url)
+                raw_doc_type = parsed_result.get("document_type")
+                doc_type = str(raw_doc_type or "").strip()
+
+                is_fixation_package = (
+                    tool_name == "GENERATE_TAX_DEDUCTION_DOCUMENTS"
+                    and doc_type in {"fixation_package", "kibua_zechuyot", "package", "161d_package"}
+                ) or (
+                    isinstance(normalized_url, str)
+                    and normalized_url.startswith("/api/v1/fixation/")
+                    and normalized_url.endswith("/package")
+                )
+
+                if is_fixation_package and client_id is not None:
+                    normalized_url = f"/api/v1/fixation/{client_id}/package"
+
                 actions: list[dict[str, str]] = [
                     {
                         "type": "open_url",
-                        "url": _normalize_open_url(download_url),
+                        "url": normalized_url,
                         "label": "פתח להורדה",
                     }
                 ]
 
-                if client_id is not None:
+                if (not is_fixation_package) and client_id is not None:
                     actions.append(
                         {
                             "type": "navigate",
@@ -108,7 +124,7 @@ def build_forced_document_reply(
 
                 return (
                     f"###UI_ACTION###{json.dumps({'type': 'ui_actions', 'actions': actions}, ensure_ascii=False)}###END_UI_ACTION###\n"
-                    f"{status_message}\n\nקישור להורדה: {download_url.strip()}"
+                    f"{status_message}"
                 )
     except Exception:
         return None
