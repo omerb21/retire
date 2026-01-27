@@ -22,6 +22,7 @@ from app.services.llm_chat.orchestration_utils_parts.snapshot_helpers import (
     compute_retirement_date_from_birth_date,
     normalize_retirement_date_if_jan1_placeholder,
     compute_default_retirement_date_for_tool_call,
+    resolve_target_retirement_age,
 )
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
     _is_target_pension_plan_request_text,

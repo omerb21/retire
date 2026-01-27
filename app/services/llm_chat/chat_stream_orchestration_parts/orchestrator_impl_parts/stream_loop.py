@@ -120,6 +120,7 @@ from app.services.llm_chat.orchestration_utils import (
     parse_portfolio_wide_component_conversion_request,
     parse_portfolio_wide_after_settlement_severance_conversion_request,
     parse_targeted_component_conversion_request,
+    resolve_target_retirement_age,
     normalize_retirement_date_if_jan1_placeholder,
     parse_tool_call_from_reply,
     sanitize_user_visible_text,
@@ -247,10 +248,13 @@ from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_determini
 
 logger = logging.getLogger("app.llm_chat")
 
+def _today() -> date:
+    return date.today()
+
 _NO_TOOLS_DECISION_PHRASES: tuple[str, ...] = (
     "האם",
-    "תרצה",
-    "רוצה",
+    "למה",
+    "איך",
     "בחר",
     "תעדיף",
     "מעוניין",
@@ -261,18 +265,19 @@ _NO_TOOLS_FIXED_ENDING = "קיבלתי. אפשר להמשיך בהסבר מיל�
 
 
 def _postprocess_no_tools_user_visible_text(text: str) -> str:
-    original = text or ""
-    original = "\n".join(
-        line
-        for line in original.splitlines()
-        if ("RAG_RETIREMENT_KB" not in line and "END_RAG_RETIREMENT_KB" not in line)
-    )
-    out = original.replace("?", "")
-    for phrase in _NO_TOOLS_DECISION_PHRASES:
-        out = out.replace(phrase, "")
+    if not isinstance(text, str):
+        return _NO_TOOLS_FIXED_ENDING
+    out = text
+    out = out.replace("?", " ")
+    try:
+        out = re.sub(r"\b(?:האם|תרצה|בחר)\b", " ", out)
+    except Exception:
+        pass
+    out = re.sub(r"[\t ]+", " ", out)
+    out = re.sub(r"\s+\.\s+", ". ", out)
+    out = re.sub(r"\s+\n", "\n", out)
+    out = re.sub(r"\n\s+", "\n", out)
     out = re.sub(r"[ \t]{2,}", " ", out)
-    out = re.sub(r"\n{3,}", "\n\n", out)
-    out = out.strip()
     if not out.endswith(_NO_TOOLS_FIXED_ENDING):
         out = (out + "\n\n" if out else "") + _NO_TOOLS_FIXED_ENDING
     return out
@@ -496,85 +501,56 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
     def _infer_pending_retirement_fields_for_marker(*, client_id: int | None) -> tuple[int | None, str | None]:
-        explicit_age = extract_explicit_retirement_age_from_text(original_user_msg)
         explicit_date = extract_explicit_retirement_date_from_text(original_user_msg)
         if isinstance(explicit_date, str) and explicit_date.strip():
-            return explicit_age, explicit_date.strip()
+            resolved_age = extract_explicit_retirement_age_from_text(original_user_msg)
+            return resolved_age, explicit_date.strip()
 
-        rel_years = extract_relative_retirement_years_from_text(original_user_msg)
-        if rel_years is None:
-            return explicit_age, None
-
-        today = date.today()
+        client_obj = None
         try:
-            target = date(today.year + int(rel_years), today.month, today.day)
+            if client_id is not None:
+                client_obj = db.query(Client).filter(Client.id == client_id).first()
         except Exception:
-            try:
-                target = date(today.year + int(rel_years), today.month, min(today.day, 28))
-            except Exception:
-                target = None
-        if target is None:
-            return explicit_age, None
-        return explicit_age, target.isoformat()
-
-    def _infer_retirement_age_for_plan_args(*, client_obj: Client | None, pending_payload: dict | None) -> int | None:
-        explicit_age = extract_explicit_retirement_age_from_text(original_user_msg)
-        if explicit_age is not None:
-            return int(explicit_age)
-
-        if isinstance(pending_payload, dict):
-            pending_age = pending_payload.get("pending_retirement_age")
-            if pending_age is not None:
-                try:
-                    age_val = int(pending_age)
-                except Exception:
-                    age_val = None
-                if age_val is not None and 40 <= age_val <= 80:
-                    return int(age_val)
+            client_obj = None
 
         birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
-        if birth_date is None:
-            return None
+        try:
+            if birth_date == date(1970, 1, 1):
+                birth_date = None
+        except Exception:
+            birth_date = None
 
-        retirement_date = None
-        if isinstance(pending_payload, dict):
-            raw = pending_payload.get("pending_retirement_date")
-            if isinstance(raw, str) and raw.strip():
-                retirement_date = raw.strip()
-        if not retirement_date:
-            explicit_date = extract_explicit_retirement_date_from_text(original_user_msg)
-            if isinstance(explicit_date, str) and explicit_date.strip():
-                retirement_date = explicit_date.strip()
-
-        if not retirement_date:
-            rel_years = extract_relative_retirement_years_from_text(original_user_msg)
-            if rel_years is not None:
-                today = date.today()
-                try:
-                    ret_date = date(today.year + int(rel_years), today.month, today.day)
-                except Exception:
-                    ret_date = date(today.year + int(rel_years), today.month, min(today.day, 28))
-                try:
-                    age_years = ret_date.year - birth_date.year
-                    if (ret_date.month, ret_date.day) < (birth_date.month, birth_date.day):
-                        age_years -= 1
-                    if 40 <= int(age_years) <= 80:
-                        return int(age_years)
-                except Exception:
-                    return None
-
-        if retirement_date:
+        now_date = _today()
+        resolved_age, _src = resolve_target_retirement_age(
+            original_user_msg,
+            birth_date,
+            now_date,
+            None,
+        )
+        if resolved_age is not None and birth_date is not None:
             try:
-                target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
-                age_years = target_date.year - birth_date.year
-                if (target_date.month, target_date.day) < (birth_date.month, birth_date.day):
-                    age_years -= 1
-                if 40 <= int(age_years) <= 80:
-                    return int(age_years)
+                resolved_date = compute_retirement_date_from_birth_date(birth_date, int(resolved_age)).isoformat()
             except Exception:
-                return None
+                resolved_date = None
+            return int(resolved_age), resolved_date
 
-        return None
+        return resolved_age, None
+
+    def _infer_retirement_age_for_plan_args(*, client_obj: Client | None, pending_payload: dict | None) -> int | None:
+        birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
+        try:
+            if birth_date == date(1970, 1, 1):
+                birth_date = None
+        except Exception:
+            birth_date = None
+
+        resolved_age, _src = resolve_target_retirement_age(
+            original_user_msg,
+            birth_date,
+            _today(),
+            pending_payload if isinstance(pending_payload, dict) else None,
+        )
+        return int(resolved_age) if resolved_age is not None else None
 
     def _is_tool_error_text(value: str | None) -> bool:
         if not isinstance(value, str):
@@ -1962,6 +1938,31 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         or ((has_plan_build_token or has_plan_noun_token) and has_plan_domain_token)
         or (has_plan_noun_token and has_plan_pension_token)
     )
+
+    birth_date_for_plan_gate = None
+    try:
+        if request.client_id is not None:
+            client_obj_gate = db.query(Client).filter(Client.id == request.client_id).first()
+        else:
+            client_obj_gate = None
+    except Exception:
+        client_obj_gate = None
+    try:
+        birth_date_for_plan_gate = getattr(client_obj_gate, "birth_date", None) if client_obj_gate else None
+    except Exception:
+        birth_date_for_plan_gate = None
+    try:
+        if birth_date_for_plan_gate == date(1970, 1, 1):
+            birth_date_for_plan_gate = None
+    except Exception:
+        birth_date_for_plan_gate = None
+
+    inferred_ret_age_for_plan_gate, _gate_src = resolve_target_retirement_age(
+        original_user_msg,
+        birth_date_for_plan_gate,
+        _today(),
+        None,
+    )
     has_target_plan_keywords = any(
         token in lowered_user_msg
         for token in (
@@ -2105,7 +2106,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         return parsed
     if (
         (resolved_intent != ChatIntent.REPORT)
-        and is_plan_request_tokens
+        and (is_plan_request_tokens or (inferred_ret_age_for_plan_gate is not None))
         and (target_net_for_plan is None)
         and (not wants_execute_target_plan_text)
         and (not commutation_intent_local)
@@ -2643,35 +2644,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
 
             retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-            if (not retirement_date) and birth_date:
-                explicit_ret_age = extract_explicit_retirement_age_from_text(original_user_msg)
-                if explicit_ret_age is not None:
-                    try:
-                        retirement_date = compute_retirement_date_from_birth_date(
-                            birth_date,
-                            int(explicit_ret_age),
-                        ).isoformat()
-                    except Exception:
-                        retirement_date = retirement_date
-            if not retirement_date:
-                rel_years = extract_relative_retirement_years_from_text(original_user_msg)
-                if rel_years is not None:
-                    today = date.today()
-                    try:
-                        retirement_date = date(today.year + int(rel_years), today.month, today.day).isoformat()
-                    except Exception:
-                        try:
-                            retirement_date = date(today.year + int(rel_years), today.month, min(today.day, 28)).isoformat()
-                        except Exception:
-                            retirement_date = retirement_date
-            if not retirement_date:
-                retirement_date = compute_default_retirement_date_for_tool_call(
-                    birth_date=birth_date,
-                    gender=gender_final,
-                    user_message=original_user_msg or "",
-                )
+            resolved_ret_age, _src = resolve_target_retirement_age(
+                original_user_msg,
+                birth_date,
+                _today(),
+                None,
+            )
+            if (not retirement_date) and (resolved_ret_age is not None) and birth_date:
+                try:
+                    retirement_date = compute_retirement_date_from_birth_date(
+                        birth_date,
+                        int(resolved_ret_age),
+                    ).isoformat()
+                except Exception:
+                    retirement_date = retirement_date
 
-            age_final: int | None = explicit_age
+            age_final: int | None = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
             if age_final is None and birth_date and retirement_date:
                 try:
                     target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
@@ -3005,35 +2993,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
 
                 retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-                if (not retirement_date) and birth_date:
-                    explicit_ret_age = extract_explicit_retirement_age_from_text(original_user_msg)
-                    if explicit_ret_age is not None:
-                        try:
-                            retirement_date = compute_retirement_date_from_birth_date(
-                                birth_date,
-                                int(explicit_ret_age),
-                            ).isoformat()
-                        except Exception:
-                            retirement_date = retirement_date
-                if not retirement_date:
-                    rel_years = extract_relative_retirement_years_from_text(original_user_msg)
-                    if rel_years is not None:
-                        today = date.today()
-                        try:
-                            retirement_date = date(today.year + int(rel_years), today.month, today.day).isoformat()
-                        except Exception:
-                            try:
-                                retirement_date = date(today.year + int(rel_years), today.month, min(today.day, 28)).isoformat()
-                            except Exception:
-                                retirement_date = retirement_date
-                if not retirement_date:
-                    retirement_date = compute_default_retirement_date_for_tool_call(
-                        birth_date=birth_date,
-                        gender=gender_final,
-                        user_message=original_user_msg or "",
-                    )
+                resolved_ret_age, _src = resolve_target_retirement_age(
+                    original_user_msg,
+                    birth_date,
+                    _today(),
+                    None,
+                )
+                if (not retirement_date) and (resolved_ret_age is not None) and birth_date:
+                    try:
+                        retirement_date = compute_retirement_date_from_birth_date(
+                            birth_date,
+                            int(resolved_ret_age),
+                        ).isoformat()
+                    except Exception:
+                        retirement_date = retirement_date
 
-                age_final: int | None = explicit_age
+                age_final: int | None = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
                 if age_final is None and birth_date and retirement_date:
                     try:
                         target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
@@ -3840,35 +3815,22 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     retirement_date_final = tool_args.get("retirement_date")
                     if not retirement_date_final:
                         retirement_date_final = extract_explicit_retirement_date_from_text(original_user_msg)
-                    if (not retirement_date_final) and birth_date:
-                        explicit_ret_age = extract_explicit_retirement_age_from_text(original_user_msg)
-                        if explicit_ret_age is not None:
-                            try:
-                                retirement_date_final = compute_retirement_date_from_birth_date(
-                                    birth_date,
-                                    int(explicit_ret_age),
-                                ).isoformat()
-                            except Exception:
-                                retirement_date_final = retirement_date_final
-                    if not retirement_date_final:
-                        rel_years = extract_relative_retirement_years_from_text(original_user_msg)
-                        if rel_years is not None:
-                            today = date.today()
-                            try:
-                                retirement_date_final = date(today.year + int(rel_years), today.month, today.day).isoformat()
-                            except Exception:
-                                try:
-                                    retirement_date_final = date(today.year + int(rel_years), today.month, min(today.day, 28)).isoformat()
-                                except Exception:
-                                    retirement_date_final = retirement_date_final
-                    if not retirement_date_final:
-                        retirement_date_final = compute_default_retirement_date_for_tool_call(
-                            birth_date=birth_date,
-                            gender=gender_final,
-                            user_message=original_user_msg or "",
-                        )
+                    resolved_ret_age, _src = resolve_target_retirement_age(
+                        original_user_msg,
+                        birth_date,
+                        _today(),
+                        None,
+                    )
+                    if (not retirement_date_final) and (resolved_ret_age is not None) and birth_date:
+                        try:
+                            retirement_date_final = compute_retirement_date_from_birth_date(
+                                birth_date,
+                                int(resolved_ret_age),
+                            ).isoformat()
+                        except Exception:
+                            retirement_date_final = retirement_date_final
 
-                    age_final = tool_args.get("age")
+                    age_final = int(resolved_ret_age) if resolved_ret_age is not None else tool_args.get("age")
                     if age_final is None and explicit_age_gate is not None:
                         age_final = int(explicit_age_gate)
                     if age_final is None and birth_date and retirement_date_final:

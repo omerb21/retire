@@ -74,7 +74,7 @@ def _prepare_orchestration_inputs(
         build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio,
         build_transform_accounts_from_portfolio,
         build_targeted_component_transform_accounts_from_portfolio,
-        compute_default_retirement_date_for_tool_call,
+        compute_retirement_date_from_birth_date,
         extract_desired_monthly_income_from_text,
         extract_process_termination_choice_overrides,
         extract_process_termination_date_override,
@@ -105,6 +105,7 @@ def _prepare_orchestration_inputs(
         parse_portfolio_wide_education_fund_conversion_request,
         parse_portfolio_wide_prev_employers_severance_conversion_request,
         parse_targeted_component_conversion_request,
+        resolve_target_retirement_age,
     )
 
     (
@@ -259,6 +260,15 @@ def _prepare_orchestration_inputs(
                 "target_monthly_pension": float(target_net_val),
                 "target_is_net": True,
             }
+
+            pending_age = None
+            if isinstance(pending_plan_target, dict):
+                pending_age = pending_plan_target.get("pending_retirement_age")
+            if pending_age is not None:
+                try:
+                    plan_args["retirement_age"] = int(pending_age)
+                except Exception:
+                    pass
             plan_result = _execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
                 plan_args,
@@ -308,6 +318,8 @@ def _prepare_orchestration_inputs(
                 client_id=request.client_id,
                 ttl_seconds=300,
                 source=str((pending_plan_target.get("_meta") or {}).get("source") or "pending_plan_target"),
+                pending_retirement_age=(pending_plan_target.get("pending_retirement_age") if isinstance(pending_plan_target, dict) else None),
+                pending_retirement_date=(pending_plan_target.get("pending_retirement_date") if isinstance(pending_plan_target, dict) else None),
             )
         except Exception:
             pass
@@ -666,14 +678,22 @@ def _prepare_orchestration_inputs(
         gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
 
         retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-        if not retirement_date:
-            retirement_date = compute_default_retirement_date_for_tool_call(
-                birth_date=birth_date,
-                gender=gender_final,
-                user_message=original_user_msg or "",
-            )
+        resolved_ret_age, _src = resolve_target_retirement_age(
+            original_user_msg,
+            birth_date,
+            date.today(),
+            None,
+        )
+        if (not retirement_date) and (resolved_ret_age is not None) and birth_date:
+            try:
+                retirement_date = compute_retirement_date_from_birth_date(
+                    birth_date,
+                    int(resolved_ret_age),
+                ).isoformat()
+            except Exception:
+                retirement_date = retirement_date
 
-        age_final = explicit_age
+        age_final = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
         if age_final is None and birth_date and retirement_date:
             try:
                 from datetime import datetime

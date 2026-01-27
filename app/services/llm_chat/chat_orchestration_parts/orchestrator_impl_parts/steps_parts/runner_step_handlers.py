@@ -1107,7 +1107,6 @@ def _handle_no_tool_call_step(
     from app.services.llm_chat.numeric_provenance import sanitize_transparency_and_risk_blocks
     from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
     from app.services.llm_chat.orchestration_utils import (
-        compute_default_retirement_date_for_tool_call,
         is_tax_documents_request,
     )
     from app.utils.trace_context import get_current_trace_id
@@ -1126,17 +1125,6 @@ def _handle_no_tool_call_step(
     )
 
     user_msg_for_default_date = find_last_user_message(request.messages) or ""
-    birth_date_for_default_date = None
-    gender_for_default_date = None
-    if request.client_id is not None:
-        client = db.query(Client).filter(Client.id == request.client_id).first()
-        birth_date_for_default_date = getattr(client, "birth_date", None) if client else None
-        gender_for_default_date = getattr(client, "gender", None) if client else None
-    default_retirement_date = compute_default_retirement_date_for_tool_call(
-        birth_date=birth_date_for_default_date,
-        gender=gender_for_default_date,
-        user_message=user_msg_for_default_date,
-    )
 
     if is_cashflow_request and (not no_tools_requested) and (not has_tool_results):
         if _user_requested_target_pension_plan(user_msg_for_default_date):
@@ -1148,11 +1136,8 @@ def _handle_no_tool_call_step(
             messages.append(ChatMessage(role="system", content=warning_msg))
             current_step += 1
             return True, False, final_reply, current_step
-        cashflow_args = (
-            f'{{"retirement_date": "{default_retirement_date}"}}'
-            if isinstance(default_retirement_date, str) and default_retirement_date.strip()
-            else "{}"
-        )
+
+        cashflow_args = "{}"
         warning_msg = (
             "אזהרה: אסור לך לענות על בקשות חישוב/השוואת קצבה ללא הרצת כלים. "
             "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוקים בפורמט "
@@ -1173,11 +1158,7 @@ def _handle_no_tool_call_step(
             )
         )
         if cashflow_results < 2:
-            cashflow_args = (
-                f'{{"retirement_date": "{default_retirement_date}"}}'
-                if isinstance(default_retirement_date, str) and default_retirement_date.strip()
-                else "{}"
-            )
+            cashflow_args = "{}"
             warning_msg = (
                 "אזהרה: המשתמש ביקש השוואה בין שני תרחישי פרישה (למשל גיל 68 מול 69). "
                 "אסור לספק תשובה מספרית לפני שתי הרצות של RUN_RETIREMENT_CASHFLOW_ANALYSIS (אחת לכל תרחיש). "
@@ -1189,11 +1170,7 @@ def _handle_no_tool_call_step(
             return True, False, final_reply, current_step
 
     if is_net_request and (not no_tools_requested) and (not has_tool_results):
-        cashflow_args = (
-            f'{{"retirement_date": "{default_retirement_date}"}}'
-            if isinstance(default_retirement_date, str) and default_retirement_date.strip()
-            else "{}"
-        )
+        cashflow_args = "{}"
         warning_msg = (
             "אזהרה: אסור לך לענות על שאלות נטו/אחרי מס ללא הרצת כלים. "
             "התשובה האחרונה שלך בוטלה. כעת עליך להחזיר רק בלוק יחיד בפורמט "

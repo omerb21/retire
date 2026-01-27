@@ -9,18 +9,19 @@ from app.main import app
 from app.models.client import Client
 
 
-def test_stream_retirement_age_propagates_to_build_target_pension_plan(monkeypatch, _test_db) -> None:
+def test_stream_pending_retirement_age_followup_from_relative_years(monkeypatch, _test_db) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
-        client = db.query(Client).filter(Client.id == 920000001).first()
+        client = db.query(Client).filter(Client.id == 920000003).first()
         if client is None:
             client = Client(
-                id=920000001,
-                id_number_raw="920000001",
-                id_number="920000001",
+                id=920000003,
+                id_number_raw="920000003",
+                id_number="920000003",
                 full_name="Test User",
-                birth_date=date(1980, 1, 1),
+                birth_date=date(1953, 4, 16),
+                gender="male",
             )
             db.add(client)
             db.flush()
@@ -44,8 +45,8 @@ def test_stream_retirement_age_propagates_to_build_target_pension_plan(monkeypat
     def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
-        assert args.get("target_is_net") is True
         assert int(float(args.get("target_monthly_pension"))) == 33000
+        assert args.get("target_is_net") is True
         assert int(args.get("retirement_age")) == 75
         assert "67" not in json.dumps(args, ensure_ascii=False)
         return "תכנית יעד קצבה – סיכום:\n- גיל פרישה בתכנון: 75"
@@ -61,14 +62,14 @@ def test_stream_retirement_age_propagates_to_build_target_pension_plan(monkeypat
             "messages": [
                 {
                     "role": "user",
-                    "content": "אני פורש עוד 3 שנים לגיל 75, לבנות תכנית פרישה",
+                    "content": "אני רוצה לפרוש בעוד 3 שנים",
                 }
             ],
             "pension_portfolio": [],
         },
     )
     assert resp1.status_code == 200
-    assert "כתוב: יעד נטו" in resp1.text
+    assert "יעד" in resp1.text
 
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",

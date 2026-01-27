@@ -13,7 +13,8 @@ from app.services.llm_chat.orchestration_utils import (
     extract_desired_monthly_income_from_text,
     extract_explicit_gender_and_age_from_text,
     extract_explicit_retirement_date_from_text,
-    compute_default_retirement_date_for_tool_call,
+    compute_retirement_date_from_birth_date,
+    resolve_target_retirement_age,
     format_tool_output_for_user_stream,
     infer_desired_income_is_net_explicit,
     sanitize_user_visible_text,
@@ -326,14 +327,22 @@ def generate_cashflow(*, computed_data, original_user_msg, request, db, effectiv
     gender_final = explicit_gender or (str(gender_for_default_date).strip() if gender_for_default_date is not None else None)
 
     retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-    if not retirement_date:
-        retirement_date = compute_default_retirement_date_for_tool_call(
-            birth_date=birth_date_for_default_date,
-            gender=gender_final,
-            user_message=original_user_msg or "",
-        )
+    resolved_ret_age, _src = resolve_target_retirement_age(
+        original_user_msg,
+        birth_date_for_default_date,
+        date.today(),
+        None,
+    )
+    if (not retirement_date) and (resolved_ret_age is not None) and birth_date_for_default_date:
+        try:
+            retirement_date = compute_retirement_date_from_birth_date(
+                birth_date_for_default_date,
+                int(resolved_ret_age),
+            ).isoformat()
+        except Exception:
+            retirement_date = retirement_date
 
-    age_final: int | None = explicit_age
+    age_final: int | None = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
     if age_final is None and birth_date_for_default_date and retirement_date:
         try:
             target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()

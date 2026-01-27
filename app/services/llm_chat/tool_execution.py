@@ -105,7 +105,6 @@ from app.services.llm_chat.chat_orchestration_helpers import (
 )
 from app.services.snapshot_service import SnapshotService
 from app.services.llm_chat.orchestration_utils import (
-    compute_default_retirement_date_for_tool_call,
     normalize_tool_name,
     validate_tool_call_protocol_for_execution,
 )
