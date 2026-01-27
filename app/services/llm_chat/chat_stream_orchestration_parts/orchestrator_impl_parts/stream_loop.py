@@ -27,6 +27,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     get_gross_for_tax_chaining,
     build_approval_request_ui_action,
     load_pending_approval_request,
+    load_undo_snapshot,
     clear_pending_approval_request,
     store_pending_approval_request,
     store_pending_plan_target_marker,
@@ -52,6 +53,7 @@ from app.services.llm_chat.message_utils import (
     extract_target_pension_from_message,
     find_last_user_message,
     is_user_approval_intent_text,
+    is_undo_intent_text,
 )
 from app.services.llm_chat.intent_classifier import (
     ChatIntent,
@@ -455,6 +457,43 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 iter([conceptual_reply]),
                 media_type="text/plain; charset=utf-8",
             )
+
+    if (
+        request.client_id is not None
+        and is_undo_intent_text(original_user_msg)
+        and (not str(original_user_msg or "").strip().startswith("###USER_APPROVED###"))
+        and (not str(original_user_msg or "").strip().startswith("###USER_CANCELLED###"))
+    ):
+        undo = None
+        try:
+            undo = load_undo_snapshot(db=db, client_id=request.client_id)
+        except Exception:
+            undo = None
+        if undo is None:
+            return StreamingResponse(
+                iter(["לא נמצא מצב קודם לשחזור/ביטול. לא בוצע שינוי במערכת."]),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        undo_snapshot_id, _undo_payload = undo
+        tool_args = {"snapshot_scenario_id": int(undo_snapshot_id)}
+        ui_action = build_approval_request_ui_action(
+            tool_name="RESTORE_SYSTEM_SNAPSHOT",
+            tool_args=tool_args,
+            reason="שחזור מצב קודם ידרוס שינויים אחרונים. נדרש אישור.",
+            risk_level="high",
+            rag_sources=None,
+        )
+        try:
+            store_pending_approval_request(
+                db=db,
+                client_id=request.client_id,
+                tool_name="RESTORE_SYSTEM_SNAPSHOT",
+                tool_args=tool_args,
+            )
+        except Exception:
+            pass
+        return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
     def _infer_pending_retirement_fields_for_marker(*, client_id: int | None) -> tuple[int | None, str | None]:
         explicit_age = extract_explicit_retirement_age_from_text(original_user_msg)

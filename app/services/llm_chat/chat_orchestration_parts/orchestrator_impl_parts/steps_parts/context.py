@@ -49,6 +49,7 @@ def _prepare_orchestration_inputs(
         load_latest_target_pension_plan,
         load_pending_plan_target_marker,
         load_pending_approval_request,
+        load_undo_snapshot,
         store_latest_target_pension_plan,
         store_latest_target_pension_plan_data,
         store_pending_approval_request,
@@ -63,6 +64,7 @@ def _prepare_orchestration_inputs(
         extract_user_cancel_for_tool_call,
         find_last_user_message,
         is_user_approval_intent_text,
+        is_undo_intent_text,
     )
     from app.services.llm_chat.orchestration_utils import (
         build_partial_pension_transform_accounts_from_portfolio,
@@ -180,6 +182,39 @@ def _prepare_orchestration_inputs(
                 reply=sanitize_user_visible_text(reply_text),
                 computed_data=computed_data,
             )
+
+    if request.client_id is not None and is_undo_intent_text(original_user_msg):
+        undo = None
+        try:
+            undo = load_undo_snapshot(db=db, client_id=request.client_id)
+        except Exception:
+            undo = None
+
+        if undo is None:
+            return ChatResponse(
+                reply="לא נמצא מצב קודם לשחזור/ביטול. לא בוצע שינוי במערכת.",
+                computed_data=computed_data,
+            )
+
+        undo_snapshot_id, _undo_payload = undo
+        tool_args = {"snapshot_scenario_id": int(undo_snapshot_id)}
+        ui_action = build_approval_request_ui_action(
+            tool_name="RESTORE_SYSTEM_SNAPSHOT",
+            tool_args=tool_args,
+            reason="שחזור מצב קודם ידרוס שינויים אחרונים. נדרש אישור.",
+            risk_level="high",
+            rag_sources=None,
+        )
+        try:
+            store_pending_approval_request(
+                db=db,
+                client_id=request.client_id,
+                tool_name="RESTORE_SYSTEM_SNAPSHOT",
+                tool_args=tool_args,
+            )
+        except Exception:
+            pass
+        return ChatResponse(reply=ui_action, computed_data=computed_data)
 
     pending_plan_target = None
     try:

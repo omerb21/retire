@@ -121,6 +121,98 @@ def clear_pending_approval_request(*, db: Session, client_id: int) -> bool:
         return False
 
 
+def store_undo_snapshot(*, db: Session, client_id: int, snapshot_payload: dict) -> int | None:
+    if client_id is None:
+        return None
+    if not isinstance(snapshot_payload, dict):
+        snapshot_payload = {"raw": str(snapshot_payload or "")}
+
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == "undo_snapshot"
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
+
+    try:
+        meta = snapshot_payload.get("_meta") if isinstance(snapshot_payload.get("_meta"), dict) else {}
+        meta = dict(meta)
+        meta["stored_at_utc"] = datetime.now(timezone.utc).isoformat()
+        snapshot_payload = dict(snapshot_payload)
+        snapshot_payload["_meta"] = meta
+
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name="undo_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(snapshot_payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+        return int(getattr(scenario, "id", 0) or 0) or None
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
+
+
+def load_undo_snapshot(*, db: Session, client_id: int) -> tuple[int, dict] | None:
+    if client_id is None:
+        return None
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "undo_snapshot")
+            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+
+    if row is None or not getattr(row, "parameters", None):
+        return None
+
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+
+    scenario_id = int(getattr(row, "id", 0) or 0)
+    if scenario_id <= 0:
+        return None
+    return scenario_id, parsed
+
+
+def clear_undo_snapshot(*, db: Session, client_id: int) -> bool:
+    if client_id is None:
+        return False
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == "undo_snapshot"
+        ).delete(synchronize_session=False)
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
 def load_latest_target_pension_plan(*, db: Session, client_id: int) -> dict | None:
     try:
         row = (

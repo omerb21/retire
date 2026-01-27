@@ -203,7 +203,21 @@ def extract_latest_approval_request(
             tool_args = action.get("arguments")
             if isinstance(tool_name, str) and isinstance(tool_args, dict):
                 return tool_name, tool_args
-    return None
+
+
+def is_undo_intent_text(user_message: str | None) -> bool:
+    lowered = (user_message or "").strip().lower()
+    if not lowered:
+        return False
+    triggers = (
+        "בטל פעולה",
+        "בטל את הפעולה",
+        "חזור אחורה",
+        "שחזר מצב קודם",
+        "undo",
+    )
+    return any(t in lowered for t in triggers)
+
 
 
 def is_user_approval_intent_text(text: str) -> bool:

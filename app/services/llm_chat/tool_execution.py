@@ -95,10 +95,15 @@ from app.services.llm_chat.tools.get_fixation_status_snapshot import (
 from app.services.llm_chat.tool_handlers.restore_pension_portfolio_snapshot import (
     handle_restore_pension_portfolio_snapshot,
 )
+from app.services.llm_chat.tool_handlers.restore_system_snapshot import (
+    handle_restore_system_snapshot,
+)
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     store_pending_approval_request,
+    store_undo_snapshot,
 )
+from app.services.snapshot_service import SnapshotService
 from app.services.llm_chat.orchestration_utils import (
     compute_default_retirement_date_for_tool_call,
     normalize_tool_name,
@@ -119,8 +124,10 @@ WRITE_TOOLS: set[str] = {
     "PROCESS_TERMINATION",
     "EXECUTE_PENSION_COMMUTATION",
     "SUBMIT_TAX_COMMUTATION",
+    "CALCULATE_FIXATION_OF_RIGHTS",
     "EXECUTE_RETIREMENT_SCENARIO",
     "RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+    "RESTORE_SYSTEM_SNAPSHOT",
 }
 
 
@@ -196,7 +203,7 @@ def execute_tool_call(
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
     case_id = get_current_case_id()
-    if case_id == "interactive_readonly" and tool_name in WRITE_TOOLS:
+    if case_id == "interactive_readonly" and (not user_approved) and tool_name in WRITE_TOOLS:
         req_id = get_current_request_id() or "unknown"
         payload = {
             "request_id": req_id,
@@ -247,6 +254,39 @@ def execute_tool_call(
             risk_level="high",
             rag_sources=None,
         )
+
+    if tool_name == "RESTORE_SYSTEM_SNAPSHOT" and (not user_approved):
+        try:
+            store_pending_approval_request(
+                db=db,
+                client_id=client_id,
+                tool_name=tool_name,
+                tool_args=args if isinstance(args, dict) else {},
+            )
+        except Exception:
+            pass
+
+        return build_approval_request_ui_action(
+            tool_name=tool_name,
+            tool_args=args if isinstance(args, dict) else {},
+            reason="נדרש אישור לפני שחזור מצב מערכת קודם.",
+            risk_level="high",
+            rag_sources=None,
+        )
+
+    if tool_name in WRITE_TOOLS and user_approved and tool_name not in {
+        "RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+        "RESTORE_SYSTEM_SNAPSHOT",
+    }:
+        try:
+            snap = SnapshotService(db).save_snapshot(
+                client_id,
+                snapshot_name=f"undo_before_{tool_name}",
+            )
+            if isinstance(snap, dict):
+                store_undo_snapshot(db=db, client_id=client_id, snapshot_payload=snap)
+        except Exception:
+            pass
 
     if tool_name == "PROCESS_TERMINATION" and isinstance(args, dict):
         try:
@@ -484,6 +524,13 @@ def execute_tool_call(
 
         if tool_name == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT":
             return handle_restore_pension_portfolio_snapshot(
+                args=args,
+                client_id=client_id,
+                db=db,
+            )
+
+        if tool_name == "RESTORE_SYSTEM_SNAPSHOT":
+            return handle_restore_system_snapshot(
                 args=args,
                 client_id=client_id,
                 db=db,
