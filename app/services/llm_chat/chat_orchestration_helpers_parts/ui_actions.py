@@ -3,6 +3,31 @@ import json
 from typing import Optional
 
 
+def _normalize_open_url(raw: str) -> str:
+    url = str(raw or "").strip()
+    if not url:
+        return ""
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/api/v1/"):
+        return url
+    if url.startswith("api/v1/"):
+        return "/" + url
+    if url.startswith("/fixation/"):
+        return "/api/v1" + url
+    if url.startswith("fixation/"):
+        return "/api/v1/" + url
+    if url.startswith("/documents/"):
+        return "/api/v1" + url
+    if url.startswith("documents/"):
+        return "/api/v1/" + url
+    if url.startswith("/files"):
+        return "/api/v1" + url
+    if url.startswith("files"):
+        return "/api/v1/" + url
+    return url
+
+
 def build_approval_request_ui_action(
     *,
     tool_name: str,
@@ -67,7 +92,7 @@ def build_forced_document_reply(
                 actions: list[dict[str, str]] = [
                     {
                         "type": "open_url",
-                        "url": download_url.strip(),
+                        "url": _normalize_open_url(download_url),
                         "label": "פתח להורדה",
                     }
                 ]

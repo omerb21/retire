@@ -25,7 +25,7 @@ def test_stream_fixation_documents_request_is_deterministic(monkeypatch) -> None
             {
                 "success": True,
                 "client_id": client_id,
-                "download_url": f"/api/v1/fixation/{client_id}/package",
+                "download_url": f"fixation/{client_id}/package",
                 "status_message": "המסמך הופק בהצלחה",
             },
             ensure_ascii=False,
