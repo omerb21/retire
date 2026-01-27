@@ -88,6 +88,7 @@ def extract_target_pension_from_message(message: str) -> float:
     normalized = message.replace(",", "").replace("₪", "").replace('ש"ח', "")
 
     patterns = [
+        r"יעד\s*(?:נטו|ברוטו)\s*[:=\-]?\s*(\d{4,6})",
         r"(\d+)\s*[kK]\s*(?:נטו|לחודש|חודשי|בחודש)?",
         r"(\d{4,6})\s*(?:נטו|לחודש|חודשי|בחודש)",
         r"קצבה\s*(?:של|בגובה|בסך)\s*(\d+)",

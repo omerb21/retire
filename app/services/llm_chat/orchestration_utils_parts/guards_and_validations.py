@@ -238,29 +238,16 @@ def is_process_termination_request(user_message: str) -> bool:
         if has_convert_verb and any(t in lowered for t in component_intent_tokens):
             return False
 
-    if any(
-        token in lowered
-        for token in (
-            "אל תשתמש",
-            "לא להשתמש",
-            "אל תבצע",
-            "לא לבצע",
-            "בלי",
-            "ללא",
-            "ביקשתי שלא",
-        )
-    ):
-        if any(
-            token in lowered
-            for token in (
-                "process_termination",
-                "process termination",
-                "termination",
-                "סיום עבודה",
-                "עזיבת עבודה",
-            )
-        ):
-            return False
+    # If the user asked for a conceptual explanation only (no execution), we still
+    # want to route to the termination flow so it can return a termination-specific
+    # principle-only response (execution is blocked elsewhere).
+    try:
+        from app.guards.tool_intent_guard import is_conceptual_no_execute_request
+
+        if has_explicit_termination_intent and is_conceptual_no_execute_request(user_message):
+            return True
+    except Exception:
+        pass
 
     action_tokens = [
         "בצע",

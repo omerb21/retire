@@ -283,7 +283,9 @@ def execute_tool_call(
                 snapshot_name=f"undo_before_{tool_name}",
             )
             if isinstance(snap, dict):
-                store_undo_snapshot(db=db, client_id=client_id, snapshot_payload=snap)
+                snap_payload = dict(snap)
+                snap_payload["force_restore"] = True
+                store_undo_snapshot(db=db, client_id=client_id, snapshot_payload=snap_payload)
         except Exception:
             pass
 

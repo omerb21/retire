@@ -1,6 +1,8 @@
 import json
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any
+
+from app.models.client import Client
 
 from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
@@ -24,6 +26,10 @@ from .chat_helpers import _infer_target_is_net_explicit
 from .stream_formatters import _format_data_awareness_snapshot, _format_list_all_entities
 from .stream_more_nested_helpers import _format_system_inventory_snapshot
 from .stream_tool_execution import _execute_tool_call
+
+
+def _today() -> date:
+    return date.today()
 
 
 def generate_adjust_reply(*, computed_data, payload, original_user_msg, request, db, effective_portfolio, stream_request_id) -> str:
@@ -72,6 +78,30 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         "target_monthly_pension": float(target_val),
         "target_is_net": bool(explicit_is_net),
     }
+
+    birth_date = None
+    try:
+        client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+        birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
+    except Exception:
+        birth_date = None
+    try:
+        if birth_date == date(1970, 1, 1):
+            birth_date = None
+    except Exception:
+        birth_date = None
+
+    resolved_ret_age, _src = resolve_target_retirement_age(
+        original_user_msg,
+        birth_date,
+        _today(),
+        None,
+    )
+    if resolved_ret_age is not None:
+        try:
+            plan_args["retirement_age"] = int(resolved_ret_age)
+        except Exception:
+            pass
     plan_result = _execute_tool_call(
         "BUILD_TARGET_PENSION_PLAN",
         plan_args,

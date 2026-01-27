@@ -1,6 +1,7 @@
 
 import json
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from app.schemas.llm_chat import ChatMessage, ChatResponse
@@ -383,6 +384,18 @@ def _prepare_orchestration_inputs(
             "target_monthly_pension": float(target_val),
             "target_is_net": bool(explicit_is_net),
         }
+
+        resolved_ret_age, _src = resolve_target_retirement_age(
+            original_user_msg,
+            birth_date,
+            date.today(),
+            None,
+        )
+        if resolved_ret_age is not None:
+            try:
+                plan_args["retirement_age"] = int(resolved_ret_age)
+            except Exception:
+                pass
         plan_result = _execute_tool_call(
             "BUILD_TARGET_PENSION_PLAN",
             plan_args,
@@ -522,6 +535,18 @@ def _prepare_orchestration_inputs(
             )
 
         plan_args = {"target_monthly_pension": float(target_val), "target_is_net": bool(explicit_is_net)}
+
+        resolved_ret_age, _src = resolve_target_retirement_age(
+            original_user_msg,
+            birth_date,
+            date.today(),
+            None,
+        )
+        if resolved_ret_age is not None:
+            try:
+                plan_args["retirement_age"] = int(resolved_ret_age)
+            except Exception:
+                pass
         plan_result = _execute_tool_call(
             "BUILD_TARGET_PENSION_PLAN",
             plan_args,

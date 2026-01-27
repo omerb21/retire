@@ -457,11 +457,16 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 object.__setattr__(request, "tools_disabled_reason", _disabled_reason)
             except Exception:
                 pass
-            conceptual_reply = sanitize_words_only_conceptual("", original_user_msg)
-            return StreamingResponse(
-                iter([conceptual_reply]),
-                media_type="text/plain; charset=utf-8",
-            )
+
+            # Termination/compensation conceptual-no-execute requests must not return a generic
+            # conceptual reply, because we want a termination-specific principle-only response
+            # (without any execution-like language).
+            if not is_process_termination_request(original_user_msg):
+                conceptual_reply = sanitize_words_only_conceptual("", original_user_msg)
+                return StreamingResponse(
+                    iter([conceptual_reply]),
+                    media_type="text/plain; charset=utf-8",
+                )
 
     if (
         request.client_id is not None
@@ -639,6 +644,43 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             return False
         return True
 
+    def _is_general_retirement_intro_request(user_msg: str) -> bool:
+        lowered = (user_msg or "").strip().lower()
+        if not lowered:
+            return False
+
+        has_age = bool(re.search(r"\b(?:בן|בת|גיל)\s*\d{2}\b", lowered))
+        has_retired = any(tok in lowered for tok in ("סיימתי לעבוד", "סיים לעבוד", "פרשתי", "יצאתי לפנסיה"))
+        if not (has_age and has_retired):
+            return False
+
+        # Do not hijack explicit calculation/tool requests.
+        if any(
+            tok in lowered
+            for tok in (
+                "תזרים",
+                "cashflow",
+                "דוח",
+                'דו"ח',
+                "יעד",
+                "נטו",
+                "ברוטו",
+                "תכנית",
+                "תוכנית",
+                "בנה",
+                "חשב",
+                "תחשב",
+                "הרץ",
+                "ניתוח",
+                "עזיבת עבודה",
+                "סיום עבודה",
+                "פיצויים",
+            )
+        ):
+            return False
+
+        return True
+
     if _is_general_retirement_help_request(original_user_msg):
         def _general_retirement_help_answer():
             yield (
@@ -657,6 +699,27 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
         return StreamingResponse(
             _general_retirement_help_answer(),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if _is_general_retirement_intro_request(original_user_msg):
+        def _general_retirement_intro_answer():
+            yield (
+                "כותרת: תכנון פרישה – מיפוי ראשוני\n\n"
+                "כדי להתקדם בצורה מסודרת, נתחיל במיפוי קצר ואז נבחר פעולה במערכת.\n\n"
+                "שאלות קצרות כדי להתקדם:\n"
+                "- מה יעד ההכנסה החודשית שאתה רוצה להגיע אליו (במילים: נטו או ברוטו)?\n"
+                "- אילו מקורות הכנסה יש לך כרגע (קצבאות, עבודה חלקית, שכירות, הכנסות נוספות)?\n"
+                "- האם יש הון נזיל/סכומים חד-פעמיים קרובים?\n"
+                "- האם יש אירוע עזיבת עבודה שצריך לעבד במערכת (ביצוע רק אם תבקש)?\n\n"
+                "אפשרויות פעולה במערכת (לבחירה שלך):\n"
+                "- לחשב תזרים לפי יעד שתגדיר\n"
+                "- לבנות תכנית יעד קצבה אחרי שתציין יעד חודשי\n"
+                "- להפיק דוח מסכם\n"
+            )
+
+        return StreamingResponse(
+            _general_retirement_intro_answer(),
             media_type="text/plain; charset=utf-8",
         )
 
@@ -834,6 +897,26 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     if request.client_id is not None and isinstance(original_user_msg, str):
         lowered_user_msg = original_user_msg.strip().lower()
+
+        def _has_pending_approval() -> bool:
+            try:
+                row = (
+                    db.query(Scenario)
+                    .filter(Scenario.client_id == request.client_id)
+                    .filter(Scenario.scenario_name == "pending_approval")
+                    .order_by(Scenario.created_at.desc())
+                    .first()
+                )
+                return row is not None
+            except Exception:
+                return False
+
+        if lowered_user_msg in {"אוקי", "אוקיי", "הבנתי", "בסדר", "סבבה"} and (not _has_pending_approval()):
+            return StreamingResponse(
+                iter(["קיבלתי."]),
+                media_type="text/plain; charset=utf-8",
+            )
+
         if lowered_user_msg in {"מאשר", "אשר", "כן", "approve", "ok"}:
             def _load_latest_pending_approval_payload() -> tuple[str, dict] | None:
                 try:
@@ -2644,6 +2727,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
 
             retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
+            if (not retirement_date) and birth_date and gender_final:
+                retirement_date = compute_default_retirement_date_for_tool_call(
+                    birth_date=birth_date,
+                    gender=str(gender_final),
+                    user_message=original_user_msg or "",
+                )
             resolved_ret_age, _src = resolve_target_retirement_age(
                 original_user_msg,
                 birth_date,
@@ -2993,6 +3082,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
 
                 retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
+                if (not retirement_date) and birth_date and gender_final:
+                    retirement_date = compute_default_retirement_date_for_tool_call(
+                        birth_date=birth_date,
+                        gender=str(gender_final),
+                        user_message=original_user_msg or "",
+                    )
                 resolved_ret_age, _src = resolve_target_retirement_age(
                     original_user_msg,
                     birth_date,
@@ -3815,6 +3910,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     retirement_date_final = tool_args.get("retirement_date")
                     if not retirement_date_final:
                         retirement_date_final = extract_explicit_retirement_date_from_text(original_user_msg)
+                    if (not retirement_date_final) and birth_date and gender_final:
+                        retirement_date_final = compute_default_retirement_date_for_tool_call(
+                            birth_date=birth_date,
+                            gender=str(gender_final),
+                            user_message=original_user_msg or "",
+                        )
                     resolved_ret_age, _src = resolve_target_retirement_age(
                         original_user_msg,
                         birth_date,

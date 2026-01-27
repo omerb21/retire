@@ -8,6 +8,7 @@ from app.services.llm_chat.orchestration_utils import (
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,
 )
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
 from ..stream_streaming_helpers import _stream_execute_tool_no_approval
 from ..stream_approval_generators import generate_forced_approval
@@ -55,6 +56,31 @@ def _maybe_handle_termination_deterministic(
             except Exception:
                 confirmed = False
             termination_already_executed = confirmed or (grants_count > 0)
+
+    if (
+        explicit_termination
+        and request.client_id is not None
+        and (not is_qa_mode)
+        and (not (wants_execute_target_plan or wants_fixation_execute))
+        and is_conceptual_no_execute_request(original_user_msg)
+    ):
+        return (
+            termination_already_executed,
+            StreamingResponse(
+                iter(
+                    [
+                        "כותרת: עזיבת עבודה – הסבר עקרוני (ללא ביצוע)\n\n"
+                        "לא נעשתה פעולה במערכת.\n\n"
+                        "מה קורה בעזיבת עבודה (ברמה עקרונית):\n"
+                        "- קובעים תאריך סיום עבודה\n"
+                        "- מפרידים פיצויים לפטור/חייב לפי נתוני המעסיק\n"
+                        "- בוחרים טיפול בפיצויים: רצף קצבה / משיכה / שילוב\n\n"
+                        "כדי לבצע בפועל בפנייה הבאה, כתוב במפורש 'בצע עזיבת עבודה' וציין את תאריך הסיום והבחירות."
+                    ]
+                ),
+                media_type="text/plain; charset=utf-8",
+            ),
+        )
 
     if (
         explicit_termination

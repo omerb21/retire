@@ -20,6 +20,7 @@ from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
 from app.services.llm_chat.pending_approvals import (
     load_pending_approval_ui_action_if_match,
@@ -102,6 +103,16 @@ def generate_forced_approval(
     # If the user explicitly asked to execute termination and it wasn't done yet,
     # we must request approval BEFORE running.
     if explicit_termination and (not termination_already_executed):
+        if is_conceptual_no_execute_request(getattr(request, "user_message", None) or ""):
+            yield (
+                "כותרת: עזיבת עבודה – הסבר עקרוני (ללא ביצוע)\n\n"
+                "כדי לבצע עזיבת עבודה במערכת צריך אישור מפורש. כרגע ביקשת בלי לבצע, לכן אני מסביר עקרונית בלבד:\n"
+                "- מה מסמנים כ'סיום עבודה' ומה זה משנה לתיק\n"
+                "- איך מטפלים בפיצויים: רצף קצבה / משיכה / שילוב\n"
+                "- אילו נתונים נדרשים כדי לבצע בפועל (תאריך, סכומים, בחירות)\n"
+            )
+            return
+
         recent_user_text = "\n".join(
             [
                 str(getattr(m, "content", ""))
@@ -115,26 +126,23 @@ def generate_forced_approval(
         if termination_date_override:
             tool_args["termination_date"] = termination_date_override
 
-        tool_result = _execute_tool_call(
-            "PROCESS_TERMINATION",
-            tool_args,
-            request.client_id,
-            db,
-            pension_portfolio=effective_portfolio,
-            force_max_exemption=force_max_exemption,
-            user_approved=True,
-            request_id=stream_request_id,
-        )
-
         try:
-            clear_pending_approval_request(db=db, client_id=request.client_id)
+            _store_pending_approval_request(
+                db=db,
+                client_id=request.client_id,
+                tool_name="PROCESS_TERMINATION",
+                tool_args=tool_args,
+            )
         except Exception:
             pass
 
-        out = sanitize_user_visible_text(
-            format_tool_output_for_user_stream("PROCESS_TERMINATION", tool_result)
+        yield build_approval_request_ui_action(
+            tool_name="PROCESS_TERMINATION",
+            tool_args=tool_args,
+            reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+            risk_level="high",
+            rag_sources=None,
         )
-        yield out
         return
 
     if wants_execute_target_plan:

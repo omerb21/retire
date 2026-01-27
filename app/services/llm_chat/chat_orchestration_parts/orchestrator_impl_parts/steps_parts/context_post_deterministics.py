@@ -3,6 +3,7 @@ from typing import Any
 
 from app.schemas.llm_chat import ChatMessage, ChatResponse
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
 from ..steps.types import _PreparedOrchestrationInputs
 
@@ -128,6 +129,24 @@ def _handle_post_deterministics_and_finalize(
             except Exception:
                 confirmed = False
             termination_already_executed = confirmed or (grants_count > 0)
+
+    if (
+        explicit_termination
+        and request.client_id is not None
+        and (not is_qa_mode)
+        and is_conceptual_no_execute_request(original_user_msg)
+    ):
+        return ChatResponse(
+            reply=(
+                "כותרת: עזיבת עבודה – הסבר עקרוני (ללא ביצוע)\n\n"
+                "לא נעשתה פעולה במערכת.\n\n"
+                "מה בודקים ומחליטים בעזיבת עבודה (עקרונית):\n"
+                "- תאריך סיום עבודה\n"
+                "- סכום פיצויים והפרדה לפטור/חייב\n"
+                "- בחירת טיפול בפיצויים: רצף קצבה / משיכה / שילוב\n"
+            ),
+            computed_data=computed_data,
+        )
 
     if (
         explicit_termination
