@@ -31,6 +31,7 @@ from app.guards.advisor_behavior_guard import enforce_behavioral_limits
 from app.guards.tool_intent_guard import (
     allow_tools_for_intent,
     get_tools_disabled_reason,
+    is_conceptual_no_execute_request,
     sanitize_words_only_conceptual,
     sanitize_words_only_output,
 )
@@ -94,6 +95,20 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
             reason = get_tools_disabled_reason(last_user_msg_for_intent or "", detected_intent)
             if reason is not None:
                 object.__setattr__(request, "tools_disabled_reason", reason)
+    except Exception:
+        pass
+
+    # FLOW A: Conceptual-only hard stop must be early (before any tool/approval pipeline).
+    # Apply ONLY when the user explicitly asked not to execute ("בלי לבצע" / "אל תבצע" etc).
+    try:
+        if (
+            (not is_execution_only(request))
+            and is_conceptual_no_execute_request(last_user_msg_for_intent)
+            and getattr(request, "tools_disabled_reason", None) in {"conceptual", "conceptual_form"}
+        ):
+            reply = sanitize_words_only_conceptual("", last_user_msg_for_intent)
+            allowed, final_text = enforce_behavioral_limits(reply)
+            return ChatResponse(reply=final_text if not allowed else reply, computed_data=None)
     except Exception:
         pass
 

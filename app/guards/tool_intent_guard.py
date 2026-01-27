@@ -25,6 +25,18 @@ _CONCEPTUAL_TRIGGERS: tuple[str, ...] = (
     "רק להסביר",
     "בלי לבצע",
     "ללא ביצוע",
+    "אל תבצע",
+    "אל תבצעו",
+)
+
+_NO_EXECUTION_TRIGGERS: tuple[str, ...] = (
+    "עיקרון בלבד",
+    "הסבר בלבד",
+    "רק להסביר",
+    "בלי לבצע",
+    "ללא ביצוע",
+    "אל תבצע",
+    "אל תבצעו",
 )
 
 _CONCEPTUAL_DEFINITION_TRIGGERS: tuple[str, ...] = (
@@ -383,6 +395,13 @@ def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) ->
             return "conceptual"
 
     return None
+
+
+def is_conceptual_no_execute_request(user_message: str | None) -> bool:
+    candidate = (user_message or "").strip()
+    if not candidate:
+        return False
+    return any(token in candidate for token in _NO_EXECUTION_TRIGGERS)
 
 
 def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
