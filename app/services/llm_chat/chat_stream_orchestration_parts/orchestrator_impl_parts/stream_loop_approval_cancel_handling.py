@@ -2,7 +2,10 @@ import json
 
 from fastapi.responses import StreamingResponse
 
-from app.services.llm_chat.chat_orchestration_helpers import load_pending_approval_request
+from app.services.llm_chat.chat_orchestration_helpers import (
+    clear_pending_approval_request,
+    load_pending_approval_request,
+)
 from app.services.llm_chat.message_utils import (
     extract_latest_approval_request,
     extract_user_approval_for_tool_call,
@@ -207,6 +210,10 @@ def _maybe_handle_approval_or_cancel_flow(
 
     if cancelled and request.client_id is not None and (not no_tools_requested):
         cancelled_tool_name, _cancelled_tool_args = cancelled
+        try:
+            clear_pending_approval_request(db=db, client_id=request.client_id)
+        except Exception:
+            pass
         return StreamingResponse(
             iter([f"בוצעה ביטול להפעלת הכלי: {cancelled_tool_name}. לא בוצע שינוי במערכת."]),
             media_type="text/plain; charset=utf-8",
