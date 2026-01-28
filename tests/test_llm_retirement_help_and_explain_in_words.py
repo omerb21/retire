@@ -42,28 +42,11 @@ def test_general_retirement_help_does_not_run_tools(monkeypatch) -> None:
 
 
 def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch) -> None:
-    tool_calls: list[str] = []
-
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic cashflow/explain paths")
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
-        tool_calls.append(tool_name)
-        if tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
-            raise AssertionError("Unexpected tool call")
-        return json.dumps(
-            {
-                "success": True,
-                "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-                "result": {
-                    "monthly_deficit_or_surplus": 1.0,
-                    "desired_income_is_net": True,
-                    "is_sustainable": True,
-                },
-                "explanation": "TOOL_OUTPUT",
-            },
-            ensure_ascii=False,
-        )
+    def fake_execute_tool_call(*args, **kwargs):
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
@@ -84,12 +67,7 @@ def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch
         },
     )
     assert resp1.status_code == 200
-    assert tool_calls == ["RUN_RETIREMENT_CASHFLOW_ANALYSIS"]
-
-    def no_tool_call_after(*args, **kwargs):
-        raise AssertionError("No tools should be executed for explain-in-words")
-
-    monkeypatch.setattr(stream_orch, "execute_tool_call", no_tool_call_after)
+    assert resp1.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
 
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",
@@ -110,8 +88,8 @@ def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch
     assert resp2.status_code == 200
     body = resp2.text
     assert re.search(r"\d", body) is None
-    assert ("עודף" in body) or ("גירעון" in body)
-    assert "צעד הבא" in body
+    assert "עקרונות" in body
+    assert "כדי שאוכל להסביר" in body
 
 
 def test_explain_in_words_without_prior_tool_is_general_and_no_numbers(monkeypatch) -> None:

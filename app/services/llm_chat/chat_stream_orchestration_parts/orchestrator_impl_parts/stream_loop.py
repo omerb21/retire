@@ -32,6 +32,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     store_pending_approval_request,
     store_pending_plan_target_marker,
     load_latest_target_pension_plan,
+    load_latest_target_pension_plan_data,
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
@@ -437,6 +438,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     original_user_msg = (raw_user_msg or "").strip()
 
+    force_max_exemption = False
+
     # FLOW A: Conceptual-only hard stop must be early, before any deterministic tool/approval paths.
     # Apply ONLY when the user explicitly asked not to execute ("בלי לבצע" / "אל תבצע" etc),
     # to avoid breaking other conceptual-but-structured deterministic flows.
@@ -725,48 +728,57 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     if _is_explain_in_words_request(original_user_msg):
         def _explain_in_words_answer():
-            latest = None
+            plan_payload = None
+            try:
+                plan_payload = extract_latest_target_pension_plan_payload(request.messages)
+            except Exception:
+                plan_payload = None
             if request.client_id is not None:
                 try:
-                    latest = load_latest_retirement_cashflow_analysis(db=db, client_id=request.client_id)
+                    plan_payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
                 except Exception:
-                    latest = None
+                    plan_payload = None
+                if plan_payload is None:
+                    try:
+                        plan_payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+                    except Exception:
+                        plan_payload = None
 
-            result = latest.get("result") if isinstance(latest, dict) else None
-            if isinstance(result, dict):
-                deficit_or_surplus = result.get("monthly_deficit_or_surplus")
-                status = "עודף" if isinstance(deficit_or_surplus, (int, float)) and deficit_or_surplus >= 0 else "גירעון"
-                is_sustainable = result.get("is_sustainable")
-                has_target_net = bool(result.get("desired_income_is_net"))
+            plan_res = plan_payload.get("result") if isinstance(plan_payload, dict) and isinstance(plan_payload.get("result"), dict) else None
+            if isinstance(plan_res, dict):
+                target_achieved = plan_res.get("target_achieved")
+                gap_to_target = plan_res.get("gap_to_target")
+                has_gap = False
+                if isinstance(gap_to_target, (int, float)):
+                    has_gap = gap_to_target > 0
+
+                if target_achieved is True:
+                    status_line = "- לפי תוצאת התכנית האחרונה שנבנתה במערכת: היעד הושג."
+                elif has_gap:
+                    status_line = "- לפי תוצאת התכנית האחרונה שנבנתה במערכת: קיים פער ליעד."
+                else:
+                    status_line = "- לפי תוצאת התכנית האחרונה שנבנתה במערכת: לא ניתן לקבוע כאן אם היעד הושג או אם קיים פער."
 
                 yield (
-                    "כותרת: הסבר מילולי לתוצאת התזרים האחרונה\n\n"
-                    "מה המערכת בדקה\n"
-                    "- הכנסות חודשיות מול יעד ההכנסה שהוגדר\n"
-                    "- מס על רכיבי ההכנסה כפי שחושבו במערכת\n"
-                    "- פער בין ההכנסה לבין היעד\n\n"
-                    "מה המשמעות בשורה אחת\n"
-                    f"- לפי החישוב האחרון יש {status} ביחס ליעד.\n\n"
-                    "מה זה אומר פרקטית\n"
-                    "- עודף: לרוב אין צורך למשוך הון כדי לעמוד ביעד, וההחלטות הן בעיקר סביב יציבות מול גמישות\n"
-                    "- גירעון: לרוב צריך להחליט האם משלימים מהון, משנים את יעד ההכנסה, או משנים את מבנה המשיכות/הקצבאות\n\n"
-                    "איך לפרש נטו מול ברוטו\n"
-                    + ("- היעד הוגדר כנטו, כלומר ההשוואה היא אחרי מס.\n" if has_target_net else "- היעד לא הוגדר כנטו, ולכן חשוב לוודא האם היעד הוא ברוטו או נטו לפני השוואה.\n")
-                    + ("\nהערכת קיימות\n- לפי המערכת התרחיש נראה בר-קיימא ביחס ליעד.\n" if is_sustainable is True else ("\nהערכת קיימות\n- לפי המערכת התרחיש אינו בר-קיימא ביחס ליעד ללא השלמה/שינוי.\n" if is_sustainable is False else ""))
-                    + "\nצעד הבא\n- אם תרצה מספרים או שינוי יעד, כתוב במפורש את יעד ההכנסה ואת האם הוא נטו או ברוטו.\n"
+                    "כותרת: הסבר במילים לתוצאת התכנית האחרונה\n\n"
+                    "מה זה אומר\n"
+                    + status_line
+                    + "\n\n"
+                    "צעד הבא\n"
+                    "- אם תרצה לעדכן יעד/גיל פרישה או לשנות הנחות, יש לבנות תכנית חדשה ואז להציג תזרים מתוך תוצאת התכנית.\n"
                 )
                 return
 
             yield (
                 "כותרת: הסבר במילים\n\n"
-                "אם אין תוצאת חישוב אחרונה להצמד אליה, ההסבר כאן הוא עקרונות כלליים בלבד.\n\n"
+                "אין תוצאת תכנית אחרונה להצמד אליה, ולכן ההסבר כאן הוא עקרונות כלליים בלבד.\n\n"
                 "איך ניגשים לתכנון פרישה באופן כללי\n"
                 "- מיפוי מקורות הכנסה והאם הם קבועים או משתנים\n"
                 "- מיפוי הוצאות שוטפות והוצאות חד-פעמיות צפויות\n"
                 "- הבחנה בין הכנסה נטו לברוטו והשפעת המס\n"
                 "- בדיקת פער בין היעד לבין ההכנסה והחלטה אם משלימים מהון\n"
                 "- זיהוי החלטות בלתי הפיכות מול החלטות שניתנות לשינוי\n\n"
-                "אם תרצה שאסביר את המצב שלך על סמך חישוב מערכת, בקש לחשב תזרים עם יעד מפורש.\n"
+                "כדי שאוכל להסביר על סמך חישוב מערכת, יש לבנות תכנית תחילה.\n"
             )
 
         return StreamingResponse(
@@ -2657,13 +2669,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     if plan == OrchestrationPlan.CASHFLOW_ONLY and request.client_id is not None:
         def _generate_orchestration_plan_cashflow(req_id: str):
-            if computed_data is not None:
-                computed_json = json.dumps(
-                    {"type": "computed_data", "data": computed_data.model_dump()},
-                    ensure_ascii=False,
-                )
-                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-
             banner = _build_recent_state_banner()
             if banner:
                 yield banner + "\n\n"
@@ -2676,142 +2681,14 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 pass
 
-            lowered_user_msg = (original_user_msg or "").lower()
-            explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
-            wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
-
-            target_net = extract_target_net_ils(original_user_msg or "")
-            desired_income = extract_desired_monthly_income_from_text(original_user_msg)
-            desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
-
-            if target_net is not None:
-                desired_income = float(target_net)
-                desired_income_is_net = True
-            if desired_income is None:
-                try:
-                    logger.info(
-                        "cashflow_only_missing_target_short_circuit",
-                        extra={
-                            "endpoint": "stream",
-                            "trace_id": req_id,
-                        },
-                    )
-                except Exception:
-                    pass
-                yield _cashflow_missing_target_prompt()
-                return
-            if desired_income is not None and desired_income_is_net is None:
-                yield (
-                    "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
-                    "כתוב אחת מהאפשרויות:\n"
-                    "- '40 אלף ברוטו'\n"
-                    "- '40 אלף נטו'"
-                )
-                return
-
-            client_obj = None
-            try:
-                client_obj = db.query(Client).filter(Client.id == request.client_id).first()
-            except Exception:
-                client_obj = None
-
-            birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
-            try:
-                if birth_date == date(1970, 1, 1):
-                    birth_date = None
-            except Exception:
-                birth_date = None
-            db_gender = getattr(client_obj, "gender", None) if client_obj else None
-
-            explicit_gender, explicit_age = extract_explicit_gender_and_age_from_text(original_user_msg)
-            gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
-
-            retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-            if (not retirement_date) and birth_date and gender_final:
-                retirement_date = compute_default_retirement_date_for_tool_call(
-                    birth_date=birth_date,
-                    gender=str(gender_final),
-                    user_message=original_user_msg or "",
-                )
-            resolved_ret_age, _src = resolve_target_retirement_age(
-                original_user_msg,
-                birth_date,
-                _today(),
-                None,
-            )
-            if (not retirement_date) and (resolved_ret_age is not None) and birth_date:
-                try:
-                    retirement_date = compute_retirement_date_from_birth_date(
-                        birth_date,
-                        int(resolved_ret_age),
-                    ).isoformat()
-                except Exception:
-                    retirement_date = retirement_date
-
-            age_final: int | None = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
-            if age_final is None and birth_date and retirement_date:
-                try:
-                    target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
-                    age_years = target_date.year - birth_date.year
-                    if (target_date.month, target_date.day) < (birth_date.month, birth_date.day):
-                        age_years -= 1
-                    age_final = int(age_years)
-                except Exception:
-                    age_final = None
-
-            if (not retirement_date) or (gender_final is None) or (age_final is None):
-                yield "כדי לחשב צריך לציין מין וגיל"
-                return
-
-            tool_args: dict[str, Any] = {
-                "retirement_date": retirement_date,
-                "age": int(age_final),
-                "gender": gender_final,
-            }
-            if desired_income is not None and desired_income_is_net is not None:
-                tool_args["desired_monthly_income"] = float(desired_income)
-                tool_args["desired_income_is_net"] = bool(desired_income_is_net)
-                if bool(desired_income_is_net):
-                    tool_args["desired_net_monthly_income"] = int(float(desired_income))
-
-            force_max_exemption = is_max_exemption_request(original_user_msg)
-
-            tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-            try:
-                logger.info(
-                    "cashflow_only_tool_call",
-                    extra={
-                        "endpoint": "stream",
-                        "trace_id": req_id,
-                    },
-                )
-            except Exception:
-                pass
-            tool_result = _execute_tool_call(
-                tool_name,
-                tool_args,
-                request.client_id,
-                db,
-                pension_portfolio=effective_portfolio,
+            yield from generate_cashflow(
+                computed_data=None,
+                original_user_msg=original_user_msg,
+                request=request,
+                db=db,
+                effective_portfolio=effective_portfolio,
                 force_max_exemption=force_max_exemption,
-                user_approved=True,
-                request_id=req_id,
-            )
-
-            if not _is_tool_error_text(tool_result):
-                try:
-                    store_latest_retirement_cashflow_analysis(
-                        db=db,
-                        client_id=request.client_id,
-                        tool_result=tool_result,
-                    )
-                except Exception:
-                    pass
-
-            tool_display = get_tool_display_name_hebrew(tool_name)
-            user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
-            yield (
-                f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(user_tool_output)
+                stream_request_id=req_id,
             )
 
             if advice_compensation_mode:
@@ -2833,11 +2710,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     + "פעולה הבאה במערכת:\n"
                     + "- להפיק דוח מסכם מהמערכת כדי לקבל מסמך תומך החלטה על בסיס הנתונים והחישובים שבוצעו\n"
                 )
-            else:
-                if not _is_tool_error_text(tool_result):
-                    yield (
-                        "\n\n" + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
-                    )
 
         return StreamingResponse(
             _generate_orchestration_plan_cashflow(stream_request_id),
@@ -3015,13 +2887,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             and (not commutation_intent)
         ):
             def generate_cashflow_tool_exec():
-                if computed_data is not None:
-                    computed_json = json.dumps(
-                        {"type": "computed_data", "data": computed_data.model_dump()},
-                        ensure_ascii=False,
-                    )
-                    yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
-
                 banner = _build_recent_state_banner()
                 if banner:
                     yield banner + "\n\n"
@@ -3034,165 +2899,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 except Exception:
                     pass
 
-                desired_income = extract_desired_monthly_income_from_text(original_user_msg)
-                desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
-
-                if target_net_for_cashflow is not None:
-                    desired_income = float(target_net_for_cashflow)
-                    desired_income_is_net = True
-
-                if desired_income is None:
-                    try:
-                        logger.info(
-                            "requested_cashflow_calc_missing_target_short_circuit",
-                            extra={
-                                "endpoint": "stream",
-                                "trace_id": stream_request_id,
-                            },
-                        )
-                    except Exception:
-                        pass
-                    yield _cashflow_missing_target_prompt()
-                    return
-
-                if desired_income is not None and desired_income_is_net is None:
-                    yield (
-                        "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
-                        "כתוב אחת מהאפשרויות:\n"
-                        "- '40 אלף ברוטו'\n"
-                        "- '40 אלף נטו'"
-                    )
-                    return
-
-                client_obj = None
-                try:
-                    client_obj = db.query(Client).filter(Client.id == request.client_id).first()
-                except Exception:
-                    client_obj = None
-
-                birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
-                try:
-                    if birth_date == date(1970, 1, 1):
-                        birth_date = None
-                except Exception:
-                    birth_date = None
-                db_gender = getattr(client_obj, "gender", None) if client_obj else None
-
-                explicit_gender, explicit_age = extract_explicit_gender_and_age_from_text(original_user_msg)
-                gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
-
-                retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-                if (not retirement_date) and birth_date and gender_final:
-                    retirement_date = compute_default_retirement_date_for_tool_call(
-                        birth_date=birth_date,
-                        gender=str(gender_final),
-                        user_message=original_user_msg or "",
-                    )
-                resolved_ret_age, _src = resolve_target_retirement_age(
-                    original_user_msg,
-                    birth_date,
-                    _today(),
-                    None,
-                )
-                if (not retirement_date) and (resolved_ret_age is not None) and birth_date:
-                    try:
-                        retirement_date = compute_retirement_date_from_birth_date(
-                            birth_date,
-                            int(resolved_ret_age),
-                        ).isoformat()
-                    except Exception:
-                        retirement_date = retirement_date
-
-                age_final: int | None = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
-                if age_final is None and birth_date and retirement_date:
-                    try:
-                        target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
-                        age_years = target_date.year - birth_date.year
-                        if (target_date.month, target_date.day) < (birth_date.month, birth_date.day):
-                            age_years -= 1
-                        age_final = int(age_years)
-                    except Exception:
-                        age_final = None
-
-                if (not retirement_date) or (gender_final is None) or (age_final is None):
-                    yield "כדי לחשב צריך לציין מין וגיל"
-                    return
-
-                tool_args: dict[str, Any] = {
-                    "retirement_date": retirement_date,
-                    "age": int(age_final),
-                    "gender": gender_final,
-                }
-                if desired_income is not None and desired_income_is_net is not None:
-                    tool_args["desired_monthly_income"] = float(desired_income)
-                    tool_args["desired_income_is_net"] = bool(desired_income_is_net)
-                    if bool(desired_income_is_net):
-                        tool_args["desired_net_monthly_income"] = int(float(desired_income))
-
-                tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-                try:
-                    logger.info(
-                        "requested_cashflow_calc_tool_call",
-                        extra={
-                            "endpoint": "stream",
-                            "trace_id": stream_request_id,
-                        },
-                    )
-                except Exception:
-                    pass
-                tool_result = _execute_tool_call(
-                    tool_name,
-                    tool_args,
-                    request.client_id,
-                    db,
-                    pension_portfolio=effective_portfolio,
+                yield from generate_cashflow(
+                    computed_data=None,
+                    original_user_msg=original_user_msg,
+                    request=request,
+                    db=db,
+                    effective_portfolio=effective_portfolio,
                     force_max_exemption=force_max_exemption,
-                    user_approved=True,
-                    request_id=stream_request_id,
+                    stream_request_id=stream_request_id,
                 )
-
-                if not _is_tool_error_text(tool_result):
-                    try:
-                        store_latest_retirement_cashflow_analysis(
-                            db=db,
-                            client_id=request.client_id,
-                            tool_result=tool_result,
-                        )
-                    except Exception:
-                        pass
-
-                tool_display = get_tool_display_name_hebrew(tool_name)
-                user_tool_output = format_tool_output_for_user_stream(tool_name, tool_result)
-                yield (
-                    f"🔧 **פלט כלי ({tool_display}):**\n"
-                    + sanitize_user_visible_text(user_tool_output)
-                    + "\n\n"
-                )
-                if advice_compensation_mode:
-                    yield (
-                        "\n\n"
-                        + "כותרת: סיכום החלטה לגבי פיצויים\n\n"
-                        + "מה בדקתי במערכת:\n"
-                        + "- תזרים\n"
-                        + "- מס\n"
-                        + "- יתרות\n"
-                        + "- סטטוסים (כולל חסומים) ואירוע סיום עבודה\n\n"
-                        + "מה המשמעות של שתי אפשרויות עיקריות:\n"
-                        + "- מימוש כהון: שינוי באופי המימוש והנזילות; עשוי להשפיע על רכיבי המס והיתרות שנצפות בדוחות\n"
-                        + "- השארה כהמשך קצבתי/אחר: המשך צבירה/תשלום במבנה קצבתי בהתאם להגדרות הקופות והסטטוסים במערכת\n\n"
-                        + "מה חסר כדי לתת המלצה סופית (אם חסר):\n"
-                        + "- בחירת יעד (נזילות מול קצבה)\n"
-                        + "- סטטוס תהליך סיום עבודה ומסמכים נלווים\n"
-                        + "- אישור שהנתונים במערכת עדכניים לכל הגופים\n\n"
-                        + "פעולה הבאה במערכת:\n"
-                        + "- להפיק דוח מסכם מהמערכת כדי לקבל מסמך תומך החלטה על בסיס הנתונים והחישובים שבוצעו\n"
-                    )
-                else:
-                    if not _is_tool_error_text(tool_result):
-                        yield (
-                            "\n\n"
-                            + "הפקתי את תוצאות הניתוח מהמערכת. להסבר מילולי בלי מספרים כתוב: הסבר במילים.\n"
-                        )
 
             return StreamingResponse(
                 generate_cashflow_tool_exec(),
@@ -3864,93 +3579,24 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     return
 
                 if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
-                    lowered_user_msg2 = (original_user_msg or "").lower()
-                    explicit_cashflow_request2 = ("תזרים" in lowered_user_msg2) or ("cashflow" in lowered_user_msg2)
-                    wants_cashflow_refresh2 = is_cashflow_missing_income_followup(original_user_msg)
-                    if wants_cashflow_refresh2 or explicit_cashflow_request2:
-                        target_net_gate = extract_target_net_ils(original_user_msg or "")
-                        desired_income_gate = extract_desired_monthly_income_from_text(original_user_msg)
-                        if (target_net_gate is None) and (desired_income_gate is None):
-                            try:
-                                logger.info(
-                                    "llm_tool_call_cashflow_missing_target_short_circuit",
-                                    extra={
-                                        "endpoint": "stream",
-                                        "trace_id": stream_request_id,
-                                    },
-                                )
-                            except Exception:
-                                pass
-                            yield _cashflow_missing_target_prompt()
-                            return
-
-                if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
-                    client_obj = None
+                    portfolio_for_cashflow = effective_portfolio
                     try:
-                        client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+                        loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                        if loaded is not None:
+                            portfolio_for_cashflow, _snap_at = loaded
                     except Exception:
-                        client_obj = None
+                        pass
 
-                    birth_date = getattr(client_obj, "birth_date", None) if client_obj else None
-                    try:
-                        if birth_date == date(1970, 1, 1):
-                            birth_date = None
-                    except Exception:
-                        birth_date = None
-                    db_gender = getattr(client_obj, "gender", None) if client_obj else None
-
-                    explicit_gender_gate, explicit_age_gate = extract_explicit_gender_and_age_from_text(original_user_msg)
-
-                    gender_final = (
-                        tool_args.get("gender")
-                        or explicit_gender_gate
-                        or (str(db_gender).strip() if db_gender is not None else None)
+                    yield from generate_cashflow(
+                        computed_data=None,
+                        original_user_msg=original_user_msg,
+                        request=request,
+                        db=db,
+                        effective_portfolio=portfolio_for_cashflow,
+                        force_max_exemption=force_max_exemption_val,
+                        stream_request_id=req_id,
                     )
-
-                    retirement_date_final = tool_args.get("retirement_date")
-                    if not retirement_date_final:
-                        retirement_date_final = extract_explicit_retirement_date_from_text(original_user_msg)
-                    if (not retirement_date_final) and birth_date and gender_final:
-                        retirement_date_final = compute_default_retirement_date_for_tool_call(
-                            birth_date=birth_date,
-                            gender=str(gender_final),
-                            user_message=original_user_msg or "",
-                        )
-                    resolved_ret_age, _src = resolve_target_retirement_age(
-                        original_user_msg,
-                        birth_date,
-                        _today(),
-                        None,
-                    )
-                    if (not retirement_date_final) and (resolved_ret_age is not None) and birth_date:
-                        try:
-                            retirement_date_final = compute_retirement_date_from_birth_date(
-                                birth_date,
-                                int(resolved_ret_age),
-                            ).isoformat()
-                        except Exception:
-                            retirement_date_final = retirement_date_final
-
-                    age_final = int(resolved_ret_age) if resolved_ret_age is not None else tool_args.get("age")
-                    if age_final is None and explicit_age_gate is not None:
-                        age_final = int(explicit_age_gate)
-                    if age_final is None and birth_date and retirement_date_final:
-                        try:
-                            target_date = datetime.strptime(retirement_date_final, "%Y-%m-%d").date()
-                            age_years = target_date.year - birth_date.year
-                            if (target_date.month, target_date.day) < (birth_date.month, birth_date.day):
-                                age_years -= 1
-                            age_final = int(age_years)
-                        except Exception:
-                            age_final = None
-
-                    if (not retirement_date_final) or (gender_final is None) or (age_final is None):
-                        yield "כדי לחשב צריך לציין מין וגיל"
-                        return
-
-                    tool_args["retirement_date"] = retirement_date_final
-                    tool_args["gender"] = gender_final
-                    tool_args["age"] = int(age_final)
+                    return
 
                 (
                     should_break,

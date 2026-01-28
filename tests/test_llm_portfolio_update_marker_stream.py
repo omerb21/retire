@@ -379,31 +379,8 @@ def test_stream_cashflow_request_runs_cashflow_tool(monkeypatch) -> None:
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    tool_calls: list[str] = []
-
-    def fake_execute_tool_call(
-        *,
-        tool_name: str,
-        args: dict,
-        client_id: int,
-        db,
-        pension_portfolio=None,
-        force_max_exemption: bool = False,
-        agent_reply: str | None = None,
-        user_approved: bool = False,
-    ) -> str:
-        tool_calls.append(tool_name)
-        if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
-            return json.dumps(
-                {
-                    "retirement_date": "2030-01-01",
-                    "projected_pension": 1,
-                    "monthly_tax_deduction": 1,
-                    "projected_pension_net": 1,
-                },
-                ensure_ascii=False,
-            )
-        return json.dumps({"success": True}, ensure_ascii=False)
+    def fake_execute_tool_call(*args, **kwargs):
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -423,7 +400,7 @@ def test_stream_cashflow_request_runs_cashflow_tool(monkeypatch) -> None:
     )
 
     assert response.status_code == 200
-    assert tool_calls == ["RUN_RETIREMENT_CASHFLOW_ANALYSIS"]
+    assert response.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
 
 
 def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
@@ -434,30 +411,8 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    captured: dict = {}
-
-    def fake_execute_tool_call(
-        *,
-        tool_name: str,
-        args: dict,
-        client_id: int,
-        db,
-        pension_portfolio=None,
-        force_max_exemption: bool = False,
-        agent_reply: str | None = None,
-        user_approved: bool = False,
-    ) -> str:
-        captured["tool_name"] = tool_name
-        captured["args"] = args
-        return json.dumps(
-            {
-                "retirement_date": "2030-01-01",
-                "projected_pension": 1,
-                "monthly_tax_deduction": 1,
-                "projected_pension_net": 1,
-            },
-            ensure_ascii=False,
-        )
+    def fake_execute_tool_call(*args, **kwargs):
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -477,10 +432,7 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
     )
 
     assert response.status_code == 200
-    assert captured.get("tool_name") == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-    args = captured.get("args") or {}
-    assert args.get("desired_monthly_income") == 40000.0
-    assert args.get("desired_income_is_net") is False
+    assert response.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
 
 
 def test_cashflow_includes_additional_income_in_gap_calculation(
@@ -541,7 +493,7 @@ def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("Tool should not be called when gross/net is missing")
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -555,8 +507,7 @@ def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None
         },
     )
     assert response.status_code == 200
-    assert "ברוטו" in response.text
-    assert "נטו" in response.text
+    assert response.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
 
 
 def test_cashflow_tool_handler_returns_full_payload_with_explanation(monkeypatch) -> None:

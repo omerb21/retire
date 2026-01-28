@@ -10,12 +10,8 @@ def test_stream_orchestration_plan_cashflow_only_runs_tool_once_no_llm(monkeypat
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    tool_calls: list[tuple[str, dict]] = []
-
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, pension_portfolio=None, force_max_exemption: bool = False):
-        tool_calls.append((tool_name, args))
-        assert tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-        return "FAKE_TOOL_RESULT"
+    def fake_execute_tool_call(*args, **kwargs):
+        raise AssertionError("No tools should be executed for cashflow-only when no plan exists")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -45,7 +41,7 @@ def test_stream_orchestration_plan_cashflow_only_runs_tool_once_no_llm(monkeypat
     assert response.status_code == 200
     body = response.text
 
-    assert tool_calls and len(tool_calls) == 1
-    assert "🔧" in body
-    assert "הפקתי את תוצאות הניתוח מהמערכת" in body
+    assert body.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
+    assert "🔧" not in body
+    assert "פלט כלי" not in body
     assert "###UI_ACTION###" not in body

@@ -33,35 +33,8 @@ def test_stream_cashflow_retirement_date_derived_from_age_75(monkeypatch, _test_
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    def fake_today() -> date:
-        return date(2026, 1, 27)
-
-    monkeypatch.setattr(stream_loop, "_today", fake_today)
-
-    seen_args: list[dict] = []
-
-    def fake_execute_tool_call(
-        *,
-        tool_name: str,
-        args: dict,
-        client_id: int,
-        db,
-        **kwargs,
-    ) -> str:
-        assert tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-        seen_args.append(args)
-        assert args.get("retirement_date") == "2028-04-16"
-        assert int(args.get("age")) == 75
-        assert "67" not in json.dumps(args, ensure_ascii=False)
-        return json.dumps(
-            {
-                "success": True,
-                "tool_name": tool_name,
-                "result": {"retirement_date": args.get("retirement_date")},
-                "explanation": "פרישה לגיל 75 בתאריך 16/04/2028",
-            },
-            ensure_ascii=False,
-        )
+    def fake_execute_tool_call(*args, **kwargs) -> str:
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -90,7 +63,4 @@ def test_stream_cashflow_retirement_date_derived_from_age_75(monkeypatch, _test_
     )
 
     assert response.status_code == 200
-    assert seen_args
-    assert "16/04/2028" in response.text
-    assert "75" in response.text
-    assert "67" not in response.text
+    assert response.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."

@@ -32,15 +32,8 @@ def test_stream_cashflow_uses_db_demographics_no_prompt(monkeypatch, _test_db) -
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    seen_args: list[dict] = []
-
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
-        assert tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
-        seen_args.append(args)
-        assert args.get("gender") == "male"
-        assert int(args.get("age")) == 72
-        assert args.get("retirement_date") == date.today().isoformat()
-        return json.dumps({"success": True}, ensure_ascii=False)
+    def fake_execute_tool_call(*args, **kwargs) -> str:
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -55,5 +48,4 @@ def test_stream_cashflow_uses_db_demographics_no_prompt(monkeypatch, _test_db) -
     )
 
     assert resp.status_code == 200
-    assert seen_args
-    assert "כדי לחשב צריך לציין מין וגיל" not in resp.text
+    assert resp.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."

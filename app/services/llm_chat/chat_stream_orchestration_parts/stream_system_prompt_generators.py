@@ -1,24 +1,21 @@
 import json
-from datetime import datetime, date
-from typing import Any
+from datetime import date
 
 from app.models.client import Client
 
 from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
+    load_latest_target_pension_plan_data,
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
 )
-from app.services.llm_chat.message_utils import extract_target_pension_from_message
+from app.services.llm_chat.message_utils import (
+    extract_latest_target_pension_plan_payload,
+    extract_target_pension_from_message,
+)
 
 from app.services.llm_chat.orchestration_utils import (
-    extract_desired_monthly_income_from_text,
-    extract_explicit_gender_and_age_from_text,
-    extract_explicit_retirement_date_from_text,
-    compute_retirement_date_from_birth_date,
-    resolve_target_retirement_age,
     format_tool_output_for_user_stream,
-    infer_desired_income_is_net_explicit,
     sanitize_user_visible_text,
 )
 
@@ -319,109 +316,70 @@ def generate_cashflow(*, computed_data, original_user_msg, request, db, effectiv
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-    birth_date_for_default_date = None
-    gender_for_default_date = None
+    plan_payload = None
     try:
-        client_obj = db.query(Client).filter(Client.id == request.client_id).first()
-        birth_date_for_default_date = getattr(client_obj, "birth_date", None) if client_obj else None
-        gender_for_default_date = getattr(client_obj, "gender", None) if client_obj else None
+        plan_payload = extract_latest_target_pension_plan_payload(request.messages)
     except Exception:
-        birth_date_for_default_date = None
-        gender_for_default_date = None
-
-    desired_income = extract_desired_monthly_income_from_text(original_user_msg)
-
-    if desired_income is None:
-        yield (
-            "כדי לחשב תזרים פרישה אני צריך יעד הכנסה חודשי מפורש (ברוטו או נטו).\n\n"
-            "דוגמאות להעתקה:\n"
-            "יעד נטו: <מספר>\n"
-            "יעד ברוטו: <מספר>\n\n"
-            "דוגמאות מלאות:\n"
-            "יעד נטו: 28000\n"
-            "יעד ברוטו: 31000"
-        )
-        return
-
-    desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
-    if desired_income is not None and desired_income_is_net is None:
-        yield (
-            "כדי לבנות תזרים לפי יעד הכנסה אני צריך להבהיר: היעד שציינת הוא **ברוטו** או **נטו**?\n\n"
-            "כתוב אחת מהאפשרויות:\n"
-            "- '40 אלף ברוטו'\n"
-            "- '40 אלף נטו'"
-        )
-        return
-
-    explicit_gender, explicit_age = extract_explicit_gender_and_age_from_text(original_user_msg)
-    gender_final = explicit_gender or (str(gender_for_default_date).strip() if gender_for_default_date is not None else None)
-
-    retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
-    resolved_ret_age, _src = resolve_target_retirement_age(
-        original_user_msg,
-        birth_date_for_default_date,
-        date.today(),
-        None,
-    )
-    if (not retirement_date) and (resolved_ret_age is not None) and birth_date_for_default_date:
+        plan_payload = None
+    if plan_payload is None and request.client_id is not None:
         try:
-            retirement_date = compute_retirement_date_from_birth_date(
-                birth_date_for_default_date,
-                int(resolved_ret_age),
-            ).isoformat()
+            plan_payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
         except Exception:
-            retirement_date = retirement_date
-
-    age_final: int | None = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
-    if age_final is None and birth_date_for_default_date and retirement_date:
+            plan_payload = None
+    if plan_payload is None and request.client_id is not None:
         try:
-            target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
-            age_years = target_date.year - birth_date_for_default_date.year
-            if (target_date.month, target_date.day) < (
-                birth_date_for_default_date.month,
-                birth_date_for_default_date.day,
-            ):
-                age_years -= 1
-            age_final = int(age_years)
+            plan_payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
         except Exception:
-            age_final = None
+            plan_payload = None
 
-    if (not retirement_date) or (gender_final is None) or (age_final is None):
-        yield "כדי לחשב צריך לציין מין וגיל"
+    if not isinstance(plan_payload, dict):
+        yield "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
         return
 
-    tool_args: dict[str, Any] = {
-        "retirement_date": retirement_date,
-        "desired_monthly_income": float(desired_income),
-        "age": int(age_final),
-        "gender": gender_final,
-    }
-    if desired_income_is_net is not None:
-        tool_args["desired_income_is_net"] = bool(desired_income_is_net)
+    plan_res = plan_payload.get("result") if isinstance(plan_payload.get("result"), dict) else {}
 
-    tool_result = _execute_tool_call(
-        "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-        tool_args,
-        request.client_id,
-        db,
-        pension_portfolio=effective_portfolio,
-        force_max_exemption=force_max_exemption,
-        user_approved=True,
-        request_id=stream_request_id,
-    )
+    pension_gross = plan_res.get("accumulated_pension")
+    pension_net = plan_res.get("estimated_monthly_net")
+    pension_tax = plan_res.get("estimated_monthly_tax")
+    capital_remaining = plan_res.get("remaining_capital")
+    target_achieved = plan_res.get("target_achieved")
+    gap_to_target = plan_res.get("gap_to_target")
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
-        yield sanitize_user_visible_text(tool_result)
+    yield "כותרת: תזרים (הקרנה) מתוך תוצאת התכנית האחרונה שנבנתה במערכת\n\n"
+
+    if pension_gross is not None:
+        try:
+            yield f"- קצבה ברוטו (מתוך התכנית): {float(pension_gross):,.0f} ₪/חודש\n"
+        except Exception:
+            pass
+    if pension_tax is not None:
+        try:
+            yield f"- מס חודשי (מתוך התכנית): {float(pension_tax):,.0f} ₪\n"
+        except Exception:
+            pass
+    if pension_net is not None:
+        try:
+            yield f"- קצבה נטו (מתוך התכנית): {float(pension_net):,.0f} ₪/חודש\n"
+        except Exception:
+            pass
+    if capital_remaining is not None:
+        try:
+            yield f"- הון שנותר (מתוך התכנית): {float(capital_remaining):,.0f} ₪\n"
+        except Exception:
+            pass
+
+    if target_achieved is True:
+        yield "\nסטטוס: לפי התכנית האחרונה – היעד הושג, ולכן אין גירעון שמקורו בתזרים.\n"
         return
-    # Deterministic: always present the tool's own explanation which is built from system state.
-    try:
-        parsed = json.loads(tool_result) if isinstance(tool_result, str) else {}
-    except Exception:
-        parsed = {}
-    explanation = parsed.get("explanation") if isinstance(parsed, dict) else None
-    if isinstance(explanation, str) and explanation.strip():
-        yield sanitize_user_visible_text(explanation.strip())
-    else:
-        yield sanitize_user_visible_text(
-            format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", tool_result)
-        )
+
+    # If the plan did not achieve the target, we can surface the gap as-is from the plan result.
+    if gap_to_target is not None:
+        try:
+            gap_val = float(gap_to_target)
+        except Exception:
+            gap_val = None
+        if gap_val is not None and gap_val > 0:
+            yield f"\nסטטוס: לפי התכנית האחרונה – קיים פער ליעד (מתוך התכנית): {gap_val:,.0f} ₪/חודש.\n"
+            return
+
+    yield "\nסטטוס: לא נמצאה אינדיקציה ברורה בתוצאת התכנית האם היעד הושג או מהו הפער.\n"

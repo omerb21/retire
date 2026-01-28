@@ -21,7 +21,7 @@ def test_cashflow_trigger_runs_tool(monkeypatch) -> None:
         user_approved: bool = True,
         request_id: str | None = None,
     ) -> str:
-        raise AssertionError("Tool must not be executed when cashflow target is missing")
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be used for cashflow calc requests")
@@ -44,19 +44,10 @@ def test_cashflow_trigger_runs_tool(monkeypatch) -> None:
 
     assert executed["count"] == 0
 
+    assert body.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
     assert "🔧" not in body
     assert "פלט כלי" not in body
     assert "Tool Error" not in body
-    assert "יעד נטו" in body
-    assert "יעד ברוטו" in body
-    assert "יעד נטו: <מספר>" in body
-    assert "יעד ברוטו: <מספר>" in body
-    assert "יעד נטו: 28000" in body
-    assert "יעד ברוטו: 31000" in body
-    assert "15,000" not in body
-    assert "הפקתי את תוצאות הניתוח מהמערכת" not in body
-
-    assert not body.lstrip().startswith("**דוח תזרים לפרישה")
 
 
 def test_cashflow_missing_age_gender_blocks_before_tool(monkeypatch) -> None:
@@ -65,7 +56,7 @@ def test_cashflow_missing_age_gender_blocks_before_tool(monkeypatch) -> None:
     )
 
     def fake_execute_tool_call(*args, **kwargs):
-        return "FAKE_TOOL_RESULT"
+        raise AssertionError("No tools should be executed for cashflow without an existing plan")
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be used for deterministic cashflow gating")
@@ -90,6 +81,7 @@ def test_cashflow_missing_age_gender_blocks_before_tool(monkeypatch) -> None:
 
     assert response.status_code == 200
     body = response.text
+    assert body.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
     assert "Tool Error" not in body
 
 
@@ -142,4 +134,4 @@ def test_cashflow_missing_db_and_text_age_gender_blocks_with_short_prompt(monkey
     assert "🔧" not in body
     assert "פלט כלי" not in body
     assert "Tool Error" not in body
-    assert "כדי לחשב צריך לציין מין וגיל" in body
+    assert body.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
