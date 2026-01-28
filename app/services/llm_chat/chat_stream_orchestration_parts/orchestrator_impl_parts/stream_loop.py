@@ -978,6 +978,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 return rendered_output + "\n\nהשלב הבא המומלץ: הפקת דוח"
 
             def _generate_text_approved_exec(req_id: str):
+                after_plan_args = None
+                if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+                    maybe_after = approved_args.get("_after_build_target_pension_plan_args")
+                    if isinstance(maybe_after, dict) and maybe_after:
+                        after_plan_args = dict(maybe_after)
                 try:
                     effective_portfolio = request.pension_portfolio
                     try:
@@ -1009,6 +1014,44 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     f"🔧 **פלט כלי ({tool_display}):**\n"
                     + sanitize_user_visible_text(user_tool_output)
                 )
+
+                if after_plan_args is not None and request.client_id is not None:
+                    yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
+
+                    plan_result = _execute_tool_call(
+                        "BUILD_TARGET_PENSION_PLAN",
+                        after_plan_args,
+                        request.client_id,
+                        db,
+                        pension_portfolio=effective_portfolio,
+                        force_max_exemption=False,
+                        user_approved=True,
+                        request_id=req_id,
+                    )
+
+                    try:
+                        store_latest_target_pension_plan_data(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=plan_result,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        store_latest_target_pension_plan(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=plan_result,
+                        )
+                    except Exception:
+                        pass
+
+                    yield sanitize_user_visible_text(
+                        "\n\n🔧 **פלט כלי (" + get_tool_display_name_hebrew("BUILD_TARGET_PENSION_PLAN") + "):**\n"
+                        + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                    )
+                    return
+
                 yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
 
             return StreamingResponse(
@@ -1577,6 +1620,23 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         if approved is not None:
             approved_tool, approved_args = approved
 
+            pending_db = None
+            try:
+                pending_db = load_pending_approval_request(db=db, client_id=request.client_id)
+            except Exception:
+                pending_db = None
+            if pending_db is not None:
+                pending_tool_name, pending_tool_args = pending_db
+                if (
+                    isinstance(pending_tool_name, str)
+                    and isinstance(pending_tool_args, dict)
+                    and pending_tool_name == approved_tool
+                    and isinstance(approved_args, dict)
+                ):
+                    merged_args = dict(pending_tool_args)
+                    merged_args.update(approved_args)
+                    approved_args = merged_args
+
             if _should_show_post_conversion_messages() and approved_tool in {
                 "TRANSFORM_FUNDS_TO_ASSETS",
                 "EXECUTE_RETIREMENT_SCENARIO",
@@ -1593,6 +1653,12 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                         ensure_ascii=False,
                     )
                     yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+                after_plan_args = None
+                if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+                    maybe_after = approved_args.get("_after_build_target_pension_plan_args")
+                    if isinstance(maybe_after, dict) and maybe_after:
+                        after_plan_args = dict(maybe_after)
 
                 try:
                     clear_pending_approval_request(db=db, client_id=request.client_id)
@@ -1626,6 +1692,44 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                     f"🔧 **פלט כלי ({tool_display}):**\n"
                     + sanitize_user_visible_text(user_tool_output)
                 )
+
+                if after_plan_args is not None and request.client_id is not None:
+                    yield _append_transform_next_step_hint(tool_name=approved_tool, rendered_output=rendered)
+
+                    plan_result = _execute_tool_call(
+                        "BUILD_TARGET_PENSION_PLAN",
+                        after_plan_args,
+                        request.client_id,
+                        db,
+                        pension_portfolio=effective_portfolio,
+                        force_max_exemption=False,
+                        user_approved=True,
+                        request_id=req_id,
+                    )
+
+                    try:
+                        store_latest_target_pension_plan_data(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=plan_result,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        store_latest_target_pension_plan(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=plan_result,
+                        )
+                    except Exception:
+                        pass
+
+                    yield sanitize_user_visible_text(
+                        "\n\n🔧 **פלט כלי (" + get_tool_display_name_hebrew("BUILD_TARGET_PENSION_PLAN") + "):**\n"
+                        + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                    )
+                    return
+
                 yield _append_transform_next_step_hint(tool_name=approved_tool, rendered_output=rendered)
 
             return StreamingResponse(
