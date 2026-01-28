@@ -175,6 +175,7 @@ from ..chat_helpers import (
     _user_requested_target_pension_plan,
     _user_wants_full_balance,
 )
+from app.models.pension_fund import PensionFund
 from ..stream_top_level_helpers import (
     _build_transform_accounts_from_target_plan_payload,
     _get_llm_service,
@@ -249,8 +250,200 @@ from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_determini
 
 logger = logging.getLogger("app.llm_chat")
 
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+
 def _today() -> date:
     return date.today()
+
+
+def _coerce_float_safe(value: Any) -> float:
+    try:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("₪", "").strip()
+            return float(cleaned or 0)
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _compute_existing_fixed_net_income_monthly(*, db: Session, client_id: int) -> float:
+    total = 0.0
+    try:
+        rows = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        for pf in rows or []:
+            total += _coerce_float_safe(getattr(pf, "pension_amount", 0) or 0)
+    except Exception:
+        pass
+
+    try:
+        from datetime import date as _date
+
+        from app.providers.tax_params import InMemoryTaxParamsProvider
+        from app.services.additional_income_service import AdditionalIncomeService
+
+        today = _today()
+        reference_date = _date(today.year, today.month, 1)
+        income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
+        cashflow = income_service.generate_combined_cashflow(
+            db,
+            client_id,
+            reference_date,
+            reference_date,
+            reference_date,
+        )
+        if isinstance(cashflow, list):
+            for item in cashflow:
+                if isinstance(item, dict) and item.get("date") == reference_date:
+                    total += _coerce_float_safe(item.get("net_amount"))
+                    break
+    except Exception:
+        pass
+
+    return float(total or 0)
+
+
+def _detect_blocked_balances_in_snapshot(*, portfolio: Any) -> bool:
+    if not isinstance(portfolio, list) or not portfolio:
+        return False
+    for item in portfolio:
+        data = {}
+        if isinstance(item, dict):
+            data = item
+        else:
+            model_dump = getattr(item, "model_dump", None)
+            if callable(model_dump):
+                try:
+                    dumped = model_dump()
+                    if isinstance(dumped, dict):
+                        data = dumped
+                except Exception:
+                    data = {}
+            else:
+                raw = getattr(item, "__dict__", {})
+                data = raw if isinstance(raw, dict) else {}
+
+        for key in (
+            "פיצויים_שלא_עברו_התחשבנות",
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            "פיצויים_מעסיק_נוכחי",
+        ):
+            if _coerce_float_safe(data.get(key)) > 0:
+                return True
+            nested = data.get("specific_amounts")
+            if isinstance(nested, dict) and _coerce_float_safe(nested.get(key)) > 0:
+                return True
+    return False
+
+
+def _load_pending_pre_retirement_plan_resolution(
+    *, db: Session, client_id: int
+) -> dict | None:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO)
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _clear_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int) -> None:
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+        ).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _store_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int, payload: dict) -> None:
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload or {}, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _pre_retirement_plan_resolution(
+    *,
+    db: Session,
+    client_id: int,
+    requested_target: float,
+    target_is_net: bool,
+    retirement_age: int | None,
+    effective_portfolio: Any,
+) -> tuple[str, dict | str]:
+    existing_fixed_net = _compute_existing_fixed_net_income_monthly(db=db, client_id=client_id)
+    eff_target = float(requested_target)
+    if target_is_net:
+        eff_target = max(float(requested_target) - float(existing_fixed_net), 0.0)
+    if eff_target <= 0:
+        return (
+            "done_text",
+            "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת",
+        )
+
+    has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
+    if has_blocked:
+        payload = {
+            "requested_target": float(requested_target),
+            "target_is_net": bool(target_is_net),
+            "retirement_age": int(retirement_age) if retirement_age is not None else None,
+        }
+        _store_pending_pre_retirement_plan_resolution(db=db, client_id=client_id, payload=payload)
+        return (
+            "ask_blocked",
+            "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא",
+        )
+
+    return (
+        "proceed",
+        {
+            "target_monthly_pension": float(eff_target),
+            "target_is_net": bool(target_is_net),
+            "retirement_age": int(retirement_age) if retirement_age is not None else None,
+        },
+    )
 
 _NO_TOOLS_DECISION_PHRASES: tuple[str, ...] = (
     "האם",
@@ -834,24 +1027,47 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
             def _exec_target_plan_tools_first_from_phrase():
                 tool_name = "BUILD_TARGET_PENSION_PLAN"
-                tool_args = {
-                    "target_monthly_pension": float(target_net_from_phrase),
-                    "target_is_net": True,
-                }
+                effective_portfolio = request.pension_portfolio
+                try:
+                    if not isinstance(effective_portfolio, list) or not effective_portfolio:
+                        loaded = _load_latest_pension_portfolio_snapshot_models(db, client_id)
+                        if loaded is not None:
+                            effective_portfolio, effective_snapshot_at = loaded
+                except Exception:
+                    pass
+
                 client_obj = None
                 try:
                     client_obj = db.query(Client).filter(Client.id == client_id).first()
                 except Exception:
                     client_obj = None
                 inferred_age = _infer_retirement_age_for_plan_args(client_obj=client_obj, pending_payload=None)
-                if inferred_age is not None:
-                    tool_args["retirement_age"] = int(inferred_age)
+
+                step, out = _pre_retirement_plan_resolution(
+                    db=db,
+                    client_id=client_id,
+                    requested_target=float(target_net_from_phrase),
+                    target_is_net=True,
+                    retirement_age=int(inferred_age) if inferred_age is not None else None,
+                    effective_portfolio=effective_portfolio,
+                )
+                if step == "done_text":
+                    yield str(out)
+                    return
+                if step == "ask_blocked":
+                    yield str(out)
+                    return
+
+                tool_args = out if isinstance(out, dict) else {
+                    "target_monthly_pension": float(target_net_from_phrase),
+                    "target_is_net": True,
+                }
                 tool_result = _execute_tool_call(
                     tool_name,
                     tool_args,
                     client_id,
                     db,
-                    pension_portfolio=request.pension_portfolio,
+                    pension_portfolio=effective_portfolio,
                     force_max_exemption=False,
                     user_approved=True,
                     request_id=stream_request_id,
@@ -909,6 +1125,118 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
     if request.client_id is not None and isinstance(original_user_msg, str):
         lowered_user_msg = original_user_msg.strip().lower()
+
+        if lowered_user_msg in {"כן", "לא"}:
+            pending_payload = None
+            try:
+                pending_payload = _load_pending_pre_retirement_plan_resolution(
+                    db=db,
+                    client_id=request.client_id,
+                )
+            except Exception:
+                pending_payload = None
+
+            if isinstance(pending_payload, dict) and pending_payload.get("requested_target") is not None:
+                try:
+                    loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                    if loaded is not None:
+                        effective_portfolio, effective_snapshot_at = loaded
+                except Exception:
+                    pass
+
+                requested_target = _coerce_float_safe(pending_payload.get("requested_target"))
+                target_is_net_val = bool(pending_payload.get("target_is_net", True))
+                retirement_age_val = pending_payload.get("retirement_age")
+                retirement_age_int = None
+                if retirement_age_val is not None:
+                    try:
+                        retirement_age_int = int(retirement_age_val)
+                    except Exception:
+                        retirement_age_int = None
+
+                if lowered_user_msg == "לא":
+                    try:
+                        _clear_pending_pre_retirement_plan_resolution(db=db, client_id=request.client_id)
+                    except Exception:
+                        pass
+                    existing_fixed_net = _compute_existing_fixed_net_income_monthly(
+                        db=db,
+                        client_id=request.client_id,
+                    )
+                    eff_target = float(requested_target)
+                    if target_is_net_val:
+                        eff_target = max(float(requested_target) - float(existing_fixed_net), 0.0)
+                    if eff_target <= 0:
+                        return StreamingResponse(
+                            iter(["היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"]),
+                            media_type="text/plain; charset=utf-8",
+                        )
+
+                    plan_args = {
+                        "target_monthly_pension": float(eff_target),
+                        "target_is_net": bool(target_is_net_val),
+                    }
+                    if retirement_age_int is not None:
+                        plan_args["retirement_age"] = int(retirement_age_int)
+
+                    def _run_plan_after_no(req_id: str):
+                        plan_result = _execute_tool_call(
+                            "BUILD_TARGET_PENSION_PLAN",
+                            plan_args,
+                            request.client_id,
+                            db,
+                            pension_portfolio=effective_portfolio,
+                            force_max_exemption=False,
+                            user_approved=True,
+                            request_id=req_id,
+                        )
+                        yield sanitize_user_visible_text(
+                            "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                            + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                        )
+
+                    return StreamingResponse(
+                        _run_plan_after_no(stream_request_id),
+                        media_type="text/plain; charset=utf-8",
+                    )
+
+                try:
+                    _clear_pending_pre_retirement_plan_resolution(db=db, client_id=request.client_id)
+                except Exception:
+                    pass
+                accounts = build_transform_accounts_from_portfolio(effective_portfolio)
+                if not accounts:
+                    return StreamingResponse(iter(["לא הצלחתי לבנות רשימת חשבונות להמרה מתוך הסנאפשוט."]), media_type="text/plain; charset=utf-8")
+
+                transform_args = {
+                    "accounts": accounts,
+                    "use_provided_accounts_only": True,
+                    "ignore_blocked_balances": False,
+                    "skip_non_convertible_accounts": True,
+                    "_after_build_target_pension_plan_args": {
+                        "target_monthly_pension": float(requested_target),
+                        "target_is_net": bool(target_is_net_val),
+                        "retirement_age": retirement_age_int,
+                        "_pre_retirement_plan_resolution": True,
+                    },
+                }
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                        tool_args=transform_args,
+                    )
+                except Exception:
+                    pass
+                ui_action = build_approval_request_ui_action(
+                    tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+                    tool_args=transform_args,
+                    reason="נדרש אישור לפני המרה כדי לכלול יתרות חסומות בתכנון",
+                    risk_level="high",
+                    rag_sources=None,
+                )
+                return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
 
         def _has_pending_approval() -> bool:
             try:
@@ -1017,6 +1345,26 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
                 if after_plan_args is not None and request.client_id is not None:
                     yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
+
+                    if after_plan_args.get("_pre_retirement_plan_resolution") is True:
+                        requested_target = _coerce_float_safe(after_plan_args.get("target_monthly_pension"))
+                        target_is_net_val = bool(after_plan_args.get("target_is_net", True))
+                        retirement_age_val = after_plan_args.get("retirement_age")
+                        retirement_age_int = None
+                        if retirement_age_val is not None:
+                            try:
+                                retirement_age_int = int(retirement_age_val)
+                            except Exception:
+                                retirement_age_int = None
+                        existing_fixed_net = _compute_existing_fixed_net_income_monthly(db=db, client_id=request.client_id)
+                        eff_target = float(requested_target)
+                        if target_is_net_val:
+                            eff_target = max(float(requested_target) - float(existing_fixed_net), 0.0)
+                        if eff_target <= 0:
+                            yield "\n\n" + "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+                            return
+                        after_plan_args["target_monthly_pension"] = float(eff_target)
+                        after_plan_args.pop("_pre_retirement_plan_resolution", None)
 
                     plan_result = _execute_tool_call(
                         "BUILD_TARGET_PENSION_PLAN",
@@ -1695,6 +2043,26 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
 
                 if after_plan_args is not None and request.client_id is not None:
                     yield _append_transform_next_step_hint(tool_name=approved_tool, rendered_output=rendered)
+
+                    if after_plan_args.get("_pre_retirement_plan_resolution") is True:
+                        requested_target = _coerce_float_safe(after_plan_args.get("target_monthly_pension"))
+                        target_is_net_val = bool(after_plan_args.get("target_is_net", True))
+                        retirement_age_val = after_plan_args.get("retirement_age")
+                        retirement_age_int = None
+                        if retirement_age_val is not None:
+                            try:
+                                retirement_age_int = int(retirement_age_val)
+                            except Exception:
+                                retirement_age_int = None
+                        existing_fixed_net = _compute_existing_fixed_net_income_monthly(db=db, client_id=request.client_id)
+                        eff_target = float(requested_target)
+                        if target_is_net_val:
+                            eff_target = max(float(requested_target) - float(existing_fixed_net), 0.0)
+                        if eff_target <= 0:
+                            yield "\n\n" + "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+                            return
+                        after_plan_args["target_monthly_pension"] = float(eff_target)
+                        after_plan_args.pop("_pre_retirement_plan_resolution", None)
 
                     plan_result = _execute_tool_call(
                         "BUILD_TARGET_PENSION_PLAN",
@@ -2379,13 +2747,27 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             try:
                 loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
                 if loaded is not None:
-                    nonlocal effective_portfolio, effective_snapshot_at
                     effective_portfolio, effective_snapshot_at = loaded
             except Exception:
                 pass
 
-            plan_args = {
-                "target_monthly_pension": float(target_net_reply),
+            requested_target = float(target_net_reply)
+            step, out = _pre_retirement_plan_resolution(
+                db=db,
+                client_id=request.client_id,
+                requested_target=requested_target,
+                target_is_net=True,
+                retirement_age=None,
+                effective_portfolio=effective_portfolio,
+            )
+            if step == "done_text":
+                yield str(out)
+                return
+            if step == "ask_blocked":
+                yield str(out)
+                return
+            plan_args = out if isinstance(out, dict) else {
+                "target_monthly_pension": requested_target,
                 "target_is_net": True,
             }
             client_obj = None
@@ -2394,7 +2776,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 client_obj = None
             inferred_age = _infer_retirement_age_for_plan_args(client_obj=client_obj, pending_payload=pending_plan_target)
-            if inferred_age is not None:
+            if inferred_age is not None and plan_args.get("retirement_age") is None:
                 plan_args["retirement_age"] = int(inferred_age)
             plan_result = _execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
@@ -2486,13 +2868,27 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             try:
                 loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
                 if loaded is not None:
-                    nonlocal effective_portfolio, effective_snapshot_at
                     effective_portfolio, effective_snapshot_at = loaded
             except Exception:
                 pass
 
-            plan_args = {
-                "target_monthly_pension": float(target_net_for_plan),
+            requested_target = float(target_net_for_plan)
+            step, out = _pre_retirement_plan_resolution(
+                db=db,
+                client_id=request.client_id,
+                requested_target=requested_target,
+                target_is_net=True,
+                retirement_age=None,
+                effective_portfolio=effective_portfolio,
+            )
+            if step == "done_text":
+                yield str(out)
+                return
+            if step == "ask_blocked":
+                yield str(out)
+                return
+            plan_args = out if isinstance(out, dict) else {
+                "target_monthly_pension": requested_target,
                 "target_is_net": True,
             }
             client_obj = None
@@ -2501,7 +2897,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             except Exception:
                 client_obj = None
             inferred_age = _infer_retirement_age_for_plan_args(client_obj=client_obj, pending_payload=None)
-            if inferred_age is not None:
+            if inferred_age is not None and plan_args.get("retirement_age") is None:
                 plan_args["retirement_age"] = int(inferred_age)
             plan_result = _execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
@@ -2780,7 +3176,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
             try:
                 loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
                 if loaded is not None:
-                    nonlocal effective_portfolio, effective_snapshot_at
                     effective_portfolio, effective_snapshot_at = loaded
             except Exception:
                 pass
@@ -2998,7 +3393,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
                 try:
                     loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
                     if loaded is not None:
-                        nonlocal effective_portfolio, effective_snapshot_at
                         effective_portfolio, effective_snapshot_at = loaded
                 except Exception:
                     pass

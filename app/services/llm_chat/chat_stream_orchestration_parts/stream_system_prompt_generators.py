@@ -2,6 +2,8 @@ import json
 from datetime import date
 
 from app.models.client import Client
+from app.models.pension_fund import PensionFund
+from app.models.scenario import Scenario
 
 from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
@@ -18,15 +20,129 @@ from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
 from .chat_helpers import _infer_target_is_net_explicit
 from .stream_formatters import _format_data_awareness_snapshot, _format_list_all_entities
 from .stream_more_nested_helpers import _format_system_inventory_snapshot
 from .stream_tool_execution import _execute_tool_call
 
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+
 
 def _today() -> date:
     return date.today()
+
+
+def _coerce_float_safe(value: object) -> float:
+    try:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("₪", "").strip()
+            return float(cleaned or 0)
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _compute_existing_fixed_net_income_monthly(*, db, client_id: int) -> float:
+    total = 0.0
+    try:
+        rows = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        for pf in rows or []:
+            total += _coerce_float_safe(getattr(pf, "pension_amount", 0) or 0)
+    except Exception:
+        pass
+
+    try:
+        from datetime import date as _date
+
+        from app.providers.tax_params import InMemoryTaxParamsProvider
+        from app.services.additional_income_service import AdditionalIncomeService
+
+        today = _today()
+        reference_date = _date(today.year, today.month, 1)
+        income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
+        cashflow = income_service.generate_combined_cashflow(
+            db,
+            client_id,
+            reference_date,
+            reference_date,
+            reference_date,
+        )
+        if isinstance(cashflow, list):
+            for item in cashflow:
+                if isinstance(item, dict) and item.get("date") == reference_date:
+                    total += _coerce_float_safe(item.get("net_amount"))
+                    break
+    except Exception:
+        pass
+
+    return float(total or 0)
+
+
+def _detect_blocked_balances_in_snapshot(*, portfolio: object) -> bool:
+    if not isinstance(portfolio, list) or not portfolio:
+        return False
+    for item in portfolio:
+        if isinstance(item, dict):
+            data = item
+        else:
+            model_dump = getattr(item, "model_dump", None)
+            if callable(model_dump):
+                try:
+                    dumped = model_dump()
+                    data = dumped if isinstance(dumped, dict) else {}
+                except Exception:
+                    data = {}
+            else:
+                raw = getattr(item, "__dict__", {})
+                data = raw if isinstance(raw, dict) else {}
+
+        for key in (
+            "פיצויים_שלא_עברו_התחשבנות",
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            "פיצויים_מעסיק_נוכחי",
+        ):
+            if _coerce_float_safe(data.get(key)) > 0:
+                return True
+            nested = data.get("specific_amounts")
+            if isinstance(nested, dict) and _coerce_float_safe(nested.get(key)) > 0:
+                return True
+    return False
+
+
+def _store_pending_pre_retirement_plan_resolution(*, db, client_id: int, payload: dict) -> None:
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload or {}, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 def generate_adjust_reply(*, computed_data, payload, original_user_msg, request, db, effective_portfolio, stream_request_id) -> str:
@@ -70,6 +186,15 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
             "בבקשה בקש שוב: 'בנה תכנית משיכה לקצבת יעד של 28000' (ברוטו/נטו)."
         )
         return
+
+    portfolio_for_plan = effective_portfolio
+    if (not isinstance(portfolio_for_plan, list) or not portfolio_for_plan) and request.client_id is not None:
+        try:
+            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            if loaded is not None:
+                portfolio_for_plan, _snapshot_at = loaded
+        except Exception:
+            portfolio_for_plan = effective_portfolio
 
     plan_args = {
         "target_monthly_pension": float(target_val),
@@ -278,16 +403,48 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         )
         return
 
+    portfolio_for_plan = effective_portfolio
+    if (not isinstance(portfolio_for_plan, list) or not portfolio_for_plan) and request.client_id is not None:
+        try:
+            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            if loaded is not None:
+                portfolio_for_plan, _snapshot_at = loaded
+        except Exception:
+            portfolio_for_plan = effective_portfolio
+
     plan_args = {
         "target_monthly_pension": float(target_val),
         "target_is_net": bool(explicit_is_net),
     }
+
+    existing_fixed_net = _compute_existing_fixed_net_income_monthly(db=db, client_id=request.client_id)
+    effective_target = float(target_val)
+    if explicit_is_net is True:
+        effective_target = max(float(target_val) - float(existing_fixed_net), 0.0)
+    if effective_target <= 0:
+        yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+        return
+
+    if _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_plan):
+        _store_pending_pre_retirement_plan_resolution(
+            db=db,
+            client_id=request.client_id,
+            payload={
+                "requested_target": float(target_val),
+                "target_is_net": bool(explicit_is_net),
+                "retirement_age": None,
+            },
+        )
+        yield "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא"
+        return
+
+    plan_args["target_monthly_pension"] = float(effective_target)
     plan_result = _execute_tool_call(
         "BUILD_TARGET_PENSION_PLAN",
         plan_args,
         request.client_id,
         db,
-        pension_portfolio=effective_portfolio,
+        pension_portfolio=portfolio_for_plan,
         force_max_exemption=False,
         user_approved=True,
         request_id=stream_request_id,
