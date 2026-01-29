@@ -181,17 +181,27 @@ def generate_forced_approval(
             )
             return
 
-        accounts = _build_transform_accounts_from_target_plan_payload(payload)
-        if not accounts:
-            yield "\n\nלא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל."
-            return
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        execution_plan = (
+            result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+        )
 
         transform_args: dict[str, Any] = {
-            "accounts": accounts,
             "use_provided_accounts_only": True,
             "ignore_blocked_balances": True,
             "skip_non_convertible_accounts": True,
         }
+
+        if execution_plan is not None:
+            transform_args["execution_plan"] = execution_plan
+            raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
+            transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
+        else:
+            accounts = _build_transform_accounts_from_target_plan_payload(payload)
+            if not accounts:
+                yield "\n\nלא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל."
+                return
+            transform_args["accounts"] = accounts
 
         reason = "נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת."
         try:
@@ -294,17 +304,26 @@ def generate_execute_target_after_termination(
         )
         return
 
-    accounts = _build_transform_accounts_from_target_plan_payload(payload)
-    if not accounts:
-        yield "עזיבת עבודה כבר בוצעה. לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע."
-        return
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    execution_plan = (
+        result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+    )
 
     transform_args = {
-        "accounts": accounts,
         "use_provided_accounts_only": True,
         "ignore_blocked_balances": True,
         "skip_non_convertible_accounts": True,
     }
+    if execution_plan is not None:
+        transform_args["execution_plan"] = execution_plan
+        raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
+        transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
+    else:
+        accounts = _build_transform_accounts_from_target_plan_payload(payload)
+        if not accounts:
+            yield "עזיבת עבודה כבר בוצעה. לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע."
+            return
+        transform_args["accounts"] = accounts
     transform_result = _execute_tool_call(
         "TRANSFORM_FUNDS_TO_ASSETS",
         transform_args,
