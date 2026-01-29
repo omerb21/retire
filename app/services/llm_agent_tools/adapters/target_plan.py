@@ -16,6 +16,7 @@ from app.services.retirement.constants import PENSION_COEFFICIENT
 from app.services.llm_agent_tools.adapters.target_plan_explanation import (
     build_target_pension_plan_explanation,
 )
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
 
 logger = logging.getLogger("app.llm_agent_tools")
 
@@ -300,6 +301,8 @@ def build_target_pension_plan(
         if balance > 0:
             # חישוב מקדם קצבה דינמי
             annuity_factor = float(pf.annuity_factor or 0)
+            coeff_source_table = None
+            fallback_used = False
             if annuity_factor <= 0:
                 try:
                     coeff_result = get_annuity_coefficient(
@@ -310,11 +313,23 @@ def build_target_pension_plan(
                         birth_date=client.birth_date,
                         pension_start_date=retirement_date,
                     )
+                    try:
+                        coeff_source_table = (
+                            str(coeff_result.get("source_table") or "").strip()
+                            if isinstance(coeff_result, dict)
+                            else None
+                        )
+                    except Exception:
+                        coeff_source_table = None
                     annuity_factor = float(
                         coeff_result.get("factor_value") or PENSION_COEFFICIENT
                     )
                 except Exception:
+                    fallback_used = True
                     annuity_factor = PENSION_COEFFICIENT
+
+            if annuity_factor == PENSION_COEFFICIENT and (not coeff_source_table):
+                fallback_used = True
 
             potential_pension = balance / annuity_factor
 
@@ -327,6 +342,8 @@ def build_target_pension_plan(
                     "fund_type": pf.fund_type,
                     "balance": balance,
                     "annuity_factor": annuity_factor,
+                    "coeff_source_table": coeff_source_table,
+                    "fallback_used": bool(fallback_used),
                     "monthly_pension": potential_pension,
                     "tax_treatment": pf.tax_treatment or "taxable",
                     "action_needed": "convert_to_pension",
@@ -364,6 +381,9 @@ def build_target_pension_plan(
     portfolio_sources_skipped_duplicates = 0
     portfolio_sources_unique_accounts = 0
     portfolio_sources_total_balance = 0.0
+    portfolio_accounts_count = 0
+    portfolio_accounts_total_balance = 0.0
+    blocked_total_detected = 0.0
 
     pension_portfolio_data: Any = None
     if not has_db_state_sources:
@@ -374,28 +394,82 @@ def build_target_pension_plan(
             pension_portfolio_data = getattr(self, "pension_portfolio_data")
         else:
             try:
-                all_scenarios = (
+                scenarios = (
                     self.db.query(Scenario)
                     .filter(Scenario.client_id == self.client_id)
+                    .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
                     .order_by(Scenario.created_at.desc())
                     .limit(20)
                     .all()
                 )
-                for scenario in all_scenarios:
-                    if not scenario.parameters:
-                        continue
-                    try:
-                        params = json.loads(scenario.parameters)
-                        portfolio = params.get("pension_portfolio")
-                        if isinstance(portfolio, list) and portfolio:
-                            pension_portfolio_data = portfolio
-                            break
-                    except Exception:
-                        continue
             except Exception:
-                pension_portfolio_data = None
+                scenarios = []
+
+            chosen = None
+            for row in scenarios or []:
+                if not getattr(row, "parameters", None):
+                    continue
+                try:
+                    params = json.loads(row.parameters)
+                except Exception:
+                    continue
+                portfolio = params.get("pension_portfolio")
+                if not (isinstance(portfolio, list) and portfolio):
+                    continue
+                meta = params.get("_meta") if isinstance(params, dict) else None
+                op_type = None
+                if isinstance(meta, dict):
+                    op_type = str(meta.get("operation_type") or "").strip()
+                if op_type == "TRANSFORM_FUNDS_TO_ASSETS":
+                    continue
+                chosen = (portfolio, row)
+                break
+
+            if chosen is None:
+                try:
+                    loaded = load_latest_pension_portfolio_snapshot(self.db, self.client_id)
+                except Exception:
+                    loaded = None
+                if isinstance(loaded, tuple) and len(loaded) == 2:
+                    pension_portfolio_data = loaded[0]
+                else:
+                    pension_portfolio_data = None
+            else:
+                pension_portfolio_data = chosen[0]
+
+    def _safe_float(value: Any) -> float:
+        try:
+            if value is None:
+                return 0.0
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                cleaned = value.replace(",", "").replace("₪", "").strip()
+                if not cleaned:
+                    return 0.0
+                return float(cleaned)
+            return float(value)
+        except Exception:
+            return 0.0
 
     if isinstance(pension_portfolio_data, list) and pension_portfolio_data:
+        portfolio_accounts_count = len(pension_portfolio_data)
+        try:
+            portfolio_accounts_total_balance = float(
+                sum(
+                    _safe_float(
+                        (acc or {}).get("יתרה")
+                        or (acc or {}).get("balance")
+                        or (acc or {}).get("סך_תגמולים")
+                        or (acc or {}).get("תגמולים")
+                    )
+                    for acc in pension_portfolio_data
+                    if isinstance(acc, dict)
+                )
+            )
+        except Exception:
+            portfolio_accounts_total_balance = 0.0
+
         portfolio_sources = self._build_sources_from_pension_portfolio(
             pension_portfolio=pension_portfolio_data,
             client=client,
@@ -404,11 +478,24 @@ def build_target_pension_plan(
             retirement_year=retirement_year,
         )
 
+        blocked_fields = {
+            "פיצויים_שלא_עברו_התחשבנות",
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+        }
+
+        try:
+            blocked_total_detected = float(
+                sum(
+                    float(s.get("balance") or 0)
+                    for s in (portfolio_sources or [])
+                    if isinstance(s, dict)
+                    and str(s.get("component_field") or "").strip() in blocked_fields
+                )
+            )
+        except Exception:
+            blocked_total_detected = 0.0
+
         if ignore_blocked_balances:
-            blocked_fields = {
-                "פיצויים_שלא_עברו_התחשבנות",
-                "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
-            }
             try:
                 portfolio_sources = [
                     s
@@ -900,6 +987,30 @@ def build_target_pension_plan(
             "portfolio_sources_skipped_duplicates": portfolio_sources_skipped_duplicates,
             "portfolio_sources_unique_accounts": portfolio_sources_unique_accounts,
             "portfolio_sources_total_balance": portfolio_sources_total_balance,
+            "debug_inputs": {
+                "portfolio_sources_count": int(portfolio_accounts_count or 0),
+                "portfolio_total_balance": float(portfolio_accounts_total_balance or 0.0),
+                "blocked_total_detected": float(blocked_total_detected or 0.0),
+                "ignore_blocked_balances": bool(ignore_blocked_balances),
+                "sources_used": [
+                    {
+                        "account_number": str(s.get("account_number") or "") if isinstance(s, dict) else "",
+                        "account_name": str(s.get("source_name") or "") if isinstance(s, dict) else "",
+                        "product_type": str(s.get("fund_type") or "") if isinstance(s, dict) else "",
+                        "component_key": (
+                            str(s.get("component_field") or "") if isinstance(s, dict) and s.get("component_field") is not None else None
+                        ),
+                        "amount_used": float((s or {}).get("balance_used") or 0) if isinstance(s, dict) else 0.0,
+                        "annuity_factor": float((s or {}).get("annuity_factor") or 0) if isinstance(s, dict) else 0.0,
+                        "coeff_source_table": (
+                            str((s or {}).get("coeff_source_table") or "") if isinstance(s, dict) and (s or {}).get("coeff_source_table") is not None else None
+                        ),
+                        "fallback_used": bool((s or {}).get("fallback_used")) if isinstance(s, dict) else False,
+                    }
+                    for s in (sources_used or [])
+                    if isinstance(s, dict)
+                ],
+            },
             "gap_to_target": gap,
             "remaining_capital": remaining_capital,
             "blocked_for_execution_capital": blocked_for_execution_capital,

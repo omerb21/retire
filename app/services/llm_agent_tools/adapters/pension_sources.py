@@ -83,6 +83,20 @@ def _get_pension_sources_from_portfolio(
             "action_needed": "requires_termination",
         },
         {
+            "field": "פיצויים_שלא_עברו_התחשבנות",
+            "label": "פיצויים שלא עברו התחשבנות",
+            "tax_treatment": "taxable",
+            "priority_bucket": 2,
+            "action_needed": "requires_termination",
+        },
+        {
+            "field": "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            "label": "פיצויים (מעסיקים קודמים - רצף זכויות)",
+            "tax_treatment": "taxable",
+            "priority_bucket": 2,
+            "action_needed": "requires_termination",
+        },
+        {
             "field": "פיצויים_לאחר_התחשבנות",
             "label": "פיצויים לאחר התחשבנות",
             "tax_treatment": "exempt",
@@ -157,6 +171,8 @@ def _get_pension_sources_from_portfolio(
         start_date_raw = acc.get("תאריך_התחלה")
 
         annuity_factor = float(PENSION_COEFFICIENT)
+        coeff_source_table: Optional[str] = None
+        fallback_used = False
         try:
             start_date_obj: Optional[date] = None
             if isinstance(start_date_raw, str) and start_date_raw:
@@ -182,12 +198,25 @@ def _get_pension_sources_from_portfolio(
                 birth_date=getattr(client, "birth_date", None),
                 pension_start_date=retirement_date or None,
             )
+            try:
+                coeff_source_table = (
+                    str(coeff.get("source_table") or "").strip()
+                    if isinstance(coeff, dict)
+                    else None
+                )
+            except Exception:
+                coeff_source_table = None
             annuity_factor = float(coeff.get("factor_value") or annuity_factor)
         except Exception:
             annuity_factor = float(PENSION_COEFFICIENT)
+            fallback_used = True
 
         if annuity_factor <= 0:
             annuity_factor = float(PENSION_COEFFICIENT)
+
+        if (not coeff_source_table) or (str(coeff_source_table).strip() == "default"):
+            if annuity_factor == float(PENSION_COEFFICIENT):
+                fallback_used = True
 
         if "השתלמות" in str(product_type) or "השתלמות" in str(plan_name):
             balance = _safe_float(acc.get("יתרה", 0))
@@ -205,6 +234,8 @@ def _get_pension_sources_from_portfolio(
                     "start_date": start_date_raw,
                     "balance": balance,
                     "annuity_factor": annuity_factor,
+                    "coeff_source_table": coeff_source_table,
+                    "fallback_used": bool(fallback_used),
                     "monthly_pension": potential_pension,
                     "tax_treatment": "exempt",
                     "priority_bucket": 5,
@@ -256,6 +287,8 @@ def _get_pension_sources_from_portfolio(
                     "start_date": start_date_raw,
                     "balance": amount,
                     "annuity_factor": annuity_factor,
+                    "coeff_source_table": coeff_source_table,
+                    "fallback_used": bool(fallback_used),
                     "monthly_pension": potential_pension,
                     "tax_treatment": tax_treatment,
                     "priority_bucket": priority_bucket,
@@ -286,6 +319,8 @@ def _get_pension_sources_from_portfolio(
                 "start_date": start_date_raw,
                 "balance": balance,
                 "annuity_factor": annuity_factor,
+                "coeff_source_table": coeff_source_table,
+                "fallback_used": bool(fallback_used),
                 "monthly_pension": potential_pension,
                 "tax_treatment": "exempt"
                 if ("השתלמות" in str(product_type) or "השתלמות" in str(plan_name))
