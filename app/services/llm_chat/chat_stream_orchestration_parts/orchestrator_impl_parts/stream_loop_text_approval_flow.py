@@ -1,0 +1,199 @@
+import json
+
+from fastapi.responses import StreamingResponse
+
+
+def _maybe_handle_text_approval_flow(
+    *,
+    request,
+    db,
+    stream_request_id: str,
+    lowered_user_msg: str,
+    ScenarioModel,
+    load_latest_pension_portfolio_snapshot_models,
+    execute_tool_call,
+    clear_pending_approval_request,
+    get_tool_display_name_hebrew,
+    format_tool_output_for_user_stream,
+    sanitize_user_visible_text,
+    coerce_float_safe,
+    compute_existing_income_offset_monthly,
+    store_latest_target_pension_plan_data,
+    store_latest_target_pension_plan,
+ ):
+    if request.client_id is None:
+        return None
+
+    def _has_pending_approval() -> bool:
+        try:
+            row = (
+                db.query(ScenarioModel)
+                .filter(ScenarioModel.client_id == request.client_id)
+                .filter(ScenarioModel.scenario_name == "pending_approval")
+                .order_by(ScenarioModel.created_at.desc())
+                .first()
+            )
+            return row is not None
+        except Exception:
+            return False
+
+    if lowered_user_msg in {"אוקי", "אוקיי", "הבנתי", "בסדר", "סבבה"} and (not _has_pending_approval()):
+        return StreamingResponse(
+            iter(["קיבלתי."]),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    if lowered_user_msg not in {"מאשר", "אשר", "כן", "approve", "ok"}:
+        return None
+
+    def _load_latest_pending_approval_payload() -> tuple[str, dict] | None:
+        try:
+            row = (
+                db.query(ScenarioModel)
+                .filter(ScenarioModel.client_id == request.client_id)
+                .filter(ScenarioModel.scenario_name == "pending_approval")
+                .order_by(ScenarioModel.created_at.desc())
+                .first()
+            )
+        except Exception:
+            row = None
+        if row is None or not getattr(row, "parameters", None):
+            return None
+        try:
+            parsed = json.loads(row.parameters)
+        except Exception:
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        tool_name = parsed.get("tool_name")
+        tool_args = parsed.get("arguments")
+        if not isinstance(tool_name, str) or not isinstance(tool_args, dict):
+            return None
+        return tool_name, tool_args
+
+    pending = _load_latest_pending_approval_payload()
+    if pending is None:
+        return StreamingResponse(
+            iter(["אין בקשת אישור פתוחה."]),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    approved_tool, approved_args = pending
+
+    def _append_transform_hint_if_needed(*, tool_name: str, rendered_output: str) -> str:
+        if tool_name != "TRANSFORM_FUNDS_TO_ASSETS":
+            return rendered_output
+        try:
+            parsed = json.loads(rendered_output)
+        except Exception:
+            parsed = None
+        if not (isinstance(parsed, dict) and parsed.get("success") is True):
+            return rendered_output
+        if "השלב הבא המומלץ: הפקת דוח" in rendered_output:
+            return rendered_output
+        return rendered_output + "\n\nהשלב הבא המומלץ: הפקת דוח"
+
+    def _generate_text_approved_exec(req_id: str):
+        after_plan_args = None
+        if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+            maybe_after = approved_args.get("_after_build_target_pension_plan_args")
+            if isinstance(maybe_after, dict) and maybe_after:
+                after_plan_args = dict(maybe_after)
+        try:
+            effective_portfolio = request.pension_portfolio
+            try:
+                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                if loaded is not None:
+                    effective_portfolio, _snapshot_at = loaded
+            except Exception:
+                pass
+
+            tool_result = execute_tool_call(
+                approved_tool,
+                approved_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=req_id,
+            )
+        finally:
+            try:
+                clear_pending_approval_request(db=db, client_id=request.client_id)
+            except Exception:
+                pass
+
+        tool_display = get_tool_display_name_hebrew(approved_tool)
+        user_tool_output = format_tool_output_for_user_stream(approved_tool, tool_result)
+        rendered = (
+            f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(user_tool_output)
+        )
+
+        if after_plan_args is not None and request.client_id is not None:
+            yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
+
+            if after_plan_args.get("_pre_retirement_plan_resolution") is True:
+                requested_target = coerce_float_safe(after_plan_args.get("target_monthly_pension"))
+                target_is_net_val = bool(after_plan_args.get("target_is_net", True))
+                retirement_age_val = after_plan_args.get("retirement_age")
+                retirement_age_int = None
+                if retirement_age_val is not None:
+                    try:
+                        retirement_age_int = int(retirement_age_val)
+                    except Exception:
+                        retirement_age_int = None
+                existing_income_offset = compute_existing_income_offset_monthly(
+                    db=db,
+                    client_id=request.client_id,
+                    target_is_net=bool(target_is_net_val),
+                )
+                eff_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+                if eff_target <= 0:
+                    yield "\n\n" + "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+                    return
+                after_plan_args["target_monthly_pension"] = float(eff_target)
+                after_plan_args.pop("_pre_retirement_plan_resolution", None)
+
+            plan_result = execute_tool_call(
+                "BUILD_TARGET_PENSION_PLAN",
+                after_plan_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=req_id,
+            )
+
+            try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+
+            yield sanitize_user_visible_text(
+                "\n\n🔧 **פלט כלי ("
+                + get_tool_display_name_hebrew("BUILD_TARGET_PENSION_PLAN")
+                + "):**\n"
+                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+            )
+            return
+
+        yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
+
+    return StreamingResponse(
+        _generate_text_approved_exec(stream_request_id),
+        media_type="text/plain; charset=utf-8",
+    )

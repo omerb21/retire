@@ -2,7 +2,6 @@ import json
 from datetime import date
 
 from app.models.client import Client
-from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 
 from app.services.llm_chat.chat_orchestration_helpers import (
@@ -19,6 +18,9 @@ from app.services.llm_chat.message_utils import (
 from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
+)
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_existing_income_offset_monthly,
 )
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
@@ -49,39 +51,11 @@ def _coerce_float_safe(value: object) -> float:
 
 
 def _compute_existing_fixed_net_income_monthly(*, db, client_id: int) -> float:
-    total = 0.0
-    try:
-        rows = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
-        for pf in rows or []:
-            total += _coerce_float_safe(getattr(pf, "pension_amount", 0) or 0)
-    except Exception:
-        pass
-
-    try:
-        from datetime import date as _date
-
-        from app.providers.tax_params import InMemoryTaxParamsProvider
-        from app.services.additional_income_service import AdditionalIncomeService
-
-        today = _today()
-        reference_date = _date(today.year, today.month, 1)
-        income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
-        cashflow = income_service.generate_combined_cashflow(
-            db,
-            client_id,
-            reference_date,
-            reference_date,
-            reference_date,
-        )
-        if isinstance(cashflow, list):
-            for item in cashflow:
-                if isinstance(item, dict) and item.get("date") == reference_date:
-                    total += _coerce_float_safe(item.get("net_amount"))
-                    break
-    except Exception:
-        pass
-
-    return float(total or 0)
+    return compute_existing_income_offset_monthly(
+        db=db,
+        client_id=client_id,
+        target_is_net=True,
+    )
 
 
 def _detect_blocked_balances_in_snapshot(*, portfolio: object) -> bool:
@@ -417,10 +391,12 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         "target_is_net": bool(explicit_is_net),
     }
 
-    existing_fixed_net = _compute_existing_fixed_net_income_monthly(db=db, client_id=request.client_id)
-    effective_target = float(target_val)
-    if explicit_is_net is True:
-        effective_target = max(float(target_val) - float(existing_fixed_net), 0.0)
+    existing_income_offset = compute_existing_income_offset_monthly(
+        db=db,
+        client_id=request.client_id,
+        target_is_net=bool(explicit_is_net),
+    )
+    effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
     if effective_target <= 0:
         yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
         return

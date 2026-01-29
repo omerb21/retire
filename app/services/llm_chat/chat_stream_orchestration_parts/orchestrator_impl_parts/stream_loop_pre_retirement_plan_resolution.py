@@ -1,0 +1,181 @@
+import json
+from datetime import date
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.models.scenario import Scenario
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_existing_income_offset_monthly,
+)
+
+
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _coerce_float_safe(value: Any) -> float:
+    try:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("₪", "").strip()
+            return float(cleaned or 0)
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _compute_existing_fixed_net_income_monthly(*, db: Session, client_id: int) -> float:
+    return compute_existing_income_offset_monthly(
+        db=db,
+        client_id=client_id,
+        target_is_net=True,
+    )
+
+
+def _detect_blocked_balances_in_snapshot(*, portfolio: Any) -> bool:
+    if not isinstance(portfolio, list) or not portfolio:
+        return False
+    for item in portfolio:
+        data = {}
+        if isinstance(item, dict):
+            data = item
+        else:
+            model_dump = getattr(item, "model_dump", None)
+            if callable(model_dump):
+                try:
+                    dumped = model_dump()
+                    if isinstance(dumped, dict):
+                        data = dumped
+                except Exception:
+                    data = {}
+            else:
+                raw = getattr(item, "__dict__", {})
+                data = raw if isinstance(raw, dict) else {}
+
+        for key in (
+            "פיצויים_שלא_עברו_התחשבנות",
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            "פיצויים_מעסיק_נוכחי",
+        ):
+            if _coerce_float_safe(data.get(key)) > 0:
+                return True
+            nested = data.get("specific_amounts")
+            if isinstance(nested, dict) and _coerce_float_safe(nested.get(key)) > 0:
+                return True
+    return False
+
+
+def _load_pending_pre_retirement_plan_resolution(
+    *, db: Session, client_id: int
+) -> dict | None:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO)
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _clear_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int) -> None:
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+        ).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _store_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int, payload: dict) -> None:
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload or {}, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _pre_retirement_plan_resolution(
+    *,
+    db: Session,
+    client_id: int,
+    requested_target: float,
+    target_is_net: bool,
+    retirement_age: int | None,
+    effective_portfolio: Any,
+) -> tuple[str, dict | str]:
+    existing_income_offset = compute_existing_income_offset_monthly(
+        db=db,
+        client_id=client_id,
+        target_is_net=bool(target_is_net),
+    )
+    eff_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+    if eff_target <= 0:
+        return (
+            "done_text",
+            "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת",
+        )
+
+    has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
+    if has_blocked:
+        payload = {
+            "requested_target": float(requested_target),
+            "target_is_net": bool(target_is_net),
+            "retirement_age": int(retirement_age) if retirement_age is not None else None,
+        }
+        _store_pending_pre_retirement_plan_resolution(db=db, client_id=client_id, payload=payload)
+        return (
+            "ask_blocked",
+            "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא",
+        )
+
+    return (
+        "proceed",
+        {
+            "target_monthly_pension": float(eff_target),
+            "target_is_net": bool(target_is_net),
+            "retirement_age": int(retirement_age) if retirement_age is not None else None,
+        },
+    )
