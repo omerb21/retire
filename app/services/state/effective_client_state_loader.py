@@ -60,6 +60,21 @@ def _looks_like_conversion_asset(*, conversion_source_raw: str | None, remarks: 
     return has_conversion, has_commutation
 
 
+def _is_portfolio_import_conversion_source(conversion_source_raw: str | None) -> bool:
+    if not isinstance(conversion_source_raw, str):
+        return False
+    raw = conversion_source_raw.strip()
+    if not raw:
+        return False
+    # Portfolio snapshot imports are not considered "post conversion" outputs.
+    # They represent raw sources that may exist transiently in DB but should not lock planning.
+    return (
+        '"source": "pension_portfolio"' in raw
+        or '"type": "pension_portfolio"' in raw
+        or '"source": "pension_portfolio_convert"' in raw
+    )
+
+
 def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientState:
     capital_assets_count = int(
         db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
@@ -108,10 +123,27 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
             if latest_snapshot_at_utc is not None:
                 last_state_change_at_utc = latest_snapshot_at_utc
 
-    op = str(last_operation_type or "").strip()
-    restore_snapshot_unlock = op == "restore_snapshot"
+    # SSOT for "post conversion": only count user-visible outputs.
+    # Ignore portfolio-import rows (conversion_source indicates pension_portfolio).
+    has_any_capital_assets = False
+    has_any_pension_funds = False
+    try:
+        for asset in db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).all() or []:
+            if _is_portfolio_import_conversion_source(getattr(asset, "conversion_source", None)):
+                continue
+            has_any_capital_assets = True
+            break
+    except Exception:
+        has_any_capital_assets = bool(capital_assets_count > 0)
 
-    has_any_capital_assets = bool(capital_assets_count > 0)
+    try:
+        for pf in db.query(PensionFund).filter(PensionFund.client_id == client_id).all() or []:
+            if _is_portfolio_import_conversion_source(getattr(pf, "conversion_source", None)):
+                continue
+            has_any_pension_funds = True
+            break
+    except Exception:
+        has_any_pension_funds = bool(pension_funds_count > 0)
     has_any_conversion_assets = False
     has_any_commutation_assets = False
 
@@ -140,20 +172,15 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
         if has_any_conversion_assets and has_any_commutation_assets:
             break
 
-    meta_indicates_conversion = op in {"TRANSFORM_FUNDS_TO_ASSETS", "EXECUTE_RETIREMENT_SCENARIO"}
-
     mode: Literal["PRE_CONVERSION", "POST_CONVERSION_LOCKED"]
-    if restore_snapshot_unlock:
-        mode = "PRE_CONVERSION"
-    elif has_any_conversion_assets or meta_indicates_conversion:
-        mode = "POST_CONVERSION_LOCKED"
-    else:
-        mode = "PRE_CONVERSION"
+    # SSOT: the effective mode is determined strictly by current DB state.
+    # If the DB has no (user-visible) pension funds and no (user-visible) capital assets, the system is considered reset.
+    mode = "POST_CONVERSION_LOCKED" if (has_any_capital_assets or has_any_pension_funds) else "PRE_CONVERSION"
 
     return EffectiveClientState(
         client_id=int(client_id),
         mode=mode,
-        unlock_reason="restore_snapshot" if restore_snapshot_unlock else None,
+        unlock_reason=None,
         last_state_change_at_utc=last_state_change_at_utc,
         last_operation_type=last_operation_type,
         last_trace_id=last_trace_id,

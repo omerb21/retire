@@ -70,11 +70,9 @@ def _maybe_handle_post_conversion_lock_early_block(
             },
         )
 
+        # Never block a user request to build a target pension plan.
         if wants_plan_build and has_numeric_target:
-            return StreamingResponse(
-                iter([build_post_conversion_plan_message()]),
-                media_type="text/plain; charset=utf-8",
-            )
+            return None
 
         return StreamingResponse(
             iter([build_post_conversion_lock_message()]),
@@ -165,10 +163,8 @@ def _maybe_handle_post_conversion_lock_late_block(
             media_type="text/plain; charset=utf-8",
         )
 
+    # Never block a user request to build a target pension plan.
     if wants_plan_build and has_numeric_target and (not wants_execute_target_plan):
-        return StreamingResponse(
-            iter([build_post_conversion_plan_message()]),
-            media_type="text/plain; charset=utf-8",
-        )
+        return None
 
     return None

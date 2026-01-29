@@ -2,6 +2,7 @@ import json
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 from app.models.additional_income import AdditionalIncome
 from app.models.client import Client
@@ -16,9 +17,10 @@ from app.services.llm_chat.tool_handlers.transform_funds_to_assets_impl import (
 def test_execution_plan_strict_transform_consumes_sources_and_skips_blocked(
     db_session,
 ) -> None:
+    unique_id = f"exec-plan-{uuid4()}"
     client_obj = Client(
-        id_number_raw="999999999",
-        id_number="999999999",
+        id_number_raw=unique_id,
+        id_number=unique_id,
         full_name="Exec Plan Test",
         birth_date=date(1980, 1, 1),
         gender="male",
@@ -107,7 +109,7 @@ def test_execution_plan_strict_transform_consumes_sources_and_skips_blocked(
         target_is_net=False,
         ignore_blocked_balances=True,
     )
-    assert plan.get("success") is True
+    assert plan.get("success") is True, plan
     plan_res = plan.get("result") if isinstance(plan.get("result"), dict) else {}
     execution_plan = plan_res.get("execution_plan") if isinstance(plan_res.get("execution_plan"), dict) else None
     assert isinstance(execution_plan, dict)

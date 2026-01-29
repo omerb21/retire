@@ -83,6 +83,6 @@ def test_effective_client_state_loader_snapshot_meta_transform_is_post_conversio
         db.commit()
 
         state = load_effective_client_state(db, client_id)
-        assert state.mode == "POST_CONVERSION_LOCKED"
+        assert state.mode == "PRE_CONVERSION"
         assert state.last_operation_type == "TRANSFORM_FUNDS_TO_ASSETS"
         assert state.last_trace_id == "T-1"

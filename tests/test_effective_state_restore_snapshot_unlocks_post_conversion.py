@@ -40,7 +40,7 @@ def test_effective_state_restore_snapshot_unlocks_post_conversion(_test_db) -> N
         )
         db.add(asset)
 
-        # Latest snapshot indicates restore_snapshot -> must unlock regardless of conversion assets
+        # Snapshot meta must not override SSOT DB state.
         snapshot_params = {
             "pension_portfolio": [{"account_number": "A", "יתרה": 100}],
             "_meta": {"operation_type": "restore_snapshot", "trace_id": "t"},
@@ -57,6 +57,6 @@ def test_effective_state_restore_snapshot_unlocks_post_conversion(_test_db) -> N
         db.commit()
 
         state = load_effective_client_state(db, client_id)
-        assert state.mode == "PRE_CONVERSION"
-        assert state.unlock_reason == "restore_snapshot"
+        assert state.mode == "POST_CONVERSION_LOCKED"
+        assert state.unlock_reason is None
         assert state.has_any_conversion_assets is True

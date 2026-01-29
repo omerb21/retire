@@ -113,7 +113,6 @@ def _maybe_handle_pending_plan_target_flow(
         and (not bool(pending_plan_target.get("_expired")))
         and (not commutation_intent_local)
         and (not explicit_transform_local)
-        and (not is_post_conversion_locked())
     ):
 
         def _generate_target_plan_tools_first_from_pending(req_id: str):
@@ -246,7 +245,6 @@ def _maybe_handle_pending_plan_target_flow(
         and (not is_qa_mode_local)
         and (target_net_for_plan is not None)
         and has_target_plan_keywords
-        and (not is_post_conversion_locked())
     ):
         def _generate_target_plan_tools_first(req_id: str):
             if computed_data is not None:

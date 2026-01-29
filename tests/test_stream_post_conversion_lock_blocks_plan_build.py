@@ -43,12 +43,24 @@ def test_stream_post_conversion_lock_blocks_plan_build(monkeypatch, _test_db) ->
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when post-conversion lock is active")
+        raise AssertionError("LLM must not be called for tools-first plan request")
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
+    seen = {"called": 0}
+
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked when post-conversion lock is active")
+        seen["called"] += 1
+        tool_name = None
+        if args:
+            tool_name = args[0]
+        if tool_name is None:
+            tool_name = kwargs.get("tool_name")
+        assert tool_name == "BUILD_TARGET_PENSION_PLAN"
+        return json.dumps(
+            {"success": True, "tool_name": tool_name, "result": {"ok": True}, "explanation": "OK"},
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -66,5 +78,6 @@ def test_stream_post_conversion_lock_blocks_plan_build(monkeypatch, _test_db) ->
     assert response.status_code == 200
     body = response.text
     assert "###UI_ACTION###" not in body
-    assert "🔧" not in body
-    assert "כותרת: תכנית לאחר המרה" in body
+    assert "כותרת: תכנית לאחר המרה" not in body
+    assert "🔧" in body
+    assert int(seen.get("called") or 0) > 0

@@ -49,27 +49,7 @@ def _maybe_handle_plan_phrase_flow(
     if not plan_phrase_detected:
         return None
 
-    if client_id is not None:
-        early_locked = False
-        try:
-            _st = load_effective_client_state(db, client_id)
-            early_locked = str(getattr(_st, "mode", "") or "").strip() == "POST_CONVERSION_LOCKED"
-        except Exception:
-            early_locked = False
-        if early_locked:
-            return StreamingResponse(
-                iter(
-                    [
-                        sanitize_user_visible_text(
-                            "כותרת: תכנית לאחר המרה\n\n"
-                            "לא בונים מחדש תכנית יעד על בסיס התיק המקורי אחרי שכבר בוצעה המרה.\n"
-                            "אם המטרה היא לבצע משיכה/קצבה מהמצב החדש - נדרש מסלול ייעודי שמחשב מהנכסים שנוצרו.\n"
-                            'כתוב: "חשב תזרים על בסיס המצב הנוכחי" או "דוח מסכם".\n'
-                        )
-                    ]
-                ),
-                media_type="text/plain; charset=utf-8",
-            )
+    # Never block plan building based on a post-conversion lock.
 
     target_net_from_phrase = extract_target_net_ils(original_user_msg)
     if target_net_from_phrase is not None and client_id is not None:

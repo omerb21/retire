@@ -225,15 +225,47 @@ def build_target_pension_plan(
         PensionFund.client_id == self.client_id
     ).all()
 
+    # נכסי הון שניתן להמיר לקצבה
+    capital_assets = self.db.query(CapitalAsset).filter(
+        CapitalAsset.client_id == self.client_id
+    ).all()
+
+    has_db_state_sources = False
+    try:
+        has_non_portfolio_pension_funds = False
+        for pf in pension_funds or []:
+            raw_src = getattr(pf, "conversion_source", None)
+            raw_src_str = str(raw_src) if raw_src is not None else ""
+            if raw_src_str and (
+                '"source": "pension_portfolio"' in raw_src_str
+                or '"type": "pension_portfolio"' in raw_src_str
+                or '"source": "pension_portfolio_convert"' in raw_src_str
+            ):
+                continue
+            has_non_portfolio_pension_funds = True
+            break
+        has_db_state_sources = bool(capital_assets) or bool(has_non_portfolio_pension_funds)
+    except Exception:
+        has_db_state_sources = False
+
     for pf in pension_funds:
         try:
             raw_src = getattr(pf, "conversion_source", None)
             raw_src_str = str(raw_src) if raw_src is not None else ""
         except Exception:
             raw_src_str = ""
-        # Portfolio-imported PensionFund rows are treated as *sources* and should be
-        # planned from the pension_portfolio_snapshot component breakdown instead.
-        if raw_src_str and (
+
+        is_portfolio_imported = bool(
+            raw_src_str
+            and (
+                '"source": "pension_portfolio"' in raw_src_str
+                or '"type": "pension_portfolio"' in raw_src_str
+                or '"source": "pension_portfolio_convert"' in raw_src_str
+            )
+        )
+        # If we are planning from snapshot sources, skip portfolio-imported PensionFund rows
+        # to avoid de-duping away the per-component snapshot sources.
+        if (not has_db_state_sources) and raw_src_str and (
             '"source": "pension_portfolio"' in raw_src_str
             or '"type": "pension_portfolio"' in raw_src_str
             or '"source": "pension_portfolio_convert"' in raw_src_str
@@ -244,7 +276,9 @@ def build_target_pension_plan(
         existing_pension = float(pf.pension_amount or 0)
 
         # אם יש כבר קצבה מוגדרת - זה מקור קיים
-        if existing_pension > 0:
+        # NOTE: portfolio-imported PensionFund rows represent a raw balance source,
+        # not an already-existing executed pension.
+        if (existing_pension > 0) and (not is_portfolio_imported):
             pension_sources.append(
                 {
                     "source_type": "existing_pension",
@@ -300,11 +334,6 @@ def build_target_pension_plan(
                 }
             )
 
-    # נכסי הון שניתן להמיר לקצבה
-    capital_assets = self.db.query(CapitalAsset).filter(
-        CapitalAsset.client_id == self.client_id
-    ).all()
-
     for ca in capital_assets:
         value = float(ca.current_value or 0)
         if value <= 0:
@@ -337,33 +366,34 @@ def build_target_pension_plan(
     portfolio_sources_total_balance = 0.0
 
     pension_portfolio_data: Any = None
-    if (
-        isinstance(getattr(self, "pension_portfolio_data", None), list)
-        and getattr(self, "pension_portfolio_data")
-    ):
-        pension_portfolio_data = getattr(self, "pension_portfolio_data")
-    else:
-        try:
-            all_scenarios = (
-                self.db.query(Scenario)
-                .filter(Scenario.client_id == self.client_id)
-                .order_by(Scenario.created_at.desc())
-                .limit(20)
-                .all()
-            )
-            for scenario in all_scenarios:
-                if not scenario.parameters:
-                    continue
-                try:
-                    params = json.loads(scenario.parameters)
-                    portfolio = params.get("pension_portfolio")
-                    if isinstance(portfolio, list) and portfolio:
-                        pension_portfolio_data = portfolio
-                        break
-                except Exception:
-                    continue
-        except Exception:
-            pension_portfolio_data = None
+    if not has_db_state_sources:
+        if (
+            isinstance(getattr(self, "pension_portfolio_data", None), list)
+            and getattr(self, "pension_portfolio_data")
+        ):
+            pension_portfolio_data = getattr(self, "pension_portfolio_data")
+        else:
+            try:
+                all_scenarios = (
+                    self.db.query(Scenario)
+                    .filter(Scenario.client_id == self.client_id)
+                    .order_by(Scenario.created_at.desc())
+                    .limit(20)
+                    .all()
+                )
+                for scenario in all_scenarios:
+                    if not scenario.parameters:
+                        continue
+                    try:
+                        params = json.loads(scenario.parameters)
+                        portfolio = params.get("pension_portfolio")
+                        if isinstance(portfolio, list) and portfolio:
+                            pension_portfolio_data = portfolio
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pension_portfolio_data = None
 
     if isinstance(pension_portfolio_data, list) and pension_portfolio_data:
         portfolio_sources = self._build_sources_from_pension_portfolio(

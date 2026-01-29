@@ -4,6 +4,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     compute_existing_income_offset_monthly,
@@ -146,6 +148,14 @@ def _pre_retirement_plan_resolution(
     retirement_age: int | None,
     effective_portfolio: Any,
 ) -> tuple[str, dict | str]:
+    has_db_state_sources = False
+    try:
+        has_db_state_sources = bool(
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).count() > 0
+        ) or bool(db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count() > 0)
+    except Exception:
+        has_db_state_sources = False
+
     existing_income_offset = compute_existing_income_offset_monthly(
         db=db,
         client_id=client_id,
@@ -158,7 +168,12 @@ def _pre_retirement_plan_resolution(
             "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת",
         )
 
-    has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
+    # If the DB already contains any pensions/assets, planning must use the current DB state.
+    # In that case, snapshot blocked balances are irrelevant and must not gate the plan flow.
+    has_blocked = False
+    if not has_db_state_sources:
+        has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
+
     if has_blocked:
         payload = {
             "requested_target": float(requested_target),
@@ -177,5 +192,6 @@ def _pre_retirement_plan_resolution(
             "target_monthly_pension": float(eff_target),
             "target_is_net": bool(target_is_net),
             "retirement_age": int(retirement_age) if retirement_age is not None else None,
+            "ignore_blocked_balances": True,
         },
     )

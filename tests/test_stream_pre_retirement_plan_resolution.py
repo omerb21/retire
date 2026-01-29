@@ -2,6 +2,7 @@ import json
 from datetime import date, datetime, timezone
 import inspect
 from decimal import Decimal
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -125,6 +126,228 @@ def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_
     assert resp.status_code == 200
     assert "###UI_ACTION###" not in resp.text
     assert "האם לכלול" not in resp.text
+    assert seen.get("target") == float(30000.0 - expected_offset)
+
+
+def test_stream_plan_request_not_blocked_when_undo_snapshot_exists_and_db_empty(
+    monkeypatch, _test_db
+) -> None:
+    Session = _test_db["Session"]
+
+    client_id = 950000007
+    unique_id = f"undo-lock-{uuid4()}"
+
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None:
+            client = Client(
+                id=client_id,
+                id_number_raw=unique_id,
+                id_number=unique_id,
+                full_name="Test User",
+                birth_date=date(1980, 1, 1),
+                gender="male",
+                is_active=True,
+            )
+            db.add(client)
+            db.flush()
+
+        snapshot_accounts = [
+            {
+                "מספר_חשבון": "U1",
+                "שם_תכנית": "Fund U",
+                "חברה_מנהלת": "X",
+                "סוג_מוצר": "קופת גמל",
+                "יתרה": 100000,
+                "תאריך_התחלה": "2005-01-01",
+                "תגמולים": 100000,
+            }
+        ]
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == "undo_snapshot"
+        ).delete(synchronize_session=False)
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="undo_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps({"_meta": {"note": "undo marker"}}, ensure_ascii=False),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+        db.commit()
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for tools-first plan request")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    seen: dict[str, float] = {}
+
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
+        seen["target"] = float(target_monthly_pension)
+        assert target_is_net is True
+        return {
+            "success": True,
+            "tool_name": "BUILD_TARGET_PENSION_PLAN",
+            "result": {
+                "target_monthly_pension": float(target_monthly_pension),
+                "target_is_net": bool(target_is_net),
+            },
+            "explanation": "OK",
+        }
+
+    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+
+    api = TestClient(app)
+    resp = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "pension_portfolio": [],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert "כותרת: תכנית לאחר המרה" not in resp.text
+    assert "לא בונים מחדש תכנית יעד" not in resp.text
+    assert "כותרת: מצב תיק לאחר המרה" not in resp.text
+    assert seen.get("target") == float(30000.0)
+
+
+def test_stream_plan_request_not_blocked_when_snapshot_meta_indicates_transform_but_db_empty(
+    monkeypatch, _test_db
+) -> None:
+    Session = _test_db["Session"]
+
+    client_id = 950000006
+
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None:
+            client = Client(
+                id=client_id,
+                id_number_raw=str(client_id),
+                id_number=str(client_id),
+                full_name="Test User",
+                birth_date=date(1980, 1, 1),
+                gender="male",
+                is_active=True,
+            )
+            db.add(client)
+            db.flush()
+
+        db.add(
+            AdditionalIncome(
+                client_id=client_id,
+                source_type="other",
+                description="Test income",
+                amount=Decimal("10000.00"),
+                frequency="monthly",
+                start_date=date(2020, 1, 1),
+                end_date=None,
+                indexation_method="none",
+                fixed_rate=None,
+                tax_treatment="fixed_rate",
+                tax_rate=Decimal("10.00"),
+                remarks=None,
+            )
+        )
+
+        snapshot_accounts = [
+            {
+                "מספר_חשבון": "A1",
+                "שם_תכנית": "Fund A",
+                "חברה_מנהלת": "X",
+                "סוג_מוצר": "קופת גמל",
+                "יתרה": 100000,
+                "תאריך_התחלה": "2005-01-01",
+                "תגמולים": 100000,
+            }
+        ]
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps(
+                    {
+                        "pension_portfolio": snapshot_accounts,
+                        "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS", "trace_id": "T-1"},
+                    },
+                    ensure_ascii=False,
+                ),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+        db.commit()
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for tools-first plan request")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    with Session() as db:
+        income = db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).first()
+        income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
+        today = date.today()
+        reference_date = date(today.year, today.month, 1)
+        monthly_gross = income_service.calculate_monthly_amount(income)
+        tax_amount, _ = income_service.calculate_tax(monthly_gross, income, None, reference_date)
+        expected_offset = float(monthly_gross - tax_amount)
+
+    seen: dict[str, float] = {}
+
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
+        seen["target"] = float(target_monthly_pension)
+        assert target_is_net is True
+        return {
+            "success": True,
+            "tool_name": "BUILD_TARGET_PENSION_PLAN",
+            "result": {
+                "target_monthly_pension": float(target_monthly_pension),
+                "target_is_net": bool(target_is_net),
+            },
+            "explanation": "OK",
+        }
+
+    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+
+    api = TestClient(app)
+    resp = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "pension_portfolio": [],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert "לא בונים מחדש תכנית יעד" not in resp.text
     assert seen.get("target") == float(30000.0 - expected_offset)
 
 

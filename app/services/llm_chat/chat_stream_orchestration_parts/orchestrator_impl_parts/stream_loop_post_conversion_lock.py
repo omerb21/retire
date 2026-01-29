@@ -38,10 +38,8 @@ def _build_post_conversion_lock_message() -> str:
 
 def _build_post_conversion_plan_message() -> str:
     return (
-        "כותרת: תכנית לאחר המרה\n\n"
-        "לא בונים מחדש תכנית יעד על בסיס התיק המקורי אחרי שכבר בוצעה המרה.\n"
-        "אם המטרה היא לבצע משיכה/קצבה מהמצב החדש - נדרש מסלול ייעודי שמחשב מהנכסים שנוצרו.\n"
-        'כתוב: "חשב תזרים על בסיס המצב הנוכחי" או "דוח מסכם".\n'
+        "כותרת: תכנית יעד\n\n"
+        "המערכת תבנה תכנית יעד על בסיס מצב הנתונים הנוכחי במערכת.\n"
     )
 
 
@@ -128,11 +126,9 @@ def _maybe_handle_post_conversion_lock_early_cutoff(
             },
         )
 
+        # Never block a user request to build a target pension plan.
         if wants_plan_build and has_numeric_target:
-            return StreamingResponse(
-                iter([_build_post_conversion_plan_message()]),
-                media_type="text/plain; charset=utf-8",
-            )
+            return None
 
         return StreamingResponse(
             iter([_build_post_conversion_lock_message()]),
