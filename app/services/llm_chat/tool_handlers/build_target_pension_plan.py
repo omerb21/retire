@@ -36,10 +36,16 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
     else:
         target_is_net_val = bool(target_is_net)
 
+    ignore_blocked_balances_raw = args.get("ignore_blocked_balances")
+    ignore_blocked_balances_val = (
+        True if ignore_blocked_balances_raw is None else bool(ignore_blocked_balances_raw)
+    )
+
     result = agent_tools.build_target_pension_plan(
         target_monthly_pension=target_val,
         retirement_age=retirement_age_val,
         target_is_net=target_is_net_val,
+        ignore_blocked_balances=ignore_blocked_balances_val,
     )
     if not isinstance(result, dict):
         return (
@@ -195,6 +201,7 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
                 "target_monthly_pension": target_val,
                 "target_is_net": target_is_net_val,
                 "retirement_age": retirement_age_val,
+                "ignore_blocked_balances": ignore_blocked_balances_val,
             },
             "result": plan_res,
         }

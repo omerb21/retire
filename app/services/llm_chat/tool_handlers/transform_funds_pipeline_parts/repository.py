@@ -50,6 +50,7 @@ def execute_conversion_tasks(
     converted_items: list[dict],
     skipped_accounts: int,
     errors: list[str],
+    stop_after_target_gross: float | None = None,
 ) -> tuple[
     int,
     dict[str, dict],
@@ -63,8 +64,28 @@ def execute_conversion_tasks(
 ]:
     from datetime import date as date_type
 
+    running_gross = 0.0
+    try:
+        running_gross = float(running_gross)
+    except Exception:
+        running_gross = 0.0
+
     for idx, task in enumerate(conversion_tasks):
         try:
+            if stop_after_target_gross is not None:
+                try:
+                    stop_val = float(stop_after_target_gross or 0)
+                except Exception:
+                    stop_val = 0.0
+                if stop_val > 0 and running_gross >= stop_val:
+                    break
+
+            strict_plan_task = False
+            try:
+                strict_plan_task = isinstance(task, dict) and (task.get("_execution_plan") is not None)
+            except Exception:
+                strict_plan_task = False
+
             account = task.get("account") or {}
             account_name = task.get("account_name")
             base_amount = float(task.get("amount") or 0)
@@ -84,7 +105,7 @@ def execute_conversion_tasks(
                 effective_pension_start_date = retirement_date or date_type(retirement_year, 1, 1)
 
             projection_factor = 1.0
-            if effective_pension_start_date and effective_pension_start_date > date_type.today():
+            if (not strict_plan_task) and effective_pension_start_date and effective_pension_start_date > date_type.today():
                 try:
                     projection_factor = calculate_compound_factor(
                         from_date=date_type.today(),
@@ -94,7 +115,7 @@ def execute_conversion_tasks(
                     projection_factor = 1.0
 
             if conversion_type == "pension":
-                balance = float(base_amount) * float(projection_factor)
+                balance = float(base_amount) if strict_plan_task else (float(base_amount) * float(projection_factor))
             else:
                 balance = float(base_amount)
 
@@ -221,6 +242,14 @@ def execute_conversion_tasks(
                 converted_items=converted_items,
             )
 
+            if strict_plan_task and stop_after_target_gross is not None:
+                plan_meta = task.get("_execution_plan") if isinstance(task, dict) else None
+                if isinstance(plan_meta, dict):
+                    try:
+                        running_gross += float(plan_meta.get("expected_monthly_pension") or 0)
+                    except Exception:
+                        pass
+
         except Exception as acc_err:
             errors.append(f"שגיאה בחשבון {account_name}: {str(acc_err)}")
             logger.error("Error converting account %s: %s", account_name, acc_err)
@@ -280,6 +309,16 @@ def apply_conversion_task_to_snapshot(
     from datetime import date as date_type
 
     if conversion_type == "pension":
+        expected_pension_from_plan = None
+        try:
+            plan_meta = task.get("_execution_plan") if isinstance(task, dict) else None
+            if isinstance(plan_meta, dict) and plan_meta.get("expected_monthly_pension") is not None:
+                expected_pension_from_plan = float(plan_meta.get("expected_monthly_pension") or 0)
+                if expected_pension_from_plan <= 0:
+                    expected_pension_from_plan = None
+        except Exception:
+            expected_pension_from_plan = None
+
         # Convert to pension fund
         tax_treatment = (
             "exempt"
@@ -297,48 +336,53 @@ def apply_conversion_task_to_snapshot(
         )
         start_date_obj = _parse_date_value(start_date_raw)
 
-        annuity_factor = 200.0
+        annuity_factor = None
         coeff = None
-        try:
-            coeff = get_annuity_coefficient(
-                product_type=product_type,
-                start_date=start_date_obj or date_type(retirement_year, 1, 1),
-                gender=getattr(client_obj, "gender", None) or "זכר",
-                retirement_age=retirement_age,
-                company_name=company or None,
-                option_name=None,
-                survivors_option="תקנוני",
-                spouse_age_diff=0,
-                target_year=effective_pension_start_date.year if effective_pension_start_date else retirement_year,
-                birth_date=getattr(client_obj, "birth_date", None),
-                pension_start_date=effective_pension_start_date,
-            )
-            annuity_factor = float(coeff.get("factor_value") or annuity_factor)
-            if annuity_factor <= 0:
-                annuity_factor = 200.0
-            logger.info(
-                "📊 Annuity coefficient resolved: client_id=%s, account='%s', product_type='%s', company='%s', start_date='%s', retirement_age=%s -> factor=%s (source=%s)",
-                client_id,
-                account_name,
-                product_type,
-                company,
-                start_date_raw,
-                retirement_age,
-                annuity_factor,
-                coeff.get("source_table") if isinstance(coeff, dict) else None,
-            )
-        except Exception as e:
-            logger.warning(
-                "⚠️ Failed to resolve annuity coefficient (fallback=200): client_id=%s, account='%s', product_type='%s', company='%s', start_date='%s': %s",
-                client_id,
-                account_name,
-                product_type,
-                company,
-                start_date_raw,
-                e,
-            )
+        if expected_pension_from_plan is None:
+            annuity_factor = 200.0
+            try:
+                coeff = get_annuity_coefficient(
+                    product_type=product_type,
+                    start_date=start_date_obj or date_type(retirement_year, 1, 1),
+                    gender=getattr(client_obj, "gender", None) or "זכר",
+                    retirement_age=retirement_age,
+                    company_name=company or None,
+                    option_name=None,
+                    survivors_option="תקנוני",
+                    spouse_age_diff=0,
+                    target_year=effective_pension_start_date.year if effective_pension_start_date else retirement_year,
+                    birth_date=getattr(client_obj, "birth_date", None),
+                    pension_start_date=effective_pension_start_date,
+                )
+                annuity_factor = float(coeff.get("factor_value") or annuity_factor)
+                if annuity_factor <= 0:
+                    annuity_factor = 200.0
+                logger.info(
+                    "📊 Annuity coefficient resolved: client_id=%s, account='%s', product_type='%s', company='%s', start_date='%s', retirement_age=%s -> factor=%s (source=%s)",
+                    client_id,
+                    account_name,
+                    product_type,
+                    company,
+                    start_date_raw,
+                    retirement_age,
+                    annuity_factor,
+                    coeff.get("source_table") if isinstance(coeff, dict) else None,
+                )
+            except Exception as e:
+                logger.warning(
+                    "⚠️ Failed to resolve annuity coefficient (fallback=200): client_id=%s, account='%s', product_type='%s', company='%s', start_date='%s': %s",
+                    client_id,
+                    account_name,
+                    product_type,
+                    company,
+                    start_date_raw,
+                    e,
+                )
 
-        pension_amount = balance / annuity_factor
+        if expected_pension_from_plan is not None:
+            pension_amount = float(expected_pension_from_plan)
+        else:
+            pension_amount = balance / float(annuity_factor or 200.0)
 
         conversion_source_json = json.dumps(
             {
@@ -428,7 +472,7 @@ def apply_conversion_task_to_snapshot(
         db.flush()
 
         if (
-            (not use_provided_accounts_only)
+            ((not use_provided_accounts_only) or (expected_pension_from_plan is not None))
             and account_number
             and account_number not in source_zeroed_for_accounts
         ):
@@ -469,6 +513,7 @@ def apply_conversion_task_to_snapshot(
                 "projection_factor": projection_factor,
                 "pension_start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
                 "annuity_factor": annuity_factor,
+                "pension_amount": pension_amount,
                 "coeff_source_table": coeff.get("source_table") if isinstance(coeff, dict) else None,
                 "tax_treatment": tax_treatment,
                 "components": components,
@@ -476,6 +521,11 @@ def apply_conversion_task_to_snapshot(
         )
 
     elif conversion_type == "commutation":
+        strict_plan_task = False
+        try:
+            strict_plan_task = isinstance(task, dict) and (task.get("_execution_plan") is not None)
+        except Exception:
+            strict_plan_task = False
         task_tax_override = task.get("tax_treatment")
         tax_treatment = (
             task_tax_override.strip()
@@ -557,7 +607,7 @@ def apply_conversion_task_to_snapshot(
         db.flush()
 
         if (
-            (not use_provided_accounts_only)
+            ((not use_provided_accounts_only) or strict_plan_task)
             and account_number
             and account_number not in source_zeroed_for_accounts
         ):
@@ -607,6 +657,11 @@ def apply_conversion_task_to_snapshot(
         )
 
     else:  # capital_asset
+        strict_plan_task = False
+        try:
+            strict_plan_task = isinstance(task, dict) and (task.get("_execution_plan") is not None)
+        except Exception:
+            strict_plan_task = False
         # Convert to capital asset
         # Determine asset type based on product
         product_lower = (rules_product_type or "").lower()
@@ -742,7 +797,7 @@ def apply_conversion_task_to_snapshot(
         db.flush()
 
         if (
-            (not use_provided_accounts_only)
+            ((not use_provided_accounts_only) or strict_plan_task)
             and account_number
             and account_number not in source_zeroed_for_accounts
         ):

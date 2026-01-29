@@ -223,19 +223,35 @@ def _handle_post_deterministics_and_finalize(
                     computed_data=computed_data,
                 )
 
-            accounts = build_transform_accounts_from_target_plan_payload(payload)
-            if not accounts:
-                return ChatResponse(
-                    reply="לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל.",
-                    computed_data=computed_data,
-                )
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            execution_plan = result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+
+            ignore_blocked_balances_val = True
+            try:
+                args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                raw_ignore = args_payload.get("ignore_blocked_balances")
+                if raw_ignore is not None:
+                    ignore_blocked_balances_val = bool(raw_ignore)
+            except Exception:
+                ignore_blocked_balances_val = True
 
             transform_args: dict[str, Any] = {
-                "accounts": accounts,
                 "use_provided_accounts_only": True,
-                "ignore_blocked_balances": True,
+                "ignore_blocked_balances": bool(ignore_blocked_balances_val),
                 "skip_non_convertible_accounts": True,
             }
+
+            if execution_plan is not None:
+                transform_args["execution_plan"] = execution_plan
+                transform_args["accounts"] = []
+            else:
+                accounts = build_transform_accounts_from_target_plan_payload(payload)
+                if not accounts:
+                    return ChatResponse(
+                        reply="לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל.",
+                        computed_data=computed_data,
+                    )
+                transform_args["accounts"] = accounts
             try:
                 store_pending_approval_request(
                     db=db,
@@ -356,12 +372,27 @@ def _handle_post_deterministics_and_finalize(
                     computed_data=computed_data,
                 )
 
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            execution_plan = result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+            ignore_blocked_balances_val = True
+            try:
+                args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                raw_ignore = args_payload.get("ignore_blocked_balances")
+                if raw_ignore is not None:
+                    ignore_blocked_balances_val = bool(raw_ignore)
+            except Exception:
+                ignore_blocked_balances_val = True
+
             transform_args = {
-                "accounts": accounts,
                 "use_provided_accounts_only": True,
-                "ignore_blocked_balances": True,
+                "ignore_blocked_balances": bool(ignore_blocked_balances_val),
                 "skip_non_convertible_accounts": True,
             }
+            if execution_plan is not None:
+                transform_args["execution_plan"] = execution_plan
+                transform_args["accounts"] = []
+            else:
+                transform_args["accounts"] = accounts
             transform_result = _execute_tool_call(
                 "TRANSFORM_FUNDS_TO_ASSETS",
                 transform_args,

@@ -95,7 +95,9 @@ def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_
 
     seen: dict[str, float] = {}
 
-    def fake_build_target_pension_plan(self, target_monthly_pension, target_is_net, retirement_age=None):
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
         seen["target"] = float(target_monthly_pension)
         assert target_is_net is True
         return {
@@ -175,7 +177,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    def fake_build_target_pension_plan(self, target_monthly_pension, target_is_net, retirement_age=None):
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
         return {
             "success": True,
             "tool_name": "BUILD_TARGET_PENSION_PLAN",
@@ -284,7 +288,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    def fake_build_target_pension_plan(self, target_monthly_pension, target_is_net, retirement_age=None):
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
         assert float(target_monthly_pension) == 5000.0
         assert target_is_net is True
         return {
@@ -478,7 +484,9 @@ def test_stream_cashflow_uses_last_plan_without_cashflow_tool(monkeypatch, _test
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", wrapped_execute_tool_call)
 
-    def fake_build_target_pension_plan(self, target_monthly_pension, target_is_net, retirement_age=None):
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
         return {
             "success": True,
             "tool_name": "BUILD_TARGET_PENSION_PLAN",

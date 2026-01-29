@@ -25,6 +25,7 @@ def build_target_pension_plan(
     target_monthly_pension: float,
     retirement_age: Optional[int] = None,
     target_is_net: bool = True,
+    ignore_blocked_balances: bool = True,
 ) -> Dict[str, Any]:
     """
     בונה תכנית להשגת קצבת יעד בצורה אופטימלית.
@@ -225,6 +226,20 @@ def build_target_pension_plan(
     ).all()
 
     for pf in pension_funds:
+        try:
+            raw_src = getattr(pf, "conversion_source", None)
+            raw_src_str = str(raw_src) if raw_src is not None else ""
+        except Exception:
+            raw_src_str = ""
+        # Portfolio-imported PensionFund rows are treated as *sources* and should be
+        # planned from the pension_portfolio_snapshot component breakdown instead.
+        if raw_src_str and (
+            '"source": "pension_portfolio"' in raw_src_str
+            or '"type": "pension_portfolio"' in raw_src_str
+            or '"source": "pension_portfolio_convert"' in raw_src_str
+        ):
+            continue
+
         balance = float(pf.balance or 0)
         existing_pension = float(pf.pension_amount or 0)
 
@@ -358,6 +373,23 @@ def build_target_pension_plan(
             retirement_date=retirement_date,
             retirement_year=retirement_year,
         )
+
+        if ignore_blocked_balances:
+            blocked_fields = {
+                "פיצויים_שלא_עברו_התחשבנות",
+                "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            }
+            try:
+                portfolio_sources = [
+                    s
+                    for s in (portfolio_sources or [])
+                    if not (
+                        isinstance(s, dict)
+                        and str(s.get("component_field") or "").strip() in blocked_fields
+                    )
+                ]
+            except Exception:
+                portfolio_sources = portfolio_sources
         portfolio_sources_total = len(portfolio_sources)
         try:
             portfolio_sources_total_balance = float(
@@ -741,6 +773,78 @@ def build_target_pension_plan(
         avg_factor=avg_factor,
     )
 
+    execution_plan_accounts: list[dict[str, Any]] = []
+    try:
+        for src in sources_used or []:
+            if not isinstance(src, dict):
+                continue
+            if str(src.get("source_type") or "") != "pension_fund_from_portfolio":
+                continue
+            acc_id = src.get("account_number")
+            if acc_id is None:
+                acc_id = src.get("source_id")
+            if acc_id is None:
+                continue
+            component = src.get("component_field")
+            if component is None:
+                component = src.get("fund_type")
+            if component is None:
+                component = "unknown"
+            try:
+                amount_to_convert = float(src.get("balance_used") or 0)
+            except Exception:
+                amount_to_convert = 0.0
+            try:
+                expected_monthly_pension = float(src.get("pension_used") or 0)
+            except Exception:
+                expected_monthly_pension = 0.0
+            if amount_to_convert <= 0 or expected_monthly_pension <= 0:
+                continue
+            execution_plan_accounts.append(
+                {
+                    "account_id": str(acc_id),
+                    "component": str(component),
+                    "amount_to_convert": float(amount_to_convert),
+                    "expected_monthly_pension": float(expected_monthly_pension),
+                }
+            )
+    except Exception:
+        execution_plan_accounts = []
+
+    try:
+        target_gross_val = (
+            float(required_gross_for_target) if target_is_net else float(target_monthly_pension)
+        )
+    except Exception:
+        target_gross_val = 0.0
+    try:
+        target_net_val = float(target_monthly_pension) if target_is_net else float(estimated_net or 0)
+    except Exception:
+        target_net_val = 0.0
+    expected_total_gross_val = 0.0
+    try:
+        expected_total_gross_val = float(
+            sum(
+                float(a.get("expected_monthly_pension") or 0)
+                for a in (execution_plan_accounts or [])
+                if isinstance(a, dict)
+            )
+        )
+    except Exception:
+        expected_total_gross_val = 0.0
+    try:
+        expected_total_net_val = float(estimated_net or 0)
+    except Exception:
+        expected_total_net_val = 0.0
+
+    execution_plan: dict[str, Any] = {
+        "target_net": int(round(target_net_val)),
+        "target_gross": int(round(target_gross_val)),
+        "accounts": execution_plan_accounts,
+        "expected_total_gross": float(expected_total_gross_val),
+        "expected_total_net": float(expected_total_net_val),
+    }
+
     return {
         "success": True,
         "tool_name": "BUILD_TARGET_PENSION_PLAN",
@@ -776,6 +880,7 @@ def build_target_pension_plan(
             "disadvantages": disadvantages,
             "total_sources_available": len(pension_sources),
             "sources_used_count": len(sources_used),
+            "execution_plan": execution_plan,
         },
         "explanation": explanation,
     }

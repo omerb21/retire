@@ -59,7 +59,9 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    def fake_build_target_pension_plan(self, target_monthly_pension, target_is_net, retirement_age=None):
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
         return {
             "success": False,
             "tool_name": "BUILD_TARGET_PENSION_PLAN",

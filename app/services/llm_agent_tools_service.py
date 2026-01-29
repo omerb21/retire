@@ -102,12 +102,14 @@ class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin,
         target_monthly_pension: float,
         retirement_age: Optional[int] = None,
         target_is_net: bool = True,
+        ignore_blocked_balances: bool = True,
     ) -> Dict[str, Any]:
         return tool_adapters.build_target_pension_plan(
             self,
             target_monthly_pension=target_monthly_pension,
             retirement_age=retirement_age,
             target_is_net=target_is_net,
+            ignore_blocked_balances=ignore_blocked_balances,
         )
 
     def calculate_capital_withdrawal_tax(

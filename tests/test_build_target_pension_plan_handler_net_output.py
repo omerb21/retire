@@ -7,7 +7,13 @@ class _FakeAgentTools:
     def __init__(self, result: dict):
         self._result = result
 
-    def build_target_pension_plan(self, target_monthly_pension, retirement_age=None, target_is_net=True):
+    def build_target_pension_plan(
+        self,
+        target_monthly_pension,
+        retirement_age=None,
+        target_is_net=True,
+        ignore_blocked_balances=True,
+    ):
         return self._result
 
 

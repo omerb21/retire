@@ -62,7 +62,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
 
     phase = {"after_transform": False}
 
-    def fake_build_target_pension_plan(self, target_monthly_pension, target_is_net, retirement_age=None):
+    def fake_build_target_pension_plan(
+        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+    ):
         if not phase["after_transform"]:
             return {
                 "success": False,

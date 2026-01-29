@@ -58,6 +58,10 @@ def handle_transform_funds_to_assets(
     logger.info("🔄 TRANSFORM_FUNDS_TO_ASSETS called - Converting funds to assets")
 
     try:
+        execution_plan = args.get("execution_plan")
+        if not isinstance(execution_plan, dict):
+            execution_plan = None
+
         accounts = args.get("accounts", [])
         remaining_only = bool(args.get("remaining_only"))
         pension_start_date_raw = args.get("pension_start_date")
@@ -152,7 +156,7 @@ def handle_transform_funds_to_assets(
                     )
                     accounts = derived_accounts
 
-        if not accounts or not isinstance(accounts, list):
+        if (execution_plan is None) and (not accounts or not isinstance(accounts, list)):
             return json.dumps(
                 {
                     "success": False,
@@ -169,6 +173,7 @@ def handle_transform_funds_to_assets(
             db=db,
             agent_tools=agent_tools,
             accounts=accounts,
+            execution_plan=execution_plan,
             pension_start_date_raw=pension_start_date_raw,
             ignore_blocked_balances=ignore_blocked_balances,
             skip_non_convertible_accounts=skip_non_convertible_accounts,

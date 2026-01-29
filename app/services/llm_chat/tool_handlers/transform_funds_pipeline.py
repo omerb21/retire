@@ -41,6 +41,7 @@ def execute_transform_funds_pipeline(
     db,
     client_id,
     accounts,
+    execution_plan: dict | None,
     client_obj,
     global_pension_start_date,
     retirement_date,
@@ -72,23 +73,97 @@ def execute_transform_funds_pipeline(
 
     blocked_field_amount = 0.0
 
-    (
-        conversion_tasks,
-        validation_errors,
-        skipped_non_convertible,
-        skipped_items,
-        skipped_accounts,
-        blocked_field_amount,
-    ) = build_conversion_tasks_from_accounts(
-        accounts=accounts,
-        blocked_fields=blocked_fields,
-        ignore_blocked_balances=ignore_blocked_balances,
-        skip_non_convertible_accounts=skip_non_convertible_accounts,
-        commute_pension_components=commute_pension_components,
-        default_conversion_type=default_conversion_type,
-        skipped_accounts=skipped_accounts,
-        blocked_field_amount=blocked_field_amount,
-    )
+    expected_total_gross_from_plan = None
+    target_gross_from_plan = None
+    strict_plan_mode = False
+    plan_accounts: list[dict] = []
+    if isinstance(execution_plan, dict) and execution_plan:
+        strict_plan_mode = True
+        raw_accounts = execution_plan.get("accounts")
+        if isinstance(raw_accounts, list):
+            plan_accounts = [a for a in raw_accounts if isinstance(a, dict)]
+
+        try:
+            expected_total_gross_from_plan = float(execution_plan.get("expected_total_gross") or 0)
+        except Exception:
+            expected_total_gross_from_plan = 0.0
+        try:
+            target_gross_from_plan = float(execution_plan.get("target_gross") or 0)
+        except Exception:
+            target_gross_from_plan = 0.0
+
+        if not plan_accounts:
+            return {
+                "success": False,
+                "error": "EXECUTION_PLAN_EMPTY",
+                "total_converted": 0,
+                "converted_pensions": 0,
+                "converted_capitals": 0,
+                "converted_commutations": 0,
+                "source_pension_funds_zeroed": 0,
+            }
+
+        # Build conversion_tasks strictly from execution_plan.
+        conversion_tasks = []
+        for item in plan_accounts:
+            acc_id = str(item.get("account_id") or "").strip()
+            component = str(item.get("component") or "").strip()
+            try:
+                amount_to_convert = float(item.get("amount_to_convert") or 0)
+            except Exception:
+                amount_to_convert = 0.0
+            if (not acc_id) or (not component) or amount_to_convert <= 0:
+                continue
+
+            conversion_tasks.append(
+                {
+                    "task_type": "pension",
+                    "account": {
+                        "account_number": acc_id,
+                        "מספר_חשבון": acc_id,
+                        "specific_amounts": {component: amount_to_convert},
+                        "component_conversion_overrides": {component: "pension"},
+                    },
+                    "account_name": acc_id,
+                    "product_type": "",
+                    "company": "",
+                    "account_number": acc_id,
+                    "amount": float(amount_to_convert),
+                    "components": {component: float(amount_to_convert)},
+                    "_execution_plan": {
+                        "expected_monthly_pension": item.get("expected_monthly_pension"),
+                    },
+                }
+            )
+
+        if not conversion_tasks:
+            return {
+                "success": False,
+                "error": "EXECUTION_PLAN_INVALID",
+                "total_converted": 0,
+                "converted_pensions": 0,
+                "converted_capitals": 0,
+                "converted_commutations": 0,
+                "source_pension_funds_zeroed": 0,
+            }
+    else:
+        (
+            conversion_tasks,
+            validation_errors,
+            skipped_non_convertible,
+            skipped_items,
+            skipped_accounts,
+            blocked_field_amount,
+        ) = build_conversion_tasks_from_accounts(
+            accounts=accounts,
+            blocked_fields=blocked_fields,
+            ignore_blocked_balances=ignore_blocked_balances,
+            skip_non_convertible_accounts=skip_non_convertible_accounts,
+            commute_pension_components=commute_pension_components,
+            default_conversion_type=default_conversion_type,
+            skipped_accounts=skipped_accounts,
+            blocked_field_amount=blocked_field_amount,
+        )
 
     if validation_errors:
         return {
@@ -99,6 +174,31 @@ def execute_transform_funds_pipeline(
             "converted_pensions": 0,
             "converted_capitals": 0,
         }
+
+    if strict_plan_mode and target_gross_from_plan is not None:
+        try:
+            target_gross_from_plan = float(target_gross_from_plan or 0)
+        except Exception:
+            target_gross_from_plan = 0.0
+        if float(target_gross_from_plan) > 0:
+            trimmed: list[dict] = []
+            running = 0.0
+            for t in conversion_tasks:
+                if running >= float(target_gross_from_plan):
+                    break
+                if not isinstance(t, dict):
+                    continue
+                plan_meta = t.get("_execution_plan") if isinstance(t.get("_execution_plan"), dict) else {}
+                try:
+                    exp = float(plan_meta.get("expected_monthly_pension") or 0)
+                except Exception:
+                    exp = 0.0
+                if exp <= 0:
+                    continue
+                trimmed.append(t)
+                running += exp
+            if trimmed:
+                conversion_tasks = trimmed
 
     try:
         conversion_tasks.sort(
@@ -145,7 +245,81 @@ def execute_transform_funds_pipeline(
         converted_items=converted_items,
         skipped_accounts=skipped_accounts,
         errors=errors,
+        stop_after_target_gross=target_gross_from_plan if strict_plan_mode else None,
     )
+
+    if strict_plan_mode:
+        if int(source_pension_funds_zeroed or 0) <= 0:
+            res = build_transform_funds_response(
+                success=False,
+                message="EXECUTION_NO_SOURCE_CONSUMED",
+                converted_pensions=converted_pensions,
+                converted_capitals=converted_capitals,
+                converted_commutations=converted_commutations,
+                total_converted=converted_pensions + converted_capitals,
+                skipped_accounts=skipped_accounts,
+                skipped_non_convertible=skipped_non_convertible,
+                converted_items=converted_items,
+                skipped_items=skipped_items,
+                blocked_field_amount=blocked_field_amount,
+                employer_current_severance_total=employer_current_severance_total,
+                errors=(errors or []) + ["EXECUTION_NO_SOURCE_CONSUMED"],
+                next_step=None,
+                source_data_cleared=False,
+                memory_cleared=False,
+                scenarios_updated=0,
+                scenario_source_cleanup_ok=None,
+                source_pension_funds_zeroed=source_pension_funds_zeroed,
+            )
+            try:
+                if isinstance(res, dict):
+                    res["error"] = "EXECUTION_NO_SOURCE_CONSUMED"
+            except Exception:
+                pass
+            return res
+
+        # Fail-fast deviation check vs plan expected totals (gross).
+        try:
+            actual_gross = float(
+                sum(
+                    float(x.get("pension_amount") or 0)
+                    for x in (converted_items or [])
+                    if isinstance(x, dict) and x.get("kind") == "pension"
+                )
+            )
+        except Exception:
+            actual_gross = 0.0
+
+        expected_gross = float(expected_total_gross_from_plan or 0)
+        tol = abs(expected_gross) * 0.01
+        if expected_gross > 0 and abs(actual_gross - expected_gross) > tol:
+            res = build_transform_funds_response(
+                success=False,
+                message="EXECUTION_DEVIATES_FROM_PLAN",
+                converted_pensions=converted_pensions,
+                converted_capitals=converted_capitals,
+                converted_commutations=converted_commutations,
+                total_converted=converted_pensions + converted_capitals,
+                skipped_accounts=skipped_accounts,
+                skipped_non_convertible=skipped_non_convertible,
+                converted_items=converted_items,
+                skipped_items=skipped_items,
+                blocked_field_amount=blocked_field_amount,
+                employer_current_severance_total=employer_current_severance_total,
+                errors=(errors or []) + ["EXECUTION_DEVIATES_FROM_PLAN"],
+                next_step=None,
+                source_data_cleared=False,
+                memory_cleared=False,
+                scenarios_updated=0,
+                scenario_source_cleanup_ok=None,
+                source_pension_funds_zeroed=source_pension_funds_zeroed,
+            )
+            try:
+                if isinstance(res, dict):
+                    res["error"] = "EXECUTION_DEVIATES_FROM_PLAN"
+            except Exception:
+                pass
+            return res
 
     total_converted = converted_pensions + converted_capitals
 
