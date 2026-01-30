@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models import Scenario
 
 
-def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result: str) -> bool:
+def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result: object) -> bool:
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:
         return False
@@ -297,7 +297,7 @@ def load_latest_retirement_cashflow_analysis(*, db: Session, client_id: int) -> 
     return parsed if isinstance(parsed, dict) else None
 
 
-def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_result: str) -> bool:
+def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_result: object) -> bool:
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:
         return False
@@ -548,23 +548,65 @@ def clear_pending_plan_target_marker(*, db: Session, client_id: int) -> bool:
         return False
 
 
-def _extract_target_plan_payload_from_tool_result(tool_result: str) -> dict | None:
-    marker = "###TARGET_PENSION_PLAN_DATA###"
-    end_marker = "###END_TARGET_PENSION_PLAN_DATA###"
-    if not isinstance(tool_result, str) or not tool_result:
-        return None
-    if marker not in tool_result or end_marker not in tool_result:
+def _extract_target_plan_payload_from_tool_result(tool_result: object) -> dict | None:
+    parsed: object | None = None
+
+    if isinstance(tool_result, dict):
+        parsed = tool_result
+    elif isinstance(tool_result, str) and tool_result:
+        marker = "###TARGET_PENSION_PLAN_DATA###"
+        end_marker = "###END_TARGET_PENSION_PLAN_DATA###"
+
+        if marker in tool_result and end_marker in tool_result:
+            start = tool_result.rfind(marker)
+            end = tool_result.find(end_marker, start + len(marker))
+            if start < 0 or end < 0 or end <= start:
+                return None
+            raw_json = tool_result[start + len(marker) : end].strip()
+            if not raw_json:
+                return None
+            try:
+                parsed = json.loads(raw_json)
+            except Exception:
+                return None
+        else:
+            try:
+                parsed = json.loads(tool_result)
+            except Exception:
+                parsed = None
+
+    if not isinstance(parsed, dict):
         return None
 
-    start = tool_result.rfind(marker)
-    end = tool_result.find(end_marker, start + len(marker))
-    if start < 0 or end < 0 or end <= start:
-        return None
-    raw_json = tool_result[start + len(marker) : end].strip()
-    if not raw_json:
-        return None
-    try:
-        parsed = json.loads(raw_json)
-    except Exception:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    if isinstance(parsed.get("tool_name"), str) and isinstance(parsed.get("result"), dict):
+        payload = dict(parsed)
+        if not isinstance(payload.get("args"), dict):
+            args = payload.get("arguments")
+            payload["args"] = args if isinstance(args, dict) else {}
+        return payload
+
+    tool_name = parsed.get("tool_name")
+    if not isinstance(tool_name, str):
+        tool_name = parsed.get("name")
+    if not isinstance(tool_name, str):
+        try:
+            is_success = bool(parsed.get("success"))
+        except Exception:
+            is_success = False
+        if is_success and isinstance(parsed.get("result"), dict):
+            tool_name = "BUILD_TARGET_PENSION_PLAN"
+
+    res = parsed.get("result")
+    if isinstance(tool_name, str) and isinstance(res, dict):
+        args = parsed.get("args")
+        if not isinstance(args, dict):
+            args = parsed.get("arguments")
+        if not isinstance(args, dict):
+            args = {}
+        payload = dict(parsed)
+        payload["tool_name"] = tool_name
+        payload["args"] = args
+        payload["result"] = res
+        return payload
+
+    return None

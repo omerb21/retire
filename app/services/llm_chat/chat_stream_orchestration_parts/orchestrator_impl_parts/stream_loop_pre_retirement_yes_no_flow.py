@@ -1,3 +1,5 @@
+import json
+
 from fastapi.responses import StreamingResponse
 
 
@@ -18,6 +20,10 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
     format_tool_output_for_user_stream,
     store_pending_approval_request,
     build_approval_request_ui_action,
+    store_latest_target_pension_plan_data,
+    store_latest_target_pension_plan,
+    clear_pending_plan_target_marker,
+    clear_pending_approval_request,
  ):
     if lowered_user_msg not in {"כן", "לא"}:
         return None
@@ -88,9 +94,49 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                 user_approved=True,
                 request_id=req_id,
             )
+
+            stored_data_ok = False
+            try:
+                stored_data_ok = bool(
+                    store_latest_target_pension_plan_data(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=plan_result,
+                    )
+                )
+            except Exception:
+                stored_data_ok = False
+
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+
+            if stored_data_ok:
+                try:
+                    clear_pending_plan_target_marker(db=db, client_id=request.client_id)
+                except Exception:
+                    pass
+                try:
+                    clear_pending_approval_request(db=db, client_id=request.client_id)
+                except Exception:
+                    pass
+
+            try:
+                tool_result_text = (
+                    plan_result
+                    if isinstance(plan_result, str)
+                    else json.dumps(plan_result, ensure_ascii=False)
+                )
+            except Exception:
+                tool_result_text = str(plan_result)
             yield sanitize_user_visible_text(
                 "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", tool_result_text)
             )
 
         return StreamingResponse(

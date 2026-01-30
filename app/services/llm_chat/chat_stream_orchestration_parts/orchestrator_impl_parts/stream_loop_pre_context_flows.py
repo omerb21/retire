@@ -1,3 +1,5 @@
+from app.services.llm_chat.chat_orchestration_helpers import clear_pending_plan_target_marker
+
 def _run_pre_context_flows(
     *,
     request,
@@ -105,6 +107,10 @@ def _run_pre_context_flows(
             format_tool_output_for_user_stream=format_tool_output_for_user_stream,
             store_pending_approval_request=store_pending_approval_request,
             build_approval_request_ui_action=build_approval_request_ui_action,
+            store_latest_target_pension_plan_data=store_latest_target_pension_plan_data,
+            store_latest_target_pension_plan=store_latest_target_pension_plan,
+            clear_pending_plan_target_marker=clear_pending_plan_target_marker,
+            clear_pending_approval_request=clear_pending_approval_request,
         )
         if yes_no_response is not None:
             return yes_no_response, plan_phrase_detected, None, None
