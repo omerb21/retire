@@ -196,6 +196,9 @@ def generate_forced_approval(
             transform_args["execution_plan"] = execution_plan
             raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
             transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
+            if not transform_args["accounts"]:
+                yield "אין תכנית לביצוע, בנה תכנית יעד מחדש"
+                return
         else:
             accounts = _build_transform_accounts_from_target_plan_payload(payload)
             if not accounts:
@@ -318,6 +321,9 @@ def generate_execute_target_after_termination(
         transform_args["execution_plan"] = execution_plan
         raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
         transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
+        if not transform_args["accounts"]:
+            yield "אין תכנית לביצוע, בנה תכנית יעד מחדש"
+            return
     else:
         accounts = _build_transform_accounts_from_target_plan_payload(payload)
         if not accounts:

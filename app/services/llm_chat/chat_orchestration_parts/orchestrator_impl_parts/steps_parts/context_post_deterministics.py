@@ -245,6 +245,11 @@ def _handle_post_deterministics_and_finalize(
                 transform_args["execution_plan"] = execution_plan
                 raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
                 transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
+                if not transform_args["accounts"]:
+                    return ChatResponse(
+                        reply="אין תכנית לביצוע, בנה תכנית יעד מחדש",
+                        computed_data=computed_data,
+                    )
             else:
                 accounts = build_transform_accounts_from_target_plan_payload(payload)
                 if not accounts:
