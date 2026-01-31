@@ -3,6 +3,50 @@ import json
 from fastapi.responses import StreamingResponse
 
 
+def _has_positive_component_amounts(raw: object) -> bool:
+    if not isinstance(raw, dict) or not raw:
+        return False
+    for _k, v in raw.items():
+        try:
+            if float(v or 0) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _accounts_are_thin(accounts: object) -> bool:
+    if not isinstance(accounts, list) or not accounts:
+        return True
+
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            return True
+
+        raw_balance = acc.get("balance")
+        if raw_balance is None:
+            raw_balance = acc.get("יתרה")
+        if raw_balance is None:
+            raw_balance = acc.get("current_balance")
+
+        try:
+            if float(raw_balance or 0) > 0:
+                continue
+        except Exception:
+            pass
+
+        if _has_positive_component_amounts(acc.get("specific_amounts")):
+            continue
+        if _has_positive_component_amounts(acc.get("selected_amounts")):
+            continue
+        if _has_positive_component_amounts(acc.get("selected_components")):
+            continue
+
+        return True
+
+    return False
+
+
 def _maybe_handle_pre_retirement_plan_resolution_yes_no(
     *,
     request,

@@ -34,6 +34,63 @@ from .stream_top_level_helpers import (
 from .stream_tool_execution import _execute_tool_call
 
 
+def _has_positive_component_amounts(raw: object) -> bool:
+    if not isinstance(raw, dict) or not raw:
+        return False
+    for _k, v in raw.items():
+        try:
+            if float(v or 0) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _accounts_are_thin(accounts: object) -> bool:
+    if not isinstance(accounts, list) or not accounts:
+        return False
+
+    def _get_account_number(acc: dict) -> str:
+        return str(
+            acc.get("account_number")
+            or acc.get("מספר_חשבון")
+            or acc.get("מספר חשבון")
+            or acc.get("מספר-חשבון")
+            or ""
+        ).strip()
+
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            continue
+
+        account_number = _get_account_number(acc)
+        if not account_number:
+            continue
+
+        raw_balance = acc.get("balance")
+        if raw_balance is None:
+            raw_balance = acc.get("יתרה")
+        if raw_balance is None:
+            raw_balance = acc.get("current_balance")
+
+        try:
+            if float(raw_balance or 0) > 0:
+                continue
+        except Exception:
+            pass
+
+        if _has_positive_component_amounts(acc.get("specific_amounts")):
+            continue
+        if _has_positive_component_amounts(acc.get("selected_amounts")):
+            continue
+        if _has_positive_component_amounts(acc.get("selected_components")):
+            continue
+
+        return True
+
+    return False
+
+
 def _parse_iso_datetime_utc(raw: object) -> datetime | None:
     if not isinstance(raw, str) or not raw.strip():
         return None
@@ -206,6 +263,9 @@ def generate_forced_approval(
                 return
             transform_args["accounts"] = accounts
 
+        if _accounts_are_thin(transform_args.get("accounts")):
+            transform_args["use_provided_accounts_only"] = False
+
         reason = "נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת."
         try:
             if _should_apply_restore_transform_cooldown(db=db, client_id=request.client_id):
@@ -330,6 +390,9 @@ def generate_execute_target_after_termination(
             yield "עזיבת עבודה כבר בוצעה. לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע."
             return
         transform_args["accounts"] = accounts
+
+    if _accounts_are_thin(transform_args.get("accounts")):
+        transform_args["use_provided_accounts_only"] = False
     transform_result = _execute_tool_call(
         "TRANSFORM_FUNDS_TO_ASSETS",
         transform_args,
@@ -381,9 +444,10 @@ def generate_approval_exec(
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
+    tool_args = dict(approved_tool_args or {}) if isinstance(approved_tool_args, dict) else {}
     tool_result = _execute_tool_call(
         approved_tool_name,
-        approved_tool_args,
+        tool_args,
         request.client_id,
         db,
         pension_portfolio=effective_portfolio,
@@ -391,6 +455,46 @@ def generate_approval_exec(
         user_approved=True,
         request_id=stream_request_id,
     )
+
+    if approved_tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
+        should_retry = False
+        try:
+            parsed = json.loads(tool_result)
+        except Exception:
+            parsed = None
+
+        if isinstance(parsed, dict) and parsed.get("success") is True:
+            try:
+                total_converted = int(parsed.get("total_converted") or 0)
+            except Exception:
+                total_converted = 0
+            try:
+                skipped_zero_balance = int(parsed.get("skipped_zero_balance") or 0)
+            except Exception:
+                skipped_zero_balance = 0
+
+            if (
+                total_converted == 0
+                and skipped_zero_balance > 0
+                and bool(tool_args.get("use_provided_accounts_only")) is True
+            ):
+                should_retry = True
+
+        if should_retry:
+            retry_args = dict(tool_args)
+            retry_args["use_provided_accounts_only"] = False
+            yield "לא נטענו נתוני חשבון מלאים, מנסה לטעון מה־DB."
+            tool_args = retry_args
+            tool_result = _execute_tool_call(
+                approved_tool_name,
+                tool_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=force_max_exemption,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
 
     try:
         clear_pending_approval_request(db=db, client_id=request.client_id)
@@ -400,7 +504,7 @@ def generate_approval_exec(
     portfolio_update_marker = build_pension_portfolio_update_after_transform(
         tool_name=approved_tool_name,
         tool_result=tool_result,
-        tool_args=approved_tool_args,
+        tool_args=tool_args,
         current_pension_portfolio=effective_portfolio,
     )
     if portfolio_update_marker:

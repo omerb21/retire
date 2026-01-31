@@ -9,6 +9,62 @@ from app.services.llm_chat.orchestration_utils import build_transform_accounts_f
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
 
+def _has_positive_component_amounts(raw: object) -> bool:
+    if not isinstance(raw, dict) or not raw:
+        return False
+    for _k, v in raw.items():
+        try:
+            if float(v or 0) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _accounts_are_thin(accounts: object) -> bool:
+    if not isinstance(accounts, list) or not accounts:
+        return False
+
+    def _get_account_number(acc: dict) -> str:
+        return str(
+            acc.get("account_number")
+            or acc.get("מספר_חשבון")
+            or acc.get("מספר חשבון")
+            or acc.get("מספר-חשבון")
+            or ""
+        ).strip()
+
+    for acc in accounts:
+        if not isinstance(acc, dict):
+            continue
+
+        account_number = _get_account_number(acc)
+        if not account_number:
+            continue
+        raw_balance = acc.get("balance")
+        if raw_balance is None:
+            raw_balance = acc.get("יתרה")
+        if raw_balance is None:
+            raw_balance = acc.get("current_balance")
+
+        try:
+            if float(raw_balance or 0) > 0:
+                continue
+        except Exception:
+            pass
+
+        if _has_positive_component_amounts(acc.get("specific_amounts")):
+            continue
+        if _has_positive_component_amounts(acc.get("selected_amounts")):
+            continue
+        if _has_positive_component_amounts(acc.get("selected_components")):
+            continue
+
+        return True
+
+    return False
+
+
 def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsService) -> str:
     version_tag = "BUILD_TARGET_PENSION_PLAN_HANDLER_VERSION=2026-01-01.1"
     if not isinstance(args, dict):
@@ -85,6 +141,8 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
                         "retirement_age": retirement_age_val,
                     },
                 }
+                if _accounts_are_thin(transform_args.get("accounts")):
+                    transform_args["use_provided_accounts_only"] = False
                 try:
                     store_pending_approval_request(
                         db=agent_tools.db,
