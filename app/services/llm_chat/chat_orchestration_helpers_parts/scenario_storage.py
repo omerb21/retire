@@ -6,6 +6,179 @@ from sqlalchemy.orm import Session
 from app.models import Scenario
 
 
+def _safe_float(value: object) -> float:
+    try:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.replace(",", "").replace("₪", "").strip()
+            if not cleaned:
+                return 0.0
+            return float(cleaned)
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _derive_execution_plan_accounts_from_sources_used(sources_used: object) -> list[dict]:
+    sources_list = sources_used if isinstance(sources_used, list) else []
+    enriched: list[dict] = []
+    for src in sources_list:
+        if not isinstance(src, dict):
+            continue
+        src_type = str(src.get("source_type") or "").strip()
+        if src_type not in {"pension_fund", "pension_fund_from_portfolio"}:
+            continue
+        acc_id = src.get("account_number")
+        if acc_id is None:
+            acc_id = src.get("source_id")
+        if acc_id is None:
+            continue
+        component = src.get("component_field")
+        if component is None:
+            component = src.get("fund_type")
+        if component is None:
+            component = "unknown"
+        amount_to_convert = _safe_float(src.get("balance_used"))
+        expected_monthly_pension = _safe_float(src.get("pension_used"))
+        if amount_to_convert <= 0 or expected_monthly_pension <= 0:
+            continue
+        enriched.append(
+            {
+                "account_id": str(acc_id),
+                "component": str(component),
+                "amount_to_convert": float(amount_to_convert),
+                "expected_monthly_pension": float(expected_monthly_pension),
+            }
+        )
+    return enriched
+
+
+def _derive_execution_plan_accounts_from_plan_steps(
+    *,
+    db: Session,
+    client_id: int,
+    plan_steps: object,
+) -> list[dict]:
+    steps = plan_steps if isinstance(plan_steps, list) else []
+    if not steps:
+        return []
+
+    snapshot_by_name: dict[str, str] = {}
+    try:
+        from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
+        from app.services.llm_chat.chat_orchestration_helpers_parts.target_plan_conversion import (
+            _clean_account_name_for_transform,
+        )
+
+        loaded = load_latest_pension_portfolio_snapshot(db=db, client_id=client_id)
+        if isinstance(loaded, tuple) and len(loaded) == 2:
+            portfolio = loaded[0]
+        else:
+            portfolio = None
+        if isinstance(portfolio, list):
+            for item in portfolio:
+                if not isinstance(item, dict):
+                    continue
+                acc_num = str(
+                    item.get("account_number")
+                    or item.get("מספר_חשבון")
+                    or item.get("מספר חשבון")
+                    or item.get("מספר-חשבון")
+                    or ""
+                ).strip()
+                if not acc_num:
+                    continue
+                name_raw = (
+                    item.get("account_name")
+                    or item.get("שם_תכנית")
+                    or item.get("שם תכנית")
+                    or ""
+                )
+                name = _clean_account_name_for_transform(str(name_raw))
+                if name:
+                    snapshot_by_name[name] = acc_num
+    except Exception:
+        snapshot_by_name = {}
+
+    aggregated: dict[tuple[str, str], dict] = {}
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+
+        acc_id_raw = step.get("account_number")
+        if acc_id_raw is None:
+            acc_id_raw = step.get("account_id")
+        if acc_id_raw is None:
+            acc_id_raw = step.get("account")
+
+        acc_id = str(acc_id_raw or "").strip()
+        if not acc_id:
+            src_name = str(step.get("source_name") or "").strip()
+            if src_name:
+                try:
+                    from app.services.llm_chat.chat_orchestration_helpers_parts.target_plan_conversion import (
+                        _clean_account_name_for_transform,
+                    )
+
+                    cleaned = _clean_account_name_for_transform(src_name)
+                except Exception:
+                    cleaned = src_name
+                acc_id = str(snapshot_by_name.get(cleaned) or "").strip()
+
+        if not acc_id:
+            continue
+
+        component_raw = step.get("component_field")
+        if component_raw is None:
+            component_raw = step.get("component")
+        if component_raw is None:
+            component_raw = step.get("field")
+        component = str(component_raw or "").strip()
+        if not component:
+            continue
+
+        amount_to_convert = _safe_float(step.get("amount_to_convert"))
+        if amount_to_convert <= 0:
+            amount_to_convert = _safe_float(step.get("balance_used"))
+        if amount_to_convert <= 0:
+            amount_to_convert = _safe_float(step.get("amount"))
+        if amount_to_convert <= 0:
+            pension_added = _safe_float(step.get("pension_added"))
+            annuity_factor = _safe_float(step.get("annuity_factor"))
+            if pension_added > 0 and annuity_factor > 0:
+                amount_to_convert = float(pension_added) * float(annuity_factor)
+        if amount_to_convert <= 0:
+            continue
+
+        expected_monthly_pension = _safe_float(step.get("expected_monthly_pension"))
+        if expected_monthly_pension <= 0:
+            expected_monthly_pension = _safe_float(step.get("pension_used"))
+        if expected_monthly_pension <= 0:
+            expected_monthly_pension = _safe_float(step.get("pension_added"))
+
+        key = (acc_id, component)
+        row = aggregated.get(key)
+        if row is None:
+            row = {
+                "account_id": acc_id,
+                "component": component,
+                "amount_to_convert": 0.0,
+                "expected_monthly_pension": 0.0,
+            }
+            aggregated[key] = row
+
+        row["amount_to_convert"] = float(row.get("amount_to_convert") or 0) + float(amount_to_convert)
+        if expected_monthly_pension > 0:
+            row["expected_monthly_pension"] = float(row.get("expected_monthly_pension") or 0) + float(
+                expected_monthly_pension
+            )
+
+    return list(aggregated.values())
+
+
 def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result: object) -> bool:
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:
@@ -30,41 +203,12 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
             accounts = raw_accounts if isinstance(raw_accounts, list) else []
 
             if target_achieved and (has_steps or has_sources) and (not accounts):
-                sources_list = sources_used if isinstance(sources_used, list) else []
-                enriched: list[dict] = []
-                for src in sources_list:
-                    if not isinstance(src, dict):
-                        continue
-                    src_type = str(src.get("source_type") or "").strip()
-                    if src_type not in {"pension_fund", "pension_fund_from_portfolio"}:
-                        continue
-                    acc_id = src.get("account_number")
-                    if acc_id is None:
-                        acc_id = src.get("source_id")
-                    if acc_id is None:
-                        continue
-                    component = src.get("component_field")
-                    if component is None:
-                        component = src.get("fund_type")
-                    if component is None:
-                        component = "unknown"
-                    try:
-                        amount_to_convert = float(src.get("balance_used") or 0)
-                    except Exception:
-                        amount_to_convert = 0.0
-                    try:
-                        expected_monthly_pension = float(src.get("pension_used") or 0)
-                    except Exception:
-                        expected_monthly_pension = 0.0
-                    if amount_to_convert <= 0 or expected_monthly_pension <= 0:
-                        continue
-                    enriched.append(
-                        {
-                            "account_id": str(acc_id),
-                            "component": str(component),
-                            "amount_to_convert": float(amount_to_convert),
-                            "expected_monthly_pension": float(expected_monthly_pension),
-                        }
+                enriched = _derive_execution_plan_accounts_from_sources_used(sources_used)
+                if not enriched:
+                    enriched = _derive_execution_plan_accounts_from_plan_steps(
+                        db=db,
+                        client_id=client_id,
+                        plan_steps=plan_steps,
                     )
 
                 if enriched:
@@ -394,41 +538,12 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
             accounts = raw_accounts if isinstance(raw_accounts, list) else []
 
             if target_achieved and (has_steps or has_sources) and (not accounts):
-                sources_list = sources_used if isinstance(sources_used, list) else []
-                enriched: list[dict] = []
-                for src in sources_list:
-                    if not isinstance(src, dict):
-                        continue
-                    src_type = str(src.get("source_type") or "").strip()
-                    if src_type not in {"pension_fund", "pension_fund_from_portfolio"}:
-                        continue
-                    acc_id = src.get("account_number")
-                    if acc_id is None:
-                        acc_id = src.get("source_id")
-                    if acc_id is None:
-                        continue
-                    component = src.get("component_field")
-                    if component is None:
-                        component = src.get("fund_type")
-                    if component is None:
-                        component = "unknown"
-                    try:
-                        amount_to_convert = float(src.get("balance_used") or 0)
-                    except Exception:
-                        amount_to_convert = 0.0
-                    try:
-                        expected_monthly_pension = float(src.get("pension_used") or 0)
-                    except Exception:
-                        expected_monthly_pension = 0.0
-                    if amount_to_convert <= 0 or expected_monthly_pension <= 0:
-                        continue
-                    enriched.append(
-                        {
-                            "account_id": str(acc_id),
-                            "component": str(component),
-                            "amount_to_convert": float(amount_to_convert),
-                            "expected_monthly_pension": float(expected_monthly_pension),
-                        }
+                enriched = _derive_execution_plan_accounts_from_sources_used(sources_used)
+                if not enriched:
+                    enriched = _derive_execution_plan_accounts_from_plan_steps(
+                        db=db,
+                        client_id=client_id,
+                        plan_steps=plan_steps,
                     )
 
                 if enriched:
