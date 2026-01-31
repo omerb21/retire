@@ -386,56 +386,6 @@ def build_target_pension_plan(
     blocked_total_detected = 0.0
 
     pension_portfolio_data: Any = None
-    if not has_db_state_sources:
-        if (
-            isinstance(getattr(self, "pension_portfolio_data", None), list)
-            and getattr(self, "pension_portfolio_data")
-        ):
-            pension_portfolio_data = getattr(self, "pension_portfolio_data")
-        else:
-            try:
-                scenarios = (
-                    self.db.query(Scenario)
-                    .filter(Scenario.client_id == self.client_id)
-                    .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-                    .order_by(Scenario.created_at.desc())
-                    .limit(20)
-                    .all()
-                )
-            except Exception:
-                scenarios = []
-
-            chosen = None
-            for row in scenarios or []:
-                if not getattr(row, "parameters", None):
-                    continue
-                try:
-                    params = json.loads(row.parameters)
-                except Exception:
-                    continue
-                portfolio = params.get("pension_portfolio")
-                if not (isinstance(portfolio, list) and portfolio):
-                    continue
-                meta = params.get("_meta") if isinstance(params, dict) else None
-                op_type = None
-                if isinstance(meta, dict):
-                    op_type = str(meta.get("operation_type") or "").strip()
-                if op_type == "TRANSFORM_FUNDS_TO_ASSETS":
-                    continue
-                chosen = (portfolio, row)
-                break
-
-            if chosen is None:
-                try:
-                    loaded = load_latest_pension_portfolio_snapshot(self.db, self.client_id)
-                except Exception:
-                    loaded = None
-                if isinstance(loaded, tuple) and len(loaded) == 2:
-                    pension_portfolio_data = loaded[0]
-                else:
-                    pension_portfolio_data = None
-            else:
-                pension_portfolio_data = chosen[0]
 
     def _safe_float(value: Any) -> float:
         try:
@@ -451,6 +401,87 @@ def build_target_pension_plan(
             return float(value)
         except Exception:
             return 0.0
+
+    def _portfolio_has_value(portfolio: Any) -> bool:
+        if not isinstance(portfolio, list) or not portfolio:
+            return False
+        component_prefixes = ("תגמולי_", "פיצויים_")
+        for acc in portfolio:
+            if not isinstance(acc, dict):
+                continue
+            if _safe_float(acc.get("יתרה") or acc.get("balance") or acc.get("current_balance")) > 0.01:
+                return True
+            if _safe_float(acc.get("סך_רכיבים") or acc.get("total_components")) > 0.01:
+                return True
+            if _safe_float(acc.get("סך_תגמולים") or acc.get("תגמולים") or acc.get("total_contributions")) > 0.01:
+                return True
+            if _safe_float(acc.get("קרן_השתלמות") or acc.get("education_fund")) > 0.01:
+                return True
+            for k, v in acc.items():
+                if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
+                    return True
+        return False
+
+    if not has_db_state_sources:
+        if (
+            isinstance(getattr(self, "pension_portfolio_data", None), list)
+            and getattr(self, "pension_portfolio_data")
+        ):
+            candidate = getattr(self, "pension_portfolio_data")
+            if _portfolio_has_value(candidate):
+                pension_portfolio_data = candidate
+        else:
+            try:
+                scenarios = (
+                    self.db.query(Scenario)
+                    .filter(Scenario.client_id == self.client_id)
+                    .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+                    .order_by(Scenario.created_at.desc())
+                    .limit(20)
+                    .all()
+                )
+            except Exception:
+                scenarios = []
+
+            chosen = None
+            chosen_any = None
+            for row in scenarios or []:
+                if not getattr(row, "parameters", None):
+                    continue
+                try:
+                    params = json.loads(row.parameters)
+                except Exception:
+                    continue
+                portfolio = params.get("pension_portfolio")
+                if not (isinstance(portfolio, list) and portfolio):
+                    continue
+                if not _portfolio_has_value(portfolio):
+                    continue
+                meta = params.get("_meta") if isinstance(params, dict) else None
+                op_type = None
+                if isinstance(meta, dict):
+                    op_type = str(meta.get("operation_type") or "").strip()
+                if chosen_any is None:
+                    chosen_any = (portfolio, row)
+                if op_type != "TRANSFORM_FUNDS_TO_ASSETS":
+                    chosen = (portfolio, row)
+                    break
+
+            if chosen is None:
+                chosen = chosen_any
+
+            if chosen is None:
+                try:
+                    loaded = load_latest_pension_portfolio_snapshot(self.db, self.client_id)
+                except Exception:
+                    loaded = None
+                if isinstance(loaded, tuple) and len(loaded) == 2:
+                    if _portfolio_has_value(loaded[0]):
+                        pension_portfolio_data = loaded[0]
+                else:
+                    pension_portfolio_data = None
+            else:
+                pension_portfolio_data = chosen[0]
 
     if isinstance(pension_portfolio_data, list) and pension_portfolio_data:
         portfolio_accounts_count = len(pension_portfolio_data)
