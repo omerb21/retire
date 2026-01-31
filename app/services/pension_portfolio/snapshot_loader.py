@@ -97,6 +97,41 @@ def load_latest_pension_portfolio_snapshot(
     *,
     lookback_scenarios: int = 20,
 ) -> tuple[list[dict[str, Any]], str] | None:
+    def _safe_float(value: Any) -> float:
+        try:
+            if value is None:
+                return 0.0
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                cleaned = value.replace(",", "").replace("₪", "").strip()
+                if not cleaned:
+                    return 0.0
+                return float(cleaned)
+            return float(value)
+        except Exception:
+            return 0.0
+
+    def _portfolio_has_value(portfolio: Any) -> bool:
+        if not isinstance(portfolio, list) or not portfolio:
+            return False
+        component_prefixes = ("תגמולי_", "פיצויים_")
+        for acc in portfolio:
+            if not isinstance(acc, dict):
+                continue
+            if _safe_float(acc.get("יתרה") or acc.get("balance") or acc.get("current_balance")) > 0.01:
+                return True
+            if _safe_float(acc.get("סך_רכיבים") or acc.get("total_components")) > 0.01:
+                return True
+            if _safe_float(acc.get("סך_תגמולים") or acc.get("תגמולים") or acc.get("total_contributions")) > 0.01:
+                return True
+            if _safe_float(acc.get("קרן_השתלמות") or acc.get("education_fund")) > 0.01:
+                return True
+            for k, v in acc.items():
+                if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
+                    return True
+        return False
+
     scenarios = (
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
@@ -106,6 +141,9 @@ def load_latest_pension_portfolio_snapshot(
         .all()
     )
 
+    chosen: tuple[list[dict[str, Any]], str, str] | None = None
+    chosen_any: tuple[list[dict[str, Any]], str, str] | None = None
+
     for scenario in scenarios:
         if not scenario.parameters:
             continue
@@ -114,53 +152,74 @@ def load_latest_pension_portfolio_snapshot(
         except Exception:
             continue
         portfolio = params.get("pension_portfolio")
-        if isinstance(portfolio, list):
+        if not (isinstance(portfolio, list) and portfolio):
+            continue
+        if not _portfolio_has_value(portfolio):
+            continue
+
+        snapshot_at = ""
+        try:
+            snapshot_at = scenario.created_at.isoformat()
+        except Exception:
             snapshot_at = ""
-            try:
-                snapshot_at = scenario.created_at.isoformat()
-            except Exception:
-                snapshot_at = ""
-            normalized: list[dict[str, Any]] = []
-            for item in portfolio:
-                if not isinstance(item, dict):
-                    continue
-                product_type = (
-                    item.get("סוג_מוצר")
-                    or item.get("product_type")
-                    or item.get("סוג מוצר")
-                    or ""
-                )
-                lowered_product_type = str(product_type).lower()
-                is_education_fund = (
-                    ("השתלמות" in lowered_product_type)
-                    or ("education_fund" in lowered_product_type)
-                    or ("klal_stud" in lowered_product_type)
-                )
-                if is_education_fund:
-                    existing_edu_val = item.get("קרן_השתלמות")
-                    try:
-                        existing_edu_num = float(existing_edu_val or 0)
-                    except (TypeError, ValueError):
-                        existing_edu_num = 0.0
-                    if existing_edu_num <= 0:
-                        candidate_vals = [
-                            item.get("יתרה"),
-                            item.get("balance"),
-                            item.get("תגמולים"),
-                            item.get("סך_תגמולים"),
-                        ]
-                        edu_amount = 0.0
-                        for raw in candidate_vals:
-                            try:
-                                edu_amount = float(raw or 0)
-                            except (TypeError, ValueError):
-                                edu_amount = 0.0
-                            if edu_amount > 0:
-                                break
+
+        meta = params.get("_meta") if isinstance(params, dict) else None
+        op_type = None
+        if isinstance(meta, dict):
+            op_type = str(meta.get("operation_type") or "").strip()
+
+        normalized: list[dict[str, Any]] = []
+        for item in portfolio:
+            if not isinstance(item, dict):
+                continue
+            product_type = (
+                item.get("סוג_מוצר")
+                or item.get("product_type")
+                or item.get("סוג מוצר")
+                or ""
+            )
+            lowered_product_type = str(product_type).lower()
+            is_education_fund = (
+                ("השתלמות" in lowered_product_type)
+                or ("education_fund" in lowered_product_type)
+                or ("klal_stud" in lowered_product_type)
+            )
+            if is_education_fund:
+                existing_edu_val = item.get("קרן_השתלמות")
+                try:
+                    existing_edu_num = float(existing_edu_val or 0)
+                except (TypeError, ValueError):
+                    existing_edu_num = 0.0
+                if existing_edu_num <= 0:
+                    candidate_vals = [
+                        item.get("יתרה"),
+                        item.get("balance"),
+                        item.get("תגמולים"),
+                        item.get("סך_תגמולים"),
+                    ]
+                    edu_amount = 0.0
+                    for raw in candidate_vals:
+                        try:
+                            edu_amount = float(raw or 0)
+                        except (TypeError, ValueError):
+                            edu_amount = 0.0
                         if edu_amount > 0:
-                            item["קרן_השתלמות"] = edu_amount
-                normalized.append(item)
-            return normalized, snapshot_at
+                            break
+                    if edu_amount > 0:
+                        item["קרן_השתלמות"] = edu_amount
+            normalized.append(item)
+
+        if chosen_any is None:
+            chosen_any = (normalized, snapshot_at, op_type or "")
+        if op_type != "TRANSFORM_FUNDS_TO_ASSETS":
+            chosen = (normalized, snapshot_at, op_type or "")
+            break
+
+    if chosen is None:
+        chosen = chosen_any
+
+    if chosen is not None:
+        return chosen[0], chosen[1]
 
     return None
 
