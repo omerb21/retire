@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from typing import Any, List, Optional
 from sqlalchemy.orm import Session
+import logging
 import json
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 import subprocess
 from pathlib import Path
 
@@ -10,10 +12,80 @@ from app.database import get_db
 from app.services.pension_portfolio import PensionPortfolioProcessor
 from app.services.pension_portfolio.snapshot_loader import (
     dedupe_pension_portfolio_snapshot,
+    load_latest_pension_portfolio_snapshot,
     upsert_snapshot,
 )
+from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.models.client import Client
+from app.services.annuity_coefficient import get_annuity_coefficient
+from app.services.pension_portfolio.conversion_rules import validate_component_conversion
+from app.services.retirement_age_service import (
+    calculate_retirement_age,
+    get_retirement_age_simple,
+)
+
+logger = logging.getLogger("app.routers.pension_portfolio")
+
+
+def extract_selected_accounts(portfolio: Any) -> list[dict]:
+    if not isinstance(portfolio, list):
+        return []
+
+    def _coerce_float(value) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            raw = value.strip()
+            if not raw:
+                return 0.0
+            cleaned = raw.replace(",", "").replace("₪", "").replace(" ", "")
+            try:
+                return float(cleaned)
+            except (TypeError, ValueError):
+                return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    selected: list[dict] = []
+    for item in portfolio:
+        if not isinstance(item, dict):
+            continue
+
+        selected_amounts_raw = (
+            item.get("selected_amounts")
+            if isinstance(item.get("selected_amounts"), dict)
+            else (
+                item.get("selected_components")
+                if isinstance(item.get("selected_components"), dict)
+                else (
+                    item.get("specific_amounts")
+                    if isinstance(item.get("specific_amounts"), dict)
+                    else {}
+                )
+            )
+        )
+
+        normalized_amounts: dict[str, float] = {}
+        for k, v in dict(selected_amounts_raw or {}).items():
+            amount = _coerce_float(v)
+            if amount > 0:
+                normalized_amounts[str(k)] = amount
+
+        if not normalized_amounts:
+            continue
+
+        updated = dict(item)
+        updated["selected_amounts"] = normalized_amounts
+        selected.append(updated)
+
+    return selected
+
 
 router = APIRouter()
 
@@ -251,39 +323,88 @@ async def convert_pension_accounts(
     db: Session = Depends(get_db)
 ):
     """המרת חשבונות פנסיוניים לקצבאות או נכסי הון - מיידי ישירות ל-DB"""
-    
-    accounts = conversion_data.get('accounts', [])
-    if not accounts:
+
+    request_accounts: Any = None
+    for key in (
+        "accounts",
+        "selected_accounts",
+        "accounts_to_convert",
+        "accountsToConvert",
+        "portfolio",
+        "pension_portfolio",
+    ):
+        candidate = conversion_data.get(key)
+        if isinstance(candidate, list):
+            request_accounts = candidate
+            break
+
+    snapshot_portfolio: list[dict] = []
+    snapshot_at = ""
+    loaded_snapshot = load_latest_pension_portfolio_snapshot(db, client_id)
+    if loaded_snapshot is not None:
+        snapshot_portfolio, snapshot_at = loaded_snapshot
+
+    request_selected = extract_selected_accounts(request_accounts)
+    db_selected = extract_selected_accounts(snapshot_portfolio)
+    selected_accounts = request_selected or db_selected
+
+    logger.info(
+        "pension_portfolio.convert selection (client_id=%s, snapshot_at=%s, portfolio_count=%s, request_selected_count=%s, db_selected_count=%s, selected_count=%s)",
+        client_id,
+        snapshot_at,
+        len(snapshot_portfolio) if isinstance(snapshot_portfolio, list) else 0,
+        len(request_selected),
+        len(db_selected),
+        len(selected_accounts),
+    )
+
+    debug_account_number = "494930"
+    debug_row = next(
+        (
+            r
+            for r in (snapshot_portfolio or [])
+            if isinstance(r, dict) and str(r.get("מספר_חשבון") or r.get("account_number") or "") == debug_account_number
+        ),
+        None,
+    )
+    if isinstance(debug_row, dict):
+        logger.info(
+            "pension_portfolio.convert debug_account=%s found_in_snapshot=true selected=%s selected_amounts_type=%s selected_amounts_keys=%s",
+            debug_account_number,
+            debug_row.get("selected"),
+            type(debug_row.get("selected_amounts")).__name__,
+            list(debug_row.get("selected_amounts").keys()) if isinstance(debug_row.get("selected_amounts"), dict) else None,
+        )
+    else:
+        logger.info(
+            "pension_portfolio.convert debug_account=%s found_in_snapshot=false",
+            debug_account_number,
+        )
+
+    if not selected_accounts:
         raise HTTPException(status_code=400, detail="לא נבחרו חשבונות להמרה")
 
-    try:
-        upsert_snapshot(
-            db,
-            client_id,
-            accounts,
-            meta={"operation_type": "portfolio_import"},
-        )
-        db.commit()
-        dedupe_pension_portfolio_snapshot(db, client_id)
-    except Exception:
+    if isinstance(request_accounts, list):
         try:
-            db.rollback()
+            upsert_snapshot(
+                db,
+                client_id,
+                request_accounts,
+                meta={"operation_type": "portfolio_import"},
+            )
+            db.commit()
+            dedupe_pension_portfolio_snapshot(db, client_id)
         except Exception:
-            pass
-        raise
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            raise
     
-    from app.models.client import Client
-    from app.models.pension_fund import PensionFund
-    from app.models.capital_asset import CapitalAsset
-    from app.services.annuity_coefficient import get_annuity_coefficient
-    from app.services.retirement_age_service import calculate_retirement_age
-    from datetime import date
-    from decimal import Decimal
-    
-    client = db.query(Client).filter(Client.id == client_id).first()
     retirement_age = None
     retirement_date = None
     retirement_year = date.today().year
+    client = db.query(Client).filter(Client.id == client_id).first()
     if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
         try:
             retirement_info = calculate_retirement_age(client.birth_date, client.gender)
@@ -298,10 +419,7 @@ async def convert_pension_accounts(
 
     if retirement_age is None:
         try:
-            from app.services.retirement_age_service import get_retirement_age_simple
-
-            if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+            retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
         except Exception:
             retirement_age = None
 
@@ -310,42 +428,99 @@ async def convert_pension_accounts(
 
     converted_count = 0
     
-    for account in accounts:
-        conversion_type = account.get('conversion_type', 'pension')  # ברירת מחדל: קצבה
-        balance = float(account.get('יתרה', 0))
-        
-        if balance <= 0:
+    for account in selected_accounts:
+        if not isinstance(account, dict):
             continue
-        
-        if conversion_type == 'pension':
+
+        selected_amounts = account.get("selected_amounts") if isinstance(account.get("selected_amounts"), dict) else {}
+        if not selected_amounts:
+            continue
+
+        conversion_mode = str(conversion_data.get("conversion_mode") or "").strip().lower()
+        desired_conversion_type = "capital_asset" if conversion_mode == "assets" else "pension"
+
+        product_type = account.get('סוג_מוצר', '')
+        account_number = account.get('מספר_חשבון', '')
+        company = account.get('חברה_מנהלת', '')
+        plan_name = account.get('שם_תכנית', '')
+
+        pension_components: dict[str, float] = {}
+        capital_components: dict[str, float] = {}
+        component_errors: list[dict[str, str]] = []
+
+        for field, amount_raw in dict(selected_amounts).items():
+            try:
+                amount = float(amount_raw or 0)
+            except (TypeError, ValueError):
+                amount = 0.0
+            if amount <= 0:
+                continue
+
+            ok, _tax_treatment, err = validate_component_conversion(
+                field=str(field),
+                amount=float(amount),
+                conversion_type=desired_conversion_type,
+                product_type=str(product_type or ""),
+            )
+            actual_type = desired_conversion_type
+            if (not ok) and (desired_conversion_type == "capital_asset"):
+                ok2, _tax2, err2 = validate_component_conversion(
+                    field=str(field),
+                    amount=float(amount),
+                    conversion_type="pension",
+                    product_type=str(product_type or ""),
+                )
+                if ok2:
+                    ok = True
+                    actual_type = "pension"
+                    err = None
+                else:
+                    err = err2 or err
+
+            if not ok:
+                if err:
+                    component_errors.append({"field": str(field), "error": str(err)})
+                continue
+
+            if actual_type == "capital_asset":
+                capital_components[str(field)] = float(amount)
+            else:
+                pension_components[str(field)] = float(amount)
+
+        pension_balance = sum(pension_components.values())
+        capital_balance = sum(capital_components.values())
+        if (pension_balance <= 0) and (capital_balance <= 0):
+            continue
+
+        start_date_raw = account.get('תאריך_התחלה')
+        if isinstance(start_date_raw, str) and start_date_raw.strip():
+            start_date_obj = None
+            try:
+                start_date_obj = date.fromisoformat(start_date_raw.strip())
+            except ValueError:
+                try:
+                    start_date_obj = datetime.strptime(
+                        start_date_raw.strip(), "%d/%m/%Y"
+                    ).date()
+                except Exception:
+                    start_date_obj = None
+        else:
+            start_date_obj = None
+
+        if pension_balance > 0:
             # המרה לקצבה - שמירה ישירה ל-DB
             # קביעת יחס מס לפי סוג המוצר
-            product_type = account.get('סוג_מוצר', '')
-            tax_treatment = "exempt" if 'השתלמות' in product_type else "taxable"
-
-            account_number = account.get('מספר_חשבון', '')
-
-            start_date_raw = account.get('תאריך_התחלה')
-            start_date_obj = None
-            if isinstance(start_date_raw, str) and start_date_raw.strip():
-                try:
-                    start_date_obj = date.fromisoformat(start_date_raw.strip())
-                except ValueError:
-                    try:
-                        start_date_obj = datetime.strptime(
-                            start_date_raw.strip(), "%d/%m/%Y"
-                        ).date()
-                    except Exception:
-                        start_date_obj = None
+            tax_treatment = "exempt" if 'השתלמות' in str(product_type or "") else "taxable"
 
             annuity_factor = 200.0
+            coeff = None
             try:
                 coeff = get_annuity_coefficient(
-                    product_type=product_type,
+                    product_type=str(product_type or ""),
                     start_date=start_date_obj or date(retirement_year, 1, 1),
                     gender=getattr(client, "gender", None) or "זכר",
                     retirement_age=retirement_age,
-                    company_name=account.get('חברה_מנהלת') or None,
+                    company_name=company or None,
                     option_name=None,
                     survivors_option='תקנוני',
                     spouse_age_diff=0,
@@ -359,16 +534,21 @@ async def convert_pension_accounts(
             except Exception:
                 annuity_factor = 200.0
 
-            pension_amount = balance / annuity_factor
+            pension_amount = float(pension_balance) / float(annuity_factor or 200.0)
 
             conversion_source_json = json.dumps(
                 {
                     "source": "pension_portfolio_convert",
                     "account_number": account_number,
-                    "account_name": account.get('שם_תכנית', ''),
-                    "company": account.get('חברה_מנהלת', ''),
+                    "account_name": plan_name,
+                    "company": company,
                     "product_type": product_type,
                     "start_date": start_date_raw,
+                    "conversion_mode": conversion_mode,
+                    "selected_amounts": selected_amounts,
+                    "pension_components": pension_components,
+                    "capital_components": capital_components,
+                    "component_errors": component_errors,
                     "resolved_annuity_factor": annuity_factor,
                     "coeff_source_table": coeff.get('source_table') if isinstance(coeff, dict) else None,
                     "converted_at": datetime.now().isoformat(),
@@ -391,24 +571,24 @@ async def convert_pension_accounts(
                 )
 
             if existing_pf:
-                existing_pf.fund_name = account.get('שם_תכנית', 'תכנית ללא שם')
-                existing_pf.fund_type = account.get('סוג_מוצר', 'קופת גמל')
+                existing_pf.fund_name = plan_name or 'תכנית ללא שם'
+                existing_pf.fund_type = product_type or 'קופת גמל'
                 existing_pf.input_mode = 'manual'
-                existing_pf.balance = balance
+                existing_pf.balance = float(pension_balance)
                 existing_pf.annuity_factor = annuity_factor
                 existing_pf.pension_amount = pension_amount
                 existing_pf.pension_start_date = retirement_date or date(retirement_year, 1, 1)
                 existing_pf.indexation_method = 'none'
                 existing_pf.tax_treatment = tax_treatment
                 existing_pf.conversion_source = conversion_source_json
-                existing_pf.remarks = f"הומר מתיק פנסיוני - {account.get('חברה_מנהלת', '')}"
+                existing_pf.remarks = f"הומר מתיק פנסיוני - {company}"
             else:
                 pf = PensionFund(
                     client_id=client_id,
-                    fund_name=account.get('שם_תכנית', 'תכנית ללא שם'),
-                    fund_type=account.get('סוג_מוצר', 'קופת גמל'),
+                    fund_name=plan_name or 'תכנית ללא שם',
+                    fund_type=product_type or 'קופת גמל',
                     input_mode='manual',
-                    balance=balance,
+                    balance=float(pension_balance),
                     annuity_factor=annuity_factor,
                     pension_amount=pension_amount,
                     pension_start_date=retirement_date or date(retirement_year, 1, 1),
@@ -416,25 +596,44 @@ async def convert_pension_accounts(
                     tax_treatment=tax_treatment,
                     deduction_file=account_number,
                     conversion_source=conversion_source_json,
-                    remarks=f"הומר מתיק פנסיוני - {account.get('חברה_מנהלת', '')}"
+                    remarks=f"הומר מתיק פנסיוני - {company}"
                 )
                 db.add(pf)
             converted_count += 1
-            
-        elif conversion_type == 'capital_asset':
+
+        if capital_balance > 0:
             # המרה לנכס הון - שמירה ישירה ל-DB
+            conversion_source_json = json.dumps(
+                {
+                    "source": "pension_portfolio_convert",
+                    "account_number": account_number,
+                    "account_name": plan_name,
+                    "company": company,
+                    "product_type": product_type,
+                    "start_date": start_date_raw,
+                    "conversion_mode": conversion_mode,
+                    "selected_amounts": selected_amounts,
+                    "pension_components": pension_components,
+                    "capital_components": capital_components,
+                    "component_errors": component_errors,
+                    "converted_at": datetime.now().isoformat(),
+                },
+                ensure_ascii=False,
+            )
+
             ca = CapitalAsset(
                 client_id=client_id,
-                asset_name=account.get('שם_תכנית', 'נכס ללא שם'),
+                asset_name=plan_name or 'נכס ללא שם',
                 asset_type='provident_fund',
-                current_value=Decimal('0'),
-                monthly_income=Decimal(str(balance)),
+                current_value=Decimal(str(float(capital_balance))),
+                monthly_income=Decimal('0'),
                 annual_return_rate=Decimal('0.03'),
                 payment_frequency='monthly',
                 start_date=date(2025, 1, 1),
                 indexation_method='none',
                 tax_treatment='taxable',
-                description=f"הומר מתיק פנסיוני - {account.get('חברה_מנהלת', '')}"
+                description=f"הומר מתיק פנסיוני - {company}",
+                conversion_source=conversion_source_json,
             )
             db.add(ca)
             converted_count += 1
