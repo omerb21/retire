@@ -199,11 +199,50 @@ def _handle_post_deterministics_and_finalize(
         and (wants_execute_target_plan or wants_fixation_execute)
     ):
         if wants_execute_target_plan:
-            payload = extract_latest_target_pension_plan_payload(request.messages)
-            if payload is None:
-                payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
-            if payload is None:
-                payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+            payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+            payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+
+            def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
+                if not isinstance(p, dict):
+                    return None, []
+                res = p.get("result") if isinstance(p.get("result"), dict) else {}
+                exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else None
+                if not isinstance(exec_plan, dict):
+                    return None, []
+                raw = exec_plan.get("accounts")
+                accounts = raw if isinstance(raw, list) else []
+                return exec_plan, accounts
+
+            plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
+            data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
+
+            payload: dict | None = None
+            execution_plan: dict | None = None
+            accounts_for_execution: list = []
+
+            if plan_accounts:
+                payload = payload_plan if isinstance(payload_plan, dict) else None
+                execution_plan = plan_exec
+                accounts_for_execution = plan_accounts
+            elif data_accounts:
+                payload = payload_data if isinstance(payload_data, dict) else None
+                execution_plan = data_exec
+                accounts_for_execution = data_accounts
+            else:
+                # Fallback: plan exists but doesn't include execution_plan.accounts. Try to derive accounts.
+                if isinstance(payload_plan, dict):
+                    payload = payload_plan
+                elif isinstance(payload_data, dict):
+                    payload = payload_data
+                if isinstance(payload, dict):
+                    try:
+                        derived_accounts = build_transform_accounts_from_target_plan_payload(payload)
+                    except Exception:
+                        derived_accounts = []
+                    if isinstance(derived_accounts, list) and derived_accounts:
+                        accounts_for_execution = derived_accounts
+                        execution_plan = None
+
             if not isinstance(payload, dict):
                 try:
                     store_pending_plan_target_marker(
@@ -224,7 +263,9 @@ def _handle_post_deterministics_and_finalize(
                 )
 
             result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-            execution_plan = result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+            execution_plan = execution_plan or (
+                result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+            )
 
             ignore_blocked_balances_val = True
             try:
@@ -243,15 +284,9 @@ def _handle_post_deterministics_and_finalize(
 
             if execution_plan is not None:
                 transform_args["execution_plan"] = execution_plan
-                raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
-                transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
-                if not transform_args["accounts"]:
-                    return ChatResponse(
-                        reply="אין תכנית לביצוע, בנה תכנית יעד מחדש",
-                        computed_data=computed_data,
-                    )
+                transform_args["accounts"] = accounts_for_execution
             else:
-                accounts = build_transform_accounts_from_target_plan_payload(payload)
+                accounts = accounts_for_execution
                 if not accounts:
                     return ChatResponse(
                         reply="לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל.",

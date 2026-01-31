@@ -87,6 +87,7 @@ def enforce_behavioral_limits(text: str) -> tuple[bool, str]:
         or ("פלט כלי" in candidate)
         or ("Tool Result (" in candidate)
         or ("###TOOL_CALL###" in candidate)
+        or ("###UI_ACTION###" in candidate)
     ):
         return True, candidate
 

@@ -30,10 +30,8 @@ def _maybe_handle_requested_cashflow_calc(
         return None
 
     if (
-        tools_enabled
-        and (request.client_id is not None)
+        (request.client_id is not None)
         and (not is_qa_mode)
-        and (not no_tools_requested)
         and (not commutation_intent)
     ):
 
@@ -67,11 +65,6 @@ def _maybe_handle_requested_cashflow_calc(
         )
 
     return StreamingResponse(
-        iter(
-            [
-                "כדי להריץ חישוב תזרים/ניתוח תזרים אני צריך הפעלה עם לקוח פעיל וכלים זמינים. "
-                "בבקשה נסה שוב עם client_id תקין (או בטל מצב ללא-כלים אם הופעל)."
-            ]
-        ),
+        iter(["כדי להריץ חישוב תזרים/ניתוח תזרים אני צריך הפעלה עם client_id תקין."]),
         media_type="text/plain; charset=utf-8",
     )

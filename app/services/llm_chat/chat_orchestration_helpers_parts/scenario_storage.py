@@ -12,6 +12,79 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
         return False
 
     try:
+        plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else None
+        if isinstance(plan_res, dict):
+            target_achieved = bool(plan_res.get("target_achieved"))
+            plan_steps = plan_res.get("plan_steps")
+            sources_used = plan_res.get("sources_used")
+
+            has_steps = isinstance(plan_steps, list) and bool(plan_steps)
+            has_sources = isinstance(sources_used, list) and bool(sources_used)
+
+            execution_plan = (
+                plan_res.get("execution_plan")
+                if isinstance(plan_res.get("execution_plan"), dict)
+                else None
+            )
+            raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
+            accounts = raw_accounts if isinstance(raw_accounts, list) else []
+
+            if target_achieved and (has_steps or has_sources) and (not accounts):
+                sources_list = sources_used if isinstance(sources_used, list) else []
+                enriched: list[dict] = []
+                for src in sources_list:
+                    if not isinstance(src, dict):
+                        continue
+                    src_type = str(src.get("source_type") or "").strip()
+                    if src_type not in {"pension_fund", "pension_fund_from_portfolio"}:
+                        continue
+                    acc_id = src.get("account_number")
+                    if acc_id is None:
+                        acc_id = src.get("source_id")
+                    if acc_id is None:
+                        continue
+                    component = src.get("component_field")
+                    if component is None:
+                        component = src.get("fund_type")
+                    if component is None:
+                        component = "unknown"
+                    try:
+                        amount_to_convert = float(src.get("balance_used") or 0)
+                    except Exception:
+                        amount_to_convert = 0.0
+                    try:
+                        expected_monthly_pension = float(src.get("pension_used") or 0)
+                    except Exception:
+                        expected_monthly_pension = 0.0
+                    if amount_to_convert <= 0 or expected_monthly_pension <= 0:
+                        continue
+                    enriched.append(
+                        {
+                            "account_id": str(acc_id),
+                            "component": str(component),
+                            "amount_to_convert": float(amount_to_convert),
+                            "expected_monthly_pension": float(expected_monthly_pension),
+                        }
+                    )
+
+                if enriched:
+                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan["accounts"] = enriched
+                    plan_res = dict(plan_res)
+                    plan_res["execution_plan"] = execution_plan
+                    payload = dict(payload)
+                    payload["result"] = plan_res
+    except Exception:
+        pass
+
+    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
+    meta = dict(meta)
+    meta["operation_type"] = "BUILD_TARGET_PENSION_PLAN"
+    meta["stored_at_utc"] = datetime.now(timezone.utc).isoformat()
+    payload = dict(payload)
+    payload["_meta"] = meta
+
+    try:
         scenario = Scenario(
             client_id=client_id,
             scenario_name="target_pension_plan",

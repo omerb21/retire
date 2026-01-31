@@ -153,7 +153,7 @@ def _run_stream_loop_tail_flow(
         or (target_net_for_cashflow is not None)
     )
 
-    if plan_phrase_detected:
+    if plan_phrase_detected and (not explicit_cashflow_request) and (not wants_cashflow_refresh):
         requested_cashflow_calc = False
 
     requested_cashflow_calc_response = maybe_handle_requested_cashflow_calc(

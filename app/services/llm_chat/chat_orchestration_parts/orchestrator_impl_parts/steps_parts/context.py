@@ -655,6 +655,22 @@ def _prepare_orchestration_inputs(
         and (not no_tools_requested)
         and (not commutation_intent)
     ):
+        plan_payload = None
+        try:
+            plan_payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+        except Exception:
+            plan_payload = None
+        if plan_payload is None:
+            try:
+                plan_payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+            except Exception:
+                plan_payload = None
+        if not isinstance(plan_payload, dict):
+            return ChatResponse(
+                reply="אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה.",
+                computed_data=computed_data,
+            )
+
         desired_income = extract_desired_monthly_income_from_text(original_user_msg)
         desired_income_is_net = infer_desired_income_is_net_explicit(original_user_msg)
         if desired_income is not None and desired_income_is_net is None:

@@ -216,11 +216,80 @@ def generate_forced_approval(
             yield pending_ui
             return
 
-        payload = extract_latest_target_pension_plan_payload(request.messages)
-        if payload is None:
-            payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
-        if payload is None:
-            payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+        payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+        payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+
+        def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
+            if not isinstance(p, dict):
+                return None, []
+            res = p.get("result") if isinstance(p.get("result"), dict) else {}
+            exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else None
+            if not isinstance(exec_plan, dict):
+                return None, []
+            raw = exec_plan.get("accounts")
+            accounts = raw if isinstance(raw, list) else []
+            return exec_plan, accounts
+
+        plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
+        data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
+
+        payload: dict | None = None
+        execution_plan: dict | None = None
+        accounts_for_execution: list = []
+
+        if plan_accounts:
+            payload = payload_plan if isinstance(payload_plan, dict) else None
+            execution_plan = plan_exec
+            accounts_for_execution = plan_accounts
+        elif data_accounts:
+            payload = payload_data if isinstance(payload_data, dict) else None
+            execution_plan = data_exec
+            accounts_for_execution = data_accounts
+        else:
+            # Plan exists but doesn't include execution_plan.accounts. Keep payload so we can derive accounts.
+            if isinstance(payload_plan, dict):
+                payload = payload_plan
+            elif isinstance(payload_data, dict):
+                payload = payload_data
+
+        if not isinstance(payload, dict):
+            msg_payload = extract_latest_target_pension_plan_payload(request.messages)
+            if isinstance(msg_payload, dict):
+                try:
+                    store_latest_target_pension_plan(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=msg_payload,
+                    )
+                except Exception:
+                    pass
+                try:
+                    store_latest_target_pension_plan_data(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=msg_payload,
+                    )
+                except Exception:
+                    pass
+                payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+                payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+                plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
+                data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
+                if plan_accounts:
+                    payload = payload_plan if isinstance(payload_plan, dict) else None
+                    execution_plan = plan_exec
+                    accounts_for_execution = plan_accounts
+                elif data_accounts:
+                    payload = payload_data if isinstance(payload_data, dict) else None
+                    execution_plan = data_exec
+                    accounts_for_execution = data_accounts
+                else:
+                    derived = _build_transform_accounts_from_target_plan_payload(msg_payload)
+                    if derived:
+                        payload = msg_payload
+                        execution_plan = None
+                        accounts_for_execution = derived
+
         if not isinstance(payload, dict):
             try:
                 store_pending_plan_target_marker(
@@ -239,9 +308,6 @@ def generate_forced_approval(
             return
 
         result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-        execution_plan = (
-            result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
-        )
 
         transform_args: dict[str, Any] = {
             "use_provided_accounts_only": True,
@@ -251,13 +317,9 @@ def generate_forced_approval(
 
         if execution_plan is not None:
             transform_args["execution_plan"] = execution_plan
-            raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
-            transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
-            if not transform_args["accounts"]:
-                yield "אין תכנית לביצוע, בנה תכנית יעד מחדש"
-                return
+            transform_args["accounts"] = accounts_for_execution
         else:
-            accounts = _build_transform_accounts_from_target_plan_payload(payload)
+            accounts = accounts_for_execution or _build_transform_accounts_from_target_plan_payload(payload)
             if not accounts:
                 yield "\n\nלא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל."
                 return
@@ -345,11 +407,80 @@ def generate_execute_target_after_termination(
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-    payload = extract_latest_target_pension_plan_payload(request.messages)
-    if payload is None:
-        payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
-    if payload is None:
-        payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+    payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+    payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+
+    def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
+        if not isinstance(p, dict):
+            return None, []
+        res = p.get("result") if isinstance(p.get("result"), dict) else {}
+        exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else None
+        if not isinstance(exec_plan, dict):
+            return None, []
+        raw = exec_plan.get("accounts")
+        accounts = raw if isinstance(raw, list) else []
+        return exec_plan, accounts
+
+    plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
+    data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
+
+    payload: dict | None = None
+    execution_plan: dict | None = None
+    accounts_for_execution: list = []
+
+    if plan_accounts:
+        payload = payload_plan if isinstance(payload_plan, dict) else None
+        execution_plan = plan_exec
+        accounts_for_execution = plan_accounts
+    elif data_accounts:
+        payload = payload_data if isinstance(payload_data, dict) else None
+        execution_plan = data_exec
+        accounts_for_execution = data_accounts
+    else:
+        # Plan exists but doesn't include execution_plan.accounts. Keep payload so we can derive accounts.
+        if isinstance(payload_plan, dict):
+            payload = payload_plan
+        elif isinstance(payload_data, dict):
+            payload = payload_data
+
+    if not isinstance(payload, dict):
+        msg_payload = extract_latest_target_pension_plan_payload(request.messages)
+        if isinstance(msg_payload, dict):
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=msg_payload,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=msg_payload,
+                )
+            except Exception:
+                pass
+            payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+            payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+            plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
+            data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
+            if plan_accounts:
+                payload = payload_plan if isinstance(payload_plan, dict) else None
+                execution_plan = plan_exec
+                accounts_for_execution = plan_accounts
+            elif data_accounts:
+                payload = payload_data if isinstance(payload_data, dict) else None
+                execution_plan = data_exec
+                accounts_for_execution = data_accounts
+            else:
+                derived = _build_transform_accounts_from_target_plan_payload(msg_payload)
+                if derived:
+                    payload = msg_payload
+                    execution_plan = None
+                    accounts_for_execution = derived
+
     if not isinstance(payload, dict):
         try:
             store_pending_plan_target_marker(
@@ -368,9 +499,6 @@ def generate_execute_target_after_termination(
         return
 
     result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-    execution_plan = (
-        result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
-    )
 
     transform_args = {
         "use_provided_accounts_only": True,
@@ -379,13 +507,9 @@ def generate_execute_target_after_termination(
     }
     if execution_plan is not None:
         transform_args["execution_plan"] = execution_plan
-        raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
-        transform_args["accounts"] = raw_accounts if isinstance(raw_accounts, list) else []
-        if not transform_args["accounts"]:
-            yield "אין תכנית לביצוע, בנה תכנית יעד מחדש"
-            return
+        transform_args["accounts"] = accounts_for_execution
     else:
-        accounts = _build_transform_accounts_from_target_plan_payload(payload)
+        accounts = accounts_for_execution or _build_transform_accounts_from_target_plan_payload(payload)
         if not accounts:
             yield "עזיבת עבודה כבר בוצעה. לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע."
             return
