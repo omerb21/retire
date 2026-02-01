@@ -230,25 +230,115 @@ def load_latest_pension_portfolio_snapshot_models(
     *,
     lookback_scenarios: int = 20,
 ) -> tuple[list[PensionPortfolioAccount], str] | None:
-    raw = load_latest_pension_portfolio_snapshot(
-        db,
-        client_id,
-        lookback_scenarios=lookback_scenarios,
-    )
-    if raw is None:
-        return None
+    def _safe_float(value: Any) -> float:
+        try:
+            if value is None:
+                return 0.0
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                cleaned = value.replace(",", "").replace("₪", "").strip()
+                if not cleaned:
+                    return 0.0
+                return float(cleaned)
+            return float(value)
+        except Exception:
+            return 0.0
 
-    portfolio, snapshot_at = raw
-    models: list[PensionPortfolioAccount] = []
-    for item in portfolio:
-        if not isinstance(item, dict):
+    def _portfolio_has_value(items: Any) -> bool:
+        if not isinstance(items, list) or not items:
+            return False
+
+        total_balance = 0.0
+        total_components = 0.0
+
+        component_prefixes = ("תגמולי_", "פיצויים_")
+        for row in items:
+            if not isinstance(row, dict):
+                continue
+            bal = _safe_float(row.get("balance") or row.get("יתרה") or row.get("current_balance"))
+            if bal > 0:
+                total_balance += bal
+
+            components = row.get("components")
+            if isinstance(components, dict):
+                for v in components.values():
+                    total_components += max(0.0, _safe_float(v))
+
+            total_components += max(
+                0.0,
+                _safe_float(row.get("total_components") or row.get("סך_רכיבים")),
+            )
+            for k, v in row.items():
+                if isinstance(k, str) and k.startswith(component_prefixes):
+                    total_components += max(0.0, _safe_float(v))
+
+        if total_balance > 0.01:
+            return True
+        if total_components > 0.01:
+            return True
+        return False
+
+    scenarios = (
+        db.query(Scenario)
+        .filter(Scenario.client_id == client_id)
+        .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+        .order_by(Scenario.created_at.desc(), Scenario.id.desc())
+        .limit(int(lookback_scenarios))
+        .all()
+    )
+
+    chosen: tuple[list[PensionPortfolioAccount], str, str] | None = None
+    chosen_any: tuple[list[PensionPortfolioAccount], str, str] | None = None
+
+    for scenario in scenarios:
+        if not scenario.parameters:
             continue
         try:
-            models.append(PensionPortfolioAccount.model_validate(item))
+            params = json.loads(scenario.parameters)
         except Exception:
             continue
+        portfolio = params.get("pension_portfolio")
+        if not (isinstance(portfolio, list) and portfolio):
+            continue
+        if not _portfolio_has_value(portfolio):
+            continue
 
-    return models, snapshot_at
+        snapshot_at = ""
+        try:
+            snapshot_at = scenario.created_at.isoformat()
+        except Exception:
+            snapshot_at = ""
+
+        meta = params.get("_meta") if isinstance(params, dict) else None
+        op_type = None
+        if isinstance(meta, dict):
+            op_type = str(meta.get("operation_type") or "").strip()
+
+        models: list[PensionPortfolioAccount] = []
+        for item in portfolio:
+            if not isinstance(item, dict):
+                continue
+            try:
+                models.append(PensionPortfolioAccount.model_validate(item))
+            except Exception:
+                continue
+        if not models:
+            continue
+
+        if chosen_any is None:
+            chosen_any = (models, snapshot_at, op_type or "")
+        if op_type != "TRANSFORM_FUNDS_TO_ASSETS":
+            chosen = (models, snapshot_at, op_type or "")
+            break
+
+    if chosen is None:
+        chosen = chosen_any
+
+    if chosen is not None:
+        return chosen[0], chosen[1]
+
+    return None
 
 
 def load_current_effective_state(
