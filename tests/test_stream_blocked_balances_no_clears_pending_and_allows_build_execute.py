@@ -81,8 +81,16 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             "success": True,
             "tool_name": "BUILD_TARGET_PENSION_PLAN",
             "result": {
-                "target_achieved": True,
-                "plan_steps": [{"step_number": 1}],
+                "target_achieved": False,
+                "plan_steps": [
+                    {
+                        "step_number": 1,
+                        "account_number": "B1",
+                        "component_field": "תגמולי_עובד_אחרי_2000",
+                        "amount_to_convert": 1000,
+                        "expected_monthly_pension": 10,
+                    }
+                ],
                 "sources_used": [
                     {
                         "source_type": "pension_fund_from_portfolio",
@@ -92,19 +100,7 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
                         "pension_used": 10,
                     }
                 ],
-                "execution_plan": {
-                    "accounts": [
-                        {
-                            "account_number": "B1",
-                            "component_field": "תגמולי_עובד_אחרי_2000",
-                            "amount": 1000,
-                        }
-                    ],
-                    "target_gross": 0,
-                    "target_net": 0,
-                    "expected_total_gross": 0,
-                    "expected_total_net": 0,
-                },
+                "execution_plan": {},
             },
             "explanation": "OK",
         }
@@ -154,6 +150,19 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             .first()
         )
         assert decision is not None
+
+        ssot = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "target_pension_plan")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+        assert ssot is not None
+        payload = json.loads(ssot.parameters)
+        exec_plan = payload.get("result", {}).get("execution_plan", {})
+        assert isinstance(exec_plan.get("accounts"), list)
+        assert len(exec_plan.get("accounts")) > 0
 
     # 3) build again -> must NOT ask again
     resp3 = api.post(

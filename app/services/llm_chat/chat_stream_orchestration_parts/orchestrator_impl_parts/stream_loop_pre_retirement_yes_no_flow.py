@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_pre_retirement_plan_resolution import (
     _store_ignore_blocked_balances_decision,
  )
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
 
 def _has_positive_component_amounts(raw: object) -> bool:
@@ -152,12 +153,24 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
             plan_args["retirement_age"] = int(retirement_age_int)
 
         def _run_plan_after_no(req_id: str):
+            portfolio_for_plan = effective_portfolio
+            if (
+                (not isinstance(portfolio_for_plan, list) or not portfolio_for_plan)
+                and request.client_id is not None
+            ):
+                try:
+                    loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                    if loaded is not None:
+                        portfolio_for_plan, _snapshot_at = loaded
+                except Exception:
+                    portfolio_for_plan = effective_portfolio
+
             plan_result = execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
                 plan_args,
                 request.client_id,
                 db,
-                pension_portfolio=effective_portfolio,
+                pension_portfolio=portfolio_for_plan,
                 force_max_exemption=False,
                 user_approved=True,
                 request_id=req_id,

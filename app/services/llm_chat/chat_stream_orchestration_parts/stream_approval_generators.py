@@ -337,7 +337,20 @@ def generate_forced_approval(
         else:
             accounts = accounts_for_execution or _build_transform_accounts_from_target_plan_payload(payload)
             if not accounts:
-                yield "\n\nלא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע אותה בפועל."
+                non_exec_reason = None
+                try:
+                    res_obj = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+                    exec_obj = res_obj.get("execution_plan") if isinstance(res_obj.get("execution_plan"), dict) else {}
+                    raw_reason = exec_obj.get("non_executable_reason")
+                    if isinstance(raw_reason, str) and raw_reason.strip():
+                        non_exec_reason = raw_reason.strip()
+                except Exception:
+                    non_exec_reason = None
+                yield (
+                    "\n\n" + non_exec_reason
+                    if non_exec_reason
+                    else "\n\nתכנית היעד האחרונה אינה ניתנת לביצוע כרגע. יש לבנות תכנית יעד מחדש או להשלים נתונים חסרים."
+                )
                 return
             transform_args["accounts"] = accounts
 
@@ -527,7 +540,25 @@ def generate_execute_target_after_termination(
     else:
         accounts = accounts_for_execution or _build_transform_accounts_from_target_plan_payload(payload)
         if not accounts:
-            yield "עזיבת עבודה כבר בוצעה. לא הצלחתי לגזור רשימת רכיבים לביצוע מתוך תכנית היעד האחרונה. אנא בנה שוב תכנית יעד ואז בקש לבצע."
+            non_exec_reason = None
+            try:
+                res_obj = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+                exec_obj = (
+                    res_obj.get("execution_plan")
+                    if isinstance(res_obj.get("execution_plan"), dict)
+                    else {}
+                )
+                raw_reason = exec_obj.get("non_executable_reason")
+                if isinstance(raw_reason, str) and raw_reason.strip():
+                    non_exec_reason = raw_reason.strip()
+            except Exception:
+                non_exec_reason = None
+            msg = (
+                non_exec_reason
+                if non_exec_reason
+                else "תכנית היעד האחרונה אינה ניתנת לביצוע כרגע. יש לבנות תכנית יעד מחדש או להשלים נתונים חסרים."
+            )
+            yield f"עזיבת עבודה כבר בוצעה. {msg}"
             return
         transform_args["accounts"] = accounts
 

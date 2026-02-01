@@ -187,7 +187,6 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
     try:
         plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else None
         if isinstance(plan_res, dict):
-            target_achieved = bool(plan_res.get("target_achieved"))
             plan_steps = plan_res.get("plan_steps")
             sources_used = plan_res.get("sources_used")
 
@@ -202,7 +201,7 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
             raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
             accounts = raw_accounts if isinstance(raw_accounts, list) else []
 
-            if target_achieved and (has_steps or has_sources) and (not accounts):
+            if (has_steps or has_sources) and (not accounts):
                 enriched = _derive_execution_plan_accounts_from_sources_used(sources_used)
                 if not enriched:
                     enriched = _derive_execution_plan_accounts_from_plan_steps(
@@ -218,6 +217,28 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
                     plan_res["execution_plan"] = execution_plan
                     payload = dict(payload)
                     payload["result"] = plan_res
+                else:
+                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan["accounts"] = []
+                    execution_plan.setdefault(
+                        "non_executable_reason",
+                        "תכנית היעד האחרונה אינה כוללת רכיבים לביצוע כרגע. נסה לבנות מחדש תכנית יעד או להשלים נתונים חסרים.",
+                    )
+                    plan_res = dict(plan_res)
+                    plan_res["execution_plan"] = execution_plan
+                    payload = dict(payload)
+                    payload["result"] = plan_res
+            elif (not has_steps) and (not has_sources):
+                execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                execution_plan["accounts"] = []
+                execution_plan.setdefault(
+                    "non_executable_reason",
+                    "תכנית היעד האחרונה לא כוללת מקורות (plan_steps/sources_used) ולכן אינה ניתנת לביצוע. יש לבנות תכנית יעד מחדש.",
+                )
+                plan_res = dict(plan_res)
+                plan_res["execution_plan"] = execution_plan
+                payload = dict(payload)
+                payload["result"] = plan_res
     except Exception:
         pass
 
@@ -522,7 +543,6 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
     try:
         plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else None
         if isinstance(plan_res, dict):
-            target_achieved = bool(plan_res.get("target_achieved"))
             plan_steps = plan_res.get("plan_steps")
             sources_used = plan_res.get("sources_used")
 
@@ -537,7 +557,7 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
             raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
             accounts = raw_accounts if isinstance(raw_accounts, list) else []
 
-            if target_achieved and (has_steps or has_sources) and (not accounts):
+            if (has_steps or has_sources) and (not accounts):
                 enriched = _derive_execution_plan_accounts_from_sources_used(sources_used)
                 if not enriched:
                     enriched = _derive_execution_plan_accounts_from_plan_steps(
@@ -553,6 +573,28 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
                     plan_res["execution_plan"] = execution_plan
                     payload = dict(payload)
                     payload["result"] = plan_res
+                else:
+                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan["accounts"] = []
+                    execution_plan.setdefault(
+                        "non_executable_reason",
+                        "תכנית היעד האחרונה אינה כוללת רכיבים לביצוע כרגע. נסה לבנות מחדש תכנית יעד או להשלים נתונים חסרים.",
+                    )
+                    plan_res = dict(plan_res)
+                    plan_res["execution_plan"] = execution_plan
+                    payload = dict(payload)
+                    payload["result"] = plan_res
+            elif (not has_steps) and (not has_sources):
+                execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                execution_plan["accounts"] = []
+                execution_plan.setdefault(
+                    "non_executable_reason",
+                    "תכנית היעד האחרונה לא כוללת מקורות (plan_steps/sources_used) ולכן אינה ניתנת לביצוע. יש לבנות תכנית יעד מחדש.",
+                )
+                plan_res = dict(plan_res)
+                plan_res["execution_plan"] = execution_plan
+                payload = dict(payload)
+                payload["result"] = plan_res
     except Exception:
         pass
 
