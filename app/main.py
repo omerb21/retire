@@ -5,11 +5,12 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import logging
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -26,6 +27,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+BUILT_AT_UTC = datetime.utcnow().isoformat() + "Z"
 
 # הפעלת לוגינג מתקדם לקבצים (app.log, app.json, fixation.log)
 try:
@@ -204,6 +207,23 @@ def health_check():
 def health_check_v1():
     """Health check endpoint with API prefix"""
     return {"status": "ok"}
+
+
+@app.get("/api/v1/version")
+def version_v1():
+    git_sha = (
+        os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or os.getenv("RAILWAY_COMMIT_SHA")
+        or os.getenv("GITHUB_SHA")
+        or "unknown"
+    )
+    railway_deploy_id = os.getenv("RAILWAY_DEPLOYMENT_ID") or "unknown"
+    return {
+        "git_sha": git_sha,
+        "railway_deploy_id": railway_deploy_id,
+        "built_at_utc": BUILT_AT_UTC,
+        "service": "retire-production",
+    }
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
