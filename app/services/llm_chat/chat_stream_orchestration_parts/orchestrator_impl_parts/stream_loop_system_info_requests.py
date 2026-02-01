@@ -1,5 +1,7 @@
 from fastapi.responses import StreamingResponse
 
+from app.models.additional_income import AdditionalIncome
+
 
 def _maybe_handle_system_info_requests(
     *,
@@ -70,7 +72,20 @@ def _maybe_handle_system_info_requests(
 
     if tools_enabled and is_portfolio_analysis_request(original_user_msg):
         portfolio = effective_portfolio or []
-        if portfolio:
+        has_portfolio = bool(portfolio)
+        has_additional_incomes = False
+        if (not has_portfolio) and request.client_id is not None:
+            try:
+                row = (
+                    db.query(AdditionalIncome)
+                    .filter(AdditionalIncome.client_id == request.client_id)
+                    .first()
+                )
+                has_additional_incomes = row is not None
+            except Exception:
+                has_additional_incomes = False
+
+        if has_portfolio or has_additional_incomes:
             return StreamingResponse(
                 generate_portfolio_analysis(
                     computed_data=computed_data,

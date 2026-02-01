@@ -2,6 +2,10 @@ import re
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_existing_income_offset_monthly,
+)
+
 
 def _maybe_handle_plan_phrase_flow(
     *,
@@ -75,10 +79,31 @@ def _maybe_handle_plan_phrase_flow(
                 client_obj=client_obj, pending_payload=None
             )
 
+            existing_income_offset = compute_existing_income_offset_monthly(
+                db=db,
+                client_id=client_id,
+                target_is_net=True,
+            )
+            requested_target = float(target_net_from_phrase)
+            effective_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+
+            breakdown_lines: list[str] = []
+            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
+            breakdown_lines.append(
+                f"- קיזוז הכנסות נוספות (נטו): {float(existing_income_offset):,.0f} ₪"
+            )
+            breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+            yield "\n".join(breakdown_lines) + "\n\n"
+
+            if effective_target <= 0:
+                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+                return
+
             step, out = pre_retirement_plan_resolution(
                 db=db,
                 client_id=client_id,
-                requested_target=float(target_net_from_phrase),
+                requested_target=float(requested_target),
                 target_is_net=True,
                 retirement_age=int(inferred_age) if inferred_age is not None else None,
                 effective_portfolio=effective_portfolio,
@@ -94,7 +119,7 @@ def _maybe_handle_plan_phrase_flow(
                 out
                 if isinstance(out, dict)
                 else {
-                    "target_monthly_pension": float(target_net_from_phrase),
+                    "target_monthly_pension": float(requested_target),
                     "target_is_net": True,
                 }
             )

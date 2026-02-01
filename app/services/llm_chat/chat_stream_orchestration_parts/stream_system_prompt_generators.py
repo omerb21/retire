@@ -198,6 +198,16 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         "target_is_net": bool(explicit_is_net),
     }
 
+    existing_income_offset = compute_existing_income_offset_monthly(
+        db=db,
+        client_id=request.client_id,
+        target_is_net=bool(explicit_is_net),
+    )
+    effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
+    if effective_target <= 0:
+        yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+        return
+
     birth_date = None
     try:
         client_obj = db.query(Client).filter(Client.id == request.client_id).first()
@@ -221,6 +231,8 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
             plan_args["retirement_age"] = int(resolved_ret_age)
         except Exception:
             pass
+
+    plan_args["target_monthly_pension"] = float(effective_target)
     plan_result = _execute_tool_call(
         "BUILD_TARGET_PENSION_PLAN",
         plan_args,
@@ -240,11 +252,20 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
     except Exception:
         pass
+    breakdown_lines: list[str] = []
+    breakdown_lines.append("✅ חישוב דטרמיניסטי (תיקון):")
+    breakdown_lines.append(
+        f"- יעד חודשי מבוקש ({'נטו' if explicit_is_net else 'ברוטו'}): {float(target_val):,.0f} ₪"
+    )
+    breakdown_lines.append(
+        f"- קיזוז הכנסות נוספות ({'נטו' if explicit_is_net else 'ברוטו'}): {float(existing_income_offset):,.0f} ₪"
+    )
+    breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+
     yield (
-        "🔧 **פלט כלי (בניית תכנית קצבה - תיקון):**\n"
-        + sanitize_user_visible_text(
-            format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
-        )
+        sanitize_user_visible_text("\n".join(breakdown_lines))
+        + "\n\n🔧 **פלט כלי (בניית תכנית קצבה - תיקון):**\n"
+        + sanitize_user_visible_text(format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result))
     )
 
 
@@ -464,8 +485,19 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
     except Exception:
         pass
 
+    breakdown_lines: list[str] = []
+    breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+    breakdown_lines.append(
+        f"- יעד חודשי מבוקש ({'נטו' if explicit_is_net else 'ברוטו'}): {float(target_val):,.0f} ₪"
+    )
+    breakdown_lines.append(
+        f"- קיזוז הכנסות נוספות ({'נטו' if explicit_is_net else 'ברוטו'}): {float(existing_income_offset):,.0f} ₪"
+    )
+    breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+
     yield sanitize_user_visible_text(
-        "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+        "\n".join(breakdown_lines)
+        + "\n\n🔧 **פלט כלי (בניית תכנית קצבה):**\n"
         + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
     )
 

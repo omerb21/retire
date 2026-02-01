@@ -94,6 +94,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
 
     merged_args: dict = dict(approved_args)
     has_valid_pending_match = False
+    using_open_approval = False
 
     request_kind: str | None = None
     if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS":
@@ -166,18 +167,18 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                     media_type="text/plain; charset=utf-8",
                 )
             if _args_conflict(pending_tool_args, approved_args):
-                return StreamingResponse(
-                    iter(_approval_refusal_lines()),
-                    media_type="text/plain; charset=utf-8",
-                )
-            merged_args = dict(pending_tool_args)
-            merged_args.update(dict(approved_args))
-            if compute_args_hash(merged_args) != compute_args_hash(pending_tool_args):
-                return StreamingResponse(
-                    iter(_approval_refusal_lines()),
-                    media_type="text/plain; charset=utf-8",
-                )
-            has_valid_pending_match = True
+                merged_args = dict(pending_tool_args)
+                has_valid_pending_match = True
+                using_open_approval = True
+            else:
+                merged_args = dict(pending_tool_args)
+                merged_args.update(dict(approved_args))
+                if compute_args_hash(merged_args) != compute_args_hash(pending_tool_args):
+                    merged_args = dict(pending_tool_args)
+                    has_valid_pending_match = True
+                    using_open_approval = True
+                else:
+                    has_valid_pending_match = True
         elif approved_tool in allow_without_pending_tools and _is_valid_allowlisted_payload(
             tool_name=approved_tool, tool_args=approved_args
         ):
@@ -261,8 +262,13 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
 
         tool_display = get_tool_display_name_hebrew(approved_tool)
         user_tool_output = format_tool_output_for_user_stream(approved_tool, tool_result)
+        using_open_msg = ""
+        if using_open_approval:
+            using_open_msg = "ℹ️ קיבלתי. משתמש בבקשת אישור פתוחה קיימת עבור הפעולה הזו (עם הפרמטרים המקוריים).\n\n"
         rendered = (
-            f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(user_tool_output)
+            using_open_msg
+            + f"🔧 **פלט כלי ({tool_display}):**\n"
+            + sanitize_user_visible_text(user_tool_output)
         )
         yield _append_transform_next_step_hint(tool_name=approved_tool, rendered_output=rendered)
 

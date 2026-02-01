@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.services.llm_chat.intent_classifier import ChatIntent
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_existing_income_offset_monthly,
+)
 from .stream_loop_pending_plan_target_store import (
     _clear_pending_plan_target,
     _load_pending_plan_target,
@@ -137,10 +140,30 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
 
             requested_target = float(target_net_reply)
+            existing_income_offset = compute_existing_income_offset_monthly(
+                db=db,
+                client_id=request.client_id,
+                target_is_net=True,
+            )
+            effective_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+            fallback_target = float(effective_target)
+            breakdown_lines: list[str] = []
+            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
+            breakdown_lines.append(
+                f"- קיזוז הכנסות נוספות (נטו): {float(existing_income_offset):,.0f} ₪"
+            )
+            breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+            yield "\n".join(breakdown_lines) + "\n\n"
+
+            if effective_target <= 0:
+                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+                return
+
             step, out = pre_retirement_plan_resolution(
                 db=db,
                 client_id=request.client_id,
-                requested_target=requested_target,
+                requested_target=float(target_net_reply),
                 target_is_net=True,
                 retirement_age=None,
                 effective_portfolio=portfolio_for_plan,
@@ -152,7 +175,7 @@ def _maybe_handle_pending_plan_target_flow(
                 yield str(out)
                 return
             plan_args = out if isinstance(out, dict) else {
-                "target_monthly_pension": requested_target,
+                "target_monthly_pension": fallback_target,
                 "target_is_net": True,
             }
             client_obj = None
@@ -268,10 +291,31 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
 
             requested_target = float(target_net_for_plan)
+            existing_income_offset = compute_existing_income_offset_monthly(
+                db=db,
+                client_id=request.client_id,
+                target_is_net=True,
+            )
+            effective_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+            fallback_target = float(effective_target)
+            breakdown_lines: list[str] = []
+            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
+            breakdown_lines.append(
+                f"- קיזוז הכנסות נוספות (נטו): {float(existing_income_offset):,.0f} ₪"
+            )
+            breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+            yield "\n".join(breakdown_lines) + "\n\n"
+
+            if effective_target <= 0:
+                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+                return
+
+            requested_target = float(target_net_for_plan)
             step, out = pre_retirement_plan_resolution(
                 db=db,
                 client_id=request.client_id,
-                requested_target=requested_target,
+                requested_target=float(target_net_for_plan),
                 target_is_net=True,
                 retirement_age=None,
                 effective_portfolio=portfolio_for_plan,
@@ -283,7 +327,7 @@ def _maybe_handle_pending_plan_target_flow(
                 yield str(out)
                 return
             plan_args = out if isinstance(out, dict) else {
-                "target_monthly_pension": requested_target,
+                "target_monthly_pension": fallback_target,
                 "target_is_net": True,
             }
             client_obj = None
