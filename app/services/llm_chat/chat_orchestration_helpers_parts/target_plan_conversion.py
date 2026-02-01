@@ -60,10 +60,13 @@ def build_transform_accounts_from_target_plan_payload(payload: dict) -> list[dic
     for src in sources_used:
         if not isinstance(src, dict):
             continue
-        if src.get("source_type") != "pension_fund_from_portfolio":
+        src_type = str(src.get("source_type") or "")
+        if src_type not in {"pension_fund_from_portfolio", "pension_fund"}:
             continue
         account_number = str(src.get("account_number") or "").strip()
         field = str(src.get("component_field") or "").strip()
+        if (not field) and src_type == "pension_fund":
+            field = "תגמולים"
         if not account_number or not field:
             continue
 
@@ -75,16 +78,22 @@ def build_transform_accounts_from_target_plan_payload(payload: dict) -> list[dic
             continue
 
         try:
+            pension_used = float(src.get("pension_used") or 0)
+        except Exception:
+            pension_used = 0.0
+
+        try:
             annuity_factor = float(src.get("annuity_factor") or 0)
         except Exception:
             annuity_factor = 0.0
         if annuity_factor <= 0:
+            try:
+                if pension_used > 0 and balance_used > 0:
+                    annuity_factor = float(balance_used) / float(pension_used)
+            except Exception:
+                annuity_factor = 0.0
+        if annuity_factor <= 0:
             continue
-
-        try:
-            pension_used = float(src.get("pension_used") or 0)
-        except Exception:
-            pension_used = 0.0
         if pension_used <= 0:
             pension_used = float(balance_used) / float(annuity_factor)
 

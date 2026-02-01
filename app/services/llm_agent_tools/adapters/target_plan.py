@@ -256,6 +256,14 @@ def build_target_pension_plan(
         except Exception:
             raw_src_str = ""
 
+        is_llm_transform_created = False
+        try:
+            is_llm_transform_created = bool(
+                raw_src_str and '"source": "llm_transform_funds_to_assets"' in raw_src_str
+            )
+        except Exception:
+            is_llm_transform_created = False
+
         is_portfolio_imported = bool(
             raw_src_str
             and (
@@ -279,7 +287,7 @@ def build_target_pension_plan(
         # אם יש כבר קצבה מוגדרת - זה מקור קיים
         # NOTE: portfolio-imported PensionFund rows represent a raw balance source,
         # not an already-existing executed pension.
-        if (existing_pension > 0) and (not is_portfolio_imported):
+        if (existing_pension > 0) and (not is_portfolio_imported) and (not is_llm_transform_created):
             pension_sources.append(
                 {
                     "source_type": "existing_pension",
@@ -922,22 +930,27 @@ def build_target_pension_plan(
     )
 
     execution_plan_accounts: list[dict[str, Any]] = []
+    non_executable_notes: list[str] = []
     try:
         for src in sources_used or []:
             if not isinstance(src, dict):
                 continue
-            if str(src.get("source_type") or "") != "pension_fund_from_portfolio":
+            src_type = str(src.get("source_type") or "")
+            if src_type not in {"pension_fund_from_portfolio", "pension_fund"}:
                 continue
             acc_id = src.get("account_number")
             if acc_id is None:
                 acc_id = src.get("source_id")
             if acc_id is None:
                 continue
-            component = src.get("component_field")
+
+            component = None
+            if src_type == "pension_fund_from_portfolio":
+                component = src.get("component_field")
             if component is None:
-                component = src.get("fund_type")
-            if component is None:
-                component = "unknown"
+                # DB-derived pension_fund rows do not include per-component fields; use a stable component
+                # key that the conversion pipeline knows how to apply to snapshot deltas.
+                component = "תגמולים"
             try:
                 amount_to_convert = float(src.get("balance_used") or 0)
             except Exception:
@@ -948,9 +961,14 @@ def build_target_pension_plan(
                 expected_monthly_pension = 0.0
             if amount_to_convert <= 0 or expected_monthly_pension <= 0:
                 continue
+
+            acc_id_str = str(acc_id).strip()
+            if not acc_id_str:
+                non_executable_notes.append("נמצא מקור להמרה אך חסר account_number (deduction_file)")
+                continue
             execution_plan_accounts.append(
                 {
-                    "account_id": str(acc_id),
+                    "account_id": acc_id_str,
                     "component": str(component),
                     "amount_to_convert": float(amount_to_convert),
                     "expected_monthly_pension": float(expected_monthly_pension),
@@ -992,6 +1010,25 @@ def build_target_pension_plan(
         "expected_total_gross": float(expected_total_gross_val),
         "expected_total_net": float(expected_total_net_val),
     }
+
+    if not execution_plan_accounts:
+        has_capital_asset_sources = False
+        try:
+            has_capital_asset_sources = any(
+                isinstance(s, dict) and str(s.get("source_type") or "") == "capital_asset"
+                for s in (sources_used or [])
+            )
+        except Exception:
+            has_capital_asset_sources = False
+
+        reason_parts: list[str] = []
+        if non_executable_notes:
+            reason_parts.extend(non_executable_notes[:3])
+        if has_capital_asset_sources:
+            reason_parts.append("התכנית נשענת על נכסי הון, שאינם ניתנים לביצוע דרך רכיבי תיק מסלקה")
+        if not reason_parts:
+            reason_parts.append("לא נמצאו מקורות תיק מסלקה שניתן להמיר בפועל")
+        execution_plan["non_executable_reason"] = "; ".join([p for p in reason_parts if p])
 
     return {
         "success": True,
