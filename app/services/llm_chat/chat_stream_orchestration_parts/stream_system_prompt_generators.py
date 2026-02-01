@@ -30,6 +30,29 @@ from .stream_more_nested_helpers import _format_system_inventory_snapshot
 from .stream_tool_execution import _execute_tool_call
 
 _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+_IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO = "ignore_blocked_balances_decision"
+
+
+def _load_ignore_blocked_balances_decision(*, db, client_id: int) -> bool:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO)
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return False
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        parsed = None
+    if not isinstance(parsed, dict):
+        return False
+    return bool(parsed.get("ignore_blocked_balances")) is True
 
 
 def _today() -> date:
@@ -401,7 +424,13 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
         return
 
-    if _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_plan):
+    ignore_blocked = False
+    try:
+        ignore_blocked = _load_ignore_blocked_balances_decision(db=db, client_id=request.client_id)
+    except Exception:
+        ignore_blocked = False
+
+    if (not ignore_blocked) and _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_plan):
         _store_pending_pre_retirement_plan_resolution(
             db=db,
             client_id=request.client_id,

@@ -2,6 +2,10 @@ import json
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_pre_retirement_plan_resolution import (
+    _store_ignore_blocked_balances_decision,
+ )
+
 
 def _has_positive_component_amounts(raw: object) -> bool:
     if not isinstance(raw, dict) or not raw:
@@ -69,7 +73,22 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
     clear_pending_plan_target_marker,
     clear_pending_approval_request,
  ):
-    if lowered_user_msg not in {"כן", "לא"}:
+    normalized = (lowered_user_msg or "").strip()
+    answer = None
+    if normalized in {"כן", "לא"}:
+        answer = normalized
+    else:
+        for token in ("כן", "לא"):
+            if normalized.startswith(token):
+                rest = normalized[len(token) :]
+                if not rest:
+                    answer = token
+                    break
+                if rest[:1] in {" ", "\t", "\n", ".", ",", "!", "?", ":", ";", "-", "–", "—"}:
+                    answer = token
+                    break
+
+    if answer is None:
         return None
 
     pending_payload = None
@@ -103,9 +122,13 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         except Exception:
             retirement_age_int = None
 
-    if lowered_user_msg == "לא":
+    if answer == "לא":
         try:
             clear_pending_pre_retirement_plan_resolution(db=db, client_id=request.client_id)
+        except Exception:
+            pass
+        try:
+            _store_ignore_blocked_balances_decision(db=db, client_id=request.client_id)
         except Exception:
             pass
         existing_income_offset = compute_existing_income_offset_monthly(
@@ -123,6 +146,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         plan_args = {
             "target_monthly_pension": float(eff_target),
             "target_is_net": bool(target_is_net_val),
+            "ignore_blocked_balances": True,
         }
         if retirement_age_int is not None:
             plan_args["retirement_age"] = int(retirement_age_int)

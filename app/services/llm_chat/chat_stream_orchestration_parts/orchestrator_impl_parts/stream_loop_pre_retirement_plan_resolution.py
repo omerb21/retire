@@ -13,6 +13,7 @@ from app.services.llm_chat.orchestration_utils_parts.existing_income_offset impo
 
 
 _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+_IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO = "ignore_blocked_balances_decision"
 
 
 def _today() -> date:
@@ -109,6 +110,62 @@ def _clear_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int
             pass
 
 
+def _load_ignore_blocked_balances_decision(*, db: Session, client_id: int) -> bool:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO)
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return False
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        parsed = None
+    if not isinstance(parsed, dict):
+        return False
+    raw = parsed.get("ignore_blocked_balances")
+    return bool(raw) is True
+
+
+def _store_ignore_blocked_balances_decision(*, db: Session, client_id: int) -> None:
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(
+                {"decision": "no", "ignore_blocked_balances": True},
+                ensure_ascii=False,
+            ),
+        )
+        db.add(scenario)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def _store_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int, payload: dict) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
@@ -172,7 +229,14 @@ def _pre_retirement_plan_resolution(
     # In that case, snapshot blocked balances are irrelevant and must not gate the plan flow.
     has_blocked = False
     if not has_db_state_sources:
-        has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
+        ignore_blocked = False
+        try:
+            ignore_blocked = _load_ignore_blocked_balances_decision(db=db, client_id=client_id)
+        except Exception:
+            ignore_blocked = False
+
+        if not ignore_blocked:
+            has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
 
     if has_blocked:
         payload = {

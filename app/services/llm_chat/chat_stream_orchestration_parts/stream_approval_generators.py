@@ -33,6 +33,8 @@ from .stream_top_level_helpers import (
 )
 from .stream_tool_execution import _execute_tool_call
 
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+
 
 def _has_positive_component_amounts(raw: object) -> bool:
     if not isinstance(raw, dict) or not raw:
@@ -203,6 +205,20 @@ def generate_forced_approval(
         return
 
     if wants_execute_target_plan:
+        try:
+            pending_blocked = (
+                db.query(Scenario)
+                .filter(Scenario.client_id == request.client_id)
+                .filter(Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO)
+                .order_by(Scenario.created_at.desc())
+                .first()
+            )
+        except Exception:
+            pending_blocked = None
+        if pending_blocked is not None:
+            yield "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא"
+            return
+
         try:
             pending_ui = load_pending_approval_ui_action_if_match(
                 db=db,
