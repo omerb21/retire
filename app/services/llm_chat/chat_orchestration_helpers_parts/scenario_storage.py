@@ -4,6 +4,117 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Scenario
+from app.services.llm_chat.pending_approvals import compute_args_hash
+
+
+_APPROVAL_EXECUTION_RECEIPT_SCENARIO = "approval_execution_receipt"
+_DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS = 5 * 60
+
+
+def was_approval_execution_recently_recorded(
+    *, db: Session, client_id: int, tool_name: str, tool_args: dict
+) -> bool:
+    if client_id is None:
+        return False
+    if not isinstance(tool_name, str) or not tool_name.strip():
+        return False
+    if not isinstance(tool_args, dict):
+        tool_args = {}
+
+    args_hash = compute_args_hash(tool_args)
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == _APPROVAL_EXECUTION_RECEIPT_SCENARIO)
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return False
+
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return False
+    if not isinstance(parsed, dict):
+        return False
+    if str(parsed.get("tool_name") or "").strip() != tool_name:
+        return False
+    if str(parsed.get("args_hash") or "").strip() != args_hash:
+        return False
+
+    expires_raw = parsed.get("expires_at")
+    if isinstance(expires_raw, str) and expires_raw.strip():
+        try:
+            expires_at = datetime.fromisoformat(expires_raw)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            return expires_at > datetime.now(timezone.utc)
+        except Exception:
+            return False
+    return False
+
+
+def store_approval_execution_receipt(
+    *,
+    db: Session,
+    client_id: int,
+    tool_name: str,
+    tool_args: dict,
+    ttl_seconds: int = _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS,
+) -> bool:
+    if client_id is None:
+        return False
+    if not isinstance(tool_name, str) or not tool_name.strip():
+        return False
+    if not isinstance(tool_args, dict):
+        tool_args = {}
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=int(ttl_seconds or _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS))
+    args_hash = compute_args_hash(tool_args)
+
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _APPROVAL_EXECUTION_RECEIPT_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+    payload = {
+        "tool_name": tool_name,
+        "args_hash": args_hash,
+        "executed_at": now.isoformat(),
+        "expires_at": expires_at.isoformat(),
+    }
+
+    try:
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_APPROVAL_EXECUTION_RECEIPT_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
 
 
 def _safe_float(value: object) -> float:
@@ -183,7 +294,6 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:
         return False
-
     try:
         plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else None
         if isinstance(plan_res, dict):
@@ -283,6 +393,12 @@ def store_pending_approval_request(
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == "pending_approval"
+        ).delete(synchronize_session=False)
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == "approval_executed"
+        ).delete(synchronize_session=False)
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _APPROVAL_EXECUTION_RECEIPT_SCENARIO
         ).delete(synchronize_session=False)
         db.flush()
     except Exception:

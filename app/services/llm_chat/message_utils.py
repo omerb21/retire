@@ -4,6 +4,47 @@ import re
 from ...schemas.llm_chat import ChatMessage
 
 
+def _extract_first_json_object(raw: str) -> dict | None:
+    if not isinstance(raw, str) or not raw:
+        return None
+    start = raw.find("{")
+    if start < 0:
+        return None
+
+    in_string = False
+    escaped = False
+    depth = 0
+    end = None
+    for i in range(start, len(raw)):
+        ch = raw[i]
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+
+    if end is None:
+        return None
+    try:
+        parsed = json.loads(raw[start:end])
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _normalize_tool_args_for_approval_signature(tool_name: str, tool_args: dict) -> dict:
     if not isinstance(tool_args, dict):
         return {}
@@ -225,18 +266,40 @@ def is_user_approval_intent_text(text: str) -> bool:
     raw = (text or "").strip().lower()
     if not raw:
         return False
-    approval_tokens = (
-        "אשר",
-        "מאשר",
-        "אני מאשר",
-        "מאשרת",
-        "אני מאשרת",
-        "approve",
-        "approved",
-        "ok",
-        "כן",
-    )
-    return raw in approval_tokens
+
+    trimmed = raw.strip()
+    if not trimmed:
+        return False
+
+    while trimmed and trimmed[-1] in " .,!?:;\t\r\n":
+        trimmed = trimmed[:-1]
+    trimmed = trimmed.strip()
+    if not trimmed:
+        return False
+
+    if trimmed.startswith("כן"):
+        rest = trimmed[2:]
+        rest = rest.lstrip(" ,.!?:;\t\r\n")
+        if rest:
+            trimmed = rest
+
+    for prefix in ("אשר", "מאשר", "מאשרת"):
+        if trimmed == prefix:
+            return True
+        if trimmed.startswith(prefix):
+            nxt = trimmed[len(prefix) : len(prefix) + 1]
+            if nxt in ("", " ", "\t", "\n", ".", ",", "!", "?", ":", ";"):
+                return True
+
+    for prefix in ("approve", "approved", "ok"):
+        if trimmed == prefix:
+            return True
+        if trimmed.startswith(prefix):
+            nxt = trimmed[len(prefix) : len(prefix) + 1]
+            if nxt in ("", " ", "\t", "\n", ".", ",", "!", "?", ":", ";"):
+                return True
+
+    return False
 
 
 def was_tool_call_previously_approved(
@@ -258,13 +321,8 @@ def was_tool_call_previously_approved(
         content = getattr(msg, "content", "") or ""
         if marker not in content:
             continue
-        after = content.split(marker, 1)[1].strip()
-        json_str = after.strip("`").strip()
-        json_str = json_str.splitlines()[0] if json_str else ""
-        if not json_str:
-            continue
         try:
-            parsed = json.loads(json_str)
+            parsed = _extract_first_json_object(content.split(marker, 1)[1])
         except Exception:
             continue
         if not isinstance(parsed, dict):
@@ -286,15 +344,8 @@ def extract_user_approval_for_tool_call(
     if marker not in (last_user or ""):
         return None
 
-    after = last_user.split(marker, 1)[1].strip()
-    json_str = after.strip("`").strip()
-    json_str = json_str.splitlines()[0] if json_str else ""
-    if not json_str:
-        return None
-
-    try:
-        parsed = json.loads(json_str)
-    except Exception:
+    parsed = _extract_first_json_object(last_user.split(marker, 1)[1])
+    if parsed is None:
         return None
 
     if not isinstance(parsed, dict):
@@ -307,14 +358,6 @@ def extract_user_approval_for_tool_call(
     if not isinstance(tool_args, dict):
         return None
 
-    latest_request = extract_latest_approval_request(messages)
-    if latest_request is not None:
-        requested_tool, requested_args = latest_request
-        if _approval_signature(tool_name, tool_args) != _approval_signature(
-            requested_tool, requested_args
-        ):
-            return None
-
     return tool_name, tool_args
 
 
@@ -326,15 +369,8 @@ def extract_user_cancel_for_tool_call(
     if marker not in (last_user or ""):
         return None
 
-    after = last_user.split(marker, 1)[1].strip()
-    json_str = after.strip("`").strip()
-    json_str = json_str.splitlines()[0] if json_str else ""
-    if not json_str:
-        return None
-
-    try:
-        parsed = json.loads(json_str)
-    except Exception:
+    parsed = _extract_first_json_object(last_user.split(marker, 1)[1])
+    if parsed is None:
         return None
 
     if not isinstance(parsed, dict):
