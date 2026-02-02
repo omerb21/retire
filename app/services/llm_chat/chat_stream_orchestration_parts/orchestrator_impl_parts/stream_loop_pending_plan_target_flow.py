@@ -9,6 +9,7 @@ from app.models.client import Client
 from app.services.llm_chat.intent_classifier import ChatIntent
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     compute_existing_income_offset_monthly,
+    apply_income_offset_to_target,
 )
 from .stream_loop_pending_plan_target_store import (
     _clear_pending_plan_target,
@@ -140,12 +141,11 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
 
             requested_target = float(target_net_reply)
-            existing_income_offset = compute_existing_income_offset_monthly(
-                db=db,
-                client_id=request.client_id,
-                target_is_net=True,
+            existing_income_offset, effective_target = apply_income_offset_to_target(
+                db,
+                int(request.client_id),
+                float(requested_target),
             )
-            effective_target = max(float(requested_target) - float(existing_income_offset), 0.0)
             fallback_target = float(effective_target)
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
@@ -277,12 +277,11 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
 
             requested_target = float(target_net_for_plan)
-            existing_income_offset = compute_existing_income_offset_monthly(
-                db=db,
-                client_id=request.client_id,
-                target_is_net=True,
+            existing_income_offset, effective_target = apply_income_offset_to_target(
+                db,
+                int(request.client_id),
+                float(requested_target),
             )
-            effective_target = max(float(requested_target) - float(existing_income_offset), 0.0)
             fallback_target = float(effective_target)
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")

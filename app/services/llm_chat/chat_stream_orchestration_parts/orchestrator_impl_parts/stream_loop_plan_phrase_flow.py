@@ -3,6 +3,7 @@ import re
 from fastapi.responses import StreamingResponse
 
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    apply_income_offset_to_target,
     compute_existing_income_offset_monthly,
 )
 
@@ -79,13 +80,12 @@ def _maybe_handle_plan_phrase_flow(
                 client_obj=client_obj, pending_payload=None
             )
 
-            existing_income_offset = compute_existing_income_offset_monthly(
-                db=db,
-                client_id=client_id,
-                target_is_net=True,
-            )
             requested_target = float(target_net_from_phrase)
-            effective_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+            existing_income_offset, effective_target = apply_income_offset_to_target(
+                db,
+                int(client_id),
+                float(requested_target),
+            )
 
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")

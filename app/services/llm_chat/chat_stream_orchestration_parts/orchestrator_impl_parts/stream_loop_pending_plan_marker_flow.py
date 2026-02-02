@@ -2,6 +2,10 @@ import json
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    apply_income_offset_to_target,
+)
+
 
 def _maybe_handle_pending_plan_target_marker_flow(
     *,
@@ -44,8 +48,30 @@ def _maybe_handle_pending_plan_target_marker_flow(
 
     def _exec_target_plan_tools_first():
         tool_name = "BUILD_TARGET_PENSION_PLAN"
+        requested_target = float(target_net)
+        offset_net = 0.0
+        effective_target = float(requested_target)
+        if client_id is not None:
+            offset_net, effective_target = apply_income_offset_to_target(
+                db,
+                int(client_id),
+                float(requested_target),
+            )
+
+        breakdown_lines: list[str] = []
+        breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+        breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
+        breakdown_lines.append(f"- קיזוז הכנסות נוספות (נטו): {float(offset_net):,.0f} ₪")
+        breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+        yield "\n".join(breakdown_lines) + "\n\n"
+
+        if float(effective_target) <= 0:
+            yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+            delete_marker(pending_plan)
+            return
+
         tool_args = {
-            "target_monthly_pension": float(target_net),
+            "target_monthly_pension": float(effective_target),
             "target_is_net": True,
         }
         pending_payload = None

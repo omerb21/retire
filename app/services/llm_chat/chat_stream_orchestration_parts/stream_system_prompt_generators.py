@@ -20,6 +20,7 @@ from app.services.llm_chat.orchestration_utils import (
     sanitize_user_visible_text,
 )
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    apply_income_offset_to_target,
     compute_existing_income_offset_monthly,
 )
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
@@ -203,7 +204,14 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         client_id=request.client_id,
         target_is_net=bool(explicit_is_net),
     )
-    effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
+    if bool(explicit_is_net) is True:
+        existing_income_offset, effective_target = apply_income_offset_to_target(
+            db,
+            int(request.client_id),
+            float(target_val),
+        )
+    else:
+        effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
     if effective_target <= 0:
         yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
         return
@@ -440,7 +448,14 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         client_id=request.client_id,
         target_is_net=bool(explicit_is_net),
     )
-    effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
+    if bool(explicit_is_net) is True:
+        existing_income_offset, effective_target = apply_income_offset_to_target(
+            db,
+            int(request.client_id),
+            float(target_val),
+        )
+    else:
+        effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
     if effective_target <= 0:
         yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
         return

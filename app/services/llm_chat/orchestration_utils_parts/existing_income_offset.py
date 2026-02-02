@@ -78,3 +78,24 @@ def compute_existing_income_offset_monthly(
         return float(out)
     except Exception:
         return 0.0
+
+
+def apply_income_offset_to_target(
+    db: Session, client_id: int, target_net: float
+) -> tuple[float, float]:
+    """Returns (offset_net, effective_target_net)."""
+    try:
+        requested = float(target_net or 0)
+    except Exception:
+        requested = 0.0
+
+    offset_net = compute_existing_income_offset_monthly(
+        db=db,
+        client_id=client_id,
+        target_is_net=True,
+    )
+    try:
+        effective = max(float(requested) - float(offset_net), 0.0)
+    except Exception:
+        effective = 0.0
+    return float(offset_net or 0.0), float(effective)

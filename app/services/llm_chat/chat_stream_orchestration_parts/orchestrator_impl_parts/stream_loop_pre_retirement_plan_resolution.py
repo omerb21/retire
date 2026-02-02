@@ -8,6 +8,7 @@ from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    apply_income_offset_to_target,
     compute_existing_income_offset_monthly,
 )
 
@@ -247,7 +248,14 @@ def _pre_retirement_plan_resolution(
         client_id=client_id,
         target_is_net=bool(target_is_net),
     )
-    eff_target = max(float(requested_target) - float(existing_income_offset), 0.0)
+    if bool(target_is_net) is True:
+        existing_income_offset, eff_target = apply_income_offset_to_target(
+            db,
+            int(client_id),
+            float(requested_target),
+        )
+    else:
+        eff_target = max(float(requested_target) - float(existing_income_offset), 0.0)
     if eff_target <= 0:
         return (
             "done_text",
