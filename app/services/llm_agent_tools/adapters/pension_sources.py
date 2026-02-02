@@ -219,7 +219,18 @@ def _get_pension_sources_from_portfolio(
                 fallback_used = True
 
         if "השתלמות" in str(product_type) or "השתלמות" in str(plan_name):
-            balance = _safe_float(acc.get("יתרה", 0))
+            balance_candidates = [
+                acc.get("קרן_השתלמות"),
+                acc.get("education_fund"),
+                acc.get("יתרה"),
+                acc.get("balance"),
+                acc.get("current_balance"),
+            ]
+            balance = 0.0
+            for raw in balance_candidates:
+                balance = _safe_float(raw)
+                if balance > 0:
+                    break
             if balance <= 0:
                 continue
             potential_pension = balance / annuity_factor
@@ -252,6 +263,10 @@ def _get_pension_sources_from_portfolio(
             if not field:
                 continue
             amount = _safe_float(acc.get(field, 0))
+            if amount <= 0:
+                nested_components = acc.get("components")
+                if isinstance(nested_components, dict):
+                    amount = _safe_float(nested_components.get(field, 0))
             if amount <= 0:
                 continue
 
@@ -304,7 +319,16 @@ def _get_pension_sources_from_portfolio(
             continue
 
         # Fallback: אם אין רכיבים מפורטים, נשתמש ביתרה כללית בלבד
-        balance = _safe_float(acc.get("יתרה", 0))
+        balance_candidates = [
+            acc.get("יתרה"),
+            acc.get("balance"),
+            acc.get("current_balance"),
+        ]
+        balance = 0.0
+        for raw in balance_candidates:
+            balance = _safe_float(raw)
+            if balance > 0:
+                break
         if balance <= 0:
             continue
         potential_pension = balance / annuity_factor
