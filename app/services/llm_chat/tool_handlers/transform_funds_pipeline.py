@@ -106,7 +106,7 @@ def execute_transform_funds_pipeline(
         # Build conversion_tasks strictly from execution_plan.
         conversion_tasks = []
         for item in plan_accounts:
-            acc_id = str(item.get("account_id") or "").strip()
+            acc_id = str(item.get("account_number") or item.get("account_id") or "").strip()
             component = str(item.get("component") or "").strip()
             try:
                 amount_to_convert = float(item.get("amount_to_convert") or 0)
@@ -249,7 +249,7 @@ def execute_transform_funds_pipeline(
     )
 
     if strict_plan_mode:
-        if int(source_pension_funds_zeroed or 0) <= 0:
+        if int((converted_pensions or 0) + (converted_capitals or 0) + (converted_commutations or 0)) <= 0:
             res = build_transform_funds_response(
                 success=False,
                 message="EXECUTION_NO_SOURCE_CONSUMED",

@@ -87,6 +87,26 @@ def handle_transform_funds_to_assets(
         except Exception:
             pass
 
+        if isinstance(accounts, list) and accounts:
+            normalized_accounts: list[dict] = []
+            for a in accounts:
+                if not isinstance(a, dict):
+                    continue
+                row = dict(a)
+                acc_id = row.get("account_id")
+                if acc_id is not None and not (
+                    row.get("account_number")
+                    or row.get("מספר_חשבון")
+                    or row.get("מספר חשבון")
+                    or row.get("מספר-חשבון")
+                ):
+                    acc_id_str = str(acc_id).strip()
+                    if acc_id_str:
+                        row["account_number"] = acc_id_str
+                        row["מספר_חשבון"] = acc_id_str
+                normalized_accounts.append(row)
+            accounts = normalized_accounts
+
         def _is_aggregate_account(acc: dict) -> bool:
             name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
             number = str(
