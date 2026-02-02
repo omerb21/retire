@@ -87,8 +87,7 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
     assert "###UI_ACTION###" not in body
     assert "approval_request" not in body
     assert "TRANSFORM_FUNDS_TO_ASSETS" not in body
-    assert "אין מספיק מקורות" in body
-    assert "אפשר לבצע המרה לנכסים" in body
+    assert "לא נמצאו מקורות קצבה" in body
 
     with Session() as db:
         pending = (

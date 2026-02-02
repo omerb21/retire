@@ -415,17 +415,42 @@ def build_target_pension_plan(
             return False
         component_prefixes = ("תגמולי_", "פיצויים_")
         for acc in portfolio:
-            if not isinstance(acc, dict):
+            acc_dict: dict[str, Any] | None = None
+            if isinstance(acc, dict):
+                acc_dict = acc
+            elif hasattr(acc, "model_dump"):
+                try:
+                    dumped = acc.model_dump()
+                    if isinstance(dumped, dict):
+                        acc_dict = dumped
+                except Exception:
+                    acc_dict = None
+            if acc_dict is None:
                 continue
-            if _safe_float(acc.get("יתרה") or acc.get("balance") or acc.get("current_balance")) > 0.01:
+
+            if _safe_float(
+                acc_dict.get("יתרה")
+                or acc_dict.get("balance")
+                or acc_dict.get("current_balance")
+            ) > 0.01:
                 return True
-            if _safe_float(acc.get("סך_רכיבים") or acc.get("total_components")) > 0.01:
+            if _safe_float(acc_dict.get("סך_רכיבים") or acc_dict.get("total_components")) > 0.01:
                 return True
-            if _safe_float(acc.get("סך_תגמולים") or acc.get("תגמולים") or acc.get("total_contributions")) > 0.01:
+            if _safe_float(
+                acc_dict.get("סך_תגמולים")
+                or acc_dict.get("תגמולים")
+                or acc_dict.get("total_contributions")
+            ) > 0.01:
                 return True
-            if _safe_float(acc.get("קרן_השתלמות") or acc.get("education_fund")) > 0.01:
+            if _safe_float(acc_dict.get("קרן_השתלמות") or acc_dict.get("education_fund")) > 0.01:
                 return True
-            for k, v in acc.items():
+            nested_components = acc_dict.get("components")
+            if isinstance(nested_components, dict):
+                for v in nested_components.values():
+                    if _safe_float(v) > 0.01:
+                        return True
+
+            for k, v in acc_dict.items():
                 if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
                     return True
         return False

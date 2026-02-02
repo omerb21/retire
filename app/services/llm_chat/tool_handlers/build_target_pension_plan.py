@@ -111,8 +111,8 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
             err_msg = None
         if isinstance(err_msg, str) and ("לא נמצאו מקורות קצבה" in err_msg):
             summary = (
-                "אין מספיק מקורות ניתנים לביצוע כדי לבנות תכנית מלאה. "
-                "אפשר לבצע המרה לנכסים רק אם תבקש לבצע את התכנית.\n"
+                "לא נמצאו מקורות קצבה לחישוב תכנית יעד קצבה עבור הלקוח. "
+                "ודא שקיים תיק פנסיוני (מסלקה) עדכני או מקורות קצבה במערכת, ואז נסה שוב.\n"
                 + version_tag
             )
             try:
