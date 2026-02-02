@@ -160,22 +160,8 @@ def _maybe_handle_pending_plan_target_flow(
                 yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
                 return
 
-            step, out = pre_retirement_plan_resolution(
-                db=db,
-                client_id=request.client_id,
-                requested_target=float(target_net_reply),
-                target_is_net=True,
-                retirement_age=None,
-                effective_portfolio=portfolio_for_plan,
-            )
-            if step == "done_text":
-                yield str(out)
-                return
-            if step == "ask_blocked":
-                yield str(out)
-                return
-            plan_args = out if isinstance(out, dict) else {
-                "target_monthly_pension": fallback_target,
+            plan_args = {
+                "target_monthly_pension": float(fallback_target),
                 "target_is_net": True,
             }
             client_obj = None
@@ -311,23 +297,8 @@ def _maybe_handle_pending_plan_target_flow(
                 yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
                 return
 
-            requested_target = float(target_net_for_plan)
-            step, out = pre_retirement_plan_resolution(
-                db=db,
-                client_id=request.client_id,
-                requested_target=float(target_net_for_plan),
-                target_is_net=True,
-                retirement_age=None,
-                effective_portfolio=portfolio_for_plan,
-            )
-            if step == "done_text":
-                yield str(out)
-                return
-            if step == "ask_blocked":
-                yield str(out)
-                return
-            plan_args = out if isinstance(out, dict) else {
-                "target_monthly_pension": fallback_target,
+            plan_args = {
+                "target_monthly_pension": float(fallback_target),
                 "target_is_net": True,
             }
             client_obj = None

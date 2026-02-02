@@ -80,6 +80,31 @@ def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_
         )
         db.commit()
 
+    with Session() as db:
+        snapshot_accounts = [
+            {
+                "מספר_חשבון": "C1",
+                "שם_תכנית": "Fund C",
+                "חברה_מנהלת": "X",
+                "סוג_מוצר": "קופת גמל",
+                "יתרה": 100000,
+                "תאריך_התחלה": "2005-01-01",
+                "פיצויים_שלא_עברו_התחשבנות": 1,
+            }
+        ]
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
@@ -357,6 +382,25 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
     client_id = 950000004
 
     with Session() as db:
+        try:
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(synchronize_session=False)
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(synchronize_session=False)
+            db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+                Scenario.scenario_name.in_(
+                    {
+                        "pending_pre_retirement_plan_resolution",
+                        "ignore_blocked_balances_decision",
+                        "pending_approval",
+                    }
+                )
+            ).delete(synchronize_session=False)
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         client = db.query(Client).filter(Client.id == client_id).first()
         if client is None:
             client = Client(
@@ -409,6 +453,33 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
             "result": {
                 "target_monthly_pension": float(target_monthly_pension),
                 "target_is_net": bool(target_is_net),
+                "sources_used": [
+                    {
+                        "source_type": "pension_fund_from_portfolio",
+                        "account_number": "C1",
+                        "component_field": "תגמולים",
+                        "balance_used": 1000.0,
+                        "pension_used": 5.0,
+                        "annuity_factor": 200.0,
+                        "fund_type": "קופת גמל",
+                        "company": "X",
+                        "plan_name": "Fund C",
+                        "start_date": "2005-01-01",
+                    }
+                ],
+                "execution_plan": {
+                    "accounts": [
+                        {
+                            "account_name": "Fund C",
+                            "product_type": "קופת גמל",
+                            "company": "X",
+                            "account_number": "C1",
+                            "start_date": "2005-01-01",
+                            "specific_amounts": {"תגמולים": 1000.0},
+                            "component_conversion_overrides": {"תגמולים": "pension"},
+                        }
+                    ]
+                },
             },
             "explanation": "OK",
         }
@@ -427,7 +498,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
     monkeypatch.setattr(stream_orch, "execute_tool_call", wrapped_execute_tool_call)
 
     api = TestClient(app)
-    resp1 = api.post(
+
+    # Build should not ask blocked balances.
+    resp0 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
@@ -435,10 +508,24 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
             "pension_portfolio": [],
         },
     )
+    assert resp0.status_code == 200
+    assert "האם לכלול" not in resp0.text
+    assert "###UI_ACTION###" not in resp0.text
+
+    # Execute should ask blocked balances.
+    resp1 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בצע את התכנית"}],
+            "pension_portfolio": [],
+        },
+    )
     assert resp1.status_code == 200
-    assert "האם לכלול אותן בתכנון" in resp1.text
+    assert "האם לכלול" in resp1.text
     assert "###UI_ACTION###" not in resp1.text
 
+    # Answer no -> persist decision, no tool execution.
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -448,8 +535,8 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
         },
     )
     assert resp2.status_code == 200
-    assert "בניית תכנית קצבה" in resp2.text
-    assert "###UI_ACTION###" not in resp2.text
+    assert "בניית תכנית קצבה" not in resp2.text
+    assert "לא נכלול יתרות חסומות" in resp2.text
 
     with Session() as db:
         pending_approval = (
@@ -461,6 +548,27 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
         )
         assert pending_approval is None
 
+    # Execute again -> should produce approval_request and not ask blocked balances.
+    resp3 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בצע את התכנית"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp3.status_code == 200
+    assert "###UI_ACTION###" in resp3.text
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp3.text
+
+    start = resp3.text.find("###UI_ACTION###")
+    end = resp3.text.find("###END_UI_ACTION###")
+    ui_payload = json.loads(resp3.text[start + len("###UI_ACTION###") : end])
+    actions = ui_payload.get("actions")
+    approval = actions[0]
+    assert approval.get("tool_name") == "TRANSFORM_FUNDS_TO_ASSETS"
+    assert approval.get("arguments", {}).get("ignore_blocked_balances") is True
+
 
 def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approval(monkeypatch, _test_db) -> None:
     Session = _test_db["Session"]
@@ -468,6 +576,25 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
     client_id = 950000005
 
     with Session() as db:
+        try:
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(synchronize_session=False)
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(synchronize_session=False)
+            db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+                Scenario.scenario_name.in_(
+                    {
+                        "pending_pre_retirement_plan_resolution",
+                        "ignore_blocked_balances_decision",
+                        "pending_approval",
+                    }
+                )
+            ).delete(synchronize_session=False)
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         client = db.query(Client).filter(Client.id == client_id).first()
         if client is None:
             client = Client(
@@ -514,7 +641,6 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
     def fake_build_target_pension_plan(
         self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
     ):
-        assert float(target_monthly_pension) == 5000.0
         assert target_is_net is True
         return {
             "success": True,
@@ -522,6 +648,33 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
             "result": {
                 "target_monthly_pension": float(target_monthly_pension),
                 "target_is_net": bool(target_is_net),
+                "sources_used": [
+                    {
+                        "source_type": "pension_fund_from_portfolio",
+                        "account_number": "C1",
+                        "component_field": "תגמולים",
+                        "balance_used": 1000.0,
+                        "pension_used": 5.0,
+                        "annuity_factor": 200.0,
+                        "fund_type": "קופת גמל",
+                        "company": "X",
+                        "plan_name": "Fund C",
+                        "start_date": "2005-01-01",
+                    }
+                ],
+                "execution_plan": {
+                    "accounts": [
+                        {
+                            "account_name": "Fund C",
+                            "product_type": "קופת גמל",
+                            "company": "X",
+                            "account_number": "C1",
+                            "start_date": "2005-01-01",
+                            "specific_amounts": {"תגמולים": 1000.0},
+                            "component_conversion_overrides": {"תגמולים": "pension"},
+                        }
+                    ]
+                },
             },
             "explanation": "OK",
         }
@@ -611,9 +764,23 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
         },
     )
     assert resp1.status_code == 200
-    assert "האם לכלול אותן בתכנון" in resp1.text
-    assert tool_calls == []
+    assert "האם לכלול" not in resp1.text
+    assert tool_calls == ["BUILD_TARGET_PENSION_PLAN"]
 
+    # Execute should ask blocked balances.
+    resp_exec = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בצע את התכנית"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp_exec.status_code == 200
+    assert "האם לכלול" in resp_exec.text
+    assert "###UI_ACTION###" not in resp_exec.text
+
+    # Answer yes -> no auto tool execution.
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -623,12 +790,24 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
         },
     )
     assert resp2.status_code == 200
-    assert "###UI_ACTION###" in resp2.text
-    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp2.text
+    assert "###UI_ACTION###" not in resp2.text
 
-    start = resp2.text.find("###UI_ACTION###")
-    end = resp2.text.find("###END_UI_ACTION###")
-    ui_payload = json.loads(resp2.text[start + len("###UI_ACTION###") : end])
+    # Execute again -> should now generate approval_request.
+    resp2b = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בצע את התכנית"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp2b.status_code == 200
+    assert "###UI_ACTION###" in resp2b.text
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp2b.text
+
+    start = resp2b.text.find("###UI_ACTION###")
+    end = resp2b.text.find("###END_UI_ACTION###")
+    ui_payload = json.loads(resp2b.text[start + len("###UI_ACTION###") : end])
     actions = ui_payload.get("actions")
     approval = actions[0]
     assert approval.get("tool_name") == "TRANSFORM_FUNDS_TO_ASSETS"
@@ -654,8 +833,8 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
     )
     assert resp3.status_code == 200
     assert "TRANSFORM_FUNDS_TO_ASSETS" in resp3.text
-    assert "בניית תכנית קצבה" in resp3.text
-    assert tool_calls == ["TRANSFORM_FUNDS_TO_ASSETS", "BUILD_TARGET_PENSION_PLAN"]
+    assert "בניית תכנית קצבה" not in resp3.text
+    assert tool_calls == ["BUILD_TARGET_PENSION_PLAN", "TRANSFORM_FUNDS_TO_ASSETS"]
 
     with Session() as db:
         pending_after = (

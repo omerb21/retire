@@ -1,12 +1,6 @@
 import json
 
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.llm_chat.chat_orchestration_helpers import (
-    build_approval_request_ui_action,
-    store_pending_approval_request,
-)
-from app.services.llm_chat.orchestration_utils import build_transform_accounts_from_portfolio
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
 
 def _has_positive_component_amounts(raw: object) -> bool:
@@ -116,49 +110,30 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
         except Exception:
             err_msg = None
         if isinstance(err_msg, str) and ("לא נמצאו מקורות קצבה" in err_msg):
-            portfolio_models = None
+            summary = (
+                "אין מספיק מקורות ניתנים לביצוע כדי לבנות תכנית מלאה. "
+                "אפשר לבצע המרה לנכסים רק אם תבקש לבצע את התכנית.\n"
+                + version_tag
+            )
             try:
-                portfolio_models = load_latest_pension_portfolio_snapshot_models(
-                    agent_tools.db,
-                    agent_tools.client_id,
-                )
-            except Exception:
-                portfolio_models = None
-
-            portfolio = None
-            if isinstance(portfolio_models, tuple) and len(portfolio_models) >= 1:
-                portfolio = portfolio_models[0]
-            accounts = build_transform_accounts_from_portfolio(portfolio)
-            if accounts:
-                transform_args = {
-                    "accounts": accounts,
-                    "use_provided_accounts_only": True,
-                    "ignore_blocked_balances": True,
-                    "skip_non_convertible_accounts": True,
-                    "_after_build_target_pension_plan_args": {
+                payload = {
+                    "tool_name": "BUILD_TARGET_PENSION_PLAN",
+                    "args": {
                         "target_monthly_pension": target_val,
                         "target_is_net": target_is_net_val,
                         "retirement_age": retirement_age_val,
+                        "ignore_blocked_balances": ignore_blocked_balances_val,
                     },
+                    "result": result.get("result") if isinstance(result.get("result"), dict) else {},
                 }
-                if _accounts_are_thin(transform_args.get("accounts")):
-                    transform_args["use_provided_accounts_only"] = False
-                try:
-                    store_pending_approval_request(
-                        db=agent_tools.db,
-                        client_id=agent_tools.client_id,
-                        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                        tool_args=transform_args,
-                    )
-                except Exception:
-                    pass
-                return build_approval_request_ui_action(
-                    tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                    tool_args=transform_args,
-                    reason="נדרש אישור כדי להמיר את התיק לנכסים לפני בניית תכנית יעד",
-                    risk_level="high",
-                    rag_sources=None,
+                summary += (
+                    "\n\n###TARGET_PENSION_PLAN_DATA###\n"
+                    + json.dumps(payload, ensure_ascii=False)
+                    + "\n###END_TARGET_PENSION_PLAN_DATA###"
                 )
+            except Exception:
+                pass
+            return summary
         if err_msg is None:
             try:
                 err_msg = str(result.get("error") or "").strip() or None

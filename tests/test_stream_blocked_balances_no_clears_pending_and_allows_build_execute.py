@@ -109,7 +109,7 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
 
     api = TestClient(app)
 
-    # 1) build -> should ask blocked balances
+    # 1) build -> must NOT ask blocked balances (blocked balances are an execute-only prompt)
     resp1 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -119,10 +119,31 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
         },
     )
     assert resp1.status_code == 200
-    assert "האם לכלול" in resp1.text
+    assert "האם לכלול" not in resp1.text
 
-    # 2) answer no with punctuation -> must clear pending + persist decision + build plan
+    with Session() as db:
+        ssot_before = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "target_pension_plan")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+
+    # 2) execute -> should ask blocked-balances question (execute-only prompt)
     resp2 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בצע תכנית בפועל"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp2.status_code == 200
+    assert "האם לכלול" in resp2.text
+
+    # 3) answer no with punctuation -> must clear pending + persist decision (no auto build)
+    resp3 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
@@ -130,8 +151,9 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             "pension_portfolio": [],
         },
     )
-    assert resp2.status_code == 200
-    assert "בניית תכנית קצבה" in resp2.text
+    assert resp3.status_code == 200
+    assert "בניית תכנית קצבה" not in resp3.text
+    assert "לא נכלול יתרות חסומות" in resp3.text
 
     with Session() as db:
         pending = (
@@ -158,14 +180,13 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             .order_by(Scenario.created_at.desc())
             .first()
         )
-        assert ssot is not None
-        payload = json.loads(ssot.parameters)
-        exec_plan = payload.get("result", {}).get("execution_plan", {})
-        assert isinstance(exec_plan.get("accounts"), list)
-        assert len(exec_plan.get("accounts")) > 0
+        # Decision should not automatically create/overwrite SSOT.
+        if ssot_before is not None:
+            assert ssot is not None
+            assert getattr(ssot, "id", None) == getattr(ssot_before, "id", None)
 
-    # 3) build again -> must NOT ask again
-    resp3 = api.post(
+    # 4) build again -> must NOT ask (and should build normally)
+    resp4 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
@@ -173,11 +194,11 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             "pension_portfolio": [],
         },
     )
-    assert resp3.status_code == 200
-    assert "האם לכלול" not in resp3.text
+    assert resp4.status_code == 200
+    assert "האם לכלול" not in resp4.text
 
-    # 4) execute -> must return UI action (approval request) and not the failure text
-    resp4 = api.post(
+    # 5) execute -> must return UI action (approval request)
+    resp5 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
@@ -185,6 +206,6 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             "pension_portfolio": [],
         },
     )
-    assert resp4.status_code == 200
-    assert "###UI_ACTION###" in resp4.text
-    assert "לא הצלחתי לגזור" not in resp4.text
+    assert resp5.status_code == 200
+    assert "###UI_ACTION###" in resp5.text
+    assert "לא הצלחתי לגזור" not in resp5.text

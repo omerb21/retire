@@ -129,99 +129,22 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         except Exception:
             pass
         try:
-            _store_ignore_blocked_balances_decision(db=db, client_id=request.client_id)
+            _store_ignore_blocked_balances_decision(
+                db=db,
+                client_id=request.client_id,
+                ignore_blocked_balances=True,
+                decision="no",
+            )
         except Exception:
             pass
-        existing_income_offset = compute_existing_income_offset_monthly(
-            db=db,
-            client_id=request.client_id,
-            target_is_net=bool(target_is_net_val),
-        )
-        eff_target = max(float(requested_target) - float(existing_income_offset), 0.0)
-        if eff_target <= 0:
-            return StreamingResponse(
-                iter(["היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"]),
-                media_type="text/plain; charset=utf-8",
-            )
-
-        plan_args = {
-            "target_monthly_pension": float(eff_target),
-            "target_is_net": bool(target_is_net_val),
-            "ignore_blocked_balances": True,
-        }
-        if retirement_age_int is not None:
-            plan_args["retirement_age"] = int(retirement_age_int)
-
-        def _run_plan_after_no(req_id: str):
-            portfolio_for_plan = effective_portfolio
-            if (
-                (not isinstance(portfolio_for_plan, list) or not portfolio_for_plan)
-                and request.client_id is not None
-            ):
-                try:
-                    loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
-                    if loaded is not None:
-                        portfolio_for_plan, _snapshot_at = loaded
-                except Exception:
-                    portfolio_for_plan = effective_portfolio
-
-            plan_result = execute_tool_call(
-                "BUILD_TARGET_PENSION_PLAN",
-                plan_args,
-                request.client_id,
-                db,
-                pension_portfolio=portfolio_for_plan,
-                force_max_exemption=False,
-                user_approved=True,
-                request_id=req_id,
-            )
-
-            stored_data_ok = False
-            try:
-                stored_data_ok = bool(
-                    store_latest_target_pension_plan_data(
-                        db=db,
-                        client_id=request.client_id,
-                        tool_result=plan_result,
-                    )
-                )
-            except Exception:
-                stored_data_ok = False
-
-            try:
-                store_latest_target_pension_plan(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_result=plan_result,
-                )
-            except Exception:
-                pass
-
-            if stored_data_ok:
-                try:
-                    clear_pending_plan_target_marker(db=db, client_id=request.client_id)
-                except Exception:
-                    pass
-                try:
-                    clear_pending_approval_request(db=db, client_id=request.client_id)
-                except Exception:
-                    pass
-
-            try:
-                tool_result_text = (
-                    plan_result
-                    if isinstance(plan_result, str)
-                    else json.dumps(plan_result, ensure_ascii=False)
-                )
-            except Exception:
-                tool_result_text = str(plan_result)
-            yield sanitize_user_visible_text(
-                "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", tool_result_text)
-            )
-
         return StreamingResponse(
-            _run_plan_after_no(stream_request_id),
+            iter(
+                [
+                    "קיבלתי – לא נכלול יתרות חסומות.\n"
+                    "כדי לבנות תכנית יעד (ללא ביצוע), בקש שוב: 'בנה תכנית יעד ...'.\n"
+                    "כדי לבצע בפועל, בקש: 'בצע את התכנית'."
+                ]
+            ),
             media_type="text/plain; charset=utf-8",
         )
 
@@ -229,39 +152,24 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         clear_pending_pre_retirement_plan_resolution(db=db, client_id=request.client_id)
     except Exception:
         pass
-    accounts = build_transform_accounts_from_portfolio(effective_portfolio)
-    if not accounts:
-        return StreamingResponse(
-            iter(["לא הצלחתי לבנות רשימת חשבונות להמרה מתוך הסנאפשוט."]),
-            media_type="text/plain; charset=utf-8",
-        )
 
-    transform_args = {
-        "accounts": accounts,
-        "use_provided_accounts_only": True,
-        "ignore_blocked_balances": False,
-        "skip_non_convertible_accounts": True,
-        "_after_build_target_pension_plan_args": {
-            "target_monthly_pension": float(requested_target),
-            "target_is_net": bool(target_is_net_val),
-            "retirement_age": retirement_age_int,
-            "_pre_retirement_plan_resolution": True,
-        },
-    }
     try:
-        store_pending_approval_request(
+        _store_ignore_blocked_balances_decision(
             db=db,
             client_id=request.client_id,
-            tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-            tool_args=transform_args,
+            ignore_blocked_balances=False,
+            decision="yes",
         )
     except Exception:
         pass
-    ui_action = build_approval_request_ui_action(
-        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-        tool_args=transform_args,
-        reason="נדרש אישור לפני המרה כדי לכלול יתרות חסומות בתכנון",
-        risk_level="high",
-        rag_sources=None,
+
+    return StreamingResponse(
+        iter(
+            [
+                "קיבלתי – נכלול יתרות חסומות לחישוב תיאורטי.\n"
+                "כדי לבצע פעולה תפעולית (המרה לנכסים) נדרש אישור, והוא נוצר רק כשתבקש לבצע.\n"
+                "כתוב: 'בצע את התכנית'."
+            ]
+        ),
+        media_type="text/plain; charset=utf-8",
     )
-    return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")

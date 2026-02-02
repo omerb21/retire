@@ -133,7 +133,36 @@ def _load_ignore_blocked_balances_decision(*, db: Session, client_id: int) -> bo
     return bool(raw) is True
 
 
-def _store_ignore_blocked_balances_decision(*, db: Session, client_id: int) -> None:
+def _load_blocked_balances_decision(*, db: Session, client_id: int) -> bool | None:
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO)
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        parsed = None
+    if not isinstance(parsed, dict):
+        return None
+    if "ignore_blocked_balances" not in parsed:
+        return None
+    try:
+        return bool(parsed.get("ignore_blocked_balances"))
+    except Exception:
+        return None
+
+
+def _store_ignore_blocked_balances_decision(
+    *, db: Session, client_id: int, ignore_blocked_balances: bool = True, decision: str = "no"
+) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO
@@ -153,7 +182,7 @@ def _store_ignore_blocked_balances_decision(*, db: Session, client_id: int) -> N
             apply_capitalization=False,
             apply_exemption_shield=False,
             parameters=json.dumps(
-                {"decision": "no", "ignore_blocked_balances": True},
+                {"decision": str(decision), "ignore_blocked_balances": bool(ignore_blocked_balances)},
                 ensure_ascii=False,
             ),
         )
@@ -228,14 +257,14 @@ def _pre_retirement_plan_resolution(
     # If the DB already contains any pensions/assets, planning must use the current DB state.
     # In that case, snapshot blocked balances are irrelevant and must not gate the plan flow.
     has_blocked = False
+    blocked_decision = None
     if not has_db_state_sources:
-        ignore_blocked = False
         try:
-            ignore_blocked = _load_ignore_blocked_balances_decision(db=db, client_id=client_id)
+            blocked_decision = _load_blocked_balances_decision(db=db, client_id=client_id)
         except Exception:
-            ignore_blocked = False
+            blocked_decision = None
 
-        if not ignore_blocked:
+        if blocked_decision is None:
             has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
 
     if has_blocked:
@@ -250,12 +279,16 @@ def _pre_retirement_plan_resolution(
             "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא",
         )
 
+    ignore_blocked_balances_val = True
+    if blocked_decision is not None:
+        ignore_blocked_balances_val = bool(blocked_decision)
+
     return (
         "proceed",
         {
             "target_monthly_pension": float(eff_target),
             "target_is_net": bool(target_is_net),
             "retirement_age": int(retirement_age) if retirement_age is not None else None,
-            "ignore_blocked_balances": True,
+            "ignore_blocked_balances": bool(ignore_blocked_balances_val),
         },
     )

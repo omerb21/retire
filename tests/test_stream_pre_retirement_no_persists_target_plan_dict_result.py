@@ -64,6 +64,32 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
                 parameters=json.dumps({"tool_name": "X", "arguments": {}}, ensure_ascii=False),
             )
         )
+
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps(
+                    {
+                        "pension_portfolio": [
+                            {
+                                "מספר_חשבון": "B1",
+                                "שם_תכנית": "Fund B",
+                                "חברה_מנהלת": "X",
+                                "סוג_מוצר": "קופת גמל",
+                                "יתרה": 100000,
+                                "תאריך_התחלה": "2005-01-01",
+                                "פיצויים_שלא_עברו_התחשבנות": 1,
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
@@ -106,16 +132,18 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
 
     api = TestClient(app)
 
+    # 1) execute -> should ask blocked balances question (execute-only)
     resp1 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
-            "pension_portfolio": [{"פיצויים_מעסיק_נוכחי": 1}],
+            "messages": [{"role": "user", "content": "בצע תכנית בפועל"}],
+            "pension_portfolio": [],
         },
     )
     assert resp1.status_code == 200
     assert not tool_calls
+    assert "האם לכלול" in resp1.text
 
     with Session() as db:
         pending_row = (
@@ -126,15 +154,6 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
             .first()
         )
         assert pending_row is not None
-
-        tpd_before = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "target_pension_plan_data")
-            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
-            .first()
-        )
-        tpd_before_id = int(getattr(tpd_before, "id", 0) or 0) if tpd_before is not None else 0
 
         pending_plan_target_count_before = (
             db.query(Scenario)
@@ -152,45 +171,28 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
         )
         assert pending_approval_count_before == 1
 
+    # 2) answer no -> must clear pending + persist decision; must NOT execute tools
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
             "messages": [{"role": "user", "content": "לא"}],
-            "pension_portfolio": [{"פיצויים_מעסיק_נוכחי": 1}],
+            "pension_portfolio": [],
         },
     )
     assert resp2.status_code == 200
-    assert tool_calls and tool_calls[0][0] == "BUILD_TARGET_PENSION_PLAN"
+    assert not tool_calls
+    assert "לא נכלול יתרות חסומות" in resp2.text
 
     with Session() as db:
-        tpd_after = (
+        decision_row = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "target_pension_plan_data")
+            .filter(Scenario.scenario_name == "ignore_blocked_balances_decision")
             .order_by(Scenario.created_at.desc(), Scenario.id.desc())
             .first()
         )
-        assert tpd_after is not None
-        assert int(getattr(tpd_after, "id", 0) or 0) > 0
-
-        if tpd_before_id > 0:
-            assert int(getattr(tpd_after, "id", 0) or 0) != tpd_before_id
-
-        stored = json.loads(tpd_after.parameters)
-        res = stored.get("result") if isinstance(stored.get("result"), dict) else {}
-        exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else {}
-        accounts = exec_plan.get("accounts") if isinstance(exec_plan.get("accounts"), list) else []
-        assert accounts
-
-        plan_row = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "target_pension_plan")
-            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
-            .first()
-        )
-        assert plan_row is not None
+        assert decision_row is not None
 
         pending_plan_target_count_after = (
             db.query(Scenario)
@@ -198,7 +200,7 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
             .filter(Scenario.scenario_name == "pending_plan_target")
             .count()
         )
-        assert pending_plan_target_count_after == 0
+        assert pending_plan_target_count_after == 1
 
         pending_approval_count_after = (
             db.query(Scenario)
@@ -206,7 +208,7 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
             .filter(Scenario.scenario_name == "pending_approval")
             .count()
         )
-        assert pending_approval_count_after == 0
+        assert pending_approval_count_after == 1
 
         pending_pre_retirement_count_after = (
             db.query(Scenario)

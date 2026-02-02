@@ -100,29 +100,12 @@ def _maybe_handle_plan_phrase_flow(
                 yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
                 return
 
-            step, out = pre_retirement_plan_resolution(
-                db=db,
-                client_id=client_id,
-                requested_target=float(requested_target),
-                target_is_net=True,
-                retirement_age=int(inferred_age) if inferred_age is not None else None,
-                effective_portfolio=effective_portfolio,
-            )
-            if step == "done_text":
-                yield str(out)
-                return
-            if step == "ask_blocked":
-                yield str(out)
-                return
-
-            tool_args = (
-                out
-                if isinstance(out, dict)
-                else {
-                    "target_monthly_pension": float(requested_target),
-                    "target_is_net": True,
-                }
-            )
+            tool_args = {
+                "target_monthly_pension": float(effective_target),
+                "target_is_net": True,
+            }
+            if inferred_age is not None:
+                tool_args["retirement_age"] = int(inferred_age)
             tool_result = execute_tool_call(
                 tool_name,
                 tool_args,

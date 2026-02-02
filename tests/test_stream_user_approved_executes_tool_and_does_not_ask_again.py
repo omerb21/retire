@@ -4,9 +4,13 @@ from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
+from app.models.client import Client
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 
-def test_stream_user_approved_executes_tool_and_does_not_ask_again(monkeypatch) -> None:
+def test_stream_user_approved_executes_tool_and_does_not_ask_again(monkeypatch, _test_db) -> None:
+    Session = _test_db["Session"]
+
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called when user approval marker is present")
 
@@ -33,24 +37,41 @@ def test_stream_user_approved_executes_tool_and_does_not_ask_again(monkeypatch) 
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
+    client_id = 1
+    approved_args = {"accounts": [], "use_provided_accounts_only": True}
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None:
+            client = Client(id=client_id, id_number_raw="1", id_number="1", full_name="Test User")
+            db.add(client)
+            db.flush()
+        store_ok = store_pending_approval_ui_action(
+            db=db,
+            client_id=client_id,
+            request_kind="execute_target_plan",
+            tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+            tool_args=approved_args,
+            ui_action="dummy",
+        )
+        assert store_ok is True
+        db.commit()
+
     api = TestClient(app)
     response = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
-            "client_id": 1,
+            "client_id": client_id,
             "messages": [
                 {
                     "role": "user",
-                    "content": '###USER_APPROVED### {"tool_name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": [], "use_provided_accounts_only": true}}',
+                    "content": f"###USER_APPROVED### {json.dumps({'tool_name': 'TRANSFORM_FUNDS_TO_ASSETS', 'arguments': approved_args}, ensure_ascii=False)}",
                 }
             ],
         },
     )
 
     assert response.status_code == 200
-    assert tool_calls == [
-        ("TRANSFORM_FUNDS_TO_ASSETS", {"accounts": [], "use_provided_accounts_only": True})
-    ]
+    assert tool_calls == [("TRANSFORM_FUNDS_TO_ASSETS", approved_args)]
 
     body = response.text
     assert "נדרש אישור" not in body

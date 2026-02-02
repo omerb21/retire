@@ -60,18 +60,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
 
-    phase = {"after_transform": False}
-
     def fake_build_target_pension_plan(
         self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
     ):
-        if not phase["after_transform"]:
-            return {
-                "success": False,
-                "tool_name": "BUILD_TARGET_PENSION_PLAN",
-                "result": {},
-                "explanation": "לא נמצאו מקורות קצבה (קרנות פנסיה או נכסי הון) ללקוח.",
-            }
         return {
             "success": True,
             "tool_name": "BUILD_TARGET_PENSION_PLAN",
@@ -84,6 +75,25 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
                 "estimated_monthly_tax": 0,
                 "estimated_monthly_net": 40000,
                 "remaining_capital": 0,
+                "sources_used": [
+                    {
+                        "source_type": "pension_fund_from_portfolio",
+                        "account_number": "A1",
+                        "component_field": "תגמולים",
+                        "balance_used": 1000,
+                        "pension_used": 10,
+                    }
+                ],
+                "execution_plan": {
+                    "accounts": [
+                        {
+                            "account_id": "A1",
+                            "component": "תגמולים",
+                            "amount_to_convert": 1000,
+                            "expected_monthly_pension": 10,
+                        }
+                    ]
+                },
             },
             "explanation": "OK",
         }
@@ -113,7 +123,6 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
             assert args.get("use_provided_accounts_only") is True
             assert args.get("ignore_blocked_balances") is True
             assert args.get("skip_non_convertible_accounts") is True
-            phase["after_transform"] = True
             return json.dumps(
                 {
                     "success": True,
@@ -152,8 +161,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
         },
     )
     assert resp1.status_code == 200
-    assert "###UI_ACTION###" in resp1.text
-    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp1.text
+    assert "###UI_ACTION###" not in resp1.text
+    assert "approval_request" not in resp1.text
+    assert "TRANSFORM_FUNDS_TO_ASSETS" not in resp1.text
     assert "Tool Error" not in resp1.text
 
     with Session() as db:
@@ -164,9 +174,25 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
             .order_by(Scenario.created_at.desc())
             .first()
         )
-        assert pending is not None
+        assert pending is None
 
     resp2 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [
+                {"role": "user", "content": "בצע את התכנית"},
+            ],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.text
+    assert "###UI_ACTION###" in body2
+    assert "approval_request" in body2
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in body2
+
+    resp3 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
@@ -177,13 +203,12 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
         },
     )
 
-    assert resp2.status_code == 200
-    body2 = resp2.text
-    assert "🔧" in body2
-    assert "TRANSFORM_FUNDS_TO_ASSETS" in body2
-    assert "בניית תכנית קצבה" in body2
-    assert "לא נמצאו מקורות קצבה" not in body2
-    assert tool_calls == ["BUILD_TARGET_PENSION_PLAN", "TRANSFORM_FUNDS_TO_ASSETS", "BUILD_TARGET_PENSION_PLAN"]
+    assert resp3.status_code == 200
+    body3 = resp3.text
+    assert "🔧" in body3
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in body3
+    assert "בניית תכנית קצבה" not in body3
+    assert tool_calls == ["BUILD_TARGET_PENSION_PLAN", "TRANSFORM_FUNDS_TO_ASSETS"]
 
     with Session() as db:
         pending_after = (

@@ -84,27 +84,11 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
     assert resp.status_code == 200
     body = resp.text
     assert "Tool Error" not in body
-    assert "###UI_ACTION###" in body
-    assert "approval_request" in body
-    assert "TRANSFORM_FUNDS_TO_ASSETS" in body
-
-    start = body.find("###UI_ACTION###")
-    end = body.find("###END_UI_ACTION###")
-    assert start >= 0
-    assert end > start
-    ui_payload = json.loads(body[start + len("###UI_ACTION###") : end])
-    assert ui_payload.get("type") == "ui_actions"
-    actions = ui_payload.get("actions")
-    assert isinstance(actions, list) and actions
-    approval = actions[0]
-    assert approval.get("type") == "approval_request"
-    assert approval.get("tool_name") == "TRANSFORM_FUNDS_TO_ASSETS"
-    args = approval.get("arguments")
-    assert isinstance(args, dict)
-    assert isinstance(args.get("accounts"), list) and len(args.get("accounts")) > 0
-    assert args.get("use_provided_accounts_only") is True
-    assert args.get("ignore_blocked_balances") is True
-    assert args.get("skip_non_convertible_accounts") is True
+    assert "###UI_ACTION###" not in body
+    assert "approval_request" not in body
+    assert "TRANSFORM_FUNDS_TO_ASSETS" not in body
+    assert "אין מספיק מקורות" in body
+    assert "אפשר לבצע המרה לנכסים" in body
 
     with Session() as db:
         pending = (
@@ -114,13 +98,4 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
             .order_by(Scenario.created_at.desc())
             .first()
         )
-        assert pending is not None
-        pending_payload = json.loads(pending.parameters)
-        assert pending_payload.get("tool_name") == "TRANSFORM_FUNDS_TO_ASSETS"
-        pending_args = pending_payload.get("arguments")
-        assert isinstance(pending_args, dict)
-        assert isinstance(pending_args.get("accounts"), list) and len(pending_args.get("accounts")) > 0
-        resume = pending_args.get("_after_build_target_pension_plan_args")
-        assert isinstance(resume, dict) and resume
-        assert resume.get("target_monthly_pension") is not None
-        assert resume.get("target_is_net") is True
+        assert pending is None

@@ -4,9 +4,13 @@ from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
+from app.models.client import Client
+from app.models.scenario import Scenario
 
 
-def test_stream_user_approved_system_snapshot_returns_structured_payload(monkeypatch) -> None:
+def test_stream_user_approved_system_snapshot_returns_structured_payload(monkeypatch, _test_db) -> None:
+    Session = _test_db["Session"]
+
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for user-approved GET_SYSTEM_STATE_SNAPSHOT")
 
@@ -45,6 +49,27 @@ def test_stream_user_approved_system_snapshot_returns_structured_payload(monkeyp
         )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == 1).first()
+        if client is None:
+            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            db.add(client)
+            db.flush()
+        db.add(
+            Scenario(
+                client_id=1,
+                scenario_name="pending_approval",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps(
+                    {"tool_name": "GET_SYSTEM_STATE_SNAPSHOT", "arguments": {}},
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        db.commit()
 
     api = TestClient(app)
     response = api.post(

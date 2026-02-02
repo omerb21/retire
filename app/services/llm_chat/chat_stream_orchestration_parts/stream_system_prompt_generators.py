@@ -445,25 +445,6 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
         return
 
-    ignore_blocked = False
-    try:
-        ignore_blocked = _load_ignore_blocked_balances_decision(db=db, client_id=request.client_id)
-    except Exception:
-        ignore_blocked = False
-
-    if (not ignore_blocked) and _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_plan):
-        _store_pending_pre_retirement_plan_resolution(
-            db=db,
-            client_id=request.client_id,
-            payload={
-                "requested_target": float(target_val),
-                "target_is_net": bool(explicit_is_net),
-                "retirement_age": None,
-            },
-        )
-        yield "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא"
-        return
-
     plan_args["target_monthly_pension"] = float(effective_target)
     plan_result = _execute_tool_call(
         "BUILD_TARGET_PENSION_PLAN",

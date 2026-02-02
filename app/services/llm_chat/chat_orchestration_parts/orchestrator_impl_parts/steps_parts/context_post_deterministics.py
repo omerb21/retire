@@ -80,6 +80,8 @@ def _handle_post_deterministics_and_finalize(
         is_cashflow_missing_income_followup,
         is_no_termination_request,
     )
+    from app.models.capital_asset import CapitalAsset
+    from app.models.pension_fund import PensionFund
 
     forced_termination_result: str | None = None
 
@@ -199,6 +201,12 @@ def _handle_post_deterministics_and_finalize(
         and (wants_execute_target_plan or wants_fixation_execute)
     ):
         if wants_execute_target_plan:
+            from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_pre_retirement_plan_resolution import (
+                _detect_blocked_balances_in_snapshot,
+                _load_blocked_balances_decision,
+                _store_pending_pre_retirement_plan_resolution,
+            )
+
             payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
             payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
 
@@ -267,6 +275,78 @@ def _handle_post_deterministics_and_finalize(
                 result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
             )
 
+            has_db_state_sources = False
+            try:
+                has_db_state_sources = bool(
+                    db.query(PensionFund).filter(PensionFund.client_id == request.client_id).count() > 0
+                ) or bool(
+                    db.query(CapitalAsset).filter(CapitalAsset.client_id == request.client_id).count() > 0
+                )
+            except Exception:
+                has_db_state_sources = False
+
+            blocked_decision = None
+            if not has_db_state_sources:
+                try:
+                    blocked_decision = _load_blocked_balances_decision(
+                        db=db,
+                        client_id=request.client_id,
+                    )
+                except Exception:
+                    blocked_decision = None
+
+            if (not has_db_state_sources) and blocked_decision is None:
+                has_blocked = False
+                portfolio_for_blocked_check = effective_portfolio
+                if (not isinstance(portfolio_for_blocked_check, list)) or (not portfolio_for_blocked_check):
+                    try:
+                        from app.services.pension_portfolio.snapshot_loader import (
+                            load_latest_pension_portfolio_snapshot,
+                        )
+
+                        loaded = load_latest_pension_portfolio_snapshot(db=db, client_id=request.client_id)
+                        if loaded is not None:
+                            portfolio_for_blocked_check, _effective_snapshot_at = loaded
+                    except Exception:
+                        portfolio_for_blocked_check = effective_portfolio
+                try:
+                    has_blocked = _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_blocked_check)
+                except Exception:
+                    has_blocked = False
+                if has_blocked:
+                    try:
+                        args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                        requested_target = float(args_payload.get("target_monthly_pension") or 0)
+                        target_is_net = bool(args_payload.get("target_is_net", True))
+                        retirement_age = args_payload.get("retirement_age")
+                    except Exception:
+                        requested_target = 0.0
+                        target_is_net = True
+                        retirement_age = None
+                    try:
+                        _store_pending_pre_retirement_plan_resolution(
+                            db=db,
+                            client_id=request.client_id,
+                            payload={
+                                "requested_target": float(requested_target),
+                                "target_is_net": bool(target_is_net),
+                                "retirement_age": retirement_age,
+                                "source": "execute_target_plan",
+                            },
+                        )
+                    except Exception:
+                        pass
+                    return ChatResponse(
+                        reply=(
+                            "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\n"
+                            "האם לכלול אותן בתכנון?\n\n"
+                            "אפשרויות:\n"
+                            "כן\n"
+                            "לא"
+                        ),
+                        computed_data=computed_data,
+                    )
+
             ignore_blocked_balances_val = True
             try:
                 args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
@@ -275,6 +355,9 @@ def _handle_post_deterministics_and_finalize(
                     ignore_blocked_balances_val = bool(raw_ignore)
             except Exception:
                 ignore_blocked_balances_val = True
+
+            if blocked_decision is not None:
+                ignore_blocked_balances_val = bool(blocked_decision)
 
             transform_args: dict[str, Any] = {
                 "use_provided_accounts_only": True,

@@ -2,6 +2,8 @@ import json
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.guards.tool_execution_guard import can_execute_tool
+
 from app.services.llm_chat.chat_orchestration_helpers import (
     clear_pending_approval_request,
     load_pending_approval_request,
@@ -64,25 +66,6 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
 
     approved_tool, approved_args = approved
 
-    allow_without_pending_tools = {"TRANSFORM_FUNDS_TO_ASSETS", "GET_SYSTEM_STATE_SNAPSHOT"}
-
-    def _is_valid_allowlisted_payload(*, tool_name: str, tool_args: dict) -> bool:
-        if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
-            return isinstance(tool_args, dict)
-        if tool_name != "TRANSFORM_FUNDS_TO_ASSETS":
-            return False
-        if not isinstance(tool_args, dict):
-            return False
-        accounts = tool_args.get("accounts")
-        if "accounts" in tool_args and isinstance(accounts, list):
-            return True
-        execution_plan = tool_args.get("execution_plan")
-        if isinstance(execution_plan, dict):
-            plan_accounts = execution_plan.get("accounts")
-            if isinstance(plan_accounts, list) and plan_accounts:
-                return True
-        return False
-
     def _args_conflict(pending_args: dict, approved_args_in: dict) -> bool:
         try:
             for k, v in (approved_args_in or {}).items():
@@ -127,6 +110,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                     iter(_approval_refusal_lines()),
                     media_type="text/plain; charset=utf-8",
                 )
+
             merged_args = dict(pending_args)
             merged_args.update(dict(approved_args))
             merged_hash = compute_args_hash(merged_args)
@@ -135,12 +119,8 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                     iter(_approval_refusal_lines()),
                     media_type="text/plain; charset=utf-8",
                 )
+
             has_valid_pending_match = True
-        elif approved_tool in allow_without_pending_tools and _is_valid_allowlisted_payload(
-            tool_name=approved_tool, tool_args=approved_args
-        ):
-            has_valid_pending_match = False
-            merged_args = dict(approved_args)
         else:
             return StreamingResponse(
                 iter(_approval_refusal_lines()),
@@ -167,28 +147,36 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                     media_type="text/plain; charset=utf-8",
                 )
             if _args_conflict(pending_tool_args, approved_args):
-                merged_args = dict(pending_tool_args)
-                has_valid_pending_match = True
-                using_open_approval = True
+                return StreamingResponse(
+                    iter(_approval_refusal_lines()),
+                    media_type="text/plain; charset=utf-8",
+                )
             else:
                 merged_args = dict(pending_tool_args)
                 merged_args.update(dict(approved_args))
                 if compute_args_hash(merged_args) != compute_args_hash(pending_tool_args):
-                    merged_args = dict(pending_tool_args)
-                    has_valid_pending_match = True
-                    using_open_approval = True
+                    return StreamingResponse(
+                        iter(_approval_refusal_lines()),
+                        media_type="text/plain; charset=utf-8",
+                    )
                 else:
                     has_valid_pending_match = True
-        elif approved_tool in allow_without_pending_tools and _is_valid_allowlisted_payload(
-            tool_name=approved_tool, tool_args=approved_args
-        ):
-            has_valid_pending_match = False
-            merged_args = dict(approved_args)
         else:
             return StreamingResponse(
                 iter(_approval_refusal_lines()),
                 media_type="text/plain; charset=utf-8",
             )
+
+    if not can_execute_tool(
+        tool_name=approved_tool,
+        request_kind=request_kind,
+        has_pending_approval=bool(has_valid_pending_match),
+        user_intent="approve",
+    ):
+        return StreamingResponse(
+            iter(_approval_refusal_lines()),
+            media_type="text/plain; charset=utf-8",
+        )
 
     if (not has_valid_pending_match) and was_approval_execution_recently_recorded(
         db=db,
