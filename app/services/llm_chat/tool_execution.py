@@ -109,6 +109,9 @@ from app.services.llm_chat.orchestration_utils import (
     validate_tool_call_protocol_for_execution,
 )
 from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    evaluate_blocked_balances_policy_for_build_target_plan,
+)
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -253,6 +256,44 @@ def execute_tool_call(
             risk_level="high",
             rag_sources=None,
         )
+
+    if tool_name == "BUILD_TARGET_PENSION_PLAN" and isinstance(args, dict):
+        policy_text = None
+        try:
+            policy_status, updated_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+                db=db,
+                client_id=int(client_id),
+                portfolio=pension_portfolio or [],
+                plan_args=args,
+            )
+            args = updated_args if isinstance(updated_args, dict) else args
+        except Exception:
+            policy_status = "proceed"
+
+        if policy_status == "ask_current_employer_termination":
+            return str(policy_text or "")
+
+        if policy_status == "needs_termination_approval" and not user_approved:
+            termination_args = {"confirmed": True}
+            try:
+                store_pending_approval_request(
+                    db=db,
+                    client_id=client_id,
+                    tool_name="PROCESS_TERMINATION",
+                    tool_args=termination_args,
+                )
+            except Exception:
+                pass
+            return build_approval_request_ui_action(
+                tool_name="PROCESS_TERMINATION",
+                tool_args=termination_args,
+                reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                risk_level="high",
+                rag_sources=None,
+            )
+
+        if isinstance(policy_text, str) and policy_text.strip():
+            args["_policy_notice_text"] = policy_text.strip()
 
     if tool_name == "RESTORE_SYSTEM_SNAPSHOT" and (not user_approved):
         try:

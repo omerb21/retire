@@ -2,6 +2,14 @@ import re
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+    store_pending_approval_request,
+)
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    evaluate_blocked_balances_policy_for_build_target_plan,
+)
+
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     apply_income_offset_to_target,
     compute_existing_income_offset_monthly,
@@ -106,6 +114,37 @@ def _maybe_handle_plan_phrase_flow(
             }
             if inferred_age is not None:
                 tool_args["retirement_age"] = int(inferred_age)
+
+            policy_status, tool_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+                db=db,
+                client_id=int(client_id),
+                portfolio=effective_portfolio,
+                plan_args=tool_args,
+            )
+            if isinstance(policy_text, str) and policy_text.strip():
+                yield policy_text.strip() + "\n\n"
+            if policy_status == "ask_current_employer_termination":
+                return
+            if policy_status == "needs_termination_approval":
+                termination_args = {"confirmed": True}
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=int(client_id),
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=termination_args,
+                    )
+                except Exception:
+                    pass
+                yield build_approval_request_ui_action(
+                    tool_name="PROCESS_TERMINATION",
+                    tool_args=termination_args,
+                    reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                    risk_level="high",
+                    rag_sources=None,
+                )
+                return
+
             tool_result = execute_tool_call(
                 tool_name,
                 tool_args,

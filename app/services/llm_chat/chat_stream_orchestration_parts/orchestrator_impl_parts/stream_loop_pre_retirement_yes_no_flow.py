@@ -5,6 +5,12 @@ from fastapi.responses import StreamingResponse
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_pre_retirement_plan_resolution import (
     _store_ignore_blocked_balances_decision,
  )
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    clear_pending_current_employer_severance_termination_question,
+    load_pending_current_employer_severance_termination_question,
+    store_current_employer_severance_execution_decision,
+    store_pending_build_target_plan_after_termination,
+)
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
 
@@ -91,6 +97,135 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
 
     if answer is None:
         return None
+
+    pending_current_employer = None
+    try:
+        pending_current_employer = load_pending_current_employer_severance_termination_question(
+            db=db,
+            client_id=request.client_id,
+        )
+    except Exception:
+        pending_current_employer = None
+
+    if isinstance(pending_current_employer, dict) and isinstance(pending_current_employer.get("plan_args"), dict):
+        plan_args = dict(pending_current_employer.get("plan_args") or {})
+        plan_args["ignore_blocked_balances"] = True
+
+        effective_portfolio = request.pension_portfolio
+        try:
+            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            if loaded is not None:
+                effective_portfolio, _effective_snapshot_at = loaded
+        except Exception:
+            pass
+
+        if answer == "לא":
+            try:
+                clear_pending_current_employer_severance_termination_question(
+                    db=db,
+                    client_id=request.client_id,
+                )
+            except Exception:
+                pass
+            try:
+                store_current_employer_severance_execution_decision(
+                    db=db,
+                    client_id=request.client_id,
+                    decision="no",
+                )
+            except Exception:
+                pass
+
+            plan_result = execute_tool_call(
+                "BUILD_TARGET_PENSION_PLAN",
+                plan_args,
+                request.client_id,
+                db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+            try:
+                store_latest_target_pension_plan_data(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+            try:
+                store_latest_target_pension_plan(
+                    db=db,
+                    client_id=request.client_id,
+                    tool_result=plan_result,
+                )
+            except Exception:
+                pass
+
+            return StreamingResponse(
+                iter(
+                    [
+                        sanitize_user_visible_text(
+                            "קיבלתי – נמשיך בלי לבצע עזיבת עבודה, תוך התעלמות מפיצויי מעסיק נוכחי.\n\n"
+                            "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                            + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                        )
+                    ]
+                ),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        try:
+            clear_pending_current_employer_severance_termination_question(
+                db=db,
+                client_id=request.client_id,
+            )
+        except Exception:
+            pass
+        try:
+            store_current_employer_severance_execution_decision(
+                db=db,
+                client_id=request.client_id,
+                decision="yes",
+            )
+        except Exception:
+            pass
+
+        try:
+            store_pending_build_target_plan_after_termination(
+                db=db,
+                client_id=request.client_id,
+                payload={"plan_args": plan_args},
+            )
+        except Exception:
+            pass
+
+        termination_args = {"confirmed": True}
+        try:
+            store_pending_approval_request(
+                db=db,
+                client_id=request.client_id,
+                tool_name="PROCESS_TERMINATION",
+                tool_args=termination_args,
+            )
+        except Exception:
+            pass
+
+        return StreamingResponse(
+            iter(
+                [
+                    build_approval_request_ui_action(
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=termination_args,
+                        reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                        risk_level="high",
+                        rag_sources=None,
+                    )
+                ]
+            ),
+            media_type="text/plain; charset=utf-8",
+        )
 
     pending_payload = None
     try:

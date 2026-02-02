@@ -22,6 +22,10 @@ from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    clear_pending_build_target_plan_after_termination,
+    load_pending_build_target_plan_after_termination,
+)
 from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
 from app.services.llm_chat.pending_approvals import (
@@ -247,67 +251,8 @@ def generate_forced_approval(
         except Exception:
             pending_blocked = None
 
-        if (
-            pending_blocked is None
-            and (not has_db_state_sources)
-            and blocked_decision is None
-            and callable(_detect_blocked_balances_in_snapshot)
-            and callable(_store_pending_pre_retirement_plan_resolution)
-        ):
-            portfolio_for_blocked_check = effective_portfolio
-            if (not isinstance(portfolio_for_blocked_check, list)) or (not portfolio_for_blocked_check):
-                try:
-                    from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
-
-                    loaded = load_latest_pension_portfolio_snapshot(db=db, client_id=request.client_id)
-                    if loaded is not None:
-                        portfolio_for_blocked_check, _snapshot_at = loaded
-                except Exception:
-                    portfolio_for_blocked_check = effective_portfolio
-
-            has_blocked = False
-            try:
-                has_blocked = _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_blocked_check)
-            except Exception:
-                has_blocked = False
-
-            if has_blocked:
-                payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-                args_payload = (
-                    payload_plan.get("args")
-                    if isinstance(payload_plan, dict) and isinstance(payload_plan.get("args"), dict)
-                    else {}
-                )
-                try:
-                    requested_target = float(args_payload.get("target_monthly_pension") or 0)
-                except Exception:
-                    requested_target = 0.0
-                try:
-                    target_is_net = bool(args_payload.get("target_is_net", True))
-                except Exception:
-                    target_is_net = True
-                retirement_age = args_payload.get("retirement_age")
-
-                try:
-                    _store_pending_pre_retirement_plan_resolution(
-                        db=db,
-                        client_id=request.client_id,
-                        payload={
-                            "requested_target": float(requested_target),
-                            "target_is_net": bool(target_is_net),
-                            "retirement_age": retirement_age,
-                            "source": "execute_target_plan",
-                        },
-                    )
-                except Exception:
-                    pass
-
-                yield "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא"
-                return
-
-        if pending_blocked is not None:
-            yield "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא"
-            return
+        # Blocked balances are handled by policy before BUILD_TARGET_PENSION_PLAN.
+        # Execute-target-plan should not gate on blocked balances.
 
         try:
             pending_ui = load_pending_approval_ui_action_if_match(
@@ -785,6 +730,71 @@ def generate_approval_exec(
     if approved_tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
         yield format_transform_result_for_user(tool_result=tool_result)
         return
+
+    if approved_tool_name == "PROCESS_TERMINATION" and request.client_id is not None:
+        pending_build = None
+        try:
+            pending_build = load_pending_build_target_plan_after_termination(
+                db=db,
+                client_id=int(request.client_id),
+            )
+        except Exception:
+            pending_build = None
+
+        parsed_term = None
+        if isinstance(tool_result, str) and tool_result.strip():
+            try:
+                raw_json = tool_result.split("###SEVERANCE_RESET###", 1)[0].strip()
+                parsed_term = json.loads(raw_json)
+            except Exception:
+                parsed_term = None
+
+        term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
+
+        if term_success and isinstance(pending_build, dict):
+            plan_args = pending_build.get("plan_args")
+            if isinstance(plan_args, dict) and plan_args.get("target_monthly_pension") is not None:
+                try:
+                    clear_pending_build_target_plan_after_termination(
+                        db=db,
+                        client_id=int(request.client_id),
+                    )
+                except Exception:
+                    pass
+
+                plan_args = dict(plan_args)
+                plan_args["ignore_blocked_balances"] = True
+                plan_result = _execute_tool_call(
+                    "BUILD_TARGET_PENSION_PLAN",
+                    plan_args,
+                    request.client_id,
+                    db,
+                    pension_portfolio=effective_portfolio,
+                    force_max_exemption=force_max_exemption,
+                    user_approved=True,
+                    request_id=stream_request_id,
+                )
+                try:
+                    store_latest_target_pension_plan(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=plan_result,
+                    )
+                except Exception:
+                    pass
+                try:
+                    store_latest_target_pension_plan_data(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_result=plan_result,
+                    )
+                except Exception:
+                    pass
+
+                yield "\n\n" + sanitize_user_visible_text(
+                    "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                    + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                )
 
     out = sanitize_user_visible_text(
         format_tool_output_for_user_stream(approved_tool_name, tool_result)

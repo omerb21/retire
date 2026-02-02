@@ -19,9 +19,17 @@ from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+    store_pending_approval_request,
+)
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     apply_income_offset_to_target,
     compute_existing_income_offset_monthly,
+)
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    evaluate_blocked_balances_policy_for_build_target_plan,
 )
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
@@ -241,6 +249,37 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
             pass
 
     plan_args["target_monthly_pension"] = float(effective_target)
+
+    policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+        db=db,
+        client_id=int(request.client_id),
+        portfolio=portfolio_for_plan,
+        plan_args=plan_args,
+    )
+    if isinstance(policy_text, str) and policy_text.strip():
+        yield policy_text.strip() + "\n\n"
+    if policy_status == "ask_current_employer_termination":
+        return
+    if policy_status == "needs_termination_approval":
+        termination_args = {"confirmed": True}
+        try:
+            store_pending_approval_request(
+                db=db,
+                client_id=int(request.client_id),
+                tool_name="PROCESS_TERMINATION",
+                tool_args=termination_args,
+            )
+        except Exception:
+            pass
+        yield build_approval_request_ui_action(
+            tool_name="PROCESS_TERMINATION",
+            tool_args=termination_args,
+            reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+            risk_level="high",
+            rag_sources=None,
+        )
+        return
+
     plan_result = _execute_tool_call(
         "BUILD_TARGET_PENSION_PLAN",
         plan_args,

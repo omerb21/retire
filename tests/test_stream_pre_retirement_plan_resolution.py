@@ -512,7 +512,7 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
     assert "האם לכלול" not in resp0.text
     assert "###UI_ACTION###" not in resp0.text
 
-    # Execute should ask blocked balances.
+    # Execute should produce approval_request and not ask blocked balances.
     resp1 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -522,48 +522,13 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
         },
     )
     assert resp1.status_code == 200
-    assert "האם לכלול" in resp1.text
-    assert "###UI_ACTION###" not in resp1.text
+    assert "האם לכלול" not in resp1.text
+    assert "###UI_ACTION###" in resp1.text
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp1.text
 
-    # Answer no -> persist decision, no tool execution.
-    resp2 = api.post(
-        "/api/v1/llm/pension-chat-stream",
-        json={
-            "client_id": client_id,
-            "messages": [{"role": "user", "content": "לא"}],
-            "pension_portfolio": [],
-        },
-    )
-    assert resp2.status_code == 200
-    assert "בניית תכנית קצבה" not in resp2.text
-    assert "לא נכלול יתרות חסומות" in resp2.text
-
-    with Session() as db:
-        pending_approval = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_approval")
-            .order_by(Scenario.created_at.desc())
-            .first()
-        )
-        assert pending_approval is None
-
-    # Execute again -> should produce approval_request and not ask blocked balances.
-    resp3 = api.post(
-        "/api/v1/llm/pension-chat-stream",
-        json={
-            "client_id": client_id,
-            "messages": [{"role": "user", "content": "בצע את התכנית"}],
-            "pension_portfolio": [],
-        },
-    )
-    assert resp3.status_code == 200
-    assert "###UI_ACTION###" in resp3.text
-    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp3.text
-
-    start = resp3.text.find("###UI_ACTION###")
-    end = resp3.text.find("###END_UI_ACTION###")
-    ui_payload = json.loads(resp3.text[start + len("###UI_ACTION###") : end])
+    start = resp1.text.find("###UI_ACTION###")
+    end = resp1.text.find("###END_UI_ACTION###")
+    ui_payload = json.loads(resp1.text[start + len("###UI_ACTION###") : end])
     actions = ui_payload.get("actions")
     approval = actions[0]
     assert approval.get("tool_name") == "TRANSFORM_FUNDS_TO_ASSETS"
@@ -699,7 +664,7 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
         tool_calls.append(tool_name)
         if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
             assert user_approved is True
-            assert args.get("ignore_blocked_balances") is False
+            assert args.get("ignore_blocked_balances") is True
             try:
                 db.add(
                     PensionFund(
@@ -755,63 +720,40 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
 
     api = TestClient(app)
 
+    # Build should not ask blocked balances.
+    resp0 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 5000"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp0.status_code == 200
+    assert "האם לכלול" not in resp0.text
+    assert "###UI_ACTION###" not in resp0.text
+
+    # Execute should produce approval_request.
     resp1 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [{"role": "user", "content": "בצע את התכנית"}],
             "pension_portfolio": [],
         },
     )
     assert resp1.status_code == 200
     assert "האם לכלול" not in resp1.text
-    assert tool_calls == ["BUILD_TARGET_PENSION_PLAN"]
+    assert "###UI_ACTION###" in resp1.text
+    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp1.text
 
-    # Execute should ask blocked balances.
-    resp_exec = api.post(
-        "/api/v1/llm/pension-chat-stream",
-        json={
-            "client_id": client_id,
-            "messages": [{"role": "user", "content": "בצע את התכנית"}],
-            "pension_portfolio": [],
-        },
-    )
-    assert resp_exec.status_code == 200
-    assert "האם לכלול" in resp_exec.text
-    assert "###UI_ACTION###" not in resp_exec.text
-
-    # Answer yes -> no auto tool execution.
-    resp2 = api.post(
-        "/api/v1/llm/pension-chat-stream",
-        json={
-            "client_id": client_id,
-            "messages": [{"role": "user", "content": "כן"}],
-            "pension_portfolio": [],
-        },
-    )
-    assert resp2.status_code == 200
-    assert "###UI_ACTION###" not in resp2.text
-
-    # Execute again -> should now generate approval_request.
-    resp2b = api.post(
-        "/api/v1/llm/pension-chat-stream",
-        json={
-            "client_id": client_id,
-            "messages": [{"role": "user", "content": "בצע את התכנית"}],
-            "pension_portfolio": [],
-        },
-    )
-    assert resp2b.status_code == 200
-    assert "###UI_ACTION###" in resp2b.text
-    assert "TRANSFORM_FUNDS_TO_ASSETS" in resp2b.text
-
-    start = resp2b.text.find("###UI_ACTION###")
-    end = resp2b.text.find("###END_UI_ACTION###")
-    ui_payload = json.loads(resp2b.text[start + len("###UI_ACTION###") : end])
+    start = resp1.text.find("###UI_ACTION###")
+    end = resp1.text.find("###END_UI_ACTION###")
+    ui_payload = json.loads(resp1.text[start + len("###UI_ACTION###") : end])
     actions = ui_payload.get("actions")
     approval = actions[0]
     assert approval.get("tool_name") == "TRANSFORM_FUNDS_TO_ASSETS"
-    assert approval.get("arguments", {}).get("ignore_blocked_balances") is False
+    assert approval.get("arguments", {}).get("ignore_blocked_balances") is True
 
     with Session() as db:
         pending = (

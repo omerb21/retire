@@ -132,7 +132,7 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
 
     api = TestClient(app)
 
-    # 1) execute -> should ask blocked balances question (execute-only)
+    # 1) execute -> should not ask blocked balances; without an existing plan it should ask to build a plan.
     resp1 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -143,7 +143,8 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
     )
     assert resp1.status_code == 200
     assert not tool_calls
-    assert "האם לכלול" in resp1.text
+    assert "האם לכלול" not in resp1.text
+    assert "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד" in resp1.text
 
     with Session() as db:
         pending_row = (
@@ -153,7 +154,7 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
             .order_by(Scenario.created_at.desc(), Scenario.id.desc())
             .first()
         )
-        assert pending_row is not None
+        assert pending_row is None
 
         pending_plan_target_count_before = (
             db.query(Scenario)
@@ -170,50 +171,3 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
             .count()
         )
         assert pending_approval_count_before == 1
-
-    # 2) answer no -> must clear pending + persist decision; must NOT execute tools
-    resp2 = api.post(
-        "/api/v1/llm/pension-chat-stream",
-        json={
-            "client_id": client_id,
-            "messages": [{"role": "user", "content": "לא"}],
-            "pension_portfolio": [],
-        },
-    )
-    assert resp2.status_code == 200
-    assert not tool_calls
-    assert "לא נכלול יתרות חסומות" in resp2.text
-
-    with Session() as db:
-        decision_row = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "ignore_blocked_balances_decision")
-            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
-            .first()
-        )
-        assert decision_row is not None
-
-        pending_plan_target_count_after = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_plan_target")
-            .count()
-        )
-        assert pending_plan_target_count_after == 1
-
-        pending_approval_count_after = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_approval")
-            .count()
-        )
-        assert pending_approval_count_after == 1
-
-        pending_pre_retirement_count_after = (
-            db.query(Scenario)
-            .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_pre_retirement_plan_resolution")
-            .count()
-        )
-        assert pending_pre_retirement_count_after == 0

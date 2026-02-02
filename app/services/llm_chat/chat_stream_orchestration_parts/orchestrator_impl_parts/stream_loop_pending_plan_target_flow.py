@@ -6,10 +6,17 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+    store_pending_approval_request,
+)
 from app.services.llm_chat.intent_classifier import ChatIntent
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     compute_existing_income_offset_monthly,
     apply_income_offset_to_target,
+)
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    evaluate_blocked_balances_policy_for_build_target_plan,
 )
 from .stream_loop_pending_plan_target_store import (
     _clear_pending_plan_target,
@@ -175,6 +182,37 @@ def _maybe_handle_pending_plan_target_flow(
             )
             if inferred_age is not None and plan_args.get("retirement_age") is None:
                 plan_args["retirement_age"] = int(inferred_age)
+
+            policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+                db=db,
+                client_id=int(request.client_id),
+                portfolio=portfolio_for_plan,
+                plan_args=plan_args,
+            )
+            if isinstance(policy_text, str) and policy_text.strip():
+                yield policy_text.strip() + "\n\n"
+            if policy_status == "ask_current_employer_termination":
+                return
+            if policy_status == "needs_termination_approval":
+                termination_args = {"confirmed": True}
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=int(request.client_id),
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=termination_args,
+                    )
+                except Exception:
+                    pass
+                yield build_approval_request_ui_action(
+                    tool_name="PROCESS_TERMINATION",
+                    tool_args=termination_args,
+                    reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                    risk_level="high",
+                    rag_sources=None,
+                )
+                return
+
             plan_result = execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
                 plan_args,
@@ -311,6 +349,36 @@ def _maybe_handle_pending_plan_target_flow(
             )
             if inferred_age is not None and plan_args.get("retirement_age") is None:
                 plan_args["retirement_age"] = int(inferred_age)
+
+            policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+                db=db,
+                client_id=int(request.client_id),
+                portfolio=portfolio_for_plan,
+                plan_args=plan_args,
+            )
+            if isinstance(policy_text, str) and policy_text.strip():
+                yield policy_text.strip() + "\n\n"
+            if policy_status == "ask_current_employer_termination":
+                return
+            if policy_status == "needs_termination_approval":
+                termination_args = {"confirmed": True}
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=int(request.client_id),
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=termination_args,
+                    )
+                except Exception:
+                    pass
+                yield build_approval_request_ui_action(
+                    tool_name="PROCESS_TERMINATION",
+                    tool_args=termination_args,
+                    reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                    risk_level="high",
+                    rag_sources=None,
+                )
+                return
             plan_result = execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
                 plan_args,

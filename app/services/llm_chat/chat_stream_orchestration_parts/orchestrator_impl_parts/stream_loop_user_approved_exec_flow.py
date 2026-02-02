@@ -2,6 +2,11 @@ import json
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    clear_pending_build_target_plan_after_termination,
+    load_pending_build_target_plan_after_termination,
+)
+
 
 def _has_positive_component_amounts(raw: object) -> bool:
     if not isinstance(raw, dict) or not raw:
@@ -161,6 +166,75 @@ def _maybe_handle_user_approved_exec_flow(
             user_approved=True,
             request_id=req_id,
         )
+
+        if approved_tool == "PROCESS_TERMINATION" and request.client_id is not None:
+            pending_build = None
+            try:
+                pending_build = load_pending_build_target_plan_after_termination(
+                    db=db,
+                    client_id=int(request.client_id),
+                )
+            except Exception:
+                pending_build = None
+
+            parsed_term = None
+            if isinstance(tool_result, str) and tool_result.strip():
+                try:
+                    raw_json = tool_result.split("###SEVERANCE_RESET###", 1)[0].strip()
+                    parsed_term = json.loads(raw_json)
+                except Exception:
+                    parsed_term = None
+
+            term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
+
+            if term_success and isinstance(pending_build, dict):
+                plan_args = pending_build.get("plan_args")
+                if isinstance(plan_args, dict) and plan_args.get("target_monthly_pension") is not None:
+                    try:
+                        clear_pending_build_target_plan_after_termination(
+                            db=db,
+                            client_id=int(request.client_id),
+                        )
+                    except Exception:
+                        pass
+
+                    plan_args = dict(plan_args)
+                    plan_args["ignore_blocked_balances"] = True
+                    plan_result = execute_tool_call(
+                        "BUILD_TARGET_PENSION_PLAN",
+                        plan_args,
+                        request.client_id,
+                        db,
+                        pension_portfolio=effective_portfolio,
+                        force_max_exemption=False,
+                        user_approved=True,
+                        request_id=req_id,
+                    )
+                    try:
+                        store_latest_target_pension_plan_data(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=plan_result,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        store_latest_target_pension_plan(
+                            db=db,
+                            client_id=request.client_id,
+                            tool_result=plan_result,
+                        )
+                    except Exception:
+                        pass
+
+                    plan_rendered = (
+                        "\n\n"
+                        + "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+                        + sanitize_user_visible_text(
+                            format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                        )
+                    )
+                    yield plan_rendered
 
         if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
             try:

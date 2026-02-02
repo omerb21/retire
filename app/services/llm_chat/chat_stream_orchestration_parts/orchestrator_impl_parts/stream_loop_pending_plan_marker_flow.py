@@ -2,6 +2,14 @@ import json
 
 from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+    store_pending_approval_request,
+)
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    evaluate_blocked_balances_policy_for_build_target_plan,
+)
+
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     apply_income_offset_to_target,
 )
@@ -74,6 +82,40 @@ def _maybe_handle_pending_plan_target_marker_flow(
             "target_monthly_pension": float(effective_target),
             "target_is_net": True,
         }
+
+        if client_id is not None:
+            policy_status, tool_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+                db=db,
+                client_id=int(client_id),
+                portfolio=request.pension_portfolio,
+                plan_args=tool_args,
+            )
+            if isinstance(policy_text, str) and policy_text.strip():
+                yield policy_text.strip() + "\n\n"
+            if policy_status == "ask_current_employer_termination":
+                delete_marker(pending_plan)
+                return
+            if policy_status == "needs_termination_approval":
+                termination_args = {"confirmed": True}
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=int(client_id),
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=termination_args,
+                    )
+                except Exception:
+                    pass
+                yield build_approval_request_ui_action(
+                    tool_name="PROCESS_TERMINATION",
+                    tool_args=termination_args,
+                    reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                    risk_level="high",
+                    rag_sources=None,
+                )
+                delete_marker(pending_plan)
+                return
+
         pending_payload = None
         try:
             pending_payload = json.loads(pending_plan.row.parameters or "{}")
