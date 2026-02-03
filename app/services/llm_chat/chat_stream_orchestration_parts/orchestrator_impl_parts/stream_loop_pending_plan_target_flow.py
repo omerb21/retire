@@ -193,8 +193,29 @@ def _maybe_handle_pending_plan_target_flow(
                 yield policy_text.strip() + "\n\n"
             if policy_status == "ask_current_employer_termination":
                 return
+            if policy_status in {
+                "needs_termination_plan_confirmation",
+                "needs_termination_plan_alternative",
+            }:
+                return
             if policy_status == "needs_termination_approval":
                 termination_args = {"confirmed": True}
+                try:
+                    from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+                        load_current_employer_termination_plan_preview,
+                    )
+
+                    preview_payload = load_current_employer_termination_plan_preview(
+                        db=db,
+                        client_id=int(request.client_id),
+                    )
+                    if isinstance(preview_payload, dict):
+                        template = preview_payload.get("termination_arguments_template")
+                        approved = bool(preview_payload.get("approved")) is True
+                        if approved and isinstance(template, dict) and template:
+                            termination_args = dict(template)
+                except Exception:
+                    pass
                 try:
                     store_pending_approval_request(
                         db=db,

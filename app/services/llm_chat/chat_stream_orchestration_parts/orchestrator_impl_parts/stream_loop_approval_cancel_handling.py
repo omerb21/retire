@@ -15,6 +15,10 @@ from app.services.llm_chat.message_utils import (
 )
 from app.services.llm_chat.orchestration_utils import extract_process_termination_choice_overrides
 
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    clear_pending_build_target_plan_after_termination,
+)
+
 from ..stream_approval_generators import generate_approval_exec, generate_execute_target_after_termination
 
 
@@ -208,10 +212,17 @@ def _maybe_handle_approval_or_cancel_flow(
             media_type="text/plain; charset=utf-8",
         )
 
-    if cancelled and request.client_id is not None and (not no_tools_requested):
+    if cancelled and request.client_id is not None:
         cancelled_tool_name, _cancelled_tool_args = cancelled
         try:
             clear_pending_approval_request(db=db, client_id=request.client_id)
+        except Exception:
+            pass
+        try:
+            clear_pending_build_target_plan_after_termination(
+                db=db,
+                client_id=int(request.client_id),
+            )
         except Exception:
             pass
         return StreamingResponse(

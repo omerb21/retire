@@ -32,6 +32,13 @@ def _maybe_handle_termination_deterministic(
     is_portfolio_analysis: bool,
 ):
     termination_already_executed = False
+    # IMPORTANT: Cancellation markers may include the string PROCESS_TERMINATION.
+    # Never route cancellations into execution paths.
+    try:
+        if isinstance(original_user_msg, str) and original_user_msg.strip().startswith("###USER_CANCELLED###"):
+            return False, None
+    except Exception:
+        pass
     if request.client_id is not None:
         current_employer = (
             db.query(CurrentEmployer)
