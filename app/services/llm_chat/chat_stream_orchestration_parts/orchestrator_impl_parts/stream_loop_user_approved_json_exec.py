@@ -24,8 +24,14 @@ from app.services.llm_chat.orchestration_utils import (
     sanitize_user_visible_text,
 )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    build_default_termination_plan_preview,
     clear_pending_build_target_plan_after_termination,
+    clear_pending_current_employer_severance_termination_question,
     load_pending_build_target_plan_after_termination,
+    load_current_employer_termination_plan_preview,
+    load_pending_current_employer_severance_termination_question,
+    store_current_employer_severance_execution_decision,
+    store_current_employer_termination_plan_preview,
 )
 
 from ..stream_tool_execution import _execute_tool_call
@@ -69,6 +75,92 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
         )
 
     approved_tool, approved_args = approved
+
+    # HARD GATE: PROCESS_TERMINATION approvals may not bypass the termination-plan preview.
+    # If there is no approved preview in DB, return the preview text and stop (no tool execution).
+    if approved_tool == "PROCESS_TERMINATION" and request.client_id is not None:
+        preview_payload = None
+        try:
+            preview_payload = load_current_employer_termination_plan_preview(
+                db=db,
+                client_id=int(request.client_id),
+            )
+        except Exception:
+            preview_payload = None
+
+        preview_approved = False
+        args_template = None
+        if isinstance(preview_payload, dict):
+            preview_approved = bool(preview_payload.get("approved")) is True
+            args_template = preview_payload.get("termination_arguments_template")
+
+        if preview_approved and isinstance(args_template, dict) and args_template:
+            # SSOT: ignore any user-supplied args in ###USER_APPROVED###; execute exactly the approved template.
+            approved_args = dict(args_template)
+
+        if not preview_approved:
+            plan_args = {}
+            try:
+                pending_question = load_pending_current_employer_severance_termination_question(
+                    db=db,
+                    client_id=int(request.client_id),
+                )
+                if isinstance(pending_question, dict) and isinstance(pending_question.get("plan_args"), dict):
+                    plan_args = dict(pending_question.get("plan_args") or {})
+            except Exception:
+                plan_args = {}
+
+            preview_text, default_template = build_default_termination_plan_preview(
+                current_employer_amount=0.0,
+                context=None,
+            )
+            try:
+                # Prefer keeping any previously stored template, but ensure awaiting confirmation is set.
+                template_to_store = (
+                    dict(args_template)
+                    if isinstance(args_template, dict) and args_template
+                    else dict(default_template)
+                )
+                store_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(request.client_id),
+                    payload={
+                        "plan_args": plan_args,
+                        "termination_arguments_template": template_to_store,
+                        "awaiting_user_confirmation": True,
+                        "approved": False,
+                        "declined": False,
+                    },
+                )
+            except Exception:
+                pass
+
+            try:
+                store_current_employer_severance_execution_decision(
+                    db=db,
+                    client_id=int(request.client_id),
+                    decision="yes",
+                )
+            except Exception:
+                pass
+
+            try:
+                clear_pending_current_employer_severance_termination_question(
+                    db=db,
+                    client_id=int(request.client_id),
+                )
+            except Exception:
+                pass
+
+            try:
+                clear_pending_approval_request(db=db, client_id=request.client_id)
+            except Exception:
+                pass
+
+            return StreamingResponse(
+                iter([preview_text]),
+                media_type="text/plain; charset=utf-8",
+            )
 
     def _args_conflict(pending_args: dict, approved_args_in: dict) -> bool:
         try:
@@ -170,6 +262,33 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                 iter(_approval_refusal_lines()),
                 media_type="text/plain; charset=utf-8",
             )
+
+    # SSOT enforcement for termination: once we have a valid pending approval match,
+    # execute exactly the approved preview template arguments.
+    if approved_tool == "PROCESS_TERMINATION" and request.client_id is not None and bool(has_valid_pending_match):
+        try:
+            preview_payload = load_current_employer_termination_plan_preview(
+                db=db,
+                client_id=int(request.client_id),
+            )
+        except Exception:
+            preview_payload = None
+
+        try:
+            preview_approved = (
+                isinstance(preview_payload, dict)
+                and bool(preview_payload.get("approved")) is True
+            )
+        except Exception:
+            preview_approved = False
+
+        args_template = (
+            preview_payload.get("termination_arguments_template")
+            if isinstance(preview_payload, dict)
+            else None
+        )
+        if preview_approved and isinstance(args_template, dict) and args_template:
+            merged_args = dict(args_template)
 
     if not can_execute_tool(
         tool_name=approved_tool,
