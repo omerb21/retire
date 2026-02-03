@@ -6,9 +6,13 @@ from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_par
     _store_ignore_blocked_balances_decision,
  )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    build_default_termination_plan_preview,
+    load_current_employer_termination_plan_preview,
     clear_pending_current_employer_severance_termination_question,
+    clear_pending_build_target_plan_after_termination,
     load_pending_current_employer_severance_termination_question,
     store_current_employer_severance_execution_decision,
+    store_current_employer_termination_plan_preview,
     store_pending_build_target_plan_after_termination,
 )
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
@@ -192,6 +196,99 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         except Exception:
             pass
 
+        preview_text, args_template = build_default_termination_plan_preview(
+            current_employer_amount=0,
+            context={"plan_args": plan_args},
+        )
+        try:
+            store_current_employer_termination_plan_preview(
+                db=db,
+                client_id=request.client_id,
+                payload={
+                    "plan_args": plan_args,
+                    "termination_arguments_template": args_template,
+                    "awaiting_user_confirmation": True,
+                    "approved": False,
+                    "declined": False,
+                },
+            )
+        except Exception:
+            pass
+
+        return StreamingResponse(
+            iter([preview_text]),
+            media_type="text/plain; charset=utf-8",
+        )
+
+    preview_payload = None
+    try:
+        preview_payload = load_current_employer_termination_plan_preview(
+            db=db,
+            client_id=request.client_id,
+        )
+    except Exception:
+        preview_payload = None
+
+    if isinstance(preview_payload, dict) and bool(preview_payload.get("awaiting_user_confirmation")) is True:
+        plan_args = preview_payload.get("plan_args")
+        if not isinstance(plan_args, dict):
+            plan_args = {}
+        plan_args = dict(plan_args)
+        plan_args["ignore_blocked_balances"] = True
+
+        if answer == "לא":
+            try:
+                store_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=request.client_id,
+                    payload={
+                        **preview_payload,
+                        "awaiting_user_confirmation": False,
+                        "approved": False,
+                        "declined": True,
+                    },
+                )
+            except Exception:
+                pass
+            try:
+                clear_pending_build_target_plan_after_termination(
+                    db=db,
+                    client_id=request.client_id,
+                )
+            except Exception:
+                pass
+            try:
+                clear_pending_approval_request(db=db, client_id=request.client_id)
+            except Exception:
+                pass
+
+            return StreamingResponse(
+                iter(
+                    [
+                        "הבנתי – לא אבצע את תכנית ברירת המחדל לעזיבת עבודה.\n\n"
+                        "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים:\n"
+                        "- פטור: משיכה בפטור / משיכה ללא פטור (פריסה) / רצף קצבה\n"
+                        "- חייב: רצף קצבה / משיכה (פריסה) / פיצול\n\n"
+                        "לדוגמה: 'פטור למשיכה בפטור, חייב לפיצול 70% קצבה 30% מענק'."
+                    ]
+                ),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        try:
+            store_current_employer_termination_plan_preview(
+                db=db,
+                client_id=request.client_id,
+                payload={
+                    **preview_payload,
+                    "awaiting_user_confirmation": False,
+                    "approved": True,
+                    "declined": False,
+                },
+            )
+        except Exception:
+            pass
+
         try:
             store_pending_build_target_plan_after_termination(
                 db=db,
@@ -201,7 +298,10 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         except Exception:
             pass
 
-        termination_args = {"confirmed": True}
+        termination_args = preview_payload.get("termination_arguments_template")
+        if not isinstance(termination_args, dict):
+            termination_args = {"confirmed": True}
+
         try:
             store_pending_approval_request(
                 db=db,

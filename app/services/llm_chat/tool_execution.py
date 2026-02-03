@@ -113,6 +113,7 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     compute_blocked_balances_summary_from_portfolio,
     evaluate_blocked_balances_policy_for_build_target_plan,
     load_blocked_balances_notice_shown,
+    load_current_employer_termination_plan_preview,
     load_current_employer_severance_execution_decision,
     termination_already_executed_for_client,
 )
@@ -334,11 +335,35 @@ def execute_tool_call(
         policy_status, updated_args, policy_text = enforce_blocked_balances_policy_for_build(plan_args_in=args)
         args = updated_args if isinstance(updated_args, dict) else args
 
-        if policy_status == "ask_current_employer_termination":
+        if policy_status in {
+            "ask_current_employer_termination",
+            "needs_termination_plan_confirmation",
+            "needs_termination_plan_alternative",
+        }:
             return str(policy_text or "")
 
         if policy_status == "needs_termination_approval" and not user_approved:
             termination_args = {"confirmed": True}
+            try:
+                preview_payload = load_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(client_id),
+                )
+            except Exception:
+                preview_payload = None
+
+            if isinstance(preview_payload, dict):
+                approved = bool(preview_payload.get("approved")) is True
+                declined = bool(preview_payload.get("declined")) is True
+                template = preview_payload.get("termination_arguments_template")
+                if declined and (not approved):
+                    return (
+                        "לא אבצע תכנית ברירת מחדל לעזיבת עבודה בלי בחירה מפורשת. "
+                        "אנא ציין מה לעשות עם הפיצויים (פטור/חייב)."
+                    )
+                if approved and isinstance(template, dict) and template:
+                    termination_args = dict(template)
+
             try:
                 store_pending_approval_request(
                     db=db,

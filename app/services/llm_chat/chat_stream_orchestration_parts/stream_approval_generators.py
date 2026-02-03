@@ -33,6 +33,8 @@ from app.services.llm_chat.pending_approvals import (
     store_pending_approval_ui_action,
 )
 
+from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+
 from .stream_top_level_helpers import (
     _build_transform_accounts_from_target_plan_payload,
     _store_pending_approval_request,
@@ -762,6 +764,22 @@ def generate_approval_exec(
                 except Exception:
                     pass
 
+                try:
+                    db.expire_all()
+                except Exception:
+                    pass
+
+                refreshed_portfolio = effective_portfolio
+                try:
+                    loaded_after_term = load_latest_pension_portfolio_snapshot_models(
+                        db,
+                        request.client_id,
+                    )
+                    if loaded_after_term is not None:
+                        refreshed_portfolio, _snapshot_at_after_term = loaded_after_term
+                except Exception:
+                    refreshed_portfolio = effective_portfolio
+
                 plan_args = dict(plan_args)
                 plan_args["ignore_blocked_balances"] = True
                 plan_result = _execute_tool_call(
@@ -769,7 +787,7 @@ def generate_approval_exec(
                     plan_args,
                     request.client_id,
                     db,
-                    pension_portfolio=effective_portfolio,
+                    pension_portfolio=refreshed_portfolio,
                     force_max_exemption=force_max_exemption,
                     user_approved=True,
                     request_id=stream_request_id,

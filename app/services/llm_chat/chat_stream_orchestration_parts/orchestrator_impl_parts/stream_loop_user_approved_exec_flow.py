@@ -188,6 +188,11 @@ def _maybe_handle_user_approved_exec_flow(
             term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
 
             if term_success and isinstance(pending_build, dict):
+                try:
+                    db.expire_all()
+                except Exception:
+                    pass
+
                 plan_args = pending_build.get("plan_args")
                 if isinstance(plan_args, dict) and plan_args.get("target_monthly_pension") is not None:
                     try:
@@ -200,12 +205,24 @@ def _maybe_handle_user_approved_exec_flow(
 
                     plan_args = dict(plan_args)
                     plan_args["ignore_blocked_balances"] = True
+
+                    refreshed_portfolio = effective_portfolio
+                    try:
+                        loaded_after_term = load_latest_pension_portfolio_snapshot_models(
+                            db,
+                            request.client_id,
+                        )
+                        if loaded_after_term is not None:
+                            refreshed_portfolio, _snapshot_at_after_term = loaded_after_term
+                    except Exception:
+                        refreshed_portfolio = effective_portfolio
+
                     plan_result = execute_tool_call(
                         "BUILD_TARGET_PENSION_PLAN",
                         plan_args,
                         request.client_id,
                         db,
-                        pension_portfolio=effective_portfolio,
+                        pension_portfolio=refreshed_portfolio,
                         force_max_exemption=False,
                         user_approved=True,
                         request_id=req_id,

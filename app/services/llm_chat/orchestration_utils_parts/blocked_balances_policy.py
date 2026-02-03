@@ -15,6 +15,7 @@ _PENDING_CURRENT_EMPLOYER_SEVERANCE_TERMINATION_QUESTION_SCENARIO = (
     "pending_current_employer_severance_termination_question"
 )
 _PENDING_BUILD_TARGET_PLAN_AFTER_TERMINATION_SCENARIO = "pending_build_target_plan_after_termination"
+_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO = "current_employer_termination_plan_preview"
 
 
 @dataclass
@@ -45,7 +46,7 @@ def termination_already_executed_for_client(*, db: Session, client_id: int) -> b
             db.query(EmployerGrant)
             .filter(
                 EmployerGrant.employer_id == current_employer.id,
-                GrantType.severance,
+                EmployerGrant.grant_type == GrantType.severance,
             )
             .count()
         )
@@ -129,6 +130,73 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                 return "ask_current_employer_termination", plan_args, question
 
             if decision == "yes":
+                preview_payload = None
+                try:
+                    preview_payload = load_current_employer_termination_plan_preview(
+                        db=db,
+                        client_id=client_id,
+                    )
+                except Exception:
+                    preview_payload = None
+
+                preview_approved = False
+                preview_awaiting = False
+                preview_declined = False
+                if isinstance(preview_payload, dict):
+                    preview_approved = bool(preview_payload.get("approved")) is True
+                    preview_awaiting = bool(preview_payload.get("awaiting_user_confirmation")) is True
+                    preview_declined = bool(preview_payload.get("declined")) is True
+
+                if (not preview_approved) and preview_declined:
+                    msg = (
+                        "הבנתי – לא אבצע את תכנית ברירת המחדל לעזיבת עבודה.\n\n"
+                        "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים:\n"
+                        "- פטור: משיכה בפטור / משיכה ללא פטור (פריסה) / רצף קצבה\n"
+                        "- חייב: רצף קצבה / משיכה (פריסה) / פיצול\n\n"
+                        "לדוגמה: 'פטור למשיכה בפטור, חייב לפיצול 70% קצבה 30% מענק'."
+                    )
+                    if notice_text:
+                        msg = notice_text + "\n\n" + msg
+                    return "needs_termination_plan_alternative", plan_args, msg
+
+                if not preview_approved:
+                    preview_text, args_template = build_default_termination_plan_preview(
+                        current_employer_amount=float(
+                            getattr(summary, "current_employer_severance_amount", 0) or 0
+                        ),
+                        context={"plan_args": plan_args},
+                    )
+                    try:
+                        store_current_employer_termination_plan_preview(
+                            db=db,
+                            client_id=client_id,
+                            payload={
+                                "plan_args": plan_args,
+                                "plan": {
+                                    "exempt_choice": args_template.get("exempt_choice"),
+                                    "taxable_choice": args_template.get("taxable_choice"),
+                                    "taxable_annuity_amount": args_template.get("taxable_annuity_amount"),
+                                    "taxable_capital_amount": args_template.get("taxable_capital_amount"),
+                                },
+                                "amounts": {
+                                    "current_employer_severance_amount": float(
+                                        getattr(summary, "current_employer_severance_amount", 0) or 0
+                                    ),
+                                },
+                                "termination_arguments_template": args_template,
+                                "awaiting_user_confirmation": True,
+                                "approved": False,
+                                "declined": False,
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
+                    except Exception:
+                        pass
+                    msg = preview_text
+                    if notice_text:
+                        msg = notice_text + "\n\n" + msg
+                    return "needs_termination_plan_confirmation", plan_args, msg
+
                 try:
                     store_pending_build_target_plan_after_termination(
                         db=db,
@@ -180,7 +248,6 @@ def compute_blocked_balances_summary_from_portfolio(portfolio: Any) -> BlockedBa
     out = BlockedBalancesSummary()
     if not isinstance(portfolio, list) or not portfolio:
         return out
-
     for item in portfolio:
         data = {}
         if isinstance(item, dict):
@@ -222,6 +289,49 @@ def compute_blocked_balances_summary_from_portfolio(portfolio: Any) -> BlockedBa
         out.current_employer_severance_amount += _sum_from_all_sources("פיצויים_מעסיק_נוכחי")
 
     return out
+
+
+def build_default_termination_plan_preview(
+    current_employer_amount: float,
+    context: dict | None = None,
+) -> tuple[str, dict]:
+    args_template: dict = {
+        "confirmed": True,
+        "exempt_choice": "redeem_with_exemption",
+        "taxable_choice": "annuity",
+    }
+    preview = (
+        "אני עומד לבצע עכשיו עזיבת עבודה בברירת המחדל הבאה:\n"
+        "- החלק הפטור: משיכה הונית בפטור (redeem_with_exemption)\n"
+        "- החלק החייב: המרה לרצף קצבה (annuity)\n\n"
+        "לאשר את תכנית ברירת המחדל?\n\nאפשרויות:\nכן\nלא"
+    )
+    return preview, args_template
+
+
+def load_current_employer_termination_plan_preview(*, db: Session, client_id: int) -> dict | None:
+    return _load_latest_scenario_payload(
+        db=db,
+        client_id=client_id,
+        scenario_name=_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO,
+    )
+
+
+def store_current_employer_termination_plan_preview(*, db: Session, client_id: int, payload: dict) -> None:
+    _store_single_scenario_payload(
+        db=db,
+        client_id=client_id,
+        scenario_name=_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO,
+        payload=payload,
+    )
+
+
+def clear_current_employer_termination_plan_preview(*, db: Session, client_id: int) -> None:
+    _clear_scenario(
+        db=db,
+        client_id=client_id,
+        scenario_name=_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO,
+    )
 
 
 def _load_latest_scenario_payload(*, db: Session, client_id: int, scenario_name: str) -> dict | None:
