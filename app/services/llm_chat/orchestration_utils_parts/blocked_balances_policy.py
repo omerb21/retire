@@ -39,9 +39,6 @@ def termination_already_executed_for_client(*, db: Session, client_id: int) -> b
     if current_employer is None:
         return False
 
-    if getattr(current_employer, "end_date", None) is not None:
-        return True
-
     grants_count = 0
     try:
         grants_count = (
@@ -201,21 +198,28 @@ def compute_blocked_balances_summary_from_portfolio(portfolio: Any) -> BlockedBa
                 raw = getattr(item, "__dict__", {})
                 data = raw if isinstance(raw, dict) else {}
 
-        nested = data.get("specific_amounts")
-        if not isinstance(nested, dict):
-            nested = {}
+        nested_sources: list[dict[str, Any]] = []
+        for key in (
+            "specific_amounts",
+            "components",
+            "selected_components",
+            "selected_amounts",
+        ):
+            nested_val = data.get(key)
+            if isinstance(nested_val, dict):
+                nested_sources.append(nested_val)
 
-        out.non_settled_severance_amount += _coerce_float_safe(
-            data.get("פיצויים_שלא_עברו_התחשבנות")
-        ) + _coerce_float_safe(nested.get("פיצויים_שלא_עברו_התחשבנות"))
+        def _sum_from_all_sources(field: str) -> float:
+            total = _coerce_float_safe(data.get(field))
+            for src in nested_sources:
+                total += _coerce_float_safe(src.get(field))
+            return total
 
-        out.prior_employers_continuity_rights_amount += _coerce_float_safe(
-            data.get("פיצויים_ממעסיקים_קודמים_רצף_זכויות")
-        ) + _coerce_float_safe(nested.get("פיצויים_ממעסיקים_קודמים_רצף_זכויות"))
-
-        out.current_employer_severance_amount += _coerce_float_safe(
-            data.get("פיצויים_מעסיק_נוכחי")
-        ) + _coerce_float_safe(nested.get("פיצויים_מעסיק_נוכחי"))
+        out.non_settled_severance_amount += _sum_from_all_sources("פיצויים_שלא_עברו_התחשבנות")
+        out.prior_employers_continuity_rights_amount += _sum_from_all_sources(
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות"
+        )
+        out.current_employer_severance_amount += _sum_from_all_sources("פיצויים_מעסיק_נוכחי")
 
     return out
 

@@ -110,7 +110,11 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    compute_blocked_balances_summary_from_portfolio,
     evaluate_blocked_balances_policy_for_build_target_plan,
+    load_blocked_balances_notice_shown,
+    load_current_employer_severance_execution_decision,
+    termination_already_executed_for_client,
 )
 
 logger = logging.getLogger("app.llm_chat.tools")
@@ -257,18 +261,78 @@ def execute_tool_call(
             rag_sources=None,
         )
 
-    if tool_name == "BUILD_TARGET_PENSION_PLAN" and isinstance(args, dict):
+    def enforce_blocked_balances_policy_for_build(*, plan_args_in: dict) -> tuple[str, dict, str | None]:
+        plan_args_local = plan_args_in if isinstance(plan_args_in, dict) else {}
+        portfolio = pension_portfolio or []
+
+        summary = None
+        try:
+            summary = compute_blocked_balances_summary_from_portfolio(portfolio)
+        except Exception:
+            summary = None
+
+        notice_shown = None
+        decision = None
+        term_executed = None
+        try:
+            notice_shown = load_blocked_balances_notice_shown(db=db, client_id=int(client_id))
+        except Exception:
+            notice_shown = None
+        try:
+            decision = load_current_employer_severance_execution_decision(db=db, client_id=int(client_id))
+        except Exception:
+            decision = None
+        try:
+            term_executed = termination_already_executed_for_client(db=db, client_id=int(client_id))
+        except Exception:
+            term_executed = None
+
+        status = "proceed"
+        updated_args = dict(plan_args_local) if isinstance(plan_args_local, dict) else {}
         policy_text = None
         try:
-            policy_status, updated_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
+            status, updated_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
                 db=db,
                 client_id=int(client_id),
-                portfolio=pension_portfolio or [],
-                plan_args=args,
+                portfolio=portfolio,
+                plan_args=plan_args_local,
             )
-            args = updated_args if isinstance(updated_args, dict) else args
         except Exception:
-            policy_status = "proceed"
+            status = "proceed"
+            updated_args = plan_args_local
+            policy_text = None
+
+        try:
+            payload = {
+                "tool_name": tool_name,
+                "policy_status": status,
+                "notice_shown": notice_shown,
+                "current_employer_decision": decision,
+                "termination_already_executed": term_executed,
+                "amounts": {
+                    "non_settled": float(getattr(summary, "non_settled_severance_amount", 0) or 0)
+                    if summary is not None
+                    else None,
+                    "continuity_rights": float(
+                        getattr(summary, "prior_employers_continuity_rights_amount", 0) or 0
+                    )
+                    if summary is not None
+                    else None,
+                    "current_employer": float(getattr(summary, "current_employer_severance_amount", 0) or 0)
+                    if summary is not None
+                    else None,
+                },
+            }
+            logger.info("BLOCKED_BALANCES_POLICY_APPLIED %s", json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
+
+        return status, updated_args if isinstance(updated_args, dict) else plan_args_local, policy_text
+
+    if tool_name == "BUILD_TARGET_PENSION_PLAN" and isinstance(args, dict):
+        policy_text = None
+        policy_status, updated_args, policy_text = enforce_blocked_balances_policy_for_build(plan_args_in=args)
+        args = updated_args if isinstance(updated_args, dict) else args
 
         if policy_status == "ask_current_employer_termination":
             return str(policy_text or "")
