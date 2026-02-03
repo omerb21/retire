@@ -3,11 +3,194 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.additional_income import AdditionalIncome
+from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
+from app.models.pension_fund import PensionFund
 from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.services.additional_income_service import AdditionalIncomeService
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_agent_tools_service import AgentToolsService
+
+
+def _classify_system_source_label(name: str) -> str:
+    lowered = (name or "").strip().lower()
+    if not lowered:
+        return "system_generated"
+    if "פיצויים" in lowered or "עזיבת" in lowered or "termination" in lowered:
+        return "termination"
+    return "system_generated"
+
+
+def _looks_portfolio_imported(conversion_source: object) -> bool:
+    try:
+        raw = str(conversion_source or "")
+    except Exception:
+        raw = ""
+    if not raw:
+        return False
+    return (
+        '"source": "pension_portfolio"' in raw
+        or '"type": "pension_portfolio"' in raw
+        or '"source": "pension_portfolio_convert"' in raw
+    )
+
+
+def _load_system_assets(*, db, client_id: int) -> dict:
+    system_pension_streams: list[dict[str, object]] = []
+    system_capital_assets: list[dict[str, object]] = []
+
+    try:
+        pension_rows = (
+            db.query(PensionFund)
+            .filter(PensionFund.client_id == client_id)
+            .order_by(PensionFund.id.asc())
+            .all()
+        )
+    except Exception:
+        pension_rows = []
+
+    for pf in pension_rows or []:
+        try:
+            if _looks_portfolio_imported(getattr(pf, "conversion_source", None)):
+                continue
+        except Exception:
+            pass
+
+        try:
+            monthly_amount = float(getattr(pf, "pension_amount", 0) or 0)
+        except Exception:
+            monthly_amount = 0.0
+
+        if monthly_amount <= 0:
+            continue
+
+        name = str(getattr(pf, "fund_name", "") or "").strip()
+        system_pension_streams.append(
+            {
+                "id": getattr(pf, "id", None),
+                "monthly_amount": monthly_amount,
+                "source": _classify_system_source_label(name),
+                "provider": None,
+                "plan_name": name or None,
+            }
+        )
+
+    try:
+        asset_rows = (
+            db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == client_id)
+            .order_by(CapitalAsset.id.asc())
+            .all()
+        )
+    except Exception:
+        asset_rows = []
+
+    for asset in asset_rows or []:
+        try:
+            if _looks_portfolio_imported(getattr(asset, "conversion_source", None)):
+                continue
+        except Exception:
+            pass
+
+        try:
+            monthly_income = float(getattr(asset, "monthly_income", 0) or 0)
+        except Exception:
+            monthly_income = 0.0
+        try:
+            current_value = float(getattr(asset, "current_value", 0) or 0)
+        except Exception:
+            current_value = 0.0
+
+        amount = monthly_income if monthly_income > 0 else current_value
+        if amount <= 0:
+            continue
+
+        asset_name = str(getattr(asset, "asset_name", "") or "").strip()
+        desc = str(getattr(asset, "description", "") or "").strip()
+
+        system_capital_assets.append(
+            {
+                "id": getattr(asset, "id", None),
+                "amount": amount,
+                "source": _classify_system_source_label(asset_name or desc),
+                "description": desc or asset_name or None,
+            }
+        )
+
+    return {
+        "system_pension_streams": system_pension_streams,
+        "system_capital_assets": system_capital_assets,
+    }
+
+
+def _format_system_assets_block(*, system_assets: dict, masleka_account_count: int) -> str:
+    pensions = system_assets.get("system_pension_streams") or []
+    capitals = system_assets.get("system_capital_assets") or []
+    if (not pensions) and (not capitals):
+        return ""
+
+    lines: list[str] = []
+    lines.append("\n\n## נכסים שנוצרו במערכת (לא מהמסלקה)")
+
+    pension_total = 0.0
+    for p in pensions:
+        try:
+            pension_total += float(p.get("monthly_amount") or 0)
+        except Exception:
+            pass
+
+    capital_total = 0.0
+    for c in capitals:
+        try:
+            capital_total += float(c.get("amount") or 0)
+        except Exception:
+            pass
+
+    total_sources = int(masleka_account_count or 0) + len(pensions) + len(capitals)
+    lines.append(f"מקורות במסלקה: {int(masleka_account_count or 0)}")
+    lines.append(f"קצבאות קיימות במערכת: {len(pensions)}")
+    lines.append(f"נכסי הון קיימים במערכת: {len(capitals)}")
+    lines.append(f"סה\"כ מקורות זמינים לתכנון: {total_sources}")
+
+    try:
+        lines.append(f"\nסה\"כ קצבאות קיימות במערכת (ברוטו חודשי): {pension_total:,.0f} ₪")
+    except Exception:
+        lines.append("\nסה\"כ קצבאות קיימות במערכת (ברוטו חודשי): לא זמין")
+
+    try:
+        lines.append(f"סה\"כ נכסי הון קיימים במערכת: {capital_total:,.0f} ₪")
+    except Exception:
+        lines.append("סה\"כ נכסי הון קיימים במערכת: לא זמין")
+
+    if pensions:
+        lines.append("\n### קצבאות במערכת")
+        for p in pensions:
+            try:
+                amount = float(p.get("monthly_amount") or 0)
+            except Exception:
+                amount = 0.0
+            title = str(p.get("plan_name") or "")
+            source = str(p.get("source") or "system_generated")
+            if title.strip():
+                lines.append(f"- {title}: {amount:,.0f} ₪/חודש (מקור: {source})")
+            else:
+                lines.append(f"- קצבה: {amount:,.0f} ₪/חודש (מקור: {source})")
+
+    if capitals:
+        lines.append("\n### נכסי הון במערכת")
+        for c in capitals:
+            try:
+                amount = float(c.get("amount") or 0)
+            except Exception:
+                amount = 0.0
+            desc = str(c.get("description") or "")
+            source = str(c.get("source") or "system_generated")
+            if desc.strip():
+                lines.append(f"- {desc}: {amount:,.0f} ₪ (מקור: {source})")
+            else:
+                lines.append(f"- נכס הון: {amount:,.0f} ₪ (מקור: {source})")
+
+    return "\n".join(lines)
 
 
 def generate_breakdown(*, computed_data, portfolio, original_user_msg, effective_snapshot_at) -> str:
@@ -58,7 +241,20 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
         title = f"{title} — {title_name}"
 
     additional_incomes_block = ""
+    system_assets_block = ""
     if request.client_id is not None:
+        try:
+            system_assets = _load_system_assets(db=db, client_id=int(request.client_id))
+        except Exception:
+            system_assets = {"system_pension_streams": [], "system_capital_assets": []}
+        try:
+            system_assets_block = _format_system_assets_block(
+                system_assets=system_assets,
+                masleka_account_count=len(portfolio or []),
+            )
+        except Exception:
+            system_assets_block = ""
+
         try:
             reference_date = date.today()
             reference_date = date(reference_date.year, reference_date.month, 1)
@@ -297,7 +493,10 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
         extra = ""
         if isinstance(scenarios_text, str) and scenarios_text.strip():
             extra = f"\n\n{scenarios_text}"
-        yield f"{note}\n\n{title}\n\n{analysis}{additional_incomes_block}{extra}"
+        yield f"{note}\n\n{title}\n\n{analysis}{system_assets_block}{additional_incomes_block}{extra}"
         return
 
-    yield f"{title}\n\nאין תיק פנסיוני לניתוח.{additional_incomes_block}"
+    if system_assets_block.strip() or additional_incomes_block.strip():
+        yield f"{note}\n\n{title}\n\nאין תיק פנסיוני לניתוח.{system_assets_block}{additional_incomes_block}"
+        return
+    yield f"{title}\n\nאין תיק פנסיוני לניתוח."

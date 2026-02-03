@@ -1,6 +1,8 @@
 from fastapi.responses import StreamingResponse
 
 from app.models.additional_income import AdditionalIncome
+from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
 
 
 def _maybe_handle_system_info_requests(
@@ -74,6 +76,7 @@ def _maybe_handle_system_info_requests(
         portfolio = effective_portfolio or []
         has_portfolio = bool(portfolio)
         has_additional_incomes = False
+        has_system_assets = False
         if (not has_portfolio) and request.client_id is not None:
             try:
                 row = (
@@ -85,7 +88,22 @@ def _maybe_handle_system_info_requests(
             except Exception:
                 has_additional_incomes = False
 
-        if has_portfolio or has_additional_incomes:
+            try:
+                pf_row = (
+                    db.query(PensionFund)
+                    .filter(PensionFund.client_id == request.client_id)
+                    .first()
+                )
+                ca_row = (
+                    db.query(CapitalAsset)
+                    .filter(CapitalAsset.client_id == request.client_id)
+                    .first()
+                )
+                has_system_assets = (pf_row is not None) or (ca_row is not None)
+            except Exception:
+                has_system_assets = False
+
+        if has_portfolio or has_additional_incomes or has_system_assets:
             return StreamingResponse(
                 generate_portfolio_analysis(
                     computed_data=computed_data,
