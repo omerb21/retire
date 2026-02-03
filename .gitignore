@@ -1,15 +1,13 @@
-﻿# local outputs / debug artifacts
+﻿# local run artifacts
 out_*.txt
-req_*.json
-hdr_*.txt
-body_*.txt
-_body_*.txt
-_hdr_*.txt
-*_tmp.json
-c*_*.json
-snap_info_*.json
 qa_*.txt
+req_*.json
+c*_*.json
+*_hdr_*.txt
+*_body_*.txt
+_openapi_tmp.json
+snap_info_*.json
 
-# OS / editor
-.DS_Store
-Thumbs.db
+# misc
+*.log
+__pycache__/
