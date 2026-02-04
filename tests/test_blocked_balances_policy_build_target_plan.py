@@ -14,6 +14,22 @@ from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.services.additional_income_service import AdditionalIncomeService
 
 
+def _load_pending_approval_args(Session, *, client_id: int) -> dict:
+    with Session() as db:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "pending_approval")
+            .order_by(Scenario.created_at.desc())
+            .first()
+        )
+        assert row is not None
+        parsed = json.loads(row.parameters)
+        args = parsed.get("arguments")
+        assert isinstance(args, dict)
+        return dict(args)
+
+
 def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _test_db) -> None:
     Session = _test_db["Session"]
 
@@ -459,7 +475,8 @@ def test_current_employer_severance_yes_triggers_termination_approval_and_rebuil
     assert "###UI_ACTION###" in resp3.text
     assert "PROCESS_TERMINATION" in resp3.text
 
-    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": {}}
+    pending_args = _load_pending_approval_args(Session, client_id=client_id)
+    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": pending_args}
     resp4 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -1315,7 +1332,8 @@ def test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_a
     assert "###UI_ACTION###" in resp3.text
     assert "PROCESS_TERMINATION" in resp3.text
 
-    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": {}}
+    pending_args = _load_pending_approval_args(Session, client_id=client_id)
+    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": pending_args}
     resp4 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -1464,7 +1482,8 @@ def test_current_employer_termination_failure_does_not_rebuild_plan(monkeypatch,
     assert resp3.status_code == 200
     assert "###UI_ACTION###" in resp3.text
 
-    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": {}}
+    pending_args = _load_pending_approval_args(Session, client_id=client_id)
+    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": pending_args}
     resp4 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={

@@ -1,7 +1,8 @@
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -318,6 +319,24 @@ def load_current_employer_termination_plan_preview(*, db: Session, client_id: in
 
 
 def store_current_employer_termination_plan_preview(*, db: Session, client_id: int, payload: dict) -> None:
+    payload = dict(payload or {})
+    now = datetime.now(timezone.utc)
+
+    preview_id = payload.get("preview_id")
+    if not isinstance(preview_id, str) or not preview_id.strip():
+        payload["preview_id"] = str(uuid4())
+
+    used_val = payload.get("used")
+    payload["used"] = bool(used_val) is True
+
+    created_raw = payload.get("created_at")
+    if not isinstance(created_raw, str) or not created_raw.strip():
+        payload["created_at"] = now.isoformat()
+
+    expires_raw = payload.get("expires_at")
+    if not isinstance(expires_raw, str) or not expires_raw.strip():
+        payload["expires_at"] = (now + timedelta(minutes=10)).isoformat()
+
     _store_single_scenario_payload(
         db=db,
         client_id=client_id,

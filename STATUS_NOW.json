@@ -1,0 +1,9 @@
+﻿{
+    "local_state":  "committed",
+    "tests":  {
+                  "focused":  "passed",
+                  "full":  "passed"
+              },
+    "next_step":  "commit_and_push",
+    "last_commit":  "1d2c8e9dcaa5bd73e2662e15c9e7e523f0421cb3"
+}

@@ -1,10 +1,14 @@
 import json
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
 from app.models import Scenario
 from app.services.llm_chat.pending_approvals import compute_args_hash
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    load_current_employer_termination_plan_preview,
+)
 
 
 _APPROVAL_EXECUTION_RECEIPT_SCENARIO = "approval_execution_receipt"
@@ -390,6 +394,24 @@ def store_pending_approval_request(
     if not isinstance(tool_args, dict):
         tool_args = {}
 
+    if tool_name == "PROCESS_TERMINATION":
+        approval_id = tool_args.get("approval_id")
+        if not isinstance(approval_id, str) or not approval_id.strip():
+            tool_args["approval_id"] = str(uuid4())
+
+        preview_id = tool_args.get("preview_id")
+        if not isinstance(preview_id, str) or not preview_id.strip():
+            try:
+                preview_payload = load_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(client_id),
+                )
+            except Exception:
+                preview_payload = None
+            preview_id = preview_payload.get("preview_id") if isinstance(preview_payload, dict) else None
+            if isinstance(preview_id, str) and preview_id.strip():
+                tool_args["preview_id"] = preview_id.strip()
+
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == "pending_approval"
@@ -408,8 +430,16 @@ def store_pending_approval_request(
             pass
         return False
 
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=15)
+
     try:
-        payload = {"tool_name": tool_name, "arguments": tool_args}
+        payload = {
+            "tool_name": tool_name,
+            "arguments": tool_args,
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+        }
         scenario = Scenario(
             client_id=client_id,
             scenario_name="pending_approval",
