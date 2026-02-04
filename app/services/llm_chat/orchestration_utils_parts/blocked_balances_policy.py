@@ -10,6 +10,67 @@ from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.models.scenario import Scenario
 
 
+def _target_plan_additional_needed_is_zero(
+    *, db: Session, client_id: int, portfolio: Any, plan_args: dict
+) -> bool | None:
+    if not isinstance(plan_args, dict):
+        return None
+
+    target = plan_args.get("target_monthly_pension")
+    try:
+        target_val = float(target or 0)
+    except Exception:
+        target_val = 0.0
+    if target_val <= 0:
+        return None
+
+    retirement_age = plan_args.get("retirement_age")
+    retirement_age_val = None
+    if retirement_age is not None:
+        try:
+            retirement_age_val = int(retirement_age)
+        except Exception:
+            retirement_age_val = None
+
+    target_is_net = plan_args.get("target_is_net")
+    if target_is_net is None:
+        target_is_net_val = True
+    else:
+        target_is_net_val = bool(target_is_net)
+
+    try:
+        from app.services.llm_agent_tools_service import AgentToolsService
+
+        svc = AgentToolsService(
+            db,
+            int(client_id),
+            client_object=None,
+            pension_portfolio_data=portfolio if isinstance(portfolio, list) else None,
+        )
+        res = svc.build_target_pension_plan(
+            target_monthly_pension=float(target_val),
+            retirement_age=retirement_age_val,
+            target_is_net=bool(target_is_net_val),
+            ignore_blocked_balances=True,
+        )
+    except Exception:
+        return None
+
+    if not (isinstance(res, dict) and res.get("success") is True):
+        return None
+    result = res.get("result")
+    if not isinstance(result, dict):
+        return None
+    additional_needed = result.get("required_gross_additional_needed")
+    if additional_needed is None:
+        return None
+    try:
+        additional_needed_val = float(additional_needed)
+    except Exception:
+        return None
+    return additional_needed_val <= 0
+
+
 _BLOCKED_BALANCES_NOTICE_SHOWN_SCENARIO = "blocked_balances_notice_shown"
 _CURRENT_EMPLOYER_SEVERANCE_DECISION_SCENARIO = "current_employer_severance_execution_decision"
 _PENDING_CURRENT_EMPLOYER_SEVERANCE_TERMINATION_QUESTION_SCENARIO = (
@@ -17,6 +78,64 @@ _PENDING_CURRENT_EMPLOYER_SEVERANCE_TERMINATION_QUESTION_SCENARIO = (
 )
 _PENDING_BUILD_TARGET_PLAN_AFTER_TERMINATION_SCENARIO = "pending_build_target_plan_after_termination"
 _CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO = "current_employer_termination_plan_preview"
+_CURRENT_TERMINATION_PREVIEW_ID_SCENARIO = "current_termination_preview_id"
+
+
+def load_current_termination_preview_id(*, db: Session, client_id: int) -> str | None:
+    payload = _load_latest_scenario_payload(
+        db=db,
+        client_id=client_id,
+        scenario_name=_CURRENT_TERMINATION_PREVIEW_ID_SCENARIO,
+    )
+    if not isinstance(payload, dict):
+        return None
+    preview_id = payload.get("preview_id")
+    if not isinstance(preview_id, str) or not preview_id.strip():
+        return None
+
+    expires_raw = payload.get("expires_at")
+    if isinstance(expires_raw, str) and expires_raw.strip():
+        try:
+            expires_at = datetime.fromisoformat(expires_raw.strip())
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) >= expires_at:
+                return None
+        except Exception:
+            return None
+    return preview_id.strip()
+
+
+def store_current_termination_preview_id(
+    *, db: Session, client_id: int, preview_id: str, ttl_seconds: int = 15 * 60
+) -> None:
+    now = datetime.now(timezone.utc)
+    try:
+        ttl_seconds_int = int(ttl_seconds or 0)
+    except Exception:
+        ttl_seconds_int = 15 * 60
+    if ttl_seconds_int <= 0:
+        ttl_seconds_int = 15 * 60
+
+    expires_at = now + timedelta(seconds=ttl_seconds_int)
+    _store_single_scenario_payload(
+        db=db,
+        client_id=client_id,
+        scenario_name=_CURRENT_TERMINATION_PREVIEW_ID_SCENARIO,
+        payload={
+            "preview_id": str(preview_id or "").strip(),
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+
+
+def clear_current_termination_preview_id(*, db: Session, client_id: int) -> None:
+    _clear_scenario(
+        db=db,
+        client_id=client_id,
+        scenario_name=_CURRENT_TERMINATION_PREVIEW_ID_SCENARIO,
+    )
 
 
 @dataclass
@@ -114,6 +233,27 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                 decision = None
 
             if decision is None:
+                additional_needed_is_zero = None
+                try:
+                    additional_needed_is_zero = _target_plan_additional_needed_is_zero(
+                        db=db,
+                        client_id=client_id,
+                        portfolio=portfolio,
+                        plan_args=plan_args,
+                    )
+                except Exception:
+                    additional_needed_is_zero = None
+
+                if additional_needed_is_zero is True:
+                    try:
+                        clear_pending_current_employer_severance_termination_question(
+                            db=db,
+                            client_id=client_id,
+                        )
+                    except Exception:
+                        pass
+                    return "proceed", plan_args, notice_text
+
                 try:
                     store_pending_current_employer_severance_termination_question(
                         db=db,
@@ -143,12 +283,38 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                 preview_approved = False
                 preview_awaiting = False
                 preview_declined = False
+                preview_used = False
+                preview_id = None
+                declined_at = None
                 if isinstance(preview_payload, dict):
                     preview_approved = bool(preview_payload.get("approved")) is True
                     preview_awaiting = bool(preview_payload.get("awaiting_user_confirmation")) is True
                     preview_declined = bool(preview_payload.get("declined")) is True
 
-                if (not preview_approved) and preview_declined:
+                    preview_used = bool(preview_payload.get("used")) is True
+                    preview_id = preview_payload.get("preview_id")
+                    declined_at = preview_payload.get("declined_at")
+
+                active_preview_id = None
+                try:
+                    active_preview_id = load_current_termination_preview_id(db=db, client_id=client_id)
+                except Exception:
+                    active_preview_id = None
+
+                declined_is_active = (
+                    bool(preview_declined) is True
+                    and (not preview_approved)
+                    and (not preview_used)
+                    and isinstance(declined_at, str)
+                    and bool(declined_at.strip())
+                    and isinstance(preview_id, str)
+                    and bool(preview_id.strip())
+                    and isinstance(active_preview_id, str)
+                    and bool(active_preview_id.strip())
+                    and preview_id.strip() == active_preview_id.strip()
+                )
+
+                if declined_is_active:
                     msg = (
                         "הבנתי – לא אבצע את תכנית ברירת המחדל לעזיבת עבודה.\n\n"
                         "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים:\n"
@@ -323,6 +489,7 @@ def store_current_employer_termination_plan_preview(*, db: Session, client_id: i
     now = datetime.now(timezone.utc)
 
     preview_id = payload.get("preview_id")
+    had_preview_id = isinstance(preview_id, str) and bool(preview_id.strip())
     if not isinstance(preview_id, str) or not preview_id.strip():
         payload["preview_id"] = str(uuid4())
 
@@ -344,6 +511,16 @@ def store_current_employer_termination_plan_preview(*, db: Session, client_id: i
         payload=payload,
     )
 
+    if not had_preview_id:
+        try:
+            store_current_termination_preview_id(
+                db=db,
+                client_id=client_id,
+                preview_id=str(payload.get("preview_id") or "").strip(),
+            )
+        except Exception:
+            pass
+
 
 def clear_current_employer_termination_plan_preview(*, db: Session, client_id: int) -> None:
     _clear_scenario(
@@ -351,6 +528,11 @@ def clear_current_employer_termination_plan_preview(*, db: Session, client_id: i
         client_id=client_id,
         scenario_name=_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO,
     )
+
+    try:
+        clear_current_termination_preview_id(db=db, client_id=client_id)
+    except Exception:
+        pass
 
 
 def _load_latest_scenario_payload(*, db: Session, client_id: int, scenario_name: str) -> dict | None:
