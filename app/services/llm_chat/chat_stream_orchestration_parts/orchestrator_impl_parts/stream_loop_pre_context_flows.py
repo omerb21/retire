@@ -1,4 +1,17 @@
+import logging
+
+from fastapi.responses import StreamingResponse
+
 from app.services.llm_chat.chat_orchestration_helpers import clear_pending_plan_target_marker
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    load_current_employer_termination_plan_preview,
+    store_current_employer_termination_plan_preview,
+)
+from app.services.llm_chat.orchestration_utils_parts.tool_call_helpers import (
+    extract_process_termination_choice_overrides,
+)
+
+logger = logging.getLogger("app.llm_chat")
 
 def _run_pre_context_flows(
     *,
@@ -134,6 +147,141 @@ def _run_pre_context_flows(
         )
         if text_approval_response is not None:
             return text_approval_response, plan_phrase_detected, None, None
+
+        def _maybe_handle_termination_alternative_choice() -> StreamingResponse | None:
+            client_id_local = request.client_id
+            if client_id_local is None:
+                return None
+
+            try:
+                preview_payload = load_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(client_id_local),
+                )
+            except Exception:
+                preview_payload = None
+
+            if not isinstance(preview_payload, dict):
+                return None
+
+            preview_declined = bool(preview_payload.get("declined")) is True
+            preview_approved = bool(preview_payload.get("approved")) is True
+            preview_awaiting = bool(preview_payload.get("awaiting_user_confirmation")) is True
+            preview_used = bool(preview_payload.get("used")) is True
+
+            if (not preview_declined) or preview_approved or preview_awaiting or preview_used:
+                return None
+
+            template_base = preview_payload.get("termination_arguments_template")
+            if not isinstance(template_base, dict) or not template_base:
+                template_base = {
+                    "confirmed": True,
+                    "exempt_choice": "redeem_with_exemption",
+                    "taxable_choice": "annuity",
+                }
+            template_base = dict(template_base)
+            template_base.pop("approval_id", None)
+            template_base.pop("preview_id", None)
+
+            text = (original_user_msg or "").strip()
+            lowered = text.lower()
+
+            overrides: dict = {}
+
+            all_to_annuity_tokens = ("הכל", "כולם", "שניהם")
+            has_all_to_annuity = any(t in lowered for t in all_to_annuity_tokens) and (
+                ("קצבה" in lowered) or ("רצף" in lowered) or ("annuity" in lowered)
+            )
+            if has_all_to_annuity:
+                overrides["exempt_choice"] = "annuity"
+                overrides["taxable_choice"] = "annuity"
+            else:
+                try:
+                    overrides = extract_process_termination_choice_overrides(text)
+                except Exception:
+                    overrides = {}
+
+            parsed_ok = isinstance(overrides, dict) and (
+                isinstance(overrides.get("exempt_choice"), str)
+                or isinstance(overrides.get("taxable_choice"), str)
+            )
+            logger.info(
+                "termination_alternative: parsed=%s overrides=%s",
+                bool(parsed_ok),
+                overrides if isinstance(overrides, dict) else {},
+            )
+
+            if not parsed_ok:
+                msg = (
+                    "לא הבנתי בדיוק מה אתה רוצה לעשות עם הפיצויים. "
+                    "כתוב בצורה מפורשת מה לעשות עם הפטור ומה לעשות עם החייב.\n\n"
+                    "דוגמאות:\n"
+                    "- הכל לקצבה\n"
+                    "- פטור לקצבה, חייב לקצבה\n"
+                    "- פטור למשיכה בפטור, חייב לקצבה"
+                )
+                return StreamingResponse(
+                    iter([msg]),
+                    media_type="text/plain; charset=utf-8",
+                )
+
+            new_template = dict(template_base)
+            new_template.update({k: v for k, v in overrides.items() if k in {"exempt_choice", "taxable_choice"}})
+            new_template["confirmed"] = True
+
+            exempt_choice = str(new_template.get("exempt_choice") or "").strip()
+            taxable_choice = str(new_template.get("taxable_choice") or "").strip()
+
+            def _choice_he(choice: str, *, is_exempt: bool) -> str:
+                if choice == "annuity":
+                    return "המרה לרצף קצבה (annuity)"
+                if choice == "redeem_with_exemption":
+                    return "משיכה הונית בפטור (redeem_with_exemption)"
+                if choice == "redeem_no_exemption":
+                    return "משיכה הונית ללא פטור (redeem_no_exemption)"
+                return choice or ("(לא נבחר)" if is_exempt else "(לא נבחר)")
+
+            preview_text = (
+                "אני עומד לבצע עכשיו עזיבת עבודה לפי הבחירה שביקשת:\n"
+                f"- החלק הפטור: {_choice_he(exempt_choice, is_exempt=True)}\n"
+                f"- החלק החייב: {_choice_he(taxable_choice, is_exempt=False)}\n\n"
+                "לאשר את התכנית הזו?\n\nאפשרויות:\nכן\nלא"
+            )
+
+            payload_out = dict(preview_payload)
+            payload_out.pop("preview_id", None)
+            payload_out.pop("created_at", None)
+            payload_out.pop("expires_at", None)
+            payload_out["termination_arguments_template"] = new_template
+            payload_out["awaiting_user_confirmation"] = True
+            payload_out["approved"] = False
+            payload_out["declined"] = False
+            payload_out["used"] = False
+            try:
+                payload_out["plan"] = {
+                    "exempt_choice": exempt_choice,
+                    "taxable_choice": taxable_choice,
+                }
+            except Exception:
+                pass
+
+            try:
+                store_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(client_id_local),
+                    payload=payload_out,
+                )
+            except Exception:
+                pass
+
+            return StreamingResponse(
+                iter([preview_text]),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        termination_alternative_response = _maybe_handle_termination_alternative_choice()
+        if termination_alternative_response is not None:
+            return termination_alternative_response, plan_phrase_detected, None, None
 
     pending_plan = load_pending_plan_target_marker_direct(
         session=db,

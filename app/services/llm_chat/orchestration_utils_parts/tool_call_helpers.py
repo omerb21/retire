@@ -321,6 +321,7 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
     annuity_tokens = (
         "רצף קצבה",
         "כקצבה",
+        "לקצבה",
         "להמיר לקצבה",
         "annuity",
     )
@@ -368,7 +369,7 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
 
     if "taxable_choice" not in overrides:
         if ("חייב" in lowered or "חייב במס" in lowered) and (
-            "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
+            "רצף קצבה" in lowered or ("לקצבה" in lowered) or re.search(r"\bכ?קצבה\b", lowered)
         ):
             overrides["taxable_choice"] = "annuity"
 
@@ -415,12 +416,12 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
                 overrides["exempt_choice"] = "redeem_with_exemption"
             elif any(t in exempt_clause for t in ("בלי שימוש בפטור", "ללא שימוש בפטור", "ללא פטור")):
                 overrides["exempt_choice"] = "redeem_no_exemption"
-            elif "רצף קצבה" in exempt_clause or re.search(r"\bכ?קצבה\b", exempt_clause):
+            elif "רצף קצבה" in exempt_clause or ("לקצבה" in exempt_clause) or re.search(r"\bכ?קצבה\b", exempt_clause):
                 overrides["exempt_choice"] = "annuity"
 
     if taxable_clause:
         if "taxable_choice" not in overrides:
-            if "רצף קצבה" in taxable_clause or re.search(r"\bכ?קצבה\b", taxable_clause):
+            if "רצף קצבה" in taxable_clause or ("לקצבה" in taxable_clause) or re.search(r"\bכ?קצבה\b", taxable_clause):
                 overrides["taxable_choice"] = "annuity"
             elif any(t in taxable_clause for t in ("משיכה", "חד פעמ", "משיכת הון", "משיכת מענק", "הוני")):
                 overrides["taxable_choice"] = "redeem_no_exemption"
@@ -430,7 +431,7 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
             "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
         ):
             overrides["exempt_choice"] = "redeem_with_exemption"
-        elif "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered):
+        elif "רצף קצבה" in lowered or ("לקצבה" in lowered) or re.search(r"\bכ?קצבה\b", lowered):
             overrides["exempt_choice"] = "annuity"
 
     if "taxable_choice" not in overrides and ("חייב" in lowered or "חייב במס" in lowered):

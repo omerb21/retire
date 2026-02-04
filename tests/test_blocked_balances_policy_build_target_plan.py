@@ -1619,6 +1619,466 @@ def test_current_employer_severance_no_builds_ignoring(monkeypatch, _test_db) ->
     assert "בניית תכנית קצבה" in resp2.text
     assert tool_calls == ["BUILD_TARGET_PENSION_PLAN"]
 
+
+def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execution(monkeypatch, _test_db) -> None:
+    Session = _test_db["Session"]
+    client_id = 985000020
+
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None:
+            client = Client(
+                id=client_id,
+                id_number_raw=str(client_id),
+                id_number=str(client_id),
+                full_name="Test User",
+                birth_date=date(1980, 1, 1),
+                gender="male",
+                is_active=True,
+            )
+            db.add(client)
+            db.flush()
+
+        db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).delete(
+            synchronize_session=False
+        )
+        db.add(
+            CurrentEmployer(
+                client_id=client_id,
+                employer_name="Test Employer",
+                start_date=date(2020, 1, 1),
+                end_date=None,
+                severance_accrued=0.0,
+            )
+        )
+
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name.in_(
+                [
+                    "pension_portfolio_snapshot",
+                    "pending_current_employer_severance_termination_question",
+                    "pending_build_target_plan_after_termination",
+                    "pending_approval",
+                    "current_employer_termination_plan_preview",
+                    "current_employer_severance_execution_decision",
+                ]
+            )
+        ).delete(synchronize_session=False)
+
+        snapshot_accounts = [
+            {
+                "מספר_חשבון": "C1",
+                "שם_תכנית": "Fund C",
+                "חברה_מנהלת": "X",
+                "סוג_מוצר": "קופת גמל",
+                "יתרה": 100000,
+                "תאריך_התחלה": "2005-01-01",
+                "פיצויים_מעסיק_נוכחי": 1000,
+            }
+        ]
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for deterministic policy test")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    tool_calls: list[str] = []
+
+    def fake_execute_tool_call(
+        tool_name: str,
+        args: dict,
+        client_id: int,
+        db,
+        pension_portfolio=None,
+        force_max_exemption: bool = False,
+        agent_reply: str | None = None,
+        user_approved: bool = False,
+        request_id: str | None = None,
+        **kwargs,
+    ) -> str:
+        assert isinstance(tool_name, str)
+        assert isinstance(args, dict)
+        tool_calls.append(tool_name)
+        if tool_name == "PROCESS_TERMINATION":
+            assert user_approved is True
+            assert args.get("exempt_choice") == "annuity"
+            assert args.get("taxable_choice") == "annuity"
+            return json.dumps({"success": True}, ensure_ascii=False)
+        if tool_name == "BUILD_TARGET_PENSION_PLAN":
+            assert user_approved is True
+            return json.dumps({"success": True, "result": {}}, ensure_ascii=False)
+        raise AssertionError(f"Unexpected tool call: {tool_name}")
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+
+    resp1 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp1.status_code == 200
+    assert "האם תרצה לבצע עזיבת עבודה עכשיו" in resp1.text
+
+    resp2 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "כן"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp2.status_code == 200
+    assert "אני עומד לבצע עכשיו עזיבת עבודה" in resp2.text
+
+    resp3 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "לא"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp3.status_code == 200
+    assert "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים" in resp3.text
+    assert tool_calls == []
+
+    resp4 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "למשוך את הכל כקצבה"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp4.status_code == 200
+    assert "לפי הבחירה שביקשת" in resp4.text
+    assert "לאשר את התכנית הזו" in resp4.text
+    assert "###UI_ACTION###" not in resp4.text
+    assert tool_calls == []
+
+    resp5 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "כן"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp5.status_code == 200
+    assert "###UI_ACTION###" in resp5.text
+    assert "PROCESS_TERMINATION" in resp5.text
+
+    pending_args = _load_pending_approval_args(Session, client_id=client_id)
+    approval_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": pending_args}
+    resp6 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"###USER_APPROVED### {json.dumps(approval_payload, ensure_ascii=False)}",
+                }
+            ],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp6.status_code == 200
+    assert tool_calls == ["PROCESS_TERMINATION", "BUILD_TARGET_PENSION_PLAN"]
+
+
+def test_termination_declined_then_exempt_and_taxable_annuity_parses(monkeypatch, _test_db) -> None:
+    Session = _test_db["Session"]
+    client_id = 985000021
+
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None:
+            client = Client(
+                id=client_id,
+                id_number_raw=str(client_id),
+                id_number=str(client_id),
+                full_name="Test User",
+                birth_date=date(1980, 1, 1),
+                gender="male",
+                is_active=True,
+            )
+            db.add(client)
+            db.flush()
+
+        db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).delete(
+            synchronize_session=False
+        )
+        db.add(
+            CurrentEmployer(
+                client_id=client_id,
+                employer_name="Test Employer",
+                start_date=date(2020, 1, 1),
+                end_date=None,
+                severance_accrued=0.0,
+            )
+        )
+
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name.in_(
+                [
+                    "pension_portfolio_snapshot",
+                    "pending_current_employer_severance_termination_question",
+                    "pending_build_target_plan_after_termination",
+                    "pending_approval",
+                    "current_employer_termination_plan_preview",
+                    "current_employer_severance_execution_decision",
+                ]
+            )
+        ).delete(synchronize_session=False)
+
+        snapshot_accounts = [
+            {
+                "מספר_חשבון": "C1",
+                "שם_תכנית": "Fund C",
+                "חברה_מנהלת": "X",
+                "סוג_מוצר": "קופת גמל",
+                "יתרה": 100000,
+                "תאריך_התחלה": "2005-01-01",
+                "פיצויים_מעסיק_נוכחי": 1000,
+            }
+        ]
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called for deterministic policy test")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    tool_calls: list[str] = []
+
+    def fake_execute_tool_call(*args, **kwargs) -> str:
+        tool_name = kwargs.get("tool_name")
+        tool_args = kwargs.get("args")
+        user_approved = kwargs.get("user_approved")
+        if tool_name is None and args:
+            tool_name = args[0] if len(args) > 0 else None
+            tool_args = args[1] if len(args) > 1 else None
+            if user_approved is None and len(args) > 7:
+                user_approved = args[7]
+
+        assert isinstance(tool_name, str)
+        assert isinstance(tool_args, dict)
+        tool_calls.append(tool_name)
+        if tool_name == "PROCESS_TERMINATION":
+            assert user_approved is True
+            assert tool_args.get("exempt_choice") == "annuity"
+            assert tool_args.get("taxable_choice") == "annuity"
+            return json.dumps({"success": True}, ensure_ascii=False)
+        if tool_name == "BUILD_TARGET_PENSION_PLAN":
+            assert user_approved is True
+            return json.dumps({"success": True, "result": {}}, ensure_ascii=False)
+        raise AssertionError(f"Unexpected tool call: {tool_name}")
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+
+    resp1 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp1.status_code == 200
+
+    resp2 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "כן"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp2.status_code == 200
+    assert "אני עומד לבצע עכשיו עזיבת עבודה" in resp2.text
+
+    resp3 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "לא"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp3.status_code == 200
+    assert "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים" in resp3.text
+
+    resp4 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "פטור לקצבה, חייב לקצבה"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp4.status_code == 200
+    assert "לפי הבחירה שביקשת" in resp4.text
+    assert tool_calls == []
+
+
+def test_termination_alternative_unparseable_keeps_state_and_asks_clarifying_question(
+    monkeypatch, _test_db
+) -> None:
+    Session = _test_db["Session"]
+    client_id = 985000022
+
+    with Session() as db:
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client is None:
+            client = Client(
+                id=client_id,
+                id_number_raw=str(client_id),
+                id_number=str(client_id),
+                full_name="Test User",
+                birth_date=date(1980, 1, 1),
+                gender="male",
+                is_active=True,
+            )
+            db.add(client)
+            db.flush()
+
+        db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).delete(
+            synchronize_session=False
+        )
+        db.add(
+            CurrentEmployer(
+                client_id=client_id,
+                employer_name="Test Employer",
+                start_date=date(2020, 1, 1),
+                end_date=None,
+                severance_accrued=0.0,
+            )
+        )
+
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name.in_(
+                [
+                    "pension_portfolio_snapshot",
+                    "pending_current_employer_severance_termination_question",
+                    "pending_build_target_plan_after_termination",
+                    "pending_approval",
+                    "current_employer_termination_plan_preview",
+                    "current_employer_severance_execution_decision",
+                ]
+            )
+        ).delete(synchronize_session=False)
+
+        snapshot_accounts = [
+            {
+                "מספר_חשבון": "C1",
+                "שם_תכנית": "Fund C",
+                "חברה_מנהלת": "X",
+                "סוג_מוצר": "קופת גמל",
+                "יתרה": 100000,
+                "תאריך_התחלה": "2005-01-01",
+                "פיצויים_מעסיק_נוכחי": 1000,
+            }
+        ]
+        db.add(
+            Scenario(
+                client_id=client_id,
+                scenario_name="pension_portfolio_snapshot",
+                apply_tax_planning=False,
+                apply_capitalization=False,
+                apply_exemption_shield=False,
+                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+        db.commit()
+
+    def fake_chat_stream(messages, client_id=None):
+        raise AssertionError("LLM must not be called when awaiting termination alternative")
+
+    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+
+    def fake_execute_tool_call(*args, **kwargs):
+        raise AssertionError("No tools must be executed for unparseable alternative")
+
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
+
+    api = TestClient(app)
+
+    resp1 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp1.status_code == 200
+
+    resp2 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "כן"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp2.status_code == 200
+    assert "אני עומד לבצע עכשיו עזיבת עבודה" in resp2.text
+
+    resp3 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "לא"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp3.status_code == 200
+    assert "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים" in resp3.text
+
+    resp4 = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "תעשה מה שאתה חושב"}],
+            "pension_portfolio": [],
+        },
+    )
+    assert resp4.status_code == 200
+    assert "לא הבנתי בדיוק" in resp4.text
+    assert "אני יכול להסביר את העיקרון בלבד" not in resp4.text
+
     with Session() as db:
         pending = (
             db.query(Scenario)
