@@ -218,6 +218,143 @@ def build_target_pension_plan(
         required_gross_for_target = float(computed_gross)
         required_gross_tax_projection = tax_result
 
+    portfolio_sources_total = 0
+    portfolio_sources_added = 0
+    portfolio_sources_skipped_duplicates = 0
+    portfolio_sources_unique_accounts = 0
+    portfolio_sources_total_balance = 0.0
+    portfolio_accounts_count = 0
+    portfolio_accounts_total_balance = 0.0
+    blocked_total_detected = 0.0
+
+    pension_portfolio_data: Any = None
+
+    def _safe_float(value: Any) -> float:
+        try:
+            if value is None:
+                return 0.0
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                cleaned = value.replace(",", "").replace("₪", "").strip()
+                if not cleaned:
+                    return 0.0
+                return float(cleaned)
+            return float(value)
+        except Exception:
+            return 0.0
+
+    def _portfolio_has_value(portfolio: Any) -> bool:
+        if not isinstance(portfolio, list) or not portfolio:
+            return False
+        component_prefixes = ("תגמולי_", "פיצויים_")
+        for acc in portfolio:
+            acc_dict: dict[str, Any] | None = None
+            if isinstance(acc, dict):
+                acc_dict = acc
+            elif hasattr(acc, "model_dump"):
+                try:
+                    dumped = acc.model_dump()
+                    if isinstance(dumped, dict):
+                        acc_dict = dumped
+                except Exception:
+                    acc_dict = None
+            if acc_dict is None:
+                continue
+
+            if _safe_float(
+                acc_dict.get("יתרה")
+                or acc_dict.get("balance")
+                or acc_dict.get("current_balance")
+            ) > 0.01:
+                return True
+            if _safe_float(acc_dict.get("סך_רכיבים") or acc_dict.get("total_components")) > 0.01:
+                return True
+            if _safe_float(
+                acc_dict.get("סך_תגמולים")
+                or acc_dict.get("תגמולים")
+                or acc_dict.get("total_contributions")
+            ) > 0.01:
+                return True
+            if _safe_float(acc_dict.get("קרן_השתלמות") or acc_dict.get("education_fund")) > 0.01:
+                return True
+            nested_components = acc_dict.get("components")
+            if isinstance(nested_components, dict):
+                for v in nested_components.values():
+                    if _safe_float(v) > 0.01:
+                        return True
+
+            for k, v in acc_dict.items():
+                if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
+                    return True
+        return False
+
+    if (
+        isinstance(getattr(self, "pension_portfolio_data", None), list)
+        and getattr(self, "pension_portfolio_data")
+    ):
+        candidate = getattr(self, "pension_portfolio_data")
+        if _portfolio_has_value(candidate):
+            pension_portfolio_data = candidate
+    else:
+        try:
+            scenarios = (
+                self.db.query(Scenario)
+                .filter(Scenario.client_id == self.client_id)
+                .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
+                .order_by(Scenario.created_at.desc())
+                .limit(20)
+                .all()
+            )
+        except Exception:
+            scenarios = []
+
+        chosen = None
+        chosen_any = None
+        for row in scenarios or []:
+            if not getattr(row, "parameters", None):
+                continue
+            try:
+                params = json.loads(row.parameters)
+            except Exception:
+                continue
+            portfolio = params.get("pension_portfolio")
+            if not (isinstance(portfolio, list) and portfolio):
+                continue
+            if not _portfolio_has_value(portfolio):
+                continue
+            meta = params.get("_meta") if isinstance(params, dict) else None
+            op_type = None
+            if isinstance(meta, dict):
+                op_type = str(meta.get("operation_type") or "").strip()
+            if chosen_any is None:
+                chosen_any = (portfolio, row)
+            if op_type != "TRANSFORM_FUNDS_TO_ASSETS":
+                chosen = (portfolio, row)
+                break
+
+        if chosen is None:
+            chosen = chosen_any
+
+        if chosen is None:
+            try:
+                loaded = load_latest_pension_portfolio_snapshot(self.db, self.client_id)
+            except Exception:
+                loaded = None
+            if isinstance(loaded, tuple) and len(loaded) == 2:
+                if _portfolio_has_value(loaded[0]):
+                    pension_portfolio_data = loaded[0]
+            else:
+                pension_portfolio_data = None
+        else:
+            pension_portfolio_data = chosen[0]
+
+    has_snapshot_sources = bool(
+        isinstance(pension_portfolio_data, list)
+        and pension_portfolio_data
+        and _portfolio_has_value(pension_portfolio_data)
+    )
+
     # שלב 1: איסוף כל מקורות הקצבה הפוטנציאליים
     pension_sources = []
 
@@ -230,24 +367,6 @@ def build_target_pension_plan(
     capital_assets = self.db.query(CapitalAsset).filter(
         CapitalAsset.client_id == self.client_id
     ).all()
-
-    has_db_state_sources = False
-    try:
-        has_non_portfolio_pension_funds = False
-        for pf in pension_funds or []:
-            raw_src = getattr(pf, "conversion_source", None)
-            raw_src_str = str(raw_src) if raw_src is not None else ""
-            if raw_src_str and (
-                '"source": "pension_portfolio"' in raw_src_str
-                or '"type": "pension_portfolio"' in raw_src_str
-                or '"source": "pension_portfolio_convert"' in raw_src_str
-            ):
-                continue
-            has_non_portfolio_pension_funds = True
-            break
-        has_db_state_sources = bool(capital_assets) or bool(has_non_portfolio_pension_funds)
-    except Exception:
-        has_db_state_sources = False
 
     for pf in pension_funds:
         try:
@@ -272,9 +391,9 @@ def build_target_pension_plan(
                 or '"source": "pension_portfolio_convert"' in raw_src_str
             )
         )
-        # If we are planning from snapshot sources, skip portfolio-imported PensionFund rows
+        # If snapshot sources exist, skip portfolio-imported PensionFund rows
         # to avoid de-duping away the per-component snapshot sources.
-        if (not has_db_state_sources) and raw_src_str and (
+        if has_snapshot_sources and raw_src_str and (
             '"source": "pension_portfolio"' in raw_src_str
             or '"type": "pension_portfolio"' in raw_src_str
             or '"source": "pension_portfolio_convert"' in raw_src_str
@@ -384,138 +503,6 @@ def build_target_pension_plan(
                 }
             )
 
-    portfolio_sources_total = 0
-    portfolio_sources_added = 0
-    portfolio_sources_skipped_duplicates = 0
-    portfolio_sources_unique_accounts = 0
-    portfolio_sources_total_balance = 0.0
-    portfolio_accounts_count = 0
-    portfolio_accounts_total_balance = 0.0
-    blocked_total_detected = 0.0
-
-    pension_portfolio_data: Any = None
-
-    def _safe_float(value: Any) -> float:
-        try:
-            if value is None:
-                return 0.0
-            if isinstance(value, (int, float)):
-                return float(value)
-            if isinstance(value, str):
-                cleaned = value.replace(",", "").replace("₪", "").strip()
-                if not cleaned:
-                    return 0.0
-                return float(cleaned)
-            return float(value)
-        except Exception:
-            return 0.0
-
-    def _portfolio_has_value(portfolio: Any) -> bool:
-        if not isinstance(portfolio, list) or not portfolio:
-            return False
-        component_prefixes = ("תגמולי_", "פיצויים_")
-        for acc in portfolio:
-            acc_dict: dict[str, Any] | None = None
-            if isinstance(acc, dict):
-                acc_dict = acc
-            elif hasattr(acc, "model_dump"):
-                try:
-                    dumped = acc.model_dump()
-                    if isinstance(dumped, dict):
-                        acc_dict = dumped
-                except Exception:
-                    acc_dict = None
-            if acc_dict is None:
-                continue
-
-            if _safe_float(
-                acc_dict.get("יתרה")
-                or acc_dict.get("balance")
-                or acc_dict.get("current_balance")
-            ) > 0.01:
-                return True
-            if _safe_float(acc_dict.get("סך_רכיבים") or acc_dict.get("total_components")) > 0.01:
-                return True
-            if _safe_float(
-                acc_dict.get("סך_תגמולים")
-                or acc_dict.get("תגמולים")
-                or acc_dict.get("total_contributions")
-            ) > 0.01:
-                return True
-            if _safe_float(acc_dict.get("קרן_השתלמות") or acc_dict.get("education_fund")) > 0.01:
-                return True
-            nested_components = acc_dict.get("components")
-            if isinstance(nested_components, dict):
-                for v in nested_components.values():
-                    if _safe_float(v) > 0.01:
-                        return True
-
-            for k, v in acc_dict.items():
-                if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
-                    return True
-        return False
-
-    if not has_db_state_sources:
-        if (
-            isinstance(getattr(self, "pension_portfolio_data", None), list)
-            and getattr(self, "pension_portfolio_data")
-        ):
-            candidate = getattr(self, "pension_portfolio_data")
-            if _portfolio_has_value(candidate):
-                pension_portfolio_data = candidate
-        else:
-            try:
-                scenarios = (
-                    self.db.query(Scenario)
-                    .filter(Scenario.client_id == self.client_id)
-                    .filter(Scenario.scenario_name == "pension_portfolio_snapshot")
-                    .order_by(Scenario.created_at.desc())
-                    .limit(20)
-                    .all()
-                )
-            except Exception:
-                scenarios = []
-
-            chosen = None
-            chosen_any = None
-            for row in scenarios or []:
-                if not getattr(row, "parameters", None):
-                    continue
-                try:
-                    params = json.loads(row.parameters)
-                except Exception:
-                    continue
-                portfolio = params.get("pension_portfolio")
-                if not (isinstance(portfolio, list) and portfolio):
-                    continue
-                if not _portfolio_has_value(portfolio):
-                    continue
-                meta = params.get("_meta") if isinstance(params, dict) else None
-                op_type = None
-                if isinstance(meta, dict):
-                    op_type = str(meta.get("operation_type") or "").strip()
-                if chosen_any is None:
-                    chosen_any = (portfolio, row)
-                if op_type != "TRANSFORM_FUNDS_TO_ASSETS":
-                    chosen = (portfolio, row)
-                    break
-
-            if chosen is None:
-                chosen = chosen_any
-
-            if chosen is None:
-                try:
-                    loaded = load_latest_pension_portfolio_snapshot(self.db, self.client_id)
-                except Exception:
-                    loaded = None
-                if isinstance(loaded, tuple) and len(loaded) == 2:
-                    if _portfolio_has_value(loaded[0]):
-                        pension_portfolio_data = loaded[0]
-                else:
-                    pension_portfolio_data = None
-            else:
-                pension_portfolio_data = chosen[0]
-
     if isinstance(pension_portfolio_data, list) and pension_portfolio_data:
         portfolio_accounts_count = len(pension_portfolio_data)
         try:
@@ -621,6 +608,143 @@ def build_target_pension_plan(
         portfolio_sources_unique_accounts = len(seen_portfolio_account_numbers)
         portfolio_sources_added = len(filtered_portfolio_sources)
         pension_sources.extend(filtered_portfolio_sources)
+
+    existing_pension_total_gross = 0.0
+    existing_pension_sources: list[dict[str, Any]] = []
+    convertible_sources: list[dict[str, Any]] = []
+    for src in pension_sources:
+        if not isinstance(src, dict):
+            continue
+        if src.get("action_needed") == "none":
+            existing_pension_sources.append(src)
+            try:
+                existing_pension_total_gross += float(src.get("monthly_pension") or 0)
+            except Exception:
+                pass
+        else:
+            convertible_sources.append(src)
+
+    required_gross_total_for_target = float(required_gross_for_target)
+    required_gross_additional_needed = max(
+        0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
+    )
+
+    if required_gross_additional_needed <= 0:
+        estimated_tax = None
+        estimated_net = None
+        tax_projection_result = None
+        try:
+            tax_proj = self.get_tax_projection(monthly_pension=float(existing_pension_total_gross))
+            if isinstance(tax_proj, dict) and isinstance(tax_proj.get("result"), dict):
+                tax_projection_result = tax_proj.get("result")
+                estimated_tax = tax_projection_result.get("monthly_tax")
+                if estimated_tax is not None:
+                    try:
+                        estimated_net = float(existing_pension_total_gross) - float(estimated_tax)
+                    except Exception:
+                        estimated_net = None
+        except Exception:
+            tax_projection_result = None
+
+        target_achieved_gross = float(existing_pension_total_gross) >= float(required_gross_total_for_target)
+        target_achieved_net = None
+        if target_is_net and estimated_net is not None:
+            try:
+                target_achieved_net = float(estimated_net) >= float(target)
+            except Exception:
+                target_achieved_net = None
+        if target_is_net and estimated_net is None:
+            target_achieved_net = False
+
+        taxable_existing = 0.0
+        exempt_existing = 0.0
+        for s in existing_pension_sources:
+            try:
+                amt = float(s.get("monthly_pension") or 0)
+            except Exception:
+                amt = 0.0
+            if str(s.get("tax_treatment") or "taxable") == "exempt":
+                exempt_existing += amt
+            else:
+                taxable_existing += amt
+
+        explanation = build_target_pension_plan_explanation(
+            target_achieved_gross=target_achieved_gross,
+            target=target,
+            target_is_net=target_is_net,
+            retirement_age=retirement_age,
+            plan_steps=[],
+            remaining_capital=0.0,
+            advantages=["היעד כבר מתקיים מקצבאות קיימות - אין צורך בתכנית המרה"],
+            disadvantages=[],
+            blocked_for_execution_capital=0.0,
+            accumulated_pension=float(existing_pension_total_gross),
+            estimated_net=estimated_net,
+            gap=max(0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)),
+            required_gross_for_target=float(required_gross_total_for_target),
+            exempt_pension=float(exempt_existing),
+            avg_factor=0.0,
+        )
+
+        return {
+            "success": True,
+            "tool_name": "BUILD_TARGET_PENSION_PLAN",
+            "result": {
+                "target_monthly_pension": target,
+                "target_is_net": target_is_net,
+                "retirement_age": retirement_age,
+                "target_achieved": (
+                    target_achieved_net if target_is_net else target_achieved_gross
+                ),
+                "target_achieved_gross": target_achieved_gross,
+                "target_achieved_net": target_achieved_net,
+                "required_gross_for_target": float(required_gross_total_for_target),
+                "required_gross_tax_projection": required_gross_tax_projection,
+                "required_gross_additional_needed": float(required_gross_additional_needed),
+                "existing_pension_total_gross": float(existing_pension_total_gross),
+                "accumulated_pension": float(existing_pension_total_gross),
+                "taxable_pension": float(taxable_existing),
+                "exempt_pension": float(exempt_existing),
+                "estimated_monthly_tax": estimated_tax,
+                "estimated_monthly_net": estimated_net,
+                "tax_projection": tax_projection_result,
+                "portfolio_sources_total": portfolio_sources_total,
+                "portfolio_sources_added": portfolio_sources_added,
+                "portfolio_sources_skipped_duplicates": portfolio_sources_skipped_duplicates,
+                "portfolio_sources_unique_accounts": portfolio_sources_unique_accounts,
+                "portfolio_sources_total_balance": portfolio_sources_total_balance,
+                "debug_inputs": {
+                    "portfolio_sources_count": int(portfolio_accounts_count or 0),
+                    "portfolio_total_balance": float(portfolio_accounts_total_balance or 0.0),
+                    "blocked_total_detected": float(blocked_total_detected or 0.0),
+                    "ignore_blocked_balances": bool(ignore_blocked_balances),
+                    "sources_used": [],
+                },
+                "gap_to_target": max(
+                    0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
+                ),
+                "remaining_capital": 0.0,
+                "blocked_for_execution_capital": 0.0,
+                "plan_steps": [],
+                "sources_used": [],
+                "sources_not_used": [],
+                "advantages": ["היעד כבר מתקיים מקצבאות קיימות"],
+                "disadvantages": [],
+                "total_sources_available": len(convertible_sources) + len(existing_pension_sources),
+                "sources_used_count": 0,
+                "execution_plan": {
+                    "target_net": 0,
+                    "target_gross": 0,
+                    "accounts": [],
+                    "expected_total_gross": float(existing_pension_total_gross),
+                    "expected_total_net": float(estimated_net or 0),
+                    "non_executable_reason": "אין צורך לבצע המרות - היעד כבר מתקיים",
+                },
+            },
+            "explanation": explanation,
+        }
+
+    pension_sources = convertible_sources
 
     if not pension_sources:
         return {
@@ -743,7 +867,7 @@ def build_target_pension_plan(
 
     # שלב 3: בניית התכנית - צבירת קצבה עד היעד
     plan_steps = []
-    accumulated_pension = 0.0
+    accumulated_pension_added = 0.0
     remaining_capital = 0.0
     blocked_for_execution_capital = 0.0
     sources_used = []
@@ -803,18 +927,19 @@ def build_target_pension_plan(
             sources_not_used.append(source)
             blocked_for_execution_capital += float(source.get("balance") or 0)
             continue
-        if accumulated_pension >= required_gross_for_target:
+        if accumulated_pension_added >= required_gross_additional_needed:
             # כבר הגענו ליעד - השאר נשאר כהון
             sources_not_used.append(source)
             remaining_capital += source["balance"]
             continue
 
         pension_from_source = source["monthly_pension"]
-        needed = required_gross_for_target - accumulated_pension
+        needed = required_gross_additional_needed - accumulated_pension_added
 
         if pension_from_source <= needed:
             # משתמשים בכל המקור
-            accumulated_pension += pension_from_source
+            accumulated_pension_added += pension_from_source
+            accumulated_total = float(existing_pension_total_gross) + float(accumulated_pension_added)
             sources_used.append(
                 {
                     **source,
@@ -828,7 +953,7 @@ def build_target_pension_plan(
                     "step_number": len(plan_steps) + 1,
                     "action": source["action_description"],
                     "pension_added": pension_from_source,
-                    "accumulated_pension": accumulated_pension,
+                    "accumulated_pension": accumulated_total,
                     "source_name": source["source_name"],
                     "annuity_factor": source["annuity_factor"],
                 }
@@ -836,7 +961,8 @@ def build_target_pension_plan(
         else:
             # משתמשים רק בחלק מהמקור
             partial_balance = needed * source["annuity_factor"]
-            accumulated_pension += needed
+            accumulated_pension_added += needed
+            accumulated_total = float(existing_pension_total_gross) + float(accumulated_pension_added)
             remaining_from_source = source["balance"] - partial_balance
             remaining_capital += remaining_from_source
 
@@ -854,16 +980,18 @@ def build_target_pension_plan(
                     "step_number": len(plan_steps) + 1,
                     "action": f"המרה חלקית: {partial_balance:,.0f} ₪ מתוך {source['balance']:,.0f} ₪ לקצבה של {needed:,.0f} ₪/חודש",
                     "pension_added": needed,
-                    "accumulated_pension": accumulated_pension,
+                    "accumulated_pension": accumulated_total,
                     "source_name": source["source_name"],
                     "annuity_factor": source["annuity_factor"],
                     "remaining_as_capital": remaining_from_source,
                 }
             )
 
+    accumulated_pension_total = float(existing_pension_total_gross) + float(accumulated_pension_added)
+
     # חישוב סיכום
-    target_achieved_gross = accumulated_pension >= required_gross_for_target
-    gap = max(0, required_gross_for_target - accumulated_pension)
+    target_achieved_gross = accumulated_pension_total >= required_gross_total_for_target
+    gap = max(0, float(required_gross_total_for_target) - float(accumulated_pension_total))
 
     # בניית יתרונות וחסרונות
     advantages = []
@@ -891,15 +1019,24 @@ def build_target_pension_plan(
 
     # בדיקת מס
     taxable_pension = sum(
-        s["pension_used"] for s in sources_used if s["tax_treatment"] == "taxable"
+        float(s["pension_used"]) for s in sources_used if s.get("tax_treatment") == "taxable"
     )
     exempt_pension = sum(
-        s["pension_used"] for s in sources_used if s["tax_treatment"] == "exempt"
+        float(s["pension_used"]) for s in sources_used if s.get("tax_treatment") == "exempt"
     )
+    for s in existing_pension_sources:
+        try:
+            amt = float(s.get("monthly_pension") or 0)
+        except Exception:
+            amt = 0.0
+        if str(s.get("tax_treatment") or "taxable") == "exempt":
+            exempt_pension += amt
+        else:
+            taxable_pension += amt
 
     if exempt_pension > 0:
         advantages.append(f"{exempt_pension:,.0f} ₪ מהקצבה פטורים ממס")
-    if taxable_pension > accumulated_pension * 0.7:
+    if taxable_pension > accumulated_pension_total * 0.7:
         disadvantages.append(f"רוב הקצבה ({taxable_pension:,.0f} ₪) חייבת במס")
 
     if not target_achieved_gross:
@@ -914,13 +1051,13 @@ def build_target_pension_plan(
     estimated_net = None
     tax_projection_result = None
     try:
-        tax_proj = self.get_tax_projection(monthly_pension=accumulated_pension)
+        tax_proj = self.get_tax_projection(monthly_pension=accumulated_pension_total)
         if isinstance(tax_proj, dict) and isinstance(tax_proj.get("result"), dict):
             tax_projection_result = tax_proj.get("result")
             estimated_tax = tax_projection_result.get("monthly_tax")
             if estimated_tax is not None:
                 try:
-                    estimated_net = float(accumulated_pension) - float(estimated_tax)
+                    estimated_net = float(accumulated_pension_total) - float(estimated_tax)
                 except Exception:
                     estimated_net = None
     except Exception:
@@ -946,10 +1083,10 @@ def build_target_pension_plan(
         advantages=advantages,
         disadvantages=disadvantages,
         blocked_for_execution_capital=blocked_for_execution_capital,
-        accumulated_pension=accumulated_pension,
+        accumulated_pension=accumulated_pension_total,
         estimated_net=estimated_net,
         gap=gap,
-        required_gross_for_target=required_gross_for_target,
+        required_gross_for_target=float(required_gross_total_for_target),
         exempt_pension=exempt_pension,
         avg_factor=avg_factor,
     )
@@ -1067,9 +1204,11 @@ def build_target_pension_plan(
             ),
             "target_achieved_gross": target_achieved_gross,
             "target_achieved_net": target_achieved_net,
-            "required_gross_for_target": required_gross_for_target,
+            "required_gross_for_target": float(required_gross_total_for_target),
             "required_gross_tax_projection": required_gross_tax_projection,
-            "accumulated_pension": accumulated_pension,
+            "required_gross_additional_needed": float(required_gross_additional_needed),
+            "existing_pension_total_gross": float(existing_pension_total_gross),
+            "accumulated_pension": float(accumulated_pension_total),
             "taxable_pension": taxable_pension,
             "exempt_pension": exempt_pension,
             "estimated_monthly_tax": estimated_tax,
@@ -1112,7 +1251,7 @@ def build_target_pension_plan(
             "sources_not_used": sources_not_used,
             "advantages": advantages,
             "disadvantages": disadvantages,
-            "total_sources_available": len(pension_sources),
+            "total_sources_available": len(pension_sources) + len(existing_pension_sources),
             "sources_used_count": len(sources_used),
             "execution_plan": execution_plan,
         },

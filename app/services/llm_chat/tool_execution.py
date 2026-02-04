@@ -110,11 +110,13 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    build_default_termination_plan_preview,
     compute_blocked_balances_summary_from_portfolio,
     evaluate_blocked_balances_policy_for_build_target_plan,
     load_blocked_balances_notice_shown,
     load_current_employer_termination_plan_preview,
     load_current_employer_severance_execution_decision,
+    store_current_employer_termination_plan_preview,
     termination_already_executed_for_client,
 )
 
@@ -208,6 +210,59 @@ def execute_tool_call(
 ) -> str:
     tool_name = normalize_tool_name(tool_name) or tool_name
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
+
+    if tool_name == "PROCESS_TERMINATION":
+        preview_payload = None
+        try:
+            preview_payload = load_current_employer_termination_plan_preview(
+                db=db,
+                client_id=int(client_id),
+            )
+        except Exception:
+            preview_payload = None
+
+        preview_approved = False
+        preview_declined = False
+        args_template = None
+        if isinstance(preview_payload, dict):
+            preview_approved = bool(preview_payload.get("approved")) is True
+            preview_declined = bool(preview_payload.get("declined")) is True
+            args_template = preview_payload.get("termination_arguments_template")
+
+        if preview_approved and isinstance(args_template, dict) and args_template:
+            args = dict(args_template)
+        else:
+            if preview_declined and (not preview_approved):
+                return (
+                    "לא אבצע תכנית ברירת מחדל לעזיבת עבודה בלי בחירה מפורשת. "
+                    "אנא ציין מה לעשות עם הפיצויים (פטור/חייב)."
+                )
+
+            preview_text, default_template = build_default_termination_plan_preview(
+                current_employer_amount=0.0,
+                context=None,
+            )
+            template_to_store = (
+                dict(args_template)
+                if isinstance(args_template, dict) and args_template
+                else dict(default_template)
+            )
+            try:
+                store_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(client_id),
+                    payload={
+                        "plan_args": {},
+                        "termination_arguments_template": template_to_store,
+                        "awaiting_user_confirmation": True,
+                        "approved": False,
+                        "declined": False,
+                    },
+                )
+            except Exception:
+                pass
+
+            return preview_text
 
     case_id = get_current_case_id()
     if case_id == "interactive_readonly" and (not user_approved) and tool_name in WRITE_TOOLS:

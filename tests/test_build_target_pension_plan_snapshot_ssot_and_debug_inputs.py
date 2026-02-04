@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.models.client import Client
+from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.services.llm_agent_tools_service import AgentToolsService
 
@@ -246,3 +247,179 @@ def test_portfolio_source_fallback_used_false_when_non_default_coefficient(monke
     first = sources[0]
     assert first.get("coeff_source_table") == "policy_generation_coefficient"
     assert first.get("fallback_used") is False
+
+
+def test_build_target_plan_merges_snapshot_and_db_sources(db_session, monkeypatch) -> None:
+    from app.services.llm_agent_tools.adapters import pension_sources as pension_sources_mod
+
+    def _mock_coeff(*args, **kwargs):
+        return {
+            "factor_value": 200.0,
+            "source_table": "default",
+            "source_keys": {},
+            "target_year": None,
+            "guarantee_months": None,
+            "notes": "test",
+        }
+
+    monkeypatch.setattr(pension_sources_mod, "get_annuity_coefficient", _mock_coeff)
+
+    unique_id = f"merge-{uuid4()}"
+    client_obj = Client(
+        id_number_raw=unique_id,
+        id_number=unique_id,
+        full_name="Merge Test",
+        birth_date=date(1980, 1, 1),
+        gender="male",
+        is_active=True,
+        current_employer_exists=False,
+    )
+    db_session.add(client_obj)
+    db_session.commit()
+    db_session.refresh(client_obj)
+
+    client_id = client_obj.id
+
+    snapshot_portfolio = [
+        {
+            "מספר_חשבון": "S1",
+            "שם_תכנית": "Snapshot Fund",
+            "סוג_מוצר": "קופת גמל",
+            "יתרה": 100000,
+            "תאריך_התחלה": "2005-01-01",
+            "תגמולי_עובד_אחרי_2000": 100000,
+        }
+    ]
+    db_session.add(
+        Scenario(
+            client_id=client_id,
+            scenario_name="pension_portfolio_snapshot",
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps({"pension_portfolio": snapshot_portfolio}, ensure_ascii=False),
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+
+    db_session.add(
+        PensionFund(
+            client_id=client_id,
+            fund_name="DB Fund",
+            fund_type="קופת גמל",
+            input_mode="manual",
+            balance=100000.0,
+            annuity_factor=100.0,
+            pension_amount=0.0,
+            pension_start_date=None,
+            indexation_method="none",
+            tax_treatment="taxable",
+            deduction_file="D1",
+            remarks=None,
+            conversion_source=None,
+        )
+    )
+    db_session.commit()
+
+    svc = AgentToolsService(db_session, client_id, client_object=client_obj)
+
+    res = svc.build_target_pension_plan(
+        target_monthly_pension=500,
+        retirement_age=67,
+        target_is_net=False,
+        ignore_blocked_balances=True,
+    )
+    assert res.get("success") is True, res
+    plan_res = res.get("result") if isinstance(res.get("result"), dict) else {}
+
+    assert int(plan_res.get("portfolio_sources_added") or 0) > 0
+
+    all_sources = (plan_res.get("sources_used") or []) + (plan_res.get("sources_not_used") or [])
+    source_types = {s.get("source_type") for s in all_sources if isinstance(s, dict)}
+    assert "pension_fund" in source_types
+    assert "pension_fund_from_portfolio" in source_types
+
+
+def test_build_target_plan_offsets_existing_pensions_and_skips_when_target_met(db_session) -> None:
+    unique_id = f"offset-{uuid4()}"
+    client_obj = Client(
+        id_number_raw=unique_id,
+        id_number=unique_id,
+        full_name="Offset Test",
+        birth_date=date(1980, 1, 1),
+        gender="male",
+        is_active=True,
+        current_employer_exists=False,
+    )
+    db_session.add(client_obj)
+    db_session.commit()
+    db_session.refresh(client_obj)
+
+    client_id = client_obj.id
+
+    db_session.add(
+        PensionFund(
+            client_id=client_id,
+            fund_name="Existing Pension",
+            fund_type="קרן פנסיה",
+            input_mode="manual",
+            balance=0.0,
+            annuity_factor=200.0,
+            pension_amount=1000.0,
+            pension_start_date=None,
+            indexation_method="none",
+            tax_treatment="taxable",
+            deduction_file="E1",
+            remarks=None,
+            conversion_source=None,
+        )
+    )
+    db_session.add(
+        PensionFund(
+            client_id=client_id,
+            fund_name="Convertible",
+            fund_type="קופת גמל",
+            input_mode="manual",
+            balance=100000.0,
+            annuity_factor=100.0,
+            pension_amount=0.0,
+            pension_start_date=None,
+            indexation_method="none",
+            tax_treatment="taxable",
+            deduction_file="C1",
+            remarks=None,
+            conversion_source=None,
+        )
+    )
+    db_session.commit()
+
+    svc = AgentToolsService(db_session, client_id, client_object=client_obj)
+
+    res = svc.build_target_pension_plan(
+        target_monthly_pension=1500,
+        retirement_age=67,
+        target_is_net=False,
+        ignore_blocked_balances=True,
+    )
+    assert res.get("success") is True, res
+    plan_res = res.get("result") if isinstance(res.get("result"), dict) else {}
+
+    assert float(plan_res.get("existing_pension_total_gross") or 0) == pytest.approx(1000.0)
+    assert float(plan_res.get("required_gross_additional_needed") or 0) == pytest.approx(500.0)
+    assert float(plan_res.get("accumulated_pension") or 0) == pytest.approx(1500.0)
+    used = plan_res.get("sources_used") or []
+    assert isinstance(used, list) and len(used) == 1
+    assert float(used[0].get("pension_used") or 0) == pytest.approx(500.0)
+    assert bool(used[0].get("partial")) is True
+
+    res2 = svc.build_target_pension_plan(
+        target_monthly_pension=900,
+        retirement_age=67,
+        target_is_net=False,
+        ignore_blocked_balances=True,
+    )
+    assert res2.get("success") is True, res2
+    plan_res2 = res2.get("result") if isinstance(res2.get("result"), dict) else {}
+    assert float(plan_res2.get("required_gross_additional_needed") or 0) == pytest.approx(0.0)
+    assert plan_res2.get("plan_steps") == []
+    assert plan_res2.get("sources_used") == []
