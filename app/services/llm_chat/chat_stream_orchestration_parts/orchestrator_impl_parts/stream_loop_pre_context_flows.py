@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from app.services.llm_chat.chat_orchestration_helpers import clear_pending_plan_target_marker
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     load_current_employer_termination_plan_preview,
+    load_current_termination_preview_id,
     store_current_employer_termination_plan_preview,
 )
 from app.services.llm_chat.orchestration_utils_parts.tool_call_helpers import (
@@ -168,8 +169,30 @@ def _run_pre_context_flows(
             preview_approved = bool(preview_payload.get("approved")) is True
             preview_awaiting = bool(preview_payload.get("awaiting_user_confirmation")) is True
             preview_used = bool(preview_payload.get("used")) is True
+            declined_at = preview_payload.get("declined_at")
+            preview_id = preview_payload.get("preview_id")
+
+            active_preview_id = None
+            try:
+                active_preview_id = load_current_termination_preview_id(
+                    db=db,
+                    client_id=int(client_id_local),
+                )
+            except Exception:
+                active_preview_id = None
 
             if (not preview_declined) or preview_approved or preview_awaiting or preview_used:
+                return None
+
+            if not (
+                isinstance(declined_at, str)
+                and bool(declined_at.strip())
+                and isinstance(preview_id, str)
+                and bool(preview_id.strip())
+                and isinstance(active_preview_id, str)
+                and bool(active_preview_id.strip())
+                and preview_id.strip() == active_preview_id.strip()
+            ):
                 return None
 
             template_base = preview_payload.get("termination_arguments_template")

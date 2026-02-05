@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 from fastapi.responses import StreamingResponse
 
@@ -7,13 +8,13 @@ from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_par
  )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     build_default_termination_plan_preview,
+    clear_current_employer_termination_plan_preview,
     load_current_employer_termination_plan_preview,
     clear_pending_current_employer_severance_termination_question,
     clear_pending_build_target_plan_after_termination,
     load_pending_current_employer_severance_termination_question,
     store_current_employer_severance_execution_decision,
     store_current_employer_termination_plan_preview,
-    store_pending_build_target_plan_after_termination,
 )
 from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
 
@@ -236,6 +237,14 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         plan_args = dict(plan_args)
         plan_args["ignore_blocked_balances"] = True
 
+        effective_portfolio = request.pension_portfolio
+        try:
+            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            if loaded is not None:
+                effective_portfolio, _effective_snapshot_at = loaded
+        except Exception:
+            pass
+
         if answer == "לא":
             try:
                 store_current_employer_termination_plan_preview(
@@ -246,6 +255,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                         "awaiting_user_confirmation": False,
                         "approved": False,
                         "declined": True,
+                        "declined_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )
             except Exception:
@@ -284,17 +294,21 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                     "awaiting_user_confirmation": False,
                     "approved": True,
                     "declined": False,
+                    "declined_at": None,
                 },
             )
         except Exception:
             pass
 
         try:
-            store_pending_build_target_plan_after_termination(
+            clear_pending_build_target_plan_after_termination(
                 db=db,
                 client_id=request.client_id,
-                payload={"plan_args": plan_args},
             )
+        except Exception:
+            pass
+        try:
+            clear_pending_approval_request(db=db, client_id=request.client_id)
         except Exception:
             pass
 
@@ -302,28 +316,95 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         if not isinstance(termination_args, dict):
             termination_args = {"confirmed": True}
 
+        term_result = execute_tool_call(
+            "PROCESS_TERMINATION",
+            termination_args,
+            request.client_id,
+            db,
+            pension_portfolio=effective_portfolio,
+            force_max_exemption=False,
+            user_approved=True,
+            request_id=stream_request_id,
+        )
+
+        parsed_term = None
+        if isinstance(term_result, str) and term_result.strip():
+            try:
+                raw_json = term_result.split("###SEVERANCE_RESET###", 1)[0].strip()
+                parsed_term = json.loads(raw_json)
+            except Exception:
+                parsed_term = None
+        term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
+
+        if term_success:
+            try:
+                clear_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=request.client_id,
+                )
+            except Exception:
+                pass
+
+        term_text = sanitize_user_visible_text(
+            "🔧 **פלט כלי (עזיבת עבודה):**\n" + format_tool_output_for_user_stream("PROCESS_TERMINATION", term_result)
+        )
+
+        if not term_success:
+            return StreamingResponse(
+                iter([term_text]),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        if plan_args.get("target_monthly_pension") is None:
+            return StreamingResponse(
+                iter([term_text]),
+                media_type="text/plain; charset=utf-8",
+            )
+
+        refreshed_portfolio = effective_portfolio
         try:
-            store_pending_approval_request(
+            db.expire_all()
+        except Exception:
+            pass
+        try:
+            loaded_after_term = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            if loaded_after_term is not None:
+                refreshed_portfolio, _snapshot_at_after = loaded_after_term
+        except Exception:
+            refreshed_portfolio = effective_portfolio
+
+        plan_result = execute_tool_call(
+            "BUILD_TARGET_PENSION_PLAN",
+            plan_args,
+            request.client_id,
+            db,
+            pension_portfolio=refreshed_portfolio,
+            force_max_exemption=False,
+            user_approved=True,
+            request_id=stream_request_id,
+        )
+        try:
+            store_latest_target_pension_plan_data(
                 db=db,
                 client_id=request.client_id,
-                tool_name="PROCESS_TERMINATION",
-                tool_args=termination_args,
+                tool_result=plan_result,
+            )
+        except Exception:
+            pass
+        try:
+            store_latest_target_pension_plan(
+                db=db,
+                client_id=request.client_id,
+                tool_result=plan_result,
             )
         except Exception:
             pass
 
+        plan_text = sanitize_user_visible_text(
+            "🔧 **פלט כלי (בניית תכנית קצבה):**\n" + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+        )
         return StreamingResponse(
-            iter(
-                [
-                    build_approval_request_ui_action(
-                        tool_name="PROCESS_TERMINATION",
-                        tool_args=termination_args,
-                        reason="נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
-                        risk_level="high",
-                        rag_sources=None,
-                    )
-                ]
-            ),
+            iter([term_text + "\n\n" + plan_text]),
             media_type="text/plain; charset=utf-8",
         )
 
