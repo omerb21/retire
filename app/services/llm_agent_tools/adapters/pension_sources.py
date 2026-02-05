@@ -271,7 +271,11 @@ def _get_pension_sources_from_portfolio(
                 continue
 
             action_needed = comp.get("action_needed") or "convert_to_pension"
-            if action_needed == "requires_termination" and termination_confirmed:
+            if (
+                action_needed == "requires_termination"
+                and (not termination_confirmed)
+                and bool(getattr(client, "current_employer_exists", True))
+            ):
                 skipped_requires_termination = True
                 continue
             component_added = True
