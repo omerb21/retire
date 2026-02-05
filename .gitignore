@@ -25,3 +25,6 @@ __pycache__/
 *.pyc
 logs/
 *.log
+test_retire.db
+*.db
+venv311/
