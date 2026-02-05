@@ -114,10 +114,10 @@ def _build_monthly_pension_reply(payload: dict) -> str:
     exempt_sum = _f(exempt.get("sum"))
 
     return (
-        f"🔧 תוצאות בפועל במערכת ללקוח {client_id}:\n"
-        f"קצבה חודשית נוכחית (monthly_pension): {cur_count} קצבאות, סה\"כ {cur_sum:,.2f}.\n"
-        f"חייב: {taxable_sum:,.2f}. פטור: {exempt_sum:,.2f}.\n"
-        f"קצבאות עתידיות: {fut_count} (סה\"כ {fut_sum:,.2f})."
+        f"Monthly pension summary for client {client_id}: "
+        f"current_count={cur_count}, current_sum={cur_sum:,.2f}; "
+        f"taxable_sum={taxable_sum:,.2f}, exempt_sum={exempt_sum:,.2f}; "
+        f"future_count={fut_count}, future_sum={fut_sum:,.2f}."
     )
 
 
@@ -176,7 +176,7 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
         computed = compute_monthly_pension_summary(db, int(request.client_id), date.today())
         reply = _build_monthly_pension_reply(computed)
         if not isinstance(reply, str) or not reply.strip():
-            reply = "🔧 לא הצלחתי להפיק סיכום קצבה חודשית מהמערכת."
+            reply = "Unable to produce monthly pension summary from system."
         if _mojibake_fix_enabled() and isinstance(reply, str):
             fixed, did_fix = _maybe_fix_hebrew_mojibake(reply)
             reply = fixed
@@ -342,7 +342,7 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
             computed = compute_monthly_pension_summary(db, int(request.client_id), date.today())
             reply = _build_monthly_pension_reply(computed)
             if not isinstance(reply, str) or not reply.strip():
-                reply = "🔧 לא הצלחתי להפיק סיכום קצבה חודשית מהמערכת."
+                reply = "Unable to produce monthly pension summary from system."
 
             def _gen():
                 computed_json = json.dumps(

@@ -54,8 +54,9 @@ def test_pension_chat_returns_monthly_pension_computed_data_and_non_empty_reply(
     body = res.json()
     assert isinstance(body.get("reply"), str)
     assert body["reply"].strip() != ""
-    assert "קצבה" in body["reply"]
-    assert re.search(r"[\u0590-\u05FF]", body["reply"]) is not None
+    assert "×" not in body["reply"]
+    assert "ð" not in body["reply"]
+    assert re.search(r"[A-Za-z]", body["reply"]) is not None
 
     computed = body.get("computed_data")
     assert isinstance(computed, dict)

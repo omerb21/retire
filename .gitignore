@@ -18,3 +18,10 @@ __pycache__/
 node_modules/
 dist/
 build/
+venv*/
+.venv*/
+**/venv*/
+__pycache__/
+*.pyc
+logs/
+*.log
