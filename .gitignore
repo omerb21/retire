@@ -1,13 +1,20 @@
-﻿# local run artifacts
-out_*.txt
-qa_*.txt
-req_*.json
-c*_*.json
-*_hdr_*.txt
-*_body_*.txt
-_openapi_tmp.json
-snap_info_*.json
+﻿# Python venv
+venv/
+.venv/
+venv311/
+env/
+ENV/
 
-# misc
-*.log
+# Python caches
 __pycache__/
+*.pyc
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Node
+node_modules/
+dist/
+build/
