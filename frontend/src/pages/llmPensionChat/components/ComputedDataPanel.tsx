@@ -1,13 +1,99 @@
 import React from "react";
 
-import { ComputedPensionData } from "../types";
+import { ComputedDataPayload, ComputedPensionData, MonthlyPensionComputedData } from "../types";
 
 type Props = {
-  computedData: ComputedPensionData;
+  computedData: ComputedDataPayload;
 };
 
 export default function ComputedDataPanel({ computedData }: Props) {
-  if (!computedData || !computedData.sources || computedData.sources.length === 0) {
+  const isMonthlyPension = (data: any): data is MonthlyPensionComputedData => {
+    return !!(data && typeof data === "object" && data.monthly_pension && data.today);
+  };
+
+  const isTargetPension = (data: any): data is ComputedPensionData => {
+    return !!(data && typeof data === "object" && Array.isArray(data.sources));
+  };
+
+  if (!computedData) {
+    return null;
+  }
+
+  if (isMonthlyPension(computedData)) {
+    const mp = computedData.monthly_pension;
+    const current = mp.current;
+    const future = mp.future;
+
+    const rows = [
+      ...(current.items || []).map((it) => ({ ...it, _bucket: "current" as const })),
+      ...(future.items || []).map((it) => ({ ...it, _bucket: "future" as const })),
+    ];
+
+    return (
+      <div className="llm-computed-data-panel" dir="rtl">
+        <div className="llm-computed-data-header">
+          <h3>📊 קצבה חודשית מהמערכת</h3>
+          <span className="llm-computed-data-badge">Client {computedData.client_id}</span>
+        </div>
+
+        <div className="llm-computed-data-summary">
+          <div className="llm-computed-data-stat">
+            <span className="stat-label">קצבאות נוכחיות:</span>
+            <span className="stat-value">
+              {current.count.toLocaleString()} (סה"כ {current.sum.toLocaleString()} ₪)
+            </span>
+          </div>
+          <div className="llm-computed-data-stat">
+            <span className="stat-label">חייב:</span>
+            <span className="stat-value">{current.taxable.sum.toLocaleString()} ₪</span>
+          </div>
+          <div className="llm-computed-data-stat">
+            <span className="stat-label">פטור:</span>
+            <span className="stat-value">{current.exempt.sum.toLocaleString()} ₪</span>
+          </div>
+          <div className="llm-computed-data-stat">
+            <span className="stat-label">קצבאות עתידיות:</span>
+            <span className="stat-value">
+              {future.count.toLocaleString()} (סה"כ {future.sum.toLocaleString()} ₪)
+            </span>
+          </div>
+        </div>
+
+        <table className="llm-computed-data-table">
+          <thead>
+            <tr>
+              <th>Bucket</th>
+              <th>ID</th>
+              <th>תאריך התחלה</th>
+              <th>סכום (₪)</th>
+              <th>מיסוי</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={`${row.id}-${idx}`}>
+                <td>{row._bucket === "current" ? "נוכחית" : "עתידית"}</td>
+                <td>{row.id}</td>
+                <td>{row.start_date || "-"}</td>
+                <td>{Number(row.amount || 0).toLocaleString()}</td>
+                <td>
+                  {String(row.tax_treatment || "") === "exempt"
+                    ? "פטור"
+                    : String(row.tax_treatment || "") === "taxable"
+                      ? "חייב"
+                      : String(row.tax_treatment || "")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="llm-computed-data-note">💡 הנתונים למעלה מחושבים ישירות מהמערכת ולא מומצאים על ידי ה-AI</div>
+      </div>
+    );
+  }
+
+  if (!isTargetPension(computedData) || !computedData.sources || computedData.sources.length === 0) {
     return null;
   }
 

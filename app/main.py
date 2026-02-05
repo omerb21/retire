@@ -103,7 +103,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Retirement Planning System",
     description="API for retirement planning system",
-    version="1.0.0",
+    version="1.0.9",
     lifespan=lifespan,
 )
 
@@ -198,7 +198,7 @@ def health_check():
     """Health check endpoint"""
     return {
         "status": "ok",
-        "version": "1.0.8",
+        "version": "1.0.9",
         "git_sha": os.getenv("GIT_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
         "build_time": os.getenv("BUILD_TIME") or "unknown",
     }

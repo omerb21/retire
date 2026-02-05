@@ -20,7 +20,7 @@ import { applyConversionUpdatesToPensionPortfolio } from "../PensionPortfolio/se
 import { BALANCE_ZERO_EPSILON, PROTECTED_COMPONENT_FIELDS_AFTER_CONVERSION } from "./constants";
 import { estimateCostForCall, estimatePreviewCost } from "./costEstimation";
 import { loadPensionPortfolioForLlm, persistPortfolioUpdateToDb, resetSeveranceInPortfolio } from "./portfolio";
-import { ComputedPensionData, UsageInfo } from "./types";
+import { ComputedDataPayload, UsageInfo } from "./types";
 
 export type ProviderFormState = { provider: string; modelName: string };
 
@@ -46,7 +46,7 @@ type Return = {
   messagesEndRef: RefObject<HTMLDivElement>;
   usageByMessageIndex: Record<number, UsageInfo>;
   nextMessageUsage: UsageInfo | null;
-  computedData: ComputedPensionData | null;
+  computedData: ComputedDataPayload | null;
   handleClearChat: () => void;
   handleApplyProvider: () => Promise<void>;
   handleOpenPublicChat: () => Promise<void>;
@@ -70,7 +70,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [usageByMessageIndex, setUsageByMessageIndex] = useState<Record<number, UsageInfo>>({});
   const [nextMessageUsage, setNextMessageUsage] = useState<UsageInfo | null>(null);
-  const [computedData, setComputedData] = useState<ComputedPensionData | null>(null);
+  const [computedData, setComputedData] = useState<ComputedDataPayload | null>(null);
 
   useEffect(() => {
     if (streamingContent) {
@@ -238,7 +238,7 @@ export function useLlmPensionChat({ clientId, client }: Params): Return {
           try {
             const parsed = JSON.parse(jsonStr);
             if (parsed.type === "computed_data" && parsed.data) {
-              const data = parsed.data as ComputedPensionData;
+              const data = parsed.data as ComputedDataPayload;
               setComputedData(data);
               console.log("Extracted computed pension data from system:", data);
             }

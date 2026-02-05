@@ -131,7 +131,7 @@ class ChatResponse(BaseModel):
     """תשובת צ'אט מהסוכן, כולל רק את הודעת הסוכן האחרונה."""
 
     reply: str
-    computed_data: Optional[ComputedPensionData] = None
+    computed_data: Optional[Dict[str, Any] | ComputedPensionData] = None
 
 
 class LlmProviderUpdateRequest(BaseModel):

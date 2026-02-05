@@ -1,0 +1,512 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.0, pytest-7.4.3, pluggy-1.6.0 -- C:\Users\omer\AppData\Local\Programs\Python\Python311\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-3.7.1
+collecting ... collected 398 items
+
+tests/test_additional_income_service.py::test_calculate_monthly_amount PASSED [  0%]
+tests/test_additional_income_service.py::test_apply_indexation_none PASSED [  0%]
+tests/test_additional_income_service.py::test_apply_indexation_fixed PASSED [  0%]
+tests/test_additional_income_service.py::test_calculate_tax_exempt PASSED [  1%]
+tests/test_additional_income_service.py::test_calculate_tax_fixed_rate PASSED [  1%]
+tests/test_additional_income_service.py::test_project_cashflow PASSED    [  1%]
+tests/test_additional_income_service.py::test_generate_combined_cashflow PASSED [  1%]
+tests/test_advisor_behavior_guard.py::test_blocks_decision_phrasing PASSED [  2%]
+tests/test_advisor_behavior_guard.py::test_blocks_bypass_attempt PASSED  [  2%]
+tests/test_advisor_behavior_guard.py::test_allows_neutral_request PASSED [  2%]
+tests/test_advisor_behavior_guard_allow_form_ids.py::test_allow_form_id_161d_not_blocked PASSED [  2%]
+tests/test_advisor_behavior_guard_allow_form_ids.py::test_percent_is_blocked PASSED [  3%]
+tests/test_advisor_behavior_guard_allow_form_ids.py::test_money_with_thousands_is_blocked PASSED [  3%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_blocked_balances_notice_once_for_non_settled_and_rights PASSED [  3%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_asks_yes_no_before_build PASSED [  3%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_skips_question_when_target_met_by_existing_pensions PASSED [  4%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_nested_components_blocks_before_build PASSED [  4%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_yes_triggers_termination_approval_and_rebuild PASSED [  4%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_yes_shows_default_plan_preview_before_approval PASSED [  4%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_preview_not_duplicated_by_build_tool_output PASSED [  5%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_user_cancelled_stops_process_termination_and_clears_pending PASSED [  5%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_user_approved_process_termination_cannot_bypass_preview PASSED [  5%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_termination_preview_decline_stops_and_asks_alternatives PASSED [  5%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_stale_declined_termination_preview_is_ignored_and_default_preview_is_shown PASSED [  6%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_and_offsets PASSED [  6%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_termination_failure_does_not_rebuild_plan PASSED [  6%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_current_employer_severance_no_builds_ignoring PASSED [  6%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execution PASSED [  7%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_termination_declined_then_exempt_and_taxable_annuity_parses PASSED [  7%]
+tests/test_blocked_balances_policy_build_target_plan.py::test_termination_alternative_unparseable_keeps_state_and_asks_clarifying_question PASSED [  7%]
+tests/test_build_target_pension_plan_handler_net_output.py::test_build_target_pension_plan_handler_defaults_to_net_mode_when_missing_arg PASSED [  7%]
+tests/test_build_target_pension_plan_handler_net_output.py::test_build_target_pension_plan_handler_respects_gross_mode PASSED [  8%]
+tests/test_build_target_pension_plan_handler_net_output.py::test_build_target_pension_plan_handler_emits_target_plan_payload_block PASSED [  8%]
+tests/test_build_target_pension_plan_handler_net_output.py::test_build_target_pension_plan_handler_mentions_retirement_age_when_provided PASSED [  8%]
+tests/test_build_target_pension_plan_net_tax_failure.py::test_build_target_pension_plan_net_fails_if_tax_projection_unavailable PASSED [  8%]
+tests/test_build_target_pension_plan_net_tax_failure.py::test_build_target_pension_plan_net_does_not_silently_treat_net_as_gross[True] PASSED [  9%]
+tests/test_build_target_pension_plan_net_tax_failure.py::test_get_tax_projection_includes_db_additional_incomes PASSED [  9%]
+tests/test_build_target_pension_plan_snapshot_ssot_and_debug_inputs.py::test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transform_meta PASSED [  9%]
+tests/test_build_target_pension_plan_snapshot_ssot_and_debug_inputs.py::test_build_target_plan_debug_inputs_blocked_total_detected_and_coeff_diagnostics PASSED [  9%]
+tests/test_build_target_pension_plan_snapshot_ssot_and_debug_inputs.py::test_portfolio_source_fallback_used_false_when_non_default_coefficient PASSED [ 10%]
+tests/test_build_target_pension_plan_snapshot_ssot_and_debug_inputs.py::test_build_target_plan_merges_snapshot_and_db_sources PASSED [ 10%]
+tests/test_build_target_pension_plan_snapshot_ssot_and_debug_inputs.py::test_build_target_plan_offsets_existing_pensions_and_skips_when_target_met PASSED [ 10%]
+tests/test_build_target_plan_ignores_executable_filter.py::test_build_target_plan_ignores_executable_filter PASSED [ 10%]
+tests/test_build_target_plan_offsets_additional_incomes.py::test_build_target_plan_offsets_additional_incomes PASSED [ 11%]
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_ok_monthly_12_rows PASSED [ 11%]
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_bad_range PASSED [ 11%]
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_bad_frequency PASSED [ 11%]
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_generate_ok PASSED [ 12%]
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_bad_range_400 PASSED [ 12%]
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_bad_frequency_422 PASSED [ 12%]
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_invalid_date_format_422 PASSED [ 12%]
+tests/test_client_api.py::TestClientAPI::test_create_client PASSED       [ 13%]
+tests/test_client_api.py::TestClientAPI::test_delete_client PASSED       [ 13%]
+tests/test_client_api.py::TestClientAPI::test_get_client PASSED          [ 13%]
+tests/test_client_api.py::TestClientAPI::test_list_clients PASSED        [ 13%]
+tests/test_client_api.py::TestClientAPI::test_update_client PASSED       [ 14%]
+tests/test_client_service.py::TestClientService::test_normalize_id_number PASSED [ 14%]
+tests/test_client_service.py::TestClientService::test_normalize_phone PASSED [ 14%]
+tests/test_client_service.py::TestClientService::test_normalize_text PASSED [ 14%]
+tests/test_client_service.py::TestClientService::test_prepare_client_payload PASSED [ 15%]
+tests/test_client_service.py::TestClientService::test_validate_birth_date PASSED [ 15%]
+tests/test_client_service.py::TestClientService::test_validate_email PASSED [ 15%]
+tests/test_client_service.py::TestClientService::test_validate_employment_flags PASSED [ 15%]
+tests/test_client_service.py::TestClientService::test_validate_id_number PASSED [ 16%]
+tests/test_commutation_from_snapshot_balance_and_snapshot_zero.py::test_commutation_from_snapshot_zeros_snapshot_and_does_not_double_balance PASSED [ 16%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_create_current_employer_201 PASSED [ 16%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_create_current_employer_client_not_found_404 PASSED [ 16%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_update_existing_current_employer_200 PASSED [ 17%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_get_current_employer_200 PASSED [ 17%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_get_current_employer_client_not_found_404 PASSED [ 17%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_get_current_employer_no_employer_404 PASSED [ 17%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_add_grant_to_current_employer_201 PASSED [ 18%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_add_grant_client_not_found_404 PASSED [ 18%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_add_grant_no_current_employer_404 PASSED [ 18%]
+tests/test_current_employer_api.py::TestCurrentEmployerAPI::test_add_multiple_grants_calculation PASSED [ 18%]
+tests/test_current_employer_service.py::test_process_termination_is_idempotent_for_exempt_grant_and_asset PASSED [ 19%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_service_years_basic PASSED [ 19%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_service_years_with_end_date_none PASSED [ 19%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_service_years_with_non_continuous_periods PASSED [ 19%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_service_years_with_invalid_periods PASSED [ 20%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_severance_grant_basic PASSED [ 20%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_severance_grant_with_high_exemption PASSED [ 20%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_severance_grant_with_non_continuous_periods PASSED [ 20%]
+tests/test_current_employer_service.py::TestCurrentEmployerService::test_calculate_severance_grant_zero_salary PASSED [ 21%]
+tests/test_current_employer_service.py::TestCurrentEmployerServiceIntegration::test_service_years_calculation_edge_cases PASSED [ 21%]
+tests/test_date_serializer_parse_date_flexible.py::test_parse_date_flexible_accepts_yyyy_mm_dd PASSED [ 21%]
+tests/test_date_serializer_parse_date_flexible.py::test_parse_date_flexible_accepts_dd_mm_yyyy_slash PASSED [ 21%]
+tests/test_date_serializer_parse_date_flexible.py::test_parse_date_flexible_accepts_iso_with_time_and_z PASSED [ 22%]
+tests/test_date_serializer_parse_date_flexible.py::test_parse_date_flexible_rejects_placeholder PASSED [ 22%]
+tests/test_effective_client_state_loader.py::test_effective_client_state_loader_no_assets_is_pre_conversion PASSED [ 22%]
+tests/test_effective_client_state_loader.py::test_effective_client_state_loader_conversion_asset_is_post_conversion_locked PASSED [ 22%]
+tests/test_effective_client_state_loader.py::test_effective_client_state_loader_snapshot_meta_transform_is_post_conversion_locked PASSED [ 23%]
+tests/test_effective_state_restore_snapshot_unlocks_post_conversion.py::test_effective_state_restore_snapshot_unlocks_post_conversion PASSED [ 23%]
+tests/test_eligibility.py::TestEligibility::test_calc_eligibility_date_female PASSED [ 23%]
+tests/test_eligibility.py::TestEligibility::test_calc_eligibility_date_hebrew_female PASSED [ 23%]
+tests/test_eligibility.py::TestEligibility::test_calc_eligibility_date_hebrew_male PASSED [ 24%]
+tests/test_eligibility.py::TestEligibility::test_calc_eligibility_date_male PASSED [ 24%]
+tests/test_eligibility.py::TestEligibility::test_calc_eligibility_date_unknown_gender PASSED [ 24%]
+tests/test_eligibility.py::TestEligibility::test_has_started_pension_false_future PASSED [ 24%]
+tests/test_eligibility.py::TestEligibility::test_has_started_pension_false_none PASSED [ 25%]
+tests/test_eligibility.py::TestEligibility::test_has_started_pension_true PASSED [ 25%]
+tests/test_eligibility.py::TestEligibility::test_is_eligible_female_62_with_pension PASSED [ 25%]
+tests/test_eligibility.py::TestEligibility::test_is_eligible_female_62_without_pension PASSED [ 25%]
+tests/test_eligibility.py::TestEligibility::test_is_eligible_male_66_with_pension PASSED [ 26%]
+tests/test_eligibility.py::TestEligibility::test_is_eligible_male_67_with_pension PASSED [ 26%]
+tests/test_employment_api.py::TestEmploymentAPI::test_confirm_termination_200_triggers_fixation_background PASSED [ 26%]
+tests/test_employment_api.py::TestEmploymentAPI::test_invalid_termination_reason PASSED [ 26%]
+tests/test_employment_api.py::TestEmploymentAPI::test_nonexistent_client_404 PASSED [ 27%]
+tests/test_employment_api.py::TestEmploymentAPI::test_plan_termination_200 PASSED [ 27%]
+tests/test_employment_api.py::TestEmploymentAPI::test_plan_termination_past_date_422 PASSED [ 27%]
+tests/test_employment_api.py::TestEmploymentAPI::test_plan_without_current_409 PASSED [ 27%]
+tests/test_employment_api.py::TestEmploymentAPI::test_set_current_employer_201 PASSED [ 28%]
+tests/test_employment_api.py::TestEmploymentAPI::test_set_current_employer_idempotent_or_conflict PASSED [ 28%]
+tests/test_employment_service.py::test_set_current_employer_creates_employment_and_employer PASSED [ 28%]
+tests/test_employment_service.py::test_set_current_employer_reuses_existing_employer_by_reg_no PASSED [ 28%]
+tests/test_employment_service.py::test_plan_termination_creates_termination_event PASSED [ 29%]
+tests/test_employment_service.py::test_plan_termination_fails_without_current_employment PASSED [ 29%]
+tests/test_employment_service.py::test_confirm_termination_updates_employment_and_creates_event PASSED [ 29%]
+tests/test_execute_pension_commutation_tool.py::test_execute_pension_commutation_creates_asset_and_updates_fund PASSED [ 29%]
+tests/test_execute_pension_commutation_tool.py::test_execute_process_termination_requires_approved_preview_and_overrides_args PASSED [ 30%]
+tests/test_execute_pension_commutation_tool.py::test_execute_pension_commutation_rejects_amount_over_balance PASSED [ 30%]
+tests/test_execute_target_plan_ssot_persists_execution_plan.py::test_execute_target_plan_ssot_persists_execution_plan PASSED [ 30%]
+tests/test_execute_target_plan_uses_execution_plan.py::test_execute_target_plan_uses_execution_plan_accounts_stream_and_non_stream PASSED [ 30%]
+tests/test_execution_plan_strict_transform.py::test_execution_plan_strict_transform_consumes_sources_and_skips_blocked PASSED [ 31%]
+tests/test_fixation_api.py::TestFixationAPI::test_api_response_structure PASSED [ 31%]
+tests/test_fixation_api.py::TestFixationAPI::test_client_not_found PASSED [ 31%]
+tests/test_fixation_api.py::TestFixationAPI::test_commutations_appendix_endpoint_response_structure PASSED [ 31%]
+tests/test_fixation_api.py::TestFixationAPI::test_fixation_endpoints_exist PASSED [ 32%]
+tests/test_fixation_api.py::TestFixationAPI::test_grants_appendix_endpoint_response_structure PASSED [ 32%]
+tests/test_fixation_api.py::TestFixationAPI::test_hebrew_error_messages PASSED [ 32%]
+tests/test_fixation_api.py::TestFixationAPI::test_inactive_client PASSED [ 32%]
+tests/test_fixation_api.py::TestFixationAPI::test_package_endpoint_response_structure PASSED [ 33%]
+tests/test_fixation_gate.py::TestFixationGate::test_eligible_client_returns_200 PASSED [ 33%]
+tests/test_fixation_gate.py::TestFixationGate::test_ineligible_age_returns_409 PASSED [ 33%]
+tests/test_flowA_non_stream_conceptual_only_blocks_write_tools.py::test_flowA_non_stream_conceptual_only_blocks_write_tools PASSED [ 33%]
+tests/test_flowA_stream_conceptual_only_no_write_tools_no_approval.py::test_flowA_stream_conceptual_only_no_write_tools_no_approval PASSED [ 34%]
+tests/test_flowA_stream_execute_termination_with_conceptual_only_is_blocked.py::test_flowA_stream_execute_termination_with_conceptual_only_is_blocked PASSED [ 34%]
+tests/test_flowB_non_stream_undo_restore.py::test_flowB_non_stream_undo_restore PASSED [ 34%]
+tests/test_flowB_stream_undo_no_snapshot_message.py::test_flowB_stream_undo_no_snapshot_message PASSED [ 34%]
+tests/test_flowB_stream_undo_restore_after_write.py::test_flowB_stream_undo_restore_after_write PASSED [ 35%]
+tests/test_is_qa_request.py::test_is_qa_request_detects_hebrew_qa PASSED [ 35%]
+tests/test_is_qa_request.py::test_is_qa_request_does_not_trigger_on_generic_pass PASSED [ 35%]
+tests/test_llm_analysis_stop_after_tool_no_questions.py::test_analysis_stop_after_tool_has_fixed_ending_without_questions PASSED [ 35%]
+tests/test_llm_build_target_plan_guard_non_stream.py::test_non_stream_blocks_build_target_plan_without_numeric_target PASSED [ 36%]
+tests/test_llm_build_target_plan_guard_stream.py::test_stream_blocks_build_target_plan_without_numeric_target PASSED [ 36%]
+tests/test_llm_check_data_completeness_tool.py::test_execute_tool_call_check_data_completeness_returns_json PASSED [ 36%]
+tests/test_llm_commutation_deterministic_non_stream_block.py::test_non_stream_commutation_request_does_not_trigger_deterministic_transform PASSED [ 36%]
+tests/test_llm_commutation_deterministic_stream_block.py::test_stream_commutation_request_does_not_trigger_deterministic_transform PASSED [ 37%]
+tests/test_llm_commutation_guardrail_non_stream.py::test_non_stream_commutation_blocks_transform_tool_call PASSED [ 37%]
+tests/test_llm_commutation_guardrail_stream.py::test_stream_commutation_blocks_transform_tool_call PASSED [ 37%]
+tests/test_llm_doc_gating_non_stream.py::test_doc_request_non_qa_blocks_non_doc_tools PASSED [ 37%]
+tests/test_llm_exec_only_requires_technical_tokens.py::test_llm_exec_only_requires_technical_tokens PASSED [ 38%]
+tests/test_llm_execution_only_mode.py::test_stream_executor_only_header_success PASSED [ 38%]
+tests/test_llm_execution_only_mode.py::test_exec_only_stream_rewrites_on_question_mark_then_succeeds PASSED [ 38%]
+tests/test_llm_execution_only_mode.py::test_exec_only_non_stream_rewrites_on_question_mark_then_succeeds PASSED [ 38%]
+tests/test_llm_execution_only_mode.py::test_stream_executor_only_header_blocks_question_mark PASSED [ 39%]
+tests/test_llm_execution_only_mode.py::test_non_stream_executor_only_blocks_forbidden_phrase PASSED [ 39%]
+tests/test_llm_execution_only_mode.py::test_exec_only_success_without_actionable_commands_triggers_rewrite_then_fallback PASSED [ 39%]
+tests/test_llm_execution_only_mode.py::test_exec_only_fallback_contains_actionable_commands PASSED [ 39%]
+tests/test_llm_execution_only_mode.py::test_exec_only_stream_returns_technical_content_not_generic PASSED [ 40%]
+tests/test_llm_execution_only_mode.py::test_exec_only_stream_hostile_request_still_technical_no_questions PASSED [ 40%]
+tests/test_llm_execution_only_mode.py::test_exec_only_stream_falls_back_to_success_when_rewrite_fails PASSED [ 40%]
+tests/test_llm_execution_only_mode.py::test_exec_only_non_stream_falls_back_to_success_when_rewrite_fails PASSED [ 40%]
+tests/test_llm_execution_only_mode.py::test_stream_report_ignores_executor_only_and_emits_ui_action PASSED [ 41%]
+tests/test_llm_execution_only_mode.py::test_stream_executor_only_success_accepts_instructions_heading_execution PASSED [ 41%]
+tests/test_llm_execution_only_mode.py::test_stream_executor_only_success_accepts_instructions_heading_programmer_model PASSED [ 41%]
+tests/test_llm_execution_only_mode.py::test_exec_only_success_requires_tech_tokens_stream PASSED [ 41%]
+tests/test_llm_execution_only_mode.py::test_exec_only_fallback_contains_tokens PASSED [ 42%]
+tests/test_llm_fixation_documents_deterministic_stream.py::test_stream_fixation_documents_request_is_deterministic PASSED [ 42%]
+tests/test_llm_intent_routing.py::test_stream_intent_no_tools_blocks_tool_call PASSED [ 42%]
+tests/test_llm_intent_routing.py::test_stream_intent_report_emits_ui_action_only_and_optional_exact_qa PASSED [ 42%]
+tests/test_llm_intent_routing.py::test_stream_intent_report_without_qa_emits_ui_action_only PASSED [ 43%]
+tests/test_llm_intent_routing.py::test_stream_intent_analysis_allows_tool_execution PASSED [ 43%]
+tests/test_llm_knowledge_snippets.py::test_prepare_messages_injects_knowledge_snippet_when_relevant PASSED [ 43%]
+tests/test_llm_knowledge_snippets.py::test_prepare_messages_does_not_inject_knowledge_when_irrelevant PASSED [ 43%]
+tests/test_llm_no_tools_gating_non_stream.py::test_non_stream_qa_no_tools_blocks_tool_call PASSED [ 44%]
+tests/test_llm_no_tools_gating_stream.py::test_stream_qa_no_tools_blocks_tool_call PASSED [ 44%]
+tests/test_llm_no_tools_no_questions_regression.py::test_no_tools_stream_no_questions_regression PASSED [ 44%]
+tests/test_llm_no_tools_stream_no_questions.py::test_no_tools_stream_removes_questions_and_decision_phrases PASSED [ 44%]
+tests/test_llm_numeric_provenance_guard.py::test_non_stream_blocks_unprovenanced_numbers PASSED [ 45%]
+tests/test_llm_numeric_provenance_guard.py::test_non_stream_allows_user_provided_number PASSED [ 45%]
+tests/test_llm_numeric_provenance_guard.py::test_stream_blocks_unprovenanced_numbers PASSED [ 45%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_emits_pension_portfolio_update_marker PASSED [ 45%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_marker_is_preserved_when_document_ui_action_added PASSED [ 46%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_portfolio_wide_after2000_is_filtered PASSED [ 46%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_portfolio_wide_severance_after_settlement_is_filtered PASSED [ 46%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_targeted_account_to2000_is_filtered PASSED [ 46%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered PASSED [ 47%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_portfolio_wide_education_fund_is_filtered PASSED [ 47%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_prev_employers_severance_katzba_is_filtered PASSED [ 47%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_prev_employers_severance_baatsa_merah_does_not_trigger_termination PASSED [ 47%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_after_settlement_baatsa_merah_does_not_trigger_termination PASSED [ 48%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_portfolio_wide_to2000_includes_all_accounts PASSED [ 48%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_portfolio_wide_to2000_is_filtered PASSED [ 48%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_prev_employers_severance_pension_is_filtered PASSED [ 48%]
+tests/test_llm_portfolio_update_marker_non_stream.py::test_non_stream_transform_targeted_account_after2000_is_filtered PASSED [ 49%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_emits_pension_portfolio_update_marker PASSED [ 49%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_portfolio_wide_after2000_is_filtered PASSED [ 49%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_execute_target_plan_requests_approval PASSED [ 50%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_full_report_routes_without_llm PASSED [ 50%]
+tests/test_llm_portfolio_update_marker_stream.py::test_pension_chat_stream_does_not_500_with_additional_incomes PASSED [ 50%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_full_capital_withdrawal_routes_to_max_capital_scenario PASSED [ 50%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_cashflow_request_runs_cashflow_tool PASSED [ 51%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_cashflow_request_parses_hebrew_thousands PASSED [ 51%]
+tests/test_llm_portfolio_update_marker_stream.py::test_cashflow_includes_additional_income_in_gap_calculation PASSED [ 51%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_cashflow_ambiguous_target_prompts_gross_net PASSED [ 51%]
+tests/test_llm_portfolio_update_marker_stream.py::test_cashflow_tool_handler_returns_full_payload_with_explanation PASSED [ 52%]
+tests/test_llm_portfolio_update_marker_stream.py::test_cashflow_formatter_prefers_explanation_when_present PASSED [ 52%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_commutation_without_account_asks_for_account PASSED [ 52%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_portfolio_wide_severance_after_settlement_is_filtered PASSED [ 52%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_targeted_account_to2000_is_filtered PASSED [ 53%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_prev_employers_severance_katzba_is_filtered PASSED [ 53%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_prev_employers_severance_baatsa_merah_does_not_trigger_termination PASSED [ 53%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_after_settlement_baatsa_merah_does_not_trigger_termination PASSED [ 53%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_portfolio_wide_to2000_is_filtered PASSED [ 54%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_portfolio_wide_education_fund_is_filtered PASSED [ 54%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered PASSED [ 54%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_prev_employers_severance_pension_is_filtered PASSED [ 54%]
+tests/test_llm_portfolio_update_marker_stream.py::test_stream_transform_targeted_account_after2000_is_filtered PASSED [ 55%]
+tests/test_llm_preview_gateway.py::test_run_retirement_scenarios_preview_does_not_persist PASSED [ 55%]
+tests/test_llm_preview_gateway.py::test_get_system_numeric_constants_returns_payload PASSED [ 55%]
+tests/test_llm_qa_gating.py::test_qa_mode_blocks_non_qa_tools PASSED     [ 55%]
+tests/test_llm_qa_harness_e2e.py::test_llm_qa_harness_creates_expected_assets_and_is_idempotent PASSED [ 56%]
+tests/test_llm_rag_injection.py::test_prepare_messages_injects_rag_system_message_when_enabled PASSED [ 56%]
+tests/test_llm_retirement_help_and_explain_in_words.py::test_general_retirement_help_does_not_run_tools PASSED [ 56%]
+tests/test_llm_retirement_help_and_explain_in_words.py::test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools PASSED [ 56%]
+tests/test_llm_retirement_help_and_explain_in_words.py::test_explain_in_words_without_prior_tool_is_general_and_no_numbers PASSED [ 57%]
+tests/test_llm_retirement_scenario_tools_dispatch.py::test_execute_tool_call_dispatches_retirement_scenario_tools PASSED [ 57%]
+tests/test_llm_scenarios_chat_flow_e2e.py::test_llm_scenarios_chat_flow_runs_tools_then_summarizes PASSED [ 57%]
+tests/test_llm_stream_cashflow_trigger_runs_tool.py::test_cashflow_trigger_runs_tool PASSED [ 57%]
+tests/test_llm_stream_cashflow_trigger_runs_tool.py::test_cashflow_missing_age_gender_blocks_before_tool PASSED [ 58%]
+tests/test_llm_stream_cashflow_trigger_runs_tool.py::test_cashflow_missing_db_and_text_age_gender_blocks_with_short_prompt PASSED [ 58%]
+tests/test_llm_stream_document_flow.py::test_stream_generate_full_report_continues_with_summary PASSED [ 58%]
+tests/test_llm_stream_kb_injection.py::test_stream_injects_retirement_kb_system_message PASSED [ 58%]
+tests/test_llm_stream_kb_injection_regression.py::test_llm_stream_kb_injection_regression PASSED [ 59%]
+tests/test_llm_stream_prompt_injection_intents.py::test_stream_injects_base_prompt_and_playbook_into_llm_messages_no_tools PASSED [ 59%]
+tests/test_llm_stream_prompt_injection_intents.py::test_stream_injects_base_prompt_and_playbook_into_llm_messages_analysis PASSED [ 59%]
+tests/test_llm_system_inventory_deterministic_stream.py::test_stream_system_inventory_bypasses_llm_and_uses_snapshot_tool PASSED [ 59%]
+tests/test_llm_system_inventory_deterministic_stream.py::test_stream_list_all_entities_bypasses_llm_and_formats PASSED [ 60%]
+tests/test_llm_system_only_results_stream.py::test_stream_system_results_bypasses_llm_and_uses_get_products_tool PASSED [ 60%]
+tests/test_llm_tax_question_does_not_trigger_transform.py::test_tax_question_does_not_trigger_transform_tool PASSED [ 60%]
+tests/test_llm_tool_get_tax_params.py::test_get_tax_params_tool_execution_returns_json_payload PASSED [ 60%]
+tests/test_llm_tool_get_tax_params.py::test_get_tax_params_tool_execution_accepts_tax_year_argument PASSED [ 61%]
+tests/test_llm_tool_schemas.py::test_submit_tax_commutation_schema_does_not_require_client_id PASSED [ 61%]
+tests/test_llm_tool_schemas.py::test_process_termination_description_is_termination_scoped PASSED [ 61%]
+tests/test_llm_tool_schemas.py::test_llm_chat_package_exports_are_available PASSED [ 61%]
+tests/test_llm_tool_schemas.py::test_global_system_prompt_contains_tool_distinction_rules PASSED [ 62%]
+tests/test_llm_tool_schemas.py::test_retirement_scenario_tools_exist_in_schema PASSED [ 62%]
+tests/test_no_nested_stream_generators.py::test_orchestrator_has_no_nested_generate_defs PASSED [ 62%]
+tests/test_non_stream_text_approval_executes_pending_approval.py::test_non_stream_text_approval_executes_pending_approval PASSED [ 62%]
+tests/test_pending_approval_args_hash_canonicalization.py::test_pending_approval_args_hash_canonicalization_is_stable PASSED [ 63%]
+tests/test_pension_fund_api.py::TestPensionFundAPI::test_create_and_compute_fund PASSED [ 63%]
+tests/test_pension_fund_service.py::test_pension_calc_calculated_mode PASSED [ 63%]
+tests/test_pension_fund_service.py::test_pension_calc_manual_mode PASSED [ 63%]
+tests/test_pension_fund_service.py::test_pension_indexation_fixed PASSED [ 64%]
+tests/test_pension_fund_service.py::test_pension_indexation_none PASSED  [ 64%]
+tests/test_pension_portfolio_convert_uses_saved_selection.py::test_pension_portfolio_convert_uses_saved_selection PASSED [ 64%]
+tests/test_pension_portfolio_gap_is_consistent.py::test_pension_portfolio_gap_is_consistent_when_row_is_zeroed PASSED [ 64%]
+tests/test_pension_portfolio_save_accepts_accounts_wrapper_payload.py::test_pension_portfolio_save_accepts_accounts_wrapper_payload PASSED [ 65%]
+tests/test_pension_portfolio_save_accepts_list_payload.py::test_pension_portfolio_save_accepts_list_payload PASSED [ 65%]
+tests/test_pension_portfolio_snapshot_loader.py::test_snapshot_loader_ignores_non_snapshot_scenarios PASSED [ 65%]
+tests/test_playbook_loader_products_table.py::test_get_relevant_example_selects_products_table_example_by_excel_keyword PASSED [ 65%]
+tests/test_playbook_loader_products_table.py::test_get_relevant_example_selects_products_table_example_by_capital_and_pension_keywords PASSED [ 66%]
+tests/test_portfolio_analysis_includes_additional_incomes.py::test_portfolio_analysis_includes_additional_incomes PASSED [ 66%]
+tests/test_portfolio_analysis_includes_system_assets_after_termination.py::test_portfolio_analysis_includes_system_assets_after_termination PASSED [ 66%]
+tests/test_portfolio_analysis_totals_consistent.py::test_portfolio_analysis_totals_consistent PASSED [ 66%]
+tests/test_portfolio_context_money_colors.py::test_portfolio_context_flags_unsettled_and_rights_sequence PASSED [ 67%]
+tests/test_public_chat_portfolio_updates_preserve_accounts.py::test_public_chat_portfolio_update_preserves_accounts_with_hebrew_space_key PASSED [ 67%]
+tests/test_public_chat_portfolio_updates_preserve_accounts.py::test_public_chat_portfolio_update_preserves_accounts_with_hyphen_key PASSED [ 67%]
+tests/test_public_chat_skip_converted_to_assets_marker.py::test_public_chat_marker_apply_skips_converted_to_assets_operation PASSED [ 67%]
+tests/test_public_chat_skip_converted_to_assets_marker.py::test_public_chat_marker_apply_still_applies_other_operations PASSED [ 68%]
+tests/test_public_chat_stream_llm_retry_error.py::test_chat_stream_llm_timeout_yields_error_including_request_id PASSED [ 68%]
+tests/test_public_chat_stream_llm_retry_error.py::test_chat_stream_llm_error_returns_non_empty_reply PASSED [ 68%]
+tests/test_restore_snapshot_creates_new_scenario_with_meta.py::test_restore_snapshot_creates_new_scenario_with_meta PASSED [ 68%]
+tests/test_scenario_conversion_asset_mapping.py::test_scenario_conversion_commutation_asset_is_lump_sum PASSED [ 69%]
+tests/test_scenario_conversion_asset_mapping.py::test_scenario_conversion_education_fund_asset_current_value_equals_original_balance PASSED [ 69%]
+tests/test_snapshot_dedupe_on_save.py::test_save_dedupes_multiple_snapshot_rows PASSED [ 69%]
+tests/test_snapshot_restore_guard.py::test_snapshot_restore_rejects_incomplete_payload_without_wiping_db PASSED [ 69%]
+tests/test_snapshot_restore_guard.py::test_snapshot_restore_accepts_wrapped_snapshot_payload PASSED [ 70%]
+tests/test_snapshot_single_row_invariants.py::test_snapshot_two_writes_keep_single_row PASSED [ 70%]
+tests/test_snapshot_single_row_invariants.py::test_snapshot_transform_updates_operation_type_and_keeps_single_row PASSED [ 70%]
+tests/test_stream_ack_ok_does_not_reprompt_target.py::test_stream_ack_ok_does_not_reprompt_target PASSED [ 70%]
+tests/test_stream_ack_understood_does_not_trigger_cashflow_error.py::test_stream_ack_understood_does_not_trigger_cashflow_error PASSED [ 71%]
+tests/test_stream_advice_fixation_returns_checklist.py::test_stream_advice_fixation_returns_checklist PASSED [ 71%]
+tests/test_stream_advice_investment_risk_no_tools.py::test_stream_advice_investment_risk_no_tools PASSED [ 71%]
+tests/test_stream_advice_request_blocks_without_tools.py::test_stream_advice_request_blocks_without_tools PASSED [ 71%]
+tests/test_stream_advice_requests_trigger_tool.py::test_stream_advice_requests_trigger_tool PASSED [ 72%]
+tests/test_stream_advice_tax_no_cashflow.py::test_stream_advice_tax_no_cashflow PASSED [ 72%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_text_approval_variant_with_pending_executes PASSED [ 72%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_text_approval_variant_without_pending_refuses PASSED [ 72%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_user_approved_json_with_pending_executes PASSED [ 73%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_user_approved_json_without_pending_allowlisted_executes PASSED [ 73%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_user_approved_json_without_pending_non_allowlisted_refuses PASSED [ 73%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_user_approved_json_dedupe_prevents_reexecution PASSED [ 73%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_process_termination_user_approved_missing_nonce_blocks PASSED [ 74%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_process_termination_user_approved_wrong_approval_id_blocks PASSED [ 74%]
+tests/test_stream_approval_recognition_variants_and_user_approved_payload.py::test_stream_process_termination_user_approved_success_consumes_preview_and_blocks_reuse PASSED [ 74%]
+tests/test_stream_blocked_balances_no_clears_pending_and_allows_build_execute.py::test_stream_blocked_balances_no_clears_pending_and_allows_build_execute PASSED [ 74%]
+tests/test_stream_build_plan_then_execute_requires_approval_not_lock_message.py::test_stream_build_plan_then_execute_requires_approval_not_lock_message PASSED [ 75%]
+tests/test_stream_build_target_plan_after_transform_approval_runs_plan.py::test_stream_build_target_plan_after_transform_approval_runs_plan PASSED [ 75%]
+tests/test_stream_build_target_plan_no_sources_requests_transform_approval.py::test_stream_build_target_plan_no_sources_requests_transform_approval PASSED [ 75%]
+tests/test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execute.py::test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execute PASSED [ 75%]
+tests/test_stream_build_target_plan_skips_empty_snapshot_models_loader.py::test_stream_build_target_plan_skips_empty_snapshot_models_loader PASSED [ 76%]
+tests/test_stream_build_target_plan_then_execute_requests_approval.py::test_stream_build_target_plan_then_execute_requests_approval PASSED [ 76%]
+tests/test_stream_build_target_plan_when_target_is_provided.py::test_stream_build_target_plan_when_target_is_provided PASSED [ 76%]
+tests/test_stream_cancel_clears_pending_approval_request.py::test_stream_cancel_clears_pending_approval_request PASSED [ 76%]
+tests/test_stream_cashflow_retirement_date_from_age_75.py::test_stream_cashflow_retirement_date_derived_from_age_75 PASSED [ 77%]
+tests/test_stream_cashflow_uses_db_demographics_no_prompt.py::test_stream_cashflow_uses_db_demographics_no_prompt PASSED [ 77%]
+tests/test_stream_conceptual_blocked_compensation_always_structured.py::test_stream_conceptual_blocked_compensation_always_structured PASSED [ 77%]
+tests/test_stream_conceptual_blocked_compensation_structured_answer.py::test_stream_conceptual_blocked_compensation_structured_answer PASSED [ 77%]
+tests/test_stream_conceptual_documents_list_does_not_trigger_ui_action.py::test_stream_conceptual_documents_list_does_not_trigger_ui_action PASSED [ 78%]
+tests/test_stream_conceptual_fixation_documents_always_structured.py::test_stream_conceptual_fixation_documents_always_structured PASSED [ 78%]
+tests/test_stream_conceptual_fixation_documents_structured.py::test_stream_conceptual_fixation_documents_structured PASSED [ 78%]
+tests/test_stream_conceptual_fixation_not_blocked.py::test_stream_conceptual_fixation_not_blocked PASSED [ 78%]
+tests/test_stream_conceptual_form_161d_always_mentions_161d.py::test_stream_conceptual_form_161d_always_mentions_161d PASSED [ 79%]
+tests/test_stream_conceptual_form_161d_topic.py::test_stream_conceptual_form_161d_topic PASSED [ 79%]
+tests/test_stream_conceptual_form_161d_topic.py::test_stream_report_still_returns_ui_action PASSED [ 79%]
+tests/test_stream_conceptual_form_does_not_trigger_ui_action.py::test_stream_conceptual_form_question_no_ui_action PASSED [ 79%]
+tests/test_stream_conceptual_form_does_not_trigger_ui_action.py::test_stream_report_still_returns_ui_action PASSED [ 80%]
+tests/test_stream_conceptual_how_to_read_cashflow_report_structured_steps.py::test_stream_conceptual_how_to_read_cashflow_report_structured_steps PASSED [ 80%]
+tests/test_stream_conceptual_kb_answers.py::test_stream_conceptual_kb_answer_matches_question_topic PASSED [ 80%]
+tests/test_stream_conceptual_kb_answers_topic_aware.py::test_stream_conceptual_kb_answer_topic_aware_fallback PASSED [ 80%]
+tests/test_stream_conceptual_kb_answers_topic_aware.py::test_stream_conceptual_kb_answer_keeps_kitzba_vs_hon_fallback PASSED [ 81%]
+tests/test_stream_conceptual_only_hard_stop_no_write_tools.py::test_stream_conceptual_only_request_does_not_execute_write_tools PASSED [ 81%]
+tests/test_stream_conceptual_read_cashflow_always_structured.py::test_stream_conceptual_read_cashflow_always_structured PASSED [ 81%]
+tests/test_stream_execute_plan_without_payload_prompts_for_target.py::test_stream_execute_plan_without_payload_prompts_for_target PASSED [ 81%]
+tests/test_stream_execute_without_plan_prompts_then_target_runs_build.py::test_stream_execute_without_plan_prompts_then_target_runs_build PASSED [ 82%]
+tests/test_stream_general_intro_returns_mapping_no_tools.py::test_stream_general_intro_returns_mapping_no_tools PASSED [ 82%]
+tests/test_stream_how_to_read_cashflow_report_is_conceptual_no_ui_action.py::test_stream_how_to_read_cashflow_report_is_conceptual_no_ui_action PASSED [ 82%]
+tests/test_stream_no_auto_replan_after_transform.py::test_stream_no_auto_replan_after_transform PASSED [ 82%]
+tests/test_stream_orchestration_plan_cashflow_only.py::test_stream_orchestration_plan_cashflow_only_runs_tool_once_no_llm PASSED [ 83%]
+tests/test_stream_orchestration_plan_compensation_advice_cashflow.py::test_stream_orchestration_plan_compensation_advice_runs_cashflow_tool_and_appends_summary PASSED [ 83%]
+tests/test_stream_orchestration_plan_fixation_status.py::test_stream_orchestration_plan_fixation_status_uses_tool_no_llm PASSED [ 83%]
+tests/test_stream_orchestration_plan_system_snapshot.py::test_stream_orchestration_plan_system_snapshot_uses_snapshot_tool_no_llm PASSED [ 83%]
+tests/test_stream_pending_approval_replay_execute_scenario.py::test_stream_pending_approval_replay_execute_scenario PASSED [ 84%]
+tests/test_stream_pending_approval_replay_transform.py::test_stream_pending_approval_replay_transform PASSED [ 84%]
+tests/test_stream_pending_plan_target_continue_triggers_build_target_plan.py::test_stream_pending_plan_target_continue_triggers_build_target_plan PASSED [ 84%]
+tests/test_stream_pending_plan_target_expired_reprompts_and_no_tool.py::test_stream_pending_plan_target_expired_reprompts_and_no_tool PASSED [ 84%]
+tests/test_stream_pending_plan_target_marker_blocks_cashflow.py::test_stream_pending_plan_target_marker_blocks_cashflow PASSED [ 85%]
+tests/test_stream_pending_retirement_age_followup_relative_years.py::test_stream_pending_retirement_age_followup_from_relative_years PASSED [ 85%]
+tests/test_stream_phrase_plan_triggers_prompt_not_cashflow.py::test_stream_phrase_plan_triggers_prompt_not_cashflow PASSED [ 85%]
+tests/test_stream_phrase_plan_with_number_runs_build_target_plan.py::test_stream_phrase_plan_with_number_runs_build_target_plan PASSED [ 85%]
+tests/test_stream_plan_request_without_target_prompts_for_target.py::test_stream_plan_request_without_target_prompts_for_target PASSED [ 86%]
+tests/test_stream_post_conversion_lock_blocks_plan_build.py::test_stream_post_conversion_lock_blocks_plan_build PASSED [ 86%]
+tests/test_stream_post_conversion_lock_blocks_transform_loop.py::test_stream_post_conversion_lock_blocks_transform_loop PASSED [ 86%]
+tests/test_stream_post_transform_flow_stabilization.py::test_transform_stream_appends_next_step_hint PASSED [ 86%]
+tests/test_stream_post_transform_flow_stabilization.py::test_report_blocked_when_latest_snapshot_is_not_transform PASSED [ 87%]
+tests/test_stream_post_transform_flow_stabilization.py::test_report_allowed_after_transform_and_replay_is_stable PASSED [ 87%]
+tests/test_stream_pre_retirement_no_persists_target_plan_dict_result.py::test_stream_pre_retirement_no_persists_target_plan_dict_result PASSED [ 87%]
+tests/test_stream_pre_retirement_plan_resolution.py::test_stream_pre_retirement_plan_resolution_income_offset PASSED [ 87%]
+tests/test_stream_pre_retirement_plan_resolution.py::test_stream_plan_request_not_blocked_when_undo_snapshot_exists_and_db_empty PASSED [ 88%]
+tests/test_stream_pre_retirement_plan_resolution.py::test_stream_plan_request_not_blocked_when_snapshot_meta_indicates_transform_but_db_empty PASSED [ 88%]
+tests/test_stream_pre_retirement_plan_resolution.py::test_stream_pre_retirement_plan_resolution_blocked_question_no PASSED [ 88%]
+tests/test_stream_pre_retirement_plan_resolution.py::test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approval PASSED [ 88%]
+tests/test_stream_pre_retirement_plan_resolution.py::test_stream_cashflow_uses_last_plan_without_cashflow_tool PASSED [ 89%]
+tests/test_stream_report_summary_navigates_to_correct_client.py::test_stream_report_summary_navigates_to_correct_client PASSED [ 89%]
+tests/test_stream_report_variants_include_hebrew_verbs.py::test_stream_report_variants_include_hebrew_verbs PASSED [ 89%]
+tests/test_stream_restore_banner_not_on_report.py::test_report_does_not_include_restore_banner PASSED [ 89%]
+tests/test_stream_restore_banner_shown_non_report.py::test_stream_restore_banner_shown_for_2_minutes_non_report PASSED [ 90%]
+tests/test_stream_restore_snapshot_no_snapshot_message.py::test_stream_restore_snapshot_no_snapshot_message PASSED [ 90%]
+tests/test_stream_restore_snapshot_requires_approval.py::test_stream_restore_snapshot_requires_approval PASSED [ 90%]
+tests/test_stream_restore_snapshot_user_approved_executes.py::test_stream_restore_snapshot_user_approved_executes PASSED [ 90%]
+tests/test_stream_restore_transform_reason.py::test_transform_approval_reason_stronger_after_restore_and_replay_is_stable PASSED [ 91%]
+tests/test_stream_restore_unlocks_allows_transform_approval_again.py::test_stream_restore_unlocks_allows_transform_approval_again PASSED [ 91%]
+tests/test_stream_retirement_age_propagates_to_build_target_plan.py::test_stream_retirement_age_propagates_to_build_target_pension_plan PASSED [ 91%]
+tests/test_stream_system_snapshot_returns_structured_payload.py::test_stream_user_approved_system_snapshot_returns_structured_payload PASSED [ 91%]
+tests/test_stream_target_net_overrides_default_15000.py::test_stream_target_net_overrides_default_15000 PASSED [ 92%]
+tests/test_stream_target_net_without_colon_runs_build_target_plan.py::test_stream_target_net_without_colon_runs_build_target_plan PASSED [ 92%]
+tests/test_stream_target_plan_injects_retirement_age.py::test_stream_target_plan_injects_retirement_age_75 PASSED [ 92%]
+tests/test_stream_target_plan_offsets_additional_incomes_for_net_target_colon_format.py::test_stream_target_plan_offsets_additional_incomes_for_net_target_colon_format PASSED [ 92%]
+tests/test_stream_termination_no_execute_blocks_approval_and_execution.py::test_stream_termination_conceptual_only_A_explainer_only PASSED [ 93%]
+tests/test_stream_termination_no_execute_blocks_approval_and_execution.py::test_stream_termination_conceptual_only_B_execute_phrase_but_no_execute PASSED [ 93%]
+tests/test_stream_text_approval_executes_pending_transform.py::test_stream_text_approval_executes_pending_transform PASSED [ 93%]
+tests/test_stream_user_approved_args_hash_mismatch_refuses.py::test_stream_user_approved_args_hash_mismatch_refuses PASSED [ 93%]
+tests/test_stream_user_approved_executes_tool_and_does_not_ask_again.py::test_stream_user_approved_executes_tool_and_does_not_ask_again PASSED [ 94%]
+tests/test_stream_user_approved_transform_appends_next_step_hint.py::test_user_approved_transform_appends_next_step_hint_only_on_success PASSED [ 94%]
+tests/test_stream_user_approved_transform_executes_even_when_post_conversion_locked.py::test_stream_user_approved_transform_executes_even_when_post_conversion_locked PASSED [ 94%]
+tests/test_stream_words_only_report_explainer_always_structured.py::test_stream_words_only_report_explainer_always_structured PASSED [ 94%]
+tests/test_stream_yes_no_advice_blocked.py::test_stream_yes_no_advice_blocked_first_case PASSED [ 95%]
+tests/test_stream_yes_no_advice_blocked.py::test_stream_yes_no_advice_blocked_second_case PASSED [ 95%]
+tests/test_tool_intent_guard.py::test_conceptual_question_disables_tools PASSED [ 95%]
+tests/test_tool_intent_guard.py::test_words_only_sanitizer_removes_digits_and_tool_blocks PASSED [ 95%]
+tests/test_tool_intent_guard.py::test_explicit_calculation_request_enables_tools PASSED [ 96%]
+tests/test_tool_intent_guard_conceptual_sanitization.py::test_conceptual_words_only_sanitization_removes_client_leakage_and_tool_markers PASSED [ 96%]
+tests/test_transform_funds_to_assets_classification.py::test_classify_gemel_defaults_to_pension PASSED [ 96%]
+tests/test_transform_funds_to_assets_classification.py::test_classify_investment_gemel_is_capital_asset PASSED [ 96%]
+tests/test_transform_funds_to_assets_classification.py::test_classify_study_fund_is_capital_asset PASSED [ 97%]
+tests/test_transform_funds_to_assets_classification.py::test_classify_insurance_is_pension PASSED [ 97%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_capital_asset_and_zero_source_and_cashflow PASSED [ 97%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_creates_capital_assets_with_current_value PASSED [ 97%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_reduces_pension_portfolio_components PASSED [ 98%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_does_not_convert_current_employer_severance_via_tagmulim PASSED [ 98%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_pension_does_not_zero_tool_created_pension_fund PASSED [ 98%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_updates_snapshot_scenario_zeroes_converted_components PASSED [ 98%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_updates_snapshot_scenario_zeroes_education_fund_even_when_edu_field_missing PASSED [ 99%]
+tests/test_transform_funds_to_assets_conversion.py::test_transform_tagmulim_to_2000_capital_is_exempt PASSED [ 99%]
+tests/test_transform_funds_to_assets_ignore_blocked_balances.py::test_transform_ignores_blocked_and_skips_employer_current_severance PASSED [ 99%]
+tests/test_transform_strict_plan_with_db_source_does_not_require_zeroing.py::test_transform_strict_plan_with_db_source_does_not_require_zeroing PASSED [100%]
+
+============================== warnings summary ===============================
+app\schemas\additional_income.py:25
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\additional_income.py:25: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('end_date')
+
+app\schemas\additional_income.py:32
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\additional_income.py:32: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('fixed_rate')
+
+app\schemas\additional_income.py:40
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\additional_income.py:40: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('tax_rate')
+
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268
+  C:\Users\omer\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_config.py:268: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app\schemas\capital_asset.py:33
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\capital_asset.py:33: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('end_date')
+
+app\schemas\capital_asset.py:40
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\capital_asset.py:40: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('fixed_rate')
+
+app\schemas\capital_asset.py:48
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\capital_asset.py:48: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('tax_rate')
+
+app\schemas\tax_schemas.py:29
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\tax_schemas.py:29: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('monthly_amount', always=True)
+
+app\schemas\tax_schemas.py:47
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\tax_schemas.py:47: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('birth_date')
+
+app\schemas\tax_schemas.py:88
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\tax_schemas.py:88: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('tax_year')
+
+..\..\..\..\..\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_generate_schema.py:252
+  C:\Users\omer\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\_internal\_generate_schema.py:252: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.5/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(
+
+app\schemas\cashflow.py:14
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\cashflow.py:14: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('from_', 'to')
+
+app\schemas\cashflow.py:31
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\cashflow.py:31: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('to')
+
+app\schemas\report.py:19
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\report.py:19: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('from_', 'to')
+
+app\schemas\report.py:36
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\report.py:36: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator('to')
+
+app\schemas\report.py:42
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\report.py:42: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator("sections", pre=True)
+
+app\schemas\compare.py:14
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\compare.py:14: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator("from_")
+
+app\schemas\compare.py:20
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\compare.py:20: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator("to")
+
+app\schemas\compare.py:26
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\compare.py:26: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator("scenarios")
+
+app\schemas\compare.py:32
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\schemas\compare.py:32: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    @validator("frequency")
+
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_ok_monthly_12_rows
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_bad_range
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_bad_frequency
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_generate_ok
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_bad_range_400
+  C:\Users\omer\OneDrive\AI PROJECTS\WINSURDF\dev\retire\app\services\case_service.py:128: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    result=result.dict(),
+
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_ok_monthly_12_rows
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_bad_range
+tests/test_cashflow_generation.py::TestCashflowGeneration::test_generate_bad_frequency
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_generate_ok
+tests/test_cashflow_generation.py::TestCashflowAPI::test_api_bad_range_400
+  C:\Users\omer\AppData\Local\Programs\Python\Python311\Lib\site-packages\pydantic\main.py:979: PydanticDeprecatedSince20: The `dict` method is deprecated; use `model_dump` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn('The `dict` method is deprecated; use `model_dump` instead.', DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 398 passed, 35 warnings in 45.31s ======================

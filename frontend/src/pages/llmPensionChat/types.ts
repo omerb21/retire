@@ -27,6 +27,45 @@ export type ComputedPensionData = {
   retirement_age: number;
 };
 
+export type MonthlyPensionItem = {
+  id: number;
+  amount: number;
+  start_date: string | null;
+  tax_treatment: string;
+};
+
+export type MonthlyPensionSplit = {
+  count: number;
+  sum: number;
+  items: MonthlyPensionItem[];
+};
+
+export type MonthlyPensionCurrent = MonthlyPensionSplit & {
+  taxable: {
+    count: number;
+    sum: number;
+  };
+  exempt: {
+    count: number;
+    sum: number;
+  };
+};
+
+export type MonthlyPensionComputedData = {
+  client_id: number;
+  today: string;
+  monthly_pension: {
+    current: MonthlyPensionCurrent;
+    future: MonthlyPensionSplit;
+    total: {
+      count: number;
+      sum: number;
+    };
+  };
+};
+
+export type ComputedDataPayload = ComputedPensionData | MonthlyPensionComputedData;
+
 export type TokenEstimate = { totalTokens: number; totalChars: number };
 
 export type EstimateTokensFn = (messages: LlmChatMessageDto[]) => TokenEstimate;

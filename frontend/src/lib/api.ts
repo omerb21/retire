@@ -497,6 +497,7 @@ export type LlmChatMessageDto = {
 
 export type LlmChatResponseDto = {
   reply: string;
+  computed_data?: unknown;
 };
 
 export type LlmStatusDto = {
