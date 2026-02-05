@@ -196,6 +196,17 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
         summary_lines.append(f"- גיל פרישה בתכנון: {int(retirement_age_val)}")
     summary_lines.append(f"- יעד קצבה חודשי ({mode_label}): {float(plan_res.get('target_monthly_pension') or 0):,.0f} ₪")
 
+    existing_katzba = plan_res.get("existing_katzba_total_gross")
+    if existing_katzba is not None:
+        try:
+            existing_katzba_val = float(existing_katzba or 0)
+        except Exception:
+            existing_katzba_val = 0.0
+        if existing_katzba_val > 0:
+            summary_lines.append(
+                f"- קצבאות קיימות במערכת (קצבה *): {existing_katzba_val:,.0f} ₪/חודש (מקוזז מהיעד)"
+            )
+
     if plan_res.get("target_is_net"):
         required_gross = plan_res.get("required_gross_for_target")
         estimated_tax = plan_res.get("estimated_monthly_tax")

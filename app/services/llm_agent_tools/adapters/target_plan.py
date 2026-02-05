@@ -8,6 +8,7 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.services.annuity_coefficient import get_annuity_coefficient
+from app.services.pension_fund_service import get_existing_monthly_pension_gross
 from app.services.pension_portfolio.conversion_rules import (
     COMPONENT_RULES,
     rule_for_tagmulim_by_product_type,
@@ -624,6 +625,38 @@ def build_target_pension_plan(
         else:
             convertible_sources.append(src)
 
+    existing_katzba_total_gross = 0.0
+    existing_katzba_total_gross_counted = 0.0
+    existing_katzba_total_gross_missing = 0.0
+    try:
+        existing_katzba_total_gross = float(
+            get_existing_monthly_pension_gross(self.db, int(self.client_id))
+        )
+    except Exception:
+        existing_katzba_total_gross = 0.0
+    try:
+        for s in existing_pension_sources:
+            if not isinstance(s, dict):
+                continue
+            src_name = s.get("source_name")
+            if not (isinstance(src_name, str) and src_name.startswith("קצבה ")):
+                continue
+            try:
+                existing_katzba_total_gross_counted += float(s.get("monthly_pension") or 0)
+            except Exception:
+                continue
+    except Exception:
+        existing_katzba_total_gross_counted = 0.0
+    try:
+        existing_katzba_total_gross_missing = max(
+            0.0, float(existing_katzba_total_gross) - float(existing_katzba_total_gross_counted)
+        )
+    except Exception:
+        existing_katzba_total_gross_missing = 0.0
+
+    if existing_katzba_total_gross_missing > 0:
+        existing_pension_total_gross += float(existing_katzba_total_gross_missing)
+
     required_gross_total_for_target = float(required_gross_for_target)
     required_gross_additional_needed = max(
         0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
@@ -702,6 +735,8 @@ def build_target_pension_plan(
                 "required_gross_tax_projection": required_gross_tax_projection,
                 "required_gross_additional_needed": float(required_gross_additional_needed),
                 "existing_pension_total_gross": float(existing_pension_total_gross),
+                "existing_katzba_total_gross": float(existing_katzba_total_gross),
+                "existing_katzba_total_gross_missing": float(existing_katzba_total_gross_missing),
                 "accumulated_pension": float(existing_pension_total_gross),
                 "taxable_pension": float(taxable_existing),
                 "exempt_pension": float(exempt_existing),
@@ -1208,6 +1243,8 @@ def build_target_pension_plan(
             "required_gross_tax_projection": required_gross_tax_projection,
             "required_gross_additional_needed": float(required_gross_additional_needed),
             "existing_pension_total_gross": float(existing_pension_total_gross),
+            "existing_katzba_total_gross": float(existing_katzba_total_gross),
+            "existing_katzba_total_gross_missing": float(existing_katzba_total_gross_missing),
             "accumulated_pension": float(accumulated_pension_total),
             "taxable_pension": taxable_pension,
             "exempt_pension": exempt_pension,

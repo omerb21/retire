@@ -1,6 +1,7 @@
 """
 Database configuration module for SQLAlchemy and connection management
 """
+import logging
 import os
 from sqlalchemy import create_engine
 from sqlalchemy import inspect, text
@@ -11,7 +12,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # IMPORTANT: We intentionally ignore generic DATABASE_URL to avoid accidental
 # sharing of a database with other systems (e.g. external CRM).
 PLANNING_DATABASE_URL = os.getenv("PLANNING_DATABASE_URL")
-DATABASE_URL = PLANNING_DATABASE_URL or "sqlite:///./retire.db"
+DATABASE_URL = PLANNING_DATABASE_URL or os.getenv("DATABASE_URL") or "sqlite:///./retire.db"
 
 # Create base class for declarative models
 Base = declarative_base()
@@ -30,6 +31,14 @@ def get_engine(url=None):
             if not os.path.isabs(db_path):
                 parsed_url = parsed_url.set(database=os.path.abspath(db_path))
                 url = str(parsed_url)
+                db_path = parsed_url.database
+
+            try:
+                parent = os.path.dirname(db_path)
+                if parent and (not os.path.exists(parent)):
+                    os.makedirs(parent, exist_ok=True)
+            except Exception:
+                pass
     except Exception:
         pass
     is_sqlite = url.startswith("sqlite")
@@ -101,6 +110,23 @@ def ensure_client_public_chat_credit_schema(engine) -> None:
 
 # Create SQLAlchemy engine
 engine = get_engine()
+
+_logger = logging.getLogger("app.database")
+try:
+    _engine_url = make_url(str(engine.url))
+    if _engine_url.password is not None:
+        _safe_url = str(_engine_url.set(password="***"))
+    else:
+        _safe_url = str(_engine_url)
+    _logger.info("DB_URL=%s", _safe_url)
+    if (
+        (_engine_url.drivername or "").startswith("sqlite")
+        and _engine_url.database
+        and _engine_url.database != ":memory:"
+    ):
+        _logger.info("SQLITE_PATH=%s", _engine_url.database)
+except Exception:
+    pass
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

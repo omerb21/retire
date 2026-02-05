@@ -168,3 +168,27 @@ def compute_all_pension_funds(db: Session, client_id: int) -> list[PensionFund]:
         updated_funds.append(updated_fund)
         
     return updated_funds
+
+
+def get_existing_monthly_pension_gross(db: Session, client_id: int) -> float:
+    try:
+        funds = (
+            db.query(PensionFund)
+            .filter(PensionFund.client_id == client_id)
+            .filter(PensionFund.fund_name.like("קצבה %"))
+            .all()
+        )
+    except Exception:
+        funds = []
+
+    total = 0.0
+    for pf in funds or []:
+        try:
+            total += float(getattr(pf, "pension_amount", 0) or 0)
+        except Exception:
+            continue
+
+    try:
+        return float(total)
+    except Exception:
+        return 0.0
