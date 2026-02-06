@@ -8,7 +8,7 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.services.annuity_coefficient import get_annuity_coefficient
-from app.services.pension_fund_service import get_existing_monthly_pension_gross
+from app.services.pension_chat_compute import compute_monthly_pension_summary
 from app.services.pension_portfolio.conversion_rules import (
     COMPONENT_RULES,
     rule_for_tagmulim_by_product_type,
@@ -625,61 +625,144 @@ def build_target_pension_plan(
         else:
             convertible_sources.append(src)
 
-    existing_katzba_total_gross = 0.0
-    existing_katzba_total_gross_counted = 0.0
-    existing_katzba_total_gross_missing = 0.0
+    today = date.today()
+    existing_monthly_pension_payload: dict[str, Any] = {}
+    existing_monthly_pension_current_total_gross = 0.0
+    existing_monthly_pension_current_taxable_gross = 0.0
+    existing_monthly_pension_current_exempt_gross = 0.0
     try:
-        existing_katzba_total_gross = float(
-            get_existing_monthly_pension_gross(self.db, int(self.client_id))
+        existing_monthly_pension_payload = compute_monthly_pension_summary(
+            self.db, int(self.client_id), today
         )
     except Exception:
-        existing_katzba_total_gross = 0.0
+        existing_monthly_pension_payload = {}
+
+    try:
+        mp = (
+            (existing_monthly_pension_payload.get("monthly_pension") or {})
+            if isinstance(existing_monthly_pension_payload, dict)
+            else {}
+        )
+        current = (mp.get("current") or {}) if isinstance(mp, dict) else {}
+        existing_monthly_pension_current_total_gross = float(current.get("sum") or 0)
+        taxable = (current.get("taxable") or {}) if isinstance(current, dict) else {}
+        exempt = (current.get("exempt") or {}) if isinstance(current, dict) else {}
+        existing_monthly_pension_current_taxable_gross = float(taxable.get("sum") or 0)
+        existing_monthly_pension_current_exempt_gross = float(exempt.get("sum") or 0)
+    except Exception:
+        existing_monthly_pension_current_total_gross = 0.0
+        existing_monthly_pension_current_taxable_gross = 0.0
+        existing_monthly_pension_current_exempt_gross = 0.0
+
+    existing_non_monthly_total_gross = 0.0
+    existing_non_monthly_taxable_gross = 0.0
+    existing_non_monthly_exempt_gross = 0.0
     try:
         for s in existing_pension_sources:
             if not isinstance(s, dict):
                 continue
-            src_name = s.get("source_name")
-            if not (isinstance(src_name, str) and src_name.startswith("קצבה ")):
+            if str(s.get("fund_type") or "").strip() == "monthly_pension":
                 continue
             try:
-                existing_katzba_total_gross_counted += float(s.get("monthly_pension") or 0)
+                amt = float(s.get("monthly_pension") or 0)
             except Exception:
+                amt = 0.0
+            if amt <= 0:
                 continue
+            existing_non_monthly_total_gross += amt
+            if str(s.get("tax_treatment") or "taxable") == "exempt":
+                existing_non_monthly_exempt_gross += amt
+            else:
+                existing_non_monthly_taxable_gross += amt
     except Exception:
-        existing_katzba_total_gross_counted = 0.0
-    try:
-        existing_katzba_total_gross_missing = max(
-            0.0, float(existing_katzba_total_gross) - float(existing_katzba_total_gross_counted)
-        )
-    except Exception:
-        existing_katzba_total_gross_missing = 0.0
+        existing_non_monthly_total_gross = 0.0
+        existing_non_monthly_taxable_gross = 0.0
+        existing_non_monthly_exempt_gross = 0.0
 
-    if existing_katzba_total_gross_missing > 0:
-        existing_pension_total_gross += float(existing_katzba_total_gross_missing)
+    existing_pension_total_gross = float(existing_non_monthly_total_gross) + float(
+        existing_monthly_pension_current_total_gross
+    )
+    existing_pension_taxable_gross_total = float(existing_non_monthly_taxable_gross) + float(
+        existing_monthly_pension_current_taxable_gross
+    )
+    existing_pension_exempt_gross_total = float(existing_non_monthly_exempt_gross) + float(
+        existing_monthly_pension_current_exempt_gross
+    )
+
+    existing_katzba_total_gross = float(existing_monthly_pension_current_total_gross)
+    existing_katzba_total_gross_missing = 0.0
 
     required_gross_total_for_target = float(required_gross_for_target)
-    required_gross_additional_needed = max(
-        0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
-    )
+    required_taxable_gross_total_for_target = None
+    if target_is_net:
+        target_net_remaining = max(0.0, float(target) - float(existing_pension_exempt_gross_total))
+        if target_net_remaining <= 0:
+            required_taxable_gross_total_for_target = 0.0
+            required_gross_total_for_target = float(existing_pension_exempt_gross_total)
+            required_gross_tax_projection = None
+        else:
+            computed_taxable_gross, tax_result, gross_err = _gross_for_net_target(
+                target_net_remaining
+            )
+            if computed_taxable_gross is None:
+                err = (
+                    (gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)")
+                    .strip()
+                )
+                return {
+                    "success": False,
+                    "tool_name": "BUILD_TARGET_PENSION_PLAN",
+                    "result": {},
+                    "explanation": (
+                        "לא ניתן לתכנן יעד קצבה נטו ללא הערכת מס תקינה. "
+                        "הערכת המס נכשלה ולכן לא ניתן להמיר יעד נטו לברוטו נדרש. "
+                        f"פרטי שגיאה: {err}"
+                    ),
+                }
+            required_taxable_gross_total_for_target = float(computed_taxable_gross)
+            required_gross_tax_projection = tax_result
+            required_gross_total_for_target = float(required_taxable_gross_total_for_target) + float(
+                existing_pension_exempt_gross_total
+            )
+
+    if target_is_net:
+        required_gross_additional_needed = max(
+            0.0,
+            float(required_taxable_gross_total_for_target or 0)
+            - float(existing_pension_taxable_gross_total),
+        )
+    else:
+        required_gross_additional_needed = max(
+            0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
+        )
 
     if required_gross_additional_needed <= 0:
         estimated_tax = None
         estimated_net = None
         tax_projection_result = None
         try:
-            tax_proj = self.get_tax_projection(monthly_pension=float(existing_pension_total_gross))
+            if float(existing_pension_taxable_gross_total) >= 1000:
+                tax_proj = self.get_tax_projection(
+                    monthly_pension=float(existing_pension_taxable_gross_total)
+                )
+            else:
+                tax_proj = None
             if isinstance(tax_proj, dict) and isinstance(tax_proj.get("result"), dict):
                 tax_projection_result = tax_proj.get("result")
                 estimated_tax = tax_projection_result.get("monthly_tax")
                 if estimated_tax is not None:
                     try:
-                        estimated_net = float(existing_pension_total_gross) - float(estimated_tax)
+                        estimated_net = float(existing_pension_exempt_gross_total) + (
+                            float(existing_pension_taxable_gross_total) - float(estimated_tax)
+                        )
                     except Exception:
                         estimated_net = None
         except Exception:
             tax_projection_result = None
 
-        target_achieved_gross = float(existing_pension_total_gross) >= float(required_gross_total_for_target)
+        target_achieved_gross = float(existing_pension_total_gross) >= float(
+            required_gross_total_for_target
+        )
         target_achieved_net = None
         if target_is_net and estimated_net is not None:
             try:
@@ -689,17 +772,8 @@ def build_target_pension_plan(
         if target_is_net and estimated_net is None:
             target_achieved_net = False
 
-        taxable_existing = 0.0
-        exempt_existing = 0.0
-        for s in existing_pension_sources:
-            try:
-                amt = float(s.get("monthly_pension") or 0)
-            except Exception:
-                amt = 0.0
-            if str(s.get("tax_treatment") or "taxable") == "exempt":
-                exempt_existing += amt
-            else:
-                taxable_existing += amt
+        taxable_existing = float(existing_pension_taxable_gross_total)
+        exempt_existing = float(existing_pension_exempt_gross_total)
 
         explanation = build_target_pension_plan_explanation(
             target_achieved_gross=target_achieved_gross,
@@ -735,9 +809,19 @@ def build_target_pension_plan(
                 "required_gross_tax_projection": required_gross_tax_projection,
                 "required_gross_additional_needed": float(required_gross_additional_needed),
                 "existing_pension_total_gross": float(existing_pension_total_gross),
+                "existing_monthly_pension_current_total_gross": float(
+                    existing_monthly_pension_current_total_gross
+                ),
+                "existing_monthly_pension_current_taxable_gross": float(
+                    existing_monthly_pension_current_taxable_gross
+                ),
+                "existing_monthly_pension_current_exempt_gross": float(
+                    existing_monthly_pension_current_exempt_gross
+                ),
                 "existing_katzba_total_gross": float(existing_katzba_total_gross),
                 "existing_katzba_total_gross_missing": float(existing_katzba_total_gross_missing),
                 "accumulated_pension": float(existing_pension_total_gross),
+                "new_gross_built_from_sources": 0.0,
                 "taxable_pension": float(taxable_existing),
                 "exempt_pension": float(exempt_existing),
                 "estimated_monthly_tax": estimated_tax,
@@ -958,6 +1042,8 @@ def build_target_pension_plan(
     ]
 
     for source in pension_sources:
+        if source.get("action_needed") == "none":
+            continue
         if source.get("action_needed") == "requires_termination":
             sources_not_used.append(source)
             blocked_for_execution_capital += float(source.get("balance") or 0)
@@ -1053,21 +1139,18 @@ def build_target_pension_plan(
         disadvantages.append(f"מקדם קצבה ממוצע גבוה ({avg_factor:.0f}) - פחות יעיל")
 
     # בדיקת מס
-    taxable_pension = sum(
+    taxable_pension_from_sources_used = sum(
         float(s["pension_used"]) for s in sources_used if s.get("tax_treatment") == "taxable"
     )
-    exempt_pension = sum(
+    exempt_pension_from_sources_used = sum(
         float(s["pension_used"]) for s in sources_used if s.get("tax_treatment") == "exempt"
     )
-    for s in existing_pension_sources:
-        try:
-            amt = float(s.get("monthly_pension") or 0)
-        except Exception:
-            amt = 0.0
-        if str(s.get("tax_treatment") or "taxable") == "exempt":
-            exempt_pension += amt
-        else:
-            taxable_pension += amt
+    taxable_pension = float(taxable_pension_from_sources_used) + float(
+        existing_pension_taxable_gross_total
+    )
+    exempt_pension = float(exempt_pension_from_sources_used) + float(
+        existing_pension_exempt_gross_total
+    )
 
     if exempt_pension > 0:
         advantages.append(f"{exempt_pension:,.0f} ₪ מהקצבה פטורים ממס")
@@ -1086,13 +1169,18 @@ def build_target_pension_plan(
     estimated_net = None
     tax_projection_result = None
     try:
-        tax_proj = self.get_tax_projection(monthly_pension=accumulated_pension_total)
+        if float(taxable_pension) >= 1000:
+            tax_proj = self.get_tax_projection(monthly_pension=float(taxable_pension))
+        else:
+            tax_proj = None
         if isinstance(tax_proj, dict) and isinstance(tax_proj.get("result"), dict):
             tax_projection_result = tax_proj.get("result")
             estimated_tax = tax_projection_result.get("monthly_tax")
             if estimated_tax is not None:
                 try:
-                    estimated_net = float(accumulated_pension_total) - float(estimated_tax)
+                    estimated_net = float(exempt_pension) + (
+                        float(taxable_pension) - float(estimated_tax)
+                    )
                 except Exception:
                     estimated_net = None
     except Exception:
@@ -1175,8 +1263,8 @@ def build_target_pension_plan(
         execution_plan_accounts = []
 
     try:
-        target_gross_val = (
-            float(required_gross_for_target) if target_is_net else float(target_monthly_pension)
+        target_gross_val = float(required_gross_total_for_target) if target_is_net else float(
+            target_monthly_pension
         )
     except Exception:
         target_gross_val = 0.0
@@ -1243,9 +1331,19 @@ def build_target_pension_plan(
             "required_gross_tax_projection": required_gross_tax_projection,
             "required_gross_additional_needed": float(required_gross_additional_needed),
             "existing_pension_total_gross": float(existing_pension_total_gross),
+            "existing_monthly_pension_current_total_gross": float(
+                existing_monthly_pension_current_total_gross
+            ),
+            "existing_monthly_pension_current_taxable_gross": float(
+                existing_monthly_pension_current_taxable_gross
+            ),
+            "existing_monthly_pension_current_exempt_gross": float(
+                existing_monthly_pension_current_exempt_gross
+            ),
             "existing_katzba_total_gross": float(existing_katzba_total_gross),
             "existing_katzba_total_gross_missing": float(existing_katzba_total_gross_missing),
             "accumulated_pension": float(accumulated_pension_total),
+            "new_gross_built_from_sources": float(accumulated_pension_added),
             "taxable_pension": taxable_pension,
             "exempt_pension": exempt_pension,
             "estimated_monthly_tax": estimated_tax,
