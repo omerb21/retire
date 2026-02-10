@@ -51,3 +51,35 @@ class CashflowRow(BaseModel):
 
 
 CashflowGenerateResponse = List[CashflowRow]
+
+
+# ── integrate-all input schemas ──────────────────────────────────────
+
+class ScenarioCashflowItem(BaseModel):
+    """Single row in the flat-list format accepted by integrate-all."""
+    date: str  # ISO date string, e.g. "2025-01-01"
+    inflow: float
+    outflow: float
+    net: float
+
+    class Config:
+        extra = "allow"
+
+
+class MonthlyCashflowItem(BaseModel):
+    """Single row inside the *envelope* format returned by GET …/cashflow."""
+    date: str
+    income: float
+    expenses: float
+    net: float
+
+    class Config:
+        extra = "allow"
+
+
+class CashflowEnvelope(BaseModel):
+    """Envelope object that wraps a ``monthly`` list (GET cashflow shape)."""
+    monthly: List[MonthlyCashflowItem]
+
+    class Config:
+        extra = "allow"

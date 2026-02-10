@@ -3,7 +3,8 @@ FastAPI application entrypoint
 """
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -128,6 +129,16 @@ import os
 
 app.add_middleware(TraceIdMiddleware)
 
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(request: Request, exc: RequestValidationError):
+    """Ensure 422 responses always carry a readable JSON body."""
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
+
 if os.getenv("STREAM_TRACE_LOGGER_ENABLED") == "1":
     from app.middleware.stream_trace_logger import StreamTraceLoggerMiddleware
 
@@ -166,6 +177,13 @@ if llm_chat is not None:
 app.include_router(public_chat.router)
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 
+# Agent Eyes – debug trace viewer (protected by env flags)
+try:
+    from app.routers.debug_traces import router as debug_traces_router
+    app.include_router(debug_traces_router, tags=["debug-traces"])
+except Exception as _debug_import_err:
+    logger.warning("Could not load debug_traces router: %s", _debug_import_err)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -191,6 +209,18 @@ def ui_redirect():
     with open("app/static/index.html", "r", encoding="utf-8") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content)
+
+
+@app.get("/debug/agent-trace")
+def agent_trace_ui():
+    """Agent Eyes – visual trace timeline UI (protected)."""
+    if os.getenv("AGENT_TRACE_DEBUG_ENABLED", "0") != "1":
+        raise HTTPException(status_code=404)
+    from fastapi.responses import HTMLResponse
+    trace_html = Path(__file__).parent / "static" / "agent_trace.html"
+    if not trace_html.exists():
+        raise HTTPException(status_code=404)
+    return HTMLResponse(content=trace_html.read_text(encoding="utf-8"))
 
 
 @app.get("/health")
