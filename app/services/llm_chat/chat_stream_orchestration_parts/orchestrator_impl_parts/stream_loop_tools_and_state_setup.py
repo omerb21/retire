@@ -52,6 +52,7 @@ def _setup_tools_and_state(
     effective_portfolio = request.pension_portfolio
     effective_snapshot_at = request.pension_portfolio_snapshot_at
     effective_state: dict | None = None
+    _portfolio_source = "request_payload"
     if request.client_id is not None:
         try:
             effective_state = load_current_effective_state(db, request.client_id)
@@ -60,6 +61,7 @@ def _setup_tools_and_state(
         loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
         if loaded is not None:
             effective_portfolio, effective_snapshot_at = loaded
+            _portfolio_source = "db_snapshot"
             try:
                 logger.info(
                     "📦 Using DB pension_portfolio_snapshot (client_id=%s, accounts=%s, snapshot_at=%s)",
@@ -69,6 +71,22 @@ def _setup_tools_and_state(
                 )
             except Exception:
                 pass
+
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+        log_trace_event(
+            event_type="state_source",
+            payload={
+                "portfolio_source": _portfolio_source,
+                "portfolio_count": len(effective_portfolio) if effective_portfolio else 0,
+                "snapshot_at": str(effective_snapshot_at) if effective_snapshot_at else None,
+                "has_effective_state": effective_state is not None,
+            },
+            client_id=request.client_id,
+            endpoint="/api/v1/llm/pension-chat-stream",
+        )
+    except Exception:
+        pass
 
     def _build_restore_snapshot_banner(*, now_utc: datetime) -> str | None:
         return build_restore_snapshot_banner_helper(

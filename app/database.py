@@ -108,6 +108,30 @@ def ensure_client_public_chat_credit_schema(engine) -> None:
         # best-effort only; avoid breaking app startup
         return
 
+def ensure_agent_trace_event_schema(engine) -> None:
+    """Best-effort migration: add is_truncated / payload_size to agent_trace_event."""
+    try:
+        inspector = inspect(engine)
+        if "agent_trace_event" not in set(inspector.get_table_names() or []):
+            return
+        columns = {c.get("name") for c in (inspector.get_columns("agent_trace_event") or [])}
+        dialect = (engine.dialect.name or "").lower()
+
+        with engine.begin() as conn:
+            if "is_truncated" not in columns:
+                if dialect == "sqlite":
+                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN is_truncated INTEGER NOT NULL DEFAULT 0"))
+                else:
+                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS is_truncated BOOLEAN NOT NULL DEFAULT FALSE"))
+            if "payload_size" not in columns:
+                if dialect == "sqlite":
+                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN payload_size INTEGER"))
+                else:
+                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS payload_size INTEGER"))
+    except Exception:
+        return
+
+
 # Create SQLAlchemy engine
 engine = get_engine()
 

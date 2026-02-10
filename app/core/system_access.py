@@ -1,11 +1,14 @@
+import logging
 import os
 import hmac
+import traceback
 from typing import Callable, Awaitable
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+_logger = logging.getLogger("app.middleware.system_access")
 
 SYSTEM_PASSWORD_MAIN_ENV = "SYSTEM_ACCESS_PASSWORD"
 SYSTEM_PASSWORD_DEMO_ENV = "SYSTEM_ACCESS_PASSWORD_DEMO"
@@ -33,6 +36,25 @@ def get_expected_passwords():
 
 class SystemAccessMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable]):
+        try:
+            return await self._dispatch_inner(request, call_next)
+        except Exception as exc:
+            _logger.error(
+                "SystemAccessMiddleware unhandled error on %s %s: %s\n%s",
+                request.method,
+                request.url.path,
+                exc,
+                traceback.format_exc(),
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": f"Internal server error: {type(exc).__name__}: {str(exc)[:500]}",
+                    "path": str(request.url.path),
+                },
+            )
+
+    async def _dispatch_inner(self, request: Request, call_next: Callable[[Request], Awaitable]):
         if not is_protection_enabled():
             return await call_next(request)
 

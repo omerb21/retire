@@ -38,6 +38,8 @@ from app.guards.tool_intent_guard import (
     sanitize_words_only_conceptual,
     sanitize_words_only_output,
 )
+from app.services.agent_trace_logger import log_trace_event
+from app.utils.trace_context import get_current_trace_id
 
 logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
@@ -154,6 +156,22 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
                 break
     except Exception:
         last_user_msg_for_intent = ""
+
+    try:
+        log_trace_event(
+            event_type="user_input",
+            payload={
+                "user_message": last_user_msg_for_intent,
+                "client_id": request.client_id,
+                "endpoint": "/api/v1/llm/pension-chat",
+                "streaming": False,
+                "message_count": len(request.messages or []),
+            },
+            client_id=request.client_id,
+            endpoint="/api/v1/llm/pension-chat",
+        )
+    except Exception:
+        pass
 
     trace_id: str | None = None
     try:
@@ -311,6 +329,20 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
         if not allowed:
             return ChatResponse(reply=final_text, computed_data=res.computed_data)
 
+    try:
+        log_trace_event(
+            event_type="assistant_output",
+            payload={
+                "reply_length": len(res.reply or ""),
+                "reply_preview": (res.reply or "")[:2000],
+                "has_computed_data": res.computed_data is not None,
+            },
+            client_id=request.client_id,
+            endpoint="/api/v1/llm/pension-chat",
+        )
+    except Exception:
+        pass
+
     return res
 
 
@@ -335,6 +367,22 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
             if getattr(m, "role", None) == "user":
                 last_user_msg_for_intent = (getattr(m, "content", "") or "").strip()
                 break
+
+        try:
+            log_trace_event(
+                event_type="user_input",
+                payload={
+                    "user_message": last_user_msg_for_intent,
+                    "client_id": request.client_id,
+                    "endpoint": "/api/v1/llm/pension-chat-stream",
+                    "streaming": True,
+                    "message_count": len(request.messages or []),
+                },
+                client_id=request.client_id,
+                endpoint="/api/v1/llm/pension-chat-stream",
+            )
+        except Exception:
+            pass
 
         if _should_compute_monthly_pension(last_user_msg_for_intent) and request.client_id is not None:
             from app.services.pension_chat_compute import compute_monthly_pension_summary
@@ -374,4 +422,47 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
     except Exception:
         pass
 
-    return run_pension_chat_stream_service(request, db)
+    raw_response = run_pension_chat_stream_service(request, db)
+
+    # Wrap the streaming response to capture assistant_output trace
+    original_body_iterator = raw_response.body_iterator
+
+    async def _traced_stream():
+        chunks: list[str] = []
+        try:
+            async for chunk in original_body_iterator:
+                chunks.append(chunk if isinstance(chunk, str) else chunk.decode("utf-8", errors="replace"))
+                yield chunk
+        except Exception as exc:
+            try:
+                log_trace_event(
+                    event_type="error",
+                    payload={
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc)[:2000],
+                        "endpoint": "/api/v1/llm/pension-chat-stream",
+                        "streaming": True,
+                    },
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                full_text = "".join(chunks)
+                log_trace_event(
+                    event_type="assistant_output",
+                    payload={
+                        "reply_length": len(full_text),
+                        "reply_preview": full_text[:2000],
+                        "streaming": True,
+                    },
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+            except Exception:
+                pass
+
+    return StreamingResponse(_traced_stream(), media_type=raw_response.media_type)

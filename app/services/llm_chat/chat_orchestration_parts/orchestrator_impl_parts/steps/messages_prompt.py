@@ -71,6 +71,27 @@ def _build_messages_and_prompt(*, request, db, logger):
         except Exception:
             pass
 
+    # Log state_source for trace observability
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+        _portfolio_source = "request_payload"
+        if request.client_id is not None and (
+            (not request_has_portfolio) or use_db_even_if_request_has_portfolio
+        ):
+            _portfolio_source = "db_snapshot"
+        log_trace_event(
+            event_type="state_source",
+            payload={
+                "portfolio_source": _portfolio_source,
+                "portfolio_count": len(effective_portfolio) if effective_portfolio else 0,
+                "snapshot_at": str(effective_snapshot_at) if effective_snapshot_at else None,
+            },
+            client_id=request.client_id,
+            endpoint="/api/v1/llm/pension-chat",
+        )
+    except Exception:
+        pass
+
     messages, computed_data = prepare_messages_with_context(request, db)
     original_user_msg = find_last_user_message(request.messages)
 

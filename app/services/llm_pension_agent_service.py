@@ -6,6 +6,7 @@ from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 
 from app.schemas.llm_chat import ChatMessage
+from app.services.agent_trace_logger import log_trace_event
 
 
 SYSTEM_PROMPT = """אתה יועץ פנסיוני ומתכנן פרישה חכם. תפקידך לנתח את מצב הלקוח ולבנות עבורו אסטרטגיה אופטימלית להשגת יעדי הפרישה שלו (קצבה חודשית נטו והון פנוי).
@@ -489,9 +490,32 @@ class PensionLLMService:
             text = str(response)
         return text
 
+    def _log_llm_request(self, history: List[BaseMessage], client_id: int | None, streaming: bool) -> None:
+        try:
+            status = self.get_status()
+            messages_payload = []
+            for msg in history:
+                role = "system" if isinstance(msg, SystemMessage) else "user" if isinstance(msg, HumanMessage) else "assistant"
+                content = str(msg.content or "")
+                messages_payload.append({"role": role, "content": content[:4000]})
+            log_trace_event(
+                event_type="llm_request_prepared",
+                payload={
+                    "provider": status.get("provider"),
+                    "model": status.get("model_name"),
+                    "messages_count": len(messages_payload),
+                    "messages": messages_payload,
+                    "streaming": streaming,
+                },
+                client_id=client_id,
+            )
+        except Exception:
+            pass
+
     def chat(self, messages: List[ChatMessage], client_id: int | None = None) -> str:
         """מקבל היסטוריית צ'אט ומחזיר תשובת סוכן אחת."""
         history = self._prepare_history(messages, client_id)
+        self._log_llm_request(history, client_id, streaming=False)
 
         if self._provider == "gemini" and self._gemini_client is not None:
             return self._chat_gemini(history)
@@ -511,6 +535,7 @@ class PensionLLMService:
     def chat_stream(self, messages: List[ChatMessage], client_id: int | None = None) -> Generator[str, None, None]:
         """מקבל היסטוריית צ'אט ומחזיר תשובה בזרימה (streaming)."""
         history = self._prepare_history(messages, client_id)
+        self._log_llm_request(history, client_id, streaming=True)
 
         # עבור Gemini – מחזירים את כל התשובה כמקשה אחת
         if self._provider == "gemini" and self._gemini_client is not None:

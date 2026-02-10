@@ -254,6 +254,19 @@ def _run_stream_loop_tail_flow(
         )
     )
     if deterministic_routing_response is not None:
+        try:
+            from app.services.agent_trace_logger import log_trace_event
+            log_trace_event(
+                event_type="execution_path",
+                payload={
+                    "path_id": "chat.stream.deterministic",
+                    "reason": "deterministic_routing_block_matched",
+                },
+                client_id=request.client_id,
+                endpoint="/api/v1/llm/pension-chat-stream",
+            )
+        except Exception:
+            pass
         return deterministic_routing_response
 
     if should_show_post_conversion_messages() and isinstance(original_user_msg, str):
@@ -286,6 +299,20 @@ def _run_stream_loop_tail_flow(
         client_id=request.client_id,
         extra={"endpoint": "stream"},
     )
+
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+        log_trace_event(
+            event_type="execution_path",
+            payload={
+                "path_id": "chat.stream.tool_loop",
+                "reason": "no_deterministic_match",
+            },
+            client_id=request.client_id,
+            endpoint="/api/v1/llm/pension-chat-stream",
+        )
+    except Exception:
+        pass
 
     return build_streaming_response_generate_loop(
         messages=messages,

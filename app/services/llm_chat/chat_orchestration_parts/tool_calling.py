@@ -7,6 +7,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.utils.llm_chat_log import log_llm_event
+from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -52,11 +53,12 @@ def _execute_tool_call(
         },
         client_id=client_id,
     )
+    result: str = ""
     try:
         execute_fn = _get_execute_tool_call()
         sig = inspect.signature(execute_fn)
         if "agent_reply" in sig.parameters or "user_approved" in sig.parameters:
-            return execute_fn(
+            result = execute_fn(
                 tool_name=tool_name,
                 args=args,
                 client_id=client_id,
@@ -66,11 +68,13 @@ def _execute_tool_call(
                 agent_reply=agent_reply,
                 user_approved=user_approved,
             )
+            _log_tool_result(tool_name, result, client_id)
+            return result
     except Exception:
         pass
 
     execute_fn = _get_execute_tool_call()
-    return execute_fn(
+    result = execute_fn(
         tool_name=tool_name,
         args=args,
         client_id=client_id,
@@ -78,3 +82,20 @@ def _execute_tool_call(
         pension_portfolio=pension_portfolio,
         force_max_exemption=force_max_exemption,
     )
+    _log_tool_result(tool_name, result, client_id)
+    return result
+
+
+def _log_tool_result(tool_name: str, result: str, client_id: int) -> None:
+    try:
+        _log_agent_trace(
+            event_type="tool_result",
+            payload={
+                "tool_name": tool_name,
+                "result_length": len(result or ""),
+                "result_preview": (result or "")[:3000],
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass

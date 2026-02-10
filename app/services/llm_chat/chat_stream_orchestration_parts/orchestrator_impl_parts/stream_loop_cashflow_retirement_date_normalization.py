@@ -23,8 +23,24 @@ def _maybe_normalize_cashflow_retirement_date(
             )
             birth_date = getattr(client, "birth_date", None) if client else None
             if birth_date is not None:
+                before_val = date_str.strip()
                 tool_args["retirement_date"] = normalize_retirement_date_if_jan1_placeholder(
-                    retirement_date=date_str.strip(),
+                    retirement_date=before_val,
                     birth_date=birth_date,
                     user_message=original_user_msg,
                 )
+                after_val = tool_args["retirement_date"]
+                if before_val != after_val:
+                    try:
+                        from app.services.agent_trace_logger import log_trace_event
+                        log_trace_event(
+                            event_type="args_normalized",
+                            payload={
+                                "normalizer_name": "normalize_retirement_date_if_jan1_placeholder",
+                                "before": {"retirement_date": before_val},
+                                "after": {"retirement_date": after_val},
+                            },
+                            client_id=request.client_id,
+                        )
+                    except Exception:
+                        pass

@@ -108,6 +108,7 @@ from app.services.llm_chat.orchestration_utils import (
     normalize_tool_name,
     validate_tool_call_protocol_for_execution,
 )
+from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
 from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     build_default_termination_plan_preview,
@@ -208,7 +209,21 @@ def execute_tool_call(
     agent_reply: str | None = None,
     user_approved: bool = False,
 ) -> str:
+    original_tool_name = tool_name
     tool_name = normalize_tool_name(tool_name) or tool_name
+    if original_tool_name != tool_name:
+        try:
+            _log_agent_trace(
+                event_type="args_normalized",
+                payload={
+                    "normalizer_name": "normalize_tool_name",
+                    "before": {"tool_name": original_tool_name},
+                    "after": {"tool_name": tool_name},
+                },
+                client_id=client_id,
+            )
+        except Exception:
+            pass
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
     if tool_name == "PROCESS_TERMINATION":
@@ -548,6 +563,23 @@ def execute_tool_call(
     )
 
     try:
+        _log_agent_trace(
+            event_type="tool_call",
+            payload={
+                "tool_name": tool_name,
+                "args": args if isinstance(args, dict) else str(args)[:2000],
+                "client_id": client_id,
+                "user_approved": user_approved,
+                "force_max_exemption": force_max_exemption,
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
+
+    _tool_exec_start = __import__("time").time()
+
+    def _dispatch() -> str:
         if tool_name == "GET_SYSTEM_NUMERIC_CONSTANTS":
             return handle_get_system_numeric_constants(args=args)
 
@@ -749,6 +781,40 @@ def execute_tool_call(
 
         return f"Error: Tool '{tool_name}' not found."
 
+    # --- execute dispatch, log tool_result, return ---
+    try:
+        result = _dispatch()
     except Exception as e:
+        elapsed_ms = int((__import__("time").time() - _tool_exec_start) * 1000)
         logger.error("Tool execution failed: %s", e, exc_info=True)
+        try:
+            _log_agent_trace(
+                event_type="error",
+                payload={
+                    "tool_name": tool_name,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)[:2000],
+                    "elapsed_ms": elapsed_ms,
+                },
+                client_id=client_id,
+            )
+        except Exception:
+            pass
         return f"System Error while executing tool: {str(e)}"
+
+    elapsed_ms = int((__import__("time").time() - _tool_exec_start) * 1000)
+    try:
+        _log_agent_trace(
+            event_type="tool_result",
+            payload={
+                "tool_name": tool_name,
+                "success": True,
+                "elapsed_ms": elapsed_ms,
+                "result_preview": (result or "")[:2000],
+                "result_length": len(result or ""),
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
+    return result

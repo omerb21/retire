@@ -73,6 +73,7 @@ try:
     from app.routers import llm_chat
 except Exception:
     llm_chat = None
+from app.routers import agent_trace_debug
 from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
@@ -82,10 +83,21 @@ async def lifespan(app: FastAPI):
     """Initialize database tables on application startup"""
     Base.metadata.create_all(bind=engine)
 
-    from app.database import ensure_client_public_chat_credit_schema
+    from app.database import ensure_client_public_chat_credit_schema, ensure_agent_trace_event_schema
 
     ensure_client_public_chat_credit_schema(engine)
+    ensure_agent_trace_event_schema(engine)
     
+    # Quick DB connectivity check
+    try:
+        from app.database import SessionLocal
+        _test_db = SessionLocal()
+        _test_db.execute(__import__("sqlalchemy").text("SELECT 1"))
+        _test_db.close()
+        logger.info("✅ DB connectivity check passed")
+    except Exception as _db_err:
+        logger.error("❌ DB connectivity check FAILED: %s", _db_err)
+
     # אימות תקינות המערכת
     logger.info("=" * 60)
     logger.info("🚀 Starting Retirement Planning System")
@@ -139,6 +151,28 @@ async def _validation_error_handler(request: Request, exc: RequestValidationErro
     )
 
 
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception):
+    """Catch-all: ensure every unhandled error returns a JSON body so
+    production debugging is possible (bare 500 with no body is invisible)."""
+    import traceback
+    tb = traceback.format_exc()
+    logger.error(
+        "Unhandled exception on %s %s: %s\n%s",
+        request.method,
+        request.url.path,
+        exc,
+        tb,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"{type(exc).__name__}: {str(exc)[:500]}",
+            "path": str(request.url.path),
+        },
+    )
+
+
 if os.getenv("STREAM_TRACE_LOGGER_ENABLED") == "1":
     from app.middleware.stream_trace_logger import StreamTraceLoggerMiddleware
 
@@ -178,11 +212,7 @@ app.include_router(public_chat.router)
 app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 
 # Agent Eyes – debug trace viewer (protected by env flags)
-try:
-    from app.routers.debug_traces import router as debug_traces_router
-    app.include_router(debug_traces_router, tags=["debug-traces"])
-except Exception as _debug_import_err:
-    logger.warning("Could not load debug_traces router: %s", _debug_import_err)
+app.include_router(agent_trace_debug.router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -237,6 +267,12 @@ def health_check():
 def health_check_v1():
     """Health check endpoint with API prefix"""
     return {"status": "ok"}
+
+
+@app.get("/api/v1/_ping")
+def ping_v1():
+    """Minimal diagnostic endpoint – no DB, no auth, no middleware logic."""
+    return {"status": "ok", "ping": True}
 
 
 @app.get("/api/v1/version")

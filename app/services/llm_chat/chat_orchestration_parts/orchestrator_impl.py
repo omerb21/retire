@@ -139,69 +139,102 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
             return resp
         return resp
 
-    prepared = _prepare_orchestration_inputs(
-        request=request,
-        db=db,
-        request_id=request_id,
-        logger=logger,
-        log_llm_event_fn=log_llm_event,
-    )
-    if isinstance(prepared, ChatResponse):
-        return _sanitize_if_words_only(prepared)
+    try:
+        try:
+            from app.services.agent_trace_logger import log_trace_event
+            log_trace_event(
+                event_type="execution_path",
+                payload={
+                    "path_id": "chat.non_stream.tool_loop",
+                    "reason": "non_stream_endpoint",
+                },
+                client_id=request.client_id,
+                endpoint="/api/v1/llm/pension-chat",
+            )
+        except Exception:
+            pass
 
-    orch_res = _run_orchestration(
-        request=request,
-        db=db,
-        messages=prepared.messages,
-        request_id=request_id,
-        original_user_msg=prepared.original_user_msg,
-        current_pension_portfolio=prepared.current_pension_portfolio,
-        is_qa_mode=prepared.is_qa_mode,
-        no_tools_requested=prepared.no_tools_requested,
-        is_doc_request=prepared.is_doc_request,
-        is_cashflow_request=prepared.is_cashflow_request,
-        is_comparison_request=prepared.is_comparison_request,
-        is_net_request=prepared.is_net_request,
-        is_portfolio_analysis=prepared.is_portfolio_analysis,
-        analysis_default_retirement_age=prepared.analysis_default_retirement_age,
-        force_max_exemption=prepared.force_max_exemption,
-        wants_ignore_blocked=prepared.wants_ignore_blocked,
-        explicit_termination=prepared.explicit_termination,
-        termination_change=prepared.termination_change,
-        termination_already_executed=prepared.termination_already_executed,
-        wants_execute_target_plan=prepared.wants_execute_target_plan,
-        wants_fixation_execute=prepared.wants_fixation_execute,
-        logger=logger,
-        computed_data=prepared.computed_data,
-        log_llm_event_fn=log_llm_event,
-    )
-    if isinstance(orch_res, ChatResponse):
-        return _sanitize_if_words_only(orch_res)
-    final_reply = orch_res.final_reply
-    forced_user_prefix = orch_res.forced_user_prefix
-    qa_summary_required = orch_res.qa_summary_required
-    report_open_path = orch_res.report_open_path
-    current_step = orch_res.current_step
-    max_steps = orch_res.max_steps
-    computed_data = prepared.computed_data
-    is_portfolio_analysis = prepared.is_portfolio_analysis
-
-    log_llm_event(
-        request_id=request_id,
-        event_type="final_answer",
-        payload=final_reply,
-        client_id=request.client_id,
-    )
-
-    return _sanitize_if_words_only(
-        _build_chat_response(
-            final_reply=final_reply,
-            forced_user_prefix=forced_user_prefix,
-            is_portfolio_analysis=is_portfolio_analysis,
-            qa_summary_required=qa_summary_required,
-            report_open_path=report_open_path,
-            current_step=current_step,
-            max_steps=max_steps,
-            computed_data=computed_data,
+        prepared = _prepare_orchestration_inputs(
+            request=request,
+            db=db,
+            request_id=request_id,
+            logger=logger,
+            log_llm_event_fn=log_llm_event,
         )
-    )
+        if isinstance(prepared, ChatResponse):
+            return _sanitize_if_words_only(prepared)
+
+        orch_res = _run_orchestration(
+            request=request,
+            db=db,
+            messages=prepared.messages,
+            request_id=request_id,
+            original_user_msg=prepared.original_user_msg,
+            current_pension_portfolio=prepared.current_pension_portfolio,
+            is_qa_mode=prepared.is_qa_mode,
+            no_tools_requested=prepared.no_tools_requested,
+            is_doc_request=prepared.is_doc_request,
+            is_cashflow_request=prepared.is_cashflow_request,
+            is_comparison_request=prepared.is_comparison_request,
+            is_net_request=prepared.is_net_request,
+            is_portfolio_analysis=prepared.is_portfolio_analysis,
+            analysis_default_retirement_age=prepared.analysis_default_retirement_age,
+            force_max_exemption=prepared.force_max_exemption,
+            wants_ignore_blocked=prepared.wants_ignore_blocked,
+            explicit_termination=prepared.explicit_termination,
+            termination_change=prepared.termination_change,
+            termination_already_executed=prepared.termination_already_executed,
+            wants_execute_target_plan=prepared.wants_execute_target_plan,
+            wants_fixation_execute=prepared.wants_fixation_execute,
+            logger=logger,
+            computed_data=prepared.computed_data,
+            log_llm_event_fn=log_llm_event,
+        )
+        if isinstance(orch_res, ChatResponse):
+            return _sanitize_if_words_only(orch_res)
+        final_reply = orch_res.final_reply
+        forced_user_prefix = orch_res.forced_user_prefix
+        qa_summary_required = orch_res.qa_summary_required
+        report_open_path = orch_res.report_open_path
+        current_step = orch_res.current_step
+        max_steps = orch_res.max_steps
+        computed_data = prepared.computed_data
+        is_portfolio_analysis = prepared.is_portfolio_analysis
+
+        log_llm_event(
+            request_id=request_id,
+            event_type="final_answer",
+            payload=final_reply,
+            client_id=request.client_id,
+        )
+
+        return _sanitize_if_words_only(
+            _build_chat_response(
+                final_reply=final_reply,
+                forced_user_prefix=forced_user_prefix,
+                is_portfolio_analysis=is_portfolio_analysis,
+                qa_summary_required=qa_summary_required,
+                report_open_path=report_open_path,
+                current_step=current_step,
+                max_steps=max_steps,
+                computed_data=computed_data,
+            )
+        )
+    except Exception as exc:
+        try:
+            import traceback
+            from app.services.agent_trace_logger import log_trace_event
+            log_trace_event(
+                event_type="error",
+                payload={
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc)[:2000],
+                    "stack_trace": traceback.format_exc()[:4000],
+                    "endpoint": "/api/v1/llm/pension-chat",
+                },
+                client_id=request.client_id,
+                endpoint="/api/v1/llm/pension-chat",
+            )
+        except Exception:
+            pass
+        raise
