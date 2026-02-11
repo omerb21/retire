@@ -142,12 +142,25 @@ import os
 app.add_middleware(TraceIdMiddleware)
 
 
+def _sanitize_for_json(obj):
+    """Recursively convert non-serializable objects (e.g. ValueError inside
+    Pydantic ctx) to plain strings so JSONResponse never raises TypeError."""
+    if isinstance(obj, BaseException):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(x) for x in obj]
+    return obj
+
+
 @app.exception_handler(RequestValidationError)
 async def _validation_error_handler(request: Request, exc: RequestValidationError):
     """Ensure 422 responses always carry a readable JSON body."""
+    errors = _sanitize_for_json(exc.errors())
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors()},
+        content={"detail": errors, "path": str(request.url.path)},
     )
 
 
