@@ -74,6 +74,7 @@ try:
 except Exception:
     llm_chat = None
 from app.routers import agent_trace_debug
+from app.routers import agent_eyes_debug
 from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
@@ -229,6 +230,7 @@ app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 
 # Agent Eyes – debug trace viewer (protected by env flags)
 app.include_router(agent_trace_debug.router)
+app.include_router(agent_eyes_debug.router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

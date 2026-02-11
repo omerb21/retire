@@ -103,6 +103,11 @@ LOGGING_CONFIG = {
             "handlers": ["console", "file"],
             "level": "INFO",
             "propagate": False
+        },
+        "agent_eyes": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False
         }
     }
 }
