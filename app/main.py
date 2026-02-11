@@ -180,6 +180,9 @@ if os.getenv("STREAM_TRACE_LOGGER_ENABLED") == "1":
 
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
+from app.middleware.access_log import AccessLogMiddleware
+app.add_middleware(AccessLogMiddleware)
+
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
 app.include_router(employment.router)  # employment router already has /api/v1/clients prefix
@@ -273,6 +276,18 @@ def health_check_v1():
 def ping_v1():
     """Minimal diagnostic endpoint – no DB, no auth, no middleware logic."""
     return {"status": "ok", "ping": True}
+
+
+@app.get("/api/v1/_edge_probe")
+def edge_probe():
+    """Absolute-minimum probe: if this returns 500 with no body and no
+    REQ_IN log line, the request never reached the Python process."""
+    import time as _t
+    return {
+        "edge": True,
+        "ts": _t.time(),
+        "pid": os.getpid(),
+    }
 
 
 @app.get("/api/v1/version")

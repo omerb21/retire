@@ -93,6 +93,16 @@ LOGGING_CONFIG = {
             "handlers": ["console", "file"],
             "level": LOG_LEVEL,
             "propagate": False
+        },
+        "uvicorn.access": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False
+        },
+        "app.access": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": False
         }
     }
 }

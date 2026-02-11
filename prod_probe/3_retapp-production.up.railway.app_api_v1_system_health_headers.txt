@@ -1,0 +1,9 @@
+HTTP/1.1 500 Internal Server Error
+Content-Type: text/plain
+Date: Tue, 10 Feb 2026 22:47:27 GMT
+Server: railway-edge
+Vary: Origin
+X-Railway-Edge: railway/europe-west4-drams3a
+X-Railway-Request-Id: VVXieL3cTvK7-hKE5nX1uw
+Transfer-Encoding: chunked
+
