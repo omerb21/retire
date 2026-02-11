@@ -34,6 +34,15 @@ def get_expected_passwords():
     return passwords
 
 
+def _safe_digest_eq(a: str, b: str) -> bool:
+    """Constant-time string comparison via UTF-8 bytes.
+    Falls back to False on any encoding / type error so we never crash."""
+    try:
+        return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+    except Exception:
+        return False
+
+
 class SystemAccessMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable]):
         try:
@@ -81,21 +90,31 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
         if path.startswith("/api/v1/public-chat/") and path != "/api/v1/public-chat/topup":
             return await call_next(request)
 
-        header_password = request.headers.get("X-System-Password")
-        expected_passwords = get_expected_passwords()
+        try:
+            header_password = request.headers.get("X-System-Password")
+            expected_passwords = get_expected_passwords()
 
-        if not expected_passwords:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "detail": "System access password is not configured (set SYSTEM_ACCESS_PASSWORD or SYSTEM_ACCESS_PASSWORD_DEMO).",
-                },
+            if not expected_passwords:
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "detail": "System access password is not configured (set SYSTEM_ACCESS_PASSWORD or SYSTEM_ACCESS_PASSWORD_DEMO).",
+                    },
+                )
+
+            if (not header_password) or (not any(_safe_digest_eq(header_password, p) for p in expected_passwords)):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Unauthorized: invalid or missing system access password"},
+                )
+        except Exception as pwd_exc:
+            _logger.error(
+                "SystemAccessMiddleware password check error on %s %s: %s",
+                request.method, request.url.path, pwd_exc,
             )
-
-        if not header_password or not any(hmac.compare_digest(header_password, p) for p in expected_passwords):
             return JSONResponse(
                 status_code=401,
-                content={"detail": "Unauthorized: invalid or missing system access password"},
+                content={"detail": "Unauthorized: password validation failed"},
             )
 
         return await call_next(request)
