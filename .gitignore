@@ -29,3 +29,5 @@ client_*.json
 he_client*.json
 one_client.json
 encoding_probe.py
+post_*.json
+post_bad_*.json
