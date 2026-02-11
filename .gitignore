@@ -1,7 +1,31 @@
-﻿# Local debug artifacts
-RIGHT_* 
-WRONG_* 
-right_* 
+﻿# Python caches
+__pycache__/
+*.py[cod]
+
+# Virtual envs
+.venv/
+venv/
+venv311/
+
+# Pytest
+.pytest_cache/
+
+# Local DB / logs
+*.db
+logs/
+
+# Local debug artifacts
+RIGHT_*
+WRONG_*
+right_*
 railway_*.json
+railway_*.txt
 api_headers.txt
 root_headers.txt
+tmp_*.json
+tmp_*.txt
+post_*.txt
+client_*.json
+he_client*.json
+one_client.json
+encoding_probe.py
