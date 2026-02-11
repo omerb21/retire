@@ -1,0 +1,21 @@
+﻿{"level":"info","message":"Starting Container","timestamp":"2026-02-11T00:19:14.000000000Z"}
+{"level":"info","message":"2026-02-11 00:19:15,348 - app.database - INFO - DB_URL=postgresql://postgres:***@postgres.railway.internal:5432/railway","timestamp":"2026-02-11T00:19:15.778753439Z"}
+{"level":"info","timestamp":"2026-02-11T00:19:15.778833699Z","message":"2026-02-11 00:19:15,154 - app.logging_config - WARNING - python-json-logger not found, using standard formatter for JSON logs"}
+{"message":"2026-02-11 00:19:15,159 - root - INFO - Logging initialized with level DEBUG in development environment","timestamp":"2026-02-11T00:19:15.778841210Z","level":"info"}
+{"level":"info","timestamp":"2026-02-11T00:19:16.963168302Z","message":"2026-02-11 00:19:16,960 - app.llm_pension_agent - INFO - PensionLLMService initialized with Ollama model 'gemma3:4b'"}
+{"message":"2026-02-11 00:19:17,401 - app.llm_pension_agent - INFO - PensionLLMService initialized with OpenAI model 'gpt-5-mini'","level":"info","timestamp":"2026-02-11T00:19:17.402229611Z"}
+{"timestamp":"2026-02-11T00:19:17.810611679Z","message":"2026-02-11 00:19:17,772 - uvicorn.error - INFO - Started server process [1]","level":"info"}
+{"message":"2026-02-11 00:19:17,772 - uvicorn.error - INFO - Waiting for application startup.","level":"info","timestamp":"2026-02-11T00:19:17.810617169Z"}
+{"timestamp":"2026-02-11T00:19:18.401281785Z","level":"info","message":"2026-02-11 00:19:18,397 - app.main - INFO - Γ£ו DB connectivity check passed"}
+{"message":"2026-02-11 00:19:18,398 - app.main - INFO - ============================================================","level":"info","timestamp":"2026-02-11T00:19:18.401291245Z"}
+{"timestamp":"2026-02-11T00:19:18.401298285Z","level":"info","message":"2026-02-11 00:19:18,398 - app.main - INFO - ≡ƒתא Starting Retirement Planning System"}
+{"message":"2026-02-11 00:19:18,398 - app.main - INFO - ============================================================","level":"info","timestamp":"2026-02-11T00:19:18.401304095Z"}
+{"message":"2026-02-11 00:19:18,398 - app.main - INFO - ============================================================","timestamp":"2026-02-11T00:19:18.401312175Z","level":"info"}
+{"timestamp":"2026-02-11T00:19:18.401320285Z","level":"info","message":"2026-02-11 00:19:18,399 - app.core.system_validator - INFO - ≡ƒפם Starting system validation..."}
+{"timestamp":"2026-02-11T00:19:18.401328965Z","message":"2026-02-11 00:19:18,399 - uvicorn.error - INFO - Application startup complete.","level":"info"}
+{"message":"2026-02-11 00:19:18,400 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)","timestamp":"2026-02-11T00:19:18.401337385Z","level":"info"}
+{"message":"2026-02-11 00:19:18,417 - app.core.system_validator - INFO - Γ£ו ╫₧╫º╫ף╫₧╫ש ╫º╫ª╫ס╫פ ╫£╫º╫¿╫á╫ץ╫¬ ╫ñ╫á╫í╫ש╫פ - ╫¬╫º╫ש╫ƒ","timestamp":"2026-02-11T00:19:18.420248236Z","level":"info"}
+{"message":"2026-02-11 00:19:18,423 - app.core.system_validator - INFO - Γ£ו ╫₧╫º╫ף╫₧╫ש ╫º╫ª╫ס╫פ ╫£╫ף╫ץ╫¿╫ץ╫¬ ╫ס╫ש╫ר╫ץ╫ק ╫₧╫á╫פ╫£╫ש╫¥ - ╫¬╫º╫ש╫ƒ","timestamp":"2026-02-11T00:19:18.426892407Z","level":"info"}
+{"level":"info","message":"2026-02-11 00:19:18,429 - app.core.system_validator - INFO - Γ£ו ╫₧╫ש╫ñ╫ץ╫ש ╫í╫ץ╫ע ╫₧╫ץ╫ª╫¿ ╫£╫ף╫ץ╫¿ ╫ñ╫ץ╫£╫ש╫í╫פ - ╫¬╫º╫ש╫ƒ","timestamp":"2026-02-11T00:19:18.433357837Z"}
+{"timestamp":"2026-02-11T00:19:18.438197487Z","level":"info","message":"2026-02-11 00:19:18,436 - app.core.system_validator - INFO - Γ£ו ╫₧╫º╫ף╫₧╫ש ╫º╫ª╫ס╫פ ╫í╫ñ╫ª╫ש╫ñ╫ש╫ש╫¥ ╫£╫ק╫ס╫¿╫ץ╫¬ ╫ס╫ש╫ר╫ץ╫ק - ╫¬╫º╫ש╫ƒ"}
+{"message":"2026-02-11 00:19:18,436 - app.core.system_validator - INFO - Γ£ו System validation completed successfully!","level":"info","timestamp":"2026-02-11T00:19:18.438202997Z"}
