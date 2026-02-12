@@ -7,6 +7,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Base
 
 from app.schemas.llm_chat import ChatMessage
 from app.services.agent_trace_logger import log_trace_event
+from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
 
 
 SYSTEM_PROMPT = """אתה יועץ פנסיוני ומתכנן פרישה חכם. תפקידך לנתח את מצב הלקוח ולבנות עבורו אסטרטגיה אופטימלית להשגת יעדי הפרישה שלו (קצבה חודשית נטו והון פנוי).
@@ -498,17 +499,15 @@ class PensionLLMService:
                 role = "system" if isinstance(msg, SystemMessage) else "user" if isinstance(msg, HumanMessage) else "assistant"
                 content = str(msg.content or "")
                 messages_payload.append({"role": role, "content": content[:4000]})
-            log_trace_event(
-                event_type="llm_request_prepared",
-                payload={
-                    "provider": status.get("provider"),
-                    "model": status.get("model_name"),
-                    "messages_count": len(messages_payload),
-                    "messages": messages_payload,
-                    "streaming": streaming,
-                },
-                client_id=client_id,
-            )
+            _llm_payload = {
+                "provider": status.get("provider"),
+                "model": status.get("model_name"),
+                "messages_count": len(messages_payload),
+                "messages": messages_payload,
+                "streaming": streaming,
+            }
+            log_trace_event(event_type="llm_request_prepared", payload=_llm_payload, client_id=client_id)
+            _eyes_emit("llm_request_prepared", _llm_payload, client_id=client_id)
         except Exception:
             pass
 

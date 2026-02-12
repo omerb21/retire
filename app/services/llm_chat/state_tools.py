@@ -57,6 +57,15 @@ def get_tools_definitions_json() -> str:
             },
         },
         {
+            "name": "GET_CLIENT_SNAPSHOT",
+            "description": "מחזיר snapshot info עבור הלקוח דרך /api/v1/clients/{client_id}/snapshot/info. מציג כמה קצבאות, נכסי הון, הכנסות נוספות, מענקים, האם יש מעסיק נוכחי, עזיבת עבודה, וקיבוע זכויות. השתמש בכלי זה כאשר הלקוח שואל 'מה יש לי במערכת', 'תראה לי סיכום', 'כמה מוצרים יש לי'.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+        {
             "name": "GET_FIXATION_STATUS_SNAPSHOT",
             "description": "מחזיר סטטוס מכני (yes/no/unknown) של קיבוע זכויות והמסמכים/אירועים הנלווים כפי שהם קיימים בפועל במערכת (DB), כולל רשימת חוסרים. הכלי לא מבצע חישובים ולא מחזיר מספרים.",
             "parameters": {

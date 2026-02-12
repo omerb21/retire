@@ -1,0 +1,10 @@
+HTTP/1.1 405 Method Not Allowed
+Allow: GET
+Content-Length: 31
+Content-Type: application/json
+Date: Wed, 11 Feb 2026 22:33:39 GMT
+Server: railway-edge
+X-Railway-Edge: railway/europe-west4-drams3a
+X-Railway-Request-Id: GEIPIwKPSLmFARtnss7a6g
+X-Trace-Id: 2fc17528-9ae2-4ec9-ac2c-c6dc13022523
+

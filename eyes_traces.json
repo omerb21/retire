@@ -1,0 +1,1 @@
+{"items":[{"trace_id":"unknown","last_event_at":"2026-02-11T23:32:20.903026","events_count":1,"client_id":45,"endpoint":null},{"trace_id":"447f7aac-870a-4cc8-a9cb-e26e0e8f62ef","last_event_at":"2026-02-11T23:32:20.893890","events_count":2,"client_id":45,"endpoint":"/api/v1/llm/pension-chat-stream"}]}

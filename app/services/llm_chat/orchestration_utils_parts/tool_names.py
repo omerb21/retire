@@ -30,6 +30,7 @@ def get_tool_display_name_hebrew(tool_name: str | None) -> str:
         "CREATE_TAX_EXEMPT_GRANT": "יצירת מענק פטור",
         "SET_CURRENT_EMPLOYER_DETAILS": "עדכון פרטי מעסיק נוכחי",
         "EXECUTE_WORK_TERMINATION": "ביצוע עזיבת עבודה",
+        "GET_CLIENT_SNAPSHOT": "שליפת מצב לקוח",
     }
     return mapping.get(tool_name, tool_name)
 
@@ -75,6 +76,7 @@ def normalize_tool_name(tool_name: str | None) -> str | None:
         "SET_CURRENT_EMPLOYER_DETAILS",
         "EXECUTE_WORK_TERMINATION",
         "CALCULATE_FIXATION_OF_RIGHTS",
+        "GET_CLIENT_SNAPSHOT",
     }
     if upper in known_constants:
         return upper

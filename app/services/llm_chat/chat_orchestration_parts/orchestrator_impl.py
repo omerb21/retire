@@ -224,17 +224,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         try:
             import traceback
             from app.services.agent_trace_logger import log_trace_event
-            log_trace_event(
-                event_type="error",
-                payload={
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc)[:2000],
-                    "stack_trace": traceback.format_exc()[:4000],
-                    "endpoint": "/api/v1/llm/pension-chat",
-                },
-                client_id=request.client_id,
-                endpoint="/api/v1/llm/pension-chat",
-            )
+            from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+            _err_payload = {
+                "error_type": type(exc).__name__,
+                "error_message": str(exc)[:2000],
+                "stack_trace": traceback.format_exc()[:4000],
+                "endpoint": "/api/v1/llm/pension-chat",
+            }
+            log_trace_event(event_type="error", payload=_err_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat")
+            _eyes_emit("error", _err_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat")
         except Exception:
             pass
         raise

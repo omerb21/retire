@@ -83,6 +83,9 @@ from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
 from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
     handle_get_system_state_snapshot,
 )
+from app.services.llm_chat.tool_handlers.get_client_snapshot import (
+    handle_get_client_snapshot,
+)
 from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
     handle_get_system_numeric_constants,
 )
@@ -109,6 +112,7 @@ from app.services.llm_chat.orchestration_utils import (
     validate_tool_call_protocol_for_execution,
 )
 from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
+from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
 from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     build_default_termination_plan_preview,
@@ -563,17 +567,16 @@ def execute_tool_call(
     )
 
     try:
-        _log_agent_trace(
-            event_type="tool_call",
-            payload={
-                "tool_name": tool_name,
-                "args": args if isinstance(args, dict) else str(args)[:2000],
-                "client_id": client_id,
-                "user_approved": user_approved,
-                "force_max_exemption": force_max_exemption,
-            },
-            client_id=client_id,
-        )
+        _tc_payload = {
+            "tool_name": tool_name,
+            "args": args if isinstance(args, dict) else str(args)[:2000],
+            "original_tool_name": original_tool_name,
+            "client_id": client_id,
+            "user_approved": user_approved,
+            "force_max_exemption": force_max_exemption,
+        }
+        _log_agent_trace(event_type="tool_call", payload=_tc_payload, client_id=client_id)
+        _eyes_emit("tool_call", _tc_payload, client_id=client_id)
     except Exception:
         pass
 
@@ -720,6 +723,9 @@ def execute_tool_call(
         if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
             return handle_get_system_state_snapshot(args=args, client_id=client_id, db=db)
 
+        if tool_name == "GET_CLIENT_SNAPSHOT":
+            return handle_get_client_snapshot(args=args, client_id=client_id, db=db)
+
         if tool_name == "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY":
             return handle_get_pension_portfolio_snapshot_history(
                 args=args,
@@ -779,7 +785,30 @@ def execute_tool_call(
                 client_obj=client_obj,
             )
 
-        return f"Error: Tool '{tool_name}' not found."
+        _known_tools = [
+            "GET_SYSTEM_STATE_SNAPSHOT", "GET_CLIENT_SNAPSHOT",
+            "GET_FIXATION_STATUS_SNAPSHOT", "GET_SYSTEM_NUMERIC_CONSTANTS",
+            "BUILD_TARGET_PENSION_PLAN", "GET_TAX_PROJECTION", "GET_TAX_PARAMS",
+            "GET_PENSION_PRODUCTS", "CHECK_DATA_COMPLETENESS",
+            "CALCULATE_TAX_EXEMPT_PENSION", "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            "RUN_RETIREMENT_SCENARIOS", "SELECT_TARGET_PENSION_SCENARIO",
+            "FIND_OPTIMAL_SCENARIO", "EXECUTE_RETIREMENT_SCENARIO",
+            "CALCULATE_PENSION_COMMUTATION", "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+            "CALCULATE_TAX_SPREAD_BENEFIT", "PROCESS_TERMINATION",
+            "PROJECT_TOTAL_ANNUITY", "GET_ACCOUNT_DETAILS",
+            "SUBMIT_TAX_COMMUTATION", "EXECUTE_PENSION_COMMUTATION",
+            "GENERATE_FULL_REPORT", "GENERATE_TAX_DEDUCTION_DOCUMENTS",
+            "TRANSFORM_FUNDS_TO_ASSETS", "CREATE_TAX_EXEMPT_GRANT",
+            "CREATE_ADDITIONAL_INCOME", "CREATE_INDIVIDUAL_ASSET",
+            "SET_CURRENT_EMPLOYER_DETAILS", "EXECUTE_WORK_TERMINATION",
+            "CALCULATE_FIXATION_OF_RIGHTS",
+            "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY",
+            "RESTORE_PENSION_PORTFOLIO_SNAPSHOT", "RESTORE_SYSTEM_SNAPSHOT",
+        ]
+        return json.dumps({
+            "error": f"Tool '{tool_name}' not found.",
+            "available_tools": _known_tools,
+        }, ensure_ascii=False)
 
     # --- execute dispatch, log tool_result, return ---
     try:
@@ -788,33 +817,31 @@ def execute_tool_call(
         elapsed_ms = int((__import__("time").time() - _tool_exec_start) * 1000)
         logger.error("Tool execution failed: %s", e, exc_info=True)
         try:
-            _log_agent_trace(
-                event_type="error",
-                payload={
-                    "tool_name": tool_name,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e)[:2000],
-                    "elapsed_ms": elapsed_ms,
-                },
-                client_id=client_id,
-            )
+            import traceback as _tb_mod
+            _err_payload = {
+                "tool_name": tool_name,
+                "error_type": type(e).__name__,
+                "error_message": str(e)[:2000],
+                "stack_trace": _tb_mod.format_exc()[:4000],
+                "elapsed_ms": elapsed_ms,
+            }
+            _log_agent_trace(event_type="error", payload=_err_payload, client_id=client_id)
+            _eyes_emit("error", _err_payload, client_id=client_id)
         except Exception:
             pass
         return f"System Error while executing tool: {str(e)}"
 
     elapsed_ms = int((__import__("time").time() - _tool_exec_start) * 1000)
     try:
-        _log_agent_trace(
-            event_type="tool_result",
-            payload={
-                "tool_name": tool_name,
-                "success": True,
-                "elapsed_ms": elapsed_ms,
-                "result_preview": (result or "")[:2000],
-                "result_length": len(result or ""),
-            },
-            client_id=client_id,
-        )
+        _tr_payload = {
+            "tool_name": tool_name,
+            "success": True,
+            "elapsed_ms": elapsed_ms,
+            "result_preview": (result or "")[:2000],
+            "result_length": len(result or ""),
+        }
+        _log_agent_trace(event_type="tool_result", payload=_tr_payload, client_id=client_id)
+        _eyes_emit("tool_result", _tr_payload, client_id=client_id)
     except Exception:
         pass
     return result
