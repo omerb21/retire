@@ -55,3 +55,8 @@ pc_*.json
 pc_*.txt
 eyes_trace_check.json
 eyes_traces_check.json
+
+# local artifacts
+retire.db
+scripts/probe_trace_evidence.py
+
