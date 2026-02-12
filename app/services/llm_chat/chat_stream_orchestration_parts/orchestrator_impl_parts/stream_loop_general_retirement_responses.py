@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 
 def _maybe_handle_general_retirement_help(*, original_user_msg: str, is_general_retirement_help_request):
@@ -22,7 +22,7 @@ def _maybe_handle_general_retirement_help(*, original_user_msg: str, is_general_
 
     return StreamingResponse(
         _general_retirement_help_answer(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )
 
 
@@ -47,7 +47,7 @@ def _maybe_handle_general_retirement_intro(*, original_user_msg: str, is_general
 
     return StreamingResponse(
         _general_retirement_intro_answer(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )
 
 
@@ -128,7 +128,7 @@ def _maybe_handle_explain_in_words(
 
     return StreamingResponse(
         _explain_in_words_answer(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )
 
 

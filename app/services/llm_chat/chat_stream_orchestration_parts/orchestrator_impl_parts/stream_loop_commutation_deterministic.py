@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -61,7 +61,7 @@ def _maybe_handle_commutation_deterministic(
                 if not comm_amount or comm_amount <= 0:
                     return StreamingResponse(
                         generate_commutation_need_amount_existing(computed_data=computed_data),
-                        media_type="text/plain; charset=utf-8",
+                        media_type="text/plain",
                     )
 
                 tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
@@ -101,7 +101,7 @@ def _maybe_handle_commutation_deterministic(
             if fund is None:
                 return StreamingResponse(
                     generate_commutation_missing(computed_data=computed_data, account_number=account_number),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
             comm_amount = None
@@ -113,7 +113,7 @@ def _maybe_handle_commutation_deterministic(
             if not comm_amount or comm_amount <= 0:
                 return StreamingResponse(
                     generate_commutation_need_amount(computed_data=computed_data),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
             tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"

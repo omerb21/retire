@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import datetime, timezone
 
 from fastapi.responses import StreamingResponse
@@ -73,7 +73,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
     if approved is None:
         return StreamingResponse(
             iter(_approval_refusal_lines()),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     approved_tool, approved_args = approved
@@ -153,7 +153,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
 
             return StreamingResponse(
                 iter([preview_text]),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         approval_id_in = approved_args.get("approval_id") if isinstance(approved_args, dict) else None
@@ -240,7 +240,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
             if _args_conflict(pending_args, approved_args):
                 return StreamingResponse(
                     iter(_approval_refusal_lines()),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
             merged_args = dict(pending_args)
@@ -249,14 +249,14 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
             if merged_hash != pending_args_hash.strip():
                 return StreamingResponse(
                     iter(_approval_refusal_lines()),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
             has_valid_pending_match = True
         else:
             return StreamingResponse(
                 iter(_approval_refusal_lines()),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
     else:
         try:
@@ -276,7 +276,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
             ):
                 return StreamingResponse(
                     iter(_approval_refusal_lines()),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
             if _args_conflict(pending_tool_args, approved_args):
                 if approved_tool == "PROCESS_TERMINATION" and request.client_id is not None:
@@ -322,12 +322,12 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                         pass
                     return StreamingResponse(
                         iter([preview_text2]),
-                        media_type="text/plain; charset=utf-8",
+                        media_type="text/plain",
                     )
 
                 return StreamingResponse(
                     iter(_approval_refusal_lines()),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
             else:
                 merged_args = dict(pending_tool_args)
@@ -335,14 +335,14 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                 if compute_args_hash(merged_args) != compute_args_hash(pending_tool_args):
                     return StreamingResponse(
                         iter(_approval_refusal_lines()),
-                        media_type="text/plain; charset=utf-8",
+                        media_type="text/plain",
                     )
                 else:
                     has_valid_pending_match = True
         else:
             return StreamingResponse(
                 iter(_approval_refusal_lines()),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
     # SSOT enforcement for termination: once we have a valid pending approval match,
@@ -385,7 +385,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
     ):
         return StreamingResponse(
             iter(_approval_refusal_lines()),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if (not has_valid_pending_match) and was_approval_execution_recently_recorded(
@@ -400,7 +400,7 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
                     "הפעולה הזו כבר אושרה ובוצעה לאחרונה. אם ברצונך לבצע שוב, בקש ביצוע חדש כדי לקבל אישור חדש.",
                 ]
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     def _generate_user_approved_exec(req_id: str):
@@ -551,5 +551,5 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
 
     return StreamingResponse(
         _generate_user_approved_exec(stream_request_id),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

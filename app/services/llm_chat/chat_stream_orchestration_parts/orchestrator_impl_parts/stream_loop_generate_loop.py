@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 
 def _build_streaming_response_generate_loop(
@@ -248,5 +248,5 @@ def _build_streaming_response_generate_loop(
 
     return StreamingResponse(
         generate(force_max_exemption, stream_request_id),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

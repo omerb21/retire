@@ -1,4 +1,4 @@
-def _run_stream_loop_tail_flow(
+﻿def _run_stream_loop_tail_flow(
     *,
     request,
     db,
@@ -287,7 +287,7 @@ def _run_stream_loop_tail_flow(
             def _snap_gen():
                 yield _reply
 
-            return _SR(_snap_gen(), media_type="text/plain; charset=utf-8")
+            return _SR(_snap_gen(), media_type="text/plain")
     except Exception:
         pass
     # ── End explicit GET_CLIENT_SNAPSHOT shortcut ────────────────────

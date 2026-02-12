@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 from fastapi.responses import StreamingResponse
 
@@ -132,7 +132,7 @@ def _maybe_handle_post_conversion_lock_early_cutoff(
 
         return StreamingResponse(
             iter([_build_post_conversion_lock_message()]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None

@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -43,7 +43,7 @@ def _maybe_handle_max_capital_request(
         except Exception:
             pending_ui = None
         if isinstance(pending_ui, str) and pending_ui.strip():
-            return StreamingResponse(iter([pending_ui]), media_type="text/plain; charset=utf-8")
+            return StreamingResponse(iter([pending_ui]), media_type="text/plain")
 
     if (
         request.client_id is not None
@@ -118,7 +118,7 @@ def _maybe_handle_max_capital_request(
             lines = ["לא הצלחתי ליצור תרחיש 'מקסימום הון' במערכת."]
             if banner:
                 lines = [banner, "", *lines]
-            return StreamingResponse(iter(lines), media_type="text/plain; charset=utf-8")
+            return StreamingResponse(iter(lines), media_type="text/plain")
 
         if wants_execute_max_capital:
             return _stream_request_approval(
@@ -140,6 +140,6 @@ def _maybe_handle_max_capital_request(
         ]
         if banner:
             lines = [banner, "", *lines]
-        return StreamingResponse(iter(lines), media_type="text/plain; charset=utf-8")
+        return StreamingResponse(iter(lines), media_type="text/plain")
 
     return None

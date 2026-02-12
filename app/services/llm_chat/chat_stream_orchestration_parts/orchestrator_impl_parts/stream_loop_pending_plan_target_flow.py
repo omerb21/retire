@@ -1,4 +1,4 @@
-import json
+﻿import json
 import re
 from datetime import datetime, timezone
 
@@ -12,8 +12,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
 )
 from app.services.llm_chat.intent_classifier import ChatIntent
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
-    compute_existing_income_offset_monthly,
-    apply_income_offset_to_target,
+    compute_effective_plan_target,
 )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     evaluate_blocked_balances_policy_for_build_target_plan,
@@ -90,7 +89,7 @@ def _maybe_handle_pending_plan_target_flow(
 
         return StreamingResponse(
             _prompt_for_target_net(),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     pending_plan_target = None
@@ -148,27 +147,28 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
 
             requested_target = float(target_net_reply)
-            existing_income_offset, effective_target = apply_income_offset_to_target(
-                db,
-                int(request.client_id),
-                float(requested_target),
+            breakdown = compute_effective_plan_target(
+                db=db,
+                client_id=int(request.client_id),
+                desired_total=requested_target,
+                target_is_net=True,
             )
-            fallback_target = float(effective_target)
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
-            breakdown_lines.append(
-                f"- קיזוז הכנסות נוספות (נטו): {float(existing_income_offset):,.0f} ₪"
-            )
-            breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            if breakdown.other_income_offset_net > 0:
+                breakdown_lines.append(
+                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+                )
+            breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
             yield "\n".join(breakdown_lines) + "\n\n"
 
-            if effective_target <= 0:
-                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+            if breakdown.effective_plan_target <= 0:
+                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
                 return
 
             plan_args = {
-                "target_monthly_pension": float(fallback_target),
+                "target_monthly_pension": float(requested_target),
                 "target_is_net": True,
             }
             client_obj = None
@@ -274,7 +274,7 @@ def _maybe_handle_pending_plan_target_flow(
 
         return StreamingResponse(
             _generate_target_plan_tools_first_from_pending(stream_request_id),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if (
@@ -302,7 +302,7 @@ def _maybe_handle_pending_plan_target_flow(
 
         return StreamingResponse(
             _prompt_for_target_net_again(),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if (
@@ -336,27 +336,28 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
 
             requested_target = float(target_net_for_plan)
-            existing_income_offset, effective_target = apply_income_offset_to_target(
-                db,
-                int(request.client_id),
-                float(requested_target),
+            breakdown = compute_effective_plan_target(
+                db=db,
+                client_id=int(request.client_id),
+                desired_total=requested_target,
+                target_is_net=True,
             )
-            fallback_target = float(effective_target)
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
-            breakdown_lines.append(
-                f"- קיזוז הכנסות נוספות (נטו): {float(existing_income_offset):,.0f} ₪"
-            )
-            breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            if breakdown.other_income_offset_net > 0:
+                breakdown_lines.append(
+                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+                )
+            breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
             yield "\n".join(breakdown_lines) + "\n\n"
 
-            if effective_target <= 0:
-                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+            if breakdown.effective_plan_target <= 0:
+                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
                 return
 
             plan_args = {
-                "target_monthly_pension": float(fallback_target),
+                "target_monthly_pension": float(requested_target),
                 "target_is_net": True,
             }
             client_obj = None
@@ -433,7 +434,7 @@ def _maybe_handle_pending_plan_target_flow(
 
         return StreamingResponse(
             _generate_target_plan_tools_first(stream_request_id),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None

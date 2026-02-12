@@ -1574,7 +1574,7 @@ def test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_a
             return json.dumps({"success": True}, ensure_ascii=False)
         if tool_name == "BUILD_TARGET_PENSION_PLAN":
             assert pension_portfolio == portfolio_after
-            assert args.get("target_monthly_pension") == float(30000.0 - expected_offset)
+            assert args.get("target_monthly_pension") == 30000.0
             return json.dumps({"success": True, "result": {}}, ensure_ascii=False)
         raise AssertionError(f"Unexpected tool call: {tool_name}")
 

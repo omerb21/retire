@@ -1,4 +1,4 @@
-import json
+﻿import json
 from typing import Any
 
 from fastapi.responses import StreamingResponse
@@ -32,5 +32,5 @@ def _maybe_handle_report_intent_ui_shortcut(
     ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
     return StreamingResponse(
         iter([ui_action, "פתחתי את הדוח בטאב חדש."]),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

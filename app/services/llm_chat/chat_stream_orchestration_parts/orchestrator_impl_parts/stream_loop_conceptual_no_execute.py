@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 from app.services.llm_chat.intent_classifier import detect_intent
 from app.guards.tool_intent_guard import get_tools_disabled_reason
@@ -41,7 +41,7 @@ def _maybe_handle_conceptual_no_execute_hard_stop(*, request, original_user_msg:
             conceptual_reply = sanitize_words_only_conceptual("", original_user_msg)
             return StreamingResponse(
                 iter([conceptual_reply]),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
     return None

@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 from app.schemas.llm_chat import ChatRequest
 from app.services.llm_chat.message_utils import extract_target_pension_from_message
@@ -68,7 +68,7 @@ def _maybe_handle_target_plan_deterministic(
                 effective_portfolio=effective_portfolio,
                 stream_request_id=stream_request_id,
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None

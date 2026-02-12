@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 
 def _run_deterministic_routing_block(
@@ -57,7 +57,7 @@ def _run_deterministic_routing_block(
             return (
                 StreamingResponse(
                     generate_commutation_need_account(computed_data=computed_data),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 ),
                 None,
                 False,

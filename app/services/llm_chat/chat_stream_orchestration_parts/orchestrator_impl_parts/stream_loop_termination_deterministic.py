@@ -1,4 +1,4 @@
-from typing import Any
+﻿from typing import Any
 
 from fastapi.responses import StreamingResponse
 
@@ -85,7 +85,7 @@ def _maybe_handle_termination_deterministic(
                         "כדי לבצע בפועל בפנייה הבאה, כתוב במפורש 'בצע עזיבת עבודה' וציין את תאריך הסיום והבחירות."
                     ]
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
         )
 
@@ -146,7 +146,7 @@ def _maybe_handle_termination_deterministic(
                     wants_execute_target_plan=wants_execute_target_plan,
                     wants_fixation_execute=wants_fixation_execute,
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
         )
 

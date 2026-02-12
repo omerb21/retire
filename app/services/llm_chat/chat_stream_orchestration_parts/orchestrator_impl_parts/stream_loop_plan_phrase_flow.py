@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 from fastapi.responses import StreamingResponse
 
@@ -11,8 +11,7 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
 )
 
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
-    apply_income_offset_to_target,
-    compute_existing_income_offset_monthly,
+    compute_effective_plan_target,
 )
 
 
@@ -89,27 +88,29 @@ def _maybe_handle_plan_phrase_flow(
             )
 
             requested_target = float(target_net_from_phrase)
-            existing_income_offset, effective_target = apply_income_offset_to_target(
-                db,
-                int(client_id),
-                float(requested_target),
+            breakdown = compute_effective_plan_target(
+                db=db,
+                client_id=int(client_id),
+                desired_total=requested_target,
+                target_is_net=True,
             )
 
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
-            breakdown_lines.append(
-                f"- קיזוז הכנסות נוספות (נטו): {float(existing_income_offset):,.0f} ₪"
-            )
-            breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            if breakdown.other_income_offset_net > 0:
+                breakdown_lines.append(
+                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+                )
+            breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
             yield "\n".join(breakdown_lines) + "\n\n"
 
-            if effective_target <= 0:
-                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+            if breakdown.effective_plan_target <= 0:
+                yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
                 return
 
             tool_args = {
-                "target_monthly_pension": float(effective_target),
+                "target_monthly_pension": float(requested_target),
                 "target_is_net": True,
             }
             if inferred_age is not None:
@@ -199,7 +200,7 @@ def _maybe_handle_plan_phrase_flow(
 
         return StreamingResponse(
             _exec_target_plan_tools_first_from_phrase(),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if client_id is not None:
@@ -226,5 +227,5 @@ def _maybe_handle_plan_phrase_flow(
 
     return StreamingResponse(
         _prompt_for_target_net_for_phrase(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

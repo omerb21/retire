@@ -1,4 +1,4 @@
-import json
+﻿import json
 from typing import Any
 
 from fastapi.responses import StreamingResponse
@@ -51,7 +51,7 @@ def _maybe_handle_system_results_report_request(
             "status_message": "כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב.",
         }
         ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
-        return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+        return StreamingResponse(iter([ui_action]), media_type="text/plain")
 
     def _generate_system_results_report_only(req_id: str):
         tool_db = SessionLocal()
@@ -111,5 +111,5 @@ def _maybe_handle_system_results_report_request(
 
     return StreamingResponse(
         _generate_system_results_report_only(stream_request_id),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

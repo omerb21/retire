@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 
 def _maybe_handle_full_report_no_approval(
@@ -39,7 +39,7 @@ def _maybe_handle_full_report_no_approval(
     if latest_op is not None and latest_op != "TRANSFORM_FUNDS_TO_ASSETS":
         return StreamingResponse(
             iter(["כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     wants_pdf = "pdf" in lowered_user_msg

@@ -1,6 +1,12 @@
 import json
+import logging
 
 from app.services.llm_agent_tools_service import AgentToolsService
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_effective_plan_target,
+)
+
+_logger = logging.getLogger("app.llm_chat.tool_handlers.build_target_pension_plan")
 
 
 def _has_positive_component_amounts(raw: object) -> bool:
@@ -91,6 +97,23 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
         True if ignore_blocked_balances_raw is None else bool(ignore_blocked_balances_raw)
     )
 
+    # ── Income offset metadata ──
+    # The offset is applied *before* the handler is called:
+    #   - Deterministic path: compute_effective_plan_target() in generate_target_plan()
+    #   - Tool-call loop:     compute_effective_plan_target() in tool_execution.py
+    # The handler receives the already-reduced target_monthly_pension.
+    # We only read the breakdown metadata here for display purposes.
+    breakdown = None
+    try:
+        from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+            TargetPlanBreakdown,
+        )
+        _bd_raw = args.get("_target_breakdown")
+        if isinstance(_bd_raw, dict):
+            breakdown = TargetPlanBreakdown(**_bd_raw)
+    except Exception:
+        breakdown = None
+
     result = agent_tools.build_target_pension_plan(
         target_monthly_pension=target_val,
         retirement_age=retirement_age_val,
@@ -145,6 +168,28 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
 
     plan_res = result.get("result", {})
 
+    # ── Guardrail: implied_total_net consistency check ──
+    try:
+        if breakdown is not None and target_is_net_val and result.get("success"):
+            _estimated_net_from_plan = float(plan_res.get("estimated_monthly_net") or 0)
+            _other_income_net = float(breakdown.other_income_offset_net or 0)
+            _implied_total_net = _estimated_net_from_plan + _other_income_net
+            _desired = float(breakdown.desired_net_total or 0)
+            _deviation = abs(_implied_total_net - _desired)
+            _tolerance = max(500.0, _desired * 0.05)
+            if _estimated_net_from_plan > 0 and _deviation > _tolerance:
+                _logger.warning(
+                    "GUARDRAIL_NET_CONSISTENCY: desired_net_total=%.0f "
+                    "estimated_net_from_plan=%.0f other_income_net=%.0f "
+                    "implied_total_net=%.0f deviation=%.0f tolerance=%.0f "
+                    "client_id=%s",
+                    _desired, _estimated_net_from_plan, _other_income_net,
+                    _implied_total_net, _deviation, _tolerance,
+                    agent_tools.client_id,
+                )
+    except Exception:
+        pass
+
     portfolio_sources_total = plan_res.get("portfolio_sources_total")
     portfolio_sources_added = plan_res.get("portfolio_sources_added")
     portfolio_sources_skipped_duplicates = plan_res.get("portfolio_sources_skipped_duplicates")
@@ -194,7 +239,17 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
     summary_lines.append("תכנית יעד קצבה – סיכום:")
     if retirement_age_val is not None:
         summary_lines.append(f"- גיל פרישה בתכנון: {int(retirement_age_val)}")
-    summary_lines.append(f"- יעד קצבה חודשי ({mode_label}): {float(plan_res.get('target_monthly_pension') or 0):,.0f} ₪")
+    if breakdown is not None:
+        summary_lines.append(f"- יעד כולל מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪")
+        _off = (
+            breakdown.other_income_offset_net if target_is_net_val
+            else breakdown.other_income_offset_gross
+        )
+        if _off > 0:
+            summary_lines.append(f"- קיזוז הכנסות נוספות ({mode_label}): {_off:,.0f} ₪")
+        summary_lines.append(f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
+    else:
+        summary_lines.append(f"- יעד קצבה חודשי ({mode_label}): {float(plan_res.get('target_monthly_pension') or 0):,.0f} ₪")
 
     existing_katzba = plan_res.get("existing_katzba_total_gross")
     if existing_katzba is not None:
@@ -204,7 +259,7 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
             existing_katzba_val = 0.0
         if existing_katzba_val > 0:
             summary_lines.append(
-                f"- קצבאות קיימות במערכת (קצבה *): {existing_katzba_val:,.0f} ₪/חודש (מקוזז מהיעד)"
+                f"- קצבאות קיימות במערכת (ברוטו): {existing_katzba_val:,.0f} ₪/חודש (מקוזז בתוך התכנית)"
             )
 
     if plan_res.get("target_is_net"):
@@ -247,6 +302,7 @@ def handle_build_target_pension_plan(*, args: dict, agent_tools: AgentToolsServi
                 "retirement_age": retirement_age_val,
                 "ignore_blocked_balances": ignore_blocked_balances_val,
             },
+            "offsets": breakdown.to_dict() if breakdown is not None else None,
             "result": plan_res,
         }
         summary += (

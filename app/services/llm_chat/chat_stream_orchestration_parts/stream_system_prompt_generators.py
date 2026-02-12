@@ -25,7 +25,7 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     store_pending_approval_request,
 )
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
-    apply_income_offset_to_target,
+    compute_effective_plan_target,
     compute_existing_income_offset_monthly,
 )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
@@ -202,27 +202,21 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         except Exception:
             portfolio_for_plan = effective_portfolio
 
+    breakdown = compute_effective_plan_target(
+        db=db,
+        client_id=int(request.client_id),
+        desired_total=float(target_val),
+        target_is_net=bool(explicit_is_net),
+    )
+
+    if breakdown.effective_plan_target <= 0:
+        yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
+        return
+
     plan_args = {
         "target_monthly_pension": float(target_val),
         "target_is_net": bool(explicit_is_net),
     }
-
-    existing_income_offset = compute_existing_income_offset_monthly(
-        db=db,
-        client_id=request.client_id,
-        target_is_net=bool(explicit_is_net),
-    )
-    if bool(explicit_is_net) is True:
-        existing_income_offset, effective_target = apply_income_offset_to_target(
-            db,
-            int(request.client_id),
-            float(target_val),
-        )
-    else:
-        effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
-    if effective_target <= 0:
-        yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
-        return
 
     birth_date = None
     try:
@@ -247,8 +241,6 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
             plan_args["retirement_age"] = int(resolved_ret_age)
         except Exception:
             pass
-
-    plan_args["target_monthly_pension"] = float(effective_target)
 
     policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
         db=db,
@@ -299,15 +291,25 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
     except Exception:
         pass
+
+    mode_label = "נטו" if explicit_is_net else "ברוטו"
+    offset_val = (
+        breakdown.other_income_offset_net if explicit_is_net
+        else breakdown.other_income_offset_gross
+    )
     breakdown_lines: list[str] = []
     breakdown_lines.append("✅ חישוב דטרמיניסטי (תיקון):")
     breakdown_lines.append(
-        f"- יעד חודשי מבוקש ({'נטו' if explicit_is_net else 'ברוטו'}): {float(target_val):,.0f} ₪"
+        f"- יעד חודשי מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪"
     )
+    if offset_val > 0:
+        breakdown_lines.append(
+            f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪"
+        )
     breakdown_lines.append(
-        f"- קיזוז הכנסות נוספות ({'נטו' if explicit_is_net else 'ברוטו'}): {float(existing_income_offset):,.0f} ₪"
+        f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): "
+        f"{breakdown.effective_plan_target:,.0f} ₪"
     )
-    breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
 
     yield (
         sanitize_user_visible_text("\n".join(breakdown_lines))
@@ -477,29 +479,21 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         except Exception:
             portfolio_for_plan = effective_portfolio
 
+    breakdown = compute_effective_plan_target(
+        db=db,
+        client_id=int(request.client_id),
+        desired_total=float(target_val),
+        target_is_net=bool(explicit_is_net),
+    )
+
+    if breakdown.effective_plan_target <= 0:
+        yield "היעד כבר מושג מהכנסות נוספות קיימות, אין צורך בבניית קצבה נוספת."
+        return
+
     plan_args = {
         "target_monthly_pension": float(target_val),
         "target_is_net": bool(explicit_is_net),
     }
-
-    existing_income_offset = compute_existing_income_offset_monthly(
-        db=db,
-        client_id=request.client_id,
-        target_is_net=bool(explicit_is_net),
-    )
-    if bool(explicit_is_net) is True:
-        existing_income_offset, effective_target = apply_income_offset_to_target(
-            db,
-            int(request.client_id),
-            float(target_val),
-        )
-    else:
-        effective_target = max(float(target_val) - float(existing_income_offset), 0.0)
-    if effective_target <= 0:
-        yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
-        return
-
-    plan_args["target_monthly_pension"] = float(effective_target)
     plan_result = _execute_tool_call(
         "BUILD_TARGET_PENSION_PLAN",
         plan_args,
@@ -520,15 +514,24 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
     except Exception:
         pass
 
+    mode_label = "נטו" if explicit_is_net else "ברוטו"
+    offset_val = (
+        breakdown.other_income_offset_net if explicit_is_net
+        else breakdown.other_income_offset_gross
+    )
     breakdown_lines: list[str] = []
     breakdown_lines.append("✅ חישוב דטרמיניסטי:")
     breakdown_lines.append(
-        f"- יעד חודשי מבוקש ({'נטו' if explicit_is_net else 'ברוטו'}): {float(target_val):,.0f} ₪"
+        f"- יעד חודשי מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪"
     )
+    if offset_val > 0:
+        breakdown_lines.append(
+            f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪"
+        )
     breakdown_lines.append(
-        f"- קיזוז הכנסות נוספות ({'נטו' if explicit_is_net else 'ברוטו'}): {float(existing_income_offset):,.0f} ₪"
+        f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): "
+        f"{breakdown.effective_plan_target:,.0f} ₪"
     )
-    breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
 
     yield sanitize_user_visible_text(
         "\n".join(breakdown_lines)

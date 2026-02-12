@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 
 def _maybe_handle_requested_cashflow_calc(
@@ -61,10 +61,10 @@ def _maybe_handle_requested_cashflow_calc(
 
         return StreamingResponse(
             generate_cashflow_tool_exec(),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return StreamingResponse(
         iter(["כדי להריץ חישוב תזרים/ניתוח תזרים אני צריך הפעלה עם client_id תקין."]),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

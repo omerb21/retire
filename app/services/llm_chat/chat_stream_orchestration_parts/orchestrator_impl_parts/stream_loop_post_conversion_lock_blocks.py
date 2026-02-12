@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 from fastapi.responses import StreamingResponse
 
@@ -76,7 +76,7 @@ def _maybe_handle_post_conversion_lock_early_block(
 
         return StreamingResponse(
             iter([build_post_conversion_lock_message()]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None
@@ -160,7 +160,7 @@ def _maybe_handle_post_conversion_lock_late_block(
     if wants_direct_transform:
         return StreamingResponse(
             iter([build_post_conversion_lock_message()]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     # Never block a user request to build a target pension plan.

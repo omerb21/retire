@@ -110,9 +110,9 @@ def test_stream_target_plan_offsets_additional_incomes_for_net_target_colon_form
 
     assert "✅ חישוב דטרמיניסטי" in body
     assert "קיזוז הכנסות נוספות" in body
-    assert "יעד קצבה נדרש" in body
+    assert "יעד קצבה לתכנית" in body
 
     assert tool_calls
     _tool_name, args = tool_calls[-1]
-    assert float(args.get("target_monthly_pension") or 0) == 2000.0
+    assert float(args.get("target_monthly_pension") or 0) == 3000.0
     assert args.get("target_is_net") is True

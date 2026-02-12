@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 from app.models.scenario import Scenario
 from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
@@ -41,7 +41,7 @@ def _maybe_handle_restore_snapshot_approval_request(*, request, db, original_use
     if snapshot is None:
         return StreamingResponse(
             iter(["לא נמצא סנאפסוט תיק לשחזור. אנא העלה/שמור תיק פנסיוני ואז נסה שוב."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     try:
@@ -52,7 +52,7 @@ def _maybe_handle_restore_snapshot_approval_request(*, request, db, original_use
     if not selected_snapshot_id or selected_snapshot_id <= 0:
         return StreamingResponse(
             iter(["לא הצלחתי לזהות סנאפסוט תיק לשחזור."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     tool_args = {
@@ -75,4 +75,4 @@ def _maybe_handle_restore_snapshot_approval_request(*, request, db, original_use
         )
     except Exception:
         pass
-    return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+    return StreamingResponse(iter([ui_action]), media_type="text/plain")

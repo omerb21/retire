@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -107,7 +107,7 @@ def _maybe_handle_advice_mode(
         return (
             StreamingResponse(
                 _advice_commutation_questions(),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
             resolved_intent,
             advice_mode,
@@ -140,7 +140,7 @@ def _maybe_handle_advice_mode(
         return (
             StreamingResponse(
                 _advice_fixation_checklist(),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
             resolved_intent,
             advice_mode,
@@ -174,7 +174,7 @@ def _maybe_handle_advice_mode(
         return (
             StreamingResponse(
                 _advice_investment_risk_answer(),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
             resolved_intent,
             advice_mode,
@@ -208,7 +208,7 @@ def _maybe_handle_advice_mode(
         return (
             StreamingResponse(
                 _advice_tax_mapping_answer(),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
             resolved_intent,
             advice_mode,
@@ -238,7 +238,7 @@ def _maybe_handle_advice_mode(
         return (
             StreamingResponse(
                 _advice_unknown_domain_questions(),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             ),
             resolved_intent,
             advice_mode,
@@ -271,7 +271,7 @@ def _maybe_handle_advice_mode(
             return (
                 StreamingResponse(
                     iter([advice_block_message]),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 ),
                 resolved_intent,
                 advice_mode,

@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 from app.models.additional_income import AdditionalIncome
 from app.models.capital_asset import CapitalAsset
@@ -41,7 +41,7 @@ def _maybe_handle_system_info_requests(
                     stream_request_id=stream_request_id,
                 )
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if tools_enabled and request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
@@ -56,7 +56,7 @@ def _maybe_handle_system_info_requests(
                     stream_request_id=stream_request_id,
                 )
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if tools_enabled and is_portfolio_breakdown_request(original_user_msg):
@@ -69,7 +69,7 @@ def _maybe_handle_system_info_requests(
                     original_user_msg=original_user_msg,
                     effective_snapshot_at=effective_snapshot_at,
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
     if tools_enabled and is_portfolio_analysis_request(original_user_msg):
@@ -113,7 +113,7 @@ def _maybe_handle_system_info_requests(
                     original_user_msg=original_user_msg,
                     effective_snapshot_at=effective_snapshot_at,
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
     if tools_enabled and request.client_id is not None and is_system_inventory_request(original_user_msg):
@@ -127,7 +127,7 @@ def _maybe_handle_system_info_requests(
                     stream_request_id=stream_request_id,
                 )
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if tools_enabled and request.client_id is not None and is_system_results_request(original_user_msg):
@@ -142,7 +142,7 @@ def _maybe_handle_system_info_requests(
                     stream_request_id=stream_request_id,
                 )
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None

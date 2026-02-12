@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import datetime, timezone
 
 from fastapi.responses import StreamingResponse
@@ -178,7 +178,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                         )
                     ]
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         try:
@@ -218,7 +218,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
 
         return StreamingResponse(
             iter([preview_text]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     preview_payload = None
@@ -282,7 +282,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                         "לדוגמה: 'פטור למשיכה בפטור, חייב לפיצול 70% קצבה 30% מענק'."
                     ]
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         try:
@@ -352,13 +352,13 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         if not term_success:
             return StreamingResponse(
                 iter([term_text]),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         if plan_args.get("target_monthly_pension") is None:
             return StreamingResponse(
                 iter([term_text]),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         refreshed_portfolio = effective_portfolio
@@ -405,7 +405,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         )
         return StreamingResponse(
             iter([term_text + "\n\n" + plan_text]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     pending_payload = None
@@ -461,7 +461,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                     "כדי לבצע בפועל, בקש: 'בצע את התכנית'."
                 ]
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     try:
@@ -487,5 +487,5 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                 "כתוב: 'בצע את התכנית'."
             ]
         ),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

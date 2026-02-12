@@ -1,4 +1,4 @@
-from fastapi.responses import StreamingResponse
+﻿from fastapi.responses import StreamingResponse
 
 from app.services.llm_chat.chat_orchestration_helpers import load_undo_snapshot, store_pending_approval_request
 from app.services.llm_chat.message_utils import is_undo_intent_text
@@ -22,7 +22,7 @@ def _maybe_handle_undo_snapshot_approval_request(*, request, db, original_user_m
     if undo is None:
         return StreamingResponse(
             iter(["לא נמצא מצב קודם לשחזור/ביטול. לא בוצע שינוי במערכת."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     undo_snapshot_id, _undo_payload = undo
@@ -43,4 +43,4 @@ def _maybe_handle_undo_snapshot_approval_request(*, request, db, original_user_m
         )
     except Exception:
         pass
-    return StreamingResponse(iter([ui_action]), media_type="text/plain; charset=utf-8")
+    return StreamingResponse(iter([ui_action]), media_type="text/plain")

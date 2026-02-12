@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -11,7 +11,7 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
 )
 
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
-    apply_income_offset_to_target,
+    compute_effective_plan_target,
 )
 
 
@@ -51,35 +51,37 @@ def _maybe_handle_pending_plan_target_marker_flow(
 
         return StreamingResponse(
             _prompt_for_target_net_again(),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     def _exec_target_plan_tools_first():
         tool_name = "BUILD_TARGET_PENSION_PLAN"
         requested_target = float(target_net)
-        offset_net = 0.0
-        effective_target = float(requested_target)
+        breakdown = None
         if client_id is not None:
-            offset_net, effective_target = apply_income_offset_to_target(
-                db,
-                int(client_id),
-                float(requested_target),
+            breakdown = compute_effective_plan_target(
+                db=db,
+                client_id=int(client_id),
+                desired_total=requested_target,
+                target_is_net=True,
             )
 
         breakdown_lines: list[str] = []
         breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-        breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {float(requested_target):,.0f} ₪")
-        breakdown_lines.append(f"- קיזוז הכנסות נוספות (נטו): {float(offset_net):,.0f} ₪")
-        breakdown_lines.append(f"- יעד קצבה נדרש: {float(effective_target):,.0f} ₪")
+        breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {requested_target:,.0f} ₪")
+        if breakdown is not None and breakdown.other_income_offset_net > 0:
+            breakdown_lines.append(f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪")
+        _effective = breakdown.effective_plan_target if breakdown is not None else requested_target
+        breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {_effective:,.0f} ₪")
         yield "\n".join(breakdown_lines) + "\n\n"
 
-        if float(effective_target) <= 0:
-            yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת"
+        if _effective <= 0:
+            yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
             delete_marker(pending_plan)
             return
 
         tool_args = {
-            "target_monthly_pension": float(effective_target),
+            "target_monthly_pension": float(requested_target),
             "target_is_net": True,
         }
 
@@ -166,5 +168,5 @@ def _maybe_handle_pending_plan_target_marker_flow(
 
     return StreamingResponse(
         _exec_target_plan_tools_first(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

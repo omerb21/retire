@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -96,7 +96,7 @@ def _maybe_handle_text_approval_flow(
     if lowered_user_msg in {"אוקי", "אוקיי", "הבנתי", "בסדר", "סבבה"} and (not _has_pending_approval()):
         return StreamingResponse(
             iter(["קיבלתי."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if lowered_user_msg not in {"מאשר", "אשר", "כן", "approve", "ok"}:
@@ -131,7 +131,7 @@ def _maybe_handle_text_approval_flow(
     if pending is None:
         return StreamingResponse(
             iter(["אין בקשת אישור פתוחה."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     approved_tool, approved_args = pending
@@ -230,5 +230,5 @@ def _maybe_handle_text_approval_flow(
 
     return StreamingResponse(
         _generate_text_approved_exec(stream_request_id),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

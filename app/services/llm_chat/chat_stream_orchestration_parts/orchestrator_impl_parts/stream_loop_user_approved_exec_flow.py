@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -125,7 +125,7 @@ def _maybe_handle_user_approved_exec_flow(
     }:
         return StreamingResponse(
             iter([build_post_conversion_lock_message()]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     def _generate_user_approved_exec(req_id: str):
@@ -300,5 +300,5 @@ def _maybe_handle_user_approved_exec_flow(
 
     return StreamingResponse(
         _generate_user_approved_exec(stream_request_id),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

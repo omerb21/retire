@@ -435,6 +435,27 @@ def execute_tool_call(
         return status, updated_args if isinstance(updated_args, dict) else plan_args_local, policy_text
 
     if tool_name == "BUILD_TARGET_PENSION_PLAN" and isinstance(args, dict):
+        # ── Unified income offset: subtract AdditionalIncome (other income) ──
+        # Applied here so that BOTH the deterministic path and the tool-call
+        # loop produce the same effective target for the adapter.
+        try:
+            from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+                compute_effective_plan_target,
+            )
+            _raw_target = float(args.get("target_monthly_pension") or 0)
+            _is_net = args.get("target_is_net")
+            _is_net_val = True if _is_net is None else bool(_is_net)
+            if _raw_target > 0:
+                _bd = compute_effective_plan_target(
+                    db=db, client_id=int(client_id),
+                    desired_total=_raw_target, target_is_net=_is_net_val,
+                )
+                args = dict(args)
+                args["target_monthly_pension"] = _bd.effective_plan_target
+                args["_target_breakdown"] = _bd.to_dict()
+        except Exception:
+            pass
+
         policy_text = None
         policy_status, updated_args, policy_text = enforce_blocked_balances_policy_for_build(plan_args_in=args)
         args = updated_args if isinstance(updated_args, dict) else args

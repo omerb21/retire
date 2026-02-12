@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -50,7 +50,7 @@ def _maybe_handle_orchestration_plan_shortcuts(
 
         return StreamingResponse(
             _generate_orchestration_plan_system_snapshot(stream_request_id),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if plan == OrchestrationPlanClass.FIXATION_STATUS and request.client_id is not None:
@@ -122,7 +122,7 @@ def _maybe_handle_orchestration_plan_shortcuts(
 
         return StreamingResponse(
             _generate_orchestration_plan_fixation_status(stream_request_id),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if plan == OrchestrationPlanClass.CASHFLOW_ONLY and request.client_id is not None:
@@ -173,7 +173,7 @@ def _maybe_handle_orchestration_plan_shortcuts(
 
         return StreamingResponse(
             _generate_orchestration_plan_cashflow(stream_request_id),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None

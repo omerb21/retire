@@ -1,4 +1,4 @@
-import json
+﻿import json
 from typing import Any
 
 from fastapi.responses import StreamingResponse
@@ -102,7 +102,7 @@ def _stream_execute_tool_no_approval(
                 )
         yield out
 
-    return StreamingResponse(generate_exec(), media_type="text/plain; charset=utf-8")
+    return StreamingResponse(generate_exec(), media_type="text/plain")
 
 
 def _stream_request_approval(
@@ -174,5 +174,5 @@ def _stream_request_approval(
 
     return StreamingResponse(
         generate_approval(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain",
     )

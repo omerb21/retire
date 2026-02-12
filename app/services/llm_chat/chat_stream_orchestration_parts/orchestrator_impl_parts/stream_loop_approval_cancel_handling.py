@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 from fastapi.responses import StreamingResponse
 
@@ -141,7 +141,7 @@ def _maybe_handle_approval_or_cancel_flow(
                             "לא נמצאה בקשת אישור פעילה לביצוע. כדי לבצע פעולה במערכת צריך קודם לקבל בקשת אישור (כפתור אשר), או לבקש שוב במפורש לבצע את הפעולה."
                         ]
                     ),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
     if approval and request.client_id is not None:
@@ -162,7 +162,7 @@ def _maybe_handle_approval_or_cancel_flow(
                     force_max_exemption=force_max_exemption,
                     stream_request_id=stream_request_id,
                 ),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         if approved_tool_name == "PROCESS_TERMINATION":
@@ -184,7 +184,7 @@ def _maybe_handle_approval_or_cancel_flow(
                             "אזהרה: המשתמש ביקש דוח/מסמך (ללא QA). הכלי המאושר אינו מותר במצב זה."
                         ]
                     ),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
         if is_qa_mode and approved_tool_name not in {
@@ -194,7 +194,7 @@ def _maybe_handle_approval_or_cancel_flow(
         }:
             return StreamingResponse(
                 iter(["אזהרה: במצב QA הכלי המאושר אינו מותר."]),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         return StreamingResponse(
@@ -209,7 +209,7 @@ def _maybe_handle_approval_or_cancel_flow(
                 stream_request_id=stream_request_id,
                 is_portfolio_analysis=is_portfolio_analysis,
             ),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     if cancelled and request.client_id is not None:
@@ -227,7 +227,7 @@ def _maybe_handle_approval_or_cancel_flow(
             pass
         return StreamingResponse(
             iter([f"בוצעה ביטול להפעלת הכלי: {cancelled_tool_name}. לא בוצע שינוי במערכת."]),
-            media_type="text/plain; charset=utf-8",
+            media_type="text/plain",
         )
 
     return None

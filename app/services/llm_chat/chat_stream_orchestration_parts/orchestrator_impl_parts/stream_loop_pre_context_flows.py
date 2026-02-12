@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 
 from fastapi.responses import StreamingResponse
 
@@ -245,7 +245,7 @@ def _run_pre_context_flows(
                 )
                 return StreamingResponse(
                     iter([msg]),
-                    media_type="text/plain; charset=utf-8",
+                    media_type="text/plain",
                 )
 
             new_template = dict(template_base)
@@ -299,7 +299,7 @@ def _run_pre_context_flows(
 
             return StreamingResponse(
                 iter([preview_text]),
-                media_type="text/plain; charset=utf-8",
+                media_type="text/plain",
             )
 
         termination_alternative_response = _maybe_handle_termination_alternative_choice()

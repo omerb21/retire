@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 
 from datetime import date
@@ -459,7 +459,7 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                 yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
                 yield reply
 
-            return StreamingResponse(_gen(), media_type="text/plain; charset=utf-8")
+            return StreamingResponse(_gen(), media_type="text/plain")
     except Exception:
         pass
 
@@ -477,7 +477,7 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                 def _gen():
                     yield greeting
 
-                return StreamingResponse(_gen(), media_type="text/plain; charset=utf-8")
+                return StreamingResponse(_gen(), media_type="text/plain")
     except Exception:
         pass
 
@@ -508,7 +508,7 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
             def _snap_gen():
                 yield _snap_result
 
-            return StreamingResponse(_snap_gen(), media_type="text/plain; charset=utf-8")
+            return StreamingResponse(_snap_gen(), media_type="text/plain")
     except Exception:
         pass
 
