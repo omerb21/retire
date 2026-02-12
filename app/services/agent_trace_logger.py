@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.database import SessionLocal
-from app.utils.trace_context import get_current_trace_id
+from app.utils.trace_context import generate_trace_id, get_current_trace_id
 
 logger = logging.getLogger("app.agent_trace")
 
@@ -63,7 +63,7 @@ def log_trace_event(
     try:
         from app.models.agent_trace_event import AgentTraceEvent
 
-        effective_trace_id = trace_id or get_current_trace_id() or "unknown"
+        effective_trace_id = trace_id or get_current_trace_id() or generate_trace_id()
 
         payload_json_str: Optional[str] = None
         truncated = False
@@ -102,3 +102,32 @@ def log_trace_event(
     except Exception as exc:
         # Never crash the caller
         logger.warning("agent_trace_logger failed to persist event: %s", exc)
+
+
+def emit_trace_error(
+    *,
+    exc: BaseException,
+    where: str = "",
+    client_id: Optional[int] = None,
+    endpoint: Optional[str] = None,
+) -> None:
+    """Persist a standardised ``error`` event.  Never raises."""
+    import traceback as _tb_mod
+
+    try:
+        tb_preview = _tb_mod.format_exc()
+        if tb_preview == "NoneType: None\n" or not tb_preview.strip():
+            tb_preview = "".join(_tb_mod.format_exception(type(exc), exc, exc.__traceback__))
+        log_trace_event(
+            event_type="error",
+            payload={
+                "error_type": type(exc).__name__,
+                "message": str(exc)[:2000],
+                "where": where,
+                "traceback_preview": tb_preview[:800],
+            },
+            client_id=client_id,
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass

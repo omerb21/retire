@@ -87,6 +87,10 @@ def list_traces(
         func.count(AgentTraceEvent.id).label("events_count"),
         func.max(AgentTraceEvent.client_id).label("client_id"),
         func.max(AgentTraceEvent.endpoint).label("endpoint"),
+    ).filter(
+        AgentTraceEvent.trace_id != "unknown",
+        AgentTraceEvent.trace_id.isnot(None),
+        AgentTraceEvent.trace_id != "",
     )
     if client_id is not None:
         q = q.filter(AgentTraceEvent.client_id == client_id)

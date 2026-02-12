@@ -229,6 +229,9 @@ class TestAgentEyesStage2(unittest.TestCase):
         """emit_event must never raise, even with pathological input."""
         from app.services.agent_eyes.event_collector import emit_event
 
+        test_tid = "test-never-crashes"
+        set_current_trace_id(test_tid)
+
         # These should all silently succeed
         emit_event("test", None)
         emit_event("test", {"key": "value"})
@@ -236,7 +239,7 @@ class TestAgentEyesStage2(unittest.TestCase):
         emit_event("test", "x" * 1_000_000)  # large payload
         emit_event("test", {"list": [1, 2, 3]})
 
-        events = get_events_by_trace("unknown")
+        events = get_events_by_trace(test_tid)
         self.assertTrue(len(events) >= 5)
 
     def test_truncation_marks_large_strings(self):

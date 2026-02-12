@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Optional
 
-from app.utils.trace_context import get_current_trace_id
+from app.utils.trace_context import generate_trace_id, get_current_trace_id
 
 _log = logging.getLogger("agent_eyes")
 
@@ -169,7 +169,7 @@ def emit_event(
 ) -> None:
     """Record one event.  Never raises – safe to call from anywhere."""
     try:
-        trace_id = get_current_trace_id() or "unknown"
+        trace_id = get_current_trace_id() or generate_trace_id()
         created_at_dt = datetime.now(timezone.utc)
         created_at = created_at_dt.isoformat()
         ts_mono = time.monotonic()

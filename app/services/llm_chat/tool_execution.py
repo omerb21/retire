@@ -859,6 +859,11 @@ def execute_tool_call(
             _eyes_emit("error", _err_payload, client_id=client_id)
         except Exception:
             pass
+        try:
+            from app.services.agent_trace_logger import emit_trace_error
+            emit_trace_error(exc=e, where="tool_execution:execute_tool_call", client_id=client_id)
+        except Exception:
+            pass
         return f"System Error while executing tool: {str(e)}"
 
     elapsed_ms = int((__import__("time").time() - _tool_exec_start) * 1000)

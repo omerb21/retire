@@ -24,6 +24,15 @@ class TraceIdMiddleware(BaseHTTPMiddleware):
                 "TraceIdMiddleware: unhandled error on %s %s: %s\n%s",
                 request.method, request.url.path, exc, _tb.format_exc(),
             )
+            try:
+                from app.services.agent_trace_logger import emit_trace_error
+                emit_trace_error(
+                    exc=exc,
+                    where=f"middleware:TraceIdMiddleware ({request.method} {request.url.path})",
+                    endpoint=str(request.url.path),
+                )
+            except Exception:
+                pass
             return JSONResponse(
                 status_code=500,
                 content={
