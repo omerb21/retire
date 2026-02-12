@@ -31,3 +31,22 @@ one_client.json
 encoding_probe.py
 post_*.json
 post_bad_*.json
+# local debug artifacts
+chat_body*.json
+chat_headers*.txt
+chat_payload*.json
+start_body*.json
+start_headers*.txt
+status_body*.json
+status_headers*.txt
+eyes_*.json
+eyes_*.txt
+llm_*_body*.json
+llm_*_headers*.txt
+openapi_*.json
+openapi_*.bin
+session_key.txt
+first_trace*.txt
+second_trace*.txt
+*_payload.json
+scripts/prod_sanity.ps1
