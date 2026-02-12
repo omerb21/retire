@@ -46,6 +46,45 @@ logger = logging.getLogger("app.llm_chat")
 router = APIRouter(prefix="/api/v1/llm", tags=["llm-agent"])
 
 
+_EXPLICIT_TOOL_RE = re.compile(r"GET_CLIENT_SNAPSHOT", re.IGNORECASE)
+
+_JSON_ONLY_PHRASES = ("רק json", "json בלבד", "בלי הסברים", "json only", "only json")
+
+
+def _is_explicit_client_snapshot_request(text: str) -> bool:
+    return bool(_EXPLICIT_TOOL_RE.search(text or ""))
+
+
+def _wants_json_only(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(p in lowered for p in _JSON_ONLY_PHRASES)
+
+
+def _extract_first_json(text: str) -> str | None:
+    """Extract the first balanced { ... } JSON block from *text*.
+
+    Returns the JSON string if it parses successfully, else ``None``.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = text[start : i + 1]
+                try:
+                    json.loads(candidate)
+                    return candidate
+                except (json.JSONDecodeError, ValueError):
+                    return None
+    return None
+
+
 _HEBREW_RE = re.compile(r"[\u0590-\u05FF]")
 
 
@@ -203,6 +242,23 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
         logger.info("pension_chat reply repr=%r", reply)
         return ChatResponse(reply=reply, computed_data=computed)
 
+    if _is_explicit_client_snapshot_request(last_user_msg_for_intent) and request.client_id is not None:
+        try:
+            from app.services.llm_chat.tool_handlers.get_client_snapshot import handle_get_client_snapshot
+            tool_result = handle_get_client_snapshot(args={}, client_id=int(request.client_id), db=db)
+            try:
+                log_trace_event(
+                    event_type="tool_call",
+                    payload={"tool_name": "GET_CLIENT_SNAPSHOT", "args": {}, "shortcut": True},
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat",
+                )
+            except Exception:
+                pass
+            return ChatResponse(reply=tool_result, computed_data=None)
+        except Exception as _snap_exc:
+            logger.warning("GET_CLIENT_SNAPSHOT shortcut failed: %s", _snap_exc)
+
     try:
         if is_execution_only(request) and detect_intent(last_user_msg_for_intent) != ChatIntent.REPORT:
             msgs = list(request.messages or [])
@@ -329,6 +385,14 @@ async def pension_chat(request: ChatRequest, db: Session = Depends(get_db), http
             return ChatResponse(reply=final_text, computed_data=res.computed_data)
 
     try:
+        if _wants_json_only(last_user_msg_for_intent) and isinstance(res.reply, str):
+            extracted = _extract_first_json(res.reply)
+            if extracted is not None:
+                res.reply = extracted
+    except Exception:
+        pass
+
+    try:
         _ao_payload = {
             "reply_length": len(res.reply or ""),
             "reply_preview": (res.reply or "")[:2000],
@@ -414,6 +478,32 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
                     yield greeting
 
                 return StreamingResponse(_gen(), media_type="text/plain; charset=utf-8")
+    except Exception:
+        pass
+
+    try:
+        _stream_user_msg = ""
+        for m in reversed(request.messages or []):
+            if getattr(m, "role", None) == "user":
+                _stream_user_msg = (getattr(m, "content", "") or "").strip()
+                break
+        if _is_explicit_client_snapshot_request(_stream_user_msg) and request.client_id is not None:
+            from app.services.llm_chat.tool_handlers.get_client_snapshot import handle_get_client_snapshot
+            _snap_result = handle_get_client_snapshot(args={}, client_id=int(request.client_id), db=db)
+            try:
+                log_trace_event(
+                    event_type="tool_call",
+                    payload={"tool_name": "GET_CLIENT_SNAPSHOT", "args": {}, "shortcut": True},
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+            except Exception:
+                pass
+
+            def _snap_gen():
+                yield _snap_result
+
+            return StreamingResponse(_snap_gen(), media_type="text/plain; charset=utf-8")
     except Exception:
         pass
 

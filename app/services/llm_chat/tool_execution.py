@@ -1,6 +1,7 @@
 import inspect
 import json
 import logging
+import threading as _threading
 import uuid
 from typing import Any, Optional
 
@@ -127,6 +128,28 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
 
 logger = logging.getLogger("app.llm_chat.tools")
 
+_turn_dedup = _threading.local()
+
+
+def _dedup_cache_key(tool_name: str, args: dict) -> str:
+    """Build a stable cache key from tool_name + sorted args JSON."""
+    try:
+        args_str = json.dumps(args, sort_keys=True, ensure_ascii=False) if isinstance(args, dict) else "{}"
+    except Exception:
+        args_str = "{}"
+    return f"{tool_name}::{args_str}"
+
+
+def reset_turn_dedup_cache() -> None:
+    """Call at the start of each turn/request to clear the dedup cache."""
+    _turn_dedup.cache = {}
+
+
+def _get_turn_cache() -> dict:
+    if not hasattr(_turn_dedup, "cache"):
+        _turn_dedup.cache = {}
+    return _turn_dedup.cache
+
 
 WRITE_TOOLS: set[str] = {
     "TRANSFORM_FUNDS_TO_ASSETS",
@@ -229,6 +252,13 @@ def execute_tool_call(
         except Exception:
             pass
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
+
+    if tool_name not in WRITE_TOOLS:
+        _cache = _get_turn_cache()
+        _ckey = _dedup_cache_key(tool_name, args)
+        if _ckey in _cache:
+            logger.info("DEDUP_HIT tool=%s — returning cached result", tool_name)
+            return _cache[_ckey]
 
     if tool_name == "PROCESS_TERMINATION":
         preview_payload = None
@@ -844,4 +874,13 @@ def execute_tool_call(
         _eyes_emit("tool_result", _tr_payload, client_id=client_id)
     except Exception:
         pass
+
+    if tool_name not in WRITE_TOOLS:
+        try:
+            _cache = _get_turn_cache()
+            _ckey = _dedup_cache_key(tool_name, args)
+            _cache[_ckey] = result
+        except Exception:
+            pass
+
     return result

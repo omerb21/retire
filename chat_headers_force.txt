@@ -1,9 +1,9 @@
 HTTP/1.1 200 OK
-Content-Length: 176
+Content-Length: 488
 Content-Type: application/json
-Date: Thu, 12 Feb 2026 08:33:32 GMT
+Date: Thu, 12 Feb 2026 10:11:37 GMT
 Server: railway-edge
 X-Railway-Edge: railway/europe-west4-drams3a
-X-Railway-Request-Id: I9vrV_5XRViWjO-6rJsmnA
-X-Trace-Id: a49e0503-cd71-4caf-a4b9-71a54951d38a
+X-Railway-Request-Id: anZjiiSxRIyEfpjJjUJq2g
+X-Trace-Id: b61e8e87-4e7b-40b1-9711-1e9e642e7359
 

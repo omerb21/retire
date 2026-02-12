@@ -1,0 +1,1 @@
+{"detail":[{"type":"missing","loc":["body","provider"],"msg":"Field required","input":{},"url":"https://errors.pydantic.dev/2.5/v/missing"}],"path":"/api/v1/llm/provider"}
