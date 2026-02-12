@@ -219,6 +219,79 @@ def _run_stream_loop_tail_flow(
         if post_conversion_lock_early_response is not None:
             return post_conversion_lock_early_response
 
+    # ── Explicit GET_CLIENT_SNAPSHOT shortcut ──────────────────────────
+    # Must run *before* deterministic routing so the request never falls
+    # through to the LLM or to unrelated deterministic handlers.
+    try:
+        from app.services.llm_chat.explicit_tool_shortcuts import (
+            is_explicit_client_snapshot_request as _is_snap_req,
+            wants_json_only as _wants_json,
+            build_client_snapshot_tool_result as _build_snap,
+        )
+
+        if isinstance(original_user_msg, str) and _is_snap_req(original_user_msg):
+            import json as _json
+            from fastapi.responses import StreamingResponse as _SR
+
+            _snap_result = _build_snap(client_id=request.client_id, db=db)
+            _snap_json = _json.dumps(_snap_result, ensure_ascii=False)
+
+            # ── Agent Eyes trace events ──
+            try:
+                from app.services.agent_trace_logger import log_trace_event as _lt
+                from app.services.agent_eyes.event_collector import emit_event as _ee
+
+                _lt(
+                    event_type="execution_path",
+                    payload={
+                        "path_id": "chat.stream.explicit_tool_shortcut",
+                        "reason": "user_explicitly_requested_GET_CLIENT_SNAPSHOT",
+                    },
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+                _ee(
+                    "execution_path",
+                    {
+                        "path_id": "chat.stream.explicit_tool_shortcut",
+                        "reason": "user_explicitly_requested_GET_CLIENT_SNAPSHOT",
+                    },
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+
+                _tc_payload = {
+                    "tool_name": "GET_CLIENT_SNAPSHOT",
+                    "args": {},
+                    "client_id": request.client_id,
+                    "shortcut": True,
+                }
+                _lt(event_type="tool_call", payload=_tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _ee("tool_call", _tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+
+                _tr_payload = {
+                    "tool_name": "GET_CLIENT_SNAPSHOT",
+                    "success": _snap_result.get("success", False),
+                    "result_preview": _snap_json[:2000],
+                    "result_length": len(_snap_json),
+                    "shortcut": True,
+                }
+                _lt(event_type="tool_result", payload=_tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _ee("tool_result", _tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+            except Exception:
+                pass
+
+            # Return clean JSON or the raw tool JSON string
+            _reply = _snap_json
+
+            def _snap_gen():
+                yield _reply
+
+            return _SR(_snap_gen(), media_type="text/plain; charset=utf-8")
+    except Exception:
+        pass
+    # ── End explicit GET_CLIENT_SNAPSHOT shortcut ────────────────────
+
     deterministic_routing_response, analysis_default_retirement_age, termination_already_executed = (
         run_deterministic_routing_block(
             request=request,

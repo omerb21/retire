@@ -491,12 +491,17 @@ async def pension_chat_stream(request: ChatRequest, db: Session = Depends(get_db
             from app.services.llm_chat.tool_handlers.get_client_snapshot import handle_get_client_snapshot
             _snap_result = handle_get_client_snapshot(args={}, client_id=int(request.client_id), db=db)
             try:
-                log_trace_event(
-                    event_type="tool_call",
-                    payload={"tool_name": "GET_CLIENT_SNAPSHOT", "args": {}, "shortcut": True},
-                    client_id=request.client_id,
-                    endpoint="/api/v1/llm/pension-chat-stream",
-                )
+                _ep_payload = {"path_id": "chat.stream.explicit_tool_shortcut", "reason": "user_explicitly_requested_GET_CLIENT_SNAPSHOT"}
+                log_trace_event(event_type="execution_path", payload=_ep_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _eyes_emit("execution_path", _ep_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+
+                _tc_payload = {"tool_name": "GET_CLIENT_SNAPSHOT", "args": {}, "client_id": request.client_id, "shortcut": True}
+                log_trace_event(event_type="tool_call", payload=_tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _eyes_emit("tool_call", _tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+
+                _tr_payload = {"tool_name": "GET_CLIENT_SNAPSHOT", "success": True, "result_preview": (_snap_result or "")[:2000], "result_length": len(_snap_result or ""), "shortcut": True}
+                log_trace_event(event_type="tool_result", payload=_tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _eyes_emit("tool_result", _tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
             except Exception:
                 pass
 
