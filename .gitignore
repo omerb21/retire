@@ -50,3 +50,8 @@ first_trace*.txt
 second_trace*.txt
 *_payload.json
 scripts/prod_sanity.ps1
+# public chat local artifacts
+pc_*.json
+pc_*.txt
+eyes_trace_check.json
+eyes_traces_check.json
