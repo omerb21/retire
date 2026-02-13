@@ -20,6 +20,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    bind = op.get_bind()
+    active_continuity_enum = sa.Enum(
+        'none', 'severance', 'pension',
+        name='activecontinuitytype'
+    )
+    active_continuity_enum.create(bind, checkfirst=True)
+
     # Create current_employer table
     op.create_table('current_employer',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -35,7 +42,11 @@ def upgrade() -> None:
         sa.Column('other_grants', sa.JSON(), nullable=True),
         sa.Column('tax_withheld', sa.Float(), nullable=True),
         sa.Column('grant_installments', sa.JSON(), nullable=True),
-        sa.Column('active_continuity', sa.Enum('none', 'severance', 'pension', name='activecontinuitytype'), nullable=True),
+        sa.Column(
+            'active_continuity',
+            sa.Enum('none', 'severance', 'pension', name='activecontinuitytype', create_type=False),
+            nullable=True,
+        ),
         sa.Column('pre_retirement_pension', sa.Float(), nullable=True),
         sa.Column('existing_deductions', sa.JSON(), nullable=True),
         sa.Column('last_update', sa.Date(), nullable=False),
@@ -73,3 +84,9 @@ def downgrade() -> None:
     """Downgrade schema."""
     op.drop_table('employer_grant')
     op.drop_table('current_employer')
+    bind = op.get_bind()
+    active_continuity_enum = sa.Enum(
+        'none', 'severance', 'pension',
+        name='activecontinuitytype'
+    )
+    active_continuity_enum.drop(bind, checkfirst=True)
