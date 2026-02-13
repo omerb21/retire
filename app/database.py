@@ -8,11 +8,32 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Get database URL from dedicated env var or use default SQLite for development
-# IMPORTANT: We intentionally ignore generic DATABASE_URL to avoid accidental
-# sharing of a database with other systems (e.g. external CRM).
-PLANNING_DATABASE_URL = os.getenv("PLANNING_DATABASE_URL")
-DATABASE_URL = PLANNING_DATABASE_URL or os.getenv("DATABASE_URL") or "sqlite:///./retire.db"
+# ---------------------------------------------------------------------------
+# Resolve the database URL.  In production we MUST connect to Postgres.
+# In local dev (no PG env vars at all) we fall back to SQLite.
+# ---------------------------------------------------------------------------
+def _resolve_database_url() -> tuple[str, str]:
+    """Return (url, source_label).  Tries pick_db_url first, falls back to SQLite for dev."""
+    # PLANNING_DATABASE_URL takes absolute priority if set
+    planning_url = os.getenv("PLANNING_DATABASE_URL")
+    if planning_url and (
+        planning_url.startswith("postgresql://") or planning_url.startswith("postgres://")
+    ):
+        return planning_url, "PLANNING_DATABASE_URL"
+
+    try:
+        from app.core.db_url import pick_db_url
+        url, key = pick_db_url()
+        return url, key
+    except RuntimeError:
+        # No valid Postgres URL anywhere → local dev fallback
+        return "sqlite:///./retire.db", "sqlite_fallback"
+
+_db_url, _db_url_source = _resolve_database_url()
+DATABASE_URL = _db_url
+
+_startup_logger = logging.getLogger("app.database")
+_startup_logger.info("DB selected from=%s scheme=%s", _db_url_source, DATABASE_URL.split(":", 1)[0])
 
 # Create base class for declarative models
 Base = declarative_base()
