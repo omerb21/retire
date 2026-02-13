@@ -20,6 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+
+    if insp.has_table("scenario"):
+        return
+
     op.create_table('scenario',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('client_id', sa.Integer(), nullable=False),
@@ -35,4 +41,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_table('scenario')
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if insp.has_table("scenario"):
+        op.drop_table('scenario')
