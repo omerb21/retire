@@ -20,6 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema - make summary_results and cashflow_projection nullable."""
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if not insp.has_table("scenario"):
+        return
+
     # SQLite doesn't support ALTER COLUMN, so we need to recreate the table
     # First, create a new table with the correct schema
     op.create_table('scenario_new',
@@ -43,9 +48,9 @@ def upgrade() -> None:
                                  apply_capitalization, apply_exemption_shield, parameters, 
                                  summary_results, cashflow_projection, created_at)
         SELECT id, client_id, scenario_name, 
-               COALESCE(apply_tax_planning, 0),
-               COALESCE(apply_capitalization, 0), 
-               COALESCE(apply_exemption_shield, 0),
+               COALESCE(apply_tax_planning, false),
+               COALESCE(apply_capitalization, false), 
+               COALESCE(apply_exemption_shield, false),
                COALESCE(parameters, '{}'),
                summary_results, cashflow_projection, created_at
         FROM scenario
