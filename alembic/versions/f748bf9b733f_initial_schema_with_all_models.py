@@ -20,7 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    pass
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+
+    # If DB already initialized (prod drift), skip initial schema creation.
+    if insp.has_table("client"):
+        return
 
 
 def downgrade() -> None:

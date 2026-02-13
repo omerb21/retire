@@ -43,5 +43,6 @@ def downgrade() -> None:
     """Downgrade schema."""
     bind = op.get_bind()
     insp = sa.inspect(bind)
-    if insp.has_table("scenario"):
-        op.drop_table('scenario')
+    if not insp.has_table("scenario"):
+        return
+    op.drop_table('scenario')

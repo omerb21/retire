@@ -18,20 +18,38 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _has_column(insp, table_name: str, col_name: str) -> bool:
+    cols = insp.get_columns(table_name)
+    return any(c["name"] == col_name for c in cols)
+
+
 def upgrade() -> None:
     """Upgrade schema."""
-    # Add planning flags to scenario table
-    op.add_column('scenario', sa.Column('apply_tax_planning', sa.Boolean(), nullable=False, server_default='false'))
-    op.add_column('scenario', sa.Column('apply_capitalization', sa.Boolean(), nullable=False, server_default='false'))
-    op.add_column('scenario', sa.Column('apply_exemption_shield', sa.Boolean(), nullable=False, server_default='false'))
-    
-    # Note: SQLite doesn't support ALTER COLUMN, so we'll rely on the model definition
-    # for the updated nullable/default behavior on new records
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+
+    if not insp.has_table("scenario"):
+        return
+
+    if not _has_column(insp, "scenario", "apply_tax_planning"):
+        op.add_column('scenario', sa.Column('apply_tax_planning', sa.Boolean(), nullable=False, server_default='false'))
+    if not _has_column(insp, "scenario", "apply_capitalization"):
+        op.add_column('scenario', sa.Column('apply_capitalization', sa.Boolean(), nullable=False, server_default='false'))
+    if not _has_column(insp, "scenario", "apply_exemption_shield"):
+        op.add_column('scenario', sa.Column('apply_exemption_shield', sa.Boolean(), nullable=False, server_default='false'))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Remove planning flags
-    op.drop_column('scenario', 'apply_exemption_shield')
-    op.drop_column('scenario', 'apply_capitalization')
-    op.drop_column('scenario', 'apply_tax_planning')
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+
+    if not insp.has_table("scenario"):
+        return
+
+    if _has_column(insp, "scenario", "apply_exemption_shield"):
+        op.drop_column('scenario', 'apply_exemption_shield')
+    if _has_column(insp, "scenario", "apply_capitalization"):
+        op.drop_column('scenario', 'apply_capitalization')
+    if _has_column(insp, "scenario", "apply_tax_planning"):
+        op.drop_column('scenario', 'apply_tax_planning')
