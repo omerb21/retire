@@ -133,6 +133,8 @@ class ConversionService:
                     ef.balance = 0.0
                 if getattr(ef, "pension_amount", None) is not None:
                     ef.pension_amount = 0.0
+                if getattr(ef, "fund_type", None) == "monthly_pension":
+                    ef.record_status = "draft"
         
         self.db.flush()
     

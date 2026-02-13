@@ -359,9 +359,10 @@ def build_target_pension_plan(
     # שלב 1: איסוף כל מקורות הקצבה הפוטנציאליים
     pension_sources = []
 
-    # קרנות פנסיה עם יתרות
+    # קרנות פנסיה עם יתרות (only active records)
     pension_funds = self.db.query(PensionFund).filter(
-        PensionFund.client_id == self.client_id
+        PensionFund.client_id == self.client_id,
+        PensionFund.record_status == "active",
     ).all()
 
     # נכסי הון שניתן להמיר לקצבה

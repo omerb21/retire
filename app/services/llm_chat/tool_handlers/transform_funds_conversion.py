@@ -140,6 +140,8 @@ def _zero_source_portfolio_pension_funds(
         if balance_val != 0.0 or pension_val != 0.0:
             pf.balance = 0.0
             pf.pension_amount = 0.0
+            if getattr(pf, "fund_type", None) == "monthly_pension":
+                pf.record_status = "draft"
             updated += 1
     return updated
 

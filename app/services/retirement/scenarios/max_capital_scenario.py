@@ -287,6 +287,8 @@ class MaxCapitalScenario(BaseScenarioBuilder):
             if pf.balance is not None:
                 pf.balance = 0.0
             pf.pension_amount = 0.0
+            if getattr(pf, "fund_type", None) == "monthly_pension":
+                pf.record_status = "draft"
     
     def _capitalize_partial_pension(self, pf, capitalize_amount):
         """היוון חלקי של קצבה"""

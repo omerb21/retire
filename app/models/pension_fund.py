@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event, Text
+from sqlalchemy import Column, Index, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 import logging
@@ -41,6 +41,9 @@ class PensionFund(Base):
     # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
     conversion_source = Column(Text, nullable=True)  # JSON עם פרטי המקור
 
+    # Record status: active (default) / draft / invalid
+    record_status = Column(String(20), nullable=False, default="active", server_default="active")
+
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
     
@@ -52,7 +55,74 @@ class PensionFund(Base):
         CheckConstraint("(annuity_factor IS NULL OR annuity_factor > 0)", name="pf_annuity_pos"),
         CheckConstraint("(pension_amount IS NULL OR pension_amount >= 0)", name="pf_pension_nonneg"),
         CheckConstraint("(fixed_index_rate IS NULL OR fixed_index_rate >= 0)", name="pf_fixed_rate_nonneg"),
+        CheckConstraint(
+            "record_status IN ('active', 'draft', 'invalid')",
+            name="pf_record_status_valid",
+        ),
+        Index("ix_pf_client_type_status", "client_id", "fund_type", "record_status"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Data integrity guard: active monthly_pension must have pension_amount > 0
+# ---------------------------------------------------------------------------
+def _check_monthly_pension_invariant(target):
+    """If an active monthly_pension has pension_amount <= 0, demote to draft and emit alert."""
+    fund_type = getattr(target, "fund_type", None)
+    record_status = getattr(target, "record_status", None) or "active"
+    pension_amount = getattr(target, "pension_amount", None)
+
+    if fund_type != "monthly_pension" or record_status != "active":
+        return
+
+    amt = 0.0
+    try:
+        amt = float(pension_amount) if pension_amount is not None else 0.0
+    except (TypeError, ValueError):
+        amt = 0.0
+
+    if amt > 0:
+        return
+
+    # Auto-demote to draft
+    target.record_status = "draft"
+    logger.warning(
+        "DATA_INTEGRITY: active monthly_pension with pension_amount=%s demoted to draft "
+        "(fund_id=%s, client_id=%s, fund_name=%s)",
+        pension_amount,
+        getattr(target, "id", None),
+        getattr(target, "client_id", None),
+        getattr(target, "fund_name", None),
+    )
+
+    # Best-effort agent_eyes emission
+    try:
+        from app.services.agent_eyes.event_collector import emit_event
+        emit_event(
+            "data_integrity_violation",
+            {
+                "violation": "active_monthly_pension_zero_amount",
+                "fund_id": getattr(target, "id", None),
+                "client_id": getattr(target, "client_id", None),
+                "pension_amount": pension_amount,
+                "input_mode": getattr(target, "input_mode", None),
+                "fund_name": getattr(target, "fund_name", None),
+                "action": "demoted_to_draft",
+            },
+            client_id=getattr(target, "client_id", None),
+        )
+    except Exception:
+        pass
+
+
+@event.listens_for(PensionFund, "before_insert")
+def check_integrity_on_insert(mapper, connection, target):
+    _check_monthly_pension_invariant(target)
+
+
+@event.listens_for(PensionFund, "before_update")
+def check_integrity_on_update(mapper, connection, target):
+    _check_monthly_pension_invariant(target)
 
 
 # Event listener to track balance changes

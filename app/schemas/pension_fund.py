@@ -16,6 +16,7 @@ class PensionFundBase(BaseModel):
     remarks: Optional[str] = None
     deduction_file: Optional[str] = None
     conversion_source: Optional[str] = None  # JSON עם פרטי מקור ההמרה
+    record_status: Optional[Literal["active", "draft", "invalid"]] = "active"
 
 class PensionFundCreate(PensionFundBase):
     client_id: int
@@ -27,6 +28,7 @@ class PensionFundOut(PensionFundBase):
     id: int
     client_id: int
     indexed_pension_amount: Optional[float] = None
+    record_status: str = "active"
 
     # Pydantic v2: במקום orm_mode=True
     model_config = ConfigDict(from_attributes=True)

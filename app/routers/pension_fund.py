@@ -13,6 +13,30 @@ from app.services.retirement.utils.projection_utils import calculate_compound_fa
 router = APIRouter(prefix="/api/v1", tags=["pension-funds"])
 logger = logging.getLogger("app.pension_fund")
 
+
+def _validate_monthly_pension_invariant(
+    fund_type: str | None,
+    record_status: str | None,
+    pension_amount: float | None,
+) -> None:
+    """Raise 400 if an *active* monthly_pension has pension_amount <= 0."""
+    if fund_type != "monthly_pension":
+        return
+    if (record_status or "active") != "active":
+        return
+    try:
+        amt = float(pension_amount) if pension_amount is not None else 0.0
+    except (TypeError, ValueError):
+        amt = 0.0
+    if amt <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "monthly_pension פעילה חייבת לכלול pension_amount > 0",
+                "code": "MONTHLY_PENSION_ZERO_AMOUNT",
+            },
+        )
+
 @router.post("/clients/{client_id}/pension-funds", response_model=PensionFundOut, status_code=status.HTTP_201_CREATED)
 def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session = Depends(get_db)):
     if payload.client_id != client_id:
@@ -51,6 +75,13 @@ def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session 
     fund = PensionFund(**data)
     logger.debug("Create pension fund before commit (balance=%s, input_mode=%s)", fund.balance, fund.input_mode)
     
+    # API-level invariant: reject active monthly_pension with pension_amount <= 0
+    _validate_monthly_pension_invariant(
+        fund_type=data.get("fund_type"),
+        record_status=data.get("record_status", "active"),
+        pension_amount=data.get("pension_amount"),
+    )
+
     # אל תאפס את ה-balance! זה קריטי להיוון!
     if fund.input_mode == "calculated" and fund.balance:
         logger.debug("Create pension fund calculated mode - preserving balance=%s", fund.balance)
@@ -73,8 +104,17 @@ def update_pension_fund(fund_id: int, payload: PensionFundUpdate, db: Session = 
     fund = db.get(PensionFund, fund_id)
     if not fund:
         raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for k, v in updates.items():
         setattr(fund, k, v)
+
+    # API-level invariant: reject active monthly_pension with pension_amount <= 0
+    _validate_monthly_pension_invariant(
+        fund_type=getattr(fund, "fund_type", None),
+        record_status=getattr(fund, "record_status", "active"),
+        pension_amount=getattr(fund, "pension_amount", None),
+    )
+
     db.add(fund)
     db.commit()
     db.refresh(fund)

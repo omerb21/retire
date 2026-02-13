@@ -33,6 +33,7 @@ def compute_monthly_pension_summary(session: Session, client_id: int, today: dat
         session.query(PensionFund)
         .filter(PensionFund.client_id == int(client_id))
         .filter(PensionFund.fund_type == "monthly_pension")
+        .filter(PensionFund.record_status == "active")
         .filter(PensionFund.pension_amount.isnot(None))
         .filter(PensionFund.pension_amount > 0)
         .order_by(PensionFund.id.asc())

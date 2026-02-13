@@ -134,6 +134,8 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
 
     fund.balance = new_balance
     fund.pension_amount = new_pension_amount
+    if new_pension_amount <= 0 and getattr(fund, "fund_type", None) == "monthly_pension":
+        fund.record_status = "draft"
 
     portfolio_account_number: str | None = None
     portfolio_snapshot_updated = False
