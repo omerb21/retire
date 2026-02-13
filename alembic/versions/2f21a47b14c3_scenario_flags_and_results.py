@@ -18,11 +18,6 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def _has_column(insp, table_name: str, col_name: str) -> bool:
-    cols = insp.get_columns(table_name)
-    return any(c["name"] == col_name for c in cols)
-
-
 def upgrade() -> None:
     """Upgrade schema."""
     bind = op.get_bind()
@@ -31,12 +26,9 @@ def upgrade() -> None:
     if not insp.has_table("scenario"):
         return
 
-    if not _has_column(insp, "scenario", "apply_tax_planning"):
-        op.add_column('scenario', sa.Column('apply_tax_planning', sa.Boolean(), nullable=False, server_default='false'))
-    if not _has_column(insp, "scenario", "apply_capitalization"):
-        op.add_column('scenario', sa.Column('apply_capitalization', sa.Boolean(), nullable=False, server_default='false'))
-    if not _has_column(insp, "scenario", "apply_exemption_shield"):
-        op.add_column('scenario', sa.Column('apply_exemption_shield', sa.Boolean(), nullable=False, server_default='false'))
+    op.execute("ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_tax_planning BOOLEAN NOT NULL DEFAULT false")
+    op.execute("ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_capitalization BOOLEAN NOT NULL DEFAULT false")
+    op.execute("ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_exemption_shield BOOLEAN NOT NULL DEFAULT false")
 
 
 def downgrade() -> None:
@@ -47,9 +39,6 @@ def downgrade() -> None:
     if not insp.has_table("scenario"):
         return
 
-    if _has_column(insp, "scenario", "apply_exemption_shield"):
-        op.drop_column('scenario', 'apply_exemption_shield')
-    if _has_column(insp, "scenario", "apply_capitalization"):
-        op.drop_column('scenario', 'apply_capitalization')
-    if _has_column(insp, "scenario", "apply_tax_planning"):
-        op.drop_column('scenario', 'apply_tax_planning')
+    op.execute("ALTER TABLE scenario DROP COLUMN IF EXISTS apply_exemption_shield")
+    op.execute("ALTER TABLE scenario DROP COLUMN IF EXISTS apply_capitalization")
+    op.execute("ALTER TABLE scenario DROP COLUMN IF EXISTS apply_tax_planning")
