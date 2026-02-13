@@ -66,6 +66,17 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    db_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+    if not db_url:
+        raise RuntimeError("DATABASE_URL/DB_URL is missing, refusing to run migrations")
+    if db_url.startswith("sqlite"):
+        raise RuntimeError(
+            "Refusing to run Alembic on SQLite in production. "
+            "DATABASE_URL must point to Postgres."
+        )
+    config.set_main_option("sqlalchemy.url", db_url)
+    logger.info("Alembic DB URL scheme=%s", db_url.split(":", 1)[0])
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
