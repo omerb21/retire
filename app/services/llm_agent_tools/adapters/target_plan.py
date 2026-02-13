@@ -412,6 +412,7 @@ def build_target_pension_plan(
                 {
                     "source_type": "existing_pension",
                     "source_id": pf.id,
+                    "pension_fund_id": pf.id,
                     "account_number": pf.deduction_file,
                     "source_name": pf.fund_name,
                     "fund_type": pf.fund_type,
@@ -465,6 +466,7 @@ def build_target_pension_plan(
                 {
                     "source_type": "pension_fund",
                     "source_id": pf.id,
+                    "pension_fund_id": pf.id,
                     "account_number": pf.deduction_file,
                     "source_name": pf.fund_name,
                     "fund_type": pf.fund_type,
@@ -610,6 +612,24 @@ def build_target_pension_plan(
         portfolio_sources_added = len(filtered_portfolio_sources)
         pension_sources.extend(filtered_portfolio_sources)
 
+    # Runtime guard: build a set of PensionFund IDs whose pension_amount is
+    # currently 0 (or NULL) in the DB.  Any "existing_pension" source that maps
+    # to one of these must be excluded — its monthly_pension value is stale.
+    _zeroed_pf_ids: set[int] = set()
+    try:
+        _zero_rows = (
+            self.db.query(PensionFund.id)
+            .filter(PensionFund.client_id == self.client_id)
+            .filter(
+                (PensionFund.pension_amount == None)  # noqa: E711
+                | (PensionFund.pension_amount <= 0)
+            )
+            .all()
+        )
+        _zeroed_pf_ids = {int(r[0]) for r in _zero_rows if r[0] is not None}
+    except Exception:
+        _zeroed_pf_ids = set()
+
     existing_pension_total_gross = 0.0
     existing_pension_sources: list[dict[str, Any]] = []
     convertible_sources: list[dict[str, Any]] = []
@@ -617,6 +637,14 @@ def build_target_pension_plan(
         if not isinstance(src, dict):
             continue
         if src.get("action_needed") == "none":
+            # Guard: skip sources whose DB pension_amount is now 0
+            pf_id = src.get("pension_fund_id")
+            if pf_id is not None and int(pf_id) in _zeroed_pf_ids:
+                logger.info(
+                    "Skipping existing_pension source pf_id=%s (%s): DB pension_amount is 0",
+                    pf_id, src.get("source_name"),
+                )
+                continue
             existing_pension_sources.append(src)
             try:
                 existing_pension_total_gross += float(src.get("monthly_pension") or 0)
@@ -1077,6 +1105,8 @@ def build_target_pension_plan(
                     "accumulated_pension": accumulated_total,
                     "source_name": source["source_name"],
                     "annuity_factor": source["annuity_factor"],
+                    "pension_fund_id": source.get("pension_fund_id"),
+                    "source_type": source.get("source_type"),
                 }
             )
         else:
@@ -1105,6 +1135,8 @@ def build_target_pension_plan(
                     "source_name": source["source_name"],
                     "annuity_factor": source["annuity_factor"],
                     "remaining_as_capital": remaining_from_source,
+                    "pension_fund_id": source.get("pension_fund_id"),
+                    "source_type": source.get("source_type"),
                 }
             )
 

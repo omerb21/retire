@@ -17,7 +17,7 @@ class PensionFund(Base):
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    fund_name = Column(String(200), nullable=False)
+    fund_name = Column(Text, nullable=False)
     fund_type = Column(String(50), nullable=True)
 
     input_mode = Column(InputMode, nullable=False)              # calculated / manual
@@ -35,7 +35,7 @@ class PensionFund(Base):
     # Tax treatment - יחס למס (String for SQLite compatibility)
     tax_treatment = Column(String(20), nullable=False, default="taxable")  # taxable/exempt/capital_gains
 
-    remarks = Column(String(500), nullable=True)
+    remarks = Column(Text, nullable=True)
     deduction_file = Column(String(200), nullable=True)  # תיק ניכויים
     
     # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
