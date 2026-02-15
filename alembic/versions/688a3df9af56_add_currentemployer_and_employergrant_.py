@@ -20,12 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    bind = op.get_bind()
-    active_continuity_enum = sa.Enum(
-        'none', 'severance', 'pension',
-        name='activecontinuitytype'
-    )
-    active_continuity_enum.create(bind, checkfirst=True)
+    # ensure enum exists (safe if already exists)
+    op.execute("""
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activecontinuitytype') THEN
+            CREATE TYPE activecontinuitytype AS ENUM ('none', 'severance', 'pension');
+        END IF;
+    END;
+    END $$;
+    """)
 
     # Create current_employer table
     op.create_table('current_employer',
@@ -84,9 +88,3 @@ def downgrade() -> None:
     """Downgrade schema."""
     op.drop_table('employer_grant')
     op.drop_table('current_employer')
-    bind = op.get_bind()
-    active_continuity_enum = sa.Enum(
-        'none', 'severance', 'pension',
-        name='activecontinuitytype'
-    )
-    active_continuity_enum.drop(bind, checkfirst=True)
