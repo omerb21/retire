@@ -61,3 +61,5 @@ retire.db
 scripts/probe_trace_evidence.py
 
 retire_secrets.ps1
+# local-only plans (not part of repo)
+local_plans/
