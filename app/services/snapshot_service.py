@@ -544,8 +544,38 @@ class SnapshotService:
         termination = self.db.query(TerminationEvent).filter(
             TerminationEvent.client_id == client_id
         ).first()
-        
-        return self._serialize_termination_event(termination) if termination else None
+
+        if termination:
+            return self._serialize_termination_event(termination)
+
+        # Fallback: support the current-employer termination flow which persists
+        # a server-side marker on CurrentEmployer.other_grants.
+        employer = (
+            self.db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+            .first()
+        )
+        if employer is None:
+            return None
+
+        other_grants = getattr(employer, "other_grants", None) or {}
+        if not isinstance(other_grants, dict):
+            return None
+
+        if other_grants.get("termination_confirmed") is not True:
+            return None
+
+        # Minimal termination payload – sufficient to flip snapshot.info.has_termination.
+        return {
+            "client_id": client_id,
+            "planned_termination_date": None,
+            "actual_termination_date": other_grants.get("termination_date")
+            or (employer.end_date.isoformat() if getattr(employer, "end_date", None) else None),
+            "reason": None,
+            "severance_basis_nominal": None,
+            "package_paths": None,
+        }
     
     def _collect_fixation_result(self, client_id: int) -> Optional[Dict]:
         """איסוף קיבוע זכויות"""

@@ -510,3 +510,48 @@ class TestCurrentEmployerAPI:
         assert data.get("severance_amount") == 12345.67
         assert data.get("exempt_amount") == 111.22
         assert data.get("taxable_amount") == 333.44
+
+    def test_snapshot_info_has_termination_true_after_current_employer_termination(self, client, db_session) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+
+        unique_id = f"snap_term_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Snapshot Has Termination",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Snapshot Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=None,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+
+        info = client.get(f"/api/v1/clients/{orm_client.id}/snapshot/info")
+        assert info.status_code == 200, info.text
+        breakdown = info.json().get("breakdown") or {}
+        assert breakdown.get("has_termination") is True

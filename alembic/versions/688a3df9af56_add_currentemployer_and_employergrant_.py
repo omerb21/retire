@@ -27,6 +27,7 @@ def upgrade() -> None:
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activecontinuitytype') THEN
             CREATE TYPE activecontinuitytype AS ENUM ('none', 'severance', 'pension');
         END IF;
+    END;
     END $$;
     """)
 
