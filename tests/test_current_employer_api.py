@@ -555,3 +555,62 @@ class TestCurrentEmployerAPI:
         assert info.status_code == 200, info.text
         breakdown = info.json().get("breakdown") or {}
         assert breakdown.get("has_termination") is True
+
+    def test_delete_termination_clears_marker_and_snapshot_flag(self, client, db_session) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+
+        unique_id = f"del_term_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Delete Termination Clears Marker",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Delete Marker Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=None,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+
+        info_before = client.get(f"/api/v1/clients/{orm_client.id}/snapshot/info")
+        assert info_before.status_code == 200, info_before.text
+        assert (info_before.json().get("breakdown") or {}).get("has_termination") is True
+
+        delete_resp = client.delete(f"/api/v1/clients/{orm_client.id}/delete-termination")
+        assert delete_resp.status_code == 200, delete_resp.text
+
+        info_after = client.get(f"/api/v1/clients/{orm_client.id}/snapshot/info")
+        assert info_after.status_code == 200, info_after.text
+        assert (info_after.json().get("breakdown") or {}).get("has_termination") is False
+
+        ce_resp = client.get(f"/api/v1/clients/{orm_client.id}/current-employer")
+        assert ce_resp.status_code == 200, ce_resp.text
+        other_grants = (ce_resp.json() or {}).get("other_grants")
+        if isinstance(other_grants, dict):
+            assert "termination_confirmed" not in other_grants
+            assert "termination_confirmed_at" not in other_grants
+            assert "termination_date" not in other_grants

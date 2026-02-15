@@ -268,12 +268,15 @@ class TerminationService:
 
         # Clear server-side termination confirmation marker
         try:
-            other_grants = employer.other_grants or {}
-            if isinstance(other_grants, dict):
+            other_grants_raw = getattr(employer, "other_grants", None) or {}
+            if isinstance(other_grants_raw, dict):
+                other_grants = dict(other_grants_raw)
                 other_grants.pop("termination_confirmed", None)
                 other_grants.pop("termination_confirmed_at", None)
                 other_grants.pop("termination_date", None)
-                employer.other_grants = other_grants
+                employer.other_grants = other_grants if other_grants else None
+            else:
+                employer.other_grants = None
         except Exception:
             pass
         self.db.add(employer)
