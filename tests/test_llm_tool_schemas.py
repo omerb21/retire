@@ -36,13 +36,14 @@ def test_process_termination_description_is_termination_scoped() -> None:
 
     assert "עזיבת עבודה" in description
     assert "פיצויים" in description
-    assert "termination_date" in required
-    assert "severance_amount" in required
-    assert "exempt_amount" in required
-    assert "taxable_amount" in required
     assert "exempt_choice" in required
     assert "taxable_choice" in required
     assert "confirmed" in required
+
+    assert "termination_date" not in required
+    assert "severance_amount" not in required
+    assert "exempt_amount" not in required
+    assert "taxable_amount" not in required
 
 
 def test_llm_chat_package_exports_are_available() -> None:

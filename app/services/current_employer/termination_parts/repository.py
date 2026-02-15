@@ -57,7 +57,7 @@ def _create_employer_grants(
         self.db.flush()
     else:
         # Fallback: יצירת מענק יחיד
-        total_amount = decision.exempt_amount + decision.taxable_amount
+        total_amount = float(decision.exempt_amount or 0) + float(decision.taxable_amount or 0)
         if total_amount > 0:
             employer_grant = EmployerGrant(
                 employer_id=employer.id,

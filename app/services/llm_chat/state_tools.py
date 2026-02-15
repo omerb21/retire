@@ -353,29 +353,13 @@ def get_tools_definitions_json() -> str:
         },
         {
             "name": "PROCESS_TERMINATION",
-            "description": "🔴 כלי ביצוע (Execution Tool) - עזיבת עבודה/פיצויים בלבד. השתמש בכלי זה **רק** כאשר ההקשר הוא עזיבת עבודה והלקוח מאשר לבצע החלטה על פיצויים (משיכה / רצף קצבה / פיצול). טריגרים לדוגמה: 'בצע את משיכת הפיצויים', 'בצע רצף קצבה', 'עדכן במערכת את עזיבת העבודה', 'סיים את עזיבת העבודה', 'בחרתי למשוך/לרצף'. אם ההקשר הוא קיבוע זכויות/היוון/פריסת מס/אישור פטור – השתמש ב-SUBMIT_TAX_COMMUTATION ולא בכלי זה.",
+            "description": "🔴 כלי ביצוע (Execution Tool) - עזיבת עבודה/פיצויים בלבד. חוק: הסוכן שולח רק confirmed + exempt_choice + taxable_choice (ואופציונלי use_employer_completion=true). הסוכן לא שולח סכומים. השרת משלים את termination_date והסכומים ממסך המעסיק הנוכחי / חישוב פיצויים קיים. השתמש בכלי זה **רק** כאשר ההקשר הוא עזיבת עבודה והלקוח מאשר לבצע החלטה על פיצויים (משיכה / רצף קצבה / פיצול). אם ההקשר הוא קיבוע זכויות/היוון/פריסת מס/אישור פטור – השתמש ב-SUBMIT_TAX_COMMUTATION ולא בכלי זה.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "termination_date": {
-                        "type": "string",
-                        "description": "תאריך סיום העבודה בפורמט DD/MM/YYYY (אופציונלי: אם חסר, המערכת תנסה להשתמש בתאריך סיום במעסיק נוכחי או בתאריך היום).",
-                    },
                     "use_employer_completion": {
                         "type": "boolean",
                         "description": "האם תבוצע השלמת מעסיק (ברירת מחדל: true).",
-                    },
-                    "severance_amount": {
-                        "type": "number",
-                        "description": "סכום הפיצויים הכולל (שכר × שנות ותק).",
-                    },
-                    "exempt_amount": {
-                        "type": "number",
-                        "description": "סכום פטור ממס (תקרה × שנות ותק).",
-                    },
-                    "taxable_amount": {
-                        "type": "number",
-                        "description": "סכום חייב במס (סה\"כ פיצויים - פטור).",
                     },
                     "exempt_choice": {
                         "type": "string",
@@ -409,10 +393,6 @@ def get_tools_definitions_json() -> str:
                     },
                 },
                 "required": [
-                    "termination_date",
-                    "severance_amount",
-                    "exempt_amount",
-                    "taxable_amount",
                     "exempt_choice",
                     "taxable_choice",
                     "confirmed",

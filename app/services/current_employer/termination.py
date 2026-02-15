@@ -66,7 +66,78 @@ class TerminationService:
         logger.info("Termination decision received")
         logger.debug("Termination decision payload: %s", decision.model_dump())
 
+        if getattr(decision, "use_employer_completion", True):
+            termination_date = decision.termination_date or employer.end_date or date.today()
+
+            severance_amount = decision.severance_amount
+            exempt_amount = decision.exempt_amount
+            taxable_amount = decision.taxable_amount
+
+            service_years = None
+            if employer.start_date is not None:
+                try:
+                    service_years = self.service_years_calc.calculate(
+                        start_date=employer.start_date,
+                        end_date=termination_date,
+                        non_continuous_periods=employer.non_continuous_periods,
+                        continuity_years=getattr(employer, "continuity_years", 0.0) or 0.0,
+                    )
+                except Exception:
+                    service_years = None
+
+            if severance_amount is None:
+                last_salary = float(getattr(employer, "last_salary", 0) or 0)
+                if last_salary > 0 and employer.start_date is not None:
+                    calc = self.calculate_severance(
+                        start_date=employer.start_date,
+                        end_date=termination_date,
+                        last_salary=last_salary,
+                        continuity_years=float(getattr(employer, "continuity_years", 0.0) or 0.0),
+                    )
+                    severance_amount = float(calc.get("severance_amount") or 0)
+                    if exempt_amount is None:
+                        exempt_amount = float(calc.get("exempt_amount") or 0)
+                    if taxable_amount is None:
+                        taxable_amount = float(calc.get("taxable_amount") or 0)
+                else:
+                    try:
+                        fallback = float(getattr(employer, "severance_accrued", 0) or 0)
+                    except Exception:
+                        fallback = 0.0
+                    if fallback > 0:
+                        severance_amount = fallback
+
+            if (exempt_amount is None or taxable_amount is None) and severance_amount is not None:
+                try:
+                    service_years_value = float(service_years) if service_years is not None else 0.0
+                except Exception:
+                    service_years_value = 0.0
+                breakdown = self.severance_calc.calculate_exempt_and_taxable(
+                    severance_amount=float(severance_amount or 0),
+                    service_years=service_years_value,
+                )
+                if exempt_amount is None:
+                    exempt_amount = float(breakdown.get("exempt_amount") or 0)
+                if taxable_amount is None:
+                    taxable_amount = float(breakdown.get("taxable_amount") or 0)
+
+            decision = decision.model_copy(
+                update={
+                    "termination_date": termination_date,
+                    "severance_amount": severance_amount,
+                    "exempt_amount": exempt_amount,
+                    "taxable_amount": taxable_amount,
+                }
+            )
+
+            if employer.end_date is None and decision.termination_date is not None:
+                employer.end_date = decision.termination_date
+            if employer.severance_accrued is None and severance_amount is not None:
+                employer.severance_accrued = float(severance_amount or 0)
+
         # D4.3: חישוב שנות פריסה מקסימליות לפי תקנות המס
+        if decision.termination_date is None:
+            raise ValueError("חסר תאריך סיום עבודה")
         employment_years = self._calculate_employment_years(employer.start_date, decision.termination_date)
         calculated_max_spread = max(1, int(employment_years / 4))  # מינימום 1, עיגול למטה
         # מקסימום 6 שנים לפי חוק
@@ -111,10 +182,10 @@ class TerminationService:
         self._create_employer_grants(employer, decision, plan_details_list)
 
         # עיבוד סכומים
-        if decision.exempt_amount > 0:
+        if float(decision.exempt_amount or 0) > 0:
             self._process_exempt_amount(client, employer, decision, source_suffix, result)
 
-        if decision.taxable_amount > 0:
+        if float(decision.taxable_amount or 0) > 0:
             self._process_taxable_amount(client, employer, decision, source_suffix, result, max_spread_years)
 
         # D3.7: איפוס יתרת הפיצויים במעסיק הנוכחי לאחר יצירת הקצבה/נכס הון
@@ -141,6 +212,17 @@ class TerminationService:
             self.db.add(employer)
         except Exception:
             pass
+
+        # Ensure response includes server-completed fields (router payload.update(result))
+        result.update(
+            {
+                "use_employer_completion": getattr(decision, "use_employer_completion", True),
+                "termination_date": decision.termination_date,
+                "severance_amount": decision.severance_amount,
+                "exempt_amount": decision.exempt_amount,
+                "taxable_amount": decision.taxable_amount,
+            }
+        )
 
         self.db.commit()
         logger.info("Termination transaction committed")

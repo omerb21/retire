@@ -372,3 +372,141 @@ class TestCurrentEmployerAPI:
         
         calc2 = grant2_response.json()["calculation"]
         assert calc2["service_years"] == 9.0  # Same employer, same service years
+
+    def test_termination_minimal_body_completes_from_employer(self, client, db_session) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+
+        unique_id = f"term_min_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Termination Minimal Body",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Completion Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=None,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+
+        assert data.get("termination_date") == "2025-01-01"
+        assert data.get("severance_amount") is not None
+        assert data.get("exempt_amount") is not None
+        assert data.get("taxable_amount") is not None
+
+    def test_termination_manual_mode_missing_required_fields_returns_422(self, client, db_session) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+
+        unique_id = f"term_manual_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Termination Manual Mode",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Manual Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=None,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "use_employer_completion": False,
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 422, resp.text
+
+    def test_termination_manual_amounts_not_overridden_when_completion_enabled(self, client, db_session) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+
+        unique_id = f"term_preserve_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Termination Preserve Amounts",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Preserve Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=55555.0,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "use_employer_completion": True,
+            "termination_date": "2024-12-31",
+            "severance_amount": 12345.67,
+            "exempt_amount": 111.22,
+            "taxable_amount": 333.44,
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+
+        assert data.get("termination_date") == "2024-12-31"
+        assert data.get("severance_amount") == 12345.67
+        assert data.get("exempt_amount") == 111.22
+        assert data.get("taxable_amount") == 333.44

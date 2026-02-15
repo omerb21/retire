@@ -1,7 +1,7 @@
 """
 Pydantic schemas for CurrentEmployer and EmployerGrant - Sprint 3
 """
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from enum import Enum
@@ -113,13 +113,13 @@ class GrantWithCalculation(EmployerGrantOut):
 # Termination Decision schemas
 class TerminationDecisionBase(BaseModel):
     """Base schema for termination decision"""
-    termination_date: date = Field(..., description="תאריך סיום עבודה")
-    use_employer_completion: bool = Field(False, description="האם תבוצע השלמת מעסיק")
-    severance_amount: float = Field(..., description="סכום הפיצויים")
+    use_employer_completion: bool = Field(True, description="האם תבוצע השלמת מעסיק")
+    termination_date: Optional[date] = Field(None, description="תאריך סיום עבודה")
+    severance_amount: Optional[float] = Field(None, description="סכום הפיצויים")
     # TODO: הפעל מחדש לאחר הרצת migration
     # severance_before_termination: Optional[float] = Field(None, description="סכום הפיצויים המקורי לפני עזיבה (כולל התפלגות)")
-    exempt_amount: float = Field(..., description="סכום פטור ממס")
-    taxable_amount: float = Field(..., description="סכום חייב במס")
+    exempt_amount: Optional[float] = Field(None, description="סכום פטור ממס")
+    taxable_amount: Optional[float] = Field(None, description="סכום חייב במס")
     exempt_choice: str = Field(..., description="בחירה לחלק הפטור: redeem_with_exemption/redeem_no_exemption/annuity")
     taxable_choice: str = Field(..., description="בחירה לחלק החייב: redeem_no_exemption/annuity/split (פריסת מס אוטומטית ב-redeem_no_exemption)")
     taxable_annuity_amount: Optional[float] = Field(None, description="D4.1: סכום מדויק מתוך היתרה החייבת לרצף קצבה (כאשר taxable_choice=split)")
@@ -129,6 +129,26 @@ class TerminationDecisionBase(BaseModel):
     confirmed: Optional[bool] = Field(False, description="האם העזיבה אושרה והנתונים הוקפאו")
     source_accounts: Optional[str] = Field(None, description="רשימת שמות התכניות שמהן נלקחו הפיצויים (JSON)")
     plan_details: Optional[str] = Field(None, description="פרטי תכניות מלאים: שם, תאריך התחלה, סכום (JSON)")
+
+    @model_validator(mode="after")
+    def _validate_manual_fields_required(self):
+        if self.use_employer_completion is False:
+            missing = [
+                name
+                for name in (
+                    "termination_date",
+                    "severance_amount",
+                    "exempt_amount",
+                    "taxable_amount",
+                )
+                if getattr(self, name) is None
+            ]
+            if missing:
+                raise ValueError(
+                    "When use_employer_completion=false, the following fields are required: "
+                    + ", ".join(missing)
+                )
+        return self
 
 class TerminationDecisionCreate(TerminationDecisionBase):
     """Schema for creating termination decision"""

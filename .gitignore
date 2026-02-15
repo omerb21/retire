@@ -60,3 +60,4 @@ eyes_traces_check.json
 retire.db
 scripts/probe_trace_evidence.py
 
+retire_secrets.ps1

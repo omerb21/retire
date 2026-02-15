@@ -23,51 +23,8 @@ def handle_process_termination(
     if not isinstance(args, dict):
         return "Error: arguments חייב להיות אובייקט (dict)"
 
-    raw_date = args.get("termination_date")
-    if raw_date is None or (isinstance(raw_date, str) and not raw_date.strip()):
-        try:
-            employer = (
-                db.query(CurrentEmployer)
-                .filter(CurrentEmployer.client_id == client_id)
-                .first()
-            )
-            if employer and employer.end_date:
-                args["termination_date"] = employer.end_date.isoformat()
-            else:
-                args["termination_date"] = date.today().isoformat()
-        except Exception:
-            args["termination_date"] = date.today().isoformat()
-
-    if args.get("severance_amount") is None and args.get("severance_amount_gross") is not None:
-        args["severance_amount"] = args.get("severance_amount_gross")
-
-    if args.get("severance_amount") is None:
-        try:
-            employer = (
-                db.query(CurrentEmployer)
-                .filter(CurrentEmployer.client_id == client_id)
-                .first()
-            )
-            if employer and employer.severance_accrued is not None:
-                args["severance_amount"] = float(employer.severance_accrued or 0)
-        except Exception:
-            pass
-
-    if (args.get("severance_amount") is None) and pension_portfolio:
-        try:
-            total_from_portfolio = 0.0
-            for account in pension_portfolio:
-                if hasattr(account, "model_dump"):
-                    acc_dict = account.model_dump()
-                elif isinstance(account, dict):
-                    acc_dict = account
-                else:
-                    acc_dict = getattr(account, "__dict__", {}) or {}
-                total_from_portfolio += float(acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0)
-            if total_from_portfolio > 0:
-                args["severance_amount"] = total_from_portfolio
-        except Exception:
-            pass
+    # Contract: the agent should send only confirmed + exempt_choice + taxable_choice
+    # (optional use_employer_completion=true). Amounts and dates are completed server-side.
 
     try:
         if isinstance(args.get("exempt_choice"), str):
@@ -90,70 +47,7 @@ def handle_process_termination(
     if args.get("taxable_choice") is None:
         args["taxable_choice"] = "annuity"
 
-    if args.get("exempt_amount") is None or args.get("taxable_amount") is None:
-        try:
-            sev = float(args.get("severance_amount") or 0)
-        except Exception:
-            sev = 0.0
-
-        if sev > 0:
-            try:
-                from app.services.current_employer.calculations import (
-                    ServiceYearsCalculator,
-                    SeveranceCalculator,
-                )
-
-                employer_for_calc = (
-                    db.query(CurrentEmployer)
-                    .filter(CurrentEmployer.client_id == client_id)
-                    .first()
-                )
-                service_years = None
-                if employer_for_calc is not None and employer_for_calc.start_date is not None:
-                    try:
-                        term_date = parse_date_flexible(str(args.get("termination_date")))
-                    except Exception:
-                        term_date = None
-                    try:
-                        service_years = ServiceYearsCalculator.calculate(
-                            start_date=employer_for_calc.start_date,
-                            end_date=term_date,
-                            non_continuous_periods=employer_for_calc.non_continuous_periods,
-                            continuity_years=employer_for_calc.continuity_years,
-                        )
-                    except Exception:
-                        service_years = None
-
-                try:
-                    service_years_value = float(service_years) if service_years is not None else 0.0
-                except Exception:
-                    service_years_value = 0.0
-
-                breakdown = SeveranceCalculator.calculate_exempt_and_taxable(
-                    severance_amount=sev,
-                    service_years=service_years_value,
-                )
-
-                if args.get("exempt_amount") is None:
-                    args["exempt_amount"] = float(breakdown.get("exempt_amount") or 0)
-                if args.get("taxable_amount") is None:
-                    args["taxable_amount"] = float(breakdown.get("taxable_amount") or 0)
-            except Exception:
-                if args.get("exempt_amount") is None:
-                    args["exempt_amount"] = 0.0
-                if args.get("taxable_amount") is None:
-                    args["taxable_amount"] = max(0.0, sev - float(args.get("exempt_amount") or 0))
-        else:
-            if args.get("exempt_amount") is None:
-                args["exempt_amount"] = 0.0
-            if args.get("taxable_amount") is None:
-                args["taxable_amount"] = 0.0
-
     required_params = [
-        "termination_date",
-        "severance_amount",
-        "exempt_amount",
-        "taxable_amount",
         "exempt_choice",
         "taxable_choice",
         "confirmed",
@@ -186,7 +80,11 @@ def handle_process_termination(
             return "Error: מעסיק נוכחי לא נמצא"
 
         termination_date_str = args.get("termination_date")
-        termination_date = parse_date_flexible(str(termination_date_str))
+        termination_date = (
+            parse_date_flexible(str(termination_date_str))
+            if termination_date_str is not None and str(termination_date_str).strip()
+            else None
+        )
 
         plan_details_str = args.get("plan_details")
         if not plan_details_str and pension_portfolio:
@@ -231,14 +129,14 @@ def handle_process_termination(
 
         taxable_annuity_amount = args.get("taxable_annuity_amount")
         taxable_capital_amount = args.get("taxable_capital_amount")
-        taxable_amount = float(args.get("taxable_amount"))
+        taxable_amount = float(args.get("taxable_amount")) if args.get("taxable_amount") is not None else None
 
         if taxable_annuity_amount is not None or taxable_capital_amount is not None:
             taxable_annuity_amount = float(taxable_annuity_amount or 0)
             taxable_capital_amount = float(taxable_capital_amount or 0)
             total_split = taxable_annuity_amount + taxable_capital_amount
 
-            if total_split > taxable_amount + 0.01:
+            if taxable_amount is not None and total_split > taxable_amount + 0.01:
                 return (
                     f"Error: סכום הפיצול ({total_split:,.0f} ₪) גדול מהסכום החייב ({taxable_amount:,.0f} ₪)"
                 )
@@ -252,8 +150,8 @@ def handle_process_termination(
         decision = TerminationDecisionCreate(
             termination_date=termination_date,
             use_employer_completion=args.get("use_employer_completion", True),
-            severance_amount=float(args.get("severance_amount")),
-            exempt_amount=float(args.get("exempt_amount")),
+            severance_amount=float(args.get("severance_amount")) if args.get("severance_amount") is not None else None,
+            exempt_amount=float(args.get("exempt_amount")) if args.get("exempt_amount") is not None else None,
             taxable_amount=taxable_amount,
             exempt_choice=args.get("exempt_choice"),
             taxable_choice=args.get("taxable_choice"),
