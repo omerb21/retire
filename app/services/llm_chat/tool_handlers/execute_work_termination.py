@@ -5,6 +5,10 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models import CurrentEmployer
+from app.services.current_employer import TerminationService
+from app.services.current_employer.termination_parts.termination_amounts_ssot import (
+    compute_termination_amounts_ssot,
+)
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -36,18 +40,48 @@ def handle_execute_work_termination(*, args: dict, client_id: int, db: Session) 
 
         severance_info = None
         if calculate_severance and employer.last_salary and employer.start_date:
-            years_of_service = (termination_date - employer.start_date).days / 365.25
+            termination_service = TerminationService(db)
             salary = float(final_salary) if final_salary else float(employer.last_salary)
-            severance_amount = salary * years_of_service
+            calc = termination_service.calculate_severance(
+                start_date=employer.start_date,
+                end_date=termination_date,
+                last_salary=salary,
+                continuity_years=float(getattr(employer, "continuity_years", 0.0) or 0.0),
+            )
 
-            annual_cap = 13310  # 2024 ceiling
-            exempt_amount = min(severance_amount, annual_cap * years_of_service)
-            taxable_amount = max(0, severance_amount - exempt_amount)
+            try:
+                years_of_service = float(calc.get("service_years") or 0)
+            except Exception:
+                years_of_service = 0.0
+
+            try:
+                formula_total = float(calc.get("severance_amount") or 0)
+            except Exception:
+                formula_total = 0.0
+
+            try:
+                exempt_amount = float(calc.get("exempt_amount") or 0)
+            except Exception:
+                exempt_amount = 0.0
+
+            try:
+                accrued_total = float(getattr(employer, "severance_accrued", 0) or 0)
+            except Exception:
+                accrued_total = 0.0
+
+            ssot = compute_termination_amounts_ssot(
+                formula_total=formula_total,
+                accrued_total=accrued_total,
+                exempt_amount=exempt_amount,
+            )
+
+            severance_total = float(ssot.get("severance_total") or 0)
+            taxable_amount = float(ssot.get("taxable_amount") or 0)
 
             severance_info = {
                 "years_of_service": round(years_of_service, 2),
                 "last_salary": salary,
-                "severance_amount": round(severance_amount, 2),
+                "severance_amount": round(severance_total, 2),
                 "exempt_amount": round(exempt_amount, 2),
                 "taxable_amount": round(taxable_amount, 2),
             }

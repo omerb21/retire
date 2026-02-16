@@ -828,6 +828,14 @@ def execute_tool_call(
         if tool_name == "EXECUTE_WORK_TERMINATION":
             return handle_execute_work_termination(args=args, client_id=client_id, db=db)
 
+        if tool_name == "PROCESS_TERMINATION":
+            return handle_process_termination(
+                args=args,
+                client_id=client_id,
+                db=db,
+                pension_portfolio=pension_portfolio,
+            )
+
         if tool_name == "CALCULATE_FIXATION_OF_RIGHTS":
             return handle_calculate_fixation_of_rights(
                 args=args,
