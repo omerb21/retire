@@ -18,7 +18,26 @@ def handle_process_termination(
     db: Session,
     pension_portfolio: Optional[list[Any]] = None,
 ) -> str:
-    logger.info("🔴 PROCESS_TERMINATION called - Execution Mode!")
+    _interesting_keys = [
+        "severance_amount",
+        "exempt_amount",
+        "taxable_amount",
+        "taxable_annuity_amount",
+        "taxable_capital_amount",
+    ]
+    _present_keys = [k for k in _interesting_keys if isinstance(args, dict) and k in args]
+    _present_values = {
+        k: args.get(k)
+        for k in _interesting_keys
+        if isinstance(args, dict) and (k in args) and (args.get(k) is not None)
+    }
+    logger.info(
+        "TOOL_ENTRY client_id=%s tool_name=%s present_keys=%s present_values=%s",
+        client_id,
+        "PROCESS_TERMINATION",
+        _present_keys,
+        _present_values,
+    )
 
     if not isinstance(args, dict):
         return "Error: arguments חייב להיות אובייקט (dict)"

@@ -14,7 +14,7 @@ logger = logging.getLogger("app.llm_chat.tools")
 
 
 def handle_execute_work_termination(*, args: dict, client_id: int, db: Session) -> str:
-    logger.info("🚪 EXECUTE_WORK_TERMINATION called - Executing work termination")
+    logger.info("🚪 EXECUTE_WORK_TERMINATION called")
 
     try:
         termination_date_str = args.get("termination_date")
@@ -37,6 +37,19 @@ def handle_execute_work_termination(*, args: dict, client_id: int, db: Session) 
         employer.end_date = termination_date
         if final_salary is not None:
             employer.last_salary = float(final_salary)
+
+        logger.info(
+            "TOOL_ENTRY client_id=%s tool_name=%s termination_date=%s employer_id=%s employer_start_date=%s employer_last_salary=%s employer_severance_accrued=%s employer_severance_balance=%s employer_continuity_years=%s",
+            client_id,
+            "EXECUTE_WORK_TERMINATION",
+            termination_date_str,
+            getattr(employer, "id", None),
+            getattr(employer, "start_date", None),
+            getattr(employer, "last_salary", None),
+            getattr(employer, "severance_accrued", None),
+            getattr(employer, "severance_balance", None),
+            getattr(employer, "continuity_years", None),
+        )
 
         severance_info = None
         if calculate_severance and employer.last_salary and employer.start_date:
@@ -77,6 +90,16 @@ def handle_execute_work_termination(*, args: dict, client_id: int, db: Session) 
 
             severance_total = float(ssot.get("severance_total") or 0)
             taxable_amount = float(ssot.get("taxable_amount") or 0)
+
+            logger.info(
+                "SSOT_INPUT_OUTPUT tool_name=%s formula_total=%s accrued_total=%s exempt_amount=%s severance_total=%s taxable_amount=%s",
+                "EXECUTE_WORK_TERMINATION",
+                formula_total,
+                accrued_total,
+                exempt_amount,
+                severance_total,
+                taxable_amount,
+            )
 
             severance_info = {
                 "years_of_service": round(years_of_service, 2),
