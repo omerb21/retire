@@ -2,6 +2,7 @@
 Employment Service Module
 מודול שירותי העסקה
 """
+import logging
 from typing import Optional
 from datetime import date
 from sqlalchemy.orm import Session
@@ -9,6 +10,9 @@ from sqlalchemy import select
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
 from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate
+
+
+logger = logging.getLogger("app.current_employer.employment")
 
 
 class EmploymentService:
@@ -75,6 +79,11 @@ class EmploymentService:
         Returns:
             CurrentEmployer מעודכן
         """
+        severance_accrued_before = getattr(ce, "severance_accrued", None)
+        payload_severance_accrued = getattr(employer_data, "severance_balance", None)
+        if payload_severance_accrued is None:
+            payload_severance_accrued = getattr(employer_data, "severance_accrued", None)
+
         # חשוב! לא לדרוס עם None
         data = employer_data.model_dump(exclude_none=True)
         
@@ -93,6 +102,17 @@ class EmploymentService:
         for k, v in data.items():
             setattr(ce, k, v)
         ce.last_update = date.today()  # תמיד עדכון לפי שרת
+
+        logger.info(
+            "CURRENT_EMPLOYER_WRITE_PATH client_id=%s employer_id=%s source_tag=%s severance_accrued_before=%s severance_accrued_after=%s payload_severance_accrued=%s termination_date=%s",
+            getattr(ce, "client_id", None),
+            getattr(ce, "id", None),
+            "api_update:EmploymentService._update_existing_employer",
+            severance_accrued_before,
+            getattr(ce, "severance_accrued", None),
+            payload_severance_accrued,
+            None,
+        )
         
         self.db.add(ce)
         self.db.commit()
