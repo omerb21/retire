@@ -1,6 +1,6 @@
 ﻿import logging
 
-from app.services.llm_chat.tool_execution import execute_tool_call
+from app.services.agent_execution.tool_executor import execute_tool_call
 from app.services.llm_pension_agent_service import pension_llm_service
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,

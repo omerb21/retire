@@ -109,10 +109,3 @@ def test_public_chat_explicit_get_client_snapshot_json_only(monkeypatch, _test_d
         e.get("payload", {}).get("tool_name") == "GET_CLIENT_SNAPSHOT"
         for e in tool_call_events
     ), f"No tool_call event for GET_CLIENT_SNAPSHOT found in {tool_call_events}"
-
-    # Verify execution_path is the shortcut
-    exec_path_events = [e for e in events if e["event_type"] == "execution_path"]
-    assert any(
-        e.get("payload", {}).get("path_id") == "chat.stream.explicit_tool_shortcut"
-        for e in exec_path_events
-    ), f"Expected explicit_tool_shortcut execution_path, got {exec_path_events}"

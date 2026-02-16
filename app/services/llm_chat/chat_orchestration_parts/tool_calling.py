@@ -24,7 +24,7 @@ def _get_execute_tool_call():
     fn = getattr(facade, "execute_tool_call", None)
     if callable(fn):
         return fn
-    from app.services.llm_chat.tool_execution import execute_tool_call as _local_execute_tool_call
+    from app.services.agent_execution.tool_executor import execute_tool_call as _local_execute_tool_call
 
     return _local_execute_tool_call
 

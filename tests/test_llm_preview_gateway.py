@@ -1,6 +1,7 @@
 import json
 
 import app.services.llm_chat.chat_orchestration as chat_orch
+import app.services.llm_chat.tool_execution as tool_exec
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 
 
@@ -50,7 +51,7 @@ def test_run_retirement_scenarios_preview_does_not_persist(db_session, client, m
 
 
 def test_get_system_numeric_constants_returns_payload(db_session, client) -> None:
-    tool_result = chat_orch.execute_tool_call(
+    tool_result = tool_exec.execute_tool_call(
         tool_name="GET_SYSTEM_NUMERIC_CONSTANTS",
         args={},
         client_id=client.id,

@@ -25,7 +25,16 @@ def _execute_tool_call(
 ) -> str:
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
-    execute_tool_call_fn = _get_stream_orchestration_facade().execute_tool_call
+    def _get_execute_tool_call():
+        facade = _get_stream_orchestration_facade()
+        fn = getattr(facade, "execute_tool_call", None)
+        if callable(fn):
+            return fn
+        from app.services.agent_execution.tool_executor import execute_tool_call as _local_execute_tool_call
+
+        return _local_execute_tool_call
+
+    execute_tool_call_fn = _get_execute_tool_call()
 
     req_id = request_id or "unknown"
     log_llm_event(

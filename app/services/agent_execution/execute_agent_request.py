@@ -34,6 +34,8 @@ from app.services.llm_chat.explicit_tool_shortcuts import (
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
 from app.services.intent_classifier import IntentType, classify_intent
 from app.services.llm_pension_agent_service import pension_llm_service
+from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_executor import execute_with_guard
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -287,6 +289,16 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     effective_request = _apply_execution_only_prompt_copy(effective_request, last_user_msg=last_user_msg, intent=intent)
 
     try:
+        set_tool_execution_context(
+            request=effective_request,
+            policy_decision=decision,
+            intent_type=intent_type,
+            streaming=False,
+        )
+    except Exception:
+        pass
+
+    try:
         _ui_payload = {
             "user_message": last_user_msg,
             "client_id": effective_request.client_id,
@@ -313,28 +325,21 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         return ChatResponse(reply=reply, computed_data=computed)
 
     if is_explicit_client_snapshot_request(last_user_msg) and effective_request.client_id is not None:
-        try:
-            from app.services.llm_chat.tool_handlers.get_client_snapshot import handle_get_client_snapshot
-
-            tool_result = handle_get_client_snapshot(args={}, client_id=int(effective_request.client_id), db=db)
-            try:
-                log_trace_event(
-                    event_type="tool_call",
-                    payload={"tool_name": "GET_CLIENT_SNAPSHOT", "args": {}, "shortcut": True},
-                    client_id=effective_request.client_id,
-                    endpoint=endpoint,
-                )
-                _eyes_emit(
-                    "tool_call",
-                    {"tool_name": "GET_CLIENT_SNAPSHOT", "args": {}, "shortcut": True},
-                    client_id=effective_request.client_id,
-                    endpoint=endpoint,
-                )
-            except Exception:
-                pass
-            return ChatResponse(reply=tool_result, computed_data=None)
-        except Exception as exc:
-            logger.warning("GET_CLIENT_SNAPSHOT deterministic lane failed: %s", exc)
+        tool_result = execute_with_guard(
+            request=effective_request,
+            db=db,
+            tool_name="GET_CLIENT_SNAPSHOT",
+            tool_args={},
+            streaming=False,
+            policy_decision=decision,
+            intent_type=intent_type,
+            pension_portfolio=getattr(effective_request, "pension_portfolio", None),
+            force_max_exemption=False,
+            agent_reply=None,
+            user_approved=True,
+            request_id=None,
+        )
+        return ChatResponse(reply=tool_result, computed_data=None)
 
     try:
         if (
@@ -428,6 +433,16 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     )
 
     try:
+        set_tool_execution_context(
+            request=effective_request,
+            policy_decision=decision,
+            intent_type=intent_type,
+            streaming=True,
+        )
+    except Exception:
+        pass
+
+    try:
         _ui_payload = {
             "user_message": last_user_msg,
             "client_id": effective_request.client_id,
@@ -460,37 +475,20 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
         return StreamingResponse(_gen(), media_type="text/plain")
 
     if is_explicit_client_snapshot_request(last_user_msg) and effective_request.client_id is not None:
-        from app.services.llm_chat.tool_handlers.get_client_snapshot import handle_get_client_snapshot
-
-        snap_result = handle_get_client_snapshot(args={}, client_id=int(effective_request.client_id), db=db)
-        try:
-            _ep_payload = {
-                "path_id": "chat.stream.explicit_tool_shortcut",
-                "reason": "user_explicitly_requested_GET_CLIENT_SNAPSHOT",
-            }
-            log_trace_event(event_type="execution_path", payload=_ep_payload, client_id=effective_request.client_id, endpoint=endpoint)
-            _eyes_emit("execution_path", _ep_payload, client_id=effective_request.client_id, endpoint=endpoint)
-
-            _tc_payload = {
-                "tool_name": "GET_CLIENT_SNAPSHOT",
-                "args": {},
-                "client_id": effective_request.client_id,
-                "shortcut": True,
-            }
-            log_trace_event(event_type="tool_call", payload=_tc_payload, client_id=effective_request.client_id, endpoint=endpoint)
-            _eyes_emit("tool_call", _tc_payload, client_id=effective_request.client_id, endpoint=endpoint)
-
-            _tr_payload = {
-                "tool_name": "GET_CLIENT_SNAPSHOT",
-                "success": True,
-                "result_preview": (snap_result or "")[:2000],
-                "result_length": len(snap_result or ""),
-                "shortcut": True,
-            }
-            log_trace_event(event_type="tool_result", payload=_tr_payload, client_id=effective_request.client_id, endpoint=endpoint)
-            _eyes_emit("tool_result", _tr_payload, client_id=effective_request.client_id, endpoint=endpoint)
-        except Exception:
-            pass
+        snap_result = execute_with_guard(
+            request=effective_request,
+            db=db,
+            tool_name="GET_CLIENT_SNAPSHOT",
+            tool_args={},
+            streaming=True,
+            policy_decision=decision,
+            intent_type=intent_type,
+            pension_portfolio=getattr(effective_request, "pension_portfolio", None),
+            force_max_exemption=False,
+            agent_reply=None,
+            user_approved=True,
+            request_id=None,
+        )
 
         def _snap_gen() -> Iterator[str]:
             yield snap_result
