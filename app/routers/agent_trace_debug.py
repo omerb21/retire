@@ -172,35 +172,88 @@ def run_trace_fixture(
     tool_result: str | None = None
 
     try:
-        from app.services.llm_chat.tool_execution import execute_tool_call
+        from app.services.llm_agent_tools_service import AgentToolsService
+        from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+            build_default_termination_plan_preview,
+            store_current_employer_termination_plan_preview,
+        )
+
+        def _log_tool_call(tool_name: str, args: dict) -> None:
+            log_trace_event(
+                event_type="tool_call",
+                payload={"tool_name": tool_name, "args": args, "synthetic": True},
+                client_id=client_id,
+                endpoint="/api/v1/debug/trace-fixtures/run",
+            )
+
+        def _log_tool_result(tool_name: str, result: str, success: bool = True) -> None:
+            log_trace_event(
+                event_type="tool_result",
+                payload={
+                    "tool_name": tool_name,
+                    "success": bool(success),
+                    "result_preview": (result or "")[:2000],
+                    "result_length": len(result or ""),
+                    "synthetic": True,
+                },
+                client_id=client_id,
+                endpoint="/api/v1/debug/trace-fixtures/run",
+            )
 
         if fixture == "cashflow":
-            tool_result = execute_tool_call(
-                tool_name="RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-                args={"retirement_age": 67},
-                client_id=int(client_id),
-                db=db,
+            tool_name = "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+            args = {"age": 67}
+            _log_tool_call(tool_name, args)
+            agent_tools = AgentToolsService(db=db, client_id=int(client_id))
+            res = agent_tools.run_retirement_cashflow_analysis(
+                retirement_date="",
+                desired_monthly_income=None,
+                apply_max_exemption=False,
+                desired_income_is_net=None,
+                explicit_age=67,
+                explicit_gender=None,
             )
-            notes.append("Executed RUN_RETIREMENT_CASHFLOW_ANALYSIS with retirement_age=67")
+            tool_result = json.dumps(res, ensure_ascii=False)
+            _log_tool_result(tool_name, tool_result, success=bool(isinstance(res, dict) and res.get("success")))
+            notes.append("Executed RUN_RETIREMENT_CASHFLOW_ANALYSIS via AgentToolsService")
 
         elif fixture == "target_plan":
-            tool_result = execute_tool_call(
-                tool_name="BUILD_TARGET_PENSION_PLAN",
-                args={"target_monthly_pension": 15000},
-                client_id=int(client_id),
-                db=db,
-            )
-            notes.append("Executed BUILD_TARGET_PENSION_PLAN with target_monthly_pension=15000")
+            tool_name = "BUILD_TARGET_PENSION_PLAN"
+            args = {"target_monthly_pension": 15000}
+            _log_tool_call(tool_name, args)
+            agent_tools = AgentToolsService(db=db, client_id=int(client_id))
+            res = agent_tools.build_target_pension_plan(target_monthly_pension=15000.0)
+            tool_result = json.dumps(res, ensure_ascii=False)
+            _log_tool_result(tool_name, tool_result, success=bool(isinstance(res, dict) and res.get("success")))
+            notes.append("Executed BUILD_TARGET_PENSION_PLAN via AgentToolsService")
 
         elif fixture == "termination":
-            tool_result = execute_tool_call(
-                tool_name="PROCESS_TERMINATION",
-                args={"confirmed": False},
-                client_id=int(client_id),
-                db=db,
-                user_approved=False,
+            tool_name = "PROCESS_TERMINATION"
+            args = {"confirmed": False}
+            _log_tool_call(tool_name, args)
+
+            preview_text, default_template = build_default_termination_plan_preview(
+                current_employer_amount=0.0,
+                context=None,
             )
-            notes.append("Executed PROCESS_TERMINATION with confirmed=False (dry run / approval request)")
+            try:
+                store_current_employer_termination_plan_preview(
+                    db=db,
+                    client_id=int(client_id),
+                    payload={
+                        "plan_args": {},
+                        "termination_arguments_template": dict(default_template),
+                        "awaiting_user_confirmation": True,
+                        "approved": False,
+                        "declined": False,
+                    },
+                )
+            except Exception:
+                pass
+
+            tool_result = preview_text
+            _log_tool_result(tool_name, tool_result, success=True)
+            notes.append("Generated PROCESS_TERMINATION preview via blocked_balances_policy")
 
     except Exception as exc:
         notes.append(f"Tool execution raised: {type(exc).__name__}: {str(exc)[:500]}")

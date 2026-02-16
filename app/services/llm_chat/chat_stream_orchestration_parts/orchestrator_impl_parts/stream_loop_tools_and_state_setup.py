@@ -9,8 +9,6 @@ def _setup_tools_and_state(
     original_user_msg: str,
     resolved_intent,
     advice_compensation_mode: bool,
-    allow_tools_for_intent,
-    get_tools_disabled_reason,
     log_llm_event,
     logger,
     load_current_effective_state,
@@ -23,17 +21,14 @@ def _setup_tools_and_state(
  ):
     tools_enabled_reason: str | None = None
     tools_disabled_reason: str | None = None
-    tools_enabled = allow_tools_for_intent(original_user_msg or "", resolved_intent)
+
+    tools_enabled = bool(getattr(request, "tools_enabled", True))
     if advice_compensation_mode:
         tools_enabled = True
+
     if not tools_enabled:
-        tools_enabled_reason = get_tools_disabled_reason(original_user_msg or "", resolved_intent)
+        tools_enabled_reason = getattr(request, "tools_disabled_reason", None)
         tools_disabled_reason = tools_enabled_reason
-        try:
-            if tools_enabled_reason is not None:
-                object.__setattr__(request, "tools_disabled_reason", tools_enabled_reason)
-        except Exception:
-            pass
         resolved_intent = ChatIntentClass.NO_TOOLS
 
     ui_action_short_circuit_allowed = tools_disabled_reason not in {"conceptual", "conceptual_form"}

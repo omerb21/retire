@@ -24,7 +24,6 @@ def _prepare_orchestration_inputs(
 
     from app.models.client import Client
     from app.models import CurrentEmployer, EmployerGrant, GrantType
-    from app.guards.tool_intent_guard import allow_tools_for_intent
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _digits_only,
         _extract_commutation_account_number,
@@ -125,20 +124,7 @@ def _prepare_orchestration_inputs(
         client_id=request.client_id,
     )
 
-    try:
-        tools_enabled = getattr(request, "tools_enabled")
-    except Exception:
-        tools_enabled = None
-
-    if tools_enabled is None:
-        try:
-            detected_intent = detect_intent(original_user_msg)
-            tools_enabled = allow_tools_for_intent(original_user_msg or "", detected_intent)
-            object.__setattr__(request, "tools_enabled", bool(tools_enabled))
-        except Exception:
-            tools_enabled = True
-
-    tools_enabled = bool(tools_enabled)
+    tools_enabled = bool(getattr(request, "tools_enabled", True))
 
     if request.client_id is not None:
         last_user_text = find_last_user_message(request.messages)

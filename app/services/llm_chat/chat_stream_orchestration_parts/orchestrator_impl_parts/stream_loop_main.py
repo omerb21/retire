@@ -65,8 +65,6 @@ from app.services.llm_chat.intent_classifier import (
 )
 from app.guards.advisor_behavior_guard import enforce_behavioral_limits
 from app.guards.tool_intent_guard import (
-    allow_tools_for_intent,
-    get_tools_disabled_reason,
     is_conceptual_no_execute_request,
     sanitize_words_only_conceptual,
     sanitize_words_only_output,
@@ -550,8 +548,6 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         original_user_msg=original_user_msg,
         resolved_intent=resolved_intent,
         advice_compensation_mode=bool(advice_compensation_mode),
-        allow_tools_for_intent=allow_tools_for_intent,
-        get_tools_disabled_reason=get_tools_disabled_reason,
         log_llm_event=log_llm_event,
         logger=logger,
         load_current_effective_state=load_current_effective_state,
