@@ -23,6 +23,9 @@ from app.services.current_employer.termination_parts.validation import (
     _parse_plan_details,
     _parse_source_accounts,
 )
+from app.services.current_employer.termination_parts.termination_amounts_ssot import (
+    compute_termination_amounts_ssot,
+)
 from app.services.current_employer.termination_parts.repository import (
     TerminationRepositoryMixin,
     _create_employer_grants,
@@ -66,12 +69,12 @@ class TerminationService:
         logger.info("Termination decision received")
         logger.debug("Termination decision payload: %s", decision.model_dump())
 
+        sent_severance = decision.severance_amount is not None
+        sent_exempt = decision.exempt_amount is not None
+        sent_taxable = decision.taxable_amount is not None
+
         if getattr(decision, "use_employer_completion", True):
             termination_date = decision.termination_date or employer.end_date or date.today()
-
-            severance_amount = decision.severance_amount
-            exempt_amount = decision.exempt_amount
-            taxable_amount = decision.taxable_amount
 
             service_years = None
             if employer.start_date is not None:
@@ -85,7 +88,78 @@ class TerminationService:
                 except Exception:
                     service_years = None
 
-            if severance_amount is None:
+            # Manual wins: only when severance_amount was sent (non-null)
+            if sent_severance:
+                try:
+                    sev = float(decision.severance_amount or 0.0)
+                except Exception:
+                    sev = 0.0
+
+                if sent_exempt and sent_taxable:
+                    try:
+                        exm = float(decision.exempt_amount or 0.0)
+                    except Exception:
+                        exm = 0.0
+                    try:
+                        tax = float(decision.taxable_amount or 0.0)
+                    except Exception:
+                        tax = 0.0
+                elif sent_exempt and not sent_taxable:
+                    try:
+                        exm = float(decision.exempt_amount or 0.0)
+                    except Exception:
+                        exm = 0.0
+                    tax = max(0.0, sev - exm)
+                elif sent_taxable and not sent_exempt:
+                    try:
+                        tax = float(decision.taxable_amount or 0.0)
+                    except Exception:
+                        tax = 0.0
+                    exm = max(0.0, sev - tax)
+                else:
+                    # Only severance is manual. Option A: compute exempt by existing logic
+                    # based on the manual severance and service years.
+                    try:
+                        service_years_value = float(service_years or 0.0)
+                    except Exception:
+                        service_years_value = 0.0
+                    breakdown = self.severance_calc.calculate_exempt_and_taxable(
+                        severance_amount=sev,
+                        service_years=service_years_value,
+                    )
+                    try:
+                        exm = float(breakdown.get("exempt_amount") or 0.0)
+                    except Exception:
+                        exm = 0.0
+                    try:
+                        tax = float(breakdown.get("taxable_amount") or 0.0)
+                    except Exception:
+                        tax = 0.0
+
+                decision = decision.model_copy(
+                    update={
+                        "termination_date": termination_date,
+                        "severance_amount": sev,
+                        "exempt_amount": exm,
+                        "taxable_amount": tax,
+                    }
+                )
+
+                if employer.end_date is None and decision.termination_date is not None:
+                    employer.end_date = decision.termination_date
+
+            else:
+                severance_amount = decision.severance_amount
+                exempt_amount = decision.exempt_amount
+                taxable_amount = None
+
+                try:
+                    accrued_total = float(getattr(employer, "severance_accrued", 0) or 0)
+                except Exception:
+                    accrued_total = 0.0
+
+                formula_total = None
+                formula_exempt_amount = None
                 last_salary = float(getattr(employer, "last_salary", 0) or 0)
                 if last_salary > 0 and employer.start_date is not None:
                     calc = self.calculate_severance(
@@ -94,46 +168,57 @@ class TerminationService:
                         last_salary=last_salary,
                         continuity_years=float(getattr(employer, "continuity_years", 0.0) or 0.0),
                     )
-                    severance_amount = float(calc.get("severance_amount") or 0)
-                    if exempt_amount is None:
-                        exempt_amount = float(calc.get("exempt_amount") or 0)
-                    if taxable_amount is None:
-                        taxable_amount = float(calc.get("taxable_amount") or 0)
-                else:
                     try:
-                        fallback = float(getattr(employer, "severance_accrued", 0) or 0)
+                        formula_total = float(calc.get("severance_amount") or 0)
                     except Exception:
-                        fallback = 0.0
-                    if fallback > 0:
-                        severance_amount = fallback
+                        formula_total = 0.0
+                    try:
+                        formula_exempt_amount = float(calc.get("exempt_amount") or 0)
+                    except Exception:
+                        formula_exempt_amount = 0.0
 
-            if (exempt_amount is None or taxable_amount is None) and severance_amount is not None:
-                try:
-                    service_years_value = float(service_years) if service_years is not None else 0.0
-                except Exception:
-                    service_years_value = 0.0
-                breakdown = self.severance_calc.calculate_exempt_and_taxable(
-                    severance_amount=float(severance_amount or 0),
-                    service_years=service_years_value,
+                if formula_exempt_amount is not None:
+                    exempt_amount = float(formula_exempt_amount or 0)
+
+                if exempt_amount is None and (formula_total is not None or accrued_total > 0):
+                    base_for_exempt = None
+                    if formula_total is not None:
+                        base_for_exempt = float(formula_total or 0)
+                    else:
+                        base_for_exempt = float(accrued_total or 0)
+                    try:
+                        service_years_value = float(service_years) if service_years is not None else 0.0
+                    except Exception:
+                        service_years_value = 0.0
+                    breakdown = self.severance_calc.calculate_exempt_and_taxable(
+                        severance_amount=float(base_for_exempt or 0),
+                        service_years=service_years_value,
+                    )
+                    try:
+                        exempt_amount = float(breakdown.get("exempt_amount") or 0)
+                    except Exception:
+                        exempt_amount = 0.0
+
+                ssot_amounts = compute_termination_amounts_ssot(
+                    formula_total=formula_total,
+                    accrued_total=accrued_total,
+                    exempt_amount=exempt_amount,
                 )
-                if exempt_amount is None:
-                    exempt_amount = float(breakdown.get("exempt_amount") or 0)
-                if taxable_amount is None:
-                    taxable_amount = float(breakdown.get("taxable_amount") or 0)
 
-            decision = decision.model_copy(
-                update={
-                    "termination_date": termination_date,
-                    "severance_amount": severance_amount,
-                    "exempt_amount": exempt_amount,
-                    "taxable_amount": taxable_amount,
-                }
-            )
+                severance_total = float(ssot_amounts.get("severance_total") or 0)
+                taxable_amount = float(ssot_amounts.get("taxable_amount") or 0)
 
-            if employer.end_date is None and decision.termination_date is not None:
-                employer.end_date = decision.termination_date
-            if employer.severance_accrued is None and severance_amount is not None:
-                employer.severance_accrued = float(severance_amount or 0)
+                decision = decision.model_copy(
+                    update={
+                        "termination_date": termination_date,
+                        "severance_amount": severance_total,
+                        "exempt_amount": exempt_amount,
+                        "taxable_amount": taxable_amount,
+                    }
+                )
+
+                if employer.end_date is None and decision.termination_date is not None:
+                    employer.end_date = decision.termination_date
 
         # D4.3: חישוב שנות פריסה מקסימליות לפי תקנות המס
         if decision.termination_date is None:

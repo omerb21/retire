@@ -511,6 +511,195 @@ class TestCurrentEmployerAPI:
         assert data.get("exempt_amount") == 111.22
         assert data.get("taxable_amount") == 333.44
 
+    def test_termination_manual_severance_exempt_computes_taxable_and_blocks_ssot(self, client, db_session, monkeypatch) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+        import app.services.current_employer.termination as termination_module
+        from app.services.current_employer.termination import TerminationService
+
+        def _fail_ssot(*args, **kwargs):
+            raise AssertionError("SSOT must not run when severance_amount is sent")
+
+        def _fail_formula(*args, **kwargs):
+            raise AssertionError("calculate_severance must not run when severance_amount is sent")
+
+        monkeypatch.setattr(termination_module, "compute_termination_amounts_ssot", _fail_ssot)
+        monkeypatch.setattr(TerminationService, "calculate_severance", _fail_formula)
+
+        unique_id = f"term_manual_a_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Termination Manual A",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Manual A Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=55555.0,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "use_employer_completion": True,
+            "termination_date": "2024-12-31",
+            "severance_amount": 10000.0,
+            "exempt_amount": 2500.0,
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+
+        assert float(data.get("severance_amount") or 0) == 10000.0
+        assert float(data.get("exempt_amount") or 0) == 2500.0
+        assert float(data.get("taxable_amount") or 0) == 7500.0
+
+    def test_termination_manual_severance_taxable_computes_exempt_and_blocks_ssot(self, client, db_session, monkeypatch) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+        import app.services.current_employer.termination as termination_module
+        from app.services.current_employer.termination import TerminationService
+
+        def _fail_ssot(*args, **kwargs):
+            raise AssertionError("SSOT must not run when severance_amount is sent")
+
+        def _fail_formula(*args, **kwargs):
+            raise AssertionError("calculate_severance must not run when severance_amount is sent")
+
+        monkeypatch.setattr(termination_module, "compute_termination_amounts_ssot", _fail_ssot)
+        monkeypatch.setattr(TerminationService, "calculate_severance", _fail_formula)
+
+        unique_id = f"term_manual_b_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Termination Manual B",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Manual B Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=55555.0,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "use_employer_completion": True,
+            "termination_date": "2024-12-31",
+            "severance_amount": 10000.0,
+            "taxable_amount": 1800.0,
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+
+        assert float(data.get("severance_amount") or 0) == 10000.0
+        assert float(data.get("taxable_amount") or 0) == 1800.0
+        assert float(data.get("exempt_amount") or 0) == 8200.0
+
+    def test_termination_manual_severance_only_uses_calculate_exempt_and_taxable_and_blocks_ssot(self, client, db_session, monkeypatch) -> None:
+        from app.models.client import Client as ClientModel
+        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        import uuid
+        import app.services.current_employer.termination as termination_module
+        from app.services.current_employer.termination import TerminationService
+        from app.services.current_employer.calculations import SeveranceCalculator
+
+        def _fail_ssot(*args, **kwargs):
+            raise AssertionError("SSOT must not run when severance_amount is sent")
+
+        def _fail_formula(*args, **kwargs):
+            raise AssertionError("calculate_severance must not run when severance_amount is sent")
+
+        called = {"count": 0}
+        original = SeveranceCalculator.calculate_exempt_and_taxable
+
+        def _wrapped(self, severance_amount: float, service_years: float):
+            called["count"] += 1
+            return {"exempt_amount": 4000.0, "taxable_amount": 6000.0}
+
+        monkeypatch.setattr(termination_module, "compute_termination_amounts_ssot", _fail_ssot)
+        monkeypatch.setattr(TerminationService, "calculate_severance", _fail_formula)
+        monkeypatch.setattr(SeveranceCalculator, "calculate_exempt_and_taxable", _wrapped)
+
+        unique_id = f"term_manual_c_{uuid.uuid4().hex[:8]}"
+        orm_client = ClientModel(
+            id_number_raw=unique_id,
+            id_number=unique_id,
+            full_name="Termination Manual C",
+            birth_date=date(1985, 1, 1),
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(orm_client)
+        db_session.commit()
+        db_session.refresh(orm_client)
+
+        employer = CurrentEmployerModel(
+            client_id=orm_client.id,
+            employer_name="Manual C Employer",
+            start_date=date(2020, 1, 1),
+            end_date=date(2025, 1, 1),
+            last_salary=10000.0,
+            severance_accrued=55555.0,
+        )
+        db_session.add(employer)
+        db_session.commit()
+
+        payload = {
+            "use_employer_completion": True,
+            "termination_date": "2024-12-31",
+            "severance_amount": 10000.0,
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+            "confirmed": True,
+        }
+        resp = client.post(
+            f"/api/v1/clients/{orm_client.id}/current-employer/termination",
+            json=payload,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+
+        assert called["count"] == 1
+        assert float(data.get("severance_amount") or 0) == 10000.0
+        assert float(data.get("exempt_amount") or 0) == 4000.0
+        assert float(data.get("taxable_amount") or 0) == 6000.0
+
     def test_snapshot_info_has_termination_true_after_current_employer_termination(self, client, db_session) -> None:
         from app.models.client import Client as ClientModel
         from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
