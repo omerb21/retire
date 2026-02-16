@@ -129,30 +129,26 @@ def handle_process_termination(
 
         taxable_annuity_amount = args.get("taxable_annuity_amount")
         taxable_capital_amount = args.get("taxable_capital_amount")
-        taxable_amount = float(args.get("taxable_amount")) if args.get("taxable_amount") is not None else None
 
         if taxable_annuity_amount is not None or taxable_capital_amount is not None:
             taxable_annuity_amount = float(taxable_annuity_amount or 0)
             taxable_capital_amount = float(taxable_capital_amount or 0)
-            total_split = taxable_annuity_amount + taxable_capital_amount
-
-            if taxable_amount is not None and total_split > taxable_amount + 0.01:
-                return (
-                    f"Error: סכום הפיצול ({total_split:,.0f} ₪) גדול מהסכום החייב ({taxable_amount:,.0f} ₪)"
-                )
-
             logger.info(
-                "📊 D4.1: Split taxable amount - annuity: %s, capital: %s",
+                "📊 D4.1: Split request received (amounts provided) - annuity: %s, capital: %s",
                 f"{taxable_annuity_amount:,.0f}",
                 f"{taxable_capital_amount:,.0f}",
             )
 
+        sent_severance = ("severance_amount" in args) and (args.get("severance_amount") is not None)
+        sent_exempt = ("exempt_amount" in args) and (args.get("exempt_amount") is not None)
+        sent_taxable = ("taxable_amount" in args) and (args.get("taxable_amount") is not None)
+
         decision = TerminationDecisionCreate(
             termination_date=termination_date,
-            use_employer_completion=args.get("use_employer_completion", True),
-            severance_amount=float(args.get("severance_amount")) if args.get("severance_amount") is not None else None,
-            exempt_amount=float(args.get("exempt_amount")) if args.get("exempt_amount") is not None else None,
-            taxable_amount=taxable_amount,
+            use_employer_completion=True,
+            severance_amount=float(args.get("severance_amount")) if sent_severance else None,
+            exempt_amount=float(args.get("exempt_amount")) if sent_exempt else None,
+            taxable_amount=float(args.get("taxable_amount")) if sent_taxable else None,
             exempt_choice=args.get("exempt_choice"),
             taxable_choice=args.get("taxable_choice"),
             taxable_annuity_amount=taxable_annuity_amount if taxable_annuity_amount else None,
@@ -177,9 +173,9 @@ def handle_process_termination(
             "max_spread_years": result.get("max_spread_years"),
             "details": {
                 "termination_date": termination_date_str,
-                "severance_amount": args.get("severance_amount"),
-                "exempt_amount": args.get("exempt_amount"),
-                "taxable_amount": args.get("taxable_amount"),
+                "severance_amount": result.get("severance_amount"),
+                "exempt_amount": result.get("exempt_amount"),
+                "taxable_amount": result.get("taxable_amount"),
                 "exempt_choice": args.get("exempt_choice"),
                 "taxable_choice": args.get("taxable_choice"),
                 "taxable_annuity_amount": args.get("taxable_annuity_amount"),
