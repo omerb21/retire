@@ -291,7 +291,30 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                     retirement_year_for_termination = db_client.birth_date.year + int(
                         retirement_age
                     )
-                    actual_termination_date = date(retirement_year_for_termination, 1, 1)
+                    scenario_fallback_date = date(retirement_year_for_termination, 1, 1)
+                    actual_termination_date = scenario_fallback_date
+
+                    current_employer_end_date = None
+                    try:
+                        ce_service = CurrentEmployerEmploymentService(db)
+                        current_employer = ce_service.get_employer(client_id)
+                        current_employer_end_date = getattr(current_employer, "end_date", None)
+                        if current_employer_end_date:
+                            actual_termination_date = current_employer_end_date
+                        logger.info(
+                            "SCENARIO_EXECUTE_TERMINATION_DATE_SOURCE client_id=%s employer_id=%s employer_end_date=%s scenario_fallback_date=%s chosen_termination_date=%s source=%s",
+                            client_id,
+                            getattr(current_employer, "id", None),
+                            current_employer_end_date,
+                            scenario_fallback_date,
+                            actual_termination_date,
+                            "employer_end_date" if current_employer_end_date else "scenario_fallback",
+                        )
+                    except Exception as e:
+                        logger.info(
+                            "  ℹ️ Could not load CurrentEmployer end_date for scenario execution termination handling: %s",
+                            str(e),
+                        )
 
                     try:
                         termination_event = LegacyEmploymentService.confirm_termination(
@@ -312,28 +335,6 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                     except Exception as e:
                         logger.error(
                             "  ג ן¸ Failed to confirm legacy Employment termination during scenario execution: %s",
-                            str(e),
-                        )
-
-                    try:
-                        ce_service = CurrentEmployerEmploymentService(db)
-                        current_employer = ce_service.get_employer(client_id)
-                        ce_service.update_employer_end_date(
-                            current_employer, actual_termination_date
-                        )
-                        logger.info(
-                            "  ג… CurrentEmployer end_date updated during scenario execution (employer_id=%s, date=%s)",
-                            getattr(current_employer, "id", None),
-                            actual_termination_date.isoformat(),
-                        )
-                    except ValueError as e:
-                        logger.info(
-                            "  ג„¹ן¸ Skipping CurrentEmployer termination update: %s",
-                            str(e),
-                        )
-                    except Exception as e:
-                        logger.error(
-                            "  ג ן¸ Failed to update CurrentEmployer termination during scenario execution: %s",
                             str(e),
                         )
                 else:

@@ -94,8 +94,22 @@ class TerminationService:
         severance_accrued = float(employer.severance_accrued or 0.0)
         expected_grant = float(employer.last_salary or 0.0) * float(service_years)
 
-        # בתרחישי פרישה החלטנו שתמיד יש השלמת מעסיק (use_employer_completion=True)
-        severance_amount = max(expected_grant, severance_accrued)
+        if severance_accrued not in (0.0, None):
+            severance_amount = severance_accrued
+            severance_source = "employer_severance_accrued"
+        else:
+            severance_amount = expected_grant
+            severance_source = "formula_last_salary_x_service_years"
+
+        logger.info(
+            "SCENARIO_SEVERANCE_AMOUNT_SOURCE client_id=%s employer_id=%s severance_source=%s employer_severance_accrued=%s formula_total=%s severance_total=%s",
+            self.client_id,
+            getattr(employer, "id", None),
+            severance_source,
+            getattr(employer, "severance_accrued", None),
+            expected_grant,
+            severance_amount,
+        )
 
         logger.info(
             "SCENARIO_TERMINATION_SSOT client_id=%s employer_id=%s termination_date=%s employer_start_date=%s employer_last_salary=%s employer_severance_accrued=%s formula_total=%s severance_total=%s source_flags=%s",
@@ -107,7 +121,10 @@ class TerminationService:
             getattr(employer, "severance_accrued", None),
             expected_grant,
             severance_amount,
-            {"used_accrued": severance_amount == severance_accrued},
+            {
+                "used_accrued": severance_source == "employer_severance_accrued",
+                "severance_source": severance_source,
+            },
         )
 
         termination_year = termination_date.year
@@ -224,10 +241,21 @@ class TerminationService:
             logger.info("  ℹ️ No current employer found for scenario termination, skipping")
             return
 
-        # קביעת תאריך עזיבה לפי שנת הפרישה של התרחיש (1 בינואר של שנת הפרישה)
+        # קביעת תאריך עזיבה: אם המשתמש הגדיר end_date במסך מעסיק נוכחי, זה מקור האמת.
         try:
             retirement_year = self._get_retirement_year(client)
-            termination_date = date(retirement_year, 1, 1)
+            scenario_fallback_date = date(retirement_year, 1, 1)
+            termination_date = current_employer.end_date or scenario_fallback_date
+
+            logger.info(
+                "SCENARIO_TERMINATION_DATE_SOURCE client_id=%s employer_id=%s employer_end_date=%s scenario_fallback_date=%s chosen_termination_date=%s source=%s",
+                self.client_id,
+                getattr(current_employer, "id", None),
+                getattr(current_employer, "end_date", None),
+                scenario_fallback_date,
+                termination_date,
+                "employer_end_date" if current_employer.end_date else "scenario_fallback",
+            )
         except Exception as e:
             logger.warning(
                 "  ⚠️ Failed to compute termination date for scenario termination: %s",
@@ -252,7 +280,12 @@ class TerminationService:
         termination_service = CurrentEmployerTerminationService(self.db)
 
         try:
-            result = termination_service.process_termination(client, current_employer, decision)
+            result = termination_service.process_termination(
+                client,
+                current_employer,
+                decision,
+                reset_severance_balance=False,
+            )
             logger.info(
                 "  ✅ CurrentEmployer termination processed for scenario "
                 "(grant_id=%s, pension_id=%s, capital_id=%s)",

@@ -55,7 +55,8 @@ class TerminationService:
         self,
         client: Client,
         employer: CurrentEmployer,
-        decision: TerminationDecisionCreate
+        decision: TerminationDecisionCreate,
+        reset_severance_balance: bool = True,
     ) -> Dict[str, Optional[int]]:
         """
         עיבוד החלטת סיום העסקה ויצירת ישויות מתאימות
@@ -276,14 +277,29 @@ class TerminationService:
         # D3.7: איפוס יתרת הפיצויים במעסיק הנוכחי לאחר יצירת הקצבה/נכס הון
         # זה מונע ספירה כפולה - הכסף עבר מהפיצויים לקצבה/נכס הון
         original_severance = employer.severance_accrued
-        employer.severance_accrued = 0
-        self.db.add(employer)
-        logger.debug("Reset severance_accrued from %s to 0", original_severance)
+        if reset_severance_balance:
+            employer.severance_accrued = 0
+            self.db.add(employer)
+            logger.info(
+                "TERMINATION_SEVERANCE_RESET client_id=%s employer_id=%s reset=true severance_accrued_before=%s severance_accrued_after=0",
+                getattr(client, "id", None),
+                getattr(employer, "id", None),
+                original_severance,
+            )
 
-        # D3.8: עדכון מידע על איפוס הפיצויים בתוצאה
-        result["severance_reset_info"]["employer_severance_accrued_reset"] = original_severance or 0
-        result["severance_reset_info"]["source_accounts"] = source_account_names
-        logger.debug("Severance reset info: %s", result["severance_reset_info"])
+            # D3.8: עדכון מידע על איפוס הפיצויים בתוצאה
+            result["severance_reset_info"]["employer_severance_accrued_reset"] = original_severance or 0
+            result["severance_reset_info"]["source_accounts"] = source_account_names
+            logger.debug("Severance reset info: %s", result["severance_reset_info"])
+        else:
+            result["severance_reset_info"]["employer_severance_accrued_reset"] = 0
+            result["severance_reset_info"]["source_accounts"] = source_account_names
+            logger.info(
+                "TERMINATION_SEVERANCE_RESET client_id=%s employer_id=%s reset=false severance_accrued_unchanged=%s",
+                getattr(client, "id", None),
+                getattr(employer, "id", None),
+                original_severance,
+            )
 
         # Persist termination confirmation marker on employer (server-side)
         try:
