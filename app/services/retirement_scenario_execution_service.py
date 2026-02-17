@@ -1,8 +1,9 @@
-import json
+﻿import json
 import logging
 from datetime import date
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
 
 from app.models.additional_income import AdditionalIncome
 from app.models.capital_asset import CapitalAsset
@@ -111,7 +112,7 @@ def _compute_snapshot_deltas_from_portfolio_pension_funds(
 
 
 def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -> dict:
-    logger.info("⚡ Executing scenario %s for client %s", scenario_id, client_id)
+    logger.info("ג¡ Executing scenario %s for client %s", scenario_id, client_id)
 
     db_client = db.query(Client).filter(Client.id == client_id).first()
     if not db_client:
@@ -134,9 +135,9 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         )
 
         if not retirement_age:
-            raise ValueError("גיל פרישה חסר בתרחיש")
+            raise ValueError("׳’׳™׳ ׳₪׳¨׳™׳©׳” ׳—׳¡׳¨ ׳‘׳×׳¨׳—׳™׳©")
 
-        logger.info("🧹 Step 1: Cleaning up previous scenario results...")
+        logger.info("נ§¹ Step 1: Cleaning up previous scenario results...")
 
         cleanup_count = 0
 
@@ -158,7 +159,7 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         )
 
         for pf in scenario_pensions:
-            logger.info("  🗑️ Deleting scenario pension: %s", pf.fund_name)
+            logger.info("  נ—‘ן¸ Deleting scenario pension: %s", pf.fund_name)
             db.delete(pf)
             cleanup_count += 1
 
@@ -175,7 +176,7 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         for pf in portfolio_pensions:
             if pf.pension_amount:
                 logger.info(
-                    "  🔄 Resetting pension_amount for: %s (keeping balance)",
+                    "  נ”„ Resetting pension_amount for: %s (keeping balance)",
                     pf.fund_name,
                 )
                 try:
@@ -188,13 +189,13 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                             if original_balance is not None:
                                 pf.balance = float(original_balance)
                                 logger.info(
-                                    "    🔁 Restored original balance for %s from conversion_source: %.2f",
+                                    "    נ” Restored original balance for %s from conversion_source: %.2f",
                                     pf.fund_name,
                                     pf.balance,
                                 )
                 except Exception as e:
                     logger.warning(
-                        "  ⚠️ Failed to restore original balance for %s: %s",
+                        "  ג ן¸ Failed to restore original balance for %s: %s",
                         pf.fund_name,
                         e,
                     )
@@ -213,7 +214,7 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         )
 
         for ca in scenario_capital:
-            logger.info("  🗑️ Deleting scenario capital: %s", ca.asset_name)
+            logger.info("  נ—‘ן¸ Deleting scenario capital: %s", ca.asset_name)
             db.delete(ca)
             cleanup_count += 1
 
@@ -228,23 +229,23 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         )
 
         for ai in scenario_incomes:
-            logger.info("  🗑️ Deleting scenario income: %s", ai.description)
+            logger.info("  נ—‘ן¸ Deleting scenario income: %s", ai.description)
             db.delete(ai)
             cleanup_count += 1
 
         db.flush()
-        logger.info("  ✅ Cleaned up %s items from previous scenarios", cleanup_count)
+        logger.info("  ג… Cleaned up %s items from previous scenarios", cleanup_count)
         logger.info("")
 
-        logger.info("⚡ Step 2: Executing new scenario...")
+        logger.info("ג¡ Step 2: Executing new scenario...")
 
         pension_portfolio_data = params.get("pension_portfolio")
 
         if not pension_portfolio_data:
-            logger.warning("  ⚠️ No pension portfolio data found in saved scenario")
+            logger.warning("  ג ן¸ No pension portfolio data found in saved scenario")
         else:
             logger.info(
-                "  📦 Found %s pension accounts in saved scenario",
+                "  נ“¦ Found %s pension accounts in saved scenario",
                 len(pension_portfolio_data),
             )
 
@@ -263,7 +264,7 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         elif scenario_type == "scenario_3_max_npv":
             result = builder._build_max_npv_scenario()
         else:
-            raise ValueError(f"סוג תרחיש לא ידוע: {scenario_type}")
+            raise ValueError(f"׳¡׳•׳’ ׳×׳¨׳—׳™׳© ׳׳ ׳™׳“׳•׳¢: {scenario_type}")
 
         try:
             from app.services.llm_chat.tool_handlers.transform_funds_conversion import (
@@ -299,18 +300,18 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                             actual_date=actual_termination_date,
                         )
                         logger.info(
-                            "  ✅ Employment termination confirmed during scenario execution (termination_event_id=%s, date=%s)",
+                            "  ג… Employment termination confirmed during scenario execution (termination_event_id=%s, date=%s)",
                             getattr(termination_event, "id", None),
                             actual_termination_date.isoformat(),
                         )
                     except ValueError as e:
                         logger.info(
-                            "  ℹ️ Skipping legacy Employment termination confirmation (business rule): %s",
+                            "  ג„¹ן¸ Skipping legacy Employment termination confirmation (business rule): %s",
                             str(e),
                         )
                     except Exception as e:
                         logger.error(
-                            "  ⚠️ Failed to confirm legacy Employment termination during scenario execution: %s",
+                            "  ג ן¸ Failed to confirm legacy Employment termination during scenario execution: %s",
                             str(e),
                         )
 
@@ -321,32 +322,32 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                             current_employer, actual_termination_date
                         )
                         logger.info(
-                            "  ✅ CurrentEmployer end_date updated during scenario execution (employer_id=%s, date=%s)",
+                            "  ג… CurrentEmployer end_date updated during scenario execution (employer_id=%s, date=%s)",
                             getattr(current_employer, "id", None),
                             actual_termination_date.isoformat(),
                         )
                     except ValueError as e:
                         logger.info(
-                            "  ℹ️ Skipping CurrentEmployer termination update: %s",
+                            "  ג„¹ן¸ Skipping CurrentEmployer termination update: %s",
                             str(e),
                         )
                     except Exception as e:
                         logger.error(
-                            "  ⚠️ Failed to update CurrentEmployer termination during scenario execution: %s",
+                            "  ג ן¸ Failed to update CurrentEmployer termination during scenario execution: %s",
                             str(e),
                         )
                 else:
                     logger.info(
-                        "  ℹ️ Skipping employment termination confirmation: missing birth_date or retirement_age"
+                        "  ג„¹ן¸ Skipping employment termination confirmation: missing birth_date or retirement_age"
                     )
             except Exception as e:
                 logger.error(
-                    "  ⚠️ Unexpected error during employment termination handling in scenario execution: %s",
+                    "  ג ן¸ Unexpected error during employment termination handling in scenario execution: %s",
                     str(e),
                 )
         else:
             logger.info(
-                "  ℹ️ Skipping employment termination handling during scenario execution (include_current_employer_termination=False)"
+                "  ג„¹ן¸ Skipping employment termination handling during scenario execution (include_current_employer_termination=False)"
             )
 
         fixation_record = None
@@ -354,16 +355,16 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
             fixation_record = calculate_and_save_fixation_for_client(db, client_id)
             if fixation_record:
                 logger.info(
-                    "  ✅ Auto rights fixation saved during scenario execution (fixation_id=%s)",
+                    "  ג… Auto rights fixation saved during scenario execution (fixation_id=%s)",
                     fixation_record.id,
                 )
             else:
                 logger.info(
-                    "  ℹ️ Auto rights fixation skipped (client not eligible or no grants)"
+                    "  ג„¹ן¸ Auto rights fixation skipped (client not eligible or no grants)"
                 )
         except Exception as fixation_error:
             logger.error(
-                "  ⚠️ Failed to auto-calculate rights fixation: %s", fixation_error
+                "  ג ן¸ Failed to auto-calculate rights fixation: %s", fixation_error
             )
 
         if scenario_type == "scenario_2_max_capital" and fixation_record is not None:
@@ -374,7 +375,7 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                 )
             except Exception as e:
                 logger.error(
-                    "  ⚠️ Failed to apply exempt capital to scenario commutations or calculate NPV effect: %s",
+                    "  ג ן¸ Failed to apply exempt capital to scenario commutations or calculate NPV effect: %s",
                     e,
                 )
 
@@ -383,7 +384,7 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                 update_fixation_exempt_pension_fields(fixation_record)
             except Exception as e:
                 logger.error(
-                    "  ⚠️ Failed to update exempt pension fields on fixation result: %s",
+                    "  ג ן¸ Failed to update exempt pension fields on fixation result: %s",
                     e,
                 )
 
@@ -392,20 +393,20 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         actions_count = len(result.get("execution_plan", []))
 
         logger.info("")
-        logger.info("✅ Scenario %s executed successfully!", scenario_id)
+        logger.info("ג… Scenario %s executed successfully!", scenario_id)
         logger.info("   - Cleaned: %s old items", cleanup_count)
         logger.info("   - Actions: %s steps", actions_count)
         logger.info(
-            "   - Pension: %.0f ₪/month", result.get("total_pension_monthly", 0)
+            "   - Pension: %.0f ג‚×/month", result.get("total_pension_monthly", 0)
         )
         logger.info(
-            "   - Capital: %s ₪",
+            "   - Capital: %s ג‚×",
             f"{float(result.get('total_capital', 0) or 0):,.0f}",
         )
 
         return {
             "success": True,
-            "message": f"התרחיש בוצע בהצלחה (ניקוי: {cleanup_count} פריטים, פעולות: {actions_count})",
+            "message": f"׳”׳×׳¨׳—׳™׳© ׳‘׳•׳¦׳¢ ׳‘׳”׳¦׳׳—׳” (׳ ׳™׳§׳•׳™: {cleanup_count} ׳₪׳¨׳™׳˜׳™׳, ׳₪׳¢׳•׳׳•׳×: {actions_count})",
             "scenario_id": scenario_id,
             "scenario_name": scenario.scenario_name,
             "cleanup_count": cleanup_count,
@@ -417,3 +418,78 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
     except Exception:
         db.rollback()
         raise
+
+
+def preview_retirement_scenario(db: Session, client_id: int, scenario_id: int) -> dict:
+    bind = db.get_bind()
+    connection = bind.connect()
+    transaction = connection.begin()
+    PreviewSession = sessionmaker(bind=connection, autocommit=False, autoflush=False)
+    preview_db = PreviewSession()
+
+    try:
+        def _commit_override():
+            preview_db.flush()
+
+        preview_db.commit = _commit_override  # type: ignore[method-assign]
+
+        db_client = preview_db.query(Client).filter(Client.id == client_id).first()
+        if not db_client:
+            raise ValueError("client_not_found")
+
+        scenario = (
+            preview_db.query(Scenario)
+            .filter(Scenario.id == scenario_id, Scenario.client_id == client_id)
+            .first()
+        )
+        if not scenario:
+            raise ValueError("scenario_not_found")
+
+        params = json.loads(scenario.parameters) if scenario.parameters else {}
+        retirement_age = params.get("retirement_age")
+        scenario_type = params.get("scenario_type")
+        include_current_employer_termination = bool(
+            params.get("include_current_employer_termination") or False
+        )
+        pension_portfolio_data = params.get("pension_portfolio")
+
+        if not retirement_age:
+            raise ValueError("׳’׳™׳ ׳₪׳¨׳™׳©׳” ׳—׳¡׳¨ ׳‘׳×׳¨׳—׳™׳©")
+
+        builder = RetirementScenariosBuilder(
+            preview_db,
+            client_id,
+            retirement_age,
+            pension_portfolio_data,
+            use_current_employer_termination=include_current_employer_termination,
+        )
+
+        if scenario_type == "scenario_1_max_pension":
+            result = builder._build_max_pension_scenario()
+        elif scenario_type == "scenario_2_max_capital":
+            result = builder._build_max_capital_scenario()
+        elif scenario_type == "scenario_3_max_npv":
+            result = builder._build_max_npv_scenario()
+        else:
+            raise ValueError(f"׳¡׳•׳’ ׳×׳¨׳—׳™׳© ׳׳ ׳™׳“׳•׳¢: {scenario_type}")
+
+        actions_count = len(result.get("execution_plan", []))
+
+        return {
+            "success": True,
+            "message": f"׳”׳×׳¨׳—׳™׳© ׳”׳•׳¨׳¥ ׳›-preview (׳₪׳¢׳•׳׳•׳×: {actions_count})",
+            "scenario_id": scenario_id,
+            "scenario_name": scenario.scenario_name,
+            "cleanup_count": 0,
+            "actions_count": actions_count,
+            "result": result,
+            "include_current_employer_termination": include_current_employer_termination,
+        }
+    finally:
+        try:
+            transaction.rollback()
+        finally:
+            try:
+                preview_db.close()
+            finally:
+                connection.close()
