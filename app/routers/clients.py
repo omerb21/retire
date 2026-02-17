@@ -231,7 +231,7 @@ def get_current_employer_for_client(
         )
 
 
-@router.get("/{client_id}/current-employer/{employer_id}", response_model=CurrentEmployerOut)
+@router.get("/{client_id}/current-employer/{employer_id:int}", response_model=CurrentEmployerOut)
 def get_current_employer(
     client_id: int = Path(..., description="Client ID"),
     employer_id: int = Path(..., description="Employer ID"),
@@ -251,7 +251,7 @@ def get_current_employer(
     return db_employer
 
 
-@router.put("/{client_id}/current-employer/{employer_id}", response_model=CurrentEmployerOut)
+@router.put("/{client_id}/current-employer/{employer_id:int}", response_model=CurrentEmployerOut)
 def update_current_employer(
     employer: CurrentEmployerUpdate,
     client_id: int = Path(..., description="Client ID"),
@@ -273,7 +273,7 @@ def update_current_employer(
     return db_employer
 
 
-@router.delete("/{client_id}/current-employer/{employer_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{client_id}/current-employer/{employer_id:int}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_current_employer(
     client_id: int = Path(..., description="Client ID"),
     employer_id: int = Path(..., description="Employer ID"),

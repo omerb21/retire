@@ -15,6 +15,8 @@ from app.services.retirement_scenarios_api_service import (
 )
 from app.services.retirement_scenario_execution_service import (
     execute_retirement_scenario as execute_retirement_scenario_service,
+
+    preview_retirement_scenario,
 )
 from app.services.retirement import RetirementScenariosBuilder
 from ..schemas import RetirementScenariosRequest
@@ -139,6 +141,33 @@ def get_saved_retirement_scenarios(
         retirement_age=retirement_age,
     )
 
+
+@router.get("/{client_id}/retirement-scenarios/{scenario_id}/preview")
+def preview_retirement_scenario_route(
+    client_id: int = Path(..., description="Client ID"),
+    scenario_id: int = Path(..., description="Scenario ID"),
+    db: Session = Depends(get_db),
+):
+    """
+    Preview (read-only) של תרחיש פרישה. לא מבצע persist ולא משנה נתונים.
+    """
+    try:
+        return preview_retirement_scenario(db=db, client_id=client_id, scenario_id=scenario_id)
+    except ValueError as e:
+        if str(e) == "client_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"לקוח {client_id} לא נמצא",
+            )
+        if str(e) == "scenario_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"תרחיש {scenario_id} לא נמצא",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"שגיאה בהרצת Preview לתרחיש: {str(e)}",
+        )
 
 @router.post("/{client_id}/retirement-scenarios/{scenario_id}/execute")
 def execute_retirement_scenario(
