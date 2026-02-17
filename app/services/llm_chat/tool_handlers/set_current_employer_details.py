@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models import CurrentEmployer
+from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
 
 logger = logging.getLogger("app.llm_chat.tools")
 
@@ -29,9 +30,16 @@ def handle_set_current_employer_details(*, args: dict, client_id: int, db: Sessi
 
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
 
-        existing_employer = (
-            db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).first()
-        )
+        existing_employer = None
+        try:
+            existing_employer = CurrentEmployerEmploymentService(db).get_employer(client_id)
+        except Exception:
+            existing_employer = (
+                db.query(CurrentEmployer)
+                .filter(CurrentEmployer.client_id == client_id)
+                .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+                .first()
+            )
 
         if existing_employer:
             existing_employer.employer_name = employer_name

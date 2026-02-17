@@ -131,7 +131,7 @@ def test_retirement_scenario_preview_does_not_modify_current_employer(db_session
     )
 
     res = api.get(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview")
-    assert res.status_code == 200
+    assert res.status_code == 200, res.text
 
     db_session.expire_all()
     employer_latest = (
@@ -179,7 +179,7 @@ def test_retirement_scenario_execute_modifies_current_employer(db_session) -> No
     sev_before = float(employer_before.severance_accrued or 0.0)
 
     res = api.post(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute")
-    assert res.status_code == 200
+    assert res.status_code == 200, res.text
     payload = res.json()
     assert payload.get("success") is True
     assert int(payload.get("actions_count") or 0) > 0
@@ -222,7 +222,7 @@ def test_retirement_scenario_execute_logs_sources_and_skips_reset(db_session, ca
 
     api = TestClient(app)
     res = api.post(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute")
-    assert res.status_code == 200
+    assert res.status_code == 200, res.text
 
     lines = [str(r.message) for r in caplog.records]
 
@@ -240,6 +240,75 @@ def test_retirement_scenario_execute_logs_sources_and_skips_reset(db_session, ca
     assert reset_line is not None
     assert "reset=false" in reset_line
     print(reset_line)
+
+
+def test_retirement_scenario_uses_complete_current_employer_when_multiple_exist(db_session, caplog) -> None:
+    caplog.set_level(logging.INFO)
+
+    client_id = 990000044
+    scenario_id = 69
+
+    scenario_id = _ensure_client_employer_and_scenario(
+        db_session=db_session,
+        client_id=client_id,
+        scenario_id=scenario_id,
+    )
+
+    db_session.expire_all()
+    employer_complete = (
+        db_session.query(CurrentEmployer)
+        .filter(CurrentEmployer.client_id == client_id)
+        .order_by(CurrentEmployer.id.desc())
+        .first()
+    )
+    assert employer_complete is not None
+
+    sev_complete = float(employer_complete.severance_accrued or 0.0)
+    assert sev_complete > 0.0
+
+    employer_placeholder = CurrentEmployer(
+        client_id=client_id,
+        employer_name="Scenario Employer (placeholder)",
+        start_date=getattr(employer_complete, "start_date", date(2020, 1, 1)),
+        end_date=getattr(employer_complete, "end_date", None),
+        last_salary=None,
+        severance_accrued=None,
+        continuity_years=0.0,
+        other_grants={},
+    )
+    db_session.add(employer_placeholder)
+    db_session.commit()
+
+    api = TestClient(app)
+    preview = api.get(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview")
+    assert preview.status_code == 200, preview.text
+
+    execute = api.post(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute")
+    assert execute.status_code == 200, execute.text
+
+    db_session.expire_all()
+    chosen_employer = (
+        db_session.query(CurrentEmployer)
+        .filter(CurrentEmployer.client_id == client_id)
+        .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+        .first()
+    )
+    assert chosen_employer is not None
+
+    grants_after = (
+        db_session.query(EmployerGrant)
+        .join(CurrentEmployer, EmployerGrant.employer_id == CurrentEmployer.id)
+        .filter(CurrentEmployer.client_id == client_id)
+        .all()
+    )
+    assert grants_after
+    grant_sum = sum(float(getattr(g, "grant_amount", 0.0) or 0.0) for g in grants_after)
+    assert abs(grant_sum - sev_complete) < 0.1
+
+    lines = [str(r.message) for r in caplog.records]
+    selected_line = next((l for l in lines if "CURRENT_EMPLOYER_SELECTED" in l and f"client_id={client_id}" in l), None)
+    assert selected_line is not None
+    assert "reason=fallback_complete_due_to_missing_latest_fields" in selected_line
 
 
 def test_current_employer_grants_route_not_swallowed_by_employer_id(db_session) -> None:

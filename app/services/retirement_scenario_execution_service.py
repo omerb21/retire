@@ -26,6 +26,49 @@ from app.utils.trace_context import get_current_trace_id
 logger = logging.getLogger(__name__)
 
 
+def _log_current_employer_diagnostics(*, db: Session, client_id: int, context_tag: str) -> None:
+    try:
+        from app.models.current_employment import CurrentEmployer
+
+        candidates = (
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+            .all()
+        )
+        candidate_ids = [int(getattr(c, "id", 0) or 0) for c in candidates if getattr(c, "id", None) is not None]
+        if len(candidates) > 1:
+            logger.warning(
+                "SCENARIO_CURRENT_EMPLOYER_MULTIPLE_CANDIDATES client_id=%s context=%s count=%s candidate_ids=%s",
+                client_id,
+                context_tag,
+                len(candidates),
+                candidate_ids,
+            )
+
+        chosen = None
+        try:
+            chosen = CurrentEmployerEmploymentService(db).get_employer(client_id)
+        except Exception:
+            chosen = None
+
+        logger.info(
+            "SCENARIO_CURRENT_EMPLOYER_SELECTED client_id=%s context=%s selected_employer_id=%s start_date=%s end_date=%s last_salary=%s severance_accrued=%s updated_at=%s candidate_count=%s candidate_ids=%s",
+            client_id,
+            context_tag,
+            getattr(chosen, "id", None),
+            getattr(chosen, "start_date", None),
+            getattr(chosen, "end_date", None),
+            getattr(chosen, "last_salary", None),
+            getattr(chosen, "severance_accrued", None),
+            getattr(chosen, "updated_at", None),
+            len(candidates),
+            candidate_ids,
+        )
+    except Exception:
+        return
+
+
 def _compute_snapshot_deltas_from_portfolio_pension_funds(
     *,
     db: Session,
@@ -125,6 +168,8 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
     )
     if not scenario:
         raise ValueError("scenario_not_found")
+
+    _log_current_employer_diagnostics(db=db, client_id=client_id, context_tag="execute_retirement_scenario")
 
     try:
         params = json.loads(scenario.parameters) if scenario.parameters else {}
@@ -445,6 +490,12 @@ def preview_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
         )
         if not scenario:
             raise ValueError("scenario_not_found")
+
+        _log_current_employer_diagnostics(
+            db=preview_db,
+            client_id=client_id,
+            context_tag="preview_retirement_scenario",
+        )
 
         params = json.loads(scenario.parameters) if scenario.parameters else {}
         retirement_age = params.get("retirement_age")

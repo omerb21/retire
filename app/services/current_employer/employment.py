@@ -26,6 +26,81 @@ class EmploymentService:
             db: סשן מסד נתונים
         """
         self.db = db
+
+    def _get_ordered_employer_candidates(self, client_id: int) -> list[CurrentEmployer]:
+        return (
+            self.db.execute(
+                select(CurrentEmployer)
+                .where(CurrentEmployer.client_id == client_id)
+                .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+            )
+            .scalars()
+            .all()
+        )
+
+    def _choose_current_employer(self, *, client_id: int, context_tag: str) -> Optional[CurrentEmployer]:
+        candidates = self._get_ordered_employer_candidates(client_id)
+        candidate_ids = [int(getattr(c, "id", 0) or 0) for c in candidates if getattr(c, "id", None) is not None]
+
+        if len(candidates) > 1:
+            logger.warning(
+                "CURRENT_EMPLOYER_MULTIPLE_CANDIDATES client_id=%s context=%s count=%s candidate_ids=%s",
+                client_id,
+                context_tag,
+                len(candidates),
+                candidate_ids,
+            )
+
+        if not candidates:
+            logger.info(
+                "CURRENT_EMPLOYER_SELECTED client_id=%s context=%s selected_employer_id=%s reason=%s",
+                client_id,
+                context_tag,
+                None,
+                "none",
+            )
+            return None
+
+        complete_candidates = [
+            c
+            for c in candidates
+            if float(getattr(c, "severance_accrued", None) or 0.0) > 0.0
+            and float(getattr(c, "last_salary", None) or 0.0) > 0.0
+        ]
+        complete_ids = [
+            int(getattr(c, "id", 0) or 0)
+            for c in complete_candidates
+            if getattr(c, "id", None) is not None
+        ]
+
+        chosen = candidates[0]
+        reason = "latest"
+
+        if len(candidates) > 1 and complete_candidates:
+            latest_severance = float(getattr(chosen, "severance_accrued", None) or 0.0)
+            latest_salary = float(getattr(chosen, "last_salary", None) or 0.0)
+            latest_missing_critical_fields = latest_severance <= 0.0 or latest_salary <= 0.0
+
+            if latest_missing_critical_fields:
+                chosen = complete_candidates[0]
+                reason = "fallback_complete_due_to_missing_latest_fields"
+
+        logger.info(
+            "CURRENT_EMPLOYER_SELECTED client_id=%s context=%s selected_employer_id=%s start_date=%s end_date=%s last_salary=%s severance_accrued=%s candidate_count=%s candidate_ids=%s complete_candidate_ids=%s reason=%s",
+            client_id,
+            context_tag,
+            getattr(chosen, "id", None),
+            getattr(chosen, "start_date", None),
+            getattr(chosen, "end_date", None),
+            getattr(chosen, "last_salary", None),
+            getattr(chosen, "severance_accrued", None),
+            len(candidates),
+            candidate_ids,
+            complete_ids,
+            reason,
+        )
+
+        return chosen
     
     def create_or_update_employer(
         self,
@@ -49,12 +124,10 @@ class EmploymentService:
         client = self.db.query(Client).filter(Client.id == client_id).first()
         if not client:
             raise ValueError("לקוח לא נמצא")
-        
-        # בדיקה אם מעסיק נוכחי כבר קיים - קבלת האחרון
-        ce = self.db.scalar(
-            select(CurrentEmployer)
-            .where(CurrentEmployer.client_id == client_id)
-            .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+
+        ce = self._choose_current_employer(
+            client_id=client_id,
+            context_tag="EmploymentService.create_or_update_employer",
         )
         
         if ce:
@@ -177,11 +250,9 @@ class EmploymentService:
         if client is None:
             raise ValueError("לקוח לא נמצא")
         
-        # שליפת המעסיק הנוכחי (האחרון)
-        ce = self.db.scalar(
-            select(CurrentEmployer)
-            .where(CurrentEmployer.client_id == client_id)
-            .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+        ce = self._choose_current_employer(
+            client_id=client_id,
+            context_tag="EmploymentService.get_employer",
         )
         
         if ce is None:

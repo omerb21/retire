@@ -22,6 +22,7 @@ from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot,
     upsert_snapshot,
 )
+from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
 
 logger = logging.getLogger("app.snapshot")
 
@@ -510,10 +511,16 @@ class SnapshotService:
     
     def _collect_current_employer(self, client_id: int) -> Optional[Dict]:
         """איסוף מעסיק נוכחי"""
-        employer = self.db.query(CurrentEmployer).filter(
-            CurrentEmployer.client_id == client_id
-        ).first()
-        
+        try:
+            employer = CurrentEmployerEmploymentService(self.db).get_employer(client_id)
+        except Exception:
+            employer = (
+                self.db.query(CurrentEmployer)
+                .filter(CurrentEmployer.client_id == client_id)
+                .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+                .first()
+            )
+
         return self._serialize_current_employer(employer) if employer else None
     
     def _collect_grants(self, client_id: int) -> list:

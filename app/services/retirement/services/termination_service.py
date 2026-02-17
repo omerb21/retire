@@ -12,9 +12,12 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
 from app.models.termination_event import TerminationEvent
-from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
+from app.models.current_employment import CurrentEmployer
+from app.models.current_employment import EmployerGrant
+from app.models.current_employment.enums import GrantType
+from app.services.current_employer.termination import TerminationService as CurrentEmployerTerminationService
+from app.services.current_employer.employment import EmploymentService as CurrentEmployerEmploymentService
 from app.services.current_employer_service import CurrentEmployerService
-from app.services.current_employer import TerminationService as CurrentEmployerTerminationService
 from app.schemas.current_employer import TerminationDecisionCreate
 from app.services.tax_data import TaxDataService
 from app.services.annuity_coefficient import get_annuity_coefficient
@@ -230,12 +233,10 @@ class TerminationService:
             logger.info("  ℹ️ Client not found for termination scenario, skipping")
             return
 
-        current_employer = (
-            self.db.query(CurrentEmployer)
-            .filter(CurrentEmployer.client_id == self.client_id)
-            .order_by(CurrentEmployer.id.desc())
-            .first()
-        )
+        try:
+            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(self.client_id)
+        except Exception:
+            current_employer = None
 
         if not current_employer:
             logger.info("  ℹ️ No current employer found for scenario termination, skipping")
@@ -307,12 +308,10 @@ class TerminationService:
         ).first()
 
         # מציאת מעביד נוכחי/אחרון עבור הלקוח (תומך גם בזרימה החדשה של מעסיק נוכחי)
-        current_employer = (
-            self.db.query(CurrentEmployer)
-            .filter(CurrentEmployer.client_id == self.client_id)
-            .order_by(CurrentEmployer.id.desc())
-            .first()
-        )
+        try:
+            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(self.client_id)
+        except Exception:
+            current_employer = None
 
         if not current_employer:
             logger.info("  ℹ️ No current employer found for termination, skipping")
@@ -367,12 +366,10 @@ class TerminationService:
         ).first()
 
         # מציאת מעביד נוכחי/אחרון עבור הלקוח
-        current_employer = (
-            self.db.query(CurrentEmployer)
-            .filter(CurrentEmployer.client_id == self.client_id)
-            .order_by(CurrentEmployer.id.desc())
-            .first()
-        )
+        try:
+            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(self.client_id)
+        except Exception:
+            current_employer = None
 
         if not current_employer:
             logger.info("  ℹ️ No current employer found for termination, skipping")

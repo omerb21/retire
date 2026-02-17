@@ -4,6 +4,7 @@ Clients router with CRUD operations for Client and CurrentEmployer
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from sqlalchemy.orm import Session
+import logging
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
 
@@ -54,6 +55,8 @@ except ImportError:
 
 # ייבוא סכמת תגובת API
 from app.schemas import APIResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/clients",
@@ -217,6 +220,17 @@ def get_current_employer_for_client(
     service = CurrentEmployerEmploymentService(db)
     try:
         current_employer = service.get_employer(client_id)
+
+        logger.info(
+            "CURRENT_EMPLOYER_ROUTER_GET client_id=%s returned_employer_id=%s start_date=%s end_date=%s last_salary=%s severance_accrued=%s updated_at=%s",
+            client_id,
+            getattr(current_employer, "id", None),
+            getattr(current_employer, "start_date", None),
+            getattr(current_employer, "end_date", None),
+            getattr(current_employer, "last_salary", None),
+            getattr(current_employer, "severance_accrued", None),
+            getattr(current_employer, "updated_at", None),
+        )
         return current_employer
     except ValueError as e:
         message = str(e)
