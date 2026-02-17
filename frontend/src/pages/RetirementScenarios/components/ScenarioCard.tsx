@@ -6,7 +6,8 @@ interface ScenarioCardProps {
   rank: number;
   executingId: number | null;
   formatCurrencyFn: (value: number) => string;
-  onExecute: (scenarioId: number, scenarioName: string) => void;
+  onPreview: (scenarioId: number, scenarioName: string) => void;
+  onApply: (scenarioId: number, scenarioName: string) => void;
 }
 
 export const ScenarioCard: React.FC<ScenarioCardProps> = ({
@@ -14,7 +15,8 @@ export const ScenarioCard: React.FC<ScenarioCardProps> = ({
   rank,
   executingId,
   formatCurrencyFn,
-  onExecute,
+  onPreview,
+  onApply,
 }) => {
   const scenarioId = scenario.scenario_id;
   const isExecuting = executingId !== null && executingId === scenarioId;
@@ -100,17 +102,26 @@ export const ScenarioCard: React.FC<ScenarioCardProps> = ({
         )}
 
         {typeof scenarioId === "number" && (
-          <button
-            onClick={() => onExecute(scenarioId, scenario.scenario_name)}
-            disabled={executingId !== null}
-            className={`retirement-scenarios-execute-button ${
-              isExecuting
-                ? "retirement-scenarios-execute-button--executing"
-                : ""
-            }`}
-          >
-            {isExecuting ? "⏳ מבצע תרחיש..." : "⚡ בצע תרחיש זה"}
-          </button>
+          <div className="retirement-scenarios-card-actions">
+            <button
+              onClick={() => onPreview(scenarioId, scenario.scenario_name)}
+              disabled={executingId !== null}
+              className={`retirement-scenarios-execute-button ${
+                isExecuting
+                  ? "retirement-scenarios-execute-button--executing"
+                  : ""
+              }`}
+            >
+              {isExecuting ? "⏳ מריץ Preview..." : "👁️ Preview"}
+            </button>
+            <button
+              onClick={() => onApply(scenarioId, scenario.scenario_name)}
+              disabled={executingId !== null}
+              className="retirement-scenarios-apply-button"
+            >
+              החל (Apply)
+            </button>
+          </div>
         )}
       </div>
     </div>

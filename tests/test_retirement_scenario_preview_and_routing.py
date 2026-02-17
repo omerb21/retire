@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
+from app.models.current_employment import EmployerGrant
+from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 
 
@@ -99,6 +101,26 @@ def test_retirement_scenario_preview_does_not_modify_current_employer(db_session
     )
 
     api = TestClient(app)
+
+    employer_before = (
+        db_session.query(CurrentEmployer)
+        .filter(CurrentEmployer.client_id == client_id)
+        .order_by(CurrentEmployer.id.desc())
+        .first()
+    )
+    assert employer_before is not None
+    end_date_before = employer_before.end_date
+    sev_before = float(employer_before.severance_accrued or 0.0)
+    grants_before = (
+        db_session.query(EmployerGrant)
+        .join(CurrentEmployer, EmployerGrant.employer_id == CurrentEmployer.id)
+        .filter(CurrentEmployer.client_id == client_id)
+        .count()
+    )
+    pension_funds_before = (
+        db_session.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+    )
+
     res = api.get(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview")
     assert res.status_code == 200
 
@@ -110,7 +132,20 @@ def test_retirement_scenario_preview_does_not_modify_current_employer(db_session
         .first()
     )
     assert employer_latest is not None
-    assert float(employer_latest.severance_accrued or 0.0) == 252695.0
+    assert float(employer_latest.severance_accrued or 0.0) == sev_before
+    assert employer_latest.end_date == end_date_before
+
+    grants_after = (
+        db_session.query(EmployerGrant)
+        .join(CurrentEmployer, EmployerGrant.employer_id == CurrentEmployer.id)
+        .filter(CurrentEmployer.client_id == client_id)
+        .count()
+    )
+    pension_funds_after = (
+        db_session.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+    )
+    assert grants_after == grants_before
+    assert pension_funds_after == pension_funds_before
 
 
 def test_retirement_scenario_execute_modifies_current_employer(db_session) -> None:

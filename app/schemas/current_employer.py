@@ -52,6 +52,8 @@ class CurrentEmployerUpdate(BaseModel):
     last_salary: Optional[float] = None
     average_salary: Optional[float] = None
     severance_accrued: Optional[float] = None
+    monthly_salary: Optional[float] = None
+    severance_balance: Optional[float] = None
     other_grants: Optional[Dict[str, Any]] = None
     tax_withheld: Optional[float] = None
     grant_installments: Optional[List[Dict[str, Any]]] = None

@@ -22,7 +22,8 @@ const RetirementScenariosPage: React.FC = () => {
     results,
     successMessage,
     handleGenerateScenarios,
-    handleExecuteScenario,
+    handlePreviewScenario,
+    handleApplyScenario,
   } = useRetirementScenarios(clientId);
 
   return (
@@ -86,21 +87,24 @@ const RetirementScenariosPage: React.FC = () => {
               rank={1}
               executingId={executing}
               formatCurrencyFn={formatCurrency}
-              onExecute={handleExecuteScenario}
+              onPreview={handlePreviewScenario}
+              onApply={handleApplyScenario}
             />
             <ScenarioCard
               scenario={results.scenarios.scenario_2_max_capital}
               rank={2}
               executingId={executing}
               formatCurrencyFn={formatCurrency}
-              onExecute={handleExecuteScenario}
+              onPreview={handlePreviewScenario}
+              onApply={handleApplyScenario}
             />
             <ScenarioCard
               scenario={results.scenarios.scenario_3_max_npv}
               rank={3}
               executingId={executing}
               formatCurrencyFn={formatCurrency}
-              onExecute={handleExecuteScenario}
+              onPreview={handlePreviewScenario}
+              onApply={handleApplyScenario}
             />
           </div>
 

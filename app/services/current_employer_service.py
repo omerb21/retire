@@ -278,6 +278,17 @@ class CurrentEmployerService:
             return None
 
         update_data = employer_data.model_dump(exclude_unset=True)
+
+        # Frontend compatibility mapping
+        if update_data.get("monthly_salary") is not None and update_data.get("last_salary") is None:
+            update_data["last_salary"] = update_data.get("monthly_salary")
+
+        if update_data.get("severance_balance") is not None and update_data.get("severance_accrued") is None:
+            update_data["severance_accrued"] = update_data.get("severance_balance")
+
+        update_data.pop("monthly_salary", None)
+        update_data.pop("severance_balance", None)
+
         for field, value in update_data.items():
             setattr(current_employer, field, value)
 

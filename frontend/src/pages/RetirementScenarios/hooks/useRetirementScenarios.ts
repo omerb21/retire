@@ -105,7 +105,86 @@ export function useRetirementScenarios(clientId: string | undefined) {
     void initializeAgeAndScenarios();
   }, [clientId]);
 
-  const handleExecuteScenario = async (
+  const handlePreviewScenario = async (
+    scenarioId: number,
+    scenarioName: string
+  ) => {
+    if (!clientId) {
+      setError("מזהה לקוח חסר");
+      return;
+    }
+
+    setExecuting(scenarioId);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const systemPassword = window.localStorage.getItem('systemAccessPassword');
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (systemPassword) {
+        (headers as any)['X-System-Password'] = systemPassword;
+      }
+
+      const response = await fetch(
+        `${API_BASE}/clients/${clientId}/retirement-scenarios/${scenarioId}/preview`,
+        {
+          method: "GET",
+          headers,
+        }
+      );
+
+      if (!response.ok) {
+        let errorMessage = `שגיאה: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = (errorData as any).detail || errorMessage;
+        } catch {
+          const textError = await response.text();
+          errorMessage = textError || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      setSuccessMessage(
+        `✅ ${data.message || `התרחיש "${scenarioName}" הורץ כ-preview בהצלחה`}`
+      );
+
+      const executionPlan = (data?.result as any)?.execution_plan;
+      if (Array.isArray(executionPlan) && executionPlan.length > 0) {
+        setResults((prev) => {
+          if (!prev?.scenarios) {
+            return prev;
+          }
+          const updated = { ...prev } as any;
+          const scenarioKeys = Object.keys(updated.scenarios);
+          for (const k of scenarioKeys) {
+            const s = updated.scenarios[k];
+            if (s && s.scenario_id === scenarioId) {
+              updated.scenarios = {
+                ...updated.scenarios,
+                [k]: {
+                  ...s,
+                  execution_plan: executionPlan,
+                },
+              };
+              return updated;
+            }
+          }
+          return prev;
+        });
+      }
+    } catch (err: any) {
+      console.error("Scenario preview error:", err);
+      setError(err.message || "שגיאה לא צפויה בהרצת preview לתרחיש");
+    } finally {
+      setExecuting(null);
+    }
+  };
+
+  const handleApplyScenario = async (
     scenarioId: number,
     scenarioName: string
   ) => {
@@ -331,6 +410,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
     results,
     successMessage,
     handleGenerateScenarios,
-    handleExecuteScenario,
+    handlePreviewScenario,
+    handleApplyScenario,
   };
 }
