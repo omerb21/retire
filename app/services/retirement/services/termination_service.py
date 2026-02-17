@@ -97,6 +97,19 @@ class TerminationService:
         # בתרחישי פרישה החלטנו שתמיד יש השלמת מעסיק (use_employer_completion=True)
         severance_amount = max(expected_grant, severance_accrued)
 
+        logger.info(
+            "SCENARIO_TERMINATION_SSOT client_id=%s employer_id=%s termination_date=%s employer_start_date=%s employer_last_salary=%s employer_severance_accrued=%s formula_total=%s severance_total=%s source_flags=%s",
+            self.client_id,
+            getattr(employer, "id", None),
+            termination_date,
+            getattr(employer, "start_date", None),
+            getattr(employer, "last_salary", None),
+            getattr(employer, "severance_accrued", None),
+            expected_grant,
+            severance_amount,
+            {"used_accrued": severance_amount == severance_accrued},
+        )
+
         termination_year = termination_date.year
         try:
             monthly_cap = float(TaxDataService.get_current_severance_cap(termination_year))
