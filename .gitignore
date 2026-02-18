@@ -65,7 +65,9 @@ retire_secrets.ps1
 local_plans/
 # local-only agent plan docs (not part of repo)
 אפיון סוכן/
-# local DB artifacts
+*.db
+instance/retire.db
+retire-nuc.db
 *.db
 instance/retire.db
 retire-nuc.db
