@@ -436,7 +436,22 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
 
         db.commit()
 
-        actions_count = len(result.get("execution_plan", []))
+        execution_plan = result.get("execution_plan") or []
+        actions_count = len(execution_plan)
+
+        if actions_count == 0:
+            inferred = 0
+
+            if include_current_employer_termination:
+                inferred += 1
+
+            if fixation_record is not None:
+                inferred += 1
+
+            if cleanup_count and cleanup_count > 0:
+                inferred += 1
+
+            actions_count = inferred
 
         logger.info("")
         logger.info("ג… Scenario %s executed successfully!", scenario_id)
