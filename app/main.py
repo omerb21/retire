@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+load_dotenv(dotenv_path=env_path, encoding="utf-8-sig")
 
 # הגדרת לוגר בסיסית (קונסול)
 logging.basicConfig(
@@ -75,6 +75,7 @@ except Exception:
     llm_chat = None
 from app.routers import agent_trace_debug
 from app.routers import agent_eyes_debug
+from app.routers import debug_current_employer
 from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
@@ -84,10 +85,15 @@ async def lifespan(app: FastAPI):
     """Initialize database tables on application startup"""
     Base.metadata.create_all(bind=engine)
 
-    from app.database import ensure_client_public_chat_credit_schema, ensure_agent_trace_event_schema
+    from app.database import (
+        ensure_client_public_chat_credit_schema,
+        ensure_agent_trace_event_schema,
+        ensure_pension_funds_record_status_schema,
+    )
 
     ensure_client_public_chat_credit_schema(engine)
     ensure_agent_trace_event_schema(engine)
+    ensure_pension_funds_record_status_schema(engine)
     
     # Quick DB connectivity check
     try:
@@ -231,6 +237,8 @@ app.include_router(reports.router, prefix="/api/v1", tags=["reports"])
 # Agent Eyes – debug trace viewer (protected by env flags)
 app.include_router(agent_trace_debug.router)
 app.include_router(agent_eyes_debug.router)
+
+app.include_router(debug_current_employer.router)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

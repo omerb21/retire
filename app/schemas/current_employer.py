@@ -161,6 +161,9 @@ class TerminationDecisionOut(TerminationDecisionBase):
     created_grant_id: Optional[int] = Field(None, description="ID של מענק שנוצר")
     created_pension_id: Optional[int] = Field(None, description="ID של קצבה שנוצרה")
     created_capital_asset_id: Optional[int] = Field(None, description="ID של נכס הון שנוצר")
+
+    warning_code: Optional[str] = Field(None, description="קוד אזהרה כאשר הנתון חסר והמערכת משתמשת בהערכה")
+    used_fallback_expected_severance: Optional[bool] = Field(None, description="האם חושב פיצוי צפוי כי severance_accrued חסר")
     
     model_config = ConfigDict(from_attributes=True)
 

@@ -20,6 +20,7 @@ const RetirementScenariosPage: React.FC = () => {
     executing,
     error,
     results,
+    previewScenarioId,
     successMessage,
     handleGenerateScenarios,
     handlePreviewScenario,
@@ -86,6 +87,7 @@ const RetirementScenariosPage: React.FC = () => {
               scenario={results.scenarios.scenario_1_max_pension}
               rank={1}
               executingId={executing}
+              previewScenarioId={previewScenarioId}
               formatCurrencyFn={formatCurrency}
               onPreview={handlePreviewScenario}
               onApply={handleApplyScenario}
@@ -94,6 +96,7 @@ const RetirementScenariosPage: React.FC = () => {
               scenario={results.scenarios.scenario_2_max_capital}
               rank={2}
               executingId={executing}
+              previewScenarioId={previewScenarioId}
               formatCurrencyFn={formatCurrency}
               onPreview={handlePreviewScenario}
               onApply={handleApplyScenario}
@@ -102,6 +105,7 @@ const RetirementScenariosPage: React.FC = () => {
               scenario={results.scenarios.scenario_3_max_npv}
               rank={3}
               executingId={executing}
+              previewScenarioId={previewScenarioId}
               formatCurrencyFn={formatCurrency}
               onPreview={handlePreviewScenario}
               onApply={handleApplyScenario}

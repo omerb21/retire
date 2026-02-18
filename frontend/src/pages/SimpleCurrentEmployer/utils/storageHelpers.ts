@@ -12,6 +12,26 @@ import {
  * Get severance from pension portfolio localStorage
  */
 export const getSeveranceFromPension = (clientId: string): number => {
+  const terminationConfirmed = isTerminationConfirmed(clientId);
+  if (terminationConfirmed) {
+    const savedDistribution = localStorage.getItem(`severanceDistribution_${clientId}`);
+    if (savedDistribution) {
+      try {
+        const distribution = JSON.parse(savedDistribution);
+        if (distribution && typeof distribution === 'object') {
+          const severanceFromDistribution = Object.values(distribution).reduce(
+            (sum: number, value: any) => sum + Number(value || 0),
+            0
+          );
+          console.log('יתרת פיצויים (מהתפלגות שמורה):', severanceFromDistribution);
+          return severanceFromDistribution;
+        }
+      } catch (e) {
+        console.warn('שגיאה בקריאת התפלגות פיצויים שמורה:', e);
+      }
+    }
+  }
+
   const pensionData = loadPensionDataFromStorage(clientId);
 
   if (!pensionData || pensionData.length === 0) {

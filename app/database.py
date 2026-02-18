@@ -21,6 +21,11 @@ def _resolve_database_url() -> tuple[str, str]:
     ):
         return planning_url, "PLANNING_DATABASE_URL"
 
+    # In local dev we may explicitly set DATABASE_URL to sqlite.
+    env_db_url = os.getenv("DATABASE_URL")
+    if env_db_url and env_db_url.startswith("sqlite"):
+        return env_db_url, "DATABASE_URL"
+
     try:
         from app.core.db_url import pick_db_url
         url, key = pick_db_url()
@@ -149,6 +154,55 @@ def ensure_agent_trace_event_schema(engine) -> None:
                     conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN payload_size INTEGER"))
                 else:
                     conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS payload_size INTEGER"))
+    except Exception:
+        return
+
+
+def ensure_pension_funds_record_status_schema(engine) -> None:
+    """Best-effort migration for environments without Alembic.
+
+    Ensures pension_funds.record_status exists (and a supporting index), which is
+    required by the ORM model.
+    """
+    try:
+        inspector = inspect(engine)
+        if "pension_funds" not in set(inspector.get_table_names() or []):
+            return
+
+        columns = {c.get("name") for c in (inspector.get_columns("pension_funds") or [])}
+        dialect = (engine.dialect.name or "").lower()
+
+        with engine.begin() as conn:
+            if "record_status" not in columns:
+                if dialect == "sqlite":
+                    conn.execute(
+                        text(
+                            "ALTER TABLE pension_funds "
+                            "ADD COLUMN record_status VARCHAR(20) NOT NULL DEFAULT 'active'"
+                        )
+                    )
+                else:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE pension_funds "
+                            "ADD COLUMN IF NOT EXISTS record_status VARCHAR(20) NOT NULL DEFAULT 'active'"
+                        )
+                    )
+
+            if dialect == "sqlite":
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_pf_client_type_status "
+                        "ON pension_funds (client_id, fund_type, record_status)"
+                    )
+                )
+            else:
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_pf_client_type_status "
+                        "ON pension_funds (client_id, fund_type, record_status)"
+                    )
+                )
     except Exception:
         return
 

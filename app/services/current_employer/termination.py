@@ -154,10 +154,12 @@ class TerminationService:
                 exempt_amount = decision.exempt_amount
                 taxable_amount = None
 
+                raw_accrued = getattr(employer, "severance_accrued", None)
                 try:
-                    accrued_total = float(getattr(employer, "severance_accrued", 0) or 0)
+                    accrued_total = float(raw_accrued or 0)
                 except Exception:
                     accrued_total = 0.0
+                missing_accrued = raw_accrued is None
 
                 formula_total = None
                 formula_exempt_amount = None
@@ -209,6 +211,13 @@ class TerminationService:
                 severance_total = float(ssot_amounts.get("severance_total") or 0)
                 taxable_amount = float(ssot_amounts.get("taxable_amount") or 0)
 
+                used_fallback_expected_severance = bool(
+                    missing_accrued
+                    and formula_total is not None
+                    and float(formula_total or 0) > 0
+                    and abs(float(severance_total or 0) - float(formula_total or 0)) < 0.01
+                )
+
                 decision = decision.model_copy(
                     update={
                         "termination_date": termination_date,
@@ -245,7 +254,7 @@ class TerminationService:
             # D3.8: מידע על סכומים שאופסו - לעדכון הפרונטאנד
             "severance_reset_info": {
                 "employer_severance_accrued_reset": 0,  # יעודכן בהמשך
-                "portfolio_severance_to_reset": True,   # סימון לפרונטאנד לאפס פיצויים_מעסיק_נוכחי
+                "portfolio_severance_to_reset": bool(reset_severance_balance),
                 "source_accounts": []  # רשימת חשבונות מקור לאיפוס
             }
         }
@@ -322,6 +331,10 @@ class TerminationService:
                 "severance_amount": decision.severance_amount,
                 "exempt_amount": decision.exempt_amount,
                 "taxable_amount": decision.taxable_amount,
+                "used_fallback_expected_severance": used_fallback_expected_severance if not sent_severance else False,
+                "warning_code": "SEVERANCE_ACCRUED_MISSING_USING_ESTIMATE"
+                if ((used_fallback_expected_severance if not sent_severance else False))
+                else None,
             }
         )
 

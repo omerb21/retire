@@ -24,6 +24,23 @@ export function useRetirementScenarios(clientId: string | undefined) {
   const [error, setError] = useState<string>("");
   const [results, setResults] = useState<ScenariosResponse | null>(null);
   const [successMessage, setSuccessMessage] = useState<string>("");
+  const [previewScenarioId, setPreviewScenarioId] = useState<number | null>(null);
+
+  const stripExecutionPlans = (data: ScenariosResponse): ScenariosResponse => {
+    if (!data?.scenarios) {
+      return data;
+    }
+    const s = data.scenarios as any;
+    return {
+      ...data,
+      scenarios: {
+        ...data.scenarios,
+        scenario_1_max_pension: { ...s.scenario_1_max_pension, execution_plan: undefined },
+        scenario_2_max_capital: { ...s.scenario_2_max_capital, execution_plan: undefined },
+        scenario_3_max_npv: { ...s.scenario_3_max_npv, execution_plan: undefined },
+      },
+    };
+  };
 
   const loadSavedScenarios = async (ageOverride?: number) => {
     if (!clientId) {
@@ -31,6 +48,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
     }
 
     try {
+      setSuccessMessage("");
       const systemPassword = window.localStorage.getItem('systemAccessPassword');
       const headers: HeadersInit = {};
       if (systemPassword) {
@@ -49,7 +67,8 @@ export function useRetirementScenarios(clientId: string | undefined) {
         const data = await response.json();
         if (data.scenarios) {
           console.log("📥 Loaded saved scenarios:", data);
-          setResults(data);
+          setPreviewScenarioId(null);
+          setResults(stripExecutionPlans(data));
         }
       }
     } catch (err) {
@@ -117,6 +136,13 @@ export function useRetirementScenarios(clientId: string | undefined) {
     setExecuting(scenarioId);
     setError("");
     setSuccessMessage("");
+    setPreviewScenarioId(null);
+    setResults((prev) => {
+      if (!prev?.scenarios) {
+        return prev;
+      }
+      return stripExecutionPlans(prev);
+    });
 
     try {
       const systemPassword = window.localStorage.getItem('systemAccessPassword');
@@ -148,12 +174,18 @@ export function useRetirementScenarios(clientId: string | undefined) {
       }
 
       const data = await response.json();
+      const previewResult = (data?.result as any) || null;
+      const executionPlan = previewResult?.execution_plan;
+
+      const actionCount = Array.isArray(executionPlan) ? executionPlan.length : 0;
       setSuccessMessage(
-        `✅ ${data.message || `התרחיש "${scenarioName}" הורץ כ-preview בהצלחה`}`
+        actionCount > 0
+          ? `✅ Preview נטען עבור "${scenarioName}" (${actionCount} פעולות)`
+          : `✅ Preview נטען עבור "${scenarioName}"`
       );
 
-      const executionPlan = (data?.result as any)?.execution_plan;
-      if (Array.isArray(executionPlan) && executionPlan.length > 0) {
+      setPreviewScenarioId(scenarioId);
+      if (previewResult && typeof previewResult === "object") {
         setResults((prev) => {
           if (!prev?.scenarios) {
             return prev;
@@ -167,7 +199,8 @@ export function useRetirementScenarios(clientId: string | undefined) {
                 ...updated.scenarios,
                 [k]: {
                   ...s,
-                  execution_plan: executionPlan,
+                  ...previewResult,
+                  execution_plan: Array.isArray(executionPlan) ? executionPlan : undefined,
                 },
               };
               return updated;
@@ -242,7 +275,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
       }
 
       const data = await response.json();
-      setSuccessMessage(`✅ ${data.message || "התרחיש בוצע בהצלחה!"}`);
+      setSuccessMessage(`✅ התרחיש "${scenarioName}" בוצע בהצלחה`);
 
       const includeTermination = !!data.include_current_employer_termination;
 
@@ -273,6 +306,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
       setError("");
       setSuccessMessage("");
       setResults(null);
+      setPreviewScenarioId(null);
 
       const storedSnapshot = loadSnapshotRawFromStorage(clientId);
       if (storedSnapshot) {
@@ -392,7 +426,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
       }
 
       const data = await response.json();
-      setResults(data);
+      setResults(stripExecutionPlans(data));
     } catch (err: any) {
       console.error("Scenarios generation error:", err);
       setError(err.message || "שגיאה לא צפויה");
@@ -408,6 +442,7 @@ export function useRetirementScenarios(clientId: string | undefined) {
     executing,
     error,
     results,
+    previewScenarioId,
     successMessage,
     handleGenerateScenarios,
     handlePreviewScenario,

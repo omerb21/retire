@@ -18,6 +18,7 @@ export interface ScenarioResult {
   capital_assets_count: number;
   additional_incomes_count: number;
   execution_plan?: ExecutionAction[];
+  preview_visible?: boolean;
   scenario_id?: number;
 }
 

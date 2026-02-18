@@ -12,7 +12,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.database import Base
-from models.client import Client
+import app.models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -66,10 +66,32 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    from app.core.db_url import pick_db_url
-    db_url, picked_from = pick_db_url()
+    env_url = os.getenv("DATABASE_URL")
+    if not env_url:
+        try:
+            from dotenv import load_dotenv
+
+            env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+            load_dotenv(dotenv_path=env_path, encoding="utf-8-sig")
+            env_url = os.getenv("DATABASE_URL")
+        except Exception:
+            env_url = None
+
+    if env_url:
+        db_url, picked_from = env_url, "DATABASE_URL"
+    else:
+        ini_url = config.get_main_option("sqlalchemy.url")
+        if ini_url:
+            db_url, picked_from = ini_url, "alembic.ini"
+        else:
+            db_url, picked_from = "sqlite:///./retire.db", "sqlite_fallback"
+
     config.set_main_option("sqlalchemy.url", db_url)
-    logger.info("Alembic picked db url from=%s scheme=%s", picked_from, db_url.split(":", 1)[0])
+    logger.info(
+        "Alembic picked db url from=%s scheme=%s",
+        picked_from,
+        db_url.split(":", 1)[0],
+    )
 
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
