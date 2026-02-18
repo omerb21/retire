@@ -255,6 +255,7 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", _no_llm)
 
     termination_date_str = "2025-01-01"
+    initial_severance: float
 
     def fake_process_termination(*, args: dict, client_id: int, db, **kwargs) -> str:
         termination_date_raw = (args or {}).get("termination_date")
@@ -271,18 +272,6 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
         assert employer is not None
 
         employer.end_date = termination_date
-
-        try:
-            other = employer.other_grants
-            if not isinstance(other, dict):
-                other = {}
-        except Exception:
-            other = {}
-        other["termination_confirmed"] = True
-        # Force a brand-new JSON object assignment (avoid in-place JSON mutation tracking issues)
-        employer.other_grants = json.loads(json.dumps(other, ensure_ascii=False))
-
-        employer.severance_accrued = 0.0
         db.commit()
 
         return json.dumps(
@@ -313,7 +302,15 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
                 last_salary=10000.0,
             )
         )
+        db.flush()
         db.commit()
+
+    with Session() as db:
+        reloaded_employer = (
+            db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).order_by(CurrentEmployer.id.desc()).first()
+        )
+        assert reloaded_employer is not None
+        initial_severance = float(getattr(reloaded_employer, "severance_accrued", 0) or 0)
 
     with Session() as db:
         store_current_employer_termination_plan_preview(
@@ -365,14 +362,17 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
         pending = _get_pending_approval_row(db=db, client_id=client_id)
         assert pending is None
 
-        employer = db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).first()
-        assert employer is not None
-        assert employer.end_date == date(2025, 1, 1)
+        reloaded_employer = (
+            db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).order_by(CurrentEmployer.id.desc()).first()
+        )
+        assert reloaded_employer is not None
 
-        other_grants = getattr(employer, "other_grants", None)
-        assert other_grants is None or isinstance(other_grants, dict)
+        assert reloaded_employer.end_date is not None
+        assert reloaded_employer.end_date.isoformat() == termination_date_str
 
-        assert float(getattr(employer, "severance_accrued", 0) or 0) == 0.0
+        assert float(getattr(reloaded_employer, "severance_accrued", 0) or 0) == initial_severance
+        if initial_severance > 0:
+            assert float(getattr(reloaded_employer, "severance_accrued", 0) or 0) != 0.0
 
     _assert_trace_invariants(events, expected_execution_mode="agent_mode", expect_tool_calls=True)
 
