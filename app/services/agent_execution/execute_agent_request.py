@@ -120,6 +120,24 @@ def _log_policy_decision(*, request: ChatRequest, intent: ChatIntent, decision: 
         pass
 
 
+def _emit_final_response(*, reply: str | None, computed_data, streaming: bool, client_id: int | None, endpoint: str) -> None:
+    try:
+        text = reply if isinstance(reply, str) else ""
+        stripped = text.lstrip()
+        response_kind = "structured_json" if (stripped.startswith("{") and stripped.rstrip().endswith("}")) else "text"
+        payload = {
+            "response_kind": response_kind,
+            "length_chars": len(text),
+            "contained_tool_calls": ("###TOOL_CALL###" in text),
+            "has_computed_data": computed_data is not None,
+            "streaming": bool(streaming),
+        }
+        log_trace_event(event_type="final_response", payload=payload, client_id=client_id, endpoint=endpoint)
+        _eyes_emit("final_response", payload, client_id=client_id, endpoint=endpoint)
+    except Exception:
+        pass
+
+
 def _apply_tools_policy_copy(
     request: ChatRequest,
     *,
@@ -258,6 +276,17 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 
     last_user_msg = _find_last_user_message_text(request)
 
+    try:
+        _ui_payload = {
+            "message_preview": (last_user_msg or "")[:500],
+            "streaming": False,
+            "executor_only": getattr(request, "executor_only", None),
+        }
+        log_trace_event(event_type="user_input", payload=_ui_payload, client_id=request.client_id, endpoint=endpoint)
+        _eyes_emit("user_input", _ui_payload, client_id=request.client_id, endpoint=endpoint)
+    except Exception:
+        pass
+
     intent_type, rule_hit = classify_intent(user_message=last_user_msg, request=request)
     try:
         _it_payload = {
@@ -274,11 +303,31 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     intent = detect_intent(last_user_msg)
 
     if is_execution_only(request) and intent != ChatIntent.REPORT:
-        return _run_execution_only_non_stream(request=request, last_user_msg=last_user_msg)
+        res = _run_execution_only_non_stream(request=request, last_user_msg=last_user_msg)
+        _emit_final_response(
+            reply=getattr(res, "reply", None),
+            computed_data=getattr(res, "computed_data", None),
+            streaming=False,
+            client_id=request.client_id,
+            endpoint=endpoint,
+        )
+        return res
 
     decision = decide(request=request, intent=intent, allow_write=False)
 
     _log_policy_decision(request=request, intent=intent, decision=decision, endpoint=endpoint)
+
+    try:
+        _mode_payload = {
+            "execution_mode": "agent_mode" if bool(decision.tools_allowed) else "qa_mode",
+            "tools_allowed": bool(decision.tools_allowed),
+            "executor_only": getattr(request, "executor_only", None),
+            "streaming": False,
+        }
+        log_trace_event(event_type="execution_mode", payload=_mode_payload, client_id=request.client_id, endpoint=endpoint)
+        _eyes_emit("execution_mode", _mode_payload, client_id=request.client_id, endpoint=endpoint)
+    except Exception:
+        pass
 
     effective_request = _apply_tools_policy_copy(
         request,
@@ -298,23 +347,6 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     except Exception:
         pass
 
-    try:
-        _ui_payload = {
-            "user_message": last_user_msg,
-            "client_id": effective_request.client_id,
-            "endpoint": endpoint,
-            "streaming": False,
-            "message_count": len(effective_request.messages or []),
-            "body": {
-                "messages_count": len(effective_request.messages or []),
-                "client_id": effective_request.client_id,
-            },
-        }
-        log_trace_event(event_type="user_input", payload=_ui_payload, client_id=effective_request.client_id, endpoint=endpoint)
-        _eyes_emit("user_input", _ui_payload, client_id=effective_request.client_id, endpoint=endpoint)
-    except Exception:
-        pass
-
     if _should_compute_monthly_pension(last_user_msg) and effective_request.client_id is not None:
         from app.services.pension_chat_compute import compute_monthly_pension_summary
 
@@ -322,7 +354,15 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         reply = _build_monthly_pension_reply(computed)
         if not isinstance(reply, str) or not reply.strip():
             reply = "Unable to produce monthly pension summary from system."
-        return ChatResponse(reply=reply, computed_data=computed)
+        res = ChatResponse(reply=reply, computed_data=computed)
+        _emit_final_response(
+            reply=res.reply,
+            computed_data=res.computed_data,
+            streaming=False,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        return res
 
     if is_explicit_client_snapshot_request(last_user_msg) and effective_request.client_id is not None:
         tool_result = execute_with_guard(
@@ -339,7 +379,15 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             user_approved=True,
             request_id=None,
         )
-        return ChatResponse(reply=tool_result, computed_data=None)
+        res = ChatResponse(reply=tool_result, computed_data=None)
+        _emit_final_response(
+            reply=res.reply,
+            computed_data=res.computed_data,
+            streaming=False,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        return res
 
     try:
         if (
@@ -349,7 +397,15 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         ):
             reply = sanitize_words_only_conceptual("", last_user_msg)
             allowed, final_text = enforce_behavioral_limits(reply)
-            return ChatResponse(reply=final_text if not allowed else reply, computed_data=None)
+            res = ChatResponse(reply=final_text if not allowed else reply, computed_data=None)
+            _emit_final_response(
+                reply=res.reply,
+                computed_data=res.computed_data,
+                streaming=False,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+            return res
     except Exception:
         pass
 
@@ -377,7 +433,15 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 
         allowed, final_text = enforce_behavioral_limits(res.reply)
         if not allowed:
-            return ChatResponse(reply=final_text, computed_data=res.computed_data)
+            blocked = ChatResponse(reply=final_text, computed_data=res.computed_data)
+            _emit_final_response(
+                reply=blocked.reply,
+                computed_data=blocked.computed_data,
+                streaming=False,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+            return blocked
 
     try:
         if wants_json_only(last_user_msg) and isinstance(res.reply, str):
@@ -399,6 +463,14 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     except Exception:
         pass
 
+    _emit_final_response(
+        reply=getattr(res, "reply", None),
+        computed_data=getattr(res, "computed_data", None),
+        streaming=False,
+        client_id=effective_request.client_id,
+        endpoint=endpoint,
+    )
+
     return res
 
 
@@ -406,6 +478,17 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     endpoint = "/api/v1/llm/pension-chat-stream"
 
     last_user_msg = _find_last_user_message_text(request)
+
+    try:
+        _ui_payload = {
+            "message_preview": (last_user_msg or "")[:500],
+            "streaming": True,
+            "executor_only": getattr(request, "executor_only", None),
+        }
+        log_trace_event(event_type="user_input", payload=_ui_payload, client_id=request.client_id, endpoint=endpoint)
+        _eyes_emit("user_input", _ui_payload, client_id=request.client_id, endpoint=endpoint)
+    except Exception:
+        pass
 
     intent_type, rule_hit = classify_intent(user_message=last_user_msg, request=request)
     try:
@@ -425,6 +508,18 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
 
     _log_policy_decision(request=request, intent=intent, decision=decision, endpoint=endpoint)
 
+    try:
+        _mode_payload = {
+            "execution_mode": "agent_mode" if bool(decision.tools_allowed) else "qa_mode",
+            "tools_allowed": bool(decision.tools_allowed),
+            "executor_only": getattr(request, "executor_only", None),
+            "streaming": True,
+        }
+        log_trace_event(event_type="execution_mode", payload=_mode_payload, client_id=request.client_id, endpoint=endpoint)
+        _eyes_emit("execution_mode", _mode_payload, client_id=request.client_id, endpoint=endpoint)
+    except Exception:
+        pass
+
     effective_request = _apply_tools_policy_copy(
         request,
         last_user_msg=last_user_msg,
@@ -442,22 +537,24 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     except Exception:
         pass
 
-    try:
-        _ui_payload = {
-            "user_message": last_user_msg,
-            "client_id": effective_request.client_id,
-            "endpoint": endpoint,
-            "streaming": True,
-            "message_count": len(effective_request.messages or []),
-            "body": {
-                "messages_count": len(effective_request.messages or []),
-                "client_id": effective_request.client_id,
-            },
-        }
-        log_trace_event(event_type="user_input", payload=_ui_payload, client_id=effective_request.client_id, endpoint=endpoint)
-        _eyes_emit("user_input", _ui_payload, client_id=effective_request.client_id, endpoint=endpoint)
-    except Exception:
-        pass
+    def _wrap_iter_with_final_response(source_iter: Iterator[str]) -> Iterator[str]:
+        chunks: list[str] = []
+        try:
+            for chunk in source_iter:
+                chunks.append(chunk)
+                yield chunk
+        finally:
+            try:
+                full_text = "".join(chunks)
+                _emit_final_response(
+                    reply=full_text,
+                    computed_data=None,
+                    streaming=True,
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+            except Exception:
+                pass
 
     if _should_compute_monthly_pension(last_user_msg) and effective_request.client_id is not None:
         from app.services.pension_chat_compute import compute_monthly_pension_summary
@@ -472,7 +569,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
             yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
             yield reply
 
-        return StreamingResponse(_gen(), media_type="text/plain")
+        return StreamingResponse(_wrap_iter_with_final_response(_gen()), media_type="text/plain")
 
     if is_explicit_client_snapshot_request(last_user_msg) and effective_request.client_id is not None:
         snap_result = execute_with_guard(
@@ -493,7 +590,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
         def _snap_gen() -> Iterator[str]:
             yield snap_result
 
-        return StreamingResponse(_snap_gen(), media_type="text/plain")
+        return StreamingResponse(_wrap_iter_with_final_response(_snap_gen()), media_type="text/plain")
 
     if "PYTEST_CURRENT_TEST" not in os.environ:
         try:
@@ -503,7 +600,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 def _greet_gen() -> Iterator[str]:
                     yield greeting
 
-                return StreamingResponse(_greet_gen(), media_type="text/plain")
+                return StreamingResponse(_wrap_iter_with_final_response(_greet_gen()), media_type="text/plain")
         except Exception:
             pass
 
@@ -550,6 +647,17 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 }
                 log_trace_event(event_type="assistant_output", payload=_ao_payload, client_id=effective_request.client_id, endpoint=endpoint)
                 _eyes_emit("assistant_output", _ao_payload, client_id=effective_request.client_id, endpoint=endpoint)
+            except Exception:
+                pass
+
+            try:
+                _emit_final_response(
+                    reply="".join(chunks),
+                    computed_data=None,
+                    streaming=True,
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
             except Exception:
                 pass
 

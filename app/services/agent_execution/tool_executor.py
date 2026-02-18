@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from sqlalchemy.orm import Session
 
 from app.schemas.llm_chat import ChatRequest
@@ -35,6 +37,38 @@ def execute_with_guard(
     user_approved: bool = False,
     request_id: str | None = None,
 ) -> str:
+    def _safe_args_preview(args_obj: object) -> str:
+        try:
+            if isinstance(args_obj, dict):
+                return json.dumps(args_obj, sort_keys=True, ensure_ascii=False, default=str)[:200]
+            return str(args_obj)[:200]
+        except Exception:
+            return "<unavailable>"
+
+    def _safe_result_preview(res_obj: object) -> str:
+        try:
+            if res_obj is None:
+                return ""
+            if isinstance(res_obj, str):
+                return res_obj[:200]
+            return str(res_obj)[:200]
+        except Exception:
+            return "<unavailable>"
+
+    tool_result_emitted = False
+    try:
+        call_payload = {
+            "tool_name": tool_name,
+            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "args_preview": _safe_args_preview(tool_args),
+            "streaming": bool(streaming),
+        }
+        if request_id is not None:
+            call_payload["request_id"] = request_id
+        log_trace_event(event_type="tool_call", payload=call_payload, client_id=request.client_id)
+    except Exception:
+        pass
+
     guard_res = run_pre_tool_guard(
         request=request,
         db=db,
@@ -59,12 +93,29 @@ def execute_with_guard(
         except Exception:
             pass
 
-        return build_blocked_tool_result(
+        blocked_json = build_blocked_tool_result(
             tool_name=tool_name,
             error_code=str(guard_res.error_code or "VALIDATION_ERROR"),
             message=str(guard_res.message or "Blocked by guard."),
             details=guard_res.details or {},
         )
+
+        try:
+            result_payload = {
+                "tool_name": tool_name,
+                "status": "blocked_by_guard",
+                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "result_preview": _safe_result_preview(blocked_json),
+                "streaming": bool(streaming),
+            }
+            if request_id is not None:
+                result_payload["request_id"] = request_id
+            log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+            tool_result_emitted = True
+        except Exception:
+            pass
+
+        return blocked_json
 
     contract = None
     try:
@@ -109,12 +160,29 @@ def execute_with_guard(
             except Exception:
                 pass
 
-            return build_blocked_tool_result(
+            blocked_json = build_blocked_tool_result(
                 tool_name=tool_name,
                 error_code="TOOL_CONTRACT_ARGS_INVALID",
                 message="Tool arguments failed deterministic validation.",
                 details={"reason": args_error},
             )
+
+            try:
+                result_payload = {
+                    "tool_name": tool_name,
+                    "status": "blocked_by_contract",
+                    "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                    "result_preview": _safe_result_preview(blocked_json),
+                    "streaming": bool(streaming),
+                }
+                if request_id is not None:
+                    result_payload["request_id"] = request_id
+                log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+                tool_result_emitted = True
+            except Exception:
+                pass
+
+            return blocked_json
 
         try:
             log_trace_event(
@@ -132,16 +200,33 @@ def execute_with_guard(
 
     from app.services.llm_chat.tool_execution import execute_tool_call as _execute_tool_call_impl
 
-    tool_result = _execute_tool_call_impl(
-        tool_name=tool_name,
-        args=tool_args if isinstance(tool_args, dict) else {},
-        client_id=int(request.client_id) if request.client_id is not None else 0,
-        db=db,
-        pension_portfolio=pension_portfolio,
-        force_max_exemption=force_max_exemption,
-        agent_reply=agent_reply,
-        user_approved=user_approved,
-    )
+    try:
+        tool_result = _execute_tool_call_impl(
+            tool_name=tool_name,
+            args=tool_args if isinstance(tool_args, dict) else {},
+            client_id=int(request.client_id) if request.client_id is not None else 0,
+            db=db,
+            pension_portfolio=pension_portfolio,
+            force_max_exemption=force_max_exemption,
+            agent_reply=agent_reply,
+            user_approved=user_approved,
+        )
+    except Exception as exc:
+        try:
+            result_payload = {
+                "tool_name": tool_name,
+                "status": "error_safe",
+                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "result_preview": _safe_result_preview(f"{type(exc).__name__}: {exc}"),
+                "streaming": bool(streaming),
+            }
+            if request_id is not None:
+                result_payload["request_id"] = request_id
+            log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+            tool_result_emitted = True
+        except Exception:
+            pass
+        raise
 
     if contract is not None and contract.result_model is not None:
         ok_res, res_error = validate_tool_result(tool_name, tool_result)
@@ -167,12 +252,46 @@ def execute_with_guard(
             except Exception:
                 pass
 
-            return build_blocked_tool_result(
+            blocked_json = build_blocked_tool_result(
                 tool_name=tool_name,
                 error_code="TOOL_CONTRACT_RESULT_INVALID",
                 message="Tool result failed deterministic validation.",
                 details={"reason": res_error},
             )
+
+            try:
+                result_payload = {
+                    "tool_name": tool_name,
+                    "status": "blocked_by_contract",
+                    "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                    "result_preview": _safe_result_preview(blocked_json),
+                    "streaming": bool(streaming),
+                }
+                if request_id is not None:
+                    result_payload["request_id"] = request_id
+                log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+                tool_result_emitted = True
+            except Exception:
+                pass
+
+            return blocked_json
+
+    if not tool_result_emitted:
+        try:
+            status = "missing_contract_allowed" if contract is None else "ok"
+            result_payload = {
+                "tool_name": tool_name,
+                "status": status,
+                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "result_preview": _safe_result_preview(tool_result),
+                "streaming": bool(streaming),
+            }
+            if request_id is not None:
+                result_payload["request_id"] = request_id
+            log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+            tool_result_emitted = True
+        except Exception:
+            pass
 
     return tool_result
 
