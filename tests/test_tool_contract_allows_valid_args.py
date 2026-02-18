@@ -1,11 +1,13 @@
-from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.client import Client
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
 from app.services.agent_execution.tool_execution_context import set_tool_execution_context
 from app.services.agent_execution.tool_executor import execute_with_guard
 
 
-def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test_db) -> None:
+def test_tool_contract_allows_valid_args(monkeypatch, _test_db) -> None:
+    """If a tool has a contract and args are valid, SSOT must call underlying exactly once and emit tool_contract_checked."""
+
     Session = _test_db["Session"]
 
     import app.services.llm_chat.tool_execution as tool_exec
@@ -54,6 +56,9 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
             request_id=None,
         )
 
-    assert "\"tool_name\": \"GET_CLIENT_SNAPSHOT\"" in res
     assert calls["n"] == 1
-    assert not [e for e in emitted if e["event_type"] == "validation_error"], emitted
+    assert "\"success\"" in res
+
+    checked_events = [e for e in emitted if e["event_type"] == "tool_contract_checked"]
+    assert checked_events, f"Expected tool_contract_checked, got {emitted}"
+    assert checked_events[0]["payload"].get("tool_name") == "GET_CLIENT_SNAPSHOT"

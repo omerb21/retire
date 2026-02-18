@@ -1,22 +1,23 @@
-from app.schemas.llm_chat import ChatMessage, ChatRequest
+import json
+
 from app.models.client import Client
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
 from app.services.agent_execution.tool_execution_context import set_tool_execution_context
 from app.services.agent_execution.tool_executor import execute_with_guard
 
 
-def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test_db) -> None:
+def test_tool_contract_blocks_invalid_args(monkeypatch, _test_db) -> None:
+    """If a tool has a contract and args fail validation, SSOT must block before underlying call."""
+
     Session = _test_db["Session"]
 
     import app.services.llm_chat.tool_execution as tool_exec
 
-    calls = {"n": 0}
+    def _boom(*args, **kwargs):
+        raise AssertionError("Underlying execute_tool_call must NOT be called when args contract fails")
 
-    def fake_execute_tool_call(*, tool_name, args, client_id, db, pension_portfolio=None, force_max_exemption=False, agent_reply=None, user_approved=False):
-        calls["n"] += 1
-        return '{"success": true, "tool_name": "GET_CLIENT_SNAPSHOT", "total_items": 0, "breakdown": {}}'
-
-    monkeypatch.setattr(tool_exec, "execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(tool_exec, "execute_tool_call", _boom)
 
     emitted = []
 
@@ -43,7 +44,7 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
             request=req,
             db=db,
             tool_name="GET_CLIENT_SNAPSHOT",
-            tool_args={},
+            tool_args={"unexpected": 1},
             streaming=False,
             policy_decision=decision,
             intent_type=None,
@@ -54,6 +55,10 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
             request_id=None,
         )
 
-    assert "\"tool_name\": \"GET_CLIENT_SNAPSHOT\"" in res
-    assert calls["n"] == 1
-    assert not [e for e in emitted if e["event_type"] == "validation_error"], emitted
+    parsed = json.loads(res)
+    assert parsed.get("success") is False
+    assert parsed.get("error") == "TOOL_CONTRACT_ARGS_INVALID"
+
+    violation_events = [e for e in emitted if e["event_type"] == "tool_contract_violation"]
+    assert violation_events, f"Expected tool_contract_violation, got {emitted}"
+    assert violation_events[0]["payload"].get("phase") == "args"

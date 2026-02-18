@@ -1,11 +1,13 @@
-from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.client import Client
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
 from app.services.agent_execution.tool_execution_context import set_tool_execution_context
 from app.services.agent_execution.tool_executor import execute_with_guard
 
 
-def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test_db) -> None:
+def test_tool_contract_missing_does_not_block(monkeypatch, _test_db) -> None:
+    """If no contract exists for a tool, SSOT must not block it and must emit tool_contract_missing."""
+
     Session = _test_db["Session"]
 
     import app.services.llm_chat.tool_execution as tool_exec
@@ -14,7 +16,7 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
 
     def fake_execute_tool_call(*, tool_name, args, client_id, db, pension_portfolio=None, force_max_exemption=False, agent_reply=None, user_approved=False):
         calls["n"] += 1
-        return '{"success": true, "tool_name": "GET_CLIENT_SNAPSHOT", "total_items": 0, "breakdown": {}}'
+        return "OK"
 
     monkeypatch.setattr(tool_exec, "execute_tool_call", fake_execute_tool_call)
 
@@ -27,7 +29,7 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
 
     monkeypatch.setattr(te, "log_trace_event", fake_log_trace_event)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="GET_CLIENT_SNAPSHOT")], client_id=1)
+    req = ChatRequest(messages=[ChatMessage(role="user", content="x")], client_id=1)
     decision = PolicyDecision(mode=ExecutionMode.LLM_TOOL_ROUTED, tools_allowed=True, write_allowed=False)
 
     with Session() as db:
@@ -42,7 +44,7 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
         res = execute_with_guard(
             request=req,
             db=db,
-            tool_name="GET_CLIENT_SNAPSHOT",
+            tool_name="RUN_RETIREMENT_CASHFLOW_ANALYSIS",
             tool_args={},
             streaming=False,
             policy_decision=decision,
@@ -54,6 +56,9 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
             request_id=None,
         )
 
-    assert "\"tool_name\": \"GET_CLIENT_SNAPSHOT\"" in res
+    assert res == "OK"
     assert calls["n"] == 1
-    assert not [e for e in emitted if e["event_type"] == "validation_error"], emitted
+
+    missing_events = [e for e in emitted if e["event_type"] == "tool_contract_missing"]
+    assert missing_events, f"Expected tool_contract_missing, got {emitted}"
+    assert missing_events[0]["payload"].get("tool_name") == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
