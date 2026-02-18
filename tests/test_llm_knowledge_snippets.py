@@ -1,6 +1,9 @@
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 
+from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
+from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+
 
 def test_prepare_messages_injects_knowledge_snippet_when_relevant(db_session, client) -> None:
     req = ChatRequest(
@@ -12,6 +15,18 @@ def test_prepare_messages_injects_knowledge_snippet_when_relevant(db_session, cl
             )
         ],
         pension_portfolio=None,
+    )
+
+    set_tool_execution_context(
+        request=req,
+        policy_decision=PolicyDecision(
+            mode=ExecutionMode.LLM_TOOL_ROUTED,
+            tools_allowed=False,
+            write_allowed=False,
+            missing_params=[],
+        ),
+        intent_type=None,
+        streaming=False,
     )
 
     messages, _computed = prepare_messages_with_context(req, db_session)
@@ -26,6 +41,18 @@ def test_prepare_messages_does_not_inject_knowledge_when_irrelevant(db_session, 
         client_id=client.id,
         messages=[ChatMessage(role="user", content="מה שלומך?")],
         pension_portfolio=None,
+    )
+
+    set_tool_execution_context(
+        request=req,
+        policy_decision=PolicyDecision(
+            mode=ExecutionMode.LLM_TOOL_ROUTED,
+            tools_allowed=False,
+            write_allowed=False,
+            missing_params=[],
+        ),
+        intent_type=None,
+        streaming=False,
     )
 
     messages, _computed = prepare_messages_with_context(req, db_session)

@@ -14,6 +14,9 @@ from app.services.llm_chat.message_utils import (
     extract_executed_tools_from_history,
     find_last_user_message,
 )
+from app.services.agent_execution.tool_execution_context import (
+    get_current_tool_execution_policy_decision,
+)
 from app.services.knowledge_base.rag_prompt import build_rag_system_message
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.prompts import get_global_system_prompt_base
@@ -73,18 +76,25 @@ def prepare_messages_with_context(
 
     last_user_msg = _find_last_user_message(request.messages)
 
-    rag_msg = build_rag_system_message(user_message=last_user_msg or "")
-    if not rag_msg:
-        rag_msg = (
-            "ידע מערכת שנשלף מה-Knowledge Base (חובה להשתמש בו):\n"
-            "(לא נמצאו מקורות רלוונטיים או שהאינדקס לא זמין)\n\n"
-            "הנחיות:\n"
-            "- לפני כל שימוש בנתוני לקוח או הפעלת כלי, חובה להצליב את הפעולה מול ידע המערכת (RAG) ולצטט את המקור הרלוונטי.\n"
-            "- אסור להסתמך על ידע כללי שסותר את המסמכים; אם אין מקורות, ציין זאת במפורש.\n"
-            "- אם אתה עומד לבצע TOOL_CALL שמשנה נתונים/מצב, בקש הבהרה/מקור נוסף לפני ביצוע.\n"
-        )
+    policy_decision = get_current_tool_execution_policy_decision()
+    tools_allowed = True
+    if policy_decision is not None:
+        tools_allowed = bool(getattr(policy_decision, "tools_allowed", True))
+    inject_rag = not tools_allowed
 
-    messages.insert(0, ChatMessage(role="system", content=rag_msg))
+    if inject_rag:
+        rag_msg = build_rag_system_message(user_message=last_user_msg or "")
+        if not rag_msg:
+            rag_msg = (
+                "ידע מערכת שנשלף מה-Knowledge Base (חובה להשתמש בו):\n"
+                "(לא נמצאו מקורות רלוונטיים או שהאינדקס לא זמין)\n\n"
+                "הנחיות:\n"
+                "- לפני כל שימוש בנתוני לקוח או הפעלת כלי, חובה להצליב את הפעולה מול ידע המערכת (RAG) ולצטט את המקור הרלוונטי.\n"
+                "- אסור להסתמך על ידע כללי שסותר את המסמכים; אם אין מקורות, ציין זאת במפורש.\n"
+                "- אם אתה עומד לבצע TOOL_CALL שמשנה נתונים/מצב, בקש הבהרה/מקור נוסף לפני ביצוע.\n"
+            )
+
+        messages.insert(0, ChatMessage(role="system", content=rag_msg))
 
     # הנחיית בסיס גלובלית לסוכן (אישיות, שימוש בכלים, פורמט תשובה)
     global_system_prompt = get_global_system_prompt_base()
@@ -92,10 +102,14 @@ def prepare_messages_with_context(
     workflow_example = get_condensed_workflow_example()
     global_system_prompt += workflow_example
 
-    messages.insert(1, ChatMessage(role="system", content=global_system_prompt))
+    global_system_prompt_insertion_idx = 1 if inject_rag else 0
+    messages.insert(
+        global_system_prompt_insertion_idx,
+        ChatMessage(role="system", content=global_system_prompt),
+    )
 
     if last_user_msg:
-        insertion_idx = 2
+        insertion_idx = global_system_prompt_insertion_idx + 1
 
         relevant_example = get_relevant_example(last_user_msg)
         if relevant_example:
@@ -103,9 +117,10 @@ def prepare_messages_with_context(
             messages.insert(insertion_idx, ChatMessage(role="system", content=example_msg))
             insertion_idx += 1
 
-        knowledge_msg = build_knowledge_system_message(last_user_msg)
-        if knowledge_msg:
-            messages.insert(insertion_idx, ChatMessage(role="system", content=knowledge_msg))
+        if inject_rag:
+            knowledge_msg = build_knowledge_system_message(last_user_msg)
+            if knowledge_msg:
+                messages.insert(insertion_idx, ChatMessage(role="system", content=knowledge_msg))
 
     full_context = build_full_context_for_llm(request=request, db=db, messages=messages)
     if full_context:
