@@ -9,6 +9,7 @@ from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_par
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     build_default_termination_plan_preview,
     clear_current_employer_termination_plan_preview,
+    get_current_employer_severance_amount_ssot,
     load_current_employer_termination_plan_preview,
     clear_pending_current_employer_severance_termination_question,
     clear_pending_build_target_plan_after_termination,
@@ -197,8 +198,17 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         except Exception:
             pass
 
+        current_employer_amount = 0.0
+        try:
+            current_employer_amount = float(
+                get_current_employer_severance_amount_ssot(db=db, client_id=int(request.client_id))
+                or 0
+            )
+        except Exception:
+            current_employer_amount = 0.0
+
         preview_text, args_template = build_default_termination_plan_preview(
-            current_employer_amount=0,
+            current_employer_amount=current_employer_amount,
             context={"plan_args": plan_args},
         )
         try:

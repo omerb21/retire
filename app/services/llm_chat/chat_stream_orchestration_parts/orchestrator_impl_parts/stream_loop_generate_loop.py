@@ -1,5 +1,7 @@
 ﻿from fastapi.responses import StreamingResponse
 
+from app.services.llm_chat.orchestration_loop_core import run_orchestration_loop_core
+
 
 def _build_streaming_response_generate_loop(
     *,
@@ -109,125 +111,142 @@ def _build_streaming_response_generate_loop(
             get_retirement_kb_for_stream=get_retirement_kb_for_stream,
         )
 
-        while current_step < max_steps:
-            current_step += 1
-
+        def _get_llm_reply(step: int):
+            step += 1
             should_break, full_response = yield from stream_collect_llm_response_with_retry_or_yield_error(
                 collect_llm_response_with_retry=collect_llm_response_with_retry,
                 history_messages=history_messages,
                 client_id=request.client_id,
                 stream_request_id=stream_request_id,
-                current_step=current_step,
+                current_step=step,
                 logger=logger,
                 get_llm_service=get_llm_service,
                 get_retry_settings=get_retry_settings,
             )
-            if should_break:
-                break
+            return should_break, full_response, step
 
-            if tool_call_marker not in full_response:
-                should_continue, has_pass_fail = maybe_apply_non_tool_response_guardrails(
-                    full_response=full_response,
-                    request=request,
-                    db=db,
-                    history_messages=history_messages,
-                    is_qa_mode=is_qa_mode,
-                    no_tools_requested=no_tools_requested,
-                    required_tools=required_tools,
-                    executed_tools=executed_tools,
-                    is_tax_doc_request=is_tax_doc_request,
-                    qa_summary_required=qa_summary_required,
-                    is_cashflow_request=is_cashflow_request,
-                    is_comparison_request=is_comparison_request,
-                    is_net_request=is_net_request,
-                    is_doc_request=is_doc_request,
-                )
-                if should_continue:
-                    continue
+        def _handle_non_tool_call(full_response: str, step: int):
+            nonlocal qa_summary_satisfied
 
-                log_llm_event(
-                    request_id=req_id,
-                    event_type="final_answer",
-                    payload=full_response,
-                    client_id=request.client_id,
-                    extra={"endpoint": "stream"},
-                )
-                if qa_summary_required and has_pass_fail:
-                    qa_summary_satisfied = True
-
-                did_return = yield from stream_finalize_non_tool_response(
-                    logger=logger,
-                    req_id=req_id,
-                    stream_request_id=stream_request_id,
-                    request=request,
-                    history_messages=history_messages,
-                    full_response=full_response,
-                    resolved_intent=resolved_intent,
-                    tools_disabled_reason=tools_disabled_reason,
-                    no_tools_requested=bool(no_tools_requested),
-                    conceptual_tools_disabled=bool(conceptual_tools_disabled),
-                    exec_only_active=bool(exec_only_active),
-                    original_user_msg=original_user_msg,
-                    is_portfolio_analysis=bool(is_portfolio_analysis),
-                    build_allowed_sources_for_numeric_provenance=build_allowed_sources_for_numeric_provenance,
-                    compute_final_out_with_numeric_provenance_guardrail=compute_final_out_with_numeric_provenance_guardrail,
-                    postprocess_no_tools_user_visible_text=postprocess_no_tools_user_visible_text,
-                    validate_execution_only_output=validate_execution_only_output,
-                    build_exec_only_rewrite_prompt=build_exec_only_rewrite_prompt,
-                    get_llm_service=get_llm_service,
-                    build_execution_only_fallback=build_execution_only_fallback,
-                    enforce_behavioral_limits=enforce_behavioral_limits,
-                    sanitize_words_only_output=sanitize_words_only_output,
-                    sanitize_words_only_conceptual=sanitize_words_only_conceptual,
-                )
-                if did_return:
-                    return
-                break
-
-            tool_directive, qa_summary_required, report_open_path, current_pension_portfolio, forced_fixation_chain_done = (
-                yield from stream_handle_tool_call_iteration(
-                    logger=logger,
-                    stream_request_id=stream_request_id,
-                    req_id=req_id,
-                    full_response=full_response,
-                    request=request,
-                    db=db,
-                    history_messages=history_messages,
-                    original_user_msg=original_user_msg,
-                    is_portfolio_analysis=bool(is_portfolio_analysis),
-                    analysis_default_retirement_age=analysis_default_retirement_age,
-                    no_tools_requested=bool(no_tools_requested),
-                    is_qa_mode=bool(is_qa_mode),
-                    is_doc_request=bool(is_doc_request),
-                    is_tax_doc_request=bool(is_tax_doc_request),
-                    wants_ignore_blocked=bool(wants_ignore_blocked),
-                    explicit_termination=bool(explicit_termination),
-                    termination_already_executed=bool(termination_already_executed),
-                    termination_change=bool(termination_change),
-                    current_pension_portfolio=current_pension_portfolio,
-                    wants_capital_transform=bool(wants_capital_transform),
-                    force_max_exemption_val=bool(force_max_exemption_val),
-                    qa_summary_required=bool(qa_summary_required),
-                    report_open_path=report_open_path,
-                    forced_fixation_chain_done=bool(forced_fixation_chain_done),
-                    required_tools=required_tools,
-                    executed_tools=executed_tools,
-                    resolved_intent=resolved_intent,
-                    exec_only_active=bool(exec_only_active),
-                    stream_prepare_tool_call_and_maybe_request_commutation_approval=stream_prepare_tool_call_and_maybe_request_commutation_approval,
-                    load_latest_pension_portfolio_snapshot_models=load_latest_pension_portfolio_snapshot_models,
-                    generate_cashflow=generate_cashflow,
-                    stream_execute_tool_and_process_result=stream_execute_tool_and_process_result,
-                    is_tool_error_text=is_tool_error_text,
-                    execution_only_blocked=execution_only_blocked,
-                )
+            should_continue, has_pass_fail = maybe_apply_non_tool_response_guardrails(
+                full_response=full_response,
+                request=request,
+                db=db,
+                history_messages=history_messages,
+                is_qa_mode=is_qa_mode,
+                no_tools_requested=no_tools_requested,
+                required_tools=required_tools,
+                executed_tools=executed_tools,
+                is_tax_doc_request=is_tax_doc_request,
+                qa_summary_required=qa_summary_required,
+                is_cashflow_request=is_cashflow_request,
+                is_comparison_request=is_comparison_request,
+                is_net_request=is_net_request,
+                is_doc_request=is_doc_request,
             )
-            if tool_directive == "continue":
-                continue
-            if tool_directive == "break":
-                break
-            if tool_directive == "return":
-                return
+            if should_continue:
+                return "continue", step
+
+            log_llm_event(
+                request_id=req_id,
+                event_type="final_answer",
+                payload=full_response,
+                client_id=request.client_id,
+                extra={"endpoint": "stream"},
+            )
+            if qa_summary_required and has_pass_fail:
+                qa_summary_satisfied = True
+
+            did_return = yield from stream_finalize_non_tool_response(
+                logger=logger,
+                req_id=req_id,
+                stream_request_id=stream_request_id,
+                request=request,
+                history_messages=history_messages,
+                full_response=full_response,
+                resolved_intent=resolved_intent,
+                tools_disabled_reason=tools_disabled_reason,
+                no_tools_requested=bool(no_tools_requested),
+                conceptual_tools_disabled=bool(conceptual_tools_disabled),
+                exec_only_active=bool(exec_only_active),
+                original_user_msg=original_user_msg,
+                is_portfolio_analysis=bool(is_portfolio_analysis),
+                build_allowed_sources_for_numeric_provenance=build_allowed_sources_for_numeric_provenance,
+                compute_final_out_with_numeric_provenance_guardrail=compute_final_out_with_numeric_provenance_guardrail,
+                postprocess_no_tools_user_visible_text=postprocess_no_tools_user_visible_text,
+                validate_execution_only_output=validate_execution_only_output,
+                build_exec_only_rewrite_prompt=build_exec_only_rewrite_prompt,
+                get_llm_service=get_llm_service,
+                build_execution_only_fallback=build_execution_only_fallback,
+                enforce_behavioral_limits=enforce_behavioral_limits,
+                sanitize_words_only_output=sanitize_words_only_output,
+                sanitize_words_only_conceptual=sanitize_words_only_conceptual,
+            )
+            if did_return:
+                return "return", step
+            return "break", step
+
+        def _handle_tool_call(full_response: str, step: int):
+            nonlocal qa_summary_required
+            nonlocal report_open_path
+            nonlocal current_pension_portfolio
+            nonlocal forced_fixation_chain_done
+
+            (
+                tool_directive,
+                qa_summary_required,
+                report_open_path,
+                current_pension_portfolio,
+                forced_fixation_chain_done,
+            ) = yield from stream_handle_tool_call_iteration(
+                logger=logger,
+                stream_request_id=stream_request_id,
+                req_id=req_id,
+                full_response=full_response,
+                request=request,
+                db=db,
+                history_messages=history_messages,
+                original_user_msg=original_user_msg,
+                is_portfolio_analysis=bool(is_portfolio_analysis),
+                analysis_default_retirement_age=analysis_default_retirement_age,
+                no_tools_requested=bool(no_tools_requested),
+                is_qa_mode=bool(is_qa_mode),
+                is_doc_request=bool(is_doc_request),
+                is_tax_doc_request=bool(is_tax_doc_request),
+                wants_ignore_blocked=bool(wants_ignore_blocked),
+                explicit_termination=bool(explicit_termination),
+                termination_already_executed=bool(termination_already_executed),
+                termination_change=bool(termination_change),
+                current_pension_portfolio=current_pension_portfolio,
+                wants_capital_transform=bool(wants_capital_transform),
+                force_max_exemption_val=bool(force_max_exemption_val),
+                qa_summary_required=bool(qa_summary_required),
+                report_open_path=report_open_path,
+                forced_fixation_chain_done=bool(forced_fixation_chain_done),
+                required_tools=required_tools,
+                executed_tools=executed_tools,
+                resolved_intent=resolved_intent,
+                exec_only_active=bool(exec_only_active),
+                stream_prepare_tool_call_and_maybe_request_commutation_approval=stream_prepare_tool_call_and_maybe_request_commutation_approval,
+                load_latest_pension_portfolio_snapshot_models=load_latest_pension_portfolio_snapshot_models,
+                generate_cashflow=generate_cashflow,
+                stream_execute_tool_and_process_result=stream_execute_tool_and_process_result,
+                is_tool_error_text=is_tool_error_text,
+                execution_only_blocked=execution_only_blocked,
+            )
+            return tool_directive, step
+
+        directive, current_step = yield from run_orchestration_loop_core(
+            max_steps=max_steps,
+            current_step=current_step,
+            tool_call_marker=tool_call_marker,
+            get_llm_reply=_get_llm_reply,
+            handle_tool_call=_handle_tool_call,
+            handle_non_tool_call=_handle_non_tool_call,
+        )
+
+        if directive == "return":
+            return
 
         if qa_summary_required and not qa_summary_satisfied:
             if report_open_path:

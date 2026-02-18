@@ -69,3 +69,7 @@ local_plans/
 *.db
 instance/retire.db
 retire-nuc.db
+# local DB artifacts
+*.db
+instance/retire.db
+retire-nuc.db

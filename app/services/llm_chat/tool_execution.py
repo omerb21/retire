@@ -438,6 +438,7 @@ def execute_tool_call(
         # ── Unified income offset: subtract AdditionalIncome (other income) ──
         # Applied here so that BOTH the deterministic path and the tool-call
         # loop produce the same effective target for the adapter.
+        _offset_breakdown = None
         try:
             from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
                 compute_effective_plan_target,
@@ -450,11 +451,39 @@ def execute_tool_call(
                     db=db, client_id=int(client_id),
                     desired_total=_raw_target, target_is_net=_is_net_val,
                 )
+                _offset_breakdown = _bd
                 args = dict(args)
                 args["target_monthly_pension"] = _bd.effective_plan_target
                 args["_target_breakdown"] = _bd.to_dict()
         except Exception:
             pass
+
+        try:
+            _effective_target = float((args or {}).get("target_monthly_pension") or 0)
+        except Exception:
+            _effective_target = 0.0
+        if _offset_breakdown is not None and _effective_target <= 0:
+            mode_label = "נטו" if bool(getattr(_offset_breakdown, "target_is_net", True)) else "ברוטו"
+            try:
+                desired = float(getattr(_offset_breakdown, "desired_net_total", 0) or 0)
+            except Exception:
+                desired = 0.0
+            try:
+                offset_val = (
+                    float(getattr(_offset_breakdown, "other_income_offset_net", 0) or 0)
+                    if bool(getattr(_offset_breakdown, "target_is_net", True))
+                    else float(getattr(_offset_breakdown, "other_income_offset_gross", 0) or 0)
+                )
+            except Exception:
+                offset_val = 0.0
+
+            lines: list[str] = []
+            lines.append("✅ חישוב דטרמיניסטי:")
+            lines.append(f"- יעד חודשי מבוקש ({mode_label}): {desired:,.0f} ₪")
+            if offset_val > 0:
+                lines.append(f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪")
+            lines.append("היעד כבר מושג מהכנסות קיימות – אין צורך בבניית קצבה נוספת בתכנית.")
+            return "\n".join(lines).strip()
 
         policy_text = None
         policy_status, updated_args, policy_text = enforce_blocked_balances_policy_for_build(plan_args_in=args)

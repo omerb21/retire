@@ -6,6 +6,8 @@ from typing import Any
 from app.schemas.llm_chat import ChatMessage, ChatResponse
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 
+from app.services.llm_chat.orchestration_loop_core import run_orchestration_loop_core_sync
+
 
 from ..steps.messages_prompt import _build_messages_and_prompt
 from ..steps.types import _PreparedOrchestrationInputs
@@ -139,20 +141,25 @@ def _run_orchestration(
     report_open_path: str | None = None
     forced_fixation_chain_done = False
 
-    while current_step < max_steps:
+    immediate_response_result: ChatResponse | None = None
+
+    def _get_llm_reply(step: int):
         logger.info(
             "🔄 Agent Loop Step %d/%d for client %s",
-            current_step + 1,
+            step + 1,
             max_steps,
             request.client_id,
         )
+        raw = _get_llm_service().chat(messages, request.client_id)
+        return False, raw, step
 
-        raw_reply = _get_llm_service().chat(messages, request.client_id)
+    def _pre_dispatch(raw_reply: str, step: int):
+        nonlocal qa_summary_required
 
         lowered = (raw_reply or "").lower()
         has_pass_fail = ("pass" in lowered) or ("fail" in lowered)
 
-        if is_qa_mode and no_tools_requested and not has_pass_fail and "###TOOL_CALL###" not in raw_reply:
+        if is_qa_mode and no_tools_requested and (not has_pass_fail) and ("###TOOL_CALL###" not in raw_reply):
             messages.append(
                 ChatMessage(
                     role="system",
@@ -162,10 +169,10 @@ def _run_orchestration(
                     ),
                 )
             )
-            current_step += 1
-            continue
+            step += 1
+            return "continue", step
 
-        if qa_summary_required and not has_pass_fail and "###TOOL_CALL###" not in raw_reply:
+        if qa_summary_required and (not has_pass_fail) and ("###TOOL_CALL###" not in raw_reply):
             messages.append(
                 ChatMessage(
                     role="system",
@@ -175,8 +182,20 @@ def _run_orchestration(
                     ),
                 )
             )
-            current_step += 1
-            continue
+            step += 1
+            return "continue", step
+
+        return "none", step
+
+    def _handle_tool_call(raw_reply: str, step: int):
+        nonlocal immediate_response_result
+        nonlocal original_user_msg
+        nonlocal current_pension_portfolio
+        nonlocal final_reply
+        nonlocal forced_user_prefix
+        nonlocal qa_summary_required
+        nonlocal report_open_path
+        nonlocal forced_fixation_chain_done
 
         (
             handled_tool_call,
@@ -189,7 +208,7 @@ def _run_orchestration(
             qa_summary_required,
             report_open_path,
             forced_fixation_chain_done,
-            current_step,
+            step,
         ) = _handle_tool_call_step(
             request=request,
             db=db,
@@ -220,18 +239,23 @@ def _run_orchestration(
             qa_summary_required=qa_summary_required,
             report_open_path=report_open_path,
             forced_fixation_chain_done=forced_fixation_chain_done,
-            current_step=current_step,
+            current_step=step,
             computed_data=computed_data,
         )
 
         if immediate_response is not None:
-            return immediate_response
+            immediate_response_result = immediate_response
+            return "return", step
         if should_break:
-            break
+            return "break", step
         if handled_tool_call:
-            continue
+            return "continue", step
+        return "none", step
 
-        should_continue, did_break, final_reply, current_step = _handle_no_tool_call_step(
+    def _handle_non_tool_call(raw_reply: str, step: int):
+        nonlocal final_reply
+
+        should_continue, did_break, final_reply, step = _handle_no_tool_call_step(
             request=request,
             db=db,
             request_id=request_id,
@@ -248,12 +272,26 @@ def _run_orchestration(
             is_net_request=is_net_request,
             forced_user_prefix=forced_user_prefix,
             final_reply=final_reply,
-            current_step=current_step,
+            current_step=step,
         )
         if should_continue:
-            continue
+            return "continue", step
         if did_break:
-            break
+            return "break", step
+        return "none", step
+
+    _directive, current_step = run_orchestration_loop_core_sync(
+        max_steps=max_steps,
+        current_step=current_step,
+        tool_call_marker="###TOOL_CALL###",
+        get_llm_reply=_get_llm_reply,
+        pre_dispatch=_pre_dispatch,
+        handle_tool_call=_handle_tool_call,
+        handle_non_tool_call=_handle_non_tool_call,
+    )
+
+    if immediate_response_result is not None:
+        return immediate_response_result
 
     return _OrchestrationResult(
         final_reply=final_reply,

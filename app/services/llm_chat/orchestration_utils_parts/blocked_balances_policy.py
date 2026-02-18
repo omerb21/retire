@@ -145,6 +145,41 @@ class BlockedBalancesSummary:
     current_employer_severance_amount: float = 0.0
 
 
+def get_current_employer_severance_amount_ssot(*, db: Session, client_id: int) -> float:
+    candidates: list[CurrentEmployer] = []
+    try:
+        candidates = (
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
+            .all()
+        )
+    except Exception:
+        candidates = []
+
+    if not candidates:
+        return 0.0
+
+    chosen = candidates[0]
+    if len(candidates) > 1:
+        complete_candidates = [
+            c
+            for c in candidates
+            if float(getattr(c, "severance_accrued", None) or 0.0) > 0.0
+            and float(getattr(c, "last_salary", None) or 0.0) > 0.0
+        ]
+        if complete_candidates:
+            latest_severance = float(getattr(chosen, "severance_accrued", None) or 0.0)
+            latest_salary = float(getattr(chosen, "last_salary", None) or 0.0)
+            if latest_severance <= 0.0 or latest_salary <= 0.0:
+                chosen = complete_candidates[0]
+
+    try:
+        return float(getattr(chosen, "severance_accrued", None) or 0.0)
+    except Exception:
+        return 0.0
+
+
 def termination_already_executed_for_client(*, db: Session, client_id: int) -> bool:
     current_employer = None
     try:
@@ -198,6 +233,16 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
     plan_args["ignore_blocked_balances"] = True
 
     summary = compute_blocked_balances_summary_from_portfolio(portfolio)
+
+    try:
+        ssot_amount = get_current_employer_severance_amount_ssot(db=db, client_id=client_id)
+        if ssot_amount > 0:
+            summary.current_employer_severance_amount = max(
+                float(getattr(summary, "current_employer_severance_amount", 0.0) or 0.0),
+                float(ssot_amount),
+            )
+    except Exception:
+        pass
 
     notice_text = None
     notice_kinds = blocked_balances_notice_kinds(summary)
@@ -467,11 +512,17 @@ def build_default_termination_plan_preview(
         "exempt_choice": "redeem_with_exemption",
         "taxable_choice": "annuity",
     }
+    try:
+        current_employer_amount_val = float(current_employer_amount or 0)
+    except Exception:
+        current_employer_amount_val = 0.0
+
     preview = (
         "אני עומד לבצע עכשיו עזיבת עבודה בברירת המחדל הבאה:\n"
         "- החלק הפטור: משיכה הונית בפטור (redeem_with_exemption)\n"
         "- החלק החייב: המרה לרצף קצבה (annuity)\n\n"
-        "לאשר את תכנית ברירת המחדל?\n\nאפשרויות:\nכן\nלא"
+        + (f"סכום פיצויי מעסיק נוכחי לפי נתוני המערכת: {current_employer_amount_val:,.0f} ₪\n\n" if current_employer_amount_val > 0 else "")
+        + "לאשר את תכנית ברירת המחדל?\n\nאפשרויות:\nכן\nלא"
     )
     return preview, args_template
 

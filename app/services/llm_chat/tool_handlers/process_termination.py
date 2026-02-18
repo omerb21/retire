@@ -98,6 +98,42 @@ def handle_process_termination(
         if not employer:
             return "Error: מעסיק נוכחי לא נמצא"
 
+        try:
+            employer_sev = float(getattr(employer, "severance_accrued", 0) or 0)
+        except Exception:
+            employer_sev = 0.0
+
+        portfolio_sev_total = 0.0
+        if employer_sev <= 0 and pension_portfolio:
+            for account in pension_portfolio:
+                try:
+                    if hasattr(account, "model_dump"):
+                        acc_dict = account.model_dump()
+                    elif hasattr(account, "__dict__"):
+                        acc_dict = vars(account)
+                    elif isinstance(account, dict):
+                        acc_dict = account
+                    else:
+                        continue
+                except Exception:
+                    continue
+
+                try:
+                    portfolio_sev_total += float(acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0)
+                except Exception:
+                    continue
+
+            if portfolio_sev_total > 0:
+                employer.severance_accrued = float(portfolio_sev_total)
+                db.add(employer)
+                db.flush()
+                logger.info(
+                    "SSOT_SEVERANCE_ACCRUED_DERIVED_FROM_PORTFOLIO client_id=%s employer_id=%s severance_accrued=%s",
+                    client_id,
+                    getattr(employer, "id", None),
+                    float(portfolio_sev_total),
+                )
+
         termination_date_str = args.get("termination_date")
         termination_date = (
             parse_date_flexible(str(termination_date_str))

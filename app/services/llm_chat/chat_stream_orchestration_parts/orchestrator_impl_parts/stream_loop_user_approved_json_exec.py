@@ -29,6 +29,7 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     clear_current_employer_termination_plan_preview,
     clear_pending_build_target_plan_after_termination,
     clear_pending_current_employer_severance_termination_question,
+    get_current_employer_severance_amount_ssot,
     load_pending_build_target_plan_after_termination,
     load_current_employer_termination_plan_preview,
     load_pending_current_employer_severance_termination_question,
@@ -104,8 +105,17 @@ def _maybe_handle_user_approved_json_exec(*, request, db, stream_request_id: str
             except Exception:
                 plan_args = {}
 
+            current_employer_amount = 0.0
+            try:
+                current_employer_amount = float(
+                    get_current_employer_severance_amount_ssot(db=db, client_id=int(request.client_id))
+                    or 0
+                )
+            except Exception:
+                current_employer_amount = 0.0
+
             preview_text, default_template = build_default_termination_plan_preview(
-                current_employer_amount=0.0,
+                current_employer_amount=current_employer_amount,
                 context=None,
             )
             try:
