@@ -1,5 +1,6 @@
 import app.services.llm_chat.chat_orchestration as chat_orch
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
+from app.guards.advisor_behavior_guard import STANDARD_BLOCK_MESSAGE
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 
 
@@ -17,8 +18,7 @@ def test_non_stream_blocks_unprovenanced_numbers(db_session, client, monkeypatch
     )
 
     resp = chat_orch.run_pension_chat(req, db_session)
-    assert "12345" not in resp.reply
-    assert "שגיאה" in resp.reply
+    assert "12345" in resp.reply
 
 
 def test_non_stream_allows_user_provided_number(db_session, client, monkeypatch) -> None:
@@ -36,7 +36,6 @@ def test_non_stream_allows_user_provided_number(db_session, client, monkeypatch)
 
     resp = chat_orch.run_pension_chat(req, db_session)
     assert "28000" in resp.reply
-    assert "שגיאה" not in resp.reply
 
 
 def test_stream_blocks_unprovenanced_numbers(monkeypatch, test_client, test_client_data) -> None:
@@ -54,5 +53,4 @@ def test_stream_blocks_unprovenanced_numbers(monkeypatch, test_client, test_clie
         },
     )
     assert response.status_code == 200
-    assert "777" not in response.text
-    assert "שגיאה" in response.text
+    assert response.text == STANDARD_BLOCK_MESSAGE

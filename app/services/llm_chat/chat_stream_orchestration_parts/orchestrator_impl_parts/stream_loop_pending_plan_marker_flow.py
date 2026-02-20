@@ -66,15 +66,7 @@ def _maybe_handle_pending_plan_target_marker_flow(
                 target_is_net=True,
             )
 
-        breakdown_lines: list[str] = []
-        breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-        breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {requested_target:,.0f} ₪")
-        if breakdown is not None and breakdown.other_income_offset_net > 0:
-            breakdown_lines.append(f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪")
         _effective = breakdown.effective_plan_target if breakdown is not None else requested_target
-        breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {_effective:,.0f} ₪")
-        yield "\n".join(breakdown_lines) + "\n\n"
-
         if _effective <= 0:
             yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
             delete_marker(pending_plan)
@@ -117,6 +109,18 @@ def _maybe_handle_pending_plan_target_marker_flow(
                 )
                 delete_marker(pending_plan)
                 return
+
+        breakdown_lines: list[str] = []
+        breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+        breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {requested_target:,.0f} ₪")
+        if breakdown is not None and breakdown.other_income_offset_net > 0:
+            breakdown_lines.append(
+                f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+            )
+        breakdown_lines.append(
+            f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {_effective:,.0f} ₪"
+        )
+        yield "\n".join(breakdown_lines) + "\n\n"
 
         pending_payload = None
         try:

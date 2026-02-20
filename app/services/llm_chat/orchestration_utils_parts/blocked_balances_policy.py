@@ -365,7 +365,7 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                         "כדי להמשיך, כתוב מה אתה רוצה לעשות עם הפיצויים:\n"
                         "- פטור: משיכה בפטור / משיכה ללא פטור (פריסה) / רצף קצבה\n"
                         "- חייב: רצף קצבה / משיכה (פריסה) / פיצול\n\n"
-                        "לדוגמה: 'פטור למשיכה בפטור, חייב לפיצול 70% קצבה 30% מענק'."
+                        "לדוגמה: 'פטור למשיכה בפטור, חייב לפיצול בין קצבה למענק'."
                     )
                     if notice_text:
                         msg = notice_text + "\n\n" + msg
@@ -521,7 +521,7 @@ def build_default_termination_plan_preview(
         "אני עומד לבצע עכשיו עזיבת עבודה בברירת המחדל הבאה:\n"
         "- החלק הפטור: משיכה הונית בפטור (redeem_with_exemption)\n"
         "- החלק החייב: המרה לרצף קצבה (annuity)\n\n"
-        + (f"סכום פיצויי מעסיק נוכחי לפי נתוני המערכת: {current_employer_amount_val:,.0f} ₪\n\n" if current_employer_amount_val > 0 else "")
+        + ("סכום פיצויי מעסיק נוכחי לפי נתוני המערכת: קיים\n\n" if current_employer_amount_val > 0 else "")
         + "לאשר את תכנית ברירת המחדל?\n\nאפשרויות:\nכן\nלא"
     )
     return preview, args_template

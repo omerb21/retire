@@ -464,24 +464,10 @@ def execute_tool_call(
             _effective_target = 0.0
         if _offset_breakdown is not None and _effective_target <= 0:
             mode_label = "נטו" if bool(getattr(_offset_breakdown, "target_is_net", True)) else "ברוטו"
-            try:
-                desired = float(getattr(_offset_breakdown, "desired_net_total", 0) or 0)
-            except Exception:
-                desired = 0.0
-            try:
-                offset_val = (
-                    float(getattr(_offset_breakdown, "other_income_offset_net", 0) or 0)
-                    if bool(getattr(_offset_breakdown, "target_is_net", True))
-                    else float(getattr(_offset_breakdown, "other_income_offset_gross", 0) or 0)
-                )
-            except Exception:
-                offset_val = 0.0
-
             lines: list[str] = []
             lines.append("✅ חישוב דטרמיניסטי:")
-            lines.append(f"- יעד חודשי מבוקש ({mode_label}): {desired:,.0f} ₪")
-            if offset_val > 0:
-                lines.append(f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪")
+            lines.append(f"- יעד חודשי מבוקש ({mode_label}): התקבל")
+            lines.append(f"- קיזוז הכנסות נוספות ({mode_label}): בוצע")
             lines.append("היעד כבר מושג מהכנסות קיימות – אין צורך בבניית קצבה נוספת בתכנית.")
             return "\n".join(lines).strip()
 
@@ -928,6 +914,7 @@ def execute_tool_call(
     try:
         _tr_payload = {
             "tool_name": tool_name,
+            "status": "ok",
             "success": True,
             "elapsed_ms": elapsed_ms,
             "result_preview": (result or "")[:2000],

@@ -36,6 +36,12 @@ def test_stream_execute_without_plan_prompts_then_target_runs_build(monkeypatch,
     tool_calls: list[tuple[str, dict]] = []
 
     def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+        try:
+            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+
+            mark_tool_ok_seen()
+        except Exception:
+            pass
         tool_calls.append((tool_name, args))
         assert tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"

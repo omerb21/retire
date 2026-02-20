@@ -51,6 +51,36 @@ def extract_numeric_matches(text: str | None) -> list[str]:
     return [m.group(0) for m in _NUM_TOKEN_RE.finditer(text)]
 
 
+def build_numeric_match_examples(
+    *,
+    text: str | None,
+    window: int = 30,
+    max_examples: int = 3,
+) -> list[str]:
+    if not isinstance(text, str) or not text:
+        return []
+    if window < 0:
+        window = 0
+    if max_examples <= 0:
+        return []
+
+    examples: list[str] = []
+    try:
+        for m in _NUM_TOKEN_RE.finditer(text):
+            start = max(0, m.start() - window)
+            end = min(len(text), m.end() + window)
+            snippet = text[start:end].replace("\n", " ").replace("\r", " ")
+            snippet = re.sub(r"\s+", " ", snippet).strip()
+            if snippet:
+                examples.append(snippet)
+            if len(examples) >= max_examples:
+                break
+    except Exception:
+        return examples
+
+    return examples
+
+
 def extract_inline_tool_output_blocks(text: str | None) -> list[str]:
     if not isinstance(text, str) or not text:
         return []

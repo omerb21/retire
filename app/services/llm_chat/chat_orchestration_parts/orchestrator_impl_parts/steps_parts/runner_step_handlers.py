@@ -1267,7 +1267,7 @@ def _handle_no_tool_call_step(
 
         try:
             logger.warning(
-                "numeric_provenance_blocked non_stream trace_id=%s request_id=%s client_id=%s tokens=%s matches=%s preview_head=%s preview_tail=%s",
+                "numeric_provenance_detected non_stream trace_id=%s request_id=%s client_id=%s tokens=%s matches=%s preview_head=%s preview_tail=%s",
                 trace_id,
                 request_id,
                 getattr(request, "client_id", None),
@@ -1281,23 +1281,37 @@ def _handle_no_tool_call_step(
         try:
             log_llm_event_fn(
                 request_id=request_id,
-                event_type="numeric_provenance_violation",
+                event_type="numeric_provenance_violation_detected",
                 payload={
                     "tokens": list(violation.tokens),
                     "matches": matches,
-                    "blocked_preview_head": head_preview,
-                    "blocked_preview_tail": tail_preview,
+                    "preview_head": head_preview,
+                    "preview_tail": tail_preview,
                 },
                 client_id=request.client_id,
                 extra={"endpoint": "non_stream", "trace_id": trace_id},
             )
         except Exception:
             pass
-        final_reply = (
-            "שגיאה: המערכת חסמה תשובה שכללה מספרים שלא הגיעו מחישוב מערכת. "
-            "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
-        )
-    else:
-        final_reply = scrubbed_reply
+
+        try:
+            from app.services.agent_trace_logger import log_trace_event
+
+            log_trace_event(
+                event_type="numeric_provenance_violation_detected",
+                payload={
+                    "tokens": list(violation.tokens),
+                    "matches": matches,
+                    "preview_head": head_preview,
+                    "preview_tail": tail_preview,
+                    "request_id": request_id,
+                },
+                client_id=request.client_id,
+                endpoint="non_stream",
+            )
+        except Exception:
+            pass
+
+    final_reply = scrubbed_reply
 
     return False, True, final_reply, current_step

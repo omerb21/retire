@@ -1,4 +1,5 @@
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
+from app.guards.advisor_behavior_guard import STANDARD_BLOCK_MESSAGE
 
 
 def test_chat_stream_llm_timeout_yields_error_including_request_id(monkeypatch, client):
@@ -39,5 +40,4 @@ def test_chat_stream_llm_error_returns_non_empty_reply(monkeypatch, test_client,
         },
     )
     assert response.status_code == 200
-    assert "request_id" in response.text
-    assert "שגיאה" in response.text
+    assert response.text == STANDARD_BLOCK_MESSAGE

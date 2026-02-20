@@ -49,13 +49,210 @@ _CONTRACTS: dict[str, ToolContract] = {
         result_model=_GetSystemNumericConstantsResult,
         notes="Read-only tool used in tests.",
     ),
+    "GET_PENSION_PRODUCTS": ToolContract(
+        tool_name="GET_PENSION_PRODUCTS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "GET_ACCOUNT_DETAILS": ToolContract(
+        tool_name="GET_ACCOUNT_DETAILS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "GET_TAX_PROJECTION": ToolContract(
+        tool_name="GET_TAX_PROJECTION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "RUN_RETIREMENT_CASHFLOW_ANALYSIS": ToolContract(
+        tool_name="RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "RUN_RETIREMENT_SCENARIOS": ToolContract(
+        tool_name="RUN_RETIREMENT_SCENARIOS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "RUN_RETIREMENT_SCENARIOS_PREVIEW": ToolContract(
+        tool_name="RUN_RETIREMENT_SCENARIOS_PREVIEW",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "FIND_OPTIMAL_SCENARIO": ToolContract(
+        tool_name="FIND_OPTIMAL_SCENARIO",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "SELECT_TARGET_PENSION_SCENARIO": ToolContract(
+        tool_name="SELECT_TARGET_PENSION_SCENARIO",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "EXECUTE_RETIREMENT_SCENARIO": ToolContract(
+        tool_name="EXECUTE_RETIREMENT_SCENARIO",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "BUILD_TARGET_PENSION_PLAN": ToolContract(
+        tool_name="BUILD_TARGET_PENSION_PLAN",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "PROJECT_TOTAL_ANNUITY": ToolContract(
+        tool_name="PROJECT_TOTAL_ANNUITY",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CALCULATE_PENSION_COMMUTATION": ToolContract(
+        tool_name="CALCULATE_PENSION_COMMUTATION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "EXECUTE_PENSION_COMMUTATION": ToolContract(
+        tool_name="EXECUTE_PENSION_COMMUTATION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "SUBMIT_TAX_COMMUTATION": ToolContract(
+        tool_name="SUBMIT_TAX_COMMUTATION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CALCULATE_TAX_EXEMPT_PENSION": ToolContract(
+        tool_name="CALCULATE_TAX_EXEMPT_PENSION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CALCULATE_CAPITAL_WITHDRAWAL_TAX": ToolContract(
+        tool_name="CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CALCULATE_TAX_SPREAD_BENEFIT": ToolContract(
+        tool_name="CALCULATE_TAX_SPREAD_BENEFIT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CALCULATE_FIXATION_OF_RIGHTS": ToolContract(
+        tool_name="CALCULATE_FIXATION_OF_RIGHTS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "GET_FIXATION_STATUS_SNAPSHOT": ToolContract(
+        tool_name="GET_FIXATION_STATUS_SNAPSHOT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CHECK_DATA_COMPLETENESS": ToolContract(
+        tool_name="CHECK_DATA_COMPLETENESS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "TRANSFORM_FUNDS_TO_ASSETS": ToolContract(
+        tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CREATE_TAX_EXEMPT_GRANT": ToolContract(
+        tool_name="CREATE_TAX_EXEMPT_GRANT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CREATE_ADDITIONAL_INCOME": ToolContract(
+        tool_name="CREATE_ADDITIONAL_INCOME",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "CREATE_INDIVIDUAL_ASSET": ToolContract(
+        tool_name="CREATE_INDIVIDUAL_ASSET",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "SET_CURRENT_EMPLOYER_DETAILS": ToolContract(
+        tool_name="SET_CURRENT_EMPLOYER_DETAILS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "EXECUTE_WORK_TERMINATION": ToolContract(
+        tool_name="EXECUTE_WORK_TERMINATION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "PROCESS_TERMINATION": ToolContract(
+        tool_name="PROCESS_TERMINATION",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "GENERATE_FULL_REPORT": ToolContract(
+        tool_name="GENERATE_FULL_REPORT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "GENERATE_TAX_DEDUCTION_DOCUMENTS": ToolContract(
+        tool_name="GENERATE_TAX_DEDUCTION_DOCUMENTS",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "GET_SYSTEM_STATE_SNAPSHOT": ToolContract(
+        tool_name="GET_SYSTEM_STATE_SNAPSHOT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "RESTORE_PENSION_PORTFOLIO_SNAPSHOT": ToolContract(
+        tool_name="RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
+    "RESTORE_SYSTEM_SNAPSHOT": ToolContract(
+        tool_name="RESTORE_SYSTEM_SNAPSHOT",
+        args_model=None,
+        result_model=None,
+        notes=None,
+    ),
 }
 
 
 def get_tool_contract(tool_name: str) -> ToolContract | None:
     if not isinstance(tool_name, str) or not tool_name.strip():
         return None
-    return _CONTRACTS.get(tool_name.strip())
+    c = _CONTRACTS.get(tool_name.strip())
+    if c is None:
+        return None
+    if c.args_model is None and c.result_model is None:
+        return None
+    return c
 
 
 def validate_tool_args(tool_name: str, tool_args: Any) -> tuple[bool, str | None]:

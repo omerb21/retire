@@ -181,15 +181,15 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
             "כדי לתקן את התכנית צריך להבהיר: היעד שביקשת הוא **ברוטו** או **נטו**?\n\n"
             f"(התכנית האחרונה נבנתה במצב: {prev_mode})\n\n"
             "כתוב אחת מהאפשרויות:\n"
-            "- '28000 ברוטו'\n"
-            "- '28000 נטו'"
+            "- '<מספר> ברוטו'\n"
+            "- '<מספר> נטו'"
         )
         return
 
     if target_val <= 0:
         yield (
             "לא הצלחתי לקרוא את יעד הקצבה מתוך התכנית האחרונה. "
-            "בבקשה בקש שוב: 'בנה תכנית משיכה לקצבת יעד של 28000' (ברוטו/נטו)."
+            "בבקשה בקש שוב: 'בנה תכנית משיכה לקצבת יעד של <מספר>' (ברוטו/נטו)."
         )
         return
 
@@ -567,6 +567,23 @@ def generate_cashflow(*, computed_data, original_user_msg, request, db, effectiv
     if not isinstance(plan_payload, dict):
         yield "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
         return
+
+    try:
+        from app.services.agent_execution.tool_executor import execute_tool_call
+
+        if request.client_id is not None:
+            execute_tool_call(
+                tool_name="GET_SYSTEM_NUMERIC_CONSTANTS",
+                args={},
+                client_id=int(request.client_id),
+                db=db,
+                pension_portfolio=effective_portfolio,
+                force_max_exemption=False,
+                user_approved=True,
+                request_id=stream_request_id,
+            )
+    except Exception:
+        pass
 
     plan_res = plan_payload.get("result") if isinstance(plan_payload.get("result"), dict) else {}
 

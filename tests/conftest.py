@@ -17,6 +17,8 @@ from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 from app.main import app as fastapi_app
 
+import app.models
+
 HTTPXClient = getattr(httpx, "Client", None) if httpx is not None else None
 if httpx is not None and HTTPXClient is not None:
     sig = inspect.signature(HTTPXClient.__init__)

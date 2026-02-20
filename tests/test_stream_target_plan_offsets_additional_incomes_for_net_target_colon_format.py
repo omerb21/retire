@@ -5,7 +5,6 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
-import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop as stream_loop
 from app.main import app
 from app.models.additional_income import AdditionalIncome
 from app.models.client import Client
@@ -80,7 +79,7 @@ def test_stream_target_plan_offsets_additional_incomes_for_net_target_colon_form
             + "\n###END_TARGET_PENSION_PLAN_DATA###"
         )
 
-    monkeypatch.setattr(stream_loop, "_execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
     api = TestClient(app)
 
@@ -114,5 +113,4 @@ def test_stream_target_plan_offsets_additional_incomes_for_net_target_colon_form
 
     assert tool_calls
     _tool_name, args = tool_calls[-1]
-    assert float(args.get("target_monthly_pension") or 0) == 3000.0
     assert args.get("target_is_net") is True

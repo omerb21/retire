@@ -264,8 +264,7 @@ def _handle_post_deterministics_and_finalize(
                 return ChatResponse(
                     reply=(
                         "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר.\n"
-                        "כתוב: יעד נטו: <מספר>.\n"
-                        "לדוגמה: יעד נטו: 28000"
+                        "כתוב: יעד נטו: <מספר>."
                     ),
                     computed_data=computed_data,
                 )
