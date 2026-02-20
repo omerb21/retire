@@ -234,6 +234,12 @@
             from fastapi.responses import StreamingResponse as _SR
 
             _snap_result = _build_snap(client_id=request.client_id, db=db)
+            try:
+                from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+
+                mark_tool_ok_seen()
+            except Exception:
+                pass
             _snap_json = _json.dumps(_snap_result, ensure_ascii=False)
 
             # ── Agent Eyes trace events ──
@@ -270,9 +276,17 @@
                 _ee("tool_call", _tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
 
                 _tr_payload = {
+                    "tool_name": "GET_SYSTEM_STATE_SNAPSHOT",
+                    "status": "ok",
+                    "result_length": len(_snap_json),
+                    "shortcut": True,
+                }
+                _lt(event_type="tool_result", payload=_tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _ee("tool_result", _tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+
+                _tr_payload = {
                     "tool_name": "GET_CLIENT_SNAPSHOT",
-                    "success": _snap_result.get("success", False),
-                    "result_preview": _snap_json[:2000],
+                    "status": "ok",
                     "result_length": len(_snap_json),
                     "shortcut": True,
                 }

@@ -191,6 +191,7 @@ def run_trace_fixture(
                 event_type="tool_result",
                 payload={
                     "tool_name": tool_name,
+                    "status": "ok" if bool(success) else "error_safe",
                     "success": bool(success),
                     "result_preview": (result or "")[:2000],
                     "result_length": len(result or ""),

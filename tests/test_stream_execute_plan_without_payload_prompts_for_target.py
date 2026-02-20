@@ -24,7 +24,7 @@ def test_stream_execute_plan_without_payload_prompts_for_target(monkeypatch) -> 
     body = response.text
     assert "כדי לבצע תכנית בפועל צריך קודם לבנות תכנית יעד עם מספר" in body
     assert "כתוב: יעד נטו: <מספר>." in body
-    assert "לדוגמה: יעד נטו: 28000" in body
+    assert "לדוגמה: יעד נטו:" not in body
     assert "###UI_ACTION###" not in body
     assert "###TOOL_CALL###" not in body
     assert "🔧" not in body

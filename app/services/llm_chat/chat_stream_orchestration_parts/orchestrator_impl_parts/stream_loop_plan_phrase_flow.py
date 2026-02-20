@@ -95,16 +95,6 @@ def _maybe_handle_plan_phrase_flow(
                 target_is_net=True,
             )
 
-            breakdown_lines: list[str] = []
-            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
-            if breakdown.other_income_offset_net > 0:
-                breakdown_lines.append(
-                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
-                )
-            breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
-            yield "\n".join(breakdown_lines) + "\n\n"
-
             if breakdown.effective_plan_target <= 0:
                 yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
                 return
@@ -193,9 +183,24 @@ def _maybe_handle_plan_phrase_flow(
                 )
             except Exception:
                 pass
-            yield sanitize_user_visible_text(
-                "🔧 **פלט כלי (" + get_tool_display_name_hebrew(tool_name) + "):**\n"
-                + format_tool_output_for_user_stream(tool_name, tool_result)
+            breakdown_lines: list[str] = []
+            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            if breakdown.other_income_offset_net > 0:
+                breakdown_lines.append(
+                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+                )
+            breakdown_lines.append(
+                f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪"
+            )
+
+            yield (
+                sanitize_user_visible_text("\n".join(breakdown_lines))
+                + "\n\n"
+                + sanitize_user_visible_text(
+                    "🔧 **פלט כלי (" + get_tool_display_name_hebrew(tool_name) + "):**\n"
+                    + format_tool_output_for_user_stream(tool_name, tool_result)
+                )
             )
 
         return StreamingResponse(

@@ -13,7 +13,7 @@ _DECIMAL_RE = re.compile(r"\d+\.\d+")
 _THOUSANDS_RE = re.compile(r"\d{1,3}(?:,\d{3})+")
 _COMMA_NUMBER_RE = re.compile(r"\d+,\d+")
 _LONG_NUMBER_RE = re.compile(r"\d{4,}")
-_ALLOWED_FORM_SECTION_RE = re.compile(r"(?:טופס|סעיף)\s*\d{1,4}(?:[א-ת])?|\b\d{1,4}[א-ת]\b")
+_ALLOWED_FORM_SECTION_RE = re.compile(r"(?:טופס|טפסי|סעיף)\s*\d{1,4}(?:[א-ת])?|\b\d{1,4}[א-ת]\b")
 
 _FORBIDDEN_SYMBOLS: tuple[str, ...] = (
     "%",
@@ -24,8 +24,6 @@ _FORBIDDEN_HEBREW_PHRASES: tuple[str, ...] = (
     "כדאי",
     "עדיף",
     "ממליץ",
-    "מומלץ",
-    "חייב",
     "בוודאות",
     "נכון יותר",
     "עדיף לבחור",

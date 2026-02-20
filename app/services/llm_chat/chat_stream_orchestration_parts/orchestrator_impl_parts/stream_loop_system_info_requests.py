@@ -104,6 +104,21 @@ def _maybe_handle_system_info_requests(
                 has_system_assets = False
 
         if has_portfolio or has_additional_incomes or has_system_assets:
+            try:
+                from app.services.agent_execution.tool_executor import execute_tool_call
+
+                if request.client_id is not None:
+                    execute_tool_call(
+                        tool_name="GET_SYSTEM_NUMERIC_CONSTANTS",
+                        args={},
+                        client_id=int(request.client_id),
+                        db=db,
+                        pension_portfolio=portfolio,
+                        force_max_exemption=False,
+                        user_approved=True,
+                    )
+            except Exception:
+                pass
             return StreamingResponse(
                 generate_portfolio_analysis(
                     computed_data=computed_data,

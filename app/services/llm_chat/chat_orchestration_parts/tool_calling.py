@@ -92,6 +92,7 @@ def _log_tool_result(tool_name: str, result: str, client_id: int) -> None:
             event_type="tool_result",
             payload={
                 "tool_name": tool_name,
+                "status": "ok",
                 "result_length": len(result or ""),
                 "result_preview": (result or "")[:3000],
             },

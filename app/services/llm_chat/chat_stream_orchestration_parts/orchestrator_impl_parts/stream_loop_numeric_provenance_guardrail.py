@@ -48,7 +48,7 @@ def _compute_final_out_with_numeric_provenance_guardrail(
 
         try:
             logger.warning(
-                "numeric_provenance_blocked stream trace_id=%s request_id=%s client_id=%s tokens=%s matches=%s preview_head=%s preview_tail=%s",
+                "numeric_provenance_detected stream trace_id=%s request_id=%s client_id=%s tokens=%s matches=%s preview_head=%s preview_tail=%s",
                 trace_id,
                 req_id,
                 getattr(request, "client_id", None),
@@ -62,12 +62,12 @@ def _compute_final_out_with_numeric_provenance_guardrail(
         try:
             log_llm_event(
                 request_id=req_id,
-                event_type="numeric_provenance_violation",
+                event_type="numeric_provenance_violation_detected",
                 payload={
                     "tokens": list(violation.tokens),
                     "matches": matches,
-                    "blocked_preview_head": head_preview,
-                    "blocked_preview_tail": tail_preview,
+                    "preview_head": head_preview,
+                    "preview_tail": tail_preview,
                 },
                 client_id=request.client_id,
                 extra={
@@ -77,12 +77,26 @@ def _compute_final_out_with_numeric_provenance_guardrail(
             )
         except Exception:
             pass
-        final_out = (
-            "שגיאה: המערכת חסמה תשובה שכללה מספרים שלא הגיעו מחישוב מערכת. "
-            "כדי לקבל מספרים, בקש לבצע חישוב/דוח דרך הכלים של המערכת."
-        )
-    else:
-        final_out = sanitize_user_visible_text(scrubbed_response)
+
+        try:
+            from app.services.agent_trace_logger import log_trace_event
+
+            log_trace_event(
+                event_type="numeric_provenance_violation_detected",
+                payload={
+                    "tokens": list(violation.tokens),
+                    "matches": matches,
+                    "preview_head": head_preview,
+                    "preview_tail": tail_preview,
+                    "request_id": req_id,
+                },
+                client_id=request.client_id,
+                endpoint="stream",
+            )
+        except Exception:
+            pass
+
+    final_out = sanitize_user_visible_text(scrubbed_response)
     if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
         final_out = "\n".join(
             ln for ln in final_out.splitlines() if "מדרגות מס" not in ln

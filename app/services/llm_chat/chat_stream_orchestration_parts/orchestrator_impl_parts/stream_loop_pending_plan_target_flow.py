@@ -83,8 +83,7 @@ def _maybe_handle_pending_plan_target_flow(
         def _prompt_for_target_net():
             yield (
                 "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
-                "כתוב: יעד נטו: <מספר>.\n"
-                "לדוגמה: יעד נטו: 28000"
+                "כתוב: יעד נטו: <מספר>."
             )
 
         return StreamingResponse(
@@ -153,16 +152,6 @@ def _maybe_handle_pending_plan_target_flow(
                 desired_total=requested_target,
                 target_is_net=True,
             )
-            breakdown_lines: list[str] = []
-            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
-            if breakdown.other_income_offset_net > 0:
-                breakdown_lines.append(
-                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
-                )
-            breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
-            yield "\n".join(breakdown_lines) + "\n\n"
-
             if breakdown.effective_plan_target <= 0:
                 yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
                 return
@@ -234,6 +223,18 @@ def _maybe_handle_pending_plan_target_flow(
                 )
                 return
 
+            breakdown_lines: list[str] = []
+            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            if breakdown.other_income_offset_net > 0:
+                breakdown_lines.append(
+                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+                )
+            breakdown_lines.append(
+                f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪"
+            )
+            yield "\n".join(breakdown_lines) + "\n\n"
+
             plan_result = execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
                 plan_args,
@@ -296,8 +297,7 @@ def _maybe_handle_pending_plan_target_flow(
         def _prompt_for_target_net_again():
             yield (
                 "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
-                "כתוב: יעד נטו: <מספר>.\n"
-                "לדוגמה: יעד נטו: 28000"
+                "כתוב: יעד נטו: <מספר>."
             )
 
         return StreamingResponse(
@@ -342,16 +342,6 @@ def _maybe_handle_pending_plan_target_flow(
                 desired_total=requested_target,
                 target_is_net=True,
             )
-            breakdown_lines: list[str] = []
-            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
-            if breakdown.other_income_offset_net > 0:
-                breakdown_lines.append(
-                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
-                )
-            breakdown_lines.append(f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪")
-            yield "\n".join(breakdown_lines) + "\n\n"
-
             if breakdown.effective_plan_target <= 0:
                 yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
                 return
@@ -401,6 +391,19 @@ def _maybe_handle_pending_plan_target_flow(
                     rag_sources=None,
                 )
                 return
+
+            breakdown_lines: list[str] = []
+            breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            if breakdown.other_income_offset_net > 0:
+                breakdown_lines.append(
+                    f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
+                )
+            breakdown_lines.append(
+                f"- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): {breakdown.effective_plan_target:,.0f} ₪"
+            )
+            yield "\n".join(breakdown_lines) + "\n\n"
+
             plan_result = execute_tool_call(
                 "BUILD_TARGET_PENSION_PLAN",
                 plan_args,

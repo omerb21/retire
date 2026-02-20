@@ -1,13 +1,28 @@
 import json
 import logging
 import os
+import re
 from datetime import date
 from typing import AsyncIterator, Iterator
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.guards.advisor_behavior_guard import enforce_behavioral_limits
+from app.guards.advisor_behavior_guard import (
+    STANDARD_BLOCK_MESSAGE,
+    _ALLOWED_FORM_SECTION_RE,
+    _COMMA_NUMBER_RE,
+    _DECIMAL_RE,
+    _DIGIT_RE,
+    _FORBIDDEN_BYPASS_PHRASES,
+    _FORBIDDEN_DECISION_PHRASES,
+    _FORBIDDEN_HEBREW_PHRASES,
+    _FORBIDDEN_PERCENT_WORDS,
+    _FORBIDDEN_SYMBOLS,
+    _LONG_NUMBER_RE,
+    _MONEY_PERCENT_RE,
+    _THOUSANDS_RE,
+)
 from app.guards.tool_intent_guard import (
     allow_tools_for_intent,
     get_tools_disabled_reason,
@@ -34,10 +49,277 @@ from app.services.llm_chat.explicit_tool_shortcuts import (
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
 from app.services.intent_classifier import IntentType, classify_intent
 from app.services.llm_pension_agent_service import pension_llm_service
-from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_execution_context import (
+    get_tool_ok_seen,
+    reset_tool_ok_seen,
+    set_tool_execution_context,
+)
 from app.services.agent_execution.tool_executor import execute_with_guard
 
 logger = logging.getLogger("app.llm_chat")
+
+
+MAX_BUFFER_CHARS = 20_000
+
+
+_UI_ACTION_RE = re.compile(r"###UI_ACTION###.*?###END_UI_ACTION###", flags=re.DOTALL)
+_COMPUTED_DATA_RE = re.compile(r"###COMPUTED_DATA###.*?###END_COMPUTED_DATA###", flags=re.DOTALL)
+_PENSION_PORTFOLIO_UPDATE_RE = re.compile(
+    r"###PENSION_PORTFOLIO_UPDATE###.*?###END_PENSION_PORTFOLIO_UPDATE###(?:\r?\n)?",
+    flags=re.DOTALL,
+)
+_TARGET_PENSION_PLAN_DATA_RE = re.compile(
+    r"###TARGET_PENSION_PLAN_DATA###.*?###END_TARGET_PENSION_PLAN_DATA###(?:\r?\n)?",
+    flags=re.DOTALL,
+)
+
+_TRANSPARENCY_LOG_RE = re.compile(
+    r"###TRANSPARENCY_LOG###.*?(?:\r?\n|$)",
+    flags=re.DOTALL,
+)
+_RISK_REVIEW_RE = re.compile(
+    r"###RISK_REVIEW###.*?(?:\r?\n|$)",
+    flags=re.DOTALL,
+)
+
+
+def _strip_structured_blocks(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return ""
+    out = _UI_ACTION_RE.sub("", text)
+    out = _COMPUTED_DATA_RE.sub("", out)
+    out = _PENSION_PORTFOLIO_UPDATE_RE.sub("", out)
+    out = _TARGET_PENSION_PLAN_DATA_RE.sub("", out)
+    out = _TRANSPARENCY_LOG_RE.sub("", out)
+    out = _RISK_REVIEW_RE.sub("", out)
+    return out
+
+
+def _is_structured_payload_only(text: str | None) -> bool:
+    if not isinstance(text, str) or not text.strip():
+        return True
+
+    stripped = text.strip()
+    if (stripped.startswith("{") and stripped.endswith("}")) or (
+        stripped.startswith("[") and stripped.endswith("]")
+    ):
+        return True
+
+    visible = _strip_structured_blocks(stripped).strip()
+    return visible == ""
+
+
+def _has_tool_result_ok_for_current_trace() -> bool:
+    try:
+        if get_tool_ok_seen():
+            return True
+    except Exception:
+        pass
+
+    trace_id = None
+    try:
+        from app.utils.trace_context import get_current_trace_id
+
+        trace_id = get_current_trace_id()
+    except Exception:
+        trace_id = None
+    if not trace_id:
+        return False
+
+    try:
+        from app.database import SessionLocal
+        from app.models.agent_trace_event import AgentTraceEvent
+
+        s = SessionLocal()
+        try:
+            rows = (
+                s.query(AgentTraceEvent)
+                .filter(AgentTraceEvent.trace_id == trace_id)
+                .filter(AgentTraceEvent.event_type == "tool_result")
+                .order_by(AgentTraceEvent.id.asc())
+                .all()
+            )
+            for r in rows:
+                payload_raw = getattr(r, "payload_json", None)
+                if not isinstance(payload_raw, str) or not payload_raw.strip():
+                    continue
+                try:
+                    payload = json.loads(payload_raw)
+                except Exception:
+                    continue
+                if isinstance(payload, dict) and payload.get("status") == "ok":
+                    return True
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+    except Exception:
+        return False
+
+    return False
+
+
+def _build_stage10_blocked_reply() -> str:
+    return STANDARD_BLOCK_MESSAGE
+
+
+def _stage10_enforce_behavioral_limits(*, text: str, allow_numbers: bool) -> tuple[bool, str]:
+    candidate = text or ""
+
+    if not allow_numbers:
+        allowed_spans: list[tuple[int, int]] = []
+        try:
+            allowed_spans.extend(
+                [(m.start(), m.end()) for m in _ALLOWED_FORM_SECTION_RE.finditer(candidate)]
+            )
+        except Exception:
+            allowed_spans = []
+
+        try:
+            for m in re.finditer(r"(?m)^\s*(?:-\s*)?\d{1,3}(?=[\.)])", candidate):
+                allowed_spans.append((m.start(), m.end()))
+        except Exception:
+            pass
+
+        try:
+            for m in re.finditer(r"(?i)(?:שלב|צעד)\s*\d{1,3}", candidate):
+                allowed_spans.append((m.start(), m.end()))
+        except Exception:
+            pass
+
+        def _is_span_allowed(start: int, end: int) -> bool:
+            for a_start, a_end in allowed_spans:
+                if start >= a_start and end <= a_end:
+                    return True
+            return False
+
+        if _DIGIT_RE.search(candidate):
+            if (
+                _MONEY_PERCENT_RE.search(candidate)
+                or _DECIMAL_RE.search(candidate)
+                or _THOUSANDS_RE.search(candidate)
+                or _COMMA_NUMBER_RE.search(candidate)
+            ):
+                return False, STANDARD_BLOCK_MESSAGE
+
+            for m in re.finditer(r"\d+", candidate):
+                if not _is_span_allowed(m.start(), m.end()):
+                    return False, STANDARD_BLOCK_MESSAGE
+
+            if _LONG_NUMBER_RE.search(candidate):
+                for m in re.finditer(r"\d{4,}", candidate):
+                    if not _is_span_allowed(m.start(), m.end()):
+                        return False, STANDARD_BLOCK_MESSAGE
+
+        if any(sym in candidate for sym in _FORBIDDEN_SYMBOLS):
+            return False, STANDARD_BLOCK_MESSAGE
+
+        if any(word in candidate for word in _FORBIDDEN_PERCENT_WORDS):
+            return False, STANDARD_BLOCK_MESSAGE
+
+    if any(phrase in candidate for phrase in _FORBIDDEN_HEBREW_PHRASES):
+        return False, STANDARD_BLOCK_MESSAGE
+
+    if any(phrase in candidate for phrase in _FORBIDDEN_DECISION_PHRASES):
+        return False, STANDARD_BLOCK_MESSAGE
+
+    if any(phrase in candidate for phrase in _FORBIDDEN_BYPASS_PHRASES):
+        return False, STANDARD_BLOCK_MESSAGE
+
+    return True, candidate
+
+
+def _stage10_guard_reply_text(
+    *,
+    reply: str | None,
+    endpoint: str,
+    client_id: int | None,
+    executor_only: bool,
+) -> str | None:
+    if not isinstance(reply, str) or not reply.strip():
+        return reply
+
+    if bool(executor_only) is True:
+        return reply
+
+    had_tool_ok = _has_tool_result_ok_for_current_trace()
+
+    if bool(had_tool_ok) is True:
+        return reply
+
+    candidate_text = reply.strip()
+
+    if "###UI_ACTION###" in candidate_text and "###END_UI_ACTION###" in candidate_text:
+        return reply
+
+    # No tool_ok: prevent bypass via raw JSON payloads or computed_data-only blocks.
+    try:
+        if (
+            (
+                _COMPUTED_DATA_RE.search(candidate_text)
+                or _PENSION_PORTFOLIO_UPDATE_RE.search(candidate_text)
+                or _TARGET_PENSION_PLAN_DATA_RE.search(candidate_text)
+            )
+            and _strip_structured_blocks(candidate_text).strip() == ""
+        ):
+            return _build_stage10_blocked_reply()
+    except Exception:
+        pass
+
+    try:
+        if _is_structured_payload_only(candidate_text):
+            return reply
+    except Exception:
+        pass
+
+    visible_text = _strip_structured_blocks(candidate_text).strip()
+    if not visible_text:
+        # UI actions / markers are allowed to pass through as they are not user-visible numeric output.
+        return reply
+
+    allowed, _final_text = _stage10_enforce_behavioral_limits(
+        text=visible_text,
+        allow_numbers=False,
+    )
+    if allowed:
+        return reply
+
+    blocked_reply = _build_stage10_blocked_reply()
+    try:
+        examples: list[str] = []
+        try:
+            from app.services.llm_chat.numeric_provenance import build_numeric_match_examples
+
+            examples = build_numeric_match_examples(text=visible_text, window=30, max_examples=3)
+        except Exception:
+            examples = []
+
+        log_trace_event(
+            event_type="validation_error",
+            payload={
+                "error_code": "STAGE10_ASSISTANT_TEXT_GUARD_BLOCKED",
+                "message": "Assistant visible text blocked by Stage 10 guard.",
+                "endpoint": endpoint,
+                "had_tool_execution_for_allowance": bool(had_tool_ok),
+                "visible_text_preview": visible_text[:300],
+                "numeric_match_examples": examples,
+            },
+            client_id=client_id,
+            endpoint=endpoint,
+        )
+        _eyes_emit(
+            "validation_error",
+            {
+                "error_code": "STAGE10_ASSISTANT_TEXT_GUARD_BLOCKED",
+                "endpoint": endpoint,
+            },
+            client_id=client_id,
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
+    return blocked_reply
 
 
 def _find_last_user_message_text(request: ChatRequest) -> str:
@@ -63,41 +345,8 @@ def _should_compute_monthly_pension(user_text: str) -> bool:
 
 
 def _build_monthly_pension_reply(payload: dict) -> str:
-    try:
-        client_id = int(payload.get("client_id") or 0)
-    except Exception:
-        client_id = 0
-    mp = payload.get("monthly_pension") if isinstance(payload.get("monthly_pension"), dict) else {}
-    current = mp.get("current") if isinstance(mp.get("current"), dict) else {}
-    future = mp.get("future") if isinstance(mp.get("future"), dict) else {}
-    taxable = current.get("taxable") if isinstance(current.get("taxable"), dict) else {}
-    exempt = current.get("exempt") if isinstance(current.get("exempt"), dict) else {}
-
-    def _i(v: object) -> int:
-        try:
-            return int(v or 0)
-        except Exception:
-            return 0
-
-    def _f(v: object) -> float:
-        try:
-            return float(v or 0)
-        except Exception:
-            return 0.0
-
-    cur_count = _i(current.get("count"))
-    cur_sum = _f(current.get("sum"))
-    fut_count = _i(future.get("count"))
-    fut_sum = _f(future.get("sum"))
-    taxable_sum = _f(taxable.get("sum"))
-    exempt_sum = _f(exempt.get("sum"))
-
-    return (
-        f"Monthly pension summary for client {client_id}: "
-        f"current_count={cur_count}, current_sum={cur_sum:,.2f}; "
-        f"taxable_sum={taxable_sum:,.2f}, exempt_sum={exempt_sum:,.2f}; "
-        f"future_count={fut_count}, future_sum={fut_sum:,.2f}."
-    )
+    _ = payload
+    return "Monthly pension summary computed. See computed_data for details."
 
 
 def _log_policy_decision(*, request: ChatRequest, intent: ChatIntent, decision: PolicyDecision, endpoint: str) -> None:
@@ -274,7 +523,30 @@ def _run_execution_only_non_stream(*, request: ChatRequest, last_user_msg: str) 
 def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     endpoint = "/api/v1/llm/pension-chat"
 
+    try:
+        reset_tool_ok_seen()
+    except Exception:
+        pass
+
+    try:
+        from app.utils.trace_context import get_current_trace_id, generate_trace_id, set_current_trace_id
+
+        _tid = get_current_trace_id() or generate_trace_id()
+        set_current_trace_id(_tid)
+        try:
+            object.__setattr__(request, "trace_id", _tid)
+        except Exception:
+            pass
+        try:
+            if db is not None and hasattr(db, "info") and isinstance(getattr(db, "info", None), dict):
+                db.info["trace_id"] = _tid
+        except Exception:
+            pass
+    except Exception:
+        pass
+
     last_user_msg = _find_last_user_message_text(request)
+    executor_only_flag = bool(getattr(request, "executor_only", None))
 
     try:
         _ui_payload = {
@@ -304,6 +576,12 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 
     if is_execution_only(request) and intent != ChatIntent.REPORT:
         res = _run_execution_only_non_stream(request=request, last_user_msg=last_user_msg)
+        res.reply = _stage10_guard_reply_text(
+            reply=getattr(res, "reply", None),
+            endpoint=endpoint,
+            client_id=request.client_id,
+            executor_only=executor_only_flag,
+        )
         _emit_final_response(
             reply=getattr(res, "reply", None),
             computed_data=getattr(res, "computed_data", None),
@@ -336,6 +614,12 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         policy_tools_allowed=bool(decision.tools_allowed),
     )
     effective_request = _apply_execution_only_prompt_copy(effective_request, last_user_msg=last_user_msg, intent=intent)
+    try:
+        _tid_req = getattr(request, "trace_id", None)
+        if _tid_req:
+            object.__setattr__(effective_request, "trace_id", _tid_req)
+    except Exception:
+        pass
 
     try:
         set_tool_execution_context(
@@ -355,6 +639,12 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         if not isinstance(reply, str) or not reply.strip():
             reply = "Unable to produce monthly pension summary from system."
         res = ChatResponse(reply=reply, computed_data=computed)
+        res.reply = _stage10_guard_reply_text(
+            reply=getattr(res, "reply", None),
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
         _emit_final_response(
             reply=res.reply,
             computed_data=res.computed_data,
@@ -380,6 +670,12 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             request_id=None,
         )
         res = ChatResponse(reply=tool_result, computed_data=None)
+        res.reply = _stage10_guard_reply_text(
+            reply=getattr(res, "reply", None),
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
         _emit_final_response(
             reply=res.reply,
             computed_data=res.computed_data,
@@ -396,8 +692,13 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             and getattr(effective_request, "tools_disabled_reason", None) in {"conceptual", "conceptual_form"}
         ):
             reply = sanitize_words_only_conceptual("", last_user_msg)
-            allowed, final_text = enforce_behavioral_limits(reply)
-            res = ChatResponse(reply=final_text if not allowed else reply, computed_data=None)
+            res = ChatResponse(reply=reply, computed_data=None)
+            res.reply = _stage10_guard_reply_text(
+                reply=getattr(res, "reply", None),
+                endpoint=endpoint,
+                client_id=effective_request.client_id,
+                executor_only=executor_only_flag,
+            )
             _emit_final_response(
                 reply=res.reply,
                 computed_data=res.computed_data,
@@ -431,17 +732,12 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         except Exception:
             pass
 
-        allowed, final_text = enforce_behavioral_limits(res.reply)
-        if not allowed:
-            blocked = ChatResponse(reply=final_text, computed_data=res.computed_data)
-            _emit_final_response(
-                reply=blocked.reply,
-                computed_data=blocked.computed_data,
-                streaming=False,
-                client_id=effective_request.client_id,
-                endpoint=endpoint,
-            )
-            return blocked
+    res.reply = _stage10_guard_reply_text(
+        reply=getattr(res, "reply", None),
+        endpoint=endpoint,
+        client_id=effective_request.client_id,
+        executor_only=executor_only_flag,
+    )
 
     try:
         if wants_json_only(last_user_msg) and isinstance(res.reply, str):
@@ -477,6 +773,29 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 def execute_agent_request_stream(request: ChatRequest, db: Session) -> StreamingResponse:
     endpoint = "/api/v1/llm/pension-chat-stream"
 
+    try:
+        reset_tool_ok_seen()
+    except Exception:
+        pass
+
+    _trace_id_for_stream = None
+    try:
+        from app.utils.trace_context import get_current_trace_id, generate_trace_id, set_current_trace_id
+
+        _trace_id_for_stream = get_current_trace_id() or generate_trace_id()
+        set_current_trace_id(_trace_id_for_stream)
+        try:
+            object.__setattr__(request, "trace_id", _trace_id_for_stream)
+        except Exception:
+            pass
+        try:
+            if db is not None and hasattr(db, "info") and isinstance(getattr(db, "info", None), dict):
+                db.info["trace_id"] = _trace_id_for_stream
+        except Exception:
+            pass
+    except Exception:
+        _trace_id_for_stream = None
+
     last_user_msg = _find_last_user_message_text(request)
 
     try:
@@ -528,6 +847,13 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     )
 
     try:
+        _tid_req = getattr(request, "trace_id", None)
+        if _tid_req:
+            object.__setattr__(effective_request, "trace_id", _tid_req)
+    except Exception:
+        pass
+
+    try:
         set_tool_execution_context(
             request=effective_request,
             policy_decision=decision,
@@ -537,24 +863,80 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     except Exception:
         pass
 
+    executor_only_flag = bool(getattr(request, "executor_only", None))
+
     def _wrap_iter_with_final_response(source_iter: Iterator[str]) -> Iterator[str]:
+        try:
+            from app.utils.trace_context import set_current_trace_id
+
+            set_current_trace_id(_trace_id_for_stream)
+        except Exception:
+            pass
+
         chunks: list[str] = []
+        total_chars = 0
+        overflowed = False
+
         try:
             for chunk in source_iter:
+                if not isinstance(chunk, str):
+                    try:
+                        chunk = str(chunk)
+                    except Exception:
+                        chunk = ""
+                total_chars += len(chunk)
+                if total_chars > MAX_BUFFER_CHARS:
+                    overflowed = True
+                    break
                 chunks.append(chunk)
-                yield chunk
-        finally:
+        except Exception as exc:
+            _ = exc
+            chunks = []
+
+        full_text = "".join(chunks)
+        if overflowed:
             try:
-                full_text = "".join(chunks)
-                _emit_final_response(
-                    reply=full_text,
-                    computed_data=None,
-                    streaming=True,
+                log_trace_event(
+                    event_type="validation_error",
+                    payload={
+                        "error_code": "STAGE10_STREAM_BUFFER_OVERFLOW",
+                        "message": "Streaming buffer exceeded MAX_BUFFER_CHARS before completion.",
+                        "max_buffer_chars": MAX_BUFFER_CHARS,
+                        "seen_chars": total_chars,
+                    },
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "validation_error",
+                    {"error_code": "STAGE10_STREAM_BUFFER_OVERFLOW"},
                     client_id=effective_request.client_id,
                     endpoint=endpoint,
                 )
             except Exception:
                 pass
+            full_text = _build_stage10_blocked_reply()
+
+        final_text = _stage10_guard_reply_text(
+            reply=full_text,
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        final_text = final_text if isinstance(final_text, str) else ""
+
+        try:
+            _emit_final_response(
+                reply=final_text,
+                computed_data=None,
+                streaming=True,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+        except Exception:
+            pass
+
+        yield final_text
 
     if _should_compute_monthly_pension(last_user_msg) and effective_request.client_id is not None:
         from app.services.pension_chat_compute import compute_monthly_pension_summary
@@ -613,21 +995,72 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     original_body_iterator = raw_response.body_iterator
 
     async def _traced_stream() -> AsyncIterator[bytes | str]:
+        try:
+            from app.utils.trace_context import set_current_trace_id
+
+            set_current_trace_id(_trace_id_for_stream)
+        except Exception:
+            pass
+
         chunks: list[str] = []
+        total_chars = 0
+        overflowed = False
+        stream_error: BaseException | None = None
+
         try:
             async for chunk in original_body_iterator:
+                try:
+                    from app.utils.trace_context import set_current_trace_id
+
+                    set_current_trace_id(_trace_id_for_stream)
+                except Exception:
+                    pass
+
                 if isinstance(chunk, str):
-                    chunks.append(chunk)
+                    s = chunk
                 else:
-                    chunks.append(chunk.decode("utf-8", errors="replace"))
-                yield chunk
-        except Exception as exc:
+                    try:
+                        s = chunk.decode("utf-8", errors="replace")
+                    except Exception:
+                        s = ""
+
+                total_chars += len(s)
+                if total_chars > MAX_BUFFER_CHARS:
+                    overflowed = True
+                    break
+                chunks.append(s)
+        except BaseException as exc:
+            stream_error = exc
+
+        if overflowed:
+            try:
+                log_trace_event(
+                    event_type="validation_error",
+                    payload={
+                        "error_code": "STAGE10_STREAM_BUFFER_OVERFLOW",
+                        "message": "Streaming buffer exceeded MAX_BUFFER_CHARS before completion.",
+                        "max_buffer_chars": MAX_BUFFER_CHARS,
+                        "seen_chars": total_chars,
+                    },
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "validation_error",
+                    {"error_code": "STAGE10_STREAM_BUFFER_OVERFLOW"},
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+            except Exception:
+                pass
+            full_text = _build_stage10_blocked_reply()
+        elif stream_error is not None:
             try:
                 import traceback as _tb_mod
 
                 _err_payload = {
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc)[:2000],
+                    "error_type": type(stream_error).__name__,
+                    "error_message": str(stream_error)[:2000],
                     "stack_trace": _tb_mod.format_exc()[:4000],
                     "endpoint": endpoint,
                     "streaming": True,
@@ -636,29 +1069,40 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 _eyes_emit("error", _err_payload, client_id=effective_request.client_id, endpoint=endpoint)
             except Exception:
                 pass
-            raise
-        finally:
-            try:
-                full_text = "".join(chunks)
-                _ao_payload = {
-                    "reply_length": len(full_text),
-                    "reply_preview": full_text[:2000],
-                    "streaming": True,
-                }
-                log_trace_event(event_type="assistant_output", payload=_ao_payload, client_id=effective_request.client_id, endpoint=endpoint)
-                _eyes_emit("assistant_output", _ao_payload, client_id=effective_request.client_id, endpoint=endpoint)
-            except Exception:
-                pass
+            full_text = _build_stage10_blocked_reply()
+        else:
+            full_text = "".join(chunks)
 
-            try:
-                _emit_final_response(
-                    reply="".join(chunks),
-                    computed_data=None,
-                    streaming=True,
-                    client_id=effective_request.client_id,
-                    endpoint=endpoint,
-                )
-            except Exception:
-                pass
+        final_text = _stage10_guard_reply_text(
+            reply=full_text,
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        final_text = final_text if isinstance(final_text, str) else ""
+
+        try:
+            _ao_payload = {
+                "reply_length": len(final_text),
+                "reply_preview": final_text[:2000],
+                "streaming": True,
+            }
+            log_trace_event(event_type="assistant_output", payload=_ao_payload, client_id=effective_request.client_id, endpoint=endpoint)
+            _eyes_emit("assistant_output", _ao_payload, client_id=effective_request.client_id, endpoint=endpoint)
+        except Exception:
+            pass
+
+        try:
+            _emit_final_response(
+                reply=final_text,
+                computed_data=None,
+                streaming=True,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+        except Exception:
+            pass
+
+        yield final_text
 
     return StreamingResponse(_traced_stream(), media_type=raw_response.media_type)

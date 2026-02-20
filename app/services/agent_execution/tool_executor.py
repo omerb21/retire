@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import inspect
+
 from sqlalchemy.orm import Session
 
 from app.schemas.llm_chat import ChatRequest
@@ -17,6 +19,7 @@ from app.services.agent_execution.tool_execution_context import (
     get_current_tool_execution_policy_decision,
     get_current_tool_execution_request,
     get_current_tool_execution_streaming,
+    mark_tool_ok_seen,
 )
 from app.services.agent_trace_logger import log_trace_event
 from app.services.intent_classifier import IntentType
@@ -37,6 +40,52 @@ def execute_with_guard(
     user_approved: bool = False,
     request_id: str | None = None,
 ) -> str:
+    effective_trace_id = None
+    try:
+        effective_trace_id = getattr(request, "trace_id", None)
+    except Exception:
+        effective_trace_id = None
+    if not effective_trace_id:
+        try:
+            from app.utils.trace_context import get_current_trace_id
+
+            effective_trace_id = get_current_trace_id()
+        except Exception:
+            effective_trace_id = None
+
+    if not effective_trace_id:
+        try:
+            if db is not None and hasattr(db, "info") and isinstance(getattr(db, "info", None), dict):
+                candidate = db.info.get("trace_id")
+                if isinstance(candidate, str) and candidate.strip():
+                    effective_trace_id = candidate.strip()
+        except Exception:
+            effective_trace_id = None
+
+    def _log_event(*, event_type: str, payload: object, client_id: int | None) -> None:
+        try:
+            if effective_trace_id:
+                try:
+                    sig = inspect.signature(log_trace_event)
+                    params = sig.parameters
+                    supports_kwargs = any(
+                        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+                    )
+                    if supports_kwargs or ("trace_id" in params):
+                        log_trace_event(
+                            trace_id=effective_trace_id,
+                            event_type=event_type,
+                            payload=payload,
+                            client_id=client_id,
+                        )
+                        return
+                except Exception:
+                    pass
+
+            log_trace_event(event_type=event_type, payload=payload, client_id=client_id)
+        except Exception:
+            pass
+
     def _safe_args_preview(args_obj: object) -> str:
         try:
             if isinstance(args_obj, dict):
@@ -56,18 +105,15 @@ def execute_with_guard(
             return "<unavailable>"
 
     tool_result_emitted = False
-    try:
-        call_payload = {
-            "tool_name": tool_name,
-            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-            "args_preview": _safe_args_preview(tool_args),
-            "streaming": bool(streaming),
-        }
-        if request_id is not None:
-            call_payload["request_id"] = request_id
-        log_trace_event(event_type="tool_call", payload=call_payload, client_id=request.client_id)
-    except Exception:
-        pass
+    call_payload = {
+        "tool_name": tool_name,
+        "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+        "args_preview": _safe_args_preview(tool_args),
+        "streaming": bool(streaming),
+    }
+    if request_id is not None:
+        call_payload["request_id"] = request_id
+    _log_event(event_type="tool_call", payload=call_payload, client_id=request.client_id)
 
     guard_res = run_pre_tool_guard(
         request=request,
@@ -80,18 +126,15 @@ def execute_with_guard(
     )
 
     if not guard_res.ok:
-        try:
-            payload = {
-                "tool_name": tool_name,
-                "error_code": guard_res.error_code,
-                "message": guard_res.message,
-                "details": guard_res.details or {},
-                "streaming": bool(streaming),
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-            }
-            log_trace_event(event_type="validation_error", payload=payload, client_id=request.client_id)
-        except Exception:
-            pass
+        payload = {
+            "tool_name": tool_name,
+            "error_code": guard_res.error_code,
+            "message": guard_res.message,
+            "details": guard_res.details or {},
+            "streaming": bool(streaming),
+            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+        }
+        _log_event(event_type="validation_error", payload=payload, client_id=request.client_id)
 
         blocked_json = build_blocked_tool_result(
             tool_name=tool_name,
@@ -100,20 +143,17 @@ def execute_with_guard(
             details=guard_res.details or {},
         )
 
-        try:
-            result_payload = {
-                "tool_name": tool_name,
-                "status": "blocked_by_guard",
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-                "result_preview": _safe_result_preview(blocked_json),
-                "streaming": bool(streaming),
-            }
-            if request_id is not None:
-                result_payload["request_id"] = request_id
-            log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
-            tool_result_emitted = True
-        except Exception:
-            pass
+        result_payload = {
+            "tool_name": tool_name,
+            "status": "blocked_by_guard",
+            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "result_preview": _safe_result_preview(blocked_json),
+            "streaming": bool(streaming),
+        }
+        if request_id is not None:
+            result_payload["request_id"] = request_id
+        _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+        tool_result_emitted = True
 
         return blocked_json
 
@@ -124,18 +164,15 @@ def execute_with_guard(
         contract = None
 
     if contract is None:
-        try:
-            log_trace_event(
-                event_type="tool_contract_missing",
-                payload={
-                    "tool_name": tool_name,
-                    "streaming": bool(streaming),
-                    "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-                },
-                client_id=request.client_id,
-            )
-        except Exception:
-            pass
+        _log_event(
+            event_type="tool_contract_missing",
+            payload={
+                "tool_name": tool_name,
+                "streaming": bool(streaming),
+                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            },
+            client_id=request.client_id,
+        )
     else:
         ok_args, args_error = validate_tool_args(tool_name, tool_args)
         if not ok_args:
@@ -145,7 +182,7 @@ def execute_with_guard(
                 except Exception:
                     args_preview = "<unavailable>"
 
-                log_trace_event(
+                _log_event(
                     event_type="tool_contract_violation",
                     payload={
                         "tool_name": tool_name,
@@ -167,36 +204,30 @@ def execute_with_guard(
                 details={"reason": args_error},
             )
 
-            try:
-                result_payload = {
-                    "tool_name": tool_name,
-                    "status": "blocked_by_contract",
-                    "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-                    "result_preview": _safe_result_preview(blocked_json),
-                    "streaming": bool(streaming),
-                }
-                if request_id is not None:
-                    result_payload["request_id"] = request_id
-                log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
-                tool_result_emitted = True
-            except Exception:
-                pass
+            result_payload = {
+                "tool_name": tool_name,
+                "status": "blocked_by_contract",
+                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "result_preview": _safe_result_preview(blocked_json),
+                "streaming": bool(streaming),
+            }
+            if request_id is not None:
+                result_payload["request_id"] = request_id
+            _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+            tool_result_emitted = True
 
             return blocked_json
 
-        try:
-            log_trace_event(
-                event_type="tool_contract_checked",
-                payload={
-                    "tool_name": tool_name,
-                    "checked": True,
-                    "streaming": bool(streaming),
-                    "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-                },
-                client_id=request.client_id,
-            )
-        except Exception:
-            pass
+        _log_event(
+            event_type="tool_contract_checked",
+            payload={
+                "tool_name": tool_name,
+                "checked": True,
+                "streaming": bool(streaming),
+                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            },
+            client_id=request.client_id,
+        )
 
     from app.services.llm_chat.tool_execution import execute_tool_call as _execute_tool_call_impl
 
@@ -212,20 +243,17 @@ def execute_with_guard(
             user_approved=user_approved,
         )
     except Exception as exc:
-        try:
-            result_payload = {
-                "tool_name": tool_name,
-                "status": "error_safe",
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-                "result_preview": _safe_result_preview(f"{type(exc).__name__}: {exc}"),
-                "streaming": bool(streaming),
-            }
-            if request_id is not None:
-                result_payload["request_id"] = request_id
-            log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
-            tool_result_emitted = True
-        except Exception:
-            pass
+        result_payload = {
+            "tool_name": tool_name,
+            "status": "error_safe",
+            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "result_preview": _safe_result_preview(f"{type(exc).__name__}: {exc}"),
+            "streaming": bool(streaming),
+        }
+        if request_id is not None:
+            result_payload["request_id"] = request_id
+        _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+        tool_result_emitted = True
         raise
 
     if contract is not None and contract.result_model is not None:
@@ -237,7 +265,7 @@ def execute_with_guard(
                 except Exception:
                     res_preview = "<unavailable>"
 
-                log_trace_event(
+                _log_event(
                     event_type="tool_contract_violation",
                     payload={
                         "tool_name": tool_name,
@@ -269,7 +297,7 @@ def execute_with_guard(
                 }
                 if request_id is not None:
                     result_payload["request_id"] = request_id
-                log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+                _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
                 tool_result_emitted = True
             except Exception:
                 pass
@@ -278,20 +306,21 @@ def execute_with_guard(
 
     if not tool_result_emitted:
         try:
-            status = "missing_contract_allowed" if contract is None else "ok"
-            result_payload = {
-                "tool_name": tool_name,
-                "status": status,
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
-                "result_preview": _safe_result_preview(tool_result),
-                "streaming": bool(streaming),
-            }
-            if request_id is not None:
-                result_payload["request_id"] = request_id
-            log_trace_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
-            tool_result_emitted = True
+            mark_tool_ok_seen()
         except Exception:
             pass
+        result_payload = {
+            "tool_name": tool_name,
+            "status": "ok",
+            "contract_missing": bool(contract is None),
+            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "result_preview": _safe_result_preview(tool_result),
+            "streaming": bool(streaming),
+        }
+        if request_id is not None:
+            result_payload["request_id"] = request_id
+        _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+        tool_result_emitted = True
 
     return tool_result
 

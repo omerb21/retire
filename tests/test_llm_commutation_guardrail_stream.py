@@ -38,6 +38,12 @@ def test_stream_commutation_blocks_transform_tool_call(monkeypatch) -> None:
         pension_portfolio=None,
         force_max_exemption: bool = False,
     ) -> str:
+        try:
+            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+
+            mark_tool_ok_seen()
+        except Exception:
+            pass
         tool_calls.append(tool_name)
         return json.dumps({"success": True}, ensure_ascii=False)
 

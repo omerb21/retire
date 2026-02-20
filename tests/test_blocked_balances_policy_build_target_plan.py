@@ -106,6 +106,12 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
         user_approved: bool = False,
         request_id: str | None = None,
     ) -> str:
+        try:
+            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+
+            mark_tool_ok_seen()
+        except Exception:
+            pass
         calls.append((tool_name, args))
         if tool_name == "BUILD_TARGET_PENSION_PLAN":
             return json.dumps({"success": True, "result": {}}, ensure_ascii=False)
