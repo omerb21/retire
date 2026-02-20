@@ -29,6 +29,12 @@ def _execute_tool_call(
 ) -> str:
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
+    tool_call_id = None
+    try:
+        tool_call_id = uuid.uuid4().hex
+    except Exception:
+        tool_call_id = None
+
     effective_trace_id = None
     try:
         effective_trace_id = get_current_trace_id()
@@ -76,6 +82,7 @@ def _execute_tool_call(
                     event_type="tool_call",
                     payload={
                         "tool_name": tool_name,
+                        "tool_call_id": tool_call_id,
                         "args_preview": str(args)[:200],
                         "streaming": True,
                     },
@@ -128,7 +135,9 @@ def _execute_tool_call(
                         event_type="tool_result",
                         payload={
                             "tool_name": tool_name,
+                            "tool_call_id": tool_call_id,
                             "status": "error_safe",
+                            "success": False,
                             "streaming": True,
                             "result_preview": f"{type(exc).__name__}: {exc}"[:200],
                         },
@@ -152,7 +161,9 @@ def _execute_tool_call(
                     event_type="tool_result",
                     payload={
                         "tool_name": tool_name,
+                        "tool_call_id": tool_call_id,
                         "status": "ok",
+                        "success": True,
                         "streaming": True,
                         "result_preview": (res or "")[:200] if isinstance(res, str) else str(res)[:200],
                     },

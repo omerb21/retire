@@ -632,9 +632,16 @@ def execute_tool_call(
         pension_portfolio_data=pension_portfolio,
     )
 
+    tool_call_id = None
+    try:
+        tool_call_id = uuid.uuid4().hex
+    except Exception:
+        tool_call_id = None
+
     try:
         _tc_payload = {
             "tool_name": tool_name,
+            "tool_call_id": tool_call_id,
             "args": args if isinstance(args, dict) else str(args)[:2000],
             "original_tool_name": original_tool_name,
             "client_id": client_id,
@@ -914,6 +921,7 @@ def execute_tool_call(
     try:
         _tr_payload = {
             "tool_name": tool_name,
+            "tool_call_id": tool_call_id,
             "status": "ok",
             "success": True,
             "elapsed_ms": elapsed_ms,

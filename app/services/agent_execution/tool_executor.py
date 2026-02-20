@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import inspect
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -105,8 +106,14 @@ def execute_with_guard(
             return "<unavailable>"
 
     tool_result_emitted = False
+    tool_call_id = None
+    try:
+        tool_call_id = uuid.uuid4().hex
+    except Exception:
+        tool_call_id = None
     call_payload = {
         "tool_name": tool_name,
+        "tool_call_id": tool_call_id,
         "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
         "args_preview": _safe_args_preview(tool_args),
         "streaming": bool(streaming),
@@ -145,7 +152,9 @@ def execute_with_guard(
 
         result_payload = {
             "tool_name": tool_name,
+            "tool_call_id": tool_call_id,
             "status": "blocked_by_guard",
+            "success": False,
             "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
             "result_preview": _safe_result_preview(blocked_json),
             "streaming": bool(streaming),
@@ -206,7 +215,9 @@ def execute_with_guard(
 
             result_payload = {
                 "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
                 "status": "blocked_by_contract",
+                "success": False,
                 "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
                 "result_preview": _safe_result_preview(blocked_json),
                 "streaming": bool(streaming),
@@ -245,7 +256,9 @@ def execute_with_guard(
     except Exception as exc:
         result_payload = {
             "tool_name": tool_name,
+            "tool_call_id": tool_call_id,
             "status": "error_safe",
+            "success": False,
             "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
             "result_preview": _safe_result_preview(f"{type(exc).__name__}: {exc}"),
             "streaming": bool(streaming),
@@ -290,7 +303,9 @@ def execute_with_guard(
             try:
                 result_payload = {
                     "tool_name": tool_name,
+                    "tool_call_id": tool_call_id,
                     "status": "blocked_by_contract",
+                    "success": False,
                     "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
                     "result_preview": _safe_result_preview(blocked_json),
                     "streaming": bool(streaming),
@@ -311,7 +326,9 @@ def execute_with_guard(
             pass
         result_payload = {
             "tool_name": tool_name,
+            "tool_call_id": tool_call_id,
             "status": "ok",
+            "success": True,
             "contract_missing": bool(contract is None),
             "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
             "result_preview": _safe_result_preview(tool_result),

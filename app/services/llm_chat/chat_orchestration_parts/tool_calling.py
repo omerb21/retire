@@ -42,6 +42,26 @@ def _execute_tool_call(
 ) -> str:
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
+    tool_call_id = None
+    try:
+        tool_call_id = uuid.uuid4().hex
+    except Exception:
+        tool_call_id = None
+
+    try:
+        _log_agent_trace(
+            event_type="tool_call",
+            payload={
+                "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
+                "args_preview": str(args)[:200],
+                "streaming": False,
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
+
     req_id = request_id or "unknown"
     log_llm_event(
         request_id=req_id,
@@ -68,7 +88,7 @@ def _execute_tool_call(
                 agent_reply=agent_reply,
                 user_approved=user_approved,
             )
-            _log_tool_result(tool_name, result, client_id)
+            _log_tool_result(tool_name, result, client_id, tool_call_id)
             return result
     except Exception:
         pass
@@ -82,17 +102,19 @@ def _execute_tool_call(
         pension_portfolio=pension_portfolio,
         force_max_exemption=force_max_exemption,
     )
-    _log_tool_result(tool_name, result, client_id)
+    _log_tool_result(tool_name, result, client_id, tool_call_id)
     return result
 
 
-def _log_tool_result(tool_name: str, result: str, client_id: int) -> None:
+def _log_tool_result(tool_name: str, result: str, client_id: int, tool_call_id: str | None) -> None:
     try:
         _log_agent_trace(
             event_type="tool_result",
             payload={
                 "tool_name": tool_name,
+                "tool_call_id": tool_call_id,
                 "status": "ok",
+                "success": True,
                 "result_length": len(result or ""),
                 "result_preview": (result or "")[:3000],
             },

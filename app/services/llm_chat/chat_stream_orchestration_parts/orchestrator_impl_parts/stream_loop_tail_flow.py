@@ -268,16 +268,25 @@
 
                 _tc_payload = {
                     "tool_name": "GET_CLIENT_SNAPSHOT",
+                    "tool_call_id": None,
                     "args": {},
                     "client_id": request.client_id,
                     "shortcut": True,
                 }
+                try:
+                    import uuid as _uuid
+
+                    _tc_payload["tool_call_id"] = _uuid.uuid4().hex
+                except Exception:
+                    _tc_payload["tool_call_id"] = None
                 _lt(event_type="tool_call", payload=_tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
                 _ee("tool_call", _tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
 
                 _tr_payload = {
                     "tool_name": "GET_SYSTEM_STATE_SNAPSHOT",
+                    "tool_call_id": _tc_payload.get("tool_call_id"),
                     "status": "ok",
+                    "success": True,
                     "result_length": len(_snap_json),
                     "shortcut": True,
                 }
@@ -286,7 +295,9 @@
 
                 _tr_payload = {
                     "tool_name": "GET_CLIENT_SNAPSHOT",
+                    "tool_call_id": _tc_payload.get("tool_call_id"),
                     "status": "ok",
+                    "success": True,
                     "result_length": len(_snap_json),
                     "shortcut": True,
                 }
