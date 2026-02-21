@@ -38,6 +38,7 @@ def _validate_monthly_pension_invariant(
         )
 
 @router.post("/clients/{client_id}/pension-funds", response_model=PensionFundOut, status_code=status.HTTP_201_CREATED)
+@router.post("/clients/{client_id}/pension-funds/", response_model=PensionFundOut, status_code=status.HTTP_201_CREATED)
 def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session = Depends(get_db)):
     if payload.client_id != client_id:
         raise HTTPException(status_code=422, detail={"error": "client_id mismatch"})
@@ -133,6 +134,7 @@ def delete_pension_fund(fund_id: int, db: Session = Depends(get_db)):
     return result
 
 @router.delete("/clients/{client_id}/pension-funds/{fund_id}", status_code=status.HTTP_200_OK)
+@router.delete("/clients/{client_id}/pension-funds/{fund_id}/", status_code=status.HTTP_200_OK)
 def delete_client_pension_fund(client_id: int, fund_id: int, db: Session = Depends(get_db)):
     from app.services.asset_deletion_service import delete_pension_fund_with_restoration
     
@@ -157,6 +159,7 @@ def compute_pension_fund(
         raise HTTPException(status_code=404, detail={"error": str(e)})
 
 @router.post("/clients/{client_id}/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
+@router.post("/clients/{client_id}/pension-funds/{fund_id}/compute/", response_model=PensionFundOut)
 def compute_client_pension_fund(
     client_id: int,
     fund_id: int, 
@@ -176,6 +179,7 @@ def compute_client_pension_fund(
         raise HTTPException(status_code=404, detail={"error": str(e)})
 
 @router.post("/clients/{client_id}/pension-funds/compute-all", response_model=List[PensionFundOut])
+@router.post("/clients/{client_id}/pension-funds/compute-all/", response_model=List[PensionFundOut])
 def compute_all_client_pension_funds(
     client_id: int,
     reference_date: Optional[date] = None,
@@ -202,6 +206,7 @@ def compute_all_client_pension_funds(
     return updated_funds
 
 @router.get("/clients/{client_id}/pension-funds", response_model=List[PensionFundOut])
+@router.get("/clients/{client_id}/pension-funds/", response_model=List[PensionFundOut])
 def get_client_pension_funds(client_id: int, db: Session = Depends(get_db)):
     """Get all pension funds for a client - FAST VERSION"""
     try:

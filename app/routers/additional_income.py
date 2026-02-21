@@ -15,6 +15,7 @@ from app.schemas.additional_income import (
 router = APIRouter(prefix="/clients/{client_id}/additional-incomes", tags=["additional-incomes"])
 
 
+@router.post("", response_model=AdditionalIncomeResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=AdditionalIncomeResponse, status_code=status.HTTP_201_CREATED)
 def create_additional_income(
     client_id: int,
@@ -44,6 +45,7 @@ def create_additional_income(
     return db_income
 
 
+@router.get("", response_model=List[AdditionalIncomeResponse])
 @router.get("/", response_model=List[AdditionalIncomeResponse])
 def get_additional_incomes(
     client_id: int,
