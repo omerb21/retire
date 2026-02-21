@@ -22,15 +22,24 @@ def _tool_call_decision() -> OrchestrationDecision:
     )
 
 
-def test_max_iterations_guard_triggers_on_last_iteration_and_emits_core_final_response():
+def test_max_iterations_guard_triggers_on_last_iteration():
     max_iterations = 4
 
     for iter_idx in range(max_iterations):
         decision, traces, triggered = maybe_apply_max_iterations_guard(
             iter_idx=iter_idx,
             max_iterations=max_iterations,
+            trace_id="test-trace-id",
             final_text=MAX_ITERATIONS_USER_MESSAGE_HE,
-            decision=_tool_call_decision(),
+            decision=OrchestrationDecision(
+                decision_code=DecisionCode.TOOL_CALL,
+                plan_kind=PlanKind.QA_ONLY,
+                tool_name="GET_CLIENT_SNAPSHOT",
+                tool_args={},
+                final_text=None,
+                requires_user_approval=False,
+                debug_meta=None,
+            ),
             trace_specs=[],
         )
 

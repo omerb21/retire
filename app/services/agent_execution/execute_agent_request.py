@@ -672,6 +672,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             client_id=getattr(request, "client_id", None),
             session_id=getattr(request, "session_id", None),
             conversation_id=getattr(request, "conversation_id", None),
+            trace_id=getattr(request, "trace_id", None),
             feature_flags=_feature_flags,
             request_meta=None,
             state_snapshot=_core_state_snapshot,
@@ -682,6 +683,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         _core_decision, _core_trace_specs, _max_iter_triggered = maybe_apply_max_iterations_guard(
             iter_idx=_iter_idx,
             max_iterations=_MAX_CORE_TOOL_ITERATIONS,
+            trace_id=getattr(request, "trace_id", None),
             final_text=MAX_ITERATIONS_USER_MESSAGE_HE,
             decision=_core_decision,
             trace_specs=_core_trace_specs,
@@ -689,6 +691,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         for spec in _core_trace_specs:
             try:
                 log_trace_event(
+                    trace_id=spec.trace_id,
                     event_type=spec.event_type,
                     payload=spec.payload,
                     client_id=request.client_id,
@@ -1071,6 +1074,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
             client_id=getattr(request, "client_id", None),
             session_id=getattr(request, "session_id", None),
             conversation_id=getattr(request, "conversation_id", None),
+            trace_id=getattr(request, "trace_id", None),
             feature_flags=_feature_flags,
             request_meta=None,
             state_snapshot=_core_state_snapshot,
@@ -1081,6 +1085,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
         _core_decision, _core_trace_specs, _max_iter_triggered = maybe_apply_max_iterations_guard(
             iter_idx=_iter_idx,
             max_iterations=_MAX_CORE_TOOL_ITERATIONS,
+            trace_id=getattr(request, "trace_id", None),
             final_text=MAX_ITERATIONS_USER_MESSAGE_HE,
             decision=_core_decision,
             trace_specs=_core_trace_specs,
@@ -1088,6 +1093,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
         for spec in _core_trace_specs:
             try:
                 log_trace_event(
+                    trace_id=spec.trace_id,
                     event_type=spec.event_type,
                     payload=spec.payload,
                     client_id=request.client_id,

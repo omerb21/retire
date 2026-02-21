@@ -13,6 +13,7 @@ def should_trigger_max_iterations_guard(*, iter_idx: int, max_iterations: int) -
 
 def build_max_iterations_guard_decision_and_traces(
     *,
+    trace_id: str | None,
     final_text: str = MAX_ITERATIONS_USER_MESSAGE_HE,
 ) -> tuple[OrchestrationDecision, list[TraceEventSpec]]:
     decision = OrchestrationDecision(
@@ -27,6 +28,7 @@ def build_max_iterations_guard_decision_and_traces(
     trace_specs = [
         TraceEventSpec(
             event_type="core_final_response",
+            trace_id=trace_id,
             payload={"reply_preview": str(final_text)[:500]},
         )
     ]
@@ -37,6 +39,7 @@ def maybe_apply_max_iterations_guard(
     *,
     iter_idx: int,
     max_iterations: int,
+    trace_id: str | None,
     final_text: str = MAX_ITERATIONS_USER_MESSAGE_HE,
     decision: OrchestrationDecision,
     trace_specs: list[TraceEventSpec],
@@ -47,6 +50,9 @@ def maybe_apply_max_iterations_guard(
     if not should_trigger_max_iterations_guard(iter_idx=iter_idx, max_iterations=max_iterations):
         return decision, trace_specs, False
 
-    guard_decision, guard_traces = build_max_iterations_guard_decision_and_traces(final_text=final_text)
+    guard_decision, guard_traces = build_max_iterations_guard_decision_and_traces(
+        trace_id=trace_id,
+        final_text=final_text,
+    )
     merged_traces = list(trace_specs or []) + list(guard_traces or [])
     return guard_decision, merged_traces, True

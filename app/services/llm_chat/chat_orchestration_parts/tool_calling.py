@@ -42,6 +42,14 @@ def _execute_tool_call(
 ) -> str:
     logger.info("⚡ Executing Tool: %s with args: %s", tool_name, args)
 
+    trace_id = None
+    try:
+        from app.utils.trace_context import get_current_trace_id
+
+        trace_id = get_current_trace_id()
+    except Exception:
+        trace_id = None
+
     tool_call_id = None
     try:
         tool_call_id = uuid.uuid4().hex
@@ -58,6 +66,7 @@ def _execute_tool_call(
                 "streaming": False,
             },
             client_id=client_id,
+            trace_id=trace_id,
         )
     except Exception:
         pass
@@ -119,6 +128,7 @@ def _log_tool_result(tool_name: str, result: str, client_id: int, tool_call_id: 
                 "result_preview": (result or "")[:3000],
             },
             client_id=client_id,
+            trace_id=trace_id,
         )
     except Exception:
         pass

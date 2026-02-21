@@ -12,6 +12,7 @@ class OrchestrationInput:
     client_id: int | None
     session_id: str | None
     conversation_id: str | None
+    trace_id: str | None
     feature_flags: dict["FeatureFlagKey", bool]
     request_meta: dict | None
     state_snapshot: dict | None
@@ -66,6 +67,7 @@ class OrchestrationDecision:
 @dataclass(frozen=True)
 class TraceEventSpec:
     event_type: str
+    trace_id: str | None
     payload: dict
 
 

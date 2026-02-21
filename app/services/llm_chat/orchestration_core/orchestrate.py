@@ -47,6 +47,8 @@ def orchestrate(
     input: OrchestrationInput,
     deps: OrchestrationDeps,
 ) -> tuple[OrchestrationDecision, list[TraceEventSpec]]:
+    trace_id = getattr(input, "trace_id", None)
+
     def _maybe_emit_core_final_response(
         decision: OrchestrationDecision,
         trace_specs: list[TraceEventSpec],
@@ -63,6 +65,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_final_response",
+                trace_id=trace_id,
                 payload={
                     "reply_preview": str(decision.final_text)[:500],
                 },
@@ -115,6 +118,7 @@ def orchestrate(
             trace_specs.append(
                 TraceEventSpec(
                     event_type="core_next_action_decided",
+                    trace_id=trace_id,
                     payload={
                         "decision_code": decision.decision_code.value,
                         "plan_kind": decision.plan_kind.value,
@@ -163,6 +167,7 @@ def orchestrate(
                     trace_specs.append(
                         TraceEventSpec(
                             event_type="core_next_action_decided",
+                            trace_id=trace_id,
                             payload={
                                 "decision_code": decision.decision_code.value,
                                 "plan_kind": decision.plan_kind.value,
@@ -173,6 +178,7 @@ def orchestrate(
                     trace_specs.append(
                         TraceEventSpec(
                             event_type="core_tool_call",
+                            trace_id=trace_id,
                             payload={
                                 "tool_name": tool_name,
                                 "tool_args": tool_args,
@@ -202,6 +208,7 @@ def orchestrate(
                 trace_specs.append(
                     TraceEventSpec(
                         event_type="core_next_action_decided",
+                        trace_id=trace_id,
                         payload={
                             "decision_code": decision.decision_code.value,
                             "plan_kind": decision.plan_kind.value,
@@ -243,6 +250,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
+                trace_id=trace_id,
                 payload={
                     "decision_code": decision.decision_code.value,
                     "plan_kind": decision.plan_kind.value,
@@ -301,6 +309,7 @@ def orchestrate(
     trace_specs.append(
         TraceEventSpec(
             event_type="core_user_input",
+            trace_id=trace_id,
             payload={
                 "message_preview": user_text[:500],
                 "executor_only": executor_only,
@@ -310,6 +319,7 @@ def orchestrate(
     trace_specs.append(
         TraceEventSpec(
             event_type="core_intent_detected",
+            trace_id=trace_id,
             payload={
                 "chat_intent": getattr(intent, "value", str(intent)),
                 "message_preview": user_text[:500],
@@ -319,6 +329,7 @@ def orchestrate(
     trace_specs.append(
         TraceEventSpec(
             event_type="core_execution_mode_selected",
+            trace_id=trace_id,
             payload={
                 "execution_mode": execution_mode,
                 "tools_allowed": bool(tools_allowed),
@@ -329,6 +340,7 @@ def orchestrate(
     trace_specs.append(
         TraceEventSpec(
             event_type="core_policy_gate_result",
+            trace_id=trace_id,
             payload={
                 "tools_allowed": bool(tools_allowed),
                 "write_allowed": bool(write_allowed),
@@ -355,6 +367,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
+                trace_id=trace_id,
                 payload={
                     "decision_code": decision.decision_code.value,
                     "plan_kind": decision.plan_kind.value,
@@ -365,6 +378,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_tool_call",
+                trace_id=trace_id,
                 payload={
                     "tool_name": tool_name,
                     "tool_args": tool_args,
@@ -388,6 +402,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
+                trace_id=trace_id,
                 payload={
                     "decision_code": decision.decision_code.value,
                     "plan_kind": decision.plan_kind.value,
@@ -425,6 +440,7 @@ def orchestrate(
             trace_specs.append(
                 TraceEventSpec(
                     event_type="core_tool_call",
+                    trace_id=trace_id,
                     payload={
                         "tool_name": tool_name,
                         "tool_args": tool_args,
@@ -446,6 +462,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
+                trace_id=trace_id,
                 payload={
                     "decision_code": decision.decision_code.value,
                     "plan_kind": decision.plan_kind.value,
@@ -483,6 +500,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
+                trace_id=input.trace_id,
                 payload={
                     "decision_code": decision.decision_code.value,
                     "plan_kind": decision.plan_kind.value,
@@ -493,6 +511,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_tool_call",
+                trace_id=input.trace_id,
                 payload={
                     "tool_name": tool_name,
                     "tool_args": tool_args,
@@ -522,6 +541,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
+                trace_id=trace_id,
                 payload={
                     "decision_code": decision.decision_code.value,
                     "plan_kind": decision.plan_kind.value,
@@ -532,6 +552,7 @@ def orchestrate(
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_tool_call",
+                trace_id=trace_id,
                 payload={
                     "tool_name": tool_name,
                     "tool_args": tool_args,
@@ -543,6 +564,7 @@ def orchestrate(
     trace_specs.append(
         TraceEventSpec(
             event_type="core_next_action_decided",
+            trace_id=trace_id,
             payload={
                 "decision_code": decision.decision_code.value,
                 "plan_kind": decision.plan_kind.value,

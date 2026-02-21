@@ -140,6 +140,7 @@ def _stream_execute_tool_and_process_result(
                     client_id=getattr(request, "client_id", None),
                     session_id=getattr(request, "session_id", None),
                     conversation_id=getattr(request, "conversation_id", None),
+                    trace_id=getattr(request, "trace_id", None),
                     feature_flags={},
                     request_meta=None,
                     state_snapshot=enriched,
