@@ -662,6 +662,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     _MAX_CORE_TOOL_ITERATIONS = 4
     _core_last_tool_result: ToolResultEnvelope | None = None
     _core_final_computed_data = None
+    _core_final_computed_data_marker: str | None = None
     _core_final_reply_override: str | None = None
     _core_decision = None
 
@@ -713,15 +714,39 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             _res = _run_execution_only_non_stream(request=request, last_user_msg=last_user_msg)
             tool_result_payload = getattr(_res, "reply", None)
         elif tool_name == MONTHLY_PENSION_SUMMARY_TOOL_NAME and effective_request.client_id is not None:
-            from app.services.pension_chat_compute import compute_monthly_pension_summary
+            raw_tool_result = execute_with_guard(
+                request=effective_request,
+                db=db,
+                tool_name=MONTHLY_PENSION_SUMMARY_TOOL_NAME,
+                tool_args=tool_args,
+                streaming=False,
+                policy_decision=decision,
+                intent_type=intent_type,
+                pension_portfolio=getattr(effective_request, "pension_portfolio", None),
+                force_max_exemption=False,
+                agent_reply=None,
+                user_approved=True,
+                request_id=None,
+            )
+            parsed = None
+            try:
+                parsed = json.loads(raw_tool_result) if isinstance(raw_tool_result, str) else None
+            except Exception:
+                parsed = None
 
-            computed_data = compute_monthly_pension_summary(db, int(effective_request.client_id), date.today())
-            reply = _build_monthly_pension_reply(computed_data)
-            if not isinstance(reply, str) or not reply.strip():
-                reply = "Unable to produce monthly pension summary from system."
-            _core_final_computed_data = computed_data
-            _core_final_reply_override = reply
-            tool_result_payload = {"reply": reply, "computed_data": computed_data}
+            if isinstance(parsed, dict):
+                reply = parsed.get("reply")
+                computed_data = parsed.get("computed_data")
+                marker = parsed.get("computed_data_marker")
+                if isinstance(reply, str) and reply.strip():
+                    _core_final_reply_override = reply
+                if isinstance(computed_data, dict):
+                    _core_final_computed_data = computed_data
+                if isinstance(marker, str) and marker:
+                    _core_final_computed_data_marker = marker
+                tool_result_payload = parsed
+            else:
+                tool_result_payload = raw_tool_result
         elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME and effective_request.client_id is not None:
             tool_result_payload = execute_with_guard(
                 request=effective_request,
@@ -1084,15 +1109,39 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
 
         tool_result_payload = None
         if tool_name == MONTHLY_PENSION_SUMMARY_TOOL_NAME and effective_request.client_id is not None:
-            from app.services.pension_chat_compute import compute_monthly_pension_summary
+            raw_tool_result = execute_with_guard(
+                request=effective_request,
+                db=db,
+                tool_name=MONTHLY_PENSION_SUMMARY_TOOL_NAME,
+                tool_args=tool_args,
+                streaming=True,
+                policy_decision=decision,
+                intent_type=intent_type,
+                pension_portfolio=getattr(effective_request, "pension_portfolio", None),
+                force_max_exemption=False,
+                agent_reply=None,
+                user_approved=True,
+                request_id=None,
+            )
+            parsed = None
+            try:
+                parsed = json.loads(raw_tool_result) if isinstance(raw_tool_result, str) else None
+            except Exception:
+                parsed = None
 
-            computed_data = compute_monthly_pension_summary(db, int(effective_request.client_id), date.today())
-            reply = _build_monthly_pension_reply(computed_data)
-            if not isinstance(reply, str) or not reply.strip():
-                reply = "Unable to produce monthly pension summary from system."
-            _core_final_computed_data = computed_data
-            _core_final_reply_override = reply
-            tool_result_payload = {"reply": reply, "computed_data": computed_data}
+            if isinstance(parsed, dict):
+                reply = parsed.get("reply")
+                computed_data = parsed.get("computed_data")
+                marker = parsed.get("computed_data_marker")
+                if isinstance(reply, str) and reply.strip():
+                    _core_final_reply_override = reply
+                if isinstance(computed_data, dict):
+                    _core_final_computed_data = computed_data
+                if isinstance(marker, str) and marker:
+                    _core_final_computed_data_marker = marker
+                tool_result_payload = parsed
+            else:
+                tool_result_payload = raw_tool_result
         elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME and effective_request.client_id is not None:
             tool_result_payload = execute_with_guard(
                 request=effective_request,
@@ -1148,8 +1197,9 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
 
         if _core_final_computed_data is not None:
             def _gen() -> Iterator[str]:
-                computed_json = json.dumps({"type": "computed_data", "data": _core_final_computed_data}, ensure_ascii=False)
-                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+                marker = _core_final_computed_data_marker
+                if isinstance(marker, str) and marker:
+                    yield marker
                 yield reply
 
             return StreamingResponse(_wrap_iter_with_final_response(_gen()), media_type="text/plain")

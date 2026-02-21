@@ -36,6 +36,14 @@ class _GetSystemNumericConstantsResult(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class _MonthlyPensionSummaryResult(BaseModel):
+    reply: str
+    computed_data: dict
+    computed_data_marker: str
+
+    model_config = ConfigDict(extra="allow")
+
+
 _CONTRACTS: dict[str, ToolContract] = {
     "GET_CLIENT_SNAPSHOT": ToolContract(
         tool_name="GET_CLIENT_SNAPSHOT",
@@ -48,6 +56,12 @@ _CONTRACTS: dict[str, ToolContract] = {
         args_model=_EmptyArgs,
         result_model=_GetSystemNumericConstantsResult,
         notes="Read-only tool used in tests.",
+    ),
+    "MONTHLY_PENSION_SUMMARY": ToolContract(
+        tool_name="MONTHLY_PENSION_SUMMARY",
+        args_model=_EmptyArgs,
+        result_model=_MonthlyPensionSummaryResult,
+        notes="Deterministic monthly pension summary tool. Args must be empty.",
     ),
     "GET_PENSION_PRODUCTS": ToolContract(
         tool_name="GET_PENSION_PRODUCTS",

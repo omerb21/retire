@@ -93,6 +93,9 @@ from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
 from app.services.llm_chat.tool_handlers.get_pension_portfolio_snapshot_history import (
     handle_get_pension_portfolio_snapshot_history,
 )
+from app.services.llm_chat.tool_handlers.monthly_pension_summary import (
+    handle_monthly_pension_summary,
+)
 from app.services.llm_chat.tools.get_fixation_status_snapshot import (
     handle_get_fixation_status_snapshot,
 )
@@ -658,6 +661,9 @@ def execute_tool_call(
     def _dispatch() -> str:
         if tool_name == "GET_SYSTEM_NUMERIC_CONSTANTS":
             return handle_get_system_numeric_constants(args=args)
+
+        if tool_name == "MONTHLY_PENSION_SUMMARY":
+            return handle_monthly_pension_summary(args=args, client_id=client_id, db=db)
 
         if tool_name == "BUILD_TARGET_PENSION_PLAN":
             return handle_build_target_pension_plan(args=args, agent_tools=agent_tools)
