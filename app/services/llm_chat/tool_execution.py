@@ -240,11 +240,20 @@ def execute_tool_call(
     user_approved: bool = False,
     tool_call_id: str | None = None,
 ) -> str:
+    effective_trace_id = None
+    try:
+        from app.utils.trace_context import get_current_trace_id
+
+        effective_trace_id = get_current_trace_id()
+    except Exception:
+        effective_trace_id = None
+
     original_tool_name = tool_name
     tool_name = normalize_tool_name(tool_name) or tool_name
     if original_tool_name != tool_name:
         try:
             _log_agent_trace(
+                trace_id=effective_trace_id,
                 event_type="args_normalized",
                 payload={
                     "normalizer_name": "normalize_tool_name",
@@ -648,7 +657,12 @@ def execute_tool_call(
             "user_approved": user_approved,
             "force_max_exemption": force_max_exemption,
         }
-        _log_agent_trace(event_type="tool_call", payload=_tc_payload, client_id=client_id)
+        _log_agent_trace(
+            trace_id=effective_trace_id,
+            event_type="tool_call",
+            payload=_tc_payload,
+            client_id=client_id,
+        )
         _eyes_emit("tool_call", _tc_payload, client_id=client_id)
     except Exception:
         pass
@@ -909,7 +923,12 @@ def execute_tool_call(
                 "stack_trace": _tb_mod.format_exc()[:4000],
                 "elapsed_ms": elapsed_ms,
             }
-            _log_agent_trace(event_type="error", payload=_err_payload, client_id=client_id)
+            _log_agent_trace(
+                trace_id=effective_trace_id,
+                event_type="error",
+                payload=_err_payload,
+                client_id=client_id,
+            )
             _eyes_emit("error", _err_payload, client_id=client_id)
         except Exception:
             pass
@@ -931,7 +950,12 @@ def execute_tool_call(
             "result_preview": (result or "")[:2000],
             "result_length": len(result or ""),
         }
-        _log_agent_trace(event_type="tool_result", payload=_tr_payload, client_id=client_id)
+        _log_agent_trace(
+            trace_id=effective_trace_id,
+            event_type="tool_result",
+            payload=_tr_payload,
+            client_id=client_id,
+        )
         _eyes_emit("tool_result", _tr_payload, client_id=client_id)
     except Exception:
         pass
