@@ -1,4 +1,5 @@
 import { apiFetch } from '../../lib/api';
+import { apiRoutes } from '../../api/routes';
 import { PensionFund, Commutation } from './types';
 
 /**
@@ -10,7 +11,7 @@ export async function loadPensionFunds(clientId: string): Promise<{
 }> {
   try {
     // Load pension funds (includes all pensions from termination decisions)
-    const data = await apiFetch<PensionFund[]>(`/clients/${clientId}/pension-funds`);
+    const data = await apiFetch<PensionFund[]>(apiRoutes.clients.pensionFunds(clientId));
     console.log("Loaded pension funds:", data);
     
     // מיפוי שדות לפורמט אחיד - השרת מחזיר את balance המקורי!
@@ -25,7 +26,7 @@ export async function loadPensionFunds(clientId: string): Promise<{
     // טעינת היוונים מנכסים הוניים
     let loadedCommutations: Commutation[] = [];
     try {
-      const capitalAssets = await apiFetch<any[]>(`/clients/${clientId}/capital-assets`);
+      const capitalAssets = await apiFetch<any[]>(apiRoutes.clients.capitalAssets(clientId));
       console.log("Loaded capital assets:", capitalAssets);
       
       // סינון נכסים שהם היוונים (יש להם COMMUTATION ב-remarks)
@@ -113,7 +114,7 @@ export async function savePensionFund(
   } else {
     // יצירת קצבה חדשה
     console.log("יוצר קצבה חדשה");
-    await apiFetch(`/clients/${clientId}/pension-funds`, {
+    await apiFetch(apiRoutes.clients.pensionFunds(clientId), {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -124,7 +125,7 @@ export async function savePensionFund(
  * חישוב קצבה חודשית
  */
 export async function computePensionFund(clientId: string, fundId: number): Promise<void> {
-  await apiFetch(`/clients/${clientId}/pension-funds/${fundId}/compute`, {
+  await apiFetch(apiRoutes.clients.pensionFundCompute(clientId, fundId), {
     method: "POST",
     body: JSON.stringify({}),
   });
@@ -134,7 +135,7 @@ export async function computePensionFund(clientId: string, fundId: number): Prom
  * מחיקת קצבה
  */
 export async function deletePensionFund(clientId: string, fundId: number): Promise<any> {
-  return await apiFetch(`/clients/${clientId}/pension-funds/${fundId}`, {
+  return await apiFetch(apiRoutes.clients.pensionFundById(clientId, fundId), {
     method: 'DELETE'
   });
 }
@@ -143,7 +144,7 @@ export async function deletePensionFund(clientId: string, fundId: number): Promi
  * מחיקת היוון (נכס הוני)
  */
 export async function deleteCommutation(clientId: string, commutationId: number): Promise<void> {
-  await apiFetch(`/clients/${clientId}/capital-assets/${commutationId}`, {
+  await apiFetch(apiRoutes.clients.capitalAssetById(clientId, commutationId), {
     method: 'DELETE'
   });
 }
@@ -152,7 +153,7 @@ export async function deleteCommutation(clientId: string, commutationId: number)
  * יצירת נכס הוני (היוון)
  */
 export async function createCapitalAsset(clientId: string, data: any): Promise<any> {
-  return await apiFetch(`/clients/${clientId}/capital-assets/`, {
+  return await apiFetch(apiRoutes.clients.capitalAssets(clientId), {
     method: 'POST',
     body: JSON.stringify(data)
   });
@@ -162,7 +163,7 @@ export async function createCapitalAsset(clientId: string, data: any): Promise<a
  * שליפת נכס הוני בודד (לצורך שחזור קצבה מהמרה)
  */
 export async function getCapitalAsset(clientId: string, assetId: number): Promise<any> {
-  return await apiFetch<any>(`/clients/${clientId}/capital-assets/${assetId}`);
+  return await apiFetch<any>(apiRoutes.clients.capitalAssetById(clientId, assetId));
 }
 
 /**

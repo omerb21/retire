@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../lib/api';
+import { apiRoutes } from '../api/routes';
 import { CapitalAsset } from '../types/capitalAsset';
 import { restoreBalanceToPensionPortfolio } from '../pages/PensionPortfolio/services/pensionPortfolioStorageService';
 
@@ -21,7 +22,7 @@ export function useCapitalAssets(clientId: string | undefined) {
     setError("");
     
     try {
-      const data = await apiFetch<CapitalAsset[]>(`/clients/${clientId}/capital-assets/`);
+      const data = await apiFetch<CapitalAsset[]>(apiRoutes.clients.capitalAssets(clientId));
       console.log("SERVER RESPONSE - Capital Assets:", JSON.stringify(data, null, 2));
       
       // בדיקה מפורטת של כל נכס
@@ -91,7 +92,7 @@ export function useCapitalAssets(clientId: string | undefined) {
       }
 
       // מחיקת הנכס והחזרת מידע על שחזור
-      const deleteResponse = await apiFetch(`/clients/${clientId}/capital-assets/${assetId}`, {
+      const deleteResponse = await apiFetch(apiRoutes.clients.capitalAssetById(clientId, assetId), {
         method: 'DELETE'
       }) as any;
       

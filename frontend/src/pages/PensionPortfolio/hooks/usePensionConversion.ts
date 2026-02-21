@@ -5,6 +5,7 @@ import {
   calculateTaxTreatment 
 } from '../../../config/conversionRules';
 import { apiFetch } from '../../../lib/api';
+import { apiRoutes } from '../../../api/routes';
 import { calculateRetirementDateForClient } from '../services/retirementDateService';
 import { preparePensionConversions } from '../services/pensionConversionPreparationService';
 import { convertDDMMYYToISO } from '../../../utils/dateUtils';
@@ -195,7 +196,7 @@ export function usePensionConversion(
             pensionDataPayload.fixed_index_rate = null;
           }
 
-          await apiFetch(`/clients/${clientId}/pension-funds`, {
+          await apiFetch(apiRoutes.clients.pensionFunds(clientId), {
             method: 'POST',
             body: JSON.stringify(pensionDataPayload)
           });
@@ -282,7 +283,7 @@ export function usePensionConversion(
               conversion_source: JSON.stringify(conversionSourceData)
             };
 
-            await apiFetch(`/clients/${clientId}/capital-assets`, {
+            await apiFetch(apiRoutes.clients.capitalAssets(clientId), {
               method: 'POST',
               body: JSON.stringify(assetData)
             });
@@ -328,7 +329,7 @@ export function usePensionConversion(
               conversion_source: JSON.stringify(conversionSourceData)
             };
 
-            await apiFetch(`/clients/${clientId}/capital-assets`, {
+            await apiFetch(apiRoutes.clients.capitalAssets(clientId), {
               method: 'POST',
               body: JSON.stringify(assetData)
             });

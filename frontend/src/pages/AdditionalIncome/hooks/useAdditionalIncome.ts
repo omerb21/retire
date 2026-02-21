@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../../lib/api';
+import { apiRoutes } from '../../../api/routes';
 import { formatDateInput, convertDDMMYYToISO, convertISOToDDMMYY } from '../../../utils/dateUtils';
 
 export type AdditionalIncome = {
@@ -43,7 +44,7 @@ export function useAdditionalIncome(clientId?: string) {
     setError('');
 
     try {
-      const data = await apiFetch<AdditionalIncome[]>(`/clients/${clientId}/additional-incomes/`);
+      const data = await apiFetch<AdditionalIncome[]>(apiRoutes.clients.additionalIncomes(clientId));
       setIncomes(data || []);
     } catch (e: any) {
       setError(`שגיאה בטעינת הכנסות נוספות: ${e?.message || e}`);
@@ -98,12 +99,12 @@ export function useAdditionalIncome(clientId?: string) {
       };
 
       if (editingIncomeId) {
-        await apiFetch(`/clients/${clientId}/additional-incomes/${editingIncomeId}`, {
+        await apiFetch(apiRoutes.clients.additionalIncomeById(clientId, editingIncomeId), {
           method: 'PUT',
           body: JSON.stringify(payload),
         });
       } else {
-        await apiFetch(`/clients/${clientId}/additional-incomes/`, {
+        await apiFetch(apiRoutes.clients.additionalIncomes(clientId), {
           method: 'POST',
           body: JSON.stringify(payload),
         });
@@ -134,7 +135,7 @@ export function useAdditionalIncome(clientId?: string) {
 
       for (const income of incomes) {
         if (income.id) {
-          await apiFetch(`/clients/${clientId}/additional-incomes/${income.id}`, {
+          await apiFetch(apiRoutes.clients.additionalIncomeById(clientId, income.id), {
             method: 'DELETE',
           });
         }
@@ -155,7 +156,7 @@ export function useAdditionalIncome(clientId?: string) {
     }
 
     try {
-      await apiFetch(`/clients/${clientId}/additional-incomes/${incomeId}`, {
+      await apiFetch(apiRoutes.clients.additionalIncomeById(clientId, incomeId), {
         method: 'DELETE',
       });
 
