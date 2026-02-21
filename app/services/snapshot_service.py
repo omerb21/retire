@@ -300,6 +300,12 @@ class SnapshotService:
             employers = self.db.query(CurrentEmployer).filter(
                 CurrentEmployer.client_id == client_id
             ).all()
+
+            for employer in employers:
+                try:
+                    self.db.expunge(employer)
+                except Exception:
+                    pass
             
             for employer in employers:
                 deleted_count += self.db.query(EmployerGrant).filter(
