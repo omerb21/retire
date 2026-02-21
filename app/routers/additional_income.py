@@ -34,7 +34,7 @@ def create_additional_income(
     # Create additional income
     db_income = AdditionalIncome(
         client_id=client_id,
-        **income_data.dict()
+        **income_data.model_dump()
     )
     
     db.add(db_income)
@@ -107,7 +107,7 @@ def update_additional_income(
         )
     
     # Update fields
-    update_data = income_data.dict(exclude_unset=True)
+    update_data = income_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(income, field, value)
     

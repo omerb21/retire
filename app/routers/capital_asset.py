@@ -37,7 +37,7 @@ def create_capital_asset(
             detail=f"Client with id {client_id} not found"
         )
     
-    data = asset_data.dict()
+    data = asset_data.model_dump()
 
     try:
         src_raw = data.get("conversion_source")
@@ -208,7 +208,7 @@ def update_capital_asset(
         )
     
     # Update fields
-    update_data = asset_data.dict(exclude_unset=True)
+    update_data = asset_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(asset, field, value)
     

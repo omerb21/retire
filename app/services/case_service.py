@@ -125,7 +125,7 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
     log_calc(
         event="case_detected",
         payload={"client_id": client_id, "retirement_age": retirement_age},
-        result=result.dict(),
+        result=result.model_dump(),
         debug_info={
             "client_age": age,
             "birth_date": str(client.birth_date),
