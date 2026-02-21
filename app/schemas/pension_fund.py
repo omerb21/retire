@@ -20,6 +20,7 @@ class PensionFundBase(BaseModel):
 
 class PensionFundCreate(PensionFundBase):
     client_id: int
+    model_config = ConfigDict(extra="ignore")
 
 class PensionFundUpdate(PensionFundBase):
     pass

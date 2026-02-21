@@ -3,7 +3,7 @@
 from datetime import date
 from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.models.capital_asset import AssetType, PaymentFrequency, IndexationMethod, TaxTreatment
 
@@ -62,7 +62,7 @@ class CapitalAssetBase(BaseModel):
 
 class CapitalAssetCreate(CapitalAssetBase):
     """Schema for creating Capital Asset."""
-    pass
+    model_config = ConfigDict(extra="ignore")
 
 
 class CapitalAssetUpdate(BaseModel):
