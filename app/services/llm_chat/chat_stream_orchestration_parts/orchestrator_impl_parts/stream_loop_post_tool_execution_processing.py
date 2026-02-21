@@ -4,6 +4,7 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_pension_portfolio_update_after_transform,
     clear_pending_approval_request,
+    get_gross_for_tax_chaining,
     maybe_clear_pension_portfolio_after_transform,
 )
 from app.utils.llm_chat_log import log_llm_event
@@ -13,12 +14,23 @@ from app.services.llm_chat.orchestration_utils import (
     get_tool_display_name_hebrew,
     sanitize_user_visible_text,
 )
+from app.services.llm_chat.message_utils import find_last_user_message
+from app.services.llm_chat.orchestration_core.core_types import (
+    DecisionCode,
+    OrchestrationDeps,
+    OrchestrationInput,
+    ToolResultEnvelope,
+)
+from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    is_net_pension_request,
+)
 
 from .stream_loop_missing_required_tools_guardrail import _maybe_append_missing_required_tools_guardrail
 from .stream_loop_forced_document_reply import _stream_maybe_emit_forced_document_reply
-from .stream_loop_tax_force_chaining import _maybe_run_tax_force_chaining
 from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
 from .stream_loop_mandatory_fixation_chain import _stream_maybe_run_mandatory_fixation_chain
+from ..stream_tool_execution import _execute_tool_call
 
 
 def _stream_handle_post_tool_execution_processing(
@@ -107,16 +119,57 @@ def _stream_handle_post_tool_execution_processing(
         )
     )
 
-    gross_for_tax, tax_result = _maybe_run_tax_force_chaining(
-        logger=logger,
-        req_id=req_id,
-        request=request,
-        tool_db=tool_db,
-        tool_name=tool_name,
-        tool_result=tool_result,
-        current_pension_portfolio=current_pension_portfolio,
-        force_max_exemption_val=force_max_exemption_val,
-    )
+    gross_for_tax = None
+    tax_result = None
+    try:
+        _is_net = is_net_pension_request((find_last_user_message(request.messages) or ""))
+        gross_for_tax = get_gross_for_tax_chaining(
+            is_net=_is_net,
+            tool_name=tool_name,
+            tool_result=tool_result,
+        )
+    except Exception:
+        gross_for_tax = None
+
+    try:
+        if gross_for_tax is not None and gross_for_tax > 0:
+            core_input = OrchestrationInput(
+                user_text="",
+                client_id=getattr(request, "client_id", None),
+                session_id=getattr(request, "session_id", None),
+                conversation_id=getattr(request, "conversation_id", None),
+                feature_flags={},
+                request_meta=None,
+                state_snapshot={"tax_autochain_gross_monthly_pension": gross_for_tax},
+                last_tool_result=ToolResultEnvelope(
+                    tool_name=str(tool_name or ""),
+                    tool_args=tool_args if isinstance(tool_args, dict) else {},
+                    tool_result=tool_result,
+                    status="ok",
+                    error_message=None,
+                    trace_id=req_id,
+                    tool_call_id=None,
+                ),
+            )
+            core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+            core_decision, _ = orchestrate(core_input, core_deps)
+            if (
+                getattr(core_decision, "decision_code", None) == DecisionCode.TOOL_CALL
+                and getattr(core_decision, "tool_name", None) == "GET_TAX_PROJECTION"
+            ):
+                core_args = getattr(core_decision, "tool_args", None)
+                tax_args = core_args if isinstance(core_args, dict) else {}
+                tax_result = _execute_tool_call(
+                    "GET_TAX_PROJECTION",
+                    tax_args,
+                    request.client_id,
+                    tool_db,
+                    pension_portfolio=current_pension_portfolio,
+                    force_max_exemption=force_max_exemption_val,
+                    request_id=req_id,
+                )
+    except Exception:
+        tax_result = None
 
     yield from _stream_maybe_emit_tax_autochain_result(
         logger=logger,

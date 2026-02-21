@@ -66,7 +66,6 @@ def _handle_tool_call_step(
         build_pension_portfolio_update_after_commutation,
         build_pension_portfolio_update_after_transform,
         get_gross_for_tax_chaining,
-        run_tax_projection_autochain,
         load_latest_target_pension_plan,
         load_pending_approval_request,
         maybe_clear_pension_portfolio_after_transform,
@@ -74,6 +73,13 @@ def _handle_tool_call_step(
         store_latest_target_pension_plan_data,
         store_pending_approval_request,
     )
+    from app.services.llm_chat.orchestration_core.core_types import (
+        DecisionCode,
+        OrchestrationDeps,
+        OrchestrationInput,
+        ToolResultEnvelope,
+    )
+    from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
     from app.services.llm_chat.message_utils import (
         extract_target_pension_from_message,
         find_last_user_message,
@@ -878,7 +884,36 @@ def _handle_tool_call_step(
 
         if forced_document_reply:
             if is_doc_request and not is_qa_mode:
-                final_reply = forced_document_reply
+                try:
+                    core_input = OrchestrationInput(
+                        user_text="",
+                        client_id=getattr(request, "client_id", None),
+                        session_id=getattr(request, "session_id", None),
+                        conversation_id=getattr(request, "conversation_id", None),
+                        feature_flags={},
+                        request_meta=None,
+                        state_snapshot={
+                            "forced_document_reply_stop": True,
+                            "forced_document_reply_final": forced_document_reply,
+                        },
+                        last_tool_result=ToolResultEnvelope(
+                            tool_name=str(tool_name or ""),
+                            tool_args=tool_args if isinstance(tool_args, dict) else {},
+                            tool_result=tool_result,
+                            status="ok",
+                            error_message=None,
+                            trace_id=None,
+                            tool_call_id=None,
+                        ),
+                    )
+                    core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                    core_decision, _ = orchestrate(core_input, core_deps)
+                    if getattr(core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY:
+                        final_reply = str(getattr(core_decision, "final_text", "") or "")
+                    else:
+                        final_reply = forced_document_reply
+                except Exception:
+                    final_reply = forced_document_reply
                 return (
                     True,
                     True,
@@ -925,18 +960,46 @@ def _handle_tool_call_step(
             original_user_msg[:50],
         )
 
-        tax_result = run_tax_projection_autochain(
-            gross_for_tax=gross_for_tax,
-            execute_tool_call_fn=lambda name, args: _execute_tool_call(
-                name,
-                args,
-                request.client_id,
-                db,
-                pension_portfolio=current_pension_portfolio,
-                force_max_exemption=force_max_exemption,
-                request_id=request_id,
-            ),
-        )
+        tax_result = None
+        try:
+            if gross_for_tax is not None and gross_for_tax > 0:
+                core_input = OrchestrationInput(
+                    user_text="",
+                    client_id=getattr(request, "client_id", None),
+                    session_id=getattr(request, "session_id", None),
+                    conversation_id=getattr(request, "conversation_id", None),
+                    feature_flags={},
+                    request_meta=None,
+                    state_snapshot={"tax_autochain_gross_monthly_pension": gross_for_tax},
+                    last_tool_result=ToolResultEnvelope(
+                        tool_name=str(tool_name or ""),
+                        tool_args=tool_args if isinstance(tool_args, dict) else {},
+                        tool_result=tool_result,
+                        status="ok",
+                        error_message=None,
+                        trace_id=None,
+                        tool_call_id=None,
+                    ),
+                )
+                core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                core_decision, _ = orchestrate(core_input, core_deps)
+                if (
+                    getattr(core_decision, "decision_code", None) == DecisionCode.TOOL_CALL
+                    and getattr(core_decision, "tool_name", None) == "GET_TAX_PROJECTION"
+                ):
+                    core_args = getattr(core_decision, "tool_args", None)
+                    tax_args = core_args if isinstance(core_args, dict) else {}
+                    tax_result = _execute_tool_call(
+                        "GET_TAX_PROJECTION",
+                        tax_args,
+                        request.client_id,
+                        db,
+                        pension_portfolio=current_pension_portfolio,
+                        force_max_exemption=force_max_exemption,
+                        request_id=request_id,
+                    )
+        except Exception:
+            tax_result = None
         if tax_result is not None:
             logger.info(
                 "🔗 Force Chaining: Running GET_TAX_PROJECTION with gross=%s",
@@ -1030,20 +1093,51 @@ def _handle_tool_call_step(
                         tool_name="BUILD_TARGET_PENSION_PLAN",
                         tool_result=plan_result,
                     )
-                    tax_after = run_tax_projection_autochain(
-                        gross_for_tax=gross_for_tax_after,
-                        execute_tool_call_fn=lambda name, args: _execute_tool_call(
-                            name,
-                            args,
-                            request.client_id,
-                            db,
-                            pension_portfolio=current_pension_portfolio,
-                            force_max_exemption=False,
-                            agent_reply=None,
-                            user_approved=True,
-                            request_id=request_id,
-                        ),
-                    )
+                    tax_after = None
+                    try:
+                        if gross_for_tax_after is not None and gross_for_tax_after > 0:
+                            core_input = OrchestrationInput(
+                                user_text="",
+                                client_id=getattr(request, "client_id", None),
+                                session_id=getattr(request, "session_id", None),
+                                conversation_id=getattr(request, "conversation_id", None),
+                                feature_flags={},
+                                request_meta=None,
+                                state_snapshot={
+                                    "tax_autochain_gross_monthly_pension": gross_for_tax_after,
+                                },
+                                last_tool_result=ToolResultEnvelope(
+                                    tool_name="BUILD_TARGET_PENSION_PLAN",
+                                    tool_args=plan_args,
+                                    tool_result=plan_result,
+                                    status="ok",
+                                    error_message=None,
+                                    trace_id=None,
+                                    tool_call_id=None,
+                                ),
+                            )
+                            core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                            core_decision, _ = orchestrate(core_input, core_deps)
+                            if (
+                                getattr(core_decision, "decision_code", None) == DecisionCode.TOOL_CALL
+                                and getattr(core_decision, "tool_name", None) == "GET_TAX_PROJECTION"
+                            ):
+                                core_args = getattr(core_decision, "tool_args", None)
+                                tax_args = core_args if isinstance(core_args, dict) else {}
+                                tax_after = _execute_tool_call(
+                                    "GET_TAX_PROJECTION",
+                                    tax_args,
+                                    request.client_id,
+                                    db,
+                                    pension_portfolio=current_pension_portfolio,
+                                    force_max_exemption=False,
+                                    agent_reply=None,
+                                    user_approved=True,
+                                    request_id=request_id,
+                                )
+                    except Exception:
+                        tax_after = None
+
                     if tax_after is not None:
                         messages.append(
                             ChatMessage(

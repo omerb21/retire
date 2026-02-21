@@ -16,7 +16,9 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-_EXPLICIT_SNAPSHOT_RE = re.compile(r"\bGET_CLIENT_SNAPSHOT\b", re.IGNORECASE)
+CLIENT_SNAPSHOT_TOOL_NAME = "GET_CLIENT_SNAPSHOT"
+
+_EXPLICIT_SNAPSHOT_RE = re.compile(rf"\b{CLIENT_SNAPSHOT_TOOL_NAME}\b", re.IGNORECASE)
 
 _JSON_ONLY_PHRASES = (
     "רק json",
@@ -81,7 +83,7 @@ def build_client_snapshot_tool_result(
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError):
         return {
-            "tool_name": "GET_CLIENT_SNAPSHOT",
+            "tool_name": CLIENT_SNAPSHOT_TOOL_NAME,
             "success": False,
             "error": "Failed to parse tool output",
             "raw": (raw or "")[:2000],

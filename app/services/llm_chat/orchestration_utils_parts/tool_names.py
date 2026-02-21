@@ -1,3 +1,8 @@
+MONTHLY_PENSION_SUMMARY_TOOL_NAME = "MONTHLY_PENSION_SUMMARY"
+
+TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME = "TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY"
+
+
 def get_tool_display_name_hebrew(tool_name: str | None) -> str:
     if not isinstance(tool_name, str) or not tool_name.strip():
         return "כלי"
@@ -31,6 +36,7 @@ def get_tool_display_name_hebrew(tool_name: str | None) -> str:
         "SET_CURRENT_EMPLOYER_DETAILS": "עדכון פרטי מעסיק נוכחי",
         "EXECUTE_WORK_TERMINATION": "ביצוע עזיבת עבודה",
         "GET_CLIENT_SNAPSHOT": "שליפת מצב לקוח",
+        "TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY": "עזיבת עבודה – הסבר עקרוני (ללא ביצוע)",
     }
     return mapping.get(tool_name, tool_name)
 

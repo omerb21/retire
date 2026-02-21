@@ -1,16 +1,25 @@
 from app.database import SessionLocal
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
+from app.services.llm_chat.message_utils import (
+    extract_latest_approval_request,
+    get_tool_call_approval_signature,
+)
 from app.services.llm_chat.chat_orchestration_helpers import (
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
 )
 from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
+from app.services.llm_chat.orchestration_core.core_types import (
+    DecisionCode,
+    OrchestrationDeps,
+    OrchestrationInput,
+    ToolResultEnvelope,
+)
+from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.utils.llm_chat_log import log_llm_event
 
 from ..stream_tool_execution import _execute_tool_call
-from .stream_loop_ui_action_approval_short_circuit import (
-    _stream_maybe_short_circuit_on_ui_action_approval_request,
-)
 from .stream_loop_post_tool_execution_processing import (
     _stream_handle_post_tool_execution_processing,
 )
@@ -95,14 +104,61 @@ def _stream_execute_tool_and_process_result(
                     except Exception:
                         pass
 
-                should_break = yield from _stream_maybe_short_circuit_on_ui_action_approval_request(
-                    req_id=req_id,
-                    request=request,
-                    tool_name=tool_name,
-                    tool_args=tool_args,
-                    tool_result=tool_result,
+                already_sent = False
+                try:
+                    pending = extract_latest_approval_request(request.messages)
+                    if pending is not None:
+                        pending_tool, pending_args = pending
+                        pending_sig = get_tool_call_approval_signature(pending_tool, pending_args)
+                        current_sig = get_tool_call_approval_signature(
+                            tool_name,
+                            tool_args if isinstance(tool_args, dict) else {},
+                        )
+                        already_sent = bool(pending_sig and current_sig and pending_sig == current_sig)
+                except Exception:
+                    already_sent = False
+
+                core_input = OrchestrationInput(
+                    user_text="",
+                    client_id=getattr(request, "client_id", None),
+                    session_id=getattr(request, "session_id", None),
+                    conversation_id=getattr(request, "conversation_id", None),
+                    feature_flags={},
+                    request_meta=None,
+                    state_snapshot={"approval_request_already_sent": already_sent},
+                    last_tool_result=ToolResultEnvelope(
+                        tool_name=str(tool_name or ""),
+                        tool_args=tool_args if isinstance(tool_args, dict) else {},
+                        tool_result=tool_result,
+                        status="ok",
+                        error_message=None,
+                        trace_id=req_id,
+                        tool_call_id=None,
+                    ),
                 )
-                if should_break:
+                core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                core_decision, _ = orchestrate(core_input, core_deps)
+                if getattr(core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY:
+                    final_text = str(getattr(core_decision, "final_text", "") or "")
+                    if already_sent:
+                        log_llm_event(
+                            request_id=req_id,
+                            event_type="final_answer",
+                            payload=(
+                                "נדרש אישור לפני הפעלת כלי (כבר נשלחה בקשת אישור). ממתין לאישור בחלונית."
+                            ),
+                            client_id=request.client_id,
+                            extra={"endpoint": "stream"},
+                        )
+                    else:
+                        log_llm_event(
+                            request_id=req_id,
+                            event_type="final_answer",
+                            payload=tool_result,
+                            client_id=request.client_id,
+                            extra={"endpoint": "stream"},
+                        )
+                    yield final_text
                     return (
                         True,
                         qa_summary_required,

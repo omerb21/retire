@@ -4,6 +4,7 @@ import os
 import re
 from datetime import date
 from typing import AsyncIterator, Iterator
+from uuid import UUID, uuid4
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -42,11 +43,20 @@ from app.services.llm_chat.execution_only_guard import (
 )
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.services.llm_chat.explicit_tool_shortcuts import (
+    CLIENT_SNAPSHOT_TOOL_NAME,
     extract_first_json,
-    is_explicit_client_snapshot_request,
     wants_json_only,
 )
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
+from app.services.llm_chat.orchestration_utils_parts.tool_names import (
+    MONTHLY_PENSION_SUMMARY_TOOL_NAME,
+    TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
+)
+from app.services.llm_chat.orchestration_core.core_types import OrchestrationDeps, OrchestrationInput
+from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.services.llm_chat.orchestration_core.feature_flags import compute_feature_flags
+from app.services.llm_chat.orchestration_core.core_types import DecisionCode, ToolResultEnvelope
+from app.services.llm_chat.orchestration_core.state_apply import apply_tool_result_to_state
 from app.services.intent_classifier import IntentType, classify_intent
 from app.services.llm_pension_agent_service import pension_llm_service
 from app.services.agent_execution.tool_execution_context import (
@@ -71,6 +81,27 @@ _PENSION_PORTFOLIO_UPDATE_RE = re.compile(
 _TARGET_PENSION_PLAN_DATA_RE = re.compile(
     r"###TARGET_PENSION_PLAN_DATA###.*?###END_TARGET_PENSION_PLAN_DATA###(?:\r?\n)?",
     flags=re.DOTALL,
+)
+
+
+_TERMINATION_CONCEPTUAL_NO_EXECUTE_NON_STREAM_REPLY = (
+    "כותרת: עזיבת עבודה – הסבר עקרוני (ללא ביצוע)\n\n"
+    "לא נעשתה פעולה במערכת.\n\n"
+    "מה בודקים ומחליטים בעזיבת עבודה (עקרונית):\n"
+    "- תאריך סיום עבודה\n"
+    "- סכום פיצויים והפרדה לפטור/חייב\n"
+    "- בחירת טיפול בפיצויים: רצף קצבה / משיכה / שילוב\n"
+)
+
+
+_TERMINATION_CONCEPTUAL_NO_EXECUTE_STREAM_REPLY = (
+    "כותרת: עזיבת עבודה – הסבר עקרוני (ללא ביצוע)\n\n"
+    "לא נעשתה פעולה במערכת.\n\n"
+    "מה קורה בעזיבת עבודה (ברמה עקרונית):\n"
+    "- קובעים תאריך סיום עבודה\n"
+    "- מפרידים פיצויים לפטור/חייב לפי נתוני המעסיק\n"
+    "- בוחרים טיפול בפיצויים: רצף קצבה / משיכה / שילוב\n\n"
+    "כדי לבצע בפועל בפנייה הבאה, כתוב במפורש 'בצע עזיבת עבודה' וציין את תאריך הסיום והבחירות."
 )
 
 _TRANSPARENCY_LOG_RE = re.compile(
@@ -115,7 +146,6 @@ def _has_tool_result_ok_for_current_trace() -> bool:
             return True
     except Exception:
         pass
-
     trace_id = None
     try:
         from app.utils.trace_context import get_current_trace_id
@@ -332,18 +362,6 @@ def _find_last_user_message_text(request: ChatRequest) -> str:
     return ""
 
 
-def _should_compute_monthly_pension(user_text: str) -> bool:
-    normalized = (user_text or "").strip()
-    if not normalized:
-        return False
-    lowered = normalized.lower()
-    return (
-        ("monthly_pension" in lowered)
-        or ("קצבה חודשית" in normalized)
-        or ("קצבה נוכחית" in normalized)
-    )
-
-
 def _build_monthly_pension_reply(payload: dict) -> str:
     _ = payload
     return "Monthly pension summary computed. See computed_data for details."
@@ -546,6 +564,22 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         pass
 
     last_user_msg = _find_last_user_message_text(request)
+    intent = detect_intent(last_user_msg)
+
+    _core_state_snapshot = {
+        "executor_only": getattr(request, "executor_only", None),
+    }
+    _feature_flags = compute_feature_flags(
+        request=request,
+        user_text=last_user_msg,
+        intent=intent,
+        allow_greeting_shortcut=False,
+        allow_exec_only_path=True,
+    )
+    _core_deps = OrchestrationDeps(
+        llm_generate=lambda messages, client_id=None: pension_llm_service.chat(messages, client_id),
+        policy_gate=decide,
+    )
     executor_only_flag = bool(getattr(request, "executor_only", None))
 
     try:
@@ -571,25 +605,6 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         _eyes_emit("intent_detected", _it_payload, client_id=request.client_id, endpoint=endpoint)
     except Exception:
         pass
-
-    intent = detect_intent(last_user_msg)
-
-    if is_execution_only(request) and intent != ChatIntent.REPORT:
-        res = _run_execution_only_non_stream(request=request, last_user_msg=last_user_msg)
-        res.reply = _stage10_guard_reply_text(
-            reply=getattr(res, "reply", None),
-            endpoint=endpoint,
-            client_id=request.client_id,
-            executor_only=executor_only_flag,
-        )
-        _emit_final_response(
-            reply=getattr(res, "reply", None),
-            computed_data=getattr(res, "computed_data", None),
-            streaming=False,
-            client_id=request.client_id,
-            endpoint=endpoint,
-        )
-        return res
 
     decision = decide(request=request, intent=intent, allow_write=False)
 
@@ -631,84 +646,142 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     except Exception:
         pass
 
-    if _should_compute_monthly_pension(last_user_msg) and effective_request.client_id is not None:
-        from app.services.pension_chat_compute import compute_monthly_pension_summary
+    _MAX_CORE_TOOL_ITERATIONS = 4
+    _core_last_tool_result: ToolResultEnvelope | None = None
+    _core_final_computed_data = None
+    _core_final_reply_override: str | None = None
+    _core_decision = None
 
-        computed = compute_monthly_pension_summary(db, int(effective_request.client_id), date.today())
-        reply = _build_monthly_pension_reply(computed)
-        if not isinstance(reply, str) or not reply.strip():
-            reply = "Unable to produce monthly pension summary from system."
-        res = ChatResponse(reply=reply, computed_data=computed)
-        res.reply = _stage10_guard_reply_text(
-            reply=getattr(res, "reply", None),
-            endpoint=endpoint,
-            client_id=effective_request.client_id,
-            executor_only=executor_only_flag,
+    for _iter_idx in range(_MAX_CORE_TOOL_ITERATIONS):
+        _core_input = OrchestrationInput(
+            user_text=last_user_msg or "",
+            client_id=getattr(request, "client_id", None),
+            session_id=getattr(request, "session_id", None),
+            conversation_id=getattr(request, "conversation_id", None),
+            feature_flags=_feature_flags,
+            request_meta=None,
+            state_snapshot=_core_state_snapshot,
+            last_tool_result=_core_last_tool_result,
         )
-        _emit_final_response(
-            reply=res.reply,
-            computed_data=res.computed_data,
-            streaming=False,
-            client_id=effective_request.client_id,
-            endpoint=endpoint,
-        )
-        return res
+        _core_decision, _core_trace_specs = orchestrate(_core_input, _core_deps)
+        for spec in _core_trace_specs:
+            try:
+                log_trace_event(
+                    event_type=spec.event_type,
+                    payload=spec.payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(spec.event_type, spec.payload, client_id=request.client_id, endpoint=endpoint)
+            except Exception:
+                pass
 
-    if is_explicit_client_snapshot_request(last_user_msg) and effective_request.client_id is not None:
-        tool_result = execute_with_guard(
-            request=effective_request,
-            db=db,
-            tool_name="GET_CLIENT_SNAPSHOT",
-            tool_args={},
-            streaming=False,
-            policy_decision=decision,
-            intent_type=intent_type,
-            pension_portfolio=getattr(effective_request, "pension_portfolio", None),
-            force_max_exemption=False,
-            agent_reply=None,
-            user_approved=True,
-            request_id=None,
-        )
-        res = ChatResponse(reply=tool_result, computed_data=None)
-        res.reply = _stage10_guard_reply_text(
-            reply=getattr(res, "reply", None),
-            endpoint=endpoint,
-            client_id=effective_request.client_id,
-            executor_only=executor_only_flag,
-        )
-        _emit_final_response(
-            reply=res.reply,
-            computed_data=res.computed_data,
-            streaming=False,
-            client_id=effective_request.client_id,
-            endpoint=endpoint,
-        )
-        return res
+        if getattr(_core_decision, "decision_code", None) != DecisionCode.TOOL_CALL:
+            break
 
-    try:
-        if (
-            (not is_execution_only(effective_request))
-            and is_conceptual_no_execute_request(last_user_msg)
-            and getattr(effective_request, "tools_disabled_reason", None) in {"conceptual", "conceptual_form"}
-        ):
-            reply = sanitize_words_only_conceptual("", last_user_msg)
-            res = ChatResponse(reply=reply, computed_data=None)
-            res.reply = _stage10_guard_reply_text(
-                reply=getattr(res, "reply", None),
-                endpoint=endpoint,
-                client_id=effective_request.client_id,
-                executor_only=executor_only_flag,
-            )
-            _emit_final_response(
-                reply=res.reply,
-                computed_data=res.computed_data,
+        tool_name = getattr(_core_decision, "tool_name", None)
+        _core_args = getattr(_core_decision, "tool_args", None)
+        tool_args = _core_args if isinstance(_core_args, dict) else {}
+
+        tool_result_payload = None
+        computed_data = None
+        if tool_name == "EXECUTION_ONLY":
+            _res = _run_execution_only_non_stream(request=request, last_user_msg=last_user_msg)
+            tool_result_payload = getattr(_res, "reply", None)
+        elif tool_name == MONTHLY_PENSION_SUMMARY_TOOL_NAME and effective_request.client_id is not None:
+            from app.services.pension_chat_compute import compute_monthly_pension_summary
+
+            computed_data = compute_monthly_pension_summary(db, int(effective_request.client_id), date.today())
+            reply = _build_monthly_pension_reply(computed_data)
+            if not isinstance(reply, str) or not reply.strip():
+                reply = "Unable to produce monthly pension summary from system."
+            _core_final_computed_data = computed_data
+            _core_final_reply_override = reply
+            tool_result_payload = {"reply": reply, "computed_data": computed_data}
+        elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME and effective_request.client_id is not None:
+            tool_result_payload = execute_with_guard(
+                request=effective_request,
+                db=db,
+                tool_name=CLIENT_SNAPSHOT_TOOL_NAME,
+                tool_args=tool_args,
                 streaming=False,
-                client_id=effective_request.client_id,
-                endpoint=endpoint,
+                policy_decision=decision,
+                intent_type=intent_type,
+                pension_portfolio=getattr(effective_request, "pension_portfolio", None),
+                force_max_exemption=False,
+                agent_reply=None,
+                user_approved=True,
+                request_id=None,
             )
-            return res
-    except Exception:
-        pass
+        elif tool_name == TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME:
+            reply = _TERMINATION_CONCEPTUAL_NO_EXECUTE_NON_STREAM_REPLY
+            tool_result_payload = reply
+        else:
+            break
+
+        try:
+            tool_call_id = uuid4().hex
+        except Exception:
+            tool_call_id = None
+
+        _core_last_tool_result = ToolResultEnvelope(
+            tool_name=str(tool_name or ""),
+            tool_args=tool_args,
+            tool_result=tool_result_payload,
+            status="ok",
+            error_message=None,
+            trace_id=getattr(request, "trace_id", None),
+            tool_call_id=tool_call_id,
+        )
+
+        try:
+            if isinstance(_core_state_snapshot, dict) and str(tool_name or "") in {
+                "BUILD_TARGET_PENSION_PLAN",
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            }:
+                from app.services.llm_chat.chat_orchestration_helpers_parts.tax_autochain import (
+                    get_gross_for_tax_chaining,
+                )
+                from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+                    is_net_pension_request,
+                )
+
+                _is_net = is_net_pension_request(last_user_msg or "")
+                _gross_for_tax = get_gross_for_tax_chaining(
+                    is_net=_is_net,
+                    tool_name=str(tool_name or ""),
+                    tool_result=str(tool_result_payload or ""),
+                )
+                if _gross_for_tax is not None and _gross_for_tax > 0:
+                    _core_state_snapshot["tax_autochain_gross_monthly_pension"] = float(_gross_for_tax)
+        except Exception:
+            pass
+        _core_state_snapshot = apply_tool_result_to_state(_core_state_snapshot, _core_last_tool_result)
+
+    if (
+        _core_decision is not None
+        and getattr(_core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY
+        and isinstance(getattr(_core_decision, "final_text", None), str)
+        and (getattr(_core_decision, "final_text", "") or "").strip()
+    ):
+        reply = str(getattr(_core_decision, "final_text", ""))
+        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+            reply = _core_final_reply_override
+        res = ChatResponse(reply=reply, computed_data=_core_final_computed_data)
+        res.reply = _stage10_guard_reply_text(
+            reply=getattr(res, "reply", None),
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        _emit_final_response(
+            reply=res.reply,
+            computed_data=res.computed_data,
+            streaming=False,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        return res
 
     from app.services.llm_chat.chat_orchestration import run_pension_chat as run_pension_chat_service
 
@@ -797,6 +870,22 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
         _trace_id_for_stream = None
 
     last_user_msg = _find_last_user_message_text(request)
+    intent = detect_intent(last_user_msg)
+
+    _core_state_snapshot = {
+        "executor_only": getattr(request, "executor_only", None),
+    }
+    _feature_flags = compute_feature_flags(
+        request=request,
+        user_text=last_user_msg,
+        intent=intent,
+        allow_greeting_shortcut=True,
+        allow_exec_only_path=False,
+    )
+    _core_deps = OrchestrationDeps(
+        llm_generate=lambda messages, client_id=None: pension_llm_service.chat(messages, client_id),
+        policy_gate=decide,
+    )
 
     try:
         _ui_payload = {
@@ -822,7 +911,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     except Exception:
         pass
 
-    intent = detect_intent(last_user_msg)
+    # reuse intent computed earlier
     decision = decide(request=request, intent=intent, allow_write=False)
 
     _log_policy_decision(request=request, intent=intent, decision=decision, endpoint=endpoint)
@@ -938,53 +1027,113 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
 
         yield final_text
 
-    if _should_compute_monthly_pension(last_user_msg) and effective_request.client_id is not None:
-        from app.services.pension_chat_compute import compute_monthly_pension_summary
+    _MAX_CORE_TOOL_ITERATIONS = 4
+    _core_last_tool_result: ToolResultEnvelope | None = None
+    _core_final_computed_data = None
+    _core_final_reply_override: str | None = None
+    _core_decision = None
 
-        computed = compute_monthly_pension_summary(db, int(effective_request.client_id), date.today())
-        reply = _build_monthly_pension_reply(computed)
-        if not isinstance(reply, str) or not reply.strip():
-            reply = "Unable to produce monthly pension summary from system."
+    for _iter_idx in range(_MAX_CORE_TOOL_ITERATIONS):
+        _core_input = OrchestrationInput(
+            user_text=last_user_msg or "",
+            client_id=getattr(request, "client_id", None),
+            session_id=getattr(request, "session_id", None),
+            conversation_id=getattr(request, "conversation_id", None),
+            feature_flags=_feature_flags,
+            request_meta=None,
+            state_snapshot=_core_state_snapshot,
+            last_tool_result=_core_last_tool_result,
+        )
+        _core_decision, _core_trace_specs = orchestrate(_core_input, _core_deps)
+        for spec in _core_trace_specs:
+            try:
+                log_trace_event(
+                    event_type=spec.event_type,
+                    payload=spec.payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(spec.event_type, spec.payload, client_id=request.client_id, endpoint=endpoint)
+            except Exception:
+                pass
 
-        def _gen() -> Iterator[str]:
-            computed_json = json.dumps({"type": "computed_data", "data": computed}, ensure_ascii=False)
-            yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+        if getattr(_core_decision, "decision_code", None) != DecisionCode.TOOL_CALL:
+            break
+
+        tool_name = getattr(_core_decision, "tool_name", None)
+        _core_args = getattr(_core_decision, "tool_args", None)
+        tool_args = _core_args if isinstance(_core_args, dict) else {}
+
+        tool_result_payload = None
+        if tool_name == MONTHLY_PENSION_SUMMARY_TOOL_NAME and effective_request.client_id is not None:
+            from app.services.pension_chat_compute import compute_monthly_pension_summary
+
+            computed_data = compute_monthly_pension_summary(db, int(effective_request.client_id), date.today())
+            reply = _build_monthly_pension_reply(computed_data)
+            if not isinstance(reply, str) or not reply.strip():
+                reply = "Unable to produce monthly pension summary from system."
+            _core_final_computed_data = computed_data
+            _core_final_reply_override = reply
+            tool_result_payload = {"reply": reply, "computed_data": computed_data}
+        elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME and effective_request.client_id is not None:
+            tool_result_payload = execute_with_guard(
+                request=effective_request,
+                db=db,
+                tool_name=CLIENT_SNAPSHOT_TOOL_NAME,
+                tool_args=tool_args,
+                streaming=True,
+                policy_decision=decision,
+                intent_type=intent_type,
+                pension_portfolio=getattr(effective_request, "pension_portfolio", None),
+                force_max_exemption=False,
+                agent_reply=None,
+                user_approved=True,
+                request_id=None,
+            )
+        elif tool_name == TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME:
+            reply = _TERMINATION_CONCEPTUAL_NO_EXECUTE_STREAM_REPLY
+            tool_result_payload = reply
+        else:
+            break
+
+        try:
+            tool_call_id = uuid4().hex
+        except Exception:
+            tool_call_id = None
+
+        _core_last_tool_result = ToolResultEnvelope(
+            tool_name=str(tool_name or ""),
+            tool_args=tool_args,
+            tool_result=tool_result_payload,
+            status="ok",
+            error_message=None,
+            trace_id=getattr(request, "trace_id", None),
+            tool_call_id=tool_call_id,
+        )
+        _core_state_snapshot = apply_tool_result_to_state(_core_state_snapshot, _core_last_tool_result)
+
+    if (
+        _core_decision is not None
+        and getattr(_core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY
+        and isinstance(getattr(_core_decision, "final_text", None), str)
+        and (getattr(_core_decision, "final_text", "") or "").strip()
+    ):
+        reply = str(getattr(_core_decision, "final_text", ""))
+        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+            reply = _core_final_reply_override
+
+        if _core_final_computed_data is not None:
+            def _gen() -> Iterator[str]:
+                computed_json = json.dumps({"type": "computed_data", "data": _core_final_computed_data}, ensure_ascii=False)
+                yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+                yield reply
+
+            return StreamingResponse(_wrap_iter_with_final_response(_gen()), media_type="text/plain")
+
+        def _core_reply_gen() -> Iterator[str]:
             yield reply
 
-        return StreamingResponse(_wrap_iter_with_final_response(_gen()), media_type="text/plain")
-
-    if is_explicit_client_snapshot_request(last_user_msg) and effective_request.client_id is not None:
-        snap_result = execute_with_guard(
-            request=effective_request,
-            db=db,
-            tool_name="GET_CLIENT_SNAPSHOT",
-            tool_args={},
-            streaming=True,
-            policy_decision=decision,
-            intent_type=intent_type,
-            pension_portfolio=getattr(effective_request, "pension_portfolio", None),
-            force_max_exemption=False,
-            agent_reply=None,
-            user_approved=True,
-            request_id=None,
-        )
-
-        def _snap_gen() -> Iterator[str]:
-            yield snap_result
-
-        return StreamingResponse(_wrap_iter_with_final_response(_snap_gen()), media_type="text/plain")
-
-    if "PYTEST_CURRENT_TEST" not in os.environ:
-        try:
-            if (not is_execution_only(effective_request)) and (last_user_msg.lower() in {"שלום", "היי", "הי", "hello", "hi"}):
-                greeting = "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
-
-                def _greet_gen() -> Iterator[str]:
-                    yield greeting
-
-                return StreamingResponse(_wrap_iter_with_final_response(_greet_gen()), media_type="text/plain")
-        except Exception:
-            pass
+        return StreamingResponse(_wrap_iter_with_final_response(_core_reply_gen()), media_type="text/plain")
 
     from app.services.llm_chat.chat_orchestration import (
         run_pension_chat_stream as run_pension_chat_stream_service,
