@@ -75,3 +75,10 @@ retire-nuc.db
 *.db
 instance/retire.db
 retire-nuc.db
+
+# SQLite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
