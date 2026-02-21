@@ -22,6 +22,7 @@ from app.services.llm_chat.orchestration_core.core_types import (
     ToolResultEnvelope,
 )
 from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
     is_net_pension_request,
 )
@@ -133,6 +134,21 @@ def _stream_handle_post_tool_execution_processing(
 
     try:
         if gross_for_tax is not None and gross_for_tax > 0:
+            _user_text_for_enrich = find_last_user_message(request.messages) or ""
+            env = ToolResultEnvelope(
+                tool_name=str(tool_name or ""),
+                tool_args=tool_args if isinstance(tool_args, dict) else {},
+                tool_result=tool_result,
+                status="ok",
+                error_message=None,
+                trace_id=req_id,
+                tool_call_id=None,
+            )
+            enriched = enrich_state_snapshot(
+                {},
+                user_text=_user_text_for_enrich,
+                last_tool_result=env,
+            )
             core_input = OrchestrationInput(
                 user_text="",
                 client_id=getattr(request, "client_id", None),
@@ -140,16 +156,8 @@ def _stream_handle_post_tool_execution_processing(
                 conversation_id=getattr(request, "conversation_id", None),
                 feature_flags={},
                 request_meta=None,
-                state_snapshot={"tax_autochain_gross_monthly_pension": gross_for_tax},
-                last_tool_result=ToolResultEnvelope(
-                    tool_name=str(tool_name or ""),
-                    tool_args=tool_args if isinstance(tool_args, dict) else {},
-                    tool_result=tool_result,
-                    status="ok",
-                    error_message=None,
-                    trace_id=req_id,
-                    tool_call_id=None,
-                ),
+                state_snapshot=enriched,
+                last_tool_result=env,
             )
             core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
             core_decision, _ = orchestrate(core_input, core_deps)

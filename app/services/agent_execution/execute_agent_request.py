@@ -48,15 +48,22 @@ from app.services.llm_chat.explicit_tool_shortcuts import (
     wants_json_only,
 )
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
+from app.services.llm_chat.orchestration_core.core_types import (
+    DecisionCode,
+    OrchestrationDecision,
+    OrchestrationDeps,
+    OrchestrationInput,
+    ToolResultEnvelope,
+    TraceEventSpec,
+)
+from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
+from app.services.llm_chat.orchestration_core.state_apply import apply_tool_result_to_state
 from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     MONTHLY_PENSION_SUMMARY_TOOL_NAME,
     TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
-from app.services.llm_chat.orchestration_core.core_types import OrchestrationDeps, OrchestrationInput
-from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
 from app.services.llm_chat.orchestration_core.feature_flags import compute_feature_flags
-from app.services.llm_chat.orchestration_core.core_types import DecisionCode, ToolResultEnvelope
-from app.services.llm_chat.orchestration_core.state_apply import apply_tool_result_to_state
 from app.services.intent_classifier import IntentType, classify_intent
 from app.services.llm_pension_agent_service import pension_llm_service
 from app.services.agent_execution.tool_execution_context import (
@@ -734,28 +741,11 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             tool_call_id=tool_call_id,
         )
 
-        try:
-            if isinstance(_core_state_snapshot, dict) and str(tool_name or "") in {
-                "BUILD_TARGET_PENSION_PLAN",
-                "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-            }:
-                from app.services.llm_chat.chat_orchestration_helpers_parts.tax_autochain import (
-                    get_gross_for_tax_chaining,
-                )
-                from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
-                    is_net_pension_request,
-                )
-
-                _is_net = is_net_pension_request(last_user_msg or "")
-                _gross_for_tax = get_gross_for_tax_chaining(
-                    is_net=_is_net,
-                    tool_name=str(tool_name or ""),
-                    tool_result=str(tool_result_payload or ""),
-                )
-                if _gross_for_tax is not None and _gross_for_tax > 0:
-                    _core_state_snapshot["tax_autochain_gross_monthly_pension"] = float(_gross_for_tax)
-        except Exception:
-            pass
+        _core_state_snapshot = enrich_state_snapshot(
+            _core_state_snapshot,
+            user_text=last_user_msg or "",
+            last_tool_result=_core_last_tool_result,
+        )
         _core_state_snapshot = apply_tool_result_to_state(_core_state_snapshot, _core_last_tool_result)
 
     if (
@@ -1109,6 +1099,12 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
             error_message=None,
             trace_id=getattr(request, "trace_id", None),
             tool_call_id=tool_call_id,
+        )
+
+        _core_state_snapshot = enrich_state_snapshot(
+            _core_state_snapshot,
+            user_text=last_user_msg or "",
+            last_tool_result=_core_last_tool_result,
         )
         _core_state_snapshot = apply_tool_result_to_state(_core_state_snapshot, _core_last_tool_result)
 

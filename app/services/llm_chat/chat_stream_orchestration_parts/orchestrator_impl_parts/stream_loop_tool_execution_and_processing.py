@@ -17,6 +17,7 @@ from app.services.llm_chat.orchestration_core.core_types import (
     ToolResultEnvelope,
 )
 from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
 from app.utils.llm_chat_log import log_llm_event
 
 from ..stream_tool_execution import _execute_tool_call
@@ -118,6 +119,22 @@ def _stream_execute_tool_and_process_result(
                 except Exception:
                     already_sent = False
 
+                env = ToolResultEnvelope(
+                    tool_name=str(tool_name or ""),
+                    tool_args=tool_args if isinstance(tool_args, dict) else {},
+                    tool_result=tool_result,
+                    status="ok",
+                    error_message=None,
+                    trace_id=req_id,
+                    tool_call_id=None,
+                )
+                enriched = enrich_state_snapshot(
+                    {},
+                    user_text="",
+                    last_tool_result=env,
+                    facts={"approval_request_already_sent": already_sent},
+                )
+
                 core_input = OrchestrationInput(
                     user_text="",
                     client_id=getattr(request, "client_id", None),
@@ -125,16 +142,8 @@ def _stream_execute_tool_and_process_result(
                     conversation_id=getattr(request, "conversation_id", None),
                     feature_flags={},
                     request_meta=None,
-                    state_snapshot={"approval_request_already_sent": already_sent},
-                    last_tool_result=ToolResultEnvelope(
-                        tool_name=str(tool_name or ""),
-                        tool_args=tool_args if isinstance(tool_args, dict) else {},
-                        tool_result=tool_result,
-                        status="ok",
-                        error_message=None,
-                        trace_id=req_id,
-                        tool_call_id=None,
-                    ),
+                    state_snapshot=enriched,
+                    last_tool_result=env,
                 )
                 core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
                 core_decision, _ = orchestrate(core_input, core_deps)
