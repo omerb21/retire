@@ -57,6 +57,12 @@ from app.services.llm_chat.orchestration_core.core_types import (
     TraceEventSpec,
 )
 from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+from app.services.llm_chat.orchestration_core.constants import (
+    MAX_ITERATIONS_USER_MESSAGE_HE,
+)
+from app.services.llm_chat.orchestration_core.max_iterations_guard import (
+    maybe_apply_max_iterations_guard,
+)
 from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
 from app.services.llm_chat.orchestration_core.state_apply import apply_tool_result_to_state
 from app.services.llm_chat.orchestration_utils_parts.tool_names import (
@@ -671,6 +677,14 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             last_tool_result=_core_last_tool_result,
         )
         _core_decision, _core_trace_specs = orchestrate(_core_input, _core_deps)
+
+        _core_decision, _core_trace_specs, _max_iter_triggered = maybe_apply_max_iterations_guard(
+            iter_idx=_iter_idx,
+            max_iterations=_MAX_CORE_TOOL_ITERATIONS,
+            final_text=MAX_ITERATIONS_USER_MESSAGE_HE,
+            decision=_core_decision,
+            trace_specs=_core_trace_specs,
+        )
         for spec in _core_trace_specs:
             try:
                 log_trace_event(
@@ -682,6 +696,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 _eyes_emit(spec.event_type, spec.payload, client_id=request.client_id, endpoint=endpoint)
             except Exception:
                 pass
+
+        if _max_iter_triggered:
+            break
 
         if getattr(_core_decision, "decision_code", None) != DecisionCode.TOOL_CALL:
             break
@@ -1035,6 +1052,14 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
             last_tool_result=_core_last_tool_result,
         )
         _core_decision, _core_trace_specs = orchestrate(_core_input, _core_deps)
+
+        _core_decision, _core_trace_specs, _max_iter_triggered = maybe_apply_max_iterations_guard(
+            iter_idx=_iter_idx,
+            max_iterations=_MAX_CORE_TOOL_ITERATIONS,
+            final_text=MAX_ITERATIONS_USER_MESSAGE_HE,
+            decision=_core_decision,
+            trace_specs=_core_trace_specs,
+        )
         for spec in _core_trace_specs:
             try:
                 log_trace_event(
@@ -1046,6 +1071,9 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 _eyes_emit(spec.event_type, spec.payload, client_id=request.client_id, endpoint=endpoint)
             except Exception:
                 pass
+
+        if _max_iter_triggered:
+            break
 
         if getattr(_core_decision, "decision_code", None) != DecisionCode.TOOL_CALL:
             break
