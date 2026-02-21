@@ -1,4 +1,5 @@
 from datetime import date
+import warnings
 
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
@@ -52,6 +53,52 @@ def test_snapshot_roundtrip_does_not_reset_severance_accrued(db_session) -> None
     )
     assert employer_after is not None
     assert abs(float(employer_after.severance_accrued or 0.0) - 252000.0) < 0.01
+
+
+def test_snapshot_roundtrip_does_not_emit_identity_map_sawarning(db_session) -> None:
+    from sqlalchemy.exc import SAWarning
+
+    client_id = 992000003
+
+    client = db_session.query(Client).filter(Client.id == client_id).first()
+    if client is None:
+        client = Client(
+            id=client_id,
+            id_number_raw=str(client_id),
+            id_number=str(client_id),
+            full_name="Snapshot Roundtrip SAWarning",
+            birth_date=date(1980, 1, 1),
+            gender="male",
+            is_active=True,
+            current_employer_exists=True,
+        )
+        db_session.add(client)
+        db_session.flush()
+
+    employer = CurrentEmployer(
+        client_id=client_id,
+        employer_name="Emp",
+        start_date=date(2020, 1, 1),
+        last_salary=10000.0,
+        severance_accrued=252000.0,
+        other_grants={},
+    )
+    db_session.add(employer)
+    db_session.commit()
+
+    service = SnapshotService(db_session)
+    snap = service.save_snapshot(client_id, "t")
+    assert snap.get("success") is True
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", category=SAWarning)
+        restored = service.restore_snapshot(client_id, snap)
+        assert restored.get("success") is True
+
+    identity_map_warnings = [
+        w for w in caught if "Identity map already had an identity for" in str(w.message)
+    ]
+    assert not identity_map_warnings, [str(w.message) for w in identity_map_warnings]
 
 
 def test_update_current_employer_does_not_clear_severance_when_field_missing(db_session) -> None:
