@@ -105,26 +105,34 @@ def _execute_tool_call(
     )
     try:
         sig = inspect.signature(execute_tool_call_fn)
-        if "agent_reply" in sig.parameters or "user_approved" in sig.parameters:
-            res = execute_tool_call_fn(
-                tool_name=tool_name,
-                args=args,
-                client_id=client_id,
-                db=db,
-                pension_portfolio=pension_portfolio,
-                force_max_exemption=force_max_exemption,
-                agent_reply=agent_reply,
-                user_approved=user_approved,
-            )
+        params = sig.parameters
+        supports_tool_call_id = ("tool_call_id" in params)
+        if "agent_reply" in params or "user_approved" in params:
+            _exec_kwargs = {
+                "tool_name": tool_name,
+                "args": args,
+                "client_id": client_id,
+                "db": db,
+                "pension_portfolio": pension_portfolio,
+                "force_max_exemption": force_max_exemption,
+                "agent_reply": agent_reply,
+                "user_approved": user_approved,
+            }
+            if supports_tool_call_id:
+                _exec_kwargs["tool_call_id"] = tool_call_id
+            res = execute_tool_call_fn(**_exec_kwargs)
         else:
-            res = execute_tool_call_fn(
-                tool_name=tool_name,
-                args=args,
-                client_id=client_id,
-                db=db,
-                pension_portfolio=pension_portfolio,
-                force_max_exemption=force_max_exemption,
-            )
+            _exec_kwargs = {
+                "tool_name": tool_name,
+                "args": args,
+                "client_id": client_id,
+                "db": db,
+                "pension_portfolio": pension_portfolio,
+                "force_max_exemption": force_max_exemption,
+            }
+            if supports_tool_call_id:
+                _exec_kwargs["tool_call_id"] = tool_call_id
+            res = execute_tool_call_fn(**_exec_kwargs)
     except Exception as exc:
         if not is_ssot:
             try:

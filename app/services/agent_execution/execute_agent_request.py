@@ -711,6 +711,12 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         _core_args = getattr(_core_decision, "tool_args", None)
         tool_args = _core_args if isinstance(_core_args, dict) else {}
 
+        tool_call_id = None
+        try:
+            tool_call_id = uuid4().hex
+        except Exception:
+            tool_call_id = None
+
         tool_result_payload = None
         computed_data = None
         if tool_name == "EXECUTION_ONLY":
@@ -721,6 +727,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 request=effective_request,
                 db=db,
                 tool_name=MONTHLY_PENSION_SUMMARY_TOOL_NAME,
+                tool_call_id=tool_call_id,
                 tool_args=tool_args,
                 streaming=False,
                 policy_decision=decision,
@@ -755,6 +762,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 request=effective_request,
                 db=db,
                 tool_name=CLIENT_SNAPSHOT_TOOL_NAME,
+                tool_call_id=tool_call_id,
                 tool_args=tool_args,
                 streaming=False,
                 policy_decision=decision,
@@ -770,11 +778,6 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             tool_result_payload = reply
         else:
             break
-
-        try:
-            tool_call_id = uuid4().hex
-        except Exception:
-            tool_call_id = None
 
         _core_last_tool_result = ToolResultEnvelope(
             tool_name=str(tool_name or ""),
@@ -1113,12 +1116,19 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
         _core_args = getattr(_core_decision, "tool_args", None)
         tool_args = _core_args if isinstance(_core_args, dict) else {}
 
+        tool_call_id = None
+        try:
+            tool_call_id = uuid4().hex
+        except Exception:
+            tool_call_id = None
+
         tool_result_payload = None
         if tool_name == MONTHLY_PENSION_SUMMARY_TOOL_NAME and effective_request.client_id is not None:
             raw_tool_result = execute_with_guard(
                 request=effective_request,
                 db=db,
                 tool_name=MONTHLY_PENSION_SUMMARY_TOOL_NAME,
+                tool_call_id=tool_call_id,
                 tool_args=tool_args,
                 streaming=True,
                 policy_decision=decision,
@@ -1153,6 +1163,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 request=effective_request,
                 db=db,
                 tool_name=CLIENT_SNAPSHOT_TOOL_NAME,
+                tool_call_id=tool_call_id,
                 tool_args=tool_args,
                 streaming=True,
                 policy_decision=decision,
@@ -1168,11 +1179,6 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
             tool_result_payload = reply
         else:
             break
-
-        try:
-            tool_call_id = uuid4().hex
-        except Exception:
-            tool_call_id = None
 
         _core_last_tool_result = ToolResultEnvelope(
             tool_name=str(tool_name or ""),

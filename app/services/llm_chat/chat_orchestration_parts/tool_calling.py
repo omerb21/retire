@@ -86,36 +86,53 @@ def _execute_tool_call(
     try:
         execute_fn = _get_execute_tool_call()
         sig = inspect.signature(execute_fn)
-        if "agent_reply" in sig.parameters or "user_approved" in sig.parameters:
-            result = execute_fn(
-                tool_name=tool_name,
-                args=args,
-                client_id=client_id,
-                db=db,
-                pension_portfolio=pension_portfolio,
-                force_max_exemption=force_max_exemption,
-                agent_reply=agent_reply,
-                user_approved=user_approved,
-            )
-            _log_tool_result(tool_name, result, client_id, tool_call_id)
+        params = sig.parameters
+        supports_tool_call_id = ("tool_call_id" in params)
+        if "agent_reply" in params or "user_approved" in params:
+            _exec_kwargs = {
+                "tool_name": tool_name,
+                "args": args,
+                "client_id": client_id,
+                "db": db,
+                "pension_portfolio": pension_portfolio,
+                "force_max_exemption": force_max_exemption,
+                "agent_reply": agent_reply,
+                "user_approved": user_approved,
+            }
+            if supports_tool_call_id:
+                _exec_kwargs["tool_call_id"] = tool_call_id
+            result = execute_fn(**_exec_kwargs)
+            _log_tool_result(tool_name, result, client_id, tool_call_id, trace_id)
             return result
     except Exception:
         pass
 
     execute_fn = _get_execute_tool_call()
-    result = execute_fn(
-        tool_name=tool_name,
-        args=args,
-        client_id=client_id,
-        db=db,
-        pension_portfolio=pension_portfolio,
-        force_max_exemption=force_max_exemption,
-    )
-    _log_tool_result(tool_name, result, client_id, tool_call_id)
+    _exec_kwargs = {
+        "tool_name": tool_name,
+        "args": args,
+        "client_id": client_id,
+        "db": db,
+        "pension_portfolio": pension_portfolio,
+        "force_max_exemption": force_max_exemption,
+    }
+    try:
+        if "tool_call_id" in inspect.signature(execute_fn).parameters:
+            _exec_kwargs["tool_call_id"] = tool_call_id
+    except Exception:
+        pass
+    result = execute_fn(**_exec_kwargs)
+    _log_tool_result(tool_name, result, client_id, tool_call_id, trace_id)
     return result
 
 
-def _log_tool_result(tool_name: str, result: str, client_id: int, tool_call_id: str | None) -> None:
+def _log_tool_result(
+    tool_name: str,
+    result: str,
+    client_id: int,
+    tool_call_id: str | None,
+    trace_id: str | None,
+) -> None:
     try:
         _log_agent_trace(
             event_type="tool_result",

@@ -31,6 +31,7 @@ def execute_with_guard(
     request: ChatRequest,
     db: Session,
     tool_name: str,
+    tool_call_id: str | None = None,
     tool_args: dict,
     streaming: bool,
     policy_decision: PolicyDecision | None,
@@ -106,11 +107,6 @@ def execute_with_guard(
             return "<unavailable>"
 
     tool_result_emitted = False
-    tool_call_id = None
-    try:
-        tool_call_id = uuid.uuid4().hex
-    except Exception:
-        tool_call_id = None
     call_payload = {
         "tool_name": tool_name,
         "tool_call_id": tool_call_id,
@@ -242,17 +238,26 @@ def execute_with_guard(
 
     from app.services.llm_chat.tool_execution import execute_tool_call as _execute_tool_call_impl
 
+    _supports_tool_call_id = False
     try:
-        tool_result = _execute_tool_call_impl(
-            tool_name=tool_name,
-            args=tool_args if isinstance(tool_args, dict) else {},
-            client_id=int(request.client_id) if request.client_id is not None else 0,
-            db=db,
-            pension_portfolio=pension_portfolio,
-            force_max_exemption=force_max_exemption,
-            agent_reply=agent_reply,
-            user_approved=user_approved,
-        )
+        _supports_tool_call_id = ("tool_call_id" in inspect.signature(_execute_tool_call_impl).parameters)
+    except Exception:
+        _supports_tool_call_id = False
+
+    try:
+        _exec_kwargs = {
+            "tool_name": tool_name,
+            "args": tool_args if isinstance(tool_args, dict) else {},
+            "client_id": int(request.client_id) if request.client_id is not None else 0,
+            "db": db,
+            "pension_portfolio": pension_portfolio,
+            "force_max_exemption": force_max_exemption,
+            "agent_reply": agent_reply,
+            "user_approved": user_approved,
+        }
+        if _supports_tool_call_id:
+            _exec_kwargs["tool_call_id"] = tool_call_id
+        tool_result = _execute_tool_call_impl(**_exec_kwargs)
     except Exception as exc:
         result_payload = {
             "tool_name": tool_name,
@@ -352,6 +357,7 @@ def execute_tool_call(
     agent_reply: str | None = None,
     user_approved: bool = False,
     request_id: str | None = None,
+    tool_call_id: str | None = None,
 ) -> str:
     req = get_current_tool_execution_request()
     policy_decision = get_current_tool_execution_policy_decision()
@@ -373,6 +379,7 @@ def execute_tool_call(
         request=req_for_exec,
         db=db,
         tool_name=tool_name,
+        tool_call_id=tool_call_id,
         tool_args=args if isinstance(args, dict) else {},
         streaming=bool(streaming),
         policy_decision=policy_decision,
