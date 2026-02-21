@@ -21,6 +21,7 @@ router = APIRouter(prefix="/clients/{client_id}/capital-assets", tags=["capital-
 logger = logging.getLogger("app.capital_asset")
 
 
+@router.post("", response_model=CapitalAssetResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=CapitalAssetResponse, status_code=status.HTTP_201_CREATED)
 def create_capital_asset(
     client_id: int,
@@ -74,6 +75,7 @@ def create_capital_asset(
     return db_asset
 
 
+@router.get("", response_model=List[CapitalAssetResponse])
 @router.get("/", response_model=List[CapitalAssetResponse])
 def get_capital_assets(
     client_id: int,
