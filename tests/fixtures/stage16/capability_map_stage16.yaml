@@ -1,0 +1,130 @@
+capability_map_version: "16.0.0"
+published_at: "2026-02-22"
+router_normalization_version: "1.0"
+hash_version: "sha256/v1"
+
+capabilities:
+  - capability_id: "default_qa_v1"
+    mode: "QA"
+
+    triggers:
+      trigger_terms: []
+      trigger_regex:
+        - ".*"
+      negative_triggers: []
+
+    priority: 0
+    tool_chain: []
+
+    required_inputs: []
+    missing_fields: []
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "always_true"
+    data_presence_rule_params: {}
+
+    output_schema_id: "qa_answer_v1"
+    min_core_version: "0.0.0"
+
+  - capability_id: "client_snapshot_action_v1"
+    mode: "ACTION"
+
+    triggers:
+      trigger_terms:
+        - "snapshot"
+        - "client snapshot"
+        - "get_client_snapshot"
+        - "get client snapshot"
+      trigger_regex: []
+      negative_triggers: []
+
+    priority: 80
+    tool_chain:
+      - "GET_CLIENT_SNAPSHOT"
+
+    required_inputs: ["client_id"]
+    missing_fields: ["client_id"]
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "client_id_present"
+    data_presence_rule_params: {}
+
+    output_schema_id: "action_ok_v1"
+    min_core_version: "0.0.0"
+
+  - capability_id: "monthly_pension_summary_action_v1"
+    mode: "ACTION"
+
+    triggers:
+      trigger_terms:
+        - "monthly pension"
+        - "monthly_pension"
+        - "קצבה חודשית"
+        - "קצבה נוכחית"
+      trigger_regex: []
+      negative_triggers: []
+
+    priority: 70
+    tool_chain:
+      - "MONTHLY_PENSION_SUMMARY"
+
+    required_inputs: ["client_id"]
+    missing_fields: ["client_id"]
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "client_id_present"
+    data_presence_rule_params: {}
+
+    output_schema_id: "action_ok_v1"
+    min_core_version: "0.0.0"
+
+  - capability_id: "system_numeric_constants_action_v1"
+    mode: "ACTION"
+
+    triggers:
+      trigger_terms:
+        - "constants"
+        - "numeric constants"
+        - "system constants"
+      trigger_regex: []
+      negative_triggers: []
+
+    priority: 60
+    tool_chain:
+      - "GET_SYSTEM_NUMERIC_CONSTANTS"
+
+    required_inputs: []
+    missing_fields: []
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "always_true"
+    data_presence_rule_params: {}
+
+    output_schema_id: "action_ok_v1"
+    min_core_version: "0.0.0"
+
+  - capability_id: "pension_products_action_v1"
+    mode: "ACTION"
+
+    triggers:
+      trigger_terms:
+        - "products"
+        - "pension products"
+        - "מוצרים"
+      trigger_regex: []
+      negative_triggers:
+        - "no products"
+
+    priority: 50
+    tool_chain:
+      - "GET_PENSION_PRODUCTS"
+
+    required_inputs: ["client_id"]
+    missing_fields: ["client_id"]
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "client_id_present"
+    data_presence_rule_params: {}
+
+    output_schema_id: "action_ok_v1"
+    min_core_version: "0.0.0"

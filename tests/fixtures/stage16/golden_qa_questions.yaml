@@ -1,0 +1,57 @@
+questions:
+  - question_id: qa_01_words_only
+    question_text: "תן הסבר כללי בלי מספרים"
+    qa_answer_payload:
+      mode: "QA"
+      answer_blocks:
+        - type: "explanation"
+          text: "זה הסבר במילים בלבד."
+    expected:
+      blocked: false
+      policy_reasons: []
+
+  - question_id: qa_02_numeric_without_anchor_blocked
+    question_text: "מה הקצבה שלי?"
+    qa_answer_payload:
+      mode: "QA"
+      answer_blocks:
+        - type: "explanation"
+          text: "הקצבה היא 12."
+    expected:
+      blocked: true
+      policy_reasons: ["anchors_missing"]
+
+  - question_id: qa_03_numeric_with_anchor_ok
+    question_text: "מה הקצבה שלי? (עם עוגן)"
+    qa_answer_payload:
+      mode: "QA"
+      answer_blocks:
+        - type: "explanation"
+          text: "אין מספרים כאן."
+        - type: "caveats"
+          text: "NO_NUMERIC_CLAIMS_WITHOUT_TOOLS"
+    expected:
+      blocked: false
+      policy_reasons: []
+
+  - question_id: qa_04_forbidden_claims_blocked
+    question_text: "האם יש סיכון?"
+    qa_answer_payload:
+      mode: "QA"
+      answer_blocks:
+        - type: "explanation"
+          text: "Guaranteed results."
+    expected:
+      blocked: true
+      policy_reasons: ["forbidden_claims"]
+
+  - question_id: qa_05_clean_ok
+    question_text: "מה אפשר לעשות עכשיו?"
+    qa_answer_payload:
+      mode: "QA"
+      answer_blocks:
+        - type: "steps"
+          text: "אפשר לבקש פירוט נוסף או לשאול שאלה ממוקדת."
+    expected:
+      blocked: false
+      policy_reasons: []

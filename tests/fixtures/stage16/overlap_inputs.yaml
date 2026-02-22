@@ -1,0 +1,121 @@
+inputs:
+  - input_id: overlap_01_monthly_he
+    user_text: "קצבה חודשית"
+    expected:
+      capability_id: "monthly_pension_summary_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: true
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: false
+
+  - input_id: overlap_02_snapshot_explicit
+    user_text: "GET_CLIENT_SNAPSHOT"
+    expected:
+      capability_id: "client_snapshot_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: true
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: false
+
+  - input_id: overlap_03_constants
+    user_text: "numeric constants"
+    expected:
+      capability_id: "system_numeric_constants_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: true
+        pension_products_action_v1: false
+
+  - input_id: overlap_04_products_basic
+    user_text: "pension products"
+    expected:
+      capability_id: "pension_products_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: true
+
+  - input_id: overlap_05_products_negated
+    user_text: "no products"
+    expected:
+      capability_id: "default_qa_v1"
+      negative_triggers_fired:
+        - pension_products_action_v1
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: false
+
+  - input_id: overlap_06_products_and_snapshot_priority
+    user_text: "pension products snapshot"
+    expected:
+      capability_id: "client_snapshot_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: true
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: true
+
+  - input_id: overlap_07_default
+    user_text: "hello there"
+    expected:
+      capability_id: "default_qa_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: false
+
+  - input_id: overlap_08_monthly_and_snapshot_priority
+    user_text: "קצבה חודשית snapshot"
+    expected:
+      capability_id: "client_snapshot_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: true
+        monthly_pension_summary_action_v1: true
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: false
+
+  - input_id: overlap_09_constants_and_products
+    user_text: "system constants products"
+    expected:
+      capability_id: "system_numeric_constants_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: true
+        pension_products_action_v1: true
+
+  - input_id: overlap_10_products_hebrew
+    user_text: "מוצרים"
+    expected:
+      capability_id: "pension_products_action_v1"
+      negative_triggers_fired: []
+      predicate_outcomes:
+        default_qa_v1: true
+        client_snapshot_action_v1: false
+        monthly_pension_summary_action_v1: false
+        system_numeric_constants_action_v1: false
+        pension_products_action_v1: true

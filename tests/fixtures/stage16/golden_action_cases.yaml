@@ -1,0 +1,27 @@
+cases:
+  - case_id: monthly_pension_summary
+    user_text: "קצבה חודשית"
+    expected:
+      capability_id: "monthly_pension_summary_action_v1"
+      tool_chain: ["MONTHLY_PENSION_SUMMARY"]
+      output_schema_id: "action_ok_v1"
+      computed_data_keys: ["client_id", "today", "monthly_pension"]
+
+  - case_id: client_snapshot
+    user_text: "GET_CLIENT_SNAPSHOT"
+    expected:
+      capability_id: "client_snapshot_action_v1"
+      tool_chain: ["GET_CLIENT_SNAPSHOT"]
+      output_schema_id: "action_ok_v1"
+      computed_data_keys: []
+
+  - case_id: system_numeric_constants
+    user_text: "system constants"
+    tool_execution:
+      tool_name: "GET_SYSTEM_NUMERIC_CONSTANTS"
+      tool_args: {}
+    expected:
+      capability_id: "system_numeric_constants_action_v1"
+      tool_chain: ["GET_SYSTEM_NUMERIC_CONSTANTS"]
+      output_schema_id: "action_ok_v1"
+      computed_data_keys: []
