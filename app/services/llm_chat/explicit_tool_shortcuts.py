@@ -46,7 +46,9 @@ def _normalize_snapshot_intent_text(text: str) -> str:
     candidate = (text or "").strip()
     if not candidate:
         return ""
-    return " ".join(candidate.split())
+    candidate = re.sub(r"[\.,\?\!\:]", " ", candidate)
+    candidate = re.sub(r"\s+", " ", candidate)
+    return candidate.strip()
 
 _JSON_ONLY_PHRASES = (
     "רק json",
@@ -108,7 +110,18 @@ def is_natural_client_snapshot_request(text: str) -> bool:
     if any(token in lowered for token in ("snapshot", "snapshot/info", "breakdown")):
         return True
 
-    if any(token in normalized for token in ("סנאפשוט", "תמונת מצב", "מצב הלקוח", "סטטוס הלקוח", "מודולים קיימים")):
+    if any(
+        token in normalized
+        for token in (
+            "תמונת מצב",
+            "תמונת מצב ללקוח",
+            "תמונת מצב של הלקוח",
+            "מצב הלקוח",
+            "סטטוס הלקוח",
+            "מודולים קיימים",
+            "סנאפשוט",
+        )
+    ):
         return True
 
     if "סיכום" in normalized and any(anchor in lowered or anchor in normalized for anchor in _NATURAL_SNAPSHOT_SUMMARY_ANCHORS):
