@@ -1,0 +1,100 @@
+schema_set_version: "1.0"
+published_at: "2026-02-22"
+
+schemas:
+  qa_answer_v1:
+    type: object
+    additionalProperties: false
+    required:
+      - mode
+      - answer_blocks
+    properties:
+      mode:
+        type: string
+        enum: ["QA"]
+      answer_blocks:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          additionalProperties: false
+          required:
+            - type
+            - text
+          properties:
+            type:
+              type: string
+              enum: ["explanation", "steps", "caveats"]
+            text:
+              type: string
+              minLength: 1
+      fact_anchors_present:
+        type: boolean
+      forbidden_claims_detected:
+        type: boolean
+
+  partial_result_v1:
+    type: object
+    additionalProperties: false
+    required:
+      - mode
+      - status
+      - detected_capability_id
+      - what_ran
+      - missing_fields
+      - next_step
+    properties:
+      mode:
+        type: string
+        enum: ["QA", "ACTION"]
+      status:
+        type: string
+        enum:
+          - "missing_data"
+          - "policy_blocked"
+          - "schema_error"
+          - "budget_exceeded"
+      detected_capability_id:
+        type: string
+        minLength: 1
+      what_ran:
+        type: array
+        items:
+          type: string
+        minItems: 0
+      missing_fields:
+        type: array
+        items:
+          type: string
+        minItems: 0
+      next_step:
+        type: string
+        enum:
+          - "provide_missing_fields"
+          - "adjust_request"
+          - "retry_later"
+          - "contact_support"
+      policy_reasons:
+        type: array
+        minItems: 1
+        items:
+          type: string
+          enum:
+            - "anchors_missing"
+            - "forbidden_claims"
+            - "qa_mode_no_tools"
+            - "tool_not_in_allowlist"
+
+  action_ok_v1:
+    type: object
+    additionalProperties: false
+    required:
+      - mode
+      - result
+    properties:
+      mode:
+        type: string
+        enum: ["ACTION"]
+      result:
+        type: string
+        enum: ["ok"]

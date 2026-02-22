@@ -1,0 +1,27 @@
+capability_map_version: "15.5.0"
+published_at: "2026-02-22"
+router_normalization_version: "1.0"
+hash_version: "sha256/v1"
+
+capabilities:
+  - capability_id: "default_qa_v1"
+    mode: "QA"
+
+    triggers:
+      trigger_terms: []
+      trigger_regex:
+        - ".*"
+      negative_triggers: []
+
+    priority: 0
+    tool_chain: []
+
+    required_inputs: []
+    missing_fields: []
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "always_true"
+    data_presence_rule_params: {}
+
+    output_schema_id: "qa_answer_v1"
+    min_core_version: "0.0.0"

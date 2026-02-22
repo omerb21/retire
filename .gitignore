@@ -82,3 +82,7 @@ retire-nuc.db
 *.sqlite
 *.sqlite-journal
 
+
+# local test artifacts
+artifacts/
+
