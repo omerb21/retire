@@ -55,9 +55,10 @@ def test_tool_contract_blocks_invalid_args(monkeypatch, _test_db) -> None:
             request_id=None,
         )
 
-    parsed = json.loads(res)
-    assert parsed.get("success") is False
-    assert parsed.get("error") == "TOOL_CONTRACT_ARGS_INVALID"
+    assert isinstance(res, dict)
+    assert res.get("status") == "schema_error"
+    assert res.get("mode") == "ACTION"
+    assert res.get("what_ran") == ["GET_CLIENT_SNAPSHOT"]
 
     violation_events = [e for e in emitted if e["event_type"] == "tool_contract_violation"]
     assert violation_events, f"Expected tool_contract_violation, got {emitted}"

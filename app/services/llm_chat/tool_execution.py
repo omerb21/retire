@@ -941,14 +941,29 @@ def execute_tool_call(
 
     elapsed_ms = int((__import__("time").time() - _tool_exec_start) * 1000)
     try:
+        _result_preview = None
+        _result_length = None
+        try:
+            if isinstance(result, dict):
+                _as_json = json.dumps(result, ensure_ascii=False, default=str)
+                _result_preview = _as_json[:2000]
+                _result_length = len(_as_json)
+            else:
+                _s = result or ""
+                _result_preview = (_s[:2000] if isinstance(_s, str) else str(_s)[:2000])
+                _result_length = len(_s) if isinstance(_s, str) else len(str(_s))
+        except Exception:
+            _result_preview = ""
+            _result_length = 0
+
         _tr_payload = {
             "tool_name": tool_name,
             "tool_call_id": tool_call_id_local,
             "status": "ok",
             "success": True,
             "elapsed_ms": elapsed_ms,
-            "result_preview": (result or "")[:2000],
-            "result_length": len(result or ""),
+            "result_preview": _result_preview,
+            "result_length": _result_length,
         }
         _log_agent_trace(
             trace_id=effective_trace_id,

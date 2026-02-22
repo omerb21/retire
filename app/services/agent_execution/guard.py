@@ -80,14 +80,51 @@ def run_pre_tool_guard(
     return GuardResult(ok=True, error_code=None, message=None, details={})
 
 
-def build_blocked_tool_result(*, tool_name: str, error_code: str, message: str, details: dict) -> str:
-    return json.dumps(
-        {
-            "success": False,
-            "error": error_code,
-            "message": message,
-            "tool_name": tool_name,
-            "details": details or {},
-        },
-        ensure_ascii=False,
-    )
+def build_blocked_tool_result(*, tool_name: str, error_code: str, message: str, details: dict) -> object:
+    detected_capability_id = "unknown"
+    mode = "ACTION"
+    try:
+        from app.utils.trace_context import get_current_trace_id
+        from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+
+        trace_id = get_current_trace_id()
+        router_decision = get_router_decision(trace_id=trace_id)
+        if router_decision is not None:
+            detected_capability_id = str(getattr(router_decision, "capability_id", None) or detected_capability_id)
+            mode = str(getattr(router_decision, "mode", None) or mode)
+    except Exception:
+        pass
+
+    normalized_error = str(error_code or "").strip() or "UNKNOWN"
+
+    if normalized_error == "CLIENT_REQUIRED":
+        return {
+            "mode": mode,
+            "status": "missing_data",
+            "detected_capability_id": detected_capability_id,
+            "what_ran": [],
+            "missing_fields": ["client_id"],
+            "next_step": "provide_missing_fields",
+        }
+
+    policy_reason = None
+    try:
+        reason_map = {
+            "TOOLS_NOT_ALLOWED": "qa_mode_no_tools",
+            "TOOL_NOT_ALLOWED": "tool_not_in_allowlist",
+        }
+        policy_reason = reason_map.get(normalized_error)
+    except Exception:
+        policy_reason = None
+
+    payload = {
+        "mode": mode,
+        "status": "policy_blocked",
+        "detected_capability_id": detected_capability_id,
+        "what_ran": [],
+        "missing_fields": [],
+        "next_step": "adjust_request",
+    }
+    if isinstance(policy_reason, str) and policy_reason:
+        payload["policy_reasons"] = [policy_reason]
+    return payload

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from typing import Any
 
 from app.services.agent_execution.policy import decide
@@ -248,6 +250,8 @@ def orchestrate(
             raw_tool_result = getattr(input.last_tool_result, "tool_result", None)
             if isinstance(raw_tool_result, dict) and isinstance(raw_tool_result.get("reply"), str):
                 final_text = raw_tool_result.get("reply") or ""
+            elif isinstance(raw_tool_result, dict):
+                final_text = json.dumps(raw_tool_result, ensure_ascii=False)
             elif isinstance(raw_tool_result, str):
                 final_text = raw_tool_result
             else:
@@ -555,8 +559,7 @@ def orchestrate(
         return decision, trace_specs
 
     if (
-        input.client_id is not None
-        and (last_tool_name != CLIENT_SNAPSHOT_TOOL_NAME)
+        (last_tool_name != CLIENT_SNAPSHOT_TOOL_NAME)
         and is_explicit_client_snapshot_request(user_text)
     ):
         plan_kind = PlanKind.SYSTEM_SNAPSHOT

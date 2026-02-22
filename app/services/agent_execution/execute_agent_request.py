@@ -757,8 +757,8 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 tool_result_payload = parsed
             else:
                 tool_result_payload = raw_tool_result
-        elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME and effective_request.client_id is not None:
-            tool_result_payload = execute_with_guard(
+        elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME:
+            raw_tool_result = execute_with_guard(
                 request=effective_request,
                 db=db,
                 tool_name=CLIENT_SNAPSHOT_TOOL_NAME,
@@ -773,6 +773,38 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 user_approved=True,
                 request_id=None,
             )
+
+            parsed = raw_tool_result if isinstance(raw_tool_result, dict) else None
+            if isinstance(parsed, dict):
+                # partial_result_v1 or tool result dict
+                computed_data = parsed
+                _core_final_computed_data = parsed
+                tool_result_payload = parsed
+                # Prefer tool-provided reply if exists, else emit a minimal message.
+                reply = parsed.get("reply") if isinstance(parsed.get("reply"), str) else None
+                if isinstance(reply, str) and reply.strip():
+                    _core_final_reply_override = reply
+                else:
+                    status = parsed.get("status")
+                    if status == "missing_data":
+                        _core_final_reply_override = "חסרים נתונים להפעלת הכלי. אנא ספק client_id."
+                    elif status == "policy_blocked":
+                        _core_final_reply_override = "הבקשה נחסמה לפי מדיניות. נסה לנסח מחדש או לבקש פעולה מותרת."
+                    elif status == "schema_error":
+                        _core_final_reply_override = "תקלה במבנה נתוני הכלי. נסה שוב או פנה לתמיכה."
+                    elif status == "budget_exceeded":
+                        _core_final_reply_override = "הבקשה חרגה מתקציב. נסה שוב מאוחר יותר."
+            else:
+                # Backwards compatibility: string JSON tool output
+                tool_result_payload = raw_tool_result
+                try:
+                    parsed_str = json.loads(raw_tool_result) if isinstance(raw_tool_result, str) else None
+                except Exception:
+                    parsed_str = None
+                if isinstance(parsed_str, dict):
+                    computed_data = parsed_str
+                    _core_final_computed_data = parsed_str
+                    tool_result_payload = parsed_str
         elif tool_name == TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME:
             reply = _TERMINATION_CONCEPTUAL_NO_EXECUTE_NON_STREAM_REPLY
             tool_result_payload = reply
@@ -803,8 +835,14 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         and (getattr(_core_decision, "final_text", "") or "").strip()
     ):
         reply = str(getattr(_core_decision, "final_text", ""))
-        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
-            reply = _core_final_reply_override
+        try:
+            if wants_json_only(last_user_msg) and isinstance(_core_final_computed_data, dict):
+                reply = json.dumps(_core_final_computed_data, ensure_ascii=False)
+            elif isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+                reply = _core_final_reply_override
+        except Exception:
+            if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+                reply = _core_final_reply_override
         res = ChatResponse(reply=reply, computed_data=_core_final_computed_data)
         res.reply = _stage10_guard_reply_text(
             reply=getattr(res, "reply", None),
@@ -1068,6 +1106,7 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
     _MAX_CORE_TOOL_ITERATIONS = 4
     _core_last_tool_result: ToolResultEnvelope | None = None
     _core_final_computed_data = None
+    _core_final_computed_data_marker: str | None = None
     _core_final_reply_override: str | None = None
     _core_decision = None
 
@@ -1158,8 +1197,8 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 tool_result_payload = parsed
             else:
                 tool_result_payload = raw_tool_result
-        elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME and effective_request.client_id is not None:
-            tool_result_payload = execute_with_guard(
+        elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME:
+            raw_tool_result = execute_with_guard(
                 request=effective_request,
                 db=db,
                 tool_name=CLIENT_SNAPSHOT_TOOL_NAME,
@@ -1174,6 +1213,27 @@ def execute_agent_request_stream(request: ChatRequest, db: Session) -> Streaming
                 user_approved=True,
                 request_id=None,
             )
+
+            parsed = raw_tool_result if isinstance(raw_tool_result, dict) else None
+            if isinstance(parsed, dict):
+                computed_data = parsed
+                _core_final_computed_data = parsed
+                reply = parsed.get("reply") if isinstance(parsed.get("reply"), str) else None
+                if isinstance(reply, str) and reply.strip():
+                    _core_final_reply_override = reply
+                else:
+                    status = parsed.get("status")
+                    if status == "missing_data":
+                        _core_final_reply_override = "חסרים נתונים להפעלת הכלי. אנא ספק client_id."
+                    elif status == "policy_blocked":
+                        _core_final_reply_override = "הבקשה נחסמה לפי מדיניות. נסה לנסח מחדש או לבקש פעולה מותרת."
+                    elif status == "schema_error":
+                        _core_final_reply_override = "תקלה במבנה נתוני הכלי. נסה שוב או פנה לתמיכה."
+                    elif status == "budget_exceeded":
+                        _core_final_reply_override = "הבקשה חרגה מתקציב. נסה שוב מאוחר יותר."
+                tool_result_payload = parsed
+            else:
+                tool_result_payload = raw_tool_result
         elif tool_name == TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME:
             reply = _TERMINATION_CONCEPTUAL_NO_EXECUTE_STREAM_REPLY
             tool_result_payload = reply

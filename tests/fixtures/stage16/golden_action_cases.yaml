@@ -13,7 +13,7 @@ cases:
       capability_id: "client_snapshot_action_v1"
       tool_chain: ["GET_CLIENT_SNAPSHOT"]
       output_schema_id: "action_ok_v1"
-      computed_data_keys: []
+      computed_data_keys: ["success", "tool_name", "client_id", "total_items", "breakdown"]
 
   - case_id: system_numeric_constants
     user_text: "system constants"

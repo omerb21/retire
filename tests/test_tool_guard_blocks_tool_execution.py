@@ -54,8 +54,8 @@ def test_tool_guard_blocks_tool_execution_emits_validation_error(monkeypatch, _t
             request_id=None,
         )
 
-    parsed = json.loads(res)
-    assert parsed.get("success") is False
+    assert isinstance(res, dict)
+    assert res.get("status") == "policy_blocked"
 
     validation_events = [e for e in emitted if e["event_type"] == "validation_error"]
     assert validation_events, f"Expected validation_error trace event, got {emitted}"

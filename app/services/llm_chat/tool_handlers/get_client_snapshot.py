@@ -36,18 +36,18 @@ def handle_get_client_snapshot(*, args: dict, client_id: int, db: Session) -> st
                 "has_fixation": snapshot["snapshot"]["data"]["fixation_result"] is not None,
             },
         }
-        return json.dumps(result, ensure_ascii=False)
+        return result
 
     except ValueError as e:
-        return json.dumps({
+        return {
             "success": False,
             "tool_name": "GET_CLIENT_SNAPSHOT",
             "error": str(e),
-        }, ensure_ascii=False)
+        }
     except Exception as e:
         logger.error("GET_CLIENT_SNAPSHOT failed: %s", e, exc_info=True)
-        return json.dumps({
+        return {
             "success": False,
             "tool_name": "GET_CLIENT_SNAPSHOT",
             "error": f"Internal error: {str(e)[:500]}",
-        }, ensure_ascii=False)
+        }

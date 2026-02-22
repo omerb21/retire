@@ -43,7 +43,7 @@ def execute_with_guard(
     agent_reply: str | None = None,
     user_approved: bool = False,
     request_id: str | None = None,
-) -> str:
+) -> object:
     effective_trace_id = None
     try:
         effective_trace_id = getattr(request, "trace_id", None)
@@ -124,13 +124,10 @@ def execute_with_guard(
                     except Exception:
                         pass
 
-                    return json.dumps(
-                        _router_policy_gate_blocked_json(
-                            policy_reasons=policy_reasons,
-                            detected_capability_id=router_decision.capability_id,
-                            mode=str(router_decision.mode or "ACTION"),
-                        ),
-                        ensure_ascii=False,
+                    return _router_policy_gate_blocked_json(
+                        policy_reasons=policy_reasons,
+                        detected_capability_id=router_decision.capability_id,
+                        mode=str(router_decision.mode or "ACTION"),
                     )
         except Exception:
             pass
@@ -173,6 +170,8 @@ def execute_with_guard(
                 return ""
             if isinstance(res_obj, str):
                 return res_obj[:200]
+            if isinstance(res_obj, dict):
+                return json.dumps(res_obj, sort_keys=True, ensure_ascii=False, default=str)[:200]
             return str(res_obj)[:200]
         except Exception:
             return "<unavailable>"
@@ -273,12 +272,25 @@ def execute_with_guard(
             except Exception:
                 pass
 
-            blocked_json = build_blocked_tool_result(
-                tool_name=tool_name,
-                error_code="TOOL_CONTRACT_ARGS_INVALID",
-                message="Tool arguments failed deterministic validation.",
-                details={"reason": args_error},
-            )
+            detected_capability_id = "unknown"
+            try:
+                if _cap_router_policy_gate_enabled:
+                    from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+
+                    router_decision = get_router_decision(trace_id=effective_trace_id)
+                    if router_decision is not None:
+                        detected_capability_id = str(router_decision.capability_id or detected_capability_id)
+            except Exception:
+                detected_capability_id = detected_capability_id
+
+            blocked_json = {
+                "mode": "ACTION",
+                "status": "schema_error",
+                "detected_capability_id": detected_capability_id,
+                "what_ran": [tool_name],
+                "missing_fields": [],
+                "next_step": "adjust_request",
+            }
 
             result_payload = {
                 "tool_name": tool_name,
@@ -369,12 +381,25 @@ def execute_with_guard(
             except Exception:
                 pass
 
-            blocked_json = build_blocked_tool_result(
-                tool_name=tool_name,
-                error_code="TOOL_CONTRACT_RESULT_INVALID",
-                message="Tool result failed deterministic validation.",
-                details={"reason": res_error},
-            )
+            detected_capability_id = "unknown"
+            try:
+                if _cap_router_policy_gate_enabled:
+                    from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+
+                    router_decision = get_router_decision(trace_id=effective_trace_id)
+                    if router_decision is not None:
+                        detected_capability_id = str(router_decision.capability_id or detected_capability_id)
+            except Exception:
+                detected_capability_id = detected_capability_id
+
+            blocked_json = {
+                "mode": "ACTION",
+                "status": "schema_error",
+                "detected_capability_id": detected_capability_id,
+                "what_ran": [tool_name],
+                "missing_fields": [],
+                "next_step": "adjust_request",
+            }
 
             try:
                 result_payload = {
@@ -429,7 +454,7 @@ def execute_tool_call(
     user_approved: bool = False,
     request_id: str | None = None,
     tool_call_id: str | None = None,
-) -> str:
+) -> object:
     req = get_current_tool_execution_request()
     policy_decision = get_current_tool_execution_policy_decision()
     intent_type = get_current_tool_execution_intent_type()

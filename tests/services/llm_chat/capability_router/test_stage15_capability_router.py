@@ -130,10 +130,10 @@ def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_s
     blocked_events = [e for e in events if e["event_type"] == "policy_gate_blocked"]
 
     if gate_enabled:
-        parsed = json.loads(res)
-        assert parsed["status"] == "policy_blocked"
-        assert parsed["detected_capability_id"] == "client_snapshot_action_v1"
-        assert parsed["policy_reasons"] == ["tool_not_in_allowlist"]
+        assert isinstance(res, dict)
+        assert res["status"] == "policy_blocked"
+        assert res["detected_capability_id"] == "client_snapshot_action_v1"
+        assert res["policy_reasons"] == ["tool_not_in_allowlist"]
 
         assert len(blocked_events) == 1
         payload = blocked_events[0]["payload"]

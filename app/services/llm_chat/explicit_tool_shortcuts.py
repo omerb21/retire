@@ -79,6 +79,8 @@ def build_client_snapshot_tool_result(
     )
 
     raw = handle_get_client_snapshot(args={}, client_id=client_id, db=db)
+    if isinstance(raw, dict):
+        return raw
     try:
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError):

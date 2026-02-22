@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+logger = logging.getLogger("app.capability_router.ssot")
 
 
 def _default_capability_map_path() -> Path:
@@ -38,7 +42,24 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 @lru_cache(maxsize=4)
 def load_capability_map() -> dict[str, Any]:
-    return _load_yaml(get_capability_map_path())
+    data = _load_yaml(get_capability_map_path())
+
+    try:
+        if os.getenv("SSOT_DEBUG") == "1":
+            path_env = os.getenv("CAPABILITY_MAP_PATH")
+            capability_map_path_set = bool(isinstance(path_env, str) and path_env.strip())
+            capability_map_version = data.get("capability_map_version") if isinstance(data, dict) else None
+            capability_map_loaded = bool(isinstance(data, dict) and data)
+            logger.info(
+                "capability_map_loaded=%s capability_map_version=%s capability_map_path_set=%s",
+                capability_map_loaded,
+                capability_map_version,
+                capability_map_path_set,
+            )
+    except Exception:
+        pass
+
+    return data
 
 
 @lru_cache(maxsize=4)
