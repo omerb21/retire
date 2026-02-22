@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import os
+
 import inspect
 import uuid
 
@@ -63,6 +65,75 @@ def execute_with_guard(
                     effective_trace_id = candidate.strip()
         except Exception:
             effective_trace_id = None
+
+    def _router_policy_gate_blocked_json(
+        *,
+        policy_reasons: list[str],
+        detected_capability_id: str,
+        mode: str,
+    ) -> str:
+        return json.dumps(
+            {
+                "mode": mode,
+                "status": "policy_blocked",
+                "detected_capability_id": detected_capability_id,
+                "what_ran": [],
+                "missing_fields": [],
+                "next_step": "adjust_request",
+                "policy_reasons": list(policy_reasons),
+            },
+            ensure_ascii=False,
+        )
+
+    _cap_router_policy_gate_enabled = False
+    try:
+        _cap_router_policy_gate_enabled = (os.getenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED") or "").strip() == "1"
+    except Exception:
+        _cap_router_policy_gate_enabled = False
+
+    if _cap_router_policy_gate_enabled:
+        try:
+            from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+            from app.services.llm_chat.capability_router.tool_id_mapping import normalize_requested_tool_id
+
+            router_decision = get_router_decision(trace_id=effective_trace_id)
+            if router_decision is not None:
+                requested_tool_id = normalize_requested_tool_id(tool_name)
+                allowlist = set(router_decision.tool_chain or [])
+
+                policy_reasons: list[str] = []
+                if policy_decision is not None and (not bool(getattr(policy_decision, "tools_allowed", True))):
+                    policy_reasons.append("qa_mode_no_tools")
+                elif router_decision.mode == "QA":
+                    policy_reasons.append("qa_mode_no_tools")
+                elif (not requested_tool_id) or (requested_tool_id not in allowlist):
+                    policy_reasons.append("tool_not_in_allowlist")
+
+                if policy_reasons:
+                    try:
+                        log_trace_event(
+                            trace_id=effective_trace_id,
+                            event_type="policy_gate_blocked",
+                            payload={
+                                "detected_capability_id": router_decision.capability_id,
+                                "router_mode": router_decision.mode,
+                                "requested_tool_name": tool_name,
+                                "requested_tool_id": requested_tool_id,
+                                "policy_reasons": list(policy_reasons),
+                                "streaming": bool(streaming),
+                            },
+                            client_id=request.client_id,
+                        )
+                    except Exception:
+                        pass
+
+                    return _router_policy_gate_blocked_json(
+                        policy_reasons=policy_reasons,
+                        detected_capability_id=router_decision.capability_id,
+                        mode=str(router_decision.mode or "ACTION"),
+                    )
+        except Exception:
+            pass
 
     def _log_event(*, event_type: str, payload: object, client_id: int | None) -> None:
         try:

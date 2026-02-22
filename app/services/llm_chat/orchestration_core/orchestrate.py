@@ -21,6 +21,11 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
 
+from app.services.llm_chat.capability_router.router_facade import (
+    ensure_router_decision,
+    maybe_emit_router_selected_trace,
+)
+
 from .canonicalize import canonicalize_tool_args
 from .core_types import (
     DecisionCode,
@@ -74,6 +79,17 @@ def orchestrate(
 
     user_text = (input.user_text or "").strip()
 
+    _router_selected_spec: TraceEventSpec | None = None
+    try:
+        _router_decision = ensure_router_decision(
+            user_text=user_text,
+            client_id=getattr(input, "client_id", None),
+            trace_id=trace_id,
+        )
+        _router_selected_spec = maybe_emit_router_selected_trace(trace_id=trace_id, decision=_router_decision)
+    except Exception:
+        _router_selected_spec = None
+
     last_tool_name = None
     try:
         last_tool = getattr(input, "last_tool_result", None)
@@ -115,6 +131,8 @@ def orchestrate(
                 },
             )
             trace_specs: list[TraceEventSpec] = []
+            if _router_selected_spec is not None:
+                trace_specs.append(_router_selected_spec)
             trace_specs.append(
                 TraceEventSpec(
                     event_type="core_next_action_decided",
@@ -164,6 +182,8 @@ def orchestrate(
                         },
                     )
                     trace_specs: list[TraceEventSpec] = []
+                    if _router_selected_spec is not None:
+                        trace_specs.append(_router_selected_spec)
                     trace_specs.append(
                         TraceEventSpec(
                             event_type="core_next_action_decided",
@@ -205,6 +225,8 @@ def orchestrate(
                     },
                 )
                 trace_specs: list[TraceEventSpec] = []
+                if _router_selected_spec is not None:
+                    trace_specs.append(_router_selected_spec)
                 trace_specs.append(
                     TraceEventSpec(
                         event_type="core_next_action_decided",
@@ -247,6 +269,8 @@ def orchestrate(
             debug_meta={"from_last_tool_result": True, "last_tool_name": last_tool_name},
         )
         trace_specs: list[TraceEventSpec] = []
+        if _router_selected_spec is not None:
+            trace_specs.append(_router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
@@ -306,6 +330,8 @@ def orchestrate(
     )
 
     trace_specs: list[TraceEventSpec] = []
+    if _router_selected_spec is not None:
+        trace_specs.append(_router_selected_spec)
     trace_specs.append(
         TraceEventSpec(
             event_type="core_user_input",
@@ -364,6 +390,8 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
+        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+            trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
@@ -437,6 +465,8 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
+            if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+                trace_specs.insert(0, _router_selected_spec)
             trace_specs.append(
                 TraceEventSpec(
                     event_type="core_tool_call",
@@ -459,6 +489,8 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
+        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+            trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
@@ -497,6 +529,8 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
+        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+            trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
@@ -538,6 +572,8 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
+        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+            trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
                 event_type="core_next_action_decided",
@@ -561,6 +597,8 @@ def orchestrate(
         )
         return decision, trace_specs
 
+    if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+        trace_specs.insert(0, _router_selected_spec)
     trace_specs.append(
         TraceEventSpec(
             event_type="core_next_action_decided",
