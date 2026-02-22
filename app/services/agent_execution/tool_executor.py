@@ -71,19 +71,16 @@ def execute_with_guard(
         policy_reasons: list[str],
         detected_capability_id: str,
         mode: str,
-    ) -> str:
-        return json.dumps(
-            {
-                "mode": mode,
-                "status": "policy_blocked",
-                "detected_capability_id": detected_capability_id,
-                "what_ran": [],
-                "missing_fields": [],
-                "next_step": "adjust_request",
-                "policy_reasons": list(policy_reasons),
-            },
-            ensure_ascii=False,
-        )
+    ) -> dict:
+        return {
+            "mode": mode,
+            "status": "policy_blocked",
+            "detected_capability_id": detected_capability_id,
+            "what_ran": [],
+            "missing_fields": [],
+            "next_step": "adjust_request",
+            "policy_reasons": list(policy_reasons),
+        }
 
     _cap_router_policy_gate_enabled = False
     try:
@@ -127,10 +124,13 @@ def execute_with_guard(
                     except Exception:
                         pass
 
-                    return _router_policy_gate_blocked_json(
-                        policy_reasons=policy_reasons,
-                        detected_capability_id=router_decision.capability_id,
-                        mode=str(router_decision.mode or "ACTION"),
+                    return json.dumps(
+                        _router_policy_gate_blocked_json(
+                            policy_reasons=policy_reasons,
+                            detected_capability_id=router_decision.capability_id,
+                            mode=str(router_decision.mode or "ACTION"),
+                        ),
+                        ensure_ascii=False,
                     )
         except Exception:
             pass
