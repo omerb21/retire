@@ -7,6 +7,7 @@ from typing import Any
 from app.services.agent_execution.policy import decide
 from app.services.llm_chat.explicit_tool_shortcuts import (
     CLIENT_SNAPSHOT_TOOL_NAME,
+    is_client_snapshot_shortcut_request,
     is_explicit_client_snapshot_request,
 )
 from app.guards.tool_intent_guard import (
@@ -560,7 +561,7 @@ def orchestrate(
 
     if (
         (last_tool_name != CLIENT_SNAPSHOT_TOOL_NAME)
-        and is_explicit_client_snapshot_request(user_text)
+        and is_client_snapshot_shortcut_request(user_text)
     ):
         plan_kind = PlanKind.SYSTEM_SNAPSHOT
         tool_name = CLIENT_SNAPSHOT_TOOL_NAME

@@ -20,6 +20,34 @@ CLIENT_SNAPSHOT_TOOL_NAME = "GET_CLIENT_SNAPSHOT"
 
 _EXPLICIT_SNAPSHOT_RE = re.compile(rf"\b{CLIENT_SNAPSHOT_TOOL_NAME}\b", re.IGNORECASE)
 
+
+_NATURAL_SNAPSHOT_STRONG_TRIGGERS = (
+    "snapshot/info",
+    "snapshot",
+    "breakdown",
+    "סנאפשוט",
+    "תמונת מצב",
+    "מצב הלקוח",
+    "סטטוס הלקוח",
+    "מודולים קיימים",
+)
+
+
+_NATURAL_SNAPSHOT_SUMMARY_ANCHORS = (
+    "מצב הלקוח",
+    "סטטוס הלקוח",
+    "תמונת מצב",
+    "snapshot",
+    "סנאפשוט",
+)
+
+
+def _normalize_snapshot_intent_text(text: str) -> str:
+    candidate = (text or "").strip()
+    if not candidate:
+        return ""
+    return " ".join(candidate.split())
+
 _JSON_ONLY_PHRASES = (
     "רק json",
     "json בלבד",
@@ -32,6 +60,65 @@ _JSON_ONLY_PHRASES = (
 def is_explicit_client_snapshot_request(text: str) -> bool:
     """Return *True* if *text* explicitly mentions GET_CLIENT_SNAPSHOT."""
     return bool(_EXPLICIT_SNAPSHOT_RE.search(text or ""))
+
+
+def is_natural_client_snapshot_request(text: str) -> bool:
+    normalized = _normalize_snapshot_intent_text(text)
+    if not normalized:
+        return False
+
+    lowered = normalized.lower()
+
+    if any(
+        token in normalized
+        for token in (
+            "###USER_APPROVED###",
+            "###USER_CANCELLED###",
+            "###UI_ACTION###",
+        )
+    ):
+        return False
+
+    if any(
+        token in lowered
+        for token in (
+            "approval_request",
+            "pending_approval",
+            "snapshot_scenario_id",
+            "restore_pension_portfolio_snapshot",
+            "restore_system_snapshot",
+            "undo",
+            "restore",
+            "cancel",
+        )
+    ):
+        return False
+
+    if any(
+        token in normalized
+        for token in (
+            "שחזר",
+            "שחזור",
+            "בטל",
+            "ביטול",
+        )
+    ):
+        return False
+
+    if any(token in lowered for token in ("snapshot", "snapshot/info", "breakdown")):
+        return True
+
+    if any(token in normalized for token in ("סנאפשוט", "תמונת מצב", "מצב הלקוח", "סטטוס הלקוח", "מודולים קיימים")):
+        return True
+
+    if "סיכום" in normalized and any(anchor in lowered or anchor in normalized for anchor in _NATURAL_SNAPSHOT_SUMMARY_ANCHORS):
+        return True
+
+    return False
+
+
+def is_client_snapshot_shortcut_request(text: str) -> bool:
+    return is_explicit_client_snapshot_request(text) or is_natural_client_snapshot_request(text)
 
 
 def wants_json_only(text: str) -> bool:
