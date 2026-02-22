@@ -94,3 +94,7 @@ _exec_kwargs = {
 ...
 tool_result = _execute_tool_call_impl(**_exec_kwargs)
 ```
+
+---
+
+**Stage 15 Note:** Gate returns JSON string intentionally for current `execute_with_guard` contract. Consider dict return refactor in Stage 16.
