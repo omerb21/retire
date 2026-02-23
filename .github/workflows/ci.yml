@@ -26,6 +26,10 @@ jobs:
         with:
           files: |
             **/*.py
+      - name: Debug changed files
+        run: |
+          echo "any_changed=${{ steps.changed_py.outputs.any_changed }}"
+          echo "all_changed_files=${{ steps.changed_py.outputs.all_changed_files }}"
       - name: Skip lint when no python files changed
         if: steps.changed_py.outputs.any_changed != 'true'
         run: echo "No Python files changed. Skipping lint."
