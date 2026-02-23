@@ -58,6 +58,11 @@ jobs:
       - name: Run unit tests
         run: |
           pytest tests/unit/ -v --tb=short --cov=. --cov-report=xml
+
+      - name: release_gates
+        shell: pwsh
+        run: |
+          ./scripts/ci/run_release_gates.ps1
       
       - name: Run integration tests
         run: |
