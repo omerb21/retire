@@ -86,3 +86,4 @@ retire-nuc.db
 # local test artifacts
 artifacts/
 
+_debug_pytest_hang.py
