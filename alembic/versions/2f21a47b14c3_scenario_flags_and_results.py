@@ -5,15 +5,15 @@ Revises: 4fc6dac22d14
 Create Date: 2025-08-05 14:45:10.996600
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
-revision: str = '2f21a47b14c3'
-down_revision: Union[str, Sequence[str], None] = '4fc6dac22d14'
+revision: str = "2f21a47b14c3"
+down_revision: Union[str, Sequence[str], None] = "4fc6dac22d14"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -26,9 +26,15 @@ def upgrade() -> None:
     if not insp.has_table("scenario"):
         return
 
-    op.execute("ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_tax_planning BOOLEAN NOT NULL DEFAULT false")
-    op.execute("ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_capitalization BOOLEAN NOT NULL DEFAULT false")
-    op.execute("ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_exemption_shield BOOLEAN NOT NULL DEFAULT false")
+    op.execute(
+        "ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_tax_planning BOOLEAN NOT NULL DEFAULT false"
+    )
+    op.execute(
+        "ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_capitalization BOOLEAN NOT NULL DEFAULT false"
+    )
+    op.execute(
+        "ALTER TABLE scenario ADD COLUMN IF NOT EXISTS apply_exemption_shield BOOLEAN NOT NULL DEFAULT false"
+    )
 
 
 def downgrade() -> None:
