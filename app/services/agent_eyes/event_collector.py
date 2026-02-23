@@ -20,8 +20,10 @@ Public API
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 import json
 import logging
+import os
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -31,6 +33,8 @@ from typing import Any, Optional
 from app.utils.trace_context import generate_trace_id, get_current_trace_id
 
 _log = logging.getLogger("agent_eyes")
+
+_in_db_persist: ContextVar[bool] = ContextVar("agent_eyes_in_db_persist", default=False)
 
 # ---------------------------------------------------------------------------
 # Truncation
@@ -110,6 +114,54 @@ def _persist_to_db(
     """Best-effort write to agent_trace_event table.  Never raises."""
     try:
         from app.models.agent_trace_event import AgentTraceEvent
+
+        try:
+            redaction_enabled = (os.getenv("TRACE_PII_REDACTION_ENABLED") or "1").strip() != "0"
+        except Exception:
+            redaction_enabled = True
+
+        if redaction_enabled:
+            try:
+                from app.services.observability.pii_redactor import redact_payload
+
+                redacted_payload = redact_payload(payload)
+
+                redaction_failed = False
+                try:
+                    redaction_failed = bool(
+                        redacted_payload == {"redaction_failed": True}
+                        or redacted_payload == "[REDACTION_FAILED]"
+                        or redacted_payload == ["[REDACTION_FAILED]"]
+                    )
+                except Exception:
+                    redaction_failed = True
+
+                if redaction_failed:
+                    token = _in_db_persist.set(True)
+                    try:
+                        from app.services.agent_trace_logger import log_trace_event
+
+                        log_trace_event(
+                            trace_id=trace_id,
+                            event_type="pii_redaction_failed",
+                            payload={
+                                "payload_type": type(payload).__name__,
+                                "reason": "exception",
+                            },
+                            client_id=client_id,
+                            endpoint=endpoint,
+                        )
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            _in_db_persist.reset(token)
+                        except Exception:
+                            pass
+
+                payload = redacted_payload
+            except Exception:
+                payload = {"redaction_failed": True}
 
         session_factory = _session_factory_override
         if session_factory is None:
@@ -197,14 +249,18 @@ def emit_event(
             _log.info(json.dumps({"event_type": event_type, "trace_id": trace_id, "error": "serialization_failed"}))
 
         # 3) DB persistence (best-effort)
-        _persist_to_db(
-            trace_id=trace_id,
-            event_type=event_type,
-            created_at_dt=created_at_dt,
-            payload=safe_payload,
-            client_id=client_id,
-            endpoint=endpoint,
-        )
+        try:
+            if not _in_db_persist.get():
+                _persist_to_db(
+                    trace_id=trace_id,
+                    event_type=event_type,
+                    created_at_dt=created_at_dt,
+                    payload=payload,
+                    client_id=client_id,
+                    endpoint=endpoint,
+                )
+        except Exception:
+            pass
 
     except Exception as exc:
         # Absolute last resort – never crash the caller
@@ -231,3 +287,42 @@ def clear_buffer() -> None:
     """Clear the ring buffer.  Intended for test isolation only."""
     with _lock:
         _buffer.clear()
+
+
+def delete_trace_events_older_than(*, cutoff_dt: datetime, dry_run: bool = False) -> int:
+    """Delete trace events with created_at < cutoff_dt.
+
+    Returns the number of rows deleted (or that would be deleted in dry-run).
+    """
+    try:
+        from app.models.agent_trace_event import AgentTraceEvent
+
+        session_factory = _session_factory_override
+        if session_factory is None:
+            from app.database import SessionLocal
+
+            session_factory = SessionLocal
+
+        db = session_factory()
+        try:
+            q = db.query(AgentTraceEvent).filter(AgentTraceEvent.created_at < cutoff_dt)
+            count = int(q.count())
+            if dry_run:
+                return count
+
+            deleted = int(q.delete(synchronize_session=False))
+            db.commit()
+            return deleted
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+    except Exception:
+        return 0

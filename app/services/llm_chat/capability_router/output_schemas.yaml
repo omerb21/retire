@@ -54,6 +54,7 @@ schemas:
           - "policy_blocked"
           - "schema_error"
           - "budget_exceeded"
+          - "budget_config_invalid"
       detected_capability_id:
         type: string
         minLength: 1

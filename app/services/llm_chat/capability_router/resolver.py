@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from typing import Any
 
@@ -20,26 +22,90 @@ def _compile_regex(pattern: str) -> re.Pattern[str] | None:
         return None
 
 
-def _match_capability(*, cap: dict[str, Any], normalized_text: str) -> bool:
+def _sha256_hex_utf8(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def _params_hash(params: dict[str, Any] | None) -> str:
+    if not params:
+        return _sha256_hex_utf8("")
+    try:
+        stable = json.dumps(params, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return _sha256_hex_utf8(stable)
+    except Exception:
+        return _sha256_hex_utf8("")
+
+
+def _emit_predicate_eval(*, trace_id: str | None, client_id: int | None, rule_id: str, outcome: bool, params_hash: str) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=trace_id,
+            event_type="predicate_eval",
+            payload={
+                "rule_id": str(rule_id or ""),
+                "outcome": bool(outcome),
+                "params_hash": str(params_hash or ""),
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
+
+
+def _match_capability(
+    *,
+    cap: dict[str, Any],
+    normalized_text: str,
+    trace_id: str | None,
+    client_id: int | None,
+) -> bool:
     triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
     trigger_terms = triggers.get("trigger_terms") if isinstance(triggers.get("trigger_terms"), list) else []
     trigger_regex = triggers.get("trigger_regex") if isinstance(triggers.get("trigger_regex"), list) else []
     negative_triggers = triggers.get("negative_triggers") if isinstance(triggers.get("negative_triggers"), list) else []
 
+    cap_id = str(cap.get("capability_id") or "")
+
     for neg in negative_triggers:
-        if isinstance(neg, str) and neg and (neg.lower() in normalized_text):
+        hit = bool(isinstance(neg, str) and neg and (neg.lower() in normalized_text))
+        _emit_predicate_eval(
+            trace_id=trace_id,
+            client_id=client_id,
+            rule_id=f"{cap_id}.negative_trigger",
+            outcome=not hit,
+            params_hash=_params_hash({"neg": neg} if isinstance(neg, str) else {}),
+        )
+        if hit:
             return False
 
     term_hit = False
     for term in trigger_terms:
-        if isinstance(term, str) and term and (term.lower() in normalized_text):
+        hit = bool(isinstance(term, str) and term and (term.lower() in normalized_text))
+        _emit_predicate_eval(
+            trace_id=trace_id,
+            client_id=client_id,
+            rule_id=f"{cap_id}.trigger_term",
+            outcome=hit,
+            params_hash=_params_hash({"term": term} if isinstance(term, str) else {}),
+        )
+        if hit:
             term_hit = True
             break
 
     regex_hit = False
     for pat in trigger_regex:
         rx = _compile_regex(pat)
-        if rx is not None and rx.search(normalized_text or "") is not None:
+        hit = bool(rx is not None and rx.search(normalized_text or "") is not None)
+        _emit_predicate_eval(
+            trace_id=trace_id,
+            client_id=client_id,
+            rule_id=f"{cap_id}.trigger_regex",
+            outcome=hit,
+            params_hash=_params_hash({"pattern": pat} if isinstance(pat, str) else {}),
+        )
+        if hit:
             regex_hit = True
             break
 
@@ -68,7 +134,7 @@ def resolve(*, user_text: str, client_id: int | None, trace_id: str | None) -> R
     for cap in capabilities:
         if not isinstance(cap, dict):
             continue
-        if not _match_capability(cap=cap, normalized_text=normalized_text):
+        if not _match_capability(cap=cap, normalized_text=normalized_text, trace_id=trace_id, client_id=client_id):
             continue
 
         prio = cap.get("priority")
@@ -104,6 +170,25 @@ def resolve(*, user_text: str, client_id: int | None, trace_id: str | None) -> R
         router_normalization_version=str(cap_map.get("router_normalization_version") or ""),
         normalized_text_hash=norm_hash,
     )
+
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=trace_id,
+            event_type="router_selected",
+            payload={
+                "capability_id": decision.capability_id,
+                "tool_chain": list(decision.tool_chain),
+                "output_schema_id": decision.output_schema_id,
+                "capability_map_version": decision.capability_map_version,
+                "router_normalization_version": decision.router_normalization_version,
+                "normalized_text_hash": decision.normalized_text_hash,
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
 
     _ = trace_id
     return decision

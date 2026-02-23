@@ -114,10 +114,34 @@ def guard_qa_answer_payload(
     except Exception:
         pass
 
-    return build_policy_blocked_partial_result(
+    blocked = build_policy_blocked_partial_result(
         detected_capability_id=detected_capability_id,
         policy_reasons=res.policy_reasons,
     )
+
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        result_keys: list[str] = []
+        if isinstance(blocked, dict):
+            try:
+                result_keys = sorted([str(k) for k in blocked.keys()])
+            except Exception:
+                result_keys = []
+
+        log_trace_event(
+            trace_id=trace_id,
+            event_type="schema_rendered",
+            payload={
+                "output_schema_id": "partial_result_v1",
+                "result_keys": result_keys,
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
+
+    return blocked
 
 
 def build_policy_blocked_partial_result(

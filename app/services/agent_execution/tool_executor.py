@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import time
 import json
+
+import hashlib
 
 import os
 
@@ -107,17 +110,27 @@ def execute_with_guard(
                     policy_reasons.append("tool_not_in_allowlist")
 
                 if policy_reasons:
+                    args_hash_fallback = False
+                    try:
+                        args_json = json.dumps(
+                            tool_args if isinstance(tool_args, dict) else {},
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=False,
+                        )
+                        args_hash = hashlib.sha256(args_json.encode("utf-8")).hexdigest()
+                    except Exception:
+                        args_hash_fallback = True
+                        args_hash = hashlib.sha256(b"").hexdigest()
+
                     try:
                         log_trace_event(
                             trace_id=effective_trace_id,
                             event_type="policy_gate_blocked",
                             payload={
-                                "detected_capability_id": router_decision.capability_id,
-                                "router_mode": router_decision.mode,
-                                "requested_tool_name": tool_name,
-                                "requested_tool_id": requested_tool_id,
-                                "policy_reasons": list(policy_reasons),
-                                "streaming": bool(streaming),
+                                "tool_id": str(requested_tool_id or tool_name or ""),
+                                "args_hash": str(args_hash),
+                                "args_hash_fallback": bool(args_hash_fallback),
                             },
                             client_id=request.client_id,
                         )
@@ -155,6 +168,73 @@ def execute_with_guard(
             log_trace_event(event_type=event_type, payload=payload, client_id=client_id)
         except Exception:
             pass
+
+    def _get_detected_capability_id_and_mode() -> tuple[str, str]:
+        detected_capability_id = "budget_guard_unenforceable"
+        mode = "ACTION"
+        try:
+            from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+
+            router_decision = get_router_decision(trace_id=effective_trace_id)
+            if router_decision is not None:
+                detected_capability_id = str(router_decision.capability_id or detected_capability_id)
+                mode = str(router_decision.mode or mode)
+        except Exception:
+            pass
+        return detected_capability_id, mode
+
+    def _build_partial_result(*, status: str) -> dict:
+        detected_capability_id, mode = _get_detected_capability_id_and_mode()
+        return {
+            "mode": mode,
+            "status": str(status),
+            "detected_capability_id": detected_capability_id,
+            "what_ran": [],
+            "missing_fields": [],
+            "next_step": "contact_support",
+        }
+
+    def _emit_partial_returned(*, status: str, detected_capability_id: str) -> None:
+        payload: dict[str, object] = {"status": str(status)}
+        if detected_capability_id:
+            payload["detected_capability_id"] = str(detected_capability_id)
+        _log_event(event_type="partial_returned", payload=payload, client_id=request.client_id)
+
+    try:
+        max_tool_calls_env = os.getenv("CAP_ROUTER_MAX_TOOL_CALLS")
+    except Exception:
+        max_tool_calls_env = None
+
+    if isinstance(max_tool_calls_env, str) and max_tool_calls_env.strip():
+        _log_event(
+            event_type="budget_guard_unenforceable",
+            payload={"guard": "max_tool_calls", "mode": "per_tool"},
+            client_id=request.client_id,
+        )
+        blocked_json = _build_partial_result(status="budget_config_invalid")
+        _emit_partial_returned(
+            status=str(blocked_json.get("status") or "budget_config_invalid"),
+            detected_capability_id=str(blocked_json.get("detected_capability_id") or ""),
+        )
+        return blocked_json
+
+    try:
+        max_wall_clock_env = os.getenv("CAP_ROUTER_MAX_WALL_CLOCK_MS")
+    except Exception:
+        max_wall_clock_env = None
+
+    if isinstance(max_wall_clock_env, str) and max_wall_clock_env.strip():
+        _log_event(
+            event_type="budget_guard_unenforceable",
+            payload={"guard": "max_wall_clock_ms", "reason": "no_request_start_time"},
+            client_id=request.client_id,
+        )
+        blocked_json = _build_partial_result(status="budget_config_invalid")
+        _emit_partial_returned(
+            status=str(blocked_json.get("status") or "budget_config_invalid"),
+            detected_capability_id=str(blocked_json.get("detected_capability_id") or ""),
+        )
+        return blocked_json
 
     def _safe_args_preview(args_obj: object) -> str:
         try:
@@ -328,6 +408,31 @@ def execute_with_guard(
         _supports_tool_call_id = False
 
     try:
+        from app.services.llm_chat.capability_router.tool_id_mapping import normalize_requested_tool_id
+
+        _tool_id = str(normalize_requested_tool_id(tool_name) or tool_name or "")
+        _args_hash: str
+        try:
+            _args_json = json.dumps(
+                tool_args if isinstance(tool_args, dict) else {},
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+            _args_hash = hashlib.sha256(_args_json.encode("utf-8")).hexdigest()
+        except Exception:
+            _args_hash = hashlib.sha256(b"").hexdigest()
+
+        _tool_start_mono = time.monotonic()
+        _log_event(
+            event_type="tool_started",
+            payload={
+                "tool_id": _tool_id,
+                "args_hash": str(_args_hash),
+            },
+            client_id=request.client_id,
+        )
+
         _exec_kwargs = {
             "tool_name": tool_name,
             "args": tool_args if isinstance(tool_args, dict) else {},
@@ -341,7 +446,38 @@ def execute_with_guard(
         if _supports_tool_call_id:
             _exec_kwargs["tool_call_id"] = tool_call_id
         tool_result = _execute_tool_call_impl(**_exec_kwargs)
+
+        _duration_ms = int((time.monotonic() - _tool_start_mono) * 1000)
+        _log_event(
+            event_type="tool_finished",
+            payload={
+                "tool_id": _tool_id,
+                "success": True,
+                "duration_ms": int(_duration_ms),
+            },
+            client_id=request.client_id,
+        )
     except Exception as exc:
+        try:
+            _duration_ms = 0
+            try:
+                _duration_ms = int((time.monotonic() - _tool_start_mono) * 1000)
+            except Exception:
+                _duration_ms = 0
+
+            _log_event(
+                event_type="tool_finished",
+                payload={
+                    "tool_id": _tool_id,
+                    "success": False,
+                    "duration_ms": int(_duration_ms),
+                    "error_type": type(exc).__name__,
+                },
+                client_id=request.client_id,
+            )
+        except Exception:
+            pass
+
         result_payload = {
             "tool_name": tool_name,
             "tool_call_id": tool_call_id,

@@ -138,9 +138,10 @@ def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_s
         assert len(blocked_events) == 1
         payload = blocked_events[0]["payload"]
         assert isinstance(payload, dict)
-        assert payload.get("requested_tool_name") == "GET_PENSION_PRODUCTS"
-        assert "tool_args" not in payload
-        assert "args" not in payload
+        assert set(payload.keys()) == {"tool_id", "args_hash", "args_hash_fallback"}
+        assert payload.get("tool_id") == "GET_PENSION_PRODUCTS"
+        assert isinstance(payload.get("args_hash"), str) and payload.get("args_hash")
+        assert payload.get("args_hash_fallback") in {True, False}
     else:
         parsed = json.loads(res)
         assert parsed.get("success") is True

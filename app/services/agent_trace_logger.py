@@ -19,8 +19,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from app.database import SessionLocal
-from app.utils.trace_context import generate_trace_id, get_current_trace_id
+from app.utils.trace_context import generate_trace_id, get_current_trace_id, set_current_trace_id
 
 logger = logging.getLogger("app.agent_trace")
 
@@ -61,41 +60,26 @@ def log_trace_event(
 ) -> None:
     """Persist one event row.  Fire-and-forget – never raises."""
     try:
-        from app.models.agent_trace_event import AgentTraceEvent
-
         effective_trace_id = trace_id or get_current_trace_id() or generate_trace_id()
+        _ = (payload_text, session_id)
 
-        payload_json_str: Optional[str] = None
-        truncated = False
-        original_size: Optional[int] = None
-        if payload is not None:
-            payload_json_str, truncated, original_size = _safe_json(payload)
-
-        db = SessionLocal()
+        prev_trace_id: Optional[str] = None
         try:
-            event = AgentTraceEvent(
-                trace_id=effective_trace_id,
-                session_id=session_id,
-                client_id=client_id,
-                endpoint=endpoint,
-                event_type=event_type,
-                payload_json=payload_json_str,
-                payload_text=payload_text,
-                is_truncated=truncated,
-                payload_size=original_size,
-                created_at=datetime.now(timezone.utc),
-            )
-            db.add(event)
-            db.commit()
+            prev_trace_id = get_current_trace_id()
         except Exception:
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            raise
+            prev_trace_id = None
+
+        try:
+            if effective_trace_id and effective_trace_id != prev_trace_id:
+                set_current_trace_id(effective_trace_id)
+
+            from app.services.agent_eyes.event_collector import emit_event
+
+            emit_event(event_type=event_type, payload=payload, client_id=client_id, endpoint=endpoint)
         finally:
             try:
-                db.close()
+                if prev_trace_id and prev_trace_id != effective_trace_id:
+                    set_current_trace_id(prev_trace_id)
             except Exception:
                 pass
 
