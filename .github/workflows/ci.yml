@@ -77,7 +77,7 @@ jobs:
       
       - name: Run unit tests
         run: |
-          pytest tests/unit/ -v --tb=short --cov=. --cov-report=xml
+          pytest tests -v --tb=short --cov=. --cov-report=xml --ignore=tests/integration --ignore=tests/e2e
 
       - name: release_gates
         shell: pwsh
