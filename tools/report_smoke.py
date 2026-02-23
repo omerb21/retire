@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
-from pathlib import Path
 import sys
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from starlette.testclient import TestClient
-from app.main import app
+from pathlib import Path
 
-c = TestClient(app)
+
+def _make_client() -> "TestClient":
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+    from starlette.testclient import TestClient
+    from app.main import app
+
+    return TestClient(app)
+
+
+c = _make_client()
+
 
 def pick_id(obj):
     # נסיונות שכיחים להוציא מזהים ממבני JSON שונים
@@ -23,12 +31,16 @@ def pick_id(obj):
                         return obj[k][kk]
     return None
 
+
 def debug(resp, label):
     try:
         j = resp.json()
     except Exception:
         j = resp.text
-    print(f"[{label}] {resp.status_code} {resp.headers.get('content-type')} -> {str(j)[:300]}")
+    print(
+        f"[{label}] {resp.status_code} {resp.headers.get('content-type')} -> {str(j)[:300]}"
+    )
+
 
 # 1) יצירת לקוח
 client_payload = {
@@ -54,9 +66,16 @@ if not cid:
     debug(r2, "list-clients")
     if r2.status_code == 200:
         data = r2.json()
-        items = data.get("items") if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        items = (
+            data.get("items")
+            if isinstance(data, dict)
+            else (data if isinstance(data, list) else [])
+        )
         for x in items:
-            if x.get("id_number") == client_payload["id_number"] or x.get("email") == client_payload["email"]:
+            if (
+                x.get("id_number") == client_payload["id_number"]
+                or x.get("email") == client_payload["email"]
+            ):
                 cid = x.get("id")
                 break
 if not cid:
@@ -93,13 +112,13 @@ if not sid:
 
 # 2.5) וידוא תעסוקה נוכחית (חובה לפני הרצת תרחיש)
 employment_payload = {
-    "employer_name": "חברת הטכנולוגיה בע\"מ",
+    "employer_name": 'חברת הטכנולוגיה בע"מ',
     "employer_reg_no": "123456789",
     "address_city": "תל אביב",
     "address_street": "רחוב הארבעה 10",
     "start_date": "2023-01-01",
     "monthly_salary_nominal": 15000.0,
-    "is_current": True
+    "is_current": True,
 }
 re = c.post(f"/api/v1/clients/{cid}/employment/current", json=employment_payload)
 debug(re, "set-employment")
@@ -113,22 +132,25 @@ if rr.status_code == 422 and "CPI" in rr.text:
     print("[CPI-FIX] Adding CPI data for scenario calculation")
     # יצירת נתוני CPI בסיסיים לטווח התאריכים הרלוונטי
     from datetime import datetime, timedelta
+
     today = datetime.now().date()
     # נוסיף נתוני CPI מ-2022 עד שנתיים קדימה
     start_year = 2022
     end_year = today.year + 2
-    
+
     for year in range(start_year, end_year + 1):
         for month in range(1, 13):
             cpi_data = {
                 "year": year,
                 "month": month,
-                "value": 100.0 + (year - start_year) * 2.0 + (month / 12.0)
+                "value": 100.0 + (year - start_year) * 2.0 + (month / 12.0),
             }
             cpi_resp = c.post("/api/v1/cpi", json=cpi_data)
             if cpi_resp.status_code not in (200, 201, 409):
-                print(f"[CPI-ERROR] Failed to add CPI for {year}-{month}: {cpi_resp.status_code}")
-    
+                print(
+                    f"[CPI-ERROR] Failed to add CPI for {year}-{month}: {cpi_resp.status_code}"
+                )
+
     # נריץ שוב את התרחיש אחרי הוספת נתוני CPI
     rr = c.post(f"/api/v1/scenarios/{sid}/run")
     debug(rr, "run-scenario-after-cpi")
@@ -150,14 +172,21 @@ if cid:
 # 5) יצוא PDF
 r = c.post("/api/v1/reports/pdf", json={"client_id": cid, "scenario_ids": [sid]})
 debug(r, "pdf-export")
-print("STATUS:", r.status_code, "| CT:", r.headers.get("content-type"), "| size:", len(r.content))
+print(
+    "STATUS:",
+    r.status_code,
+    "| CT:",
+    r.headers.get("content-type"),
+    "| size:",
+    len(r.content),
+)
 print("HEAD:", r.content[:4])
 
 # בדיקת תקינות ה-PDF
 if r.status_code != 200:
     raise RuntimeError(f"PDF export failed with status {r.status_code}: {r.text}")
 
-content_type = (r.headers.get("content-type") or "")
+content_type = r.headers.get("content-type") or ""
 if "application/pdf" not in content_type:
     raise RuntimeError(f"Expected PDF content type, got {content_type}")
 
@@ -165,7 +194,9 @@ if r.content[:4] != b"%PDF":
     raise RuntimeError(f"Invalid PDF header: {r.content[:20]}")
 
 if len(r.content) <= 10_000:
-    raise RuntimeError(f"PDF too small ({len(r.content)} bytes), likely not a valid report")
+    raise RuntimeError(
+        f"PDF too small ({len(r.content)} bytes), likely not a valid report"
+    )
 
 with open("report_smoke.pdf", "wb") as f:
     f.write(r.content)

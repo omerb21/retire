@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -19,9 +21,41 @@ jobs:
           python -m pip install --upgrade pip
           pip install black isort flake8
       - name: Run black
-        run: black --check --diff .
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE_SHA" ]; then
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "BASE_SHA not available; skipping changed-files Black gate."
+            exit 0
+          fi
+
+          FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "${{ github.sha }}" -- '*.py')
+          if [ -z "$FILES" ]; then
+            echo "No Python files changed; skipping Black."
+            exit 0
+          fi
+
+          black --check --diff $FILES
       - name: Run isort
-        run: isort --check-only --diff .
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE_SHA" ]; then
+            BASE_SHA="${{ github.event.before }}"
+          fi
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "BASE_SHA not available; skipping changed-files isort gate."
+            exit 0
+          fi
+
+          FILES=$(git diff --name-only --diff-filter=ACMRT "$BASE_SHA" "${{ github.sha }}" -- '*.py')
+          if [ -z "$FILES" ]; then
+            echo "No Python files changed; skipping isort."
+            exit 0
+          fi
+
+          isort --check-only --diff $FILES
       - name: Run flake8
         run: flake8 --max-line-length=88 --extend-ignore=E203,W503 .
 

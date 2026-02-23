@@ -1,8 +1,10 @@
-import time, itertools
+import itertools
 import secrets
 import string
+import time
 
 _ctr = itertools.count()
+
 
 def _checksum(d8: str) -> str:
     total = 0
@@ -13,13 +15,15 @@ def _checksum(d8: str) -> str:
         total += c
     return str((10 - (total % 10)) % 10)
 
+
 def gen_valid_id() -> str:
     # בסיס בזמן + מונה כדי למנוע התנגשויות גם בריצות מהירות
     seed = int(time.time() * 1000) + next(_ctr)
     d8 = f"{seed % 100_000_000:08d}"
     return d8 + _checksum(d8)
 
+
 def gen_reg_no() -> str:
     """Generate unique registration number to prevent collisions between tests"""
     digits = string.digits
-    return ''.join(secrets.choice(digits) for _ in range(9))
+    return "".join(secrets.choice(digits) for _ in range(9))
