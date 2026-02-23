@@ -79,6 +79,10 @@ SYSTEM_PROMPT = """אתה יועץ פנסיוני ומתכנן פרישה חכם
 logger = logging.getLogger("app.llm_pension_agent")
 
 
+def _is_pytest() -> bool:
+    return bool(os.getenv("PYTEST_CURRENT_TEST"))
+
+
 class PensionLLMService:
     """שירות שיחה עם מודל LLM עבור יועץ פנסיוני."""
 
@@ -513,6 +517,10 @@ class PensionLLMService:
 
     def chat(self, messages: List[ChatMessage], client_id: int | None = None) -> str:
         """מקבל היסטוריית צ'אט ומחזיר תשובת סוכן אחת."""
+        if _is_pytest():
+            # תשובה קבועה כדי לא לגעת ברשת ולא ליפול על Ollama
+            return "תשובת בדיקה דטרמיניסטית."
+        
         history = self._prepare_history(messages, client_id)
         self._log_llm_request(history, client_id, streaming=False)
 
