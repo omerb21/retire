@@ -154,10 +154,18 @@ print("STATUS:", r.status_code, "| CT:", r.headers.get("content-type"), "| size:
 print("HEAD:", r.content[:4])
 
 # בדיקת תקינות ה-PDF
-assert r.status_code == 200, f"PDF export failed with status {r.status_code}: {r.text}"
-assert "application/pdf" in (r.headers.get("content-type") or ""), f"Expected PDF content type, got {r.headers.get('content-type')}"
-assert r.content[:4] == b"%PDF", f"Invalid PDF header: {r.content[:20]}"
-assert len(r.content) > 10_000, f"PDF too small ({len(r.content)} bytes), likely not a valid report"
+if r.status_code != 200:
+    raise RuntimeError(f"PDF export failed with status {r.status_code}: {r.text}")
+
+content_type = (r.headers.get("content-type") or "")
+if "application/pdf" not in content_type:
+    raise RuntimeError(f"Expected PDF content type, got {content_type}")
+
+if r.content[:4] != b"%PDF":
+    raise RuntimeError(f"Invalid PDF header: {r.content[:20]}")
+
+if len(r.content) <= 10_000:
+    raise RuntimeError(f"PDF too small ({len(r.content)} bytes), likely not a valid report")
 
 with open("report_smoke.pdf", "wb") as f:
     f.write(r.content)

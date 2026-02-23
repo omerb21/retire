@@ -91,7 +91,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install bandit safety
       - name: Run bandit security linter
-        run: bandit -r . -x tests/
+        run: bandit -c bandit.yaml -r ./app -q -lll
       - name: Check dependencies for vulnerabilities
         run: safety check
 

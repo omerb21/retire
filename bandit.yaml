@@ -1,0 +1,14 @@
+exclude_dirs:
+  - .venv
+  - venv
+  - env
+  - .tox
+  - .pytest_cache
+  - .mypy_cache
+  - .ruff_cache
+  - build
+  - dist
+  - .git
+  - node_modules
+  - __pycache__
+  - .eggs

@@ -1,5 +1,6 @@
 import time, itertools
-import random
+import secrets
+import string
 
 _ctr = itertools.count()
 
@@ -20,4 +21,5 @@ def gen_valid_id() -> str:
 
 def gen_reg_no() -> str:
     """Generate unique registration number to prevent collisions between tests"""
-    return ''.join(str(random.randint(0, 9)) for _ in range(9))
+    digits = string.digits
+    return ''.join(secrets.choice(digits) for _ in range(9))
