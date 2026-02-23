@@ -9,7 +9,6 @@ from app.schemas.llm_chat import ChatMessage
 from app.services.agent_trace_logger import log_trace_event
 from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
 
-
 SYSTEM_PROMPT = """אתה יועץ פנסיוני ומתכנן פרישה חכם. תפקידך לנתח את מצב הלקוח ולבנות עבורו אסטרטגיה אופטימלית להשגת יעדי הפרישה שלו (קצבה חודשית נטו והון פנוי).
 
 ## 🧾 כללי הצגה (קריאות) – חובה
@@ -132,7 +131,9 @@ class PensionLLMService:
             base_url="http://localhost:11434",
             temperature=0.2,
         )
-        logger.info("PensionLLMService initialized with Ollama model '%s'", ollama_model_name)
+        logger.info(
+            "PensionLLMService initialized with Ollama model '%s'", ollama_model_name
+        )
 
         # ניסיון לעבור לספק חיצוני אם התבקש במפורש
         if desired_provider == "gemini":
@@ -156,7 +157,8 @@ class PensionLLMService:
                 self._gemini_model = gemini_model
                 self._provider = "gemini"
                 logger.info(
-                    "PensionLLMService initialized with Gemini model '%s'", self._gemini_model
+                    "PensionLLMService initialized with Gemini model '%s'",
+                    self._gemini_model,
                 )
             except Exception as e:  # pragma: no cover - הגנה מפני כשלי ספרייה חיצונית
                 # במקרה של בעיה ב-Gemini נופלים חזרה ל-Ollama
@@ -204,7 +206,9 @@ class PensionLLMService:
                 self._openai_client = OpenAI()
 
                 env_model = os.getenv("PENSION_LLM_MODEL")
-                if env_model and (env_model.startswith("gpt-") or env_model.startswith("o")):
+                if env_model and (
+                    env_model.startswith("gpt-") or env_model.startswith("o")
+                ):
                     openai_model = env_model
                 else:
                     openai_model = "gpt-5-mini"
@@ -236,15 +240,15 @@ class PensionLLMService:
                 history.append(SystemMessage(content=msg.content))
         return history
 
-    def _prepare_history(self, messages: List[ChatMessage], client_id: int | None = None) -> List[BaseMessage]:
+    def _prepare_history(
+        self, messages: List[ChatMessage], client_id: int | None = None
+    ) -> List[BaseMessage]:
         """מכין את היסטוריית השיחה עבור המודל."""
         history = self._build_history(messages)
         if client_id is not None:
             history.insert(
                 1,
-                SystemMessage(
-                    content=f"מספר לקוח: {client_id}."
-                ),
+                SystemMessage(content=f"מספר לקוח: {client_id}."),
             )
         return history
 
@@ -307,7 +311,9 @@ class PensionLLMService:
             "model_name": model_name,
         }
 
-    def set_provider(self, provider: str, model_name: str | None = None) -> dict[str, str | None]:
+    def set_provider(
+        self, provider: str, model_name: str | None = None
+    ) -> dict[str, str | None]:
         """מחליף ספק/מודל LLM בזמן ריצה.
 
         במקרה של כישלון בהחלפת ספק נשמרת התצורה הקודמת ומועלה חריג.
@@ -339,7 +345,9 @@ class PensionLLMService:
                     temperature=0.2,
                 )
                 self._provider = "ollama"
-                logger.info("PensionLLMService switched to Ollama model '%s'", effective_model)
+                logger.info(
+                    "PensionLLMService switched to Ollama model '%s'", effective_model
+                )
 
             elif normalized == "gemini":
                 if os.getenv("GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
@@ -395,8 +403,14 @@ class PensionLLMService:
             self._anthropic_model = previous_anthropic_model
             self._openai_client = previous_openai_client
             self._openai_model = previous_openai_model
-            logger.error("Failed to switch LLM provider to %s, reverting to previous config: %s", provider, e)
-            raise RuntimeError(f"Failed to switch LLM provider to {provider}: {e}") from e
+            logger.error(
+                "Failed to switch LLM provider to %s, reverting to previous config: %s",
+                provider,
+                e,
+            )
+            raise RuntimeError(
+                f"Failed to switch LLM provider to {provider}: {e}"
+            ) from e
 
         return self.get_status()
 
@@ -412,7 +426,9 @@ class PensionLLMService:
                 contents=prompt,
             )
         except Exception as e:  # pragma: no cover - תקלה בספק חיצוני
-            logger.error("Gemini generate_content failed, falling back to Ollama: %s", e)
+            logger.error(
+                "Gemini generate_content failed, falling back to Ollama: %s", e
+            )
             # כיבוי Gemini לשאר חיי הפרוסס כדי למנוע ניסיונות כושלים חוזרים
             self._provider = "ollama"
             self._gemini_client = None
@@ -438,7 +454,9 @@ class PensionLLMService:
                 messages=messages,
             )
         except Exception as e:  # pragma: no cover - תקלה בספק חיצוני
-            logger.error("OpenAI chat.completions failed, falling back to Ollama: %s", e)
+            logger.error(
+                "OpenAI chat.completions failed, falling back to Ollama: %s", e
+            )
             self._provider = "ollama"
             self._openai_client = None
             self._openai_model = None
@@ -470,7 +488,9 @@ class PensionLLMService:
                 ],
             )
         except Exception as e:  # pragma: no cover - תקלה בספק חיצוני
-            logger.error("Anthropic messages.create failed, falling back to Ollama: %s", e)
+            logger.error(
+                "Anthropic messages.create failed, falling back to Ollama: %s", e
+            )
             if self._llm is not None:
                 ai_message = self._llm.invoke(history)
                 return ai_message.content
@@ -495,12 +515,18 @@ class PensionLLMService:
             text = str(response)
         return text
 
-    def _log_llm_request(self, history: List[BaseMessage], client_id: int | None, streaming: bool) -> None:
+    def _log_llm_request(
+        self, history: List[BaseMessage], client_id: int | None, streaming: bool
+    ) -> None:
         try:
             status = self.get_status()
             messages_payload = []
             for msg in history:
-                role = "system" if isinstance(msg, SystemMessage) else "user" if isinstance(msg, HumanMessage) else "assistant"
+                role = (
+                    "system"
+                    if isinstance(msg, SystemMessage)
+                    else "user" if isinstance(msg, HumanMessage) else "assistant"
+                )
                 content = str(msg.content or "")
                 messages_payload.append({"role": role, "content": content[:4000]})
             _llm_payload = {
@@ -510,7 +536,11 @@ class PensionLLMService:
                 "messages": messages_payload,
                 "streaming": streaming,
             }
-            log_trace_event(event_type="llm_request_prepared", payload=_llm_payload, client_id=client_id)
+            log_trace_event(
+                event_type="llm_request_prepared",
+                payload=_llm_payload,
+                client_id=client_id,
+            )
             _eyes_emit("llm_request_prepared", _llm_payload, client_id=client_id)
         except Exception:
             pass
@@ -520,7 +550,7 @@ class PensionLLMService:
         if _is_pytest():
             # תשובה קבועה כדי לא לגעת ברשת ולא ליפול על Ollama
             return "תשובת בדיקה דטרמיניסטית."
-        
+
         history = self._prepare_history(messages, client_id)
         self._log_llm_request(history, client_id, streaming=False)
 
@@ -539,7 +569,9 @@ class PensionLLMService:
         ai_message = self._llm.invoke(history)
         return ai_message.content
 
-    def chat_stream(self, messages: List[ChatMessage], client_id: int | None = None) -> Generator[str, None, None]:
+    def chat_stream(
+        self, messages: List[ChatMessage], client_id: int | None = None
+    ) -> Generator[str, None, None]:
         """מקבל היסטוריית צ'אט ומחזיר תשובה בזרימה (streaming)."""
         history = self._prepare_history(messages, client_id)
         self._log_llm_request(history, client_id, streaming=True)
