@@ -8,7 +8,6 @@ from typing import Any
 
 import yaml
 
-
 logger = logging.getLogger("app.capability_router.ssot")
 
 
@@ -45,10 +44,24 @@ def load_capability_map() -> dict[str, Any]:
     data = _load_yaml(get_capability_map_path())
 
     try:
+        from app.services.llm_chat.capability_router.ssot_validator import (
+            validate_capability_map,
+        )
+
+        _schemas = load_output_schemas()
+        _ = validate_capability_map(raw=data, output_schemas=_schemas)
+    except Exception:
+        raise
+
+    try:
         if os.getenv("SSOT_DEBUG") == "1":
             path_env = os.getenv("CAPABILITY_MAP_PATH")
-            capability_map_path_set = bool(isinstance(path_env, str) and path_env.strip())
-            capability_map_version = data.get("capability_map_version") if isinstance(data, dict) else None
+            capability_map_path_set = bool(
+                isinstance(path_env, str) and path_env.strip()
+            )
+            capability_map_version = (
+                data.get("capability_map_version") if isinstance(data, dict) else None
+            )
             capability_map_loaded = bool(isinstance(data, dict) and data)
             logger.info(
                 "capability_map_loaded=%s capability_map_version=%s capability_map_path_set=%s",
@@ -64,4 +77,13 @@ def load_capability_map() -> dict[str, Any]:
 
 @lru_cache(maxsize=4)
 def load_output_schemas() -> dict[str, Any]:
-    return _load_yaml(get_output_schemas_path())
+    data = _load_yaml(get_output_schemas_path())
+    try:
+        from app.services.llm_chat.capability_router.ssot_validator import (
+            validate_output_schemas,
+        )
+
+        _ = validate_output_schemas(data)
+    except Exception:
+        raise
+    return data

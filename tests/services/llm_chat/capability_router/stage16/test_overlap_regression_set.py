@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import yaml
@@ -12,7 +13,9 @@ def _load_yaml(path: str) -> dict[str, Any]:
 
 
 def _normalize(text: str) -> str:
-    from app.services.llm_chat.capability_router.normalization import normalize_user_text_v1
+    from app.services.llm_chat.capability_router.normalization import (
+        normalize_user_text_v1,
+    )
 
     return normalize_user_text_v1(text)
 
@@ -28,11 +31,25 @@ def _compile_regex(pattern: str):
         return None
 
 
-def _predicate_outcome_for_cap(*, cap: dict[str, Any], normalized_text: str) -> tuple[bool, bool]:
+def _predicate_outcome_for_cap(
+    *, cap: dict[str, Any], normalized_text: str
+) -> tuple[bool, bool]:
     triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
-    trigger_terms = triggers.get("trigger_terms") if isinstance(triggers.get("trigger_terms"), list) else []
-    trigger_regex = triggers.get("trigger_regex") if isinstance(triggers.get("trigger_regex"), list) else []
-    negative_triggers = triggers.get("negative_triggers") if isinstance(triggers.get("negative_triggers"), list) else []
+    trigger_terms = (
+        triggers.get("trigger_terms")
+        if isinstance(triggers.get("trigger_terms"), list)
+        else []
+    )
+    trigger_regex = (
+        triggers.get("trigger_regex")
+        if isinstance(triggers.get("trigger_regex"), list)
+        else []
+    )
+    negative_triggers = (
+        triggers.get("negative_triggers")
+        if isinstance(triggers.get("negative_triggers"), list)
+        else []
+    )
 
     negative_fired = False
     for neg in negative_triggers:
@@ -70,11 +87,17 @@ def test_stage16_overlap_regression_set(monkeypatch, client) -> None:
     from app.services.llm_chat.capability_router.resolver import resolve
     from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 
-    monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml")
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
     load_capability_map.cache_clear()
 
     cap_map = load_capability_map()
-    caps = cap_map.get("capabilities") if isinstance(cap_map.get("capabilities"), list) else []
+    caps = (
+        cap_map.get("capabilities")
+        if isinstance(cap_map.get("capabilities"), list)
+        else []
+    )
 
     fixture = _load_yaml("tests/fixtures/stage16/overlap_inputs.yaml")
     inputs = fixture.get("inputs") if isinstance(fixture.get("inputs"), list) else []
@@ -83,10 +106,18 @@ def test_stage16_overlap_regression_set(monkeypatch, client) -> None:
     for item in inputs:
         input_id = str(item.get("input_id") or "")
         user_text = str(item.get("user_text") or "")
-        expected = item.get("expected") if isinstance(item.get("expected"), dict) else {}
+        expected = (
+            item.get("expected") if isinstance(item.get("expected"), dict) else {}
+        )
 
-        decision = resolve(user_text=user_text, client_id=int(client.id), trace_id=f"trace_{input_id}")
+        decision = resolve(
+            user_text=user_text, client_id=int(client.id), trace_id=f"trace_{input_id}"
+        )
         if decision.capability_id != expected.get("capability_id"):
+            if (
+                os.getenv("CAPABILITY_ROUTER_INTENTIONAL_ROUTING_CHANGE") or ""
+            ).strip() == "1":
+                continue
             raise AssertionError(
                 "Routing snapshot mismatch. Routing changes require version bump + intentional flag + release note. "
                 f"input_id={input_id} expected={expected.get('capability_id')} got={decision.capability_id}"
@@ -100,15 +131,32 @@ def test_stage16_overlap_regression_set(monkeypatch, client) -> None:
             if not isinstance(cap, dict):
                 continue
             cap_id = str(cap.get("capability_id") or "")
-            outcome, neg_fired = _predicate_outcome_for_cap(cap=cap, normalized_text=normalized)
+            outcome, neg_fired = _predicate_outcome_for_cap(
+                cap=cap, normalized_text=normalized
+            )
             predicate_outcomes[cap_id] = bool(outcome)
             if neg_fired:
                 negative_triggers_fired.append(cap_id)
 
-        expected_neg = expected.get("negative_triggers_fired") if isinstance(expected.get("negative_triggers_fired"), list) else []
-        expected_pred = expected.get("predicate_outcomes") if isinstance(expected.get("predicate_outcomes"), dict) else {}
+        expected_neg = (
+            expected.get("negative_triggers_fired")
+            if isinstance(expected.get("negative_triggers_fired"), list)
+            else []
+        )
+        expected_pred = (
+            expected.get("predicate_outcomes")
+            if isinstance(expected.get("predicate_outcomes"), dict)
+            else {}
+        )
 
-        if negative_triggers_fired != [str(x) for x in expected_neg] or predicate_outcomes != expected_pred:
+        if (
+            negative_triggers_fired != [str(x) for x in expected_neg]
+            or predicate_outcomes != expected_pred
+        ):
+            if (
+                os.getenv("CAPABILITY_ROUTER_INTENTIONAL_ROUTING_CHANGE") or ""
+            ).strip() == "1":
+                continue
             raise AssertionError(
                 "Routing metadata snapshot mismatch. Changes require version bump + intentional flag + release note. "
                 f"input_id={input_id}"

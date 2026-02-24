@@ -16,6 +16,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Forbidden changes guard (scope lock)
+        id: forbidden_changes
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            app/services/llm_chat/orchestration_core/**
+            app/services/llm_chat/chat_orchestration_parts/**
+            app/services/llm_chat/chat_stream_orchestration_parts/**
+            app/services/agent_execution/**
+            app/services/agent_trace_logger.py
+            app/services/agent_trace_logger/**
+            app/services/agent_eyes/**
+            app/middleware/**trace**
+            app/middleware/**stream**
+
+      - name: Fail on forbidden changes
+        if: steps.forbidden_changes.outputs.any_changed == 'true'
+        run: |
+          echo "Forbidden scope files changed: ${{ steps.forbidden_changes.outputs.all_changed_files }}"
+          exit 1
       - name: Install linting dependencies
         run: |
           python -m pip install --upgrade pip

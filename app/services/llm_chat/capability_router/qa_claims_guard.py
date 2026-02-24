@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from app.services.llm_chat.capability_router.schema_enforcer import (
+    enforce_output_schema,
+)
 
 NO_NUMERIC_CLAIMS_WITHOUT_TOOLS_MARKER = "NO_NUMERIC_CLAIMS_WITHOUT_TOOLS"
 
@@ -59,13 +62,19 @@ def _has_required_numeric_marker(answer_blocks: Iterable[dict[str, Any]]) -> boo
             b_type = None
             b_text = None
 
-        if b_type == "caveats" and isinstance(b_text, str) and NO_NUMERIC_CLAIMS_WITHOUT_TOOLS_MARKER in b_text:
+        if (
+            b_type == "caveats"
+            and isinstance(b_text, str)
+            and NO_NUMERIC_CLAIMS_WITHOUT_TOOLS_MARKER in b_text
+        ):
             return True
 
     return False
 
 
-def evaluate_qa_claims_guard(*, answer_blocks: list[dict[str, Any]]) -> QaClaimsGuardResult:
+def evaluate_qa_claims_guard(
+    *, answer_blocks: list[dict[str, Any]]
+) -> QaClaimsGuardResult:
     answer_text = _extract_answer_text(answer_blocks)
 
     policy_reasons: list[str] = []
@@ -77,7 +86,9 @@ def evaluate_qa_claims_guard(*, answer_blocks: list[dict[str, Any]]) -> QaClaims
     if _detect_forbidden_claims(answer_text):
         policy_reasons.append("forbidden_claims")
 
-    return QaClaimsGuardResult(blocked=bool(policy_reasons), policy_reasons=policy_reasons)
+    return QaClaimsGuardResult(
+        blocked=bool(policy_reasons), policy_reasons=policy_reasons
+    )
 
 
 def guard_qa_answer_payload(
@@ -87,6 +98,18 @@ def guard_qa_answer_payload(
     client_id: int | None,
     detected_capability_id: str,
 ) -> dict[str, Any]:
+    qa_answer_payload = enforce_output_schema(
+        output_schema_id="qa_answer_v1",
+        payload=qa_answer_payload,
+        detected_capability_id=detected_capability_id,
+        placeholder_allowlist=set(),
+    )
+    if (
+        isinstance(qa_answer_payload, dict)
+        and qa_answer_payload.get("status") == "schema_error"
+    ):
+        return qa_answer_payload
+
     answer_blocks = []
     try:
         raw = qa_answer_payload.get("answer_blocks")
