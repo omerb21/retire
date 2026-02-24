@@ -4,8 +4,7 @@ import pytest
 
 
 def test_capability_map_invalid_unknown_field_fails_fast(tmp_path, monkeypatch) -> None:
-    from app.services.llm_chat.capability_router.ssot_loader import \
-        load_capability_map
+    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 
     bad = textwrap.dedent("""
         capability_map_version: "x"
@@ -36,8 +35,7 @@ def test_capability_map_invalid_unknown_field_fails_fast(tmp_path, monkeypatch) 
 
 
 def test_capability_map_invalid_unknown_tool_fails_fast(tmp_path, monkeypatch) -> None:
-    from app.services.llm_chat.capability_router.ssot_loader import \
-        load_capability_map
+    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 
     bad = textwrap.dedent("""
         capability_map_version: "x"

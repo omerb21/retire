@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-from app.services.llm_chat.capability_router.schema_enforcer import \
-    enforce_output_schema
+from app.services.llm_chat.capability_router.schema_enforcer import (
+    enforce_output_schema,
+)
 
 NO_NUMERIC_CLAIMS_WITHOUT_TOOLS_MARKER = "NO_NUMERIC_CLAIMS_WITHOUT_TOOLS"
 
