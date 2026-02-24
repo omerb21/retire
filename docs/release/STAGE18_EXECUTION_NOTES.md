@@ -2,6 +2,9 @@
 
 ## Stage 18.1 Release Gates
 
+Release gates commands and determinism artifact spec are defined in docs/release/RELEASE_GATES.md
+Artifact path: artifacts/determinism-report/determinism-report.json
+
 ### Determinism Report Guard (קשיח)
 
 - אין ליצור generator חדש לדוח determinism.
