@@ -203,6 +203,37 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 from app.middleware.access_log import AccessLogMiddleware
 app.add_middleware(AccessLogMiddleware)
 
+
+class JsonCharsetMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send_with_charset(message):
+            if message.get("type") == "http.response.start":
+                hdrs = list(message.get("headers") or [])
+                for i, (name, value) in enumerate(hdrs):
+                    try:
+                        if name.lower() != b"content-type":
+                            continue
+                        raw = value.decode("latin-1")
+                        raw_lower = raw.lower()
+                        if raw_lower.startswith("application/json") and "charset=" not in raw_lower:
+                            hdrs[i] = (b"content-type", b"application/json; charset=utf-8")
+                            message["headers"] = hdrs
+                    except Exception:
+                        continue
+            await send(message)
+
+        await self.app(scope, receive, _send_with_charset)
+
+
+app.add_middleware(JsonCharsetMiddleware)
+
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
 app.include_router(employment.router)  # employment router already has /api/v1/clients prefix
