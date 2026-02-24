@@ -8,10 +8,12 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(
     import app.services.agent_execution.tool_executor as tool_exec_mod
     import app.services.agent_trace_logger as trace_logger_mod
     from app.schemas.llm_chat import ChatMessage, ChatRequest
-    from app.services.llm_chat.capability_router.qa_claims_guard import \
-        guard_qa_answer_payload
-    from app.services.llm_chat.capability_router.router_facade import \
-        ensure_router_decision
+    from app.services.llm_chat.capability_router.qa_claims_guard import (
+        guard_qa_answer_payload,
+    )
+    from app.services.llm_chat.capability_router.router_facade import (
+        ensure_router_decision,
+    )
     from app.utils.trace_context import set_current_trace_id
 
     monkeypatch.setenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED", "1")

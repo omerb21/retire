@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from app.services.llm_chat.capability_router.resolver import resolve
 from app.services.llm_chat.capability_router.runtime_context import (
-    RouterDecision, get_router_decision, mark_router_selected_emitted,
-    set_router_decision, was_router_selected_emitted)
-from app.services.llm_chat.capability_router.trace_specs import \
-    build_router_selected_trace_spec
+    RouterDecision,
+    get_router_decision,
+    mark_router_selected_emitted,
+    set_router_decision,
+    was_router_selected_emitted,
+)
+from app.services.llm_chat.capability_router.trace_specs import (
+    build_router_selected_trace_spec,
+)
 
 
 def ensure_router_decision(

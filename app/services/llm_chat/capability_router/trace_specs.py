@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from app.services.llm_chat.capability_router.runtime_context import \
-    RouterDecision
+from app.services.llm_chat.capability_router.runtime_context import RouterDecision
 from app.services.llm_chat.orchestration_core.core_types import TraceEventSpec
 
 
