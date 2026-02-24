@@ -2,9 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 
 def test_trace_retention_cleanup_dry_run_and_delete(db_session, monkeypatch) -> None:
+    from app.database import SessionLocal
     from app.models.agent_trace_event import AgentTraceEvent
     from app.services.agent_eyes import event_collector as ec
-    from app.database import SessionLocal
 
     ec._session_factory_override = SessionLocal
 

@@ -13,9 +13,8 @@ def _load_yaml(path: str) -> dict[str, Any]:
 
 
 def _normalize(text: str) -> str:
-    from app.services.llm_chat.capability_router.normalization import (
-        normalize_user_text_v1,
-    )
+    from app.services.llm_chat.capability_router.normalization import \
+        normalize_user_text_v1
 
     return normalize_user_text_v1(text)
 
@@ -85,7 +84,8 @@ def _predicate_outcome_for_cap(
 
 def test_stage16_overlap_regression_set(monkeypatch, client) -> None:
     from app.services.llm_chat.capability_router.resolver import resolve
-    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+    from app.services.llm_chat.capability_router.ssot_loader import \
+        load_capability_map
 
     monkeypatch.setenv(
         "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"

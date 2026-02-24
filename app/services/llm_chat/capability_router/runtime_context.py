@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from contextvars import ContextVar
 import threading
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 

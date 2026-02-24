@@ -13,7 +13,8 @@ def _load_yaml(path: str) -> dict[str, Any]:
 
 def test_stage16_golden_qa_suite(monkeypatch) -> None:
     import app.services.agent_trace_logger as trace_logger_mod
-    from app.services.llm_chat.capability_router.qa_claims_guard import guard_qa_answer_payload
+    from app.services.llm_chat.capability_router.qa_claims_guard import \
+        guard_qa_answer_payload
 
     fixture = _load_yaml("tests/fixtures/stage16/golden_qa_questions.yaml")
     questions = fixture.get("questions") if isinstance(fixture.get("questions"), list) else []

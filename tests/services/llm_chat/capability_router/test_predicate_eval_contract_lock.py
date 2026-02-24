@@ -4,7 +4,8 @@ import re
 def test_predicate_eval_payload_contract_is_exact(monkeypatch) -> None:
     import app.services.agent_trace_logger as trace_logger_mod
     from app.services.llm_chat.capability_router.resolver import resolve
-    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+    from app.services.llm_chat.capability_router.ssot_loader import \
+        load_capability_map
 
     # Use a deterministic fixture map that will emit predicate_eval events.
     monkeypatch.setenv(

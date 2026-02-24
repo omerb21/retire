@@ -80,11 +80,15 @@ def _find_router_selected_payload(events: list[dict[str, Any]], trace_id: str) -
 
 def test_stage16_golden_action_e2e(db_session, client, monkeypatch) -> None:
     from app.schemas.llm_chat import ChatMessage, ChatRequest
-    from app.services.agent_execution.execute_agent_request import execute_agent_request
-    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
-    from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
-    from app.services.llm_chat.orchestration_core.core_types import OrchestrationDeps, OrchestrationInput
+    from app.services.agent_execution.execute_agent_request import \
+        execute_agent_request
     from app.services.agent_execution.tool_executor import execute_with_guard
+    from app.services.llm_chat.capability_router.ssot_loader import \
+        load_capability_map
+    from app.services.llm_chat.orchestration_core.core_types import (
+        OrchestrationDeps, OrchestrationInput)
+    from app.services.llm_chat.orchestration_core.orchestrate import \
+        orchestrate
     from app.utils.trace_context import set_current_trace_id
 
     monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml")

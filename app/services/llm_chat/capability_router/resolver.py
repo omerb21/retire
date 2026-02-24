@@ -6,11 +6,11 @@ import re
 from typing import Any
 
 from app.services.llm_chat.capability_router.normalization import (
-    normalize_user_text_v1,
-    sha256_hex,
-)
-from app.services.llm_chat.capability_router.runtime_context import RouterDecision
-from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+    normalize_user_text_v1, sha256_hex)
+from app.services.llm_chat.capability_router.runtime_context import \
+    RouterDecision
+from app.services.llm_chat.capability_router.ssot_loader import \
+    load_capability_map
 
 
 def _compile_regex(pattern: str) -> re.Pattern[str] | None:

@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.services.llm_chat.capability_router.ssot_loader import load_output_schemas
+from app.services.llm_chat.capability_router.ssot_loader import \
+    load_output_schemas
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_\-\.]+)\s*\}\}")
 

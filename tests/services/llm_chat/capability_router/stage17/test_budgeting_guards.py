@@ -2,7 +2,8 @@ import yaml
 
 
 def test_stage17_output_schema_allows_budget_config_invalid_status() -> None:
-    from app.services.llm_chat.capability_router.ssot_loader import get_output_schemas_path
+    from app.services.llm_chat.capability_router.ssot_loader import \
+        get_output_schemas_path
 
     path = get_output_schemas_path()
     raw = path.read_text(encoding="utf-8")
@@ -18,7 +19,8 @@ def test_stage17_output_schema_allows_budget_config_invalid_status() -> None:
 
 
 def test_stage17_budget_guard_unenforceable_partial_result_shape_is_valid_against_enum_subset() -> None:
-    from app.services.llm_chat.capability_router.ssot_loader import load_output_schemas
+    from app.services.llm_chat.capability_router.ssot_loader import \
+        load_output_schemas
 
     schemas = load_output_schemas().get("schemas")
     partial = schemas.get("partial_result_v1") if isinstance(schemas, dict) else {}

@@ -44,9 +44,8 @@ def load_capability_map() -> dict[str, Any]:
     data = _load_yaml(get_capability_map_path())
 
     try:
-        from app.services.llm_chat.capability_router.ssot_validator import (
-            validate_capability_map,
-        )
+        from app.services.llm_chat.capability_router.ssot_validator import \
+            validate_capability_map
 
         _schemas = load_output_schemas()
         _ = validate_capability_map(raw=data, output_schemas=_schemas)
@@ -79,9 +78,8 @@ def load_capability_map() -> dict[str, Any]:
 def load_output_schemas() -> dict[str, Any]:
     data = _load_yaml(get_output_schemas_path())
     try:
-        from app.services.llm_chat.capability_router.ssot_validator import (
-            validate_output_schemas,
-        )
+        from app.services.llm_chat.capability_router.ssot_validator import \
+            validate_output_schemas
 
         _ = validate_output_schemas(data)
     except Exception:

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import re
 
-
 _ws_re = re.compile(r"\s+")
 
 

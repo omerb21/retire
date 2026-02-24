@@ -52,8 +52,8 @@ def test_pii_redaction_removes_pii_before_persist(monkeypatch) -> None:
 
 
 def test_pii_redaction_failure_never_persists_original_payload(monkeypatch) -> None:
-    from app.services.agent_eyes import event_collector as ec
     import app.services.agent_trace_logger as trace_logger_mod
+    from app.services.agent_eyes import event_collector as ec
 
     monkeypatch.setenv("TRACE_PII_REDACTION_ENABLED", "1")
 

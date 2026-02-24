@@ -7,8 +7,10 @@ import pytest
 
 def test_stage15_router_selected_emitted_once_and_no_raw_text(monkeypatch) -> None:
     import app.services.llm_chat.orchestration_core.orchestrate as orch_mod
-    from app.services.llm_chat.orchestration_core.core_types import OrchestrationDeps, OrchestrationInput
-    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+    from app.services.llm_chat.capability_router.ssot_loader import \
+        load_capability_map
+    from app.services.llm_chat.orchestration_core.core_types import (
+        OrchestrationDeps, OrchestrationInput)
 
     monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/capability_map_minimal.yaml")
     load_capability_map.cache_clear()
@@ -68,7 +70,8 @@ def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_s
     import app.services.agent_execution.tool_executor as tool_exec_mod
     import app.services.llm_chat.tool_execution as tool_execution_mod
     from app.schemas.llm_chat import ChatMessage, ChatRequest
-    from app.services.llm_chat.capability_router.runtime_context import RouterDecision, set_router_decision
+    from app.services.llm_chat.capability_router.runtime_context import (
+        RouterDecision, set_router_decision)
     from app.utils.trace_context import set_current_trace_id
 
     gate_enabled = (os.getenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED") or "").strip() == "1"
@@ -152,7 +155,8 @@ def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_s
 
 def test_stage15_qa_claims_guard_blocks_and_passes(monkeypatch) -> None:
     import app.services.agent_trace_logger as trace_logger_mod
-    from app.services.llm_chat.capability_router.qa_claims_guard import guard_qa_answer_payload
+    from app.services.llm_chat.capability_router.qa_claims_guard import \
+        guard_qa_answer_payload
 
     events: list[dict[str, Any]] = []
 
