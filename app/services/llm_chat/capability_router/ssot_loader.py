@@ -94,9 +94,15 @@ def load_capability_map() -> dict[str, Any]:
     path = get_capability_map_path()
     data = _load_yaml(path)
 
-    if not capability_map_path_set and mode == "core_and_map" and path == _canary_capability_map_path():
+    if (
+        not capability_map_path_set
+        and mode == "core_and_map"
+        and path == _canary_capability_map_path()
+    ):
         core_version_str = _get_core_version_source()
-        core_version = _parse_version(core_version_str or "") if core_version_str else None
+        core_version = (
+            _parse_version(core_version_str or "") if core_version_str else None
+        )
 
         if core_version is None:
             logger.warning(
