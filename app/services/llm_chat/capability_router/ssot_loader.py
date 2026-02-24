@@ -23,7 +23,7 @@ def _get_core_version_source() -> Optional[str]:
     try:
         raw_version = os.environ.get("APP_VERSION") or os.environ.get(
             "SERVICE_VERSION"
-        )
+        )  # noqa: E501
         if isinstance(raw_version, str) and raw_version.strip():
             return raw_version.strip()
     except Exception:
@@ -94,7 +94,7 @@ def load_capability_map() -> dict[str, Any]:
     env_path = os.getenv("CAPABILITY_MAP_PATH")
     capability_map_path_set = bool(
         isinstance(env_path, str) and env_path.strip()
-    )
+    )  # noqa: E501
 
     mode = os.getenv("CAPABILITY_ROUTER_CANARY_MODE")
     mode = mode.strip() if isinstance(mode, str) else ""
@@ -111,7 +111,7 @@ def load_capability_map() -> dict[str, Any]:
         core_version = (
             _parse_version(core_version_str or "")
             if core_version_str
-            else None
+            else None  # noqa: E501
         )
 
         if core_version is None:
@@ -123,10 +123,8 @@ def load_capability_map() -> dict[str, Any]:
             data = _load_yaml(_default_capability_map_path())
         else:
             raw_caps = (
-                data.get("capabilities")
-                if isinstance(data, dict)
-                else None
-            )
+                data.get("capabilities") if isinstance(data, dict) else None
+            )  # noqa: E501
             caps = raw_caps if isinstance(raw_caps, list) else []
 
             filtered: list[dict[str, Any]] = []
@@ -159,7 +157,7 @@ def load_capability_map() -> dict[str, Any]:
             capability_map_version = (
                 data.get("capability_map_version")
                 if isinstance(data, dict)
-                else None
+                else None  # noqa: E501
             )
             capability_map_loaded = bool(isinstance(data, dict) and data)
             logger.info(
