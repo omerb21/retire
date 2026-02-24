@@ -10,7 +10,9 @@ def test_stream_conceptual_form_question_no_ui_action(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "טופס 161ד הוא טופס רשות המסים שקשור להסדרה של קיבוע זכויות בהקשר פרישה."
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -42,7 +44,9 @@ def test_stream_report_still_returns_ui_action(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for report summary navigation")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("No tool must be executed for report summary navigation")

@@ -10,12 +10,12 @@
 
 אין שימוש בחישובי היוון הוני, מדדים, 32 שנים או מכנה 180.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Dict, Optional, Union
-
 
 DateLike = Union[str, date]
 
@@ -62,7 +62,9 @@ def _parse_date(value: DateLike, field_name: str) -> date:
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except Exception:
-        raise ValueError(f"שגיאה בנתון תאריך עבור {field_name} – פורמט לא תקין (נדרש YYYY-MM-DD)")
+        raise ValueError(
+            f"שגיאה בנתון תאריך עבור {field_name} – פורמט לא תקין (נדרש YYYY-MM-DD)"
+        )
 
 
 def _months_between(start: date, end: date) -> int:
@@ -121,7 +123,8 @@ def compute_idf_fixation_impact(
     ):
         zero_result.error = (
             "חסרים נתוני הפחתה (סכום / אחוז היוון מקורי / אחוז היוון נוכחי) "
-            "לחישוב לפי פורשי צה""ל"
+            "לחישוב לפי פורשי צה"
+            "ל"
         )
         return zero_result
 
@@ -137,12 +140,13 @@ def compute_idf_fixation_impact(
 
     if reduction_amount_f <= 0 or original_percent_f <= 0 or current_percent_f <= 0:
         zero_result.error = (
-            "חסרים נתוני הפחתה (סכום / אחוז היוון מקורי / אחוז היוון נוכחי) לחישוב לפי פורשי צה""ל"
+            "חסרים נתוני הפחתה (סכום / אחוז היוון מקורי / אחוז היוון נוכחי) לחישוב לפי פורשי צה"
+            "ל"
         )
         return zero_result
 
     if monthly_cap is None:
-        zero_result.error = "חסרה תקרת קצבה מזכה חודשית לחישוב לפי פורשי צה""ל"
+        zero_result.error = "חסרה תקרת קצבה מזכה חודשית לחישוב לפי פורשי צה" "ל"
         return zero_result
 
     try:

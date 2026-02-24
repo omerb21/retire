@@ -4,12 +4,18 @@ Playbook Loader – טעינת דוגמאות Playbook לשימוש כ-Few-Shot 
 מודול זה טוען דוגמאות שיחה מתוך agent_conversation_examples.md
 ומספק אותן בפורמט מוכן להזרקה ל-System Prompt או כ-Few-Shot.
 """
+
 import os
 from pathlib import Path
 from typing import Optional
 
 # נתיב לקובץ הדוגמאות
-EXAMPLES_FILE = Path(__file__).parent.parent.parent / "MD" / "docs" / "agent_conversation_examples.md"
+EXAMPLES_FILE = (
+    Path(__file__).parent.parent.parent
+    / "MD"
+    / "docs"
+    / "agent_conversation_examples.md"
+)
 
 
 def _load_examples_file() -> str:
@@ -27,19 +33,19 @@ def _extract_example_by_number(content: str, example_num: int) -> str:
     """מחלץ דוגמה ספציפית לפי מספר (1-6)."""
     if not content:
         return ""
-    
+
     # מחפש את הכותרת של הדוגמה
     start_marker = f"## דוגמה {example_num} –"
     end_marker = "## דוגמה"
-    
+
     start_idx = content.find(start_marker)
     if start_idx == -1:
         return ""
-    
+
     # מחפש את סוף הדוגמה (תחילת הדוגמה הבאה או סוף הקובץ)
-    remaining = content[start_idx + len(start_marker):]
+    remaining = content[start_idx + len(start_marker) :]
     end_idx = remaining.find(end_marker)
-    
+
     if end_idx == -1:
         # אם אין דוגמה הבאה, לוקח עד סוף הקובץ (או עד "איך להשתמש")
         usage_marker = "## איך להשתמש"
@@ -48,8 +54,8 @@ def _extract_example_by_number(content: str, example_num: int) -> str:
             end_idx = usage_idx
         else:
             end_idx = len(remaining)
-    
-    example_text = content[start_idx:start_idx + len(start_marker) + end_idx].strip()
+
+    example_text = content[start_idx : start_idx + len(start_marker) + end_idx].strip()
     return example_text
 
 
@@ -150,35 +156,52 @@ def get_products_table_example() -> str:
 def get_relevant_example(user_message: str) -> Optional[str]:
     """
     מזהה את סוג השאלה ומחזיר דוגמה רלוונטית.
-    
+
     Args:
         user_message: הודעת המשתמש האחרונה
-        
+
     Returns:
         דוגמה רלוונטית או None אם אין התאמה ברורה
     """
     if not user_message:
         return None
-    
+
     msg_lower = user_message.lower()
-    
+
     # זיהוי שאלות השוואה
     comparison_keywords = ["להשוות", "השוואה", "מול", "לעומת", "או", "עדיף"]
     if any(kw in msg_lower for kw in comparison_keywords):
         # בודק אם יש שני תאריכים/שנים/גילאים
         import re
-        years = re.findall(r'\b(20\d{2})\b', user_message)
-        ages = re.findall(r'\b(6[0-9]|7[0-5])\b', user_message)
+
+        years = re.findall(r"\b(20\d{2})\b", user_message)
+        ages = re.findall(r"\b(6[0-9]|7[0-5])\b", user_message)
         if len(years) >= 2 or len(ages) >= 2:
             return get_comparison_example()
-    
+
     # זיהוי שאלות היוון קצבה
-    commutation_keywords = ["היוון", "לוותר על", "אוותר על", "סכום חד-פעמי", "חד פעמי", "במקום קצבה", "להמיר קצבה"]
+    commutation_keywords = [
+        "היוון",
+        "לוותר על",
+        "אוותר על",
+        "סכום חד-פעמי",
+        "חד פעמי",
+        "במקום קצבה",
+        "להמיר קצבה",
+    ]
     if any(kw in msg_lower for kw in commutation_keywords):
         return get_commutation_example()
-    
+
     # זיהוי שאלות משיכת כספי הון
-    withdrawal_keywords = ["משיכה מקופת", "משיכה מקרן", "למשוך כסף", "למשוך מהקופה", "למשוך מהחיסכון", "משיכת כספים", "אמשוך"]
+    withdrawal_keywords = [
+        "משיכה מקופת",
+        "משיכה מקרן",
+        "למשוך כסף",
+        "למשוך מהקופה",
+        "למשוך מהחיסכון",
+        "משיכת כספים",
+        "אמשוך",
+    ]
     if any(kw in msg_lower for kw in withdrawal_keywords):
         return get_capital_withdrawal_example()
 
@@ -199,45 +222,77 @@ def get_relevant_example(user_message: str) -> Optional[str]:
         "הון" in msg_lower and "קצבה" in msg_lower
     ):
         return get_products_table_example()
-    
+
     # זיהוי בקשות לדו"ח סיכום
-    report_keywords = ["סכם את", "תן לי סיכום", "הפק דו\"ח", "דו\"ח מסכם", "מסקנה סופית", "סיכום של", "לראות את כל המידע"]
+    report_keywords = [
+        "סכם את",
+        "תן לי סיכום",
+        'הפק דו"ח',
+        'דו"ח מסכם',
+        "מסקנה סופית",
+        "סיכום של",
+        "לראות את כל המידע",
+    ]
     if any(kw in msg_lower for kw in report_keywords):
         return get_summary_report_example()
-    
+
     # זיהוי בקשות מחוץ לתחום (השקעות, נדל"ן, קריפטו וכו')
     out_of_scope_keywords = [
-        "להשקיע", "השקעה", "מניות", "בורסה", "קריפטו", "ביטקוין", "נדל\"ן", 
-        "לקנות דירה", "משכנתא", "תיק השקעות", "קרן נאמנות", "מט\"ח",
-        "ביטוח רכב", "ביטוח בריאות", "ביטוח דירה", "תספר בדיחה"
+        "להשקיע",
+        "השקעה",
+        "מניות",
+        "בורסה",
+        "קריפטו",
+        "ביטקוין",
+        'נדל"ן',
+        "לקנות דירה",
+        "משכנתא",
+        "תיק השקעות",
+        "קרן נאמנות",
+        'מט"ח',
+        "ביטוח רכב",
+        "ביטוח בריאות",
+        "ביטוח דירה",
+        "תספר בדיחה",
     ]
     if any(kw in msg_lower for kw in out_of_scope_keywords):
         return get_out_of_scope_example()
-    
+
     # זיהוי שאלות עזיבת עבודה / פיצויים (What-If Analysis)
     job_termination_keywords = [
-        "עזבתי עבודה", "פוטרתי", "התפטרתי", "פיצויים", "פיצויי פיטורין",
-        "מה לעשות עם הכסף", "למשוך או להשאיר", "רצף קצבה", "רצף הון",
-        "עזיבת עבודה", "סיום עבודה"
+        "עזבתי עבודה",
+        "פוטרתי",
+        "התפטרתי",
+        "פיצויים",
+        "פיצויי פיטורין",
+        "מה לעשות עם הכסף",
+        "למשוך או להשאיר",
+        "רצף קצבה",
+        "רצף הון",
+        "עזיבת עבודה",
+        "סיום עבודה",
     ]
     if any(kw in msg_lower for kw in job_termination_keywords):
         return get_job_termination_whatif_example()
-    
+
     # זיהוי שאלות הסבר
     explanation_keywords = ["מה זה", "תסביר", "איך עובד", "איך מחשבים", "הסבר"]
     if any(kw in msg_lower for kw in explanation_keywords):
         return get_explanation_example()
-    
+
     # זיהוי שאלות נטו/חישוב (ברירת מחדל לשאלות מספריות)
     net_keywords = ["נטו", "אחרי מס", "כמה אקבל", "כמה נשאר", "פטור מקסימלי", "קיבוע"]
     if any(kw in msg_lower for kw in net_keywords):
         return get_net_pension_example()
-    
+
     # אם יש אזכור של שנה או גיל פרישה, כנראה שאלת חישוב
     import re
-    if re.search(r'\b(20\d{2})\b', user_message) or re.search(r'גיל\s*(6[0-9]|7[0-5])', user_message):
+
+    if re.search(r"\b(20\d{2})\b", user_message) or re.search(
+        r"גיל\s*(6[0-9]|7[0-5])", user_message
+    ):
         return get_net_pension_example()
-    
+
     return None
 
 
@@ -247,13 +302,8 @@ def format_example_as_few_shot(example: str) -> str:
     """
     if not example:
         return ""
-    
-    return (
-        "\n\n---\n"
-        "📚 **דוגמה להתנהגות נכונה:**\n\n"
-        f"{example}\n"
-        "---\n"
-    )
+
+    return "\n\n---\n" "📚 **דוגמה להתנהגות נכונה:**\n\n" f"{example}\n" "---\n"
 
 
 def get_condensed_workflow_example() -> str:

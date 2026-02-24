@@ -9,7 +9,10 @@ def get_gross_for_tax_chaining(
     if not is_net:
         return None
 
-    if tool_name not in {"BUILD_TARGET_PENSION_PLAN", "RUN_RETIREMENT_CASHFLOW_ANALYSIS"}:
+    if tool_name not in {
+        "BUILD_TARGET_PENSION_PLAN",
+        "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+    }:
         return None
 
     return extract_gross_income_for_tax(tool_name, tool_result)
@@ -26,4 +29,6 @@ def run_tax_projection_autochain(
     if gross_for_tax <= 0:
         return None
 
-    return execute_tool_call_fn("GET_TAX_PROJECTION", {"gross_monthly_pension": gross_for_tax})
+    return execute_tool_call_fn(
+        "GET_TAX_PROJECTION", {"gross_monthly_pension": gross_for_tax}
+    )

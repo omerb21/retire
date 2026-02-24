@@ -80,8 +80,7 @@ def _maybe_apply_non_tool_response_guardrails(
     has_tool_results = any(
         (m.role == "system")
         and (
-            ("Tool Result (" in (m.content or ""))
-            or ("פלט כלי (" in (m.content or ""))
+            ("Tool Result (" in (m.content or "")) or ("פלט כלי (" in (m.content or ""))
         )
         for m in history_messages
     )
@@ -110,7 +109,11 @@ def _maybe_apply_non_tool_response_guardrails(
         return False, has_pass_fail
 
     if is_doc_request and not has_tool_results:
-        doc_tool = "GENERATE_TAX_DEDUCTION_DOCUMENTS" if is_tax_doc_request else "GENERATE_FULL_REPORT"
+        doc_tool = (
+            "GENERATE_TAX_DEDUCTION_DOCUMENTS"
+            if is_tax_doc_request
+            else "GENERATE_FULL_REPORT"
+        )
         warning_msg = (
             "אזהרה: המשתמש ביקש דוח/מסמך להורדה. אסור לך להשיב טקסט חופשי או לטעון שהופק מסמך ללא הפעלת כלי GENERATE_* "
             "והחזרת download_url או open_path. התשובה האחרונה שלך בוטלה. "

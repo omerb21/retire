@@ -7,7 +7,9 @@ from app.main import app
 from app.models.client import Client
 
 
-def test_stage6_parity_explicit_snapshot_stream_vs_non_stream(monkeypatch, _test_db) -> None:
+def test_stage6_parity_explicit_snapshot_stream_vs_non_stream(
+    monkeypatch, _test_db
+) -> None:
     """Deterministic parity guard for Stage 6 refactor.
 
     For explicit GET_CLIENT_SNAPSHOT + 'רק JSON' requests, both stream and
@@ -23,21 +25,29 @@ def test_stage6_parity_explicit_snapshot_stream_vs_non_stream(monkeypatch, _test
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut")
+        raise AssertionError(
+            "LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     from app.services.llm_pension_agent_service import pension_llm_service
 
     def fake_chat(messages, client_id=None):
-        raise AssertionError("LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut")
+        raise AssertionError(
+            "LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut"
+        )
 
     monkeypatch.setattr(pension_llm_service, "chat", fake_chat)
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == 1).first()
         if client is None:
-            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=1, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.commit()
 

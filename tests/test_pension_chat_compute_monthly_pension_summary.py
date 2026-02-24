@@ -4,10 +4,14 @@ from app.models.pension_fund import PensionFund
 from app.services.pension_chat_compute import compute_monthly_pension_summary
 
 
-def test_compute_monthly_pension_summary_splits_current_future_and_tax_treatment(db_session, client) -> None:
+def test_compute_monthly_pension_summary_splits_current_future_and_tax_treatment(
+    db_session, client
+) -> None:
     today = date(2026, 2, 5)
 
-    db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(synchronize_session=False)
+    db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(
+        synchronize_session=False
+    )
     db_session.commit()
 
     funds = [

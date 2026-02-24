@@ -91,7 +91,9 @@ def build_pension_portfolio_update_after_transform(
             converted_items.append(
                 {
                     "account_number": account_number,
-                    "account_name": acc.get("account_name") or acc.get("שם_תכנית") or "",
+                    "account_name": acc.get("account_name")
+                    or acc.get("שם_תכנית")
+                    or "",
                     "amount": amount,
                     "components": components if components else None,
                 }
@@ -141,7 +143,9 @@ def build_pension_portfolio_update_after_transform(
         # Prefer component-sum when available so the UI/localStorage snapshot subtraction is consistent.
         if isinstance(specific_amounts, dict) and specific_amounts:
             try:
-                converted_amount = float(sum(float(v or 0) for v in specific_amounts.values()))
+                converted_amount = float(
+                    sum(float(v or 0) for v in specific_amounts.values())
+                )
             except Exception:
                 converted_amount = 0.0
         else:
@@ -165,7 +169,9 @@ def build_pension_portfolio_update_after_transform(
                 or portfolio_item.get("שם_תכנית")
                 or portfolio_item.get("account_name")
                 or "",
-                "company": portfolio_item.get("חברה_מנהלת") or portfolio_item.get("company") or "",
+                "company": portfolio_item.get("חברה_מנהלת")
+                or portfolio_item.get("company")
+                or "",
                 "converted_amount": converted_amount,
                 "specific_amounts": specific_amounts,
             }
@@ -183,7 +189,9 @@ def build_pension_portfolio_update_after_transform(
         ensure_ascii=False,
     )
 
-    return f"###PENSION_PORTFOLIO_UPDATE###{payload}###END_PENSION_PORTFOLIO_UPDATE###\n"
+    return (
+        f"###PENSION_PORTFOLIO_UPDATE###{payload}###END_PENSION_PORTFOLIO_UPDATE###\n"
+    )
 
 
 def build_pension_portfolio_update_after_commutation(
@@ -251,7 +259,9 @@ def build_pension_portfolio_update_after_commutation(
             "account_name": portfolio_item.get("שם_תכנית")
             or portfolio_item.get("account_name")
             or "",
-            "company": portfolio_item.get("חברה_מנהלת") or portfolio_item.get("company") or "",
+            "company": portfolio_item.get("חברה_מנהלת")
+            or portfolio_item.get("company")
+            or "",
             "converted_amount": converted_amount,
             "specific_amounts": None,
         }
@@ -266,4 +276,6 @@ def build_pension_portfolio_update_after_commutation(
         ensure_ascii=False,
     )
 
-    return f"###PENSION_PORTFOLIO_UPDATE###{payload}###END_PENSION_PORTFOLIO_UPDATE###\n"
+    return (
+        f"###PENSION_PORTFOLIO_UPDATE###{payload}###END_PENSION_PORTFOLIO_UPDATE###\n"
+    )

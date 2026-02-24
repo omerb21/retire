@@ -9,13 +9,19 @@ from app.models.client import Client
 from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 
-def test_stream_user_approved_executes_tool_and_does_not_ask_again(monkeypatch, _test_db) -> None:
+def test_stream_user_approved_executes_tool_and_does_not_ask_again(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
@@ -43,7 +49,9 @@ def test_stream_user_approved_executes_tool_and_does_not_ask_again(monkeypatch, 
     with Session() as db:
         client = db.query(Client).filter(Client.id == client_id).first()
         if client is None:
-            client = Client(id=client_id, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=client_id, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.flush()
         store_ok = store_pending_approval_ui_action(

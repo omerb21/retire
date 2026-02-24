@@ -3,6 +3,7 @@ AgentTraceEvent model – stores observability events for Agent Eyes.
 Each row is one event in a trace timeline (user_input, llm_request_prepared,
 tool_call, tool_result, assistant_output, error).
 """
+
 import json
 from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Text

@@ -16,11 +16,7 @@ def _maybe_append_missing_required_tools_guardrail(
         else:
             preferred_order.append("GENERATE_FULL_REPORT")
         suggested_tool = next(
-            (
-                name
-                for name in preferred_order
-                if name in missing_tools_after
-            ),
+            (name for name in preferred_order if name in missing_tools_after),
         )
         history_messages.append(
             ChatMessage(

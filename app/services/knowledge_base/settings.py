@@ -45,11 +45,19 @@ def get_kb_settings() -> KnowledgeBaseSettings:
     top_k = int(os.getenv("RAG_TOP_K", "4"))
     min_score = float(os.getenv("RAG_MIN_SCORE", "0.25"))
 
-    embedding_provider = (os.getenv("RAG_EMBEDDING_PROVIDER") or "ollama").strip().lower()
-    openai_embedding_model = (os.getenv("RAG_OPENAI_EMBEDDING_MODEL") or "text-embedding-3-small").strip()
+    embedding_provider = (
+        (os.getenv("RAG_EMBEDDING_PROVIDER") or "ollama").strip().lower()
+    )
+    openai_embedding_model = (
+        os.getenv("RAG_OPENAI_EMBEDDING_MODEL") or "text-embedding-3-small"
+    ).strip()
 
-    ollama_base_url = (os.getenv("RAG_OLLAMA_BASE_URL") or "http://localhost:11434").strip()
-    ollama_embedding_model = (os.getenv("RAG_OLLAMA_EMBEDDING_MODEL") or "nomic-embed-text").strip()
+    ollama_base_url = (
+        os.getenv("RAG_OLLAMA_BASE_URL") or "http://localhost:11434"
+    ).strip()
+    ollama_embedding_model = (
+        os.getenv("RAG_OLLAMA_EMBEDDING_MODEL") or "nomic-embed-text"
+    ).strip()
 
     return KnowledgeBaseSettings(
         enabled=enabled,

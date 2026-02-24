@@ -8,7 +8,9 @@ def test_stream_report_summary_navigates_to_correct_client(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for report summary navigation")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tool must be executed for report summary navigation")

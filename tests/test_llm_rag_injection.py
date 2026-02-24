@@ -2,10 +2,14 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
-from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_execution_context import (
+    set_tool_execution_context,
+)
 
 
-def test_prepare_messages_injects_rag_system_message_when_enabled(monkeypatch, db_session, client) -> None:
+def test_prepare_messages_injects_rag_system_message_when_enabled(
+    monkeypatch, db_session, client
+) -> None:
     def fake_build_rag_system_message(*, user_message: str):
         return "ידע מערכת שנשלף מה-Knowledge Base (חובה להשתמש בו):\n[1] MD/docs/example.md:1-10\nexample"
 

@@ -21,7 +21,9 @@ def handle_monthly_pension_summary(*, args: dict, client_id: int, db: Session) -
         {"type": "computed_data", "data": computed_data},
         ensure_ascii=False,
     )
-    computed_data_marker = f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_data_marker = (
+        f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    )
 
     return json.dumps(
         {

@@ -6,15 +6,27 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_orchestration_plan_system_snapshot_uses_snapshot_tool_no_llm(monkeypatch) -> None:
+def test_stream_orchestration_plan_system_snapshot_uses_snapshot_tool_no_llm(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for system snapshot orchestration")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, pension_portfolio=None, force_max_exemption: bool = False):
+    def fake_execute_tool_call(
+        *,
+        tool_name: str,
+        args: dict,
+        client_id: int,
+        db,
+        pension_portfolio=None,
+        force_max_exemption: bool = False
+    ):
         tool_calls.append((tool_name, args))
         assert tool_name == "GET_SYSTEM_STATE_SNAPSHOT"
         return json.dumps(
@@ -34,7 +46,11 @@ def test_stream_orchestration_plan_system_snapshot_uses_snapshot_tool_no_llm(mon
                     "commutations": 0,
                     "scenarios": 0,
                 },
-                "entities": {"pension_funds": [{"fund_name": "קרן"}], "capital_assets": [], "current_employers": []},
+                "entities": {
+                    "pension_funds": [{"fund_name": "קרן"}],
+                    "capital_assets": [],
+                    "current_employers": [],
+                },
             },
             ensure_ascii=False,
         )

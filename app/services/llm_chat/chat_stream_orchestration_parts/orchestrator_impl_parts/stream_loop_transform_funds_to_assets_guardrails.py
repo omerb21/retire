@@ -73,7 +73,9 @@ def _maybe_guardrail_transform_funds_to_assets(
         # Deterministic override: if the user asked to convert a specific component bucket
         # (e.g., "תגמולים לפני 2000"), do NOT allow a full-portfolio tool call.
         if (not current_pension_portfolio) and request.client_id is not None:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 current_pension_portfolio, _effective_snapshot_at = loaded
 

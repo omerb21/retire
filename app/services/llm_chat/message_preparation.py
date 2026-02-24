@@ -114,13 +114,17 @@ def prepare_messages_with_context(
         relevant_example = get_relevant_example(last_user_msg)
         if relevant_example:
             example_msg = format_example_as_few_shot(relevant_example)
-            messages.insert(insertion_idx, ChatMessage(role="system", content=example_msg))
+            messages.insert(
+                insertion_idx, ChatMessage(role="system", content=example_msg)
+            )
             insertion_idx += 1
 
         if inject_rag:
             knowledge_msg = build_knowledge_system_message(last_user_msg)
             if knowledge_msg:
-                messages.insert(insertion_idx, ChatMessage(role="system", content=knowledge_msg))
+                messages.insert(
+                    insertion_idx, ChatMessage(role="system", content=knowledge_msg)
+                )
 
     full_context = build_full_context_for_llm(request=request, db=db, messages=messages)
     if full_context:

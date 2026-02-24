@@ -12,8 +12,9 @@ from app.services.llm_chat.orchestration_utils_parts.existing_income_offset impo
     compute_existing_income_offset_monthly,
 )
 
-
-_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = (
+    "pending_pre_retirement_plan_resolution"
+)
 _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO = "ignore_blocked_balances_decision"
 
 
@@ -83,7 +84,10 @@ def _load_pending_pre_retirement_plan_resolution(
         row = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO)
+            .filter(
+                Scenario.scenario_name
+                == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
@@ -98,7 +102,9 @@ def _load_pending_pre_retirement_plan_resolution(
     return parsed if isinstance(parsed, dict) else None
 
 
-def _clear_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int) -> None:
+def _clear_pending_pre_retirement_plan_resolution(
+    *, db: Session, client_id: int
+) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
@@ -116,7 +122,9 @@ def _load_ignore_blocked_balances_decision(*, db: Session, client_id: int) -> bo
         row = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO)
+            .filter(
+                Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
@@ -139,7 +147,9 @@ def _load_blocked_balances_decision(*, db: Session, client_id: int) -> bool | No
         row = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO)
+            .filter(
+                Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
@@ -162,7 +172,11 @@ def _load_blocked_balances_decision(*, db: Session, client_id: int) -> bool | No
 
 
 def _store_ignore_blocked_balances_decision(
-    *, db: Session, client_id: int, ignore_blocked_balances: bool = True, decision: str = "no"
+    *,
+    db: Session,
+    client_id: int,
+    ignore_blocked_balances: bool = True,
+    decision: str = "no",
 ) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
@@ -183,7 +197,10 @@ def _store_ignore_blocked_balances_decision(
             apply_capitalization=False,
             apply_exemption_shield=False,
             parameters=json.dumps(
-                {"decision": str(decision), "ignore_blocked_balances": bool(ignore_blocked_balances)},
+                {
+                    "decision": str(decision),
+                    "ignore_blocked_balances": bool(ignore_blocked_balances),
+                },
                 ensure_ascii=False,
             ),
         )
@@ -196,7 +213,9 @@ def _store_ignore_blocked_balances_decision(
             pass
 
 
-def _store_pending_pre_retirement_plan_resolution(*, db: Session, client_id: int, payload: dict) -> None:
+def _store_pending_pre_retirement_plan_resolution(
+    *, db: Session, client_id: int, payload: dict
+) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
@@ -239,7 +258,10 @@ def _pre_retirement_plan_resolution(
     try:
         has_db_state_sources = bool(
             db.query(PensionFund).filter(PensionFund.client_id == client_id).count() > 0
-        ) or bool(db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count() > 0)
+        ) or bool(
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+            > 0
+        )
     except Exception:
         has_db_state_sources = False
 
@@ -261,20 +283,28 @@ def _pre_retirement_plan_resolution(
     blocked_decision = None
     if not has_db_state_sources:
         try:
-            blocked_decision = _load_blocked_balances_decision(db=db, client_id=client_id)
+            blocked_decision = _load_blocked_balances_decision(
+                db=db, client_id=client_id
+            )
         except Exception:
             blocked_decision = None
 
         if blocked_decision is None:
-            has_blocked = _detect_blocked_balances_in_snapshot(portfolio=effective_portfolio)
+            has_blocked = _detect_blocked_balances_in_snapshot(
+                portfolio=effective_portfolio
+            )
 
     if has_blocked:
         payload = {
             "requested_target": float(requested_target),
             "target_is_net": bool(target_is_net),
-            "retirement_age": int(retirement_age) if retirement_age is not None else None,
+            "retirement_age": (
+                int(retirement_age) if retirement_age is not None else None
+            ),
         }
-        _store_pending_pre_retirement_plan_resolution(db=db, client_id=client_id, payload=payload)
+        _store_pending_pre_retirement_plan_resolution(
+            db=db, client_id=client_id, payload=payload
+        )
         return (
             "ask_blocked",
             "קיימות יתרות חסומות שיכולות להגדיל את הקצבה.\nהאם לכלול אותן בתכנון?\n\nאפשרויות:\nכן\nלא",
@@ -289,7 +319,9 @@ def _pre_retirement_plan_resolution(
         {
             "target_monthly_pension": float(requested_target),
             "target_is_net": bool(target_is_net),
-            "retirement_age": int(retirement_age) if retirement_age is not None else None,
+            "retirement_age": (
+                int(retirement_age) if retirement_age is not None else None
+            ),
             "ignore_blocked_balances": bool(ignore_blocked_balances_val),
         },
     )

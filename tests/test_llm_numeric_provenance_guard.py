@@ -4,7 +4,9 @@ from app.guards.advisor_behavior_guard import STANDARD_BLOCK_MESSAGE
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 
 
-def test_non_stream_blocks_unprovenanced_numbers(db_session, client, monkeypatch) -> None:
+def test_non_stream_blocks_unprovenanced_numbers(
+    db_session, client, monkeypatch
+) -> None:
     # LLM tries to output a number that was never provided by the user and never came from a tool
     def fake_chat(messages, client_id=None):
         return "המספר הוא 12345"
@@ -21,7 +23,9 @@ def test_non_stream_blocks_unprovenanced_numbers(db_session, client, monkeypatch
     assert "12345" in resp.reply
 
 
-def test_non_stream_allows_user_provided_number(db_session, client, monkeypatch) -> None:
+def test_non_stream_allows_user_provided_number(
+    db_session, client, monkeypatch
+) -> None:
     # If the user provided the number, the agent may repeat it (no calculation)
     def fake_chat(messages, client_id=None):
         return "כפי שכתבת: 28000"
@@ -38,11 +42,15 @@ def test_non_stream_allows_user_provided_number(db_session, client, monkeypatch)
     assert "28000" in resp.reply
 
 
-def test_stream_blocks_unprovenanced_numbers(monkeypatch, test_client, test_client_data) -> None:
+def test_stream_blocks_unprovenanced_numbers(
+    monkeypatch, test_client, test_client_data
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "המספר הוא 777"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = test_client
     response = api.post(

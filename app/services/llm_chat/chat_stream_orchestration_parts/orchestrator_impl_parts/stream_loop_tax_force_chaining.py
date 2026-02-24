@@ -1,7 +1,13 @@
 from app.schemas.llm_chat import ChatRequest
-from app.services.llm_chat.chat_orchestration_helpers import get_gross_for_tax_chaining, run_tax_projection_autochain
+from app.services.llm_chat.chat_orchestration_helpers import (
+    get_gross_for_tax_chaining,
+    run_tax_projection_autochain,
+)
 from app.services.llm_chat.message_utils import find_last_user_message
-from app.services.llm_chat.orchestration_utils import is_document_request, is_net_pension_request
+from app.services.llm_chat.orchestration_utils import (
+    is_document_request,
+    is_net_pension_request,
+)
 
 from ..stream_tool_execution import _execute_tool_call
 

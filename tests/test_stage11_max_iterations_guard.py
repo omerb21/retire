@@ -1,4 +1,6 @@
-from app.services.llm_chat.orchestration_core.constants import MAX_ITERATIONS_USER_MESSAGE_HE
+from app.services.llm_chat.orchestration_core.constants import (
+    MAX_ITERATIONS_USER_MESSAGE_HE,
+)
 from app.services.llm_chat.orchestration_core.core_types import (
     DecisionCode,
     OrchestrationDecision,
@@ -52,5 +54,6 @@ def test_max_iterations_guard_triggers_on_last_iteration():
             assert decision.decision_code == DecisionCode.RESPOND_ONLY
             assert decision.final_text == MAX_ITERATIONS_USER_MESSAGE_HE
             assert any(
-                isinstance(t, TraceEventSpec) and t.event_type == "core_final_response" for t in traces
+                isinstance(t, TraceEventSpec) and t.event_type == "core_final_response"
+                for t in traces
             )

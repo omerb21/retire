@@ -5,12 +5,16 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models import CurrentEmployer
-from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
+from app.services.current_employer import (
+    EmploymentService as CurrentEmployerEmploymentService,
+)
 
 logger = logging.getLogger("app.llm_chat.tools")
 
 
-def handle_set_current_employer_details(*, args: dict, client_id: int, db: Session) -> str:
+def handle_set_current_employer_details(
+    *, args: dict, client_id: int, db: Session
+) -> str:
     logger.info("👔 SET_CURRENT_EMPLOYER_DETAILS called - Setting employer details")
 
     try:
@@ -32,7 +36,9 @@ def handle_set_current_employer_details(*, args: dict, client_id: int, db: Sessi
 
         existing_employer = None
         try:
-            existing_employer = CurrentEmployerEmploymentService(db).get_employer(client_id)
+            existing_employer = CurrentEmployerEmploymentService(db).get_employer(
+                client_id
+            )
         except Exception:
             existing_employer = (
                 db.query(CurrentEmployer)
@@ -57,7 +63,9 @@ def handle_set_current_employer_details(*, args: dict, client_id: int, db: Sessi
                 employer_name=employer_name,
                 start_date=start_date,
                 last_salary=float(last_salary),
-                severance_accrued=float(severance_accrued) if severance_accrued else None,
+                severance_accrued=(
+                    float(severance_accrued) if severance_accrued else None
+                ),
                 employer_id_number=employer_id_number,
             )
             db.add(employer)
@@ -73,7 +81,9 @@ def handle_set_current_employer_details(*, args: dict, client_id: int, db: Sessi
             "employer_name": employer_name,
             "start_date": str(start_date),
             "last_salary": float(last_salary),
-            "severance_accrued": float(severance_accrued) if severance_accrued else None,
+            "severance_accrued": (
+                float(severance_accrued) if severance_accrued else None
+            ),
             "action": action,
         }
 

@@ -11,7 +11,13 @@ def test_get_trailing_slash_aliases(test_client, client):
     for base in endpoints:
         res_no = test_client.get(base)
         res_sl = test_client.get(base + "/")
-        assert res_no.status_code == res_sl.status_code, (base, res_no.status_code, res_sl.status_code, res_no.text, res_sl.text)
+        assert res_no.status_code == res_sl.status_code, (
+            base,
+            res_no.status_code,
+            res_sl.status_code,
+            res_no.text,
+            res_sl.text,
+        )
 
 
 def test_post_trailing_slash_aliases(test_client, client):
@@ -68,4 +74,10 @@ def test_post_trailing_slash_aliases(test_client, client):
             data=json.dumps(payload),
             headers={"content-type": "application/json"},
         )
-        assert res_no.status_code == res_sl.status_code, (base, res_no.status_code, res_sl.status_code, res_no.text, res_sl.text)
+        assert res_no.status_code == res_sl.status_code, (
+            base,
+            res_no.status_code,
+            res_sl.status_code,
+            res_no.text,
+            res_sl.text,
+        )

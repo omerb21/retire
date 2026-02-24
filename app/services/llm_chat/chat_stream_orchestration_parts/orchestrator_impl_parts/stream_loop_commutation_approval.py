@@ -1,7 +1,9 @@
 from typing import Any
 
 from app.schemas.llm_chat import ChatRequest
-from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+)
 
 from ..stream_top_level_helpers import _store_pending_approval_request
 

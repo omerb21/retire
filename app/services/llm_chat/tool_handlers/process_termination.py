@@ -25,7 +25,9 @@ def handle_process_termination(
         "taxable_annuity_amount",
         "taxable_capital_amount",
     ]
-    _present_keys = [k for k in _interesting_keys if isinstance(args, dict) and k in args]
+    _present_keys = [
+        k for k in _interesting_keys if isinstance(args, dict) and k in args
+    ]
     _present_values = {
         k: args.get(k)
         for k in _interesting_keys
@@ -48,13 +50,25 @@ def handle_process_termination(
     try:
         if isinstance(args.get("exempt_choice"), str):
             raw_exempt_choice = args.get("exempt_choice").strip().lower()
-            if raw_exempt_choice in {"capital", "lump_sum", "lumpsum", "one_time", "one-time"}:
+            if raw_exempt_choice in {
+                "capital",
+                "lump_sum",
+                "lumpsum",
+                "one_time",
+                "one-time",
+            }:
                 args["exempt_choice"] = "redeem_with_exemption"
             elif raw_exempt_choice in {"pension", "annuity"}:
                 args["exempt_choice"] = "annuity"
         if isinstance(args.get("taxable_choice"), str):
             raw_taxable_choice = args.get("taxable_choice").strip().lower()
-            if raw_taxable_choice in {"capital", "lump_sum", "lumpsum", "one_time", "one-time"}:
+            if raw_taxable_choice in {
+                "capital",
+                "lump_sum",
+                "lumpsum",
+                "one_time",
+                "one-time",
+            }:
                 args["taxable_choice"] = "redeem_no_exemption"
             elif raw_taxable_choice in {"pension", "annuity"}:
                 args["taxable_choice"] = "annuity"
@@ -73,11 +87,7 @@ def handle_process_termination(
     ]
     missing = [p for p in required_params if args.get(p) is None]
     if missing:
-        return (
-            "Error: חסרים פרמטרים לביצוע עזיבת עבודה: "
-            + ", ".join(missing)
-            + "."
-        )
+        return "Error: חסרים פרמטרים לביצוע עזיבת עבודה: " + ", ".join(missing) + "."
 
     if not args.get("confirmed"):
         return "Error: הפעולה לא אושרה. יש להגדיר confirmed=true לביצוע עזיבת עבודה."
@@ -119,7 +129,9 @@ def handle_process_termination(
                     continue
 
                 try:
-                    portfolio_sev_total += float(acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0)
+                    portfolio_sev_total += float(
+                        acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0
+                    )
                 except Exception:
                     continue
 
@@ -194,20 +206,32 @@ def handle_process_termination(
                 f"{taxable_capital_amount:,.0f}",
             )
 
-        sent_severance = ("severance_amount" in args) and (args.get("severance_amount") is not None)
-        sent_exempt = ("exempt_amount" in args) and (args.get("exempt_amount") is not None)
-        sent_taxable = ("taxable_amount" in args) and (args.get("taxable_amount") is not None)
+        sent_severance = ("severance_amount" in args) and (
+            args.get("severance_amount") is not None
+        )
+        sent_exempt = ("exempt_amount" in args) and (
+            args.get("exempt_amount") is not None
+        )
+        sent_taxable = ("taxable_amount" in args) and (
+            args.get("taxable_amount") is not None
+        )
 
         decision = TerminationDecisionCreate(
             termination_date=termination_date,
             use_employer_completion=True,
-            severance_amount=float(args.get("severance_amount")) if sent_severance else None,
+            severance_amount=(
+                float(args.get("severance_amount")) if sent_severance else None
+            ),
             exempt_amount=float(args.get("exempt_amount")) if sent_exempt else None,
             taxable_amount=float(args.get("taxable_amount")) if sent_taxable else None,
             exempt_choice=args.get("exempt_choice"),
             taxable_choice=args.get("taxable_choice"),
-            taxable_annuity_amount=taxable_annuity_amount if taxable_annuity_amount else None,
-            taxable_capital_amount=taxable_capital_amount if taxable_capital_amount else None,
+            taxable_annuity_amount=(
+                taxable_annuity_amount if taxable_annuity_amount else None
+            ),
+            taxable_capital_amount=(
+                taxable_capital_amount if taxable_capital_amount else None
+            ),
             tax_spread_years=args.get("tax_spread_years"),
             plan_details=plan_details_str,
             confirmed=True,

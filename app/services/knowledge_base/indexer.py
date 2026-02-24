@@ -126,7 +126,9 @@ def build_knowledge_base_index(
         if not batch_texts:
             return
         vectors = embedder.embed_texts(batch_texts)
-        for (source_path, start_line, end_line), content, emb in zip(batch_meta, batch_texts, vectors):
+        for (source_path, start_line, end_line), content, emb in zip(
+            batch_meta, batch_texts, vectors
+        ):
             chunk_id = f"{source_path}:{start_line}-{end_line}"
             chunks.append(
                 KnowledgeChunk(
@@ -144,7 +146,9 @@ def build_knowledge_base_index(
     for p in files:
         rel = to_repo_relative_path(p)
         lines = _read_text_file(p)
-        for start_line, end_line, text in _chunk_lines(lines, max_chars=chunk_max_chars):
+        for start_line, end_line, text in _chunk_lines(
+            lines, max_chars=chunk_max_chars
+        ):
             batch_texts.append(text)
             batch_meta.append((rel, start_line, end_line))
             if len(batch_texts) >= 32:

@@ -1,7 +1,9 @@
 import app.services.public_chat_service as public_chat_service
 
 
-def test_public_chat_portfolio_update_preserves_accounts_with_hebrew_space_key() -> None:
+def test_public_chat_portfolio_update_preserves_accounts_with_hebrew_space_key() -> (
+    None
+):
     accounts = [
         {
             "מספר חשבון": "A-001",
@@ -28,11 +30,15 @@ def test_public_chat_portfolio_update_preserves_accounts_with_hebrew_space_key()
         ],
     }
 
-    updated = public_chat_service._apply_portfolio_updates_to_accounts(accounts, payload)
+    updated = public_chat_service._apply_portfolio_updates_to_accounts(
+        accounts, payload
+    )
 
     assert isinstance(updated, list)
     account_numbers = {
-        str(a.get("מספר_חשבון") or a.get("מספר חשבון") or a.get("account_number") or "").strip()
+        str(
+            a.get("מספר_חשבון") or a.get("מספר חשבון") or a.get("account_number") or ""
+        ).strip()
         for a in updated
         if isinstance(a, dict)
     }
@@ -76,11 +82,15 @@ def test_public_chat_portfolio_update_preserves_accounts_with_hyphen_key() -> No
         ],
     }
 
-    updated = public_chat_service._apply_portfolio_updates_to_accounts(accounts, payload)
+    updated = public_chat_service._apply_portfolio_updates_to_accounts(
+        accounts, payload
+    )
 
     assert isinstance(updated, list)
     account_numbers = {
-        str(a.get("מספר_חשבון") or a.get("מספר חשבון") or a.get("מספר-חשבון") or "").strip()
+        str(
+            a.get("מספר_חשבון") or a.get("מספר חשבון") or a.get("מספר-חשבון") or ""
+        ).strip()
         for a in updated
         if isinstance(a, dict)
     }
@@ -90,7 +100,10 @@ def test_public_chat_portfolio_update_preserves_accounts_with_hyphen_key() -> No
     c = next(
         a
         for a in updated
-        if str(a.get("מספר_חשבון") or a.get("מספר חשבון") or a.get("מספר-חשבון") or "").strip() == "C-003"
+        if str(
+            a.get("מספר_חשבון") or a.get("מספר חשבון") or a.get("מספר-חשבון") or ""
+        ).strip()
+        == "C-003"
     )
     assert c.get("מספר_חשבון") == "C-003"
     assert c.get("מספר חשבון") == "C-003"

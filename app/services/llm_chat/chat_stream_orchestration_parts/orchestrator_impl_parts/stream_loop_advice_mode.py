@@ -78,8 +78,10 @@ def _maybe_handle_advice_mode(
             )
         )
 
-    advice_mode = (not exec_only_active) and is_advice_request(original_user_msg) and (
-        not _is_report_request_for_early_block(original_user_msg)
+    advice_mode = (
+        (not exec_only_active)
+        and is_advice_request(original_user_msg)
+        and (not _is_report_request_for_early_block(original_user_msg))
     )
 
     resolved_intent = detect_intent(original_user_msg)
@@ -89,6 +91,7 @@ def _maybe_handle_advice_mode(
         advice_domain = resolve_advice_domain(original_user_msg or "")
 
     if advice_mode and advice_domain == AdviceDomain.COMMUTATION:
+
         def _advice_commutation_questions():
             if computed_data is not None:
                 computed_json = json.dumps(
@@ -116,6 +119,7 @@ def _maybe_handle_advice_mode(
         )
 
     if advice_mode and advice_domain == AdviceDomain.FIXATION:
+
         def _advice_fixation_checklist():
             if computed_data is not None:
                 computed_json = json.dumps(
@@ -149,6 +153,7 @@ def _maybe_handle_advice_mode(
         )
 
     if advice_mode and advice_domain == AdviceDomain.INVESTMENT_RISK:
+
         def _advice_investment_risk_answer():
             if computed_data is not None:
                 computed_json = json.dumps(
@@ -164,7 +169,7 @@ def _maybe_handle_advice_mode(
                 "ההבדל בין תנודתיות לתשואה\n"
                 "- תנודתיות מתארת את התזוזה בדרך (עליות/ירידות).\n"
                 "- תשואה מתארת את התוצאה לאורך זמן, אך אינה מבטיחה מה יקרה בטווח קצר.\n\n"
-                "למה אין מסלול \"נכון לכולם\"\n"
+                'למה אין מסלול "נכון לכולם"\n'
                 "- כי זה תלוי בהרכב מקורות ההכנסה, גמישות תקציבית, צרכים משפחתיים, והיכולת לספוג ירידות.\n\n"
                 "מתי כן צריך חישוב\n"
                 "- כשיש החלטה אופרטיבית (תזמון משיכה/המרה/שינוי מסלול) או כשיש כמה מקורות הכנסה ורוצים לראות השלכות.\n\n"
@@ -183,6 +188,7 @@ def _maybe_handle_advice_mode(
         )
 
     if advice_mode and advice_domain == AdviceDomain.TAX_OPTIMIZATION:
+
         def _advice_tax_mapping_answer():
             if computed_data is not None:
                 computed_json = json.dumps(
@@ -217,6 +223,7 @@ def _maybe_handle_advice_mode(
         )
 
     if advice_mode and advice_domain == AdviceDomain.UNKNOWN:
+
         def _advice_unknown_domain_questions():
             if computed_data is not None:
                 computed_json = json.dumps(
@@ -246,17 +253,25 @@ def _maybe_handle_advice_mode(
             False,
         )
 
-    advice_compensation_mode = advice_mode and (advice_domain == AdviceDomain.COMPENSATION)
+    advice_compensation_mode = advice_mode and (
+        advice_domain == AdviceDomain.COMPENSATION
+    )
     if advice_compensation_mode:
         resolved_intent = ChatIntent.ANALYSIS
 
     if advice_compensation_mode:
         lowered_for_advice_gate = (original_user_msg or "").strip().lower()
-        explicit_cashflow_in_advice = ("תזרים" in lowered_for_advice_gate) or ("cashflow" in lowered_for_advice_gate)
+        explicit_cashflow_in_advice = ("תזרים" in lowered_for_advice_gate) or (
+            "cashflow" in lowered_for_advice_gate
+        )
         explicit_net_in_advice = is_net_pension_request(original_user_msg)
         explicit_compare_in_advice = is_retirement_comparison_request(original_user_msg)
-        explicit_target_net_in_advice = extract_target_net_ils(original_user_msg or "") is not None
-        explicit_refresh_in_advice = is_cashflow_missing_income_followup(original_user_msg)
+        explicit_target_net_in_advice = (
+            extract_target_net_ils(original_user_msg or "") is not None
+        )
+        explicit_refresh_in_advice = is_cashflow_missing_income_followup(
+            original_user_msg
+        )
         if not (
             explicit_cashflow_in_advice
             or explicit_net_in_advice

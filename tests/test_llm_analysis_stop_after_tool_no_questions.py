@@ -6,7 +6,9 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_analysis_stop_after_tool_has_fixed_ending_without_questions(monkeypatch) -> None:
+def test_analysis_stop_after_tool_has_fixed_ending_without_questions(
+    monkeypatch,
+) -> None:
     call_count = {"n": 0}
 
     def fake_chat_stream(messages, client_id=None):
@@ -16,7 +18,9 @@ def test_analysis_stop_after_tool_has_fixed_ending_without_questions(monkeypatch
             return
         raise AssertionError("ANALYSIS stop-after-tool: LLM should not be called again")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 

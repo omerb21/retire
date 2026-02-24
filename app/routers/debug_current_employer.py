@@ -12,7 +12,9 @@ from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
 from app.models.scenario import Scenario
 from app.services.current_employer_service import CurrentEmployerService
-from app.services.retirement.services.termination_service import TerminationService as ScenarioTerminationService
+from app.services.retirement.services.termination_service import (
+    TerminationService as ScenarioTerminationService,
+)
 
 router = APIRouter(prefix="/api/v1/debug", tags=["debug-severance"])
 
@@ -24,10 +26,15 @@ def _check_enabled_and_auth(x_admin_token: Optional[str] = Header(None)) -> None
 
     expected = (os.getenv("ADMIN_DEBUG_TOKEN") or "").strip()
     if not expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin token not configured")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin token not configured",
+        )
 
     if not x_admin_token or x_admin_token.strip() != expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token"
+        )
 
 
 def _employer_to_payload(employer: CurrentEmployer) -> dict[str, Any]:
@@ -44,7 +51,9 @@ def _employer_to_payload(employer: CurrentEmployer) -> dict[str, Any]:
     }
 
 
-def _choose_employer_reason(candidates: list[CurrentEmployer]) -> tuple[Optional[CurrentEmployer], str]:
+def _choose_employer_reason(
+    candidates: list[CurrentEmployer],
+) -> tuple[Optional[CurrentEmployer], str]:
     if not candidates:
         return None, "none"
 
@@ -132,7 +141,9 @@ def debug_current_employer(
 
     if chosen is not None and retirement_age is not None:
         try:
-            retirement_year = int(getattr(client, "birth_date").year) + int(retirement_age)
+            retirement_year = int(getattr(client, "birth_date").year) + int(
+                retirement_age
+            )
             fallback_date = date(retirement_year, 1, 1)
         except Exception:
             fallback_date = None
@@ -140,7 +151,9 @@ def debug_current_employer(
         termination_date = getattr(chosen, "end_date", None) or fallback_date
         termination_inputs["termination_date"] = termination_date
         termination_inputs["termination_date_source"] = (
-            "employer_end_date" if getattr(chosen, "end_date", None) else "scenario_fallback"
+            "employer_end_date"
+            if getattr(chosen, "end_date", None)
+            else "scenario_fallback"
         )
 
         try:
@@ -154,7 +167,9 @@ def debug_current_employer(
             {
                 "employer_start_date": getattr(chosen, "start_date", None),
                 "employer_last_salary": getattr(chosen, "last_salary", None),
-                "employer_severance_accrued": getattr(chosen, "severance_accrued", None),
+                "employer_severance_accrued": getattr(
+                    chosen, "severance_accrued", None
+                ),
             }
         )
 
@@ -167,11 +182,15 @@ def debug_current_employer(
                     add_action_callback=None,
                     use_current_employer_termination=True,
                 )
-                breakdown = scenario_term._calculate_severance_breakdown(chosen, termination_date)
+                breakdown = scenario_term._calculate_severance_breakdown(
+                    chosen, termination_date
+                )
                 if isinstance(breakdown, dict):
                     termination_result = dict(breakdown)
                     termination_result["severance_source"] = (
-                        "employer_severance_accrued" if not used_fallback_expected_severance else "formula_last_salary_x_service_years"
+                        "employer_severance_accrued"
+                        if not used_fallback_expected_severance
+                        else "formula_last_salary_x_service_years"
                     )
             except Exception:
                 termination_result = {}
@@ -223,11 +242,31 @@ def debug_latest_snapshot(
         employer_severance_value = current_employer.get("severance_accrued")
 
     saved_counts = {
-        "pension_funds": len(data.get("pension_funds") or []) if isinstance(data.get("pension_funds"), list) else None,
-        "capital_assets": len(data.get("capital_assets") or []) if isinstance(data.get("capital_assets"), list) else None,
-        "additional_incomes": len(data.get("additional_incomes") or []) if isinstance(data.get("additional_incomes"), list) else None,
-        "grants": len(data.get("grants") or []) if isinstance(data.get("grants"), list) else None,
-        "legacy_grants": len(data.get("legacy_grants") or []) if isinstance(data.get("legacy_grants"), list) else None,
+        "pension_funds": (
+            len(data.get("pension_funds") or [])
+            if isinstance(data.get("pension_funds"), list)
+            else None
+        ),
+        "capital_assets": (
+            len(data.get("capital_assets") or [])
+            if isinstance(data.get("capital_assets"), list)
+            else None
+        ),
+        "additional_incomes": (
+            len(data.get("additional_incomes") or [])
+            if isinstance(data.get("additional_incomes"), list)
+            else None
+        ),
+        "grants": (
+            len(data.get("grants") or [])
+            if isinstance(data.get("grants"), list)
+            else None
+        ),
+        "legacy_grants": (
+            len(data.get("legacy_grants") or [])
+            if isinstance(data.get("legacy_grants"), list)
+            else None
+        ),
         "has_employer": bool(data.get("current_employer")),
         "has_termination": bool(data.get("termination_event")),
         "has_fixation": bool(data.get("fixation_result")),
@@ -241,15 +280,39 @@ def debug_latest_snapshot(
         from app.models.termination_event import TerminationEvent
         from app.models.fixation_result import FixationResult
 
-        employer_count = int(db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).count())
+        employer_count = int(
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .count()
+        )
 
         current_counts = {
-            "pension_funds": int(db.query(PensionFund).filter(PensionFund.client_id == client_id).count()),
-            "capital_assets": int(db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()),
-            "additional_incomes": int(db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).count()),
-            "legacy_grants": int(db.query(Grant).filter(Grant.client_id == client_id).count()),
-            "termination_events": int(db.query(TerminationEvent).filter(TerminationEvent.client_id == client_id).count()),
-            "fixation_results": int(db.query(FixationResult).filter(FixationResult.client_id == client_id).count()),
+            "pension_funds": int(
+                db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+            ),
+            "capital_assets": int(
+                db.query(CapitalAsset)
+                .filter(CapitalAsset.client_id == client_id)
+                .count()
+            ),
+            "additional_incomes": int(
+                db.query(AdditionalIncome)
+                .filter(AdditionalIncome.client_id == client_id)
+                .count()
+            ),
+            "legacy_grants": int(
+                db.query(Grant).filter(Grant.client_id == client_id).count()
+            ),
+            "termination_events": int(
+                db.query(TerminationEvent)
+                .filter(TerminationEvent.client_id == client_id)
+                .count()
+            ),
+            "fixation_results": int(
+                db.query(FixationResult)
+                .filter(FixationResult.client_id == client_id)
+                .count()
+            ),
             "current_employers": employer_count,
         }
     except Exception:

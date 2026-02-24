@@ -8,13 +8,19 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_user_approved_system_snapshot_returns_structured_payload(monkeypatch, _test_db) -> None:
+def test_stream_user_approved_system_snapshot_returns_structured_payload(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for user-approved GET_SYSTEM_STATE_SNAPSHOT")
+        raise AssertionError(
+            "LLM must not be called for user-approved GET_SYSTEM_STATE_SNAPSHOT"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(
         *,
@@ -34,7 +40,11 @@ def test_stream_user_approved_system_snapshot_returns_structured_payload(monkeyp
         assert client_id == 1
         return json.dumps(
             {
-                "service": {"name": "retire", "version": "1.2.3", "time_utc": "2026-01-01T00:00:00Z"},
+                "service": {
+                    "name": "retire",
+                    "version": "1.2.3",
+                    "time_utc": "2026-01-01T00:00:00Z",
+                },
                 "db": {
                     "ok": True,
                     "counts": {
@@ -53,7 +63,9 @@ def test_stream_user_approved_system_snapshot_returns_structured_payload(monkeyp
     with Session() as db:
         client = db.query(Client).filter(Client.id == 1).first()
         if client is None:
-            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=1, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.flush()
         db.add(

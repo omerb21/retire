@@ -27,12 +27,14 @@ def _stream_finalize_non_tool_response(
     enforce_behavioral_limits,
     sanitize_words_only_output,
     sanitize_words_only_conceptual,
- ):
+):
     allowed_sources = build_allowed_sources_for_numeric_provenance(
         request=request,
         history_messages=history_messages,
     )
-    if no_tools_requested or (tools_disabled_reason in {"conceptual", "conceptual_form"}):
+    if no_tools_requested or (
+        tools_disabled_reason in {"conceptual", "conceptual_form"}
+    ):
         final_out = full_response
     else:
         final_out = compute_final_out_with_numeric_provenance_guardrail(
@@ -60,11 +62,14 @@ def _stream_finalize_non_tool_response(
                     user_request_text=original_user_msg or "",
                 )
                 rewrite_messages = [
-                    ChatMessage(role=m["role"], content=m["content"]) for m in rewrite_prompt
+                    ChatMessage(role=m["role"], content=m["content"])
+                    for m in rewrite_prompt
                 ]
                 _buf: list[str] = []
                 llm_service = get_llm_service()
-                for _chunk in llm_service.chat_stream(rewrite_messages, request.client_id):
+                for _chunk in llm_service.chat_stream(
+                    rewrite_messages, request.client_id
+                ):
                     if _chunk:
                         _buf.append(str(_chunk))
                 rewritten = "".join(_buf)
@@ -101,7 +106,9 @@ def _stream_finalize_non_tool_response(
             and ("###UI_ACTION###" not in (final_out or ""))
             and ("###END_UI_ACTION###" not in (final_out or ""))
         ):
-            final_out = sanitize_words_only_conceptual(final_out, original_user_msg or "")
+            final_out = sanitize_words_only_conceptual(
+                final_out, original_user_msg or ""
+            )
     except Exception:
         pass
 

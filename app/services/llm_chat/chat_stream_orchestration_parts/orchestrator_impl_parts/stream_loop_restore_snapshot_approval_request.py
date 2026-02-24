@@ -1,10 +1,19 @@
 ﻿from fastapi.responses import StreamingResponse
 
 from app.models.scenario import Scenario
-from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+)
 
 
-def _maybe_handle_restore_snapshot_approval_request(*, request, db, original_user_msg: str, store_pending_approval_request, is_no_tools_request):
+def _maybe_handle_restore_snapshot_approval_request(
+    *,
+    request,
+    db,
+    original_user_msg: str,
+    store_pending_approval_request,
+    is_no_tools_request
+):
     if not (
         request.client_id is not None
         and isinstance(original_user_msg, str)
@@ -40,7 +49,9 @@ def _maybe_handle_restore_snapshot_approval_request(*, request, db, original_use
 
     if snapshot is None:
         return StreamingResponse(
-            iter(["לא נמצא סנאפסוט תיק לשחזור. אנא העלה/שמור תיק פנסיוני ואז נסה שוב."]),
+            iter(
+                ["לא נמצא סנאפסוט תיק לשחזור. אנא העלה/שמור תיק פנסיוני ואז נסה שוב."]
+            ),
             media_type="text/plain",
         )
 

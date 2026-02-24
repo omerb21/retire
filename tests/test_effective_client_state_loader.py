@@ -37,7 +37,9 @@ def test_effective_client_state_loader_no_assets_is_pre_conversion(_test_db) -> 
         assert isinstance(state.counts, dict)
 
 
-def test_effective_client_state_loader_conversion_asset_is_post_conversion_locked(_test_db) -> None:
+def test_effective_client_state_loader_conversion_asset_is_post_conversion_locked(
+    _test_db,
+) -> None:
     Session = _test_db["Session"]
     with Session() as db:
         client_id = _create_client(db, client_id=910000002, id_number="910000002")
@@ -52,7 +54,9 @@ def test_effective_client_state_loader_conversion_asset_is_post_conversion_locke
             start_date=date(2020, 1, 1),
             indexation_method="none",
             tax_treatment="taxable",
-            conversion_source=json.dumps({"source": "scenario_conversion"}, ensure_ascii=False),
+            conversion_source=json.dumps(
+                {"source": "scenario_conversion"}, ensure_ascii=False
+            ),
         )
         db.add(asset)
         db.commit()
@@ -62,7 +66,9 @@ def test_effective_client_state_loader_conversion_asset_is_post_conversion_locke
         assert state.has_any_conversion_assets is True
 
 
-def test_effective_client_state_loader_snapshot_meta_transform_is_post_conversion_locked(_test_db) -> None:
+def test_effective_client_state_loader_snapshot_meta_transform_is_post_conversion_locked(
+    _test_db,
+) -> None:
     Session = _test_db["Session"]
     with Session() as db:
         client_id = _create_client(db, client_id=910000003, id_number="910000003")

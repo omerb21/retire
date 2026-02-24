@@ -12,7 +12,6 @@ from app.models.fixation_result import FixationResult
 from app.models.pension_fund import PensionFund
 from app.services.retirement.constants import DEFAULT_DISCOUNT_RATE
 
-
 logger = logging.getLogger("app.scenarios.commutation_exemption")
 
 
@@ -113,7 +112,9 @@ class CommutationExemptionService:
 
         # עדכון ההערות כך שסכום ה"amount" יתאים לחלק החייב
         if asset.remarks:
-            asset.remarks = self._update_remarks_amount(asset.remarks, taxable_remainder)
+            asset.remarks = self._update_remarks_amount(
+                asset.remarks, taxable_remainder
+            )
 
         # עדכון conversion_source לחלק החייב
         try:
@@ -132,7 +133,9 @@ class CommutationExemptionService:
         # יצירת נכס הון חדש עבור החלק הפטור
         exempt_remarks = self._update_remarks_amount(asset.remarks or "", use_amount)
         try:
-            src_for_exempt = json.loads(asset.conversion_source) if asset.conversion_source else {}
+            src_for_exempt = (
+                json.loads(asset.conversion_source) if asset.conversion_source else {}
+            )
         except Exception:
             src_for_exempt = {}
 
@@ -147,8 +150,16 @@ class CommutationExemptionService:
             asset_name=(asset.asset_name or "היוון") + " (חלק פטור)",
             asset_type=asset.asset_type,
             description=asset.description,
-            current_value=Decimal("0") if value_field != "current_value" else Decimal(str(use_amount)),
-            monthly_income=Decimal(str(use_amount)) if value_field != "current_value" else asset.monthly_income,
+            current_value=(
+                Decimal("0")
+                if value_field != "current_value"
+                else Decimal(str(use_amount))
+            ),
+            monthly_income=(
+                Decimal(str(use_amount))
+                if value_field != "current_value"
+                else asset.monthly_income
+            ),
             rental_income=asset.rental_income,
             monthly_rental_income=asset.monthly_rental_income,
             annual_return_rate=asset.annual_return_rate,
@@ -162,7 +173,11 @@ class CommutationExemptionService:
             spread_years=asset.spread_years,
             original_principal=asset.original_principal,
             remarks=exempt_remarks,
-            conversion_source=json.dumps(src_for_exempt, ensure_ascii=False) if isinstance(src_for_exempt, dict) else asset.conversion_source,
+            conversion_source=(
+                json.dumps(src_for_exempt, ensure_ascii=False)
+                if isinstance(src_for_exempt, dict)
+                else asset.conversion_source
+            ),
         )
 
         self.db.add(exempt_asset)
@@ -188,9 +203,11 @@ class CommutationExemptionService:
             .filter(
                 CapitalAsset.client_id == self.client_id,
                 CapitalAsset.conversion_source.isnot(None),
-                CapitalAsset.conversion_source.like('%"source": "scenario_conversion"%'),
+                CapitalAsset.conversion_source.like(
+                    '%"source": "scenario_conversion"%'
+                ),
                 CapitalAsset.remarks.isnot(None),
-                CapitalAsset.remarks.like('%COMMUTATION:%'),
+                CapitalAsset.remarks.like("%COMMUTATION:%"),
                 CapitalAsset.tax_treatment == "taxable",
             )
             .all()
@@ -206,7 +223,9 @@ class CommutationExemptionService:
         result.sort(key=lambda item: item[1])
         return result
 
-    def apply_exempt_capital_to_scenario_commutations(self, fixation: FixationResult) -> None:
+    def apply_exempt_capital_to_scenario_commutations(
+        self, fixation: FixationResult
+    ) -> None:
         """ניצול יתרת הון פטורה על היווני תרחיש ושינוי יחס המס שלהם לחייב/פטור.
 
         לוגיקה:
@@ -279,7 +298,9 @@ class CommutationExemptionService:
                 continue
 
             # אין מספיק הון פטור לכיסוי מלא של ההיוון – ננסה פטור חלקי על ההיוון הקטן ביותר שנותר
-            partial_used = self._apply_partial_exemption(asset, amount, remaining_exempt)
+            partial_used = self._apply_partial_exemption(
+                asset, amount, remaining_exempt
+            )
             if partial_used > 0:
                 used_total += partial_used
                 remaining_exempt -= partial_used
@@ -304,7 +325,9 @@ class CommutationExemptionService:
             raw = fixation.raw_result or {}
             if isinstance(raw, dict):
                 exemption_summary = raw.get("exemption_summary") or {}
-                exemption_summary["remaining_exempt_capital"] = fixation.exempt_capital_remaining
+                exemption_summary["remaining_exempt_capital"] = (
+                    fixation.exempt_capital_remaining
+                )
                 raw["exemption_summary"] = exemption_summary
                 fixation.raw_result = raw
         except Exception as e:
@@ -381,7 +404,9 @@ class CommutationExemptionService:
                         # קצבה שהייתה פטורה גם בלי קיבוע – לא נספור את ההיוון שלה כהטבה
                         continue
 
-                commutation_date = asset.start_date or getattr(asset, "purchase_date", None)
+                commutation_date = asset.start_date or getattr(
+                    asset, "purchase_date", None
+                )
 
                 years_from_now = 0.0
                 try:

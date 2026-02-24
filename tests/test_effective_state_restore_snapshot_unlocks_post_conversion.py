@@ -36,7 +36,9 @@ def test_effective_state_restore_snapshot_unlocks_post_conversion(_test_db) -> N
             start_date=date(2020, 1, 1),
             indexation_method="none",
             tax_treatment="taxable",
-            conversion_source=json.dumps({"source": "scenario_conversion"}, ensure_ascii=False),
+            conversion_source=json.dumps(
+                {"source": "scenario_conversion"}, ensure_ascii=False
+            ),
         )
         db.add(asset)
 

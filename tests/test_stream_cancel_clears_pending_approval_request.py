@@ -19,7 +19,9 @@ def test_stream_cancel_clears_pending_approval_request(monkeypatch, _test_db) ->
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic cancel flow")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == 930300001).first()

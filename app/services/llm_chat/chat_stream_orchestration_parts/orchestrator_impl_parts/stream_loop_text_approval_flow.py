@@ -76,7 +76,7 @@ def _maybe_handle_text_approval_flow(
     compute_existing_income_offset_monthly,
     store_latest_target_pension_plan_data,
     store_latest_target_pension_plan,
- ):
+):
     if request.client_id is None:
         return None
 
@@ -93,7 +93,9 @@ def _maybe_handle_text_approval_flow(
         except Exception:
             return False
 
-    if lowered_user_msg in {"אוקי", "אוקיי", "הבנתי", "בסדר", "סבבה"} and (not _has_pending_approval()):
+    if lowered_user_msg in {"אוקי", "אוקיי", "הבנתי", "בסדר", "סבבה"} and (
+        not _has_pending_approval()
+    ):
         return StreamingResponse(
             iter(["קיבלתי."]),
             media_type="text/plain",
@@ -136,7 +138,9 @@ def _maybe_handle_text_approval_flow(
 
     approved_tool, approved_args = pending
 
-    def _append_transform_hint_if_needed(*, tool_name: str, rendered_output: str) -> str:
+    def _append_transform_hint_if_needed(
+        *, tool_name: str, rendered_output: str
+    ) -> str:
         if tool_name != "TRANSFORM_FUNDS_TO_ASSETS":
             return rendered_output
         try:
@@ -153,13 +157,17 @@ def _maybe_handle_text_approval_flow(
         try:
             effective_portfolio = request.pension_portfolio
             try:
-                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     effective_portfolio, _snapshot_at = loaded
             except Exception:
                 pass
 
-            if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+            if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(
+                approved_args, dict
+            ):
                 try:
                     accounts = approved_args.get("accounts")
                     if _accounts_are_thin(accounts):
@@ -178,7 +186,9 @@ def _maybe_handle_text_approval_flow(
                 request_id=req_id,
             )
 
-            if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+            if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(
+                approved_args, dict
+            ):
                 try:
                     parsed = json.loads(tool_result)
                 except Exception:
@@ -191,14 +201,17 @@ def _maybe_handle_text_approval_flow(
                     except Exception:
                         total_converted = 0
                     try:
-                        skipped_zero_balance = int(parsed.get("skipped_zero_balance") or 0)
+                        skipped_zero_balance = int(
+                            parsed.get("skipped_zero_balance") or 0
+                        )
                     except Exception:
                         skipped_zero_balance = 0
 
                     if (
                         total_converted == 0
                         and skipped_zero_balance > 0
-                        and bool(approved_args.get("use_provided_accounts_only")) is True
+                        and bool(approved_args.get("use_provided_accounts_only"))
+                        is True
                     ):
                         should_retry = True
 
@@ -222,11 +235,15 @@ def _maybe_handle_text_approval_flow(
                 pass
 
         tool_display = get_tool_display_name_hebrew(approved_tool)
-        user_tool_output = format_tool_output_for_user_stream(approved_tool, tool_result)
-        rendered = (
-            f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(user_tool_output)
+        user_tool_output = format_tool_output_for_user_stream(
+            approved_tool, tool_result
         )
-        yield _append_transform_hint_if_needed(tool_name=approved_tool, rendered_output=rendered)
+        rendered = f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(
+            user_tool_output
+        )
+        yield _append_transform_hint_if_needed(
+            tool_name=approved_tool, rendered_output=rendered
+        )
 
     return StreamingResponse(
         _generate_text_approved_exec(stream_request_id),

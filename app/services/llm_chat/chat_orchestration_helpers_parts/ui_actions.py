@@ -95,7 +95,8 @@ def build_forced_document_reply(
 
                 is_fixation_package = (
                     tool_name == "GENERATE_TAX_DEDUCTION_DOCUMENTS"
-                    and doc_type in {"fixation_package", "kibua_zechuyot", "package", "161d_package"}
+                    and doc_type
+                    in {"fixation_package", "kibua_zechuyot", "package", "161d_package"}
                 ) or (
                     isinstance(normalized_url, str)
                     and normalized_url.startswith("/api/v1/fixation/")

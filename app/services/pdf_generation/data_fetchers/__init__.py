@@ -5,6 +5,6 @@
 from .fixation_data import fetch_fixation_data, FixationData
 
 __all__ = [
-    'fetch_fixation_data',
-    'FixationData',
+    "fetch_fixation_data",
+    "FixationData",
 ]

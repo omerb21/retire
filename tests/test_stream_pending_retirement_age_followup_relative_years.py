@@ -9,7 +9,9 @@ from app.main import app
 from app.models.client import Client
 
 
-def test_stream_pending_retirement_age_followup_from_relative_years(monkeypatch, _test_db) -> None:
+def test_stream_pending_retirement_age_followup_from_relative_years(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -33,7 +35,9 @@ def test_stream_pending_retirement_age_followup_from_relative_years(monkeypatch,
             "LLM must not be called for pending_plan_target continue flow; tools-first should run"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_today() -> date:
         return date(2026, 1, 27)
@@ -42,9 +46,13 @@ def test_stream_pending_retirement_age_followup_from_relative_years(monkeypatch,
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         try:
-            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+            from app.services.agent_execution.tool_execution_context import (
+                mark_tool_ok_seen,
+            )
 
             mark_tool_ok_seen()
         except Exception:

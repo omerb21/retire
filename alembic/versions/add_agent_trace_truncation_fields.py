@@ -4,6 +4,7 @@ Revision ID: b2c3d4e5f6a7
 Revises: a1b2c3d4e5f6
 Create Date: 2026-02-10
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -16,7 +17,12 @@ depends_on = None
 def upgrade() -> None:
     with op.batch_alter_table("agent_trace_event") as batch_op:
         batch_op.add_column(
-            sa.Column("is_truncated", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column(
+                "is_truncated",
+                sa.Boolean(),
+                nullable=False,
+                server_default=sa.text("0"),
+            ),
         )
         batch_op.add_column(
             sa.Column("payload_size", sa.Integer(), nullable=True),

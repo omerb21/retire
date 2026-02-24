@@ -23,7 +23,9 @@ from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_par
 )
 
 
-def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_db) -> None:
+def test_stream_pre_retirement_plan_resolution_income_offset(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 950000003
@@ -99,7 +101,9 @@ def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -108,21 +112,33 @@ def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     with Session() as db:
-        income = db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).first()
+        income = (
+            db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == client_id)
+            .first()
+        )
         income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
         today = date.today()
         reference_date = date(today.year, today.month, 1)
         monthly_gross = income_service.calculate_monthly_amount(income)
-        tax_amount, _ = income_service.calculate_tax(monthly_gross, income, None, reference_date)
+        tax_amount, _ = income_service.calculate_tax(
+            monthly_gross, income, None, reference_date
+        )
         expected_offset = float(monthly_gross - tax_amount)
 
     seen: dict[str, float] = {}
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         seen["target"] = float(target_monthly_pension)
         assert target_is_net is True
@@ -136,14 +152,18 @@ def test_stream_pre_retirement_plan_resolution_income_offset(monkeypatch, _test_
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     api = TestClient(app)
     resp = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -195,7 +215,9 @@ def test_stream_plan_request_not_blocked_when_undo_snapshot_exists_and_db_empty(
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -210,7 +232,9 @@ def test_stream_plan_request_not_blocked_when_undo_snapshot_exists_and_db_empty(
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"_meta": {"note": "undo marker"}}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"_meta": {"note": "undo marker"}}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -220,12 +244,18 @@ def test_stream_plan_request_not_blocked_when_undo_snapshot_exists_and_db_empty(
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     seen: dict[str, float] = {}
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         seen["target"] = float(target_monthly_pension)
         assert target_is_net is True
@@ -239,14 +269,18 @@ def test_stream_plan_request_not_blocked_when_undo_snapshot_exists_and_db_empty(
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     api = TestClient(app)
     resp = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -318,7 +352,10 @@ def test_stream_plan_request_not_blocked_when_snapshot_meta_indicates_transform_
                 parameters=json.dumps(
                     {
                         "pension_portfolio": snapshot_accounts,
-                        "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS", "trace_id": "T-1"},
+                        "_meta": {
+                            "operation_type": "TRANSFORM_FUNDS_TO_ASSETS",
+                            "trace_id": "T-1",
+                        },
                     },
                     ensure_ascii=False,
                 ),
@@ -331,21 +368,33 @@ def test_stream_plan_request_not_blocked_when_snapshot_meta_indicates_transform_
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     with Session() as db:
-        income = db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).first()
+        income = (
+            db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == client_id)
+            .first()
+        )
         income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
         today = date.today()
         reference_date = date(today.year, today.month, 1)
         monthly_gross = income_service.calculate_monthly_amount(income)
-        tax_amount, _ = income_service.calculate_tax(monthly_gross, income, None, reference_date)
+        tax_amount, _ = income_service.calculate_tax(
+            monthly_gross, income, None, reference_date
+        )
         expected_offset = float(monthly_gross - tax_amount)
 
     seen: dict[str, float] = {}
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         seen["target"] = float(target_monthly_pension)
         assert target_is_net is True
@@ -359,14 +408,18 @@ def test_stream_plan_request_not_blocked_when_snapshot_meta_indicates_transform_
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     api = TestClient(app)
     resp = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -376,15 +429,21 @@ def test_stream_plan_request_not_blocked_when_snapshot_meta_indicates_transform_
     assert seen.get("target") == float(30000.0 - expected_offset)
 
 
-def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, _test_db) -> None:
+def test_stream_pre_retirement_plan_resolution_blocked_question_no(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 950000004
 
     with Session() as db:
         try:
-            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(synchronize_session=False)
-            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(synchronize_session=False)
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(
+                synchronize_session=False
+            )
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(
+                synchronize_session=False
+            )
             db.query(Scenario).filter(Scenario.client_id == client_id).filter(
                 Scenario.scenario_name.in_(
                     {
@@ -433,7 +492,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -442,10 +503,16 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         return {
             "success": True,
@@ -484,7 +551,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     original_execute_tool_call = stream_orch.execute_tool_call
 
@@ -504,7 +573,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 5000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 5000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -535,15 +606,21 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_no(monkeypatch, 
     assert approval.get("arguments", {}).get("ignore_blocked_balances") is True
 
 
-def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approval(monkeypatch, _test_db) -> None:
+def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approval(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 950000005
 
     with Session() as db:
         try:
-            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(synchronize_session=False)
-            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(synchronize_session=False)
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(
+                synchronize_session=False
+            )
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(
+                synchronize_session=False
+            )
             db.query(Scenario).filter(Scenario.client_id == client_id).filter(
                 Scenario.scenario_name.in_(
                     {
@@ -592,7 +669,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -601,10 +680,16 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         assert target_is_net is True
         return {
@@ -644,7 +729,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     original_execute_tool_call = stream_orch.execute_tool_call
     tool_calls: list[str] = []
@@ -725,7 +812,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 5000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 5000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -789,7 +878,9 @@ def test_stream_pre_retirement_plan_resolution_blocked_question_yes_then_approva
         assert pending_after is None
 
 
-def test_stream_cashflow_uses_last_plan_without_cashflow_tool(monkeypatch, _test_db) -> None:
+def test_stream_cashflow_uses_last_plan_without_cashflow_tool(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 950000006
@@ -812,7 +903,9 @@ def test_stream_cashflow_uses_last_plan_without_cashflow_tool(monkeypatch, _test
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     original_execute_tool_call = stream_orch.execute_tool_call
     tool_calls: list[str] = []
@@ -829,7 +922,11 @@ def test_stream_cashflow_uses_last_plan_without_cashflow_tool(monkeypatch, _test
     monkeypatch.setattr(stream_orch, "execute_tool_call", wrapped_execute_tool_call)
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         return {
             "success": True,
@@ -844,14 +941,18 @@ def test_stream_cashflow_uses_last_plan_without_cashflow_tool(monkeypatch, _test
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     api = TestClient(app)
     resp1 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )

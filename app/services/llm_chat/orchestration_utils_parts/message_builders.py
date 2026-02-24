@@ -1,7 +1,8 @@
-
 import json
 
-from app.services.llm_chat.orchestration_utils_parts.tool_names import get_tool_display_name_hebrew
+from app.services.llm_chat.orchestration_utils_parts.tool_names import (
+    get_tool_display_name_hebrew,
+)
 
 
 def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) -> str:
@@ -42,7 +43,9 @@ def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) 
             if isinstance(parsed, dict) and parsed.get("success") is True:
                 parsed_success = parsed
         except Exception:
-            is_error = isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:")
+            is_error = isinstance(
+                tool_result, str
+            ) and tool_result.strip().lower().startswith("error:")
 
         if is_error:
             return (
@@ -70,7 +73,9 @@ def build_tool_result_system_message_for_chat(tool_name: str, tool_result: str) 
     )
 
 
-def build_tool_result_system_message_for_stream(tool_name: str, tool_result: str) -> str:
+def build_tool_result_system_message_for_stream(
+    tool_name: str, tool_result: str
+) -> str:
     tool_display = get_tool_display_name_hebrew(tool_name)
     if tool_name == "GENERATE_FULL_REPORT":
         return (
@@ -106,7 +111,9 @@ def build_tool_result_system_message_for_stream(tool_name: str, tool_result: str
             if isinstance(parsed, dict) and parsed.get("success") is True:
                 parsed_success = parsed
         except Exception:
-            is_error = isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:")
+            is_error = isinstance(
+                tool_result, str
+            ) and tool_result.strip().lower().startswith("error:")
 
         if is_error:
             return (

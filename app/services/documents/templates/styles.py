@@ -6,7 +6,7 @@
 def get_base_styles() -> str:
     """
     מחזיר סגנונות CSS בסיסיים לכל המסמכים
-    
+
     Returns:
         מחרוזת CSS
     """

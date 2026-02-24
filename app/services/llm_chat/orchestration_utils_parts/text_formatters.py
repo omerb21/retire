@@ -2,7 +2,6 @@ import json
 import logging
 import re
 
-
 logger = logging.getLogger("app.llm_chat.text_formatters")
 
 
@@ -10,7 +9,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
     if not isinstance(tool_name, str) or not tool_name:
         return tool_result
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith("error:"):
+    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+        "error:"
+    ):
         return tool_result
 
     if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
@@ -27,12 +28,16 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             return raw
         if not isinstance(parsed_snapshot, dict) or not parsed_snapshot:
             try:
-                logger.warning("GET_SYSTEM_STATE_SNAPSHOT returned non-dict/empty payload")
+                logger.warning(
+                    "GET_SYSTEM_STATE_SNAPSHOT returned non-dict/empty payload"
+                )
             except Exception:
                 pass
             return "(tool returned empty payload)"
         try:
-            return json.dumps(parsed_snapshot, ensure_ascii=False, indent=2, sort_keys=True)
+            return json.dumps(
+                parsed_snapshot, ensure_ascii=False, indent=2, sort_keys=True
+            )
         except Exception:
             return raw
 
@@ -73,7 +78,7 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             total += amt
 
         lines.append(f"נמצאו {len(products)} מוצרים.")
-        lines.append(f"סה\"כ צבירה (כפי שמופיע במערכת): {total:,.0f} ₪")
+        lines.append(f'סה"כ צבירה (כפי שמופיע במערכת): {total:,.0f} ₪')
         lines.append("")
         lines.append("פירוט (עד 10 פריטים):")
 
@@ -88,7 +93,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             lines.append(f"{idx}. {name} ({category}) – {amt:,.0f} ₪")
 
         lines.append("")
-        lines.append("הערה: התשובה מוצגת כפי שנשלפה מהמערכת (ללא חישוב פנימי של הסוכן).")
+        lines.append(
+            "הערה: התשובה מוצגת כפי שנשלפה מהמערכת (ללא חישוב פנימי של הסוכן)."
+        )
         return "\n".join(lines).strip()
 
     if tool_name in {
@@ -160,11 +167,17 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             if spread_net is not None:
                 lines.append(f"• נטו לאחר פריסה: {float(spread_net):,.0f} ₪")
             if tax_benefit is not None:
-                lines.append(f"• חיסכון מס בפריסה (השוואה): {float(tax_benefit):,.0f} ₪")
+                lines.append(
+                    f"• חיסכון מס בפריסה (השוואה): {float(tax_benefit):,.0f} ₪"
+                )
             return "\n".join(lines)
 
         if tool_name == "CALCULATE_TAX_EXEMPT_PENSION" and isinstance(parsed, dict):
-            result = parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+            result = (
+                parsed.get("result")
+                if isinstance(parsed.get("result"), dict)
+                else parsed
+            )
             if not isinstance(result, dict):
                 return tool_result
 
@@ -178,19 +191,28 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             if grant_used is not None:
                 lines.append(f"• מענק פטור שנלקח בחשבון: {float(grant_used):,.0f} ₪")
             if initial_exempt is not None:
-                lines.append(f"• קצבה פטורה לפני קיזוז: {float(initial_exempt):,.0f} ₪/חודש")
+                lines.append(
+                    f"• קצבה פטורה לפני קיזוז: {float(initial_exempt):,.0f} ₪/חודש"
+                )
             if final_exempt is not None:
-                lines.append(f"• קצבה פטורה אחרי קיזוז: {float(final_exempt):,.0f} ₪/חודש")
+                lines.append(
+                    f"• קצבה פטורה אחרי קיזוז: {float(final_exempt):,.0f} ₪/חודש"
+                )
             if monthly_loss is not None:
-                lines.append(f"• ירידה חודשית בקצבה הפטורה: {float(monthly_loss):,.0f} ₪/חודש")
+                lines.append(
+                    f"• ירידה חודשית בקצבה הפטורה: {float(monthly_loss):,.0f} ₪/חודש"
+                )
             return "\n".join(lines)
 
         if tool_name == "PROCESS_TERMINATION" and isinstance(parsed, dict):
             success = parsed.get("success")
             message = parsed.get("message")
-            details = parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
+            details = (
+                parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
+            )
             already_processed = bool(details.get("already_processed")) or (
-                isinstance(message, str) and ("כבר בוצע" in message or "כבר בוצעה" in message)
+                isinstance(message, str)
+                and ("כבר בוצע" in message or "כבר בוצעה" in message)
             )
             termination_date = details.get("termination_date")
             severance_amount = details.get("severance_amount")
@@ -217,9 +239,11 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
 
             if severance_amount is not None:
                 try:
-                    lines.append(f"• סה\"כ פיצויים שטופלו: {float(severance_amount):,.0f} ₪")
+                    lines.append(
+                        f'• סה"כ פיצויים שטופלו: {float(severance_amount):,.0f} ₪'
+                    )
                 except Exception:
-                    lines.append(f"• סה\"כ פיצויים שטופלו: {severance_amount} ₪")
+                    lines.append(f'• סה"כ פיצויים שטופלו: {severance_amount} ₪')
             if exempt_amount is not None or exempt_choice is not None:
                 parts: list[str] = []
                 if exempt_amount is not None:
@@ -310,7 +334,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 lines.append(f"• מזהה נכס היוון: {parsed.get('commutation_asset_id')}")
             if parsed.get("commutation_amount") is not None:
                 try:
-                    lines.append(f"• סכום היוון: {float(parsed.get('commutation_amount')):,.0f} ₪")
+                    lines.append(
+                        f"• סכום היוון: {float(parsed.get('commutation_amount')):,.0f} ₪"
+                    )
                 except Exception:
                     lines.append(f"• סכום היוון: {parsed.get('commutation_amount')} ₪")
             if parsed.get("commutation_date"):
@@ -319,17 +345,26 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 lines.append(f"• יחס מס: {parsed.get('tax_treatment')}")
             if parsed.get("new_balance") is not None:
                 try:
-                    lines.append(f"• יתרה חדשה בקצבה: {float(parsed.get('new_balance')):,.0f} ₪")
+                    lines.append(
+                        f"• יתרה חדשה בקצבה: {float(parsed.get('new_balance')):,.0f} ₪"
+                    )
                 except Exception:
                     lines.append(f"• יתרה חדשה בקצבה: {parsed.get('new_balance')} ₪")
             if parsed.get("new_pension_amount") is not None:
                 try:
-                    lines.append(f"• קצבה חודשית חדשה: {float(parsed.get('new_pension_amount')):,.0f} ₪")
+                    lines.append(
+                        f"• קצבה חודשית חדשה: {float(parsed.get('new_pension_amount')):,.0f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• קצבה חודשית חדשה: {parsed.get('new_pension_amount')} ₪")
+                    lines.append(
+                        f"• קצבה חודשית חדשה: {parsed.get('new_pension_amount')} ₪"
+                    )
             return "\n".join(lines)
 
-        if tool_name == "GENERATE_FULL_REPORT" or tool_name == "GENERATE_TAX_DEDUCTION_DOCUMENTS":
+        if (
+            tool_name == "GENERATE_FULL_REPORT"
+            or tool_name == "GENERATE_TAX_DEDUCTION_DOCUMENTS"
+        ):
             try:
                 parsed_doc = json.loads(tool_result)
             except Exception:
@@ -337,7 +372,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             if not isinstance(parsed_doc, dict):
                 return tool_result
 
-            status_message = parsed_doc.get("status_message") or parsed_doc.get("message")
+            status_message = parsed_doc.get("status_message") or parsed_doc.get(
+                "message"
+            )
             open_path = parsed_doc.get("open_path")
             download_url = parsed_doc.get("download_url")
 
@@ -369,19 +406,31 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 lines.append(f"• שנת קיבוע: {parsed_fix.get('eligibility_year')}")
             if parsed_fix.get("monthly_exempt_pension") is not None:
                 try:
-                    lines.append(f"• קצבה פטורה חודשית: {float(parsed_fix.get('monthly_exempt_pension')):,.2f} ₪")
+                    lines.append(
+                        f"• קצבה פטורה חודשית: {float(parsed_fix.get('monthly_exempt_pension')):,.2f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• קצבה פטורה חודשית: {parsed_fix.get('monthly_exempt_pension')} ₪")
+                    lines.append(
+                        f"• קצבה פטורה חודשית: {parsed_fix.get('monthly_exempt_pension')} ₪"
+                    )
             if parsed_fix.get("exempt_pension_percentage") is not None:
                 try:
-                    lines.append(f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.2f}%")
+                    lines.append(
+                        f"• אחוז קצבה פטורה: {float(parsed_fix.get('exempt_pension_percentage'))*100:.2f}%"
+                    )
                 except Exception:
-                    lines.append(f"• אחוז קצבה פטורה: {parsed_fix.get('exempt_pension_percentage')}")
+                    lines.append(
+                        f"• אחוז קצבה פטורה: {parsed_fix.get('exempt_pension_percentage')}"
+                    )
             if parsed_fix.get("exempt_capital_initial") is not None:
                 try:
-                    lines.append(f"• הון פטור ראשוני: {float(parsed_fix.get('exempt_capital_initial')):,.2f} ₪")
+                    lines.append(
+                        f"• הון פטור ראשוני: {float(parsed_fix.get('exempt_capital_initial')):,.2f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• הון פטור ראשוני: {parsed_fix.get('exempt_capital_initial')} ₪")
+                    lines.append(
+                        f"• הון פטור ראשוני: {parsed_fix.get('exempt_capital_initial')} ₪"
+                    )
             return "\n".join(lines)
 
         if tool_name == "SUBMIT_TAX_COMMUTATION":
@@ -402,9 +451,13 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 lines.append(f"• מזהה הגשה: {parsed_submit.get('submission_id')}")
             if parsed_submit.get("final_net_amount") is not None:
                 try:
-                    lines.append(f"• נטו מאושר לתיעוד: {float(parsed_submit.get('final_net_amount')):,.0f} ₪")
+                    lines.append(
+                        f"• נטו מאושר לתיעוד: {float(parsed_submit.get('final_net_amount')):,.0f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• נטו מאושר לתיעוד: {parsed_submit.get('final_net_amount')} ₪")
+                    lines.append(
+                        f"• נטו מאושר לתיעוד: {parsed_submit.get('final_net_amount')} ₪"
+                    )
             return "\n".join(lines)
 
         if tool_name == "EXECUTE_PENSION_COMMUTATION":
@@ -423,26 +476,40 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             if parsed_exec.get("pension_fund_id") is not None:
                 lines.append(f"• מזהה קצבה: {parsed_exec.get('pension_fund_id')}")
             if parsed_exec.get("commutation_asset_id") is not None:
-                lines.append(f"• מזהה נכס היוון: {parsed_exec.get('commutation_asset_id')}")
+                lines.append(
+                    f"• מזהה נכס היוון: {parsed_exec.get('commutation_asset_id')}"
+                )
             if parsed_exec.get("commutation_amount") is not None:
                 try:
-                    lines.append(f"• סכום היוון: {float(parsed_exec.get('commutation_amount')):,.0f} ₪")
+                    lines.append(
+                        f"• סכום היוון: {float(parsed_exec.get('commutation_amount')):,.0f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• סכום היוון: {parsed_exec.get('commutation_amount')} ₪")
+                    lines.append(
+                        f"• סכום היוון: {parsed_exec.get('commutation_amount')} ₪"
+                    )
             if parsed_exec.get("commutation_date"):
                 lines.append(f"• תאריך: {parsed_exec.get('commutation_date')}")
             if parsed_exec.get("tax_treatment"):
                 lines.append(f"• יחס מס: {parsed_exec.get('tax_treatment')}")
             if parsed_exec.get("new_balance") is not None:
                 try:
-                    lines.append(f"• יתרה חדשה בקצבה: {float(parsed_exec.get('new_balance')):,.0f} ₪")
+                    lines.append(
+                        f"• יתרה חדשה בקצבה: {float(parsed_exec.get('new_balance')):,.0f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• יתרה חדשה בקצבה: {parsed_exec.get('new_balance')} ₪")
+                    lines.append(
+                        f"• יתרה חדשה בקצבה: {parsed_exec.get('new_balance')} ₪"
+                    )
             if parsed_exec.get("new_pension_amount") is not None:
                 try:
-                    lines.append(f"• קצבה חודשית חדשה: {float(parsed_exec.get('new_pension_amount')):,.0f} ₪")
+                    lines.append(
+                        f"• קצבה חודשית חדשה: {float(parsed_exec.get('new_pension_amount')):,.0f} ₪"
+                    )
                 except Exception:
-                    lines.append(f"• קצבה חודשית חדשה: {parsed_exec.get('new_pension_amount')} ₪")
+                    lines.append(
+                        f"• קצבה חודשית חדשה: {parsed_exec.get('new_pension_amount')} ₪"
+                    )
             return "\n".join(lines)
 
     if tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
@@ -460,15 +527,23 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
         explanation = parsed.get("explanation")
         if isinstance(explanation, str) and explanation.strip():
             return explanation.strip()
-        data = parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+        data = (
+            parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+        )
     else:
         data = parsed
 
     if not isinstance(data, dict):
         return tool_result
 
-    gross_total = data.get("total_guaranteed_income") or data.get("total_guaranteed_income_gross") or data.get("projected_pension")
-    net_total = data.get("total_guaranteed_income_net") or data.get("projected_pension_net")
+    gross_total = (
+        data.get("total_guaranteed_income")
+        or data.get("total_guaranteed_income_gross")
+        or data.get("projected_pension")
+    )
+    net_total = data.get("total_guaranteed_income_net") or data.get(
+        "projected_pension_net"
+    )
     monthly_net_pension = data.get("projected_pension_net")
     additional_gross = data.get("additional_income_gross_monthly")
     additional_taxable_gross = data.get("additional_income_taxable_gross_monthly")
@@ -484,19 +559,23 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
     lines: list[str] = []
     lines.append("ניתוח פרישה – עיקרי התוצאות (חודשיות):")
     if gross_total is not None:
-        lines.append(f"• סה\"כ הכנסה ברוטו: {gross_total:,.0f} ₪")
+        lines.append(f'• סה"כ הכנסה ברוטו: {gross_total:,.0f} ₪')
     if income_tax is not None or total_tax is not None:
         tax_to_show = income_tax if income_tax is not None else total_tax
         if tax_to_show is not None:
-            lines.append(f"• מס הכנסה חודשי (סה\"כ הכנסות חייבות): {tax_to_show:,.0f} ₪")
+            lines.append(f'• מס הכנסה חודשי (סה"כ הכנסות חייבות): {tax_to_show:,.0f} ₪')
     if net_total is not None:
-        lines.append(f"• סה\"כ הכנסה נטו: {net_total:,.0f} ₪")
+        lines.append(f'• סה"כ הכנסה נטו: {net_total:,.0f} ₪')
     if monthly_net_pension is not None:
-        lines.append(f"• פנסיה נטו (מתוך הסה\"כ): {monthly_net_pension:,.0f} ₪")
-    if additional_gross is not None or additional_taxable_gross is not None or additional_exempt_gross is not None:
+        lines.append(f'• פנסיה נטו (מתוך הסה"כ): {monthly_net_pension:,.0f} ₪')
+    if (
+        additional_gross is not None
+        or additional_taxable_gross is not None
+        or additional_exempt_gross is not None
+    ):
         parts: list[str] = []
         if additional_gross is not None:
-            parts.append(f"סה\"כ הכנסות נוספות (ברוטו): {additional_gross:,.0f} ₪")
+            parts.append(f'סה"כ הכנסות נוספות (ברוטו): {additional_gross:,.0f} ₪')
         if additional_taxable_gross is not None:
             parts.append(f"חייבות במס: {additional_taxable_gross:,.0f} ₪")
         if additional_exempt_gross is not None:
@@ -627,7 +706,9 @@ def sanitize_user_visible_text(text: str) -> str:
             updated = updated[idx:].lstrip()
 
     updated = re.sub(r"^\s*צריכת\s+מודל.*$", "", updated, flags=re.MULTILINE)
-    updated = re.sub(r"^\s*[A-Z0-9_]+_HANDLER_VERSION=.*$", "", updated, flags=re.MULTILINE)
+    updated = re.sub(
+        r"^\s*[A-Z0-9_]+_HANDLER_VERSION=.*$", "", updated, flags=re.MULTILINE
+    )
     updated = re.sub(r"\n{3,}", "\n\n", updated).strip()
 
     updated = updated.replace("PROCESS_TERMINATION", "עזיבת עבודה")

@@ -1,7 +1,11 @@
 from datetime import date
 
 from app.services.simulation_engine.engine import run_simulation
-from app.services.simulation_engine.models import ScenarioParameters, SelectedSource, SimulationRequest
+from app.services.simulation_engine.models import (
+    ScenarioParameters,
+    SelectedSource,
+    SimulationRequest,
+)
 
 
 def _create_sim_client_with_data(db_session) -> int:
@@ -69,4 +73,6 @@ def test_simulation_real_output_not_all_zeros(db_session) -> None:
     result = run_simulation(db_session, req)
     assert len(result.monthly_cashflow) >= 1
 
-    assert any((item.gross != 0.0 or item.net != 0.0) for item in result.monthly_cashflow)
+    assert any(
+        (item.gross != 0.0 or item.net != 0.0) for item in result.monthly_cashflow
+    )

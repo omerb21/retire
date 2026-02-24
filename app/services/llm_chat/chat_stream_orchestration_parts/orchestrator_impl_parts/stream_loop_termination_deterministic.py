@@ -35,7 +35,9 @@ def _maybe_handle_termination_deterministic(
     # IMPORTANT: Cancellation markers may include the string PROCESS_TERMINATION.
     # Never route cancellations into execution paths.
     try:
-        if isinstance(original_user_msg, str) and original_user_msg.strip().startswith("###USER_CANCELLED###"):
+        if isinstance(original_user_msg, str) and original_user_msg.strip().startswith(
+            "###USER_CANCELLED###"
+        ):
             return False, None
     except Exception:
         pass
@@ -105,10 +107,14 @@ def _maybe_handle_termination_deterministic(
         )
         tool_args: dict[str, Any] = {"confirmed": True}
         tool_args.update(extract_process_termination_choice_overrides(recent_user_text))
-        termination_date_override = extract_process_termination_date_override(recent_user_text)
+        termination_date_override = extract_process_termination_date_override(
+            recent_user_text
+        )
         if termination_date_override:
             tool_args["termination_date"] = termination_date_override
-        tool_args.update(extract_process_termination_choice_overrides(original_user_msg))
+        tool_args.update(
+            extract_process_termination_choice_overrides(original_user_msg)
+        )
 
         return (
             termination_already_executed,

@@ -27,7 +27,9 @@ def _delta(before: dict[str, Any], after: dict[str, Any]) -> dict[str, int]:
     for key in sorted(keys):
         if key.endswith("_counts"):
             continue
-        if isinstance(before.get(key), (int, float, str)) or isinstance(after.get(key), (int, float, str)):
+        if isinstance(before.get(key), (int, float, str)) or isinstance(
+            after.get(key), (int, float, str)
+        ):
             out[key] = _to_int(after.get(key)) - _to_int(before.get(key))
     return out
 

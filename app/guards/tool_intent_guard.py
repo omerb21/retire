@@ -2,7 +2,6 @@ import re
 
 from app.services.llm_chat.intent_classifier import ChatIntent
 
-
 _CONCEPTUAL_TRIGGERS: tuple[str, ...] = (
     "מה ההבדל",
     "מה המשמעות",
@@ -196,7 +195,12 @@ def _is_fixation_documents_question(user_message: str) -> bool:
     if not normalized:
         return False
 
-    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = (
+        normalized.replace("׳", "'")
+        .replace("״", '"')
+        .replace("“", '"')
+        .replace("”", '"')
+    )
     normalized = normalized.replace("‘", "'").replace("’", "'")
     normalized = normalized.strip()
 
@@ -228,13 +232,22 @@ def _conceptual_fixation_documents_fallback() -> str:
 
 
 def _conceptual_form_fallback(user_message: str) -> str:
-    normalized = (user_message or "")
-    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = user_message or ""
+    normalized = (
+        normalized.replace("׳", "'")
+        .replace("״", '"')
+        .replace("“", '"')
+        .replace("”", '"')
+    )
     normalized = normalized.replace("‘", "'").replace("’", "'")
     normalized = normalized.replace("161 ד", "161ד")
 
     lowered = normalized.lower()
-    is_161d = ("161ד" in normalized) or ("161d" in lowered) or ("טופס" in normalized and "161" in normalized)
+    is_161d = (
+        ("161ד" in normalized)
+        or ("161d" in lowered)
+        or ("טופס" in normalized and "161" in normalized)
+    )
     if is_161d:
         return (
             "טופס 161ד הוא טופס הצהרה/בחירה במסגרת קיבוע זכויות.\n"
@@ -266,8 +279,13 @@ def is_conceptual_definition(user_message: str) -> bool:
 
 
 def _conceptual_fallback_for_user_message(user_message: str) -> str:
-    normalized = (user_message or "")
-    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = user_message or ""
+    normalized = (
+        normalized.replace("׳", "'")
+        .replace("״", '"')
+        .replace("“", '"')
+        .replace("”", '"')
+    )
     normalized = normalized.replace("‘", "'").replace("’", "'")
     normalized = normalized.strip().lower()
 
@@ -304,7 +322,12 @@ def _is_conceptual_form_question(user_message: str) -> bool:
     if not normalized:
         return False
 
-    normalized = normalized.replace("׳", "'").replace("״", '"').replace("“", '"').replace("”", '"')
+    normalized = (
+        normalized.replace("׳", "'")
+        .replace("״", '"')
+        .replace("“", '"')
+        .replace("”", '"')
+    )
     normalized = normalized.replace("‘", "'").replace("’", "'")
     normalized = normalized.replace("161 ד", "161ד")
 
@@ -321,9 +344,13 @@ def _is_conceptual_form_question(user_message: str) -> bool:
 
     if ("טופס" in normalized) and wants_meaning:
         return True
-    if ("סעיף" in normalized) and (("מה זה" in normalized) or ("מה המשמעות" in normalized)):
+    if ("סעיף" in normalized) and (
+        ("מה זה" in normalized) or ("מה המשמעות" in normalized)
+    ):
         return True
-    if ("מסמך" in normalized) and (("מה זה" in normalized) or ("מה המשמעות" in normalized)):
+    if ("מסמך" in normalized) and (
+        ("מה זה" in normalized) or ("מה המשמעות" in normalized)
+    ):
         return True
 
     return False
@@ -368,7 +395,9 @@ def allow_tools_for_intent(user_message: str, detected_intent: ChatIntent) -> bo
     return True
 
 
-def get_tools_disabled_reason(user_message: str, detected_intent: ChatIntent) -> str | None:
+def get_tools_disabled_reason(
+    user_message: str, detected_intent: ChatIntent
+) -> str | None:
     candidate = (user_message or "").strip()
 
     if is_words_only_report_explainer(candidate):
@@ -406,9 +435,11 @@ def is_conceptual_no_execute_request(user_message: str | None) -> bool:
 
 def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
     conceptual_form_request = _is_conceptual_form_question(user_message)
-    normalized_user_message = (user_message or "")
+    normalized_user_message = user_message or ""
     normalized_user_message = normalized_user_message.replace("161 ד", "161ד")
-    user_has_161d = ("161ד" in normalized_user_message) or ("161d" in normalized_user_message.lower())
+    user_has_161d = ("161ד" in normalized_user_message) or (
+        "161d" in normalized_user_message.lower()
+    )
 
     if user_has_161d:
         return _conceptual_form_fallback_161d()
@@ -491,7 +522,9 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
         return _conceptual_read_cashflow_fallback()
 
     if _is_blocked_compensation_question(user_message):
-        bullet_lines = [line for line in cleaned.splitlines() if line.strip().startswith("-")]
+        bullet_lines = [
+            line for line in cleaned.splitlines() if line.strip().startswith("-")
+        ]
         if (
             ("כותרת:" not in cleaned)
             or (("חסומ" not in cleaned) and ("חסימ" not in cleaned))
@@ -500,8 +533,7 @@ def sanitize_words_only_conceptual(text: str, user_message: str = "") -> str:
             return _conceptual_blocked_comp_fallback()
 
     if removed_any and (
-        (len(paragraphs) < 1)
-        or ((len(cleaned) < 80) and (word_count < 8))
+        (len(paragraphs) < 1) or ((len(cleaned) < 80) and (word_count < 8))
     ):
         return _conceptual_fallback_for_user_message(user_message)
 
@@ -525,7 +557,9 @@ def sanitize_words_only_output(text: str) -> str:
             continue
         if stripped.startswith("###TOOL_CALL###"):
             continue
-        if stripped.startswith("###UI_ACTION###") or stripped.startswith("###END_UI_ACTION###"):
+        if stripped.startswith("###UI_ACTION###") or stripped.startswith(
+            "###END_UI_ACTION###"
+        ):
             continue
 
         if stripped.startswith("```"):

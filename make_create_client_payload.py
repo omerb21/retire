@@ -3,7 +3,8 @@ from pathlib import Path
 
 doc = json.load(open("openapi_prod.json", encoding="utf-8"))
 paths = doc.get("paths") or {}
-schemas = ((doc.get("components") or {}).get("schemas") or {})
+schemas = (doc.get("components") or {}).get("schemas") or {}
+
 
 def deref(s):
     if not isinstance(s, dict):
@@ -12,6 +13,7 @@ def deref(s):
         name = s["$ref"].split("/")[-1]
         return schemas.get(name) or {}
     return s
+
 
 def dummy(schema):
     schema = deref(schema) or {}
@@ -49,15 +51,18 @@ def dummy(schema):
         return out
     return "test"
 
+
 p = "/api/v1/clients"
 op = (paths.get(p) or {}).get("post") or {}
 rb = op.get("requestBody") or {}
-content = (rb.get("content") or {})
+content = rb.get("content") or {}
 appjson = content.get("application/json") or {}
 schema = appjson.get("schema") or {}
 
 payload = dummy(schema)
 
-Path("create_client_payload.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+Path("create_client_payload.json").write_text(
+    json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+)
 print("WROTE: create_client_payload.json")
 print(payload)

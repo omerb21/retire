@@ -4,19 +4,20 @@ from typing import Dict, Literal, Optional, List
 
 class ReportPdfRequest(BaseModel):
     """Request schema for PDF report generation"""
+
     from_: str = Field(..., alias="from", description="YYYY-MM, e.g. 2025-01")
     to: str = Field(..., description="YYYY-MM, e.g. 2025-12")
     frequency: Literal["monthly"] = "monthly"
     scenario_ids: Optional[List[int]] = None  # Optional list of scenario IDs
-    scenarios: Optional[List[int]] = None     # Alternative field name
+    scenarios: Optional[List[int]] = None  # Alternative field name
     sections: Dict[str, bool] = {
         "summary": True,
         "cashflow_table": True,
         "net_chart": True,
-        "scenarios_compare": True
+        "scenarios_compare": True,
     }
 
-    @validator('from_', 'to')
+    @validator("from_", "to")
     def validate_date_format(cls, v):
         if not isinstance(v, str) or len(v) != 7 or v[4] != "-":
             raise ValueError("Date must be in YYYY-MM format")
@@ -32,10 +33,10 @@ class ReportPdfRequest(BaseModel):
                 raise ValueError("Date must be in YYYY-MM format with valid numbers")
             raise
         return v
-    
-    @validator('to')
+
+    @validator("to")
     def validate_date_range(cls, v, values):
-        if 'from_' in values and v < values['from_']:
+        if "from_" in values and v < values["from_"]:
             raise ValueError("'to' date must be greater than or equal to 'from' date")
         return v
 
@@ -48,7 +49,7 @@ class ReportPdfRequest(BaseModel):
             "summary": True,
             "cashflow_table": True,
             "net_chart": True,
-            "scenarios_compare": True
+            "scenarios_compare": True,
         }
         defaults.update(v)
         return defaults

@@ -2,6 +2,7 @@
 Logging configuration for the application
 Provides structured logging for monitoring and alerting
 """
+
 import os
 import logging
 import logging.config
@@ -30,21 +31,19 @@ LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "standard": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        },
+        "standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"},
         "json": {
             "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             "class": "pythonjsonlogger.jsonlogger.JsonFormatter",
             "json_ensure_ascii": False,  # Important for Hebrew characters
-        }
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "level": LOG_LEVEL,
             "formatter": "standard",
-            "stream": "ext://sys.stdout"
+            "stream": "ext://sys.stdout",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -53,7 +52,7 @@ LOGGING_CONFIG = {
             "filename": "logs/app.log",
             "maxBytes": 10485760,  # 10MB
             "backupCount": 10,
-            "encoding": "utf8"
+            "encoding": "utf8",
         },
         "json_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -62,7 +61,7 @@ LOGGING_CONFIG = {
             "filename": "logs/app.json",
             "maxBytes": 10485760,  # 10MB
             "backupCount": 10,
-            "encoding": "utf8"
+            "encoding": "utf8",
         },
         "fixation_file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -71,8 +70,8 @@ LOGGING_CONFIG = {
             "filename": "logs/fixation.log",
             "maxBytes": 10485760,  # 10MB
             "backupCount": 10,
-            "encoding": "utf8"
-        }
+            "encoding": "utf8",
+        },
     },
     "loggers": {
         "": {  # Root logger
@@ -82,34 +81,34 @@ LOGGING_CONFIG = {
         "app.routers.fixation": {
             "handlers": ["console", "fixation_file", "json_file"],
             "level": LOG_LEVEL,
-            "propagate": False
+            "propagate": False,
         },
         "app.integrations.fixation_forms": {
             "handlers": ["console", "fixation_file", "json_file"],
             "level": LOG_LEVEL,
-            "propagate": False
+            "propagate": False,
         },
         "uvicorn": {
             "handlers": ["console", "file"],
             "level": LOG_LEVEL,
-            "propagate": False
+            "propagate": False,
         },
         "uvicorn.access": {
             "handlers": ["console", "file"],
             "level": "INFO",
-            "propagate": False
+            "propagate": False,
         },
         "app.access": {
             "handlers": ["console", "file"],
             "level": "INFO",
-            "propagate": False
+            "propagate": False,
         },
         "agent_eyes": {
             "handlers": ["console", "file"],
             "level": "INFO",
-            "propagate": False
-        }
-    }
+            "propagate": False,
+        },
+    },
 }
 
 
@@ -129,7 +128,7 @@ def setup_logging():
         logging.getLogger(__name__).warning(
             "python-json-logger not found, using standard formatter for JSON logs"
         )
-    
+
     logging.config.dictConfig(LOGGING_CONFIG)
     logging.info(f"Logging initialized with level {LOG_LEVEL} in {ENV} environment")
 
@@ -137,12 +136,11 @@ def setup_logging():
 def get_logger(name):
     """
     Get a logger with the given name
-    
+
     Args:
         name: Logger name
-        
+
     Returns:
         Logger instance
     """
     return logging.getLogger(name)
-

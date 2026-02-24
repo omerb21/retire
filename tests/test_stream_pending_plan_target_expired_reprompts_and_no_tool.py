@@ -9,7 +9,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_pending_plan_target_expired_reprompts_and_no_tool(monkeypatch, _test_db) -> None:
+def test_stream_pending_plan_target_expired_reprompts_and_no_tool(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -49,12 +51,18 @@ def test_stream_pending_plan_target_expired_reprompts_and_no_tool(monkeypatch, _
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for expired pending_plan_target reprompt")
+        raise AssertionError(
+            "LLM must not be called for expired pending_plan_target reprompt"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("No tool must be executed when pending_plan_target is expired")
+        raise AssertionError(
+            "No tool must be executed when pending_plan_target is expired"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

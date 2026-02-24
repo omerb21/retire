@@ -1,4 +1,7 @@
-from app.guards.advisor_behavior_guard import STANDARD_BLOCK_MESSAGE, enforce_behavioral_limits
+from app.guards.advisor_behavior_guard import (
+    STANDARD_BLOCK_MESSAGE,
+    enforce_behavioral_limits,
+)
 
 
 def test_allow_form_id_161d_not_blocked() -> None:

@@ -2,20 +2,21 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
-from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_execution_context import (
+    set_tool_execution_context,
+)
 
 
-def test_stage7_qa_mode_injects_rag_and_keeps_order(monkeypatch, db_session, client) -> None:
+def test_stage7_qa_mode_injects_rag_and_keeps_order(
+    monkeypatch, db_session, client
+) -> None:
     sentinel = "__SENTINEL_RAG__"
 
     calls = {"n": 0}
 
     def fake_build_rag_system_message(*, user_message: str):
         calls["n"] += 1
-        return (
-            "ידע מערכת שנשלף מה-Knowledge Base (חובה להשתמש בו):\n"
-            + sentinel
-        )
+        return "ידע מערכת שנשלף מה-Knowledge Base (חובה להשתמש בו):\n" + sentinel
 
     monkeypatch.setattr(
         "app.services.llm_chat.message_preparation.build_rag_system_message",
@@ -45,7 +46,9 @@ def test_stage7_qa_mode_injects_rag_and_keeps_order(monkeypatch, db_session, cli
 
     assert calls["n"] == 1
 
-    system_contents = [m.content or "" for m in messages if getattr(m, "role", None) == "system"]
+    system_contents = [
+        m.content or "" for m in messages if getattr(m, "role", None) == "system"
+    ]
 
     rag_positions = [
         i
@@ -54,7 +57,11 @@ def test_stage7_qa_mode_injects_rag_and_keeps_order(monkeypatch, db_session, cli
     ]
     assert len(rag_positions) == 1
 
-    global_prompt_positions = [i for i, c in enumerate(system_contents) if "אתה יועץ פרישה פנסיוני דיגיטלי" in c]
+    global_prompt_positions = [
+        i
+        for i, c in enumerate(system_contents)
+        if "אתה יועץ פרישה פנסיוני דיגיטלי" in c
+    ]
     assert global_prompt_positions
 
     # Ordering invariant: when QA injects RAG, global system prompt comes after it.

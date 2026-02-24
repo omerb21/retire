@@ -9,7 +9,9 @@ from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
 )
 
 
-def test_commutation_from_snapshot_zeros_snapshot_and_does_not_double_balance(db_session, client):
+def test_commutation_from_snapshot_zeros_snapshot_and_does_not_double_balance(
+    db_session, client
+):
     client_id = client.id
 
     portfolio = [

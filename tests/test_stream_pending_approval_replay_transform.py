@@ -8,9 +8,13 @@ from app.main import app
 
 def test_stream_pending_approval_replay_transform(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic execute-target-plan")
+        raise AssertionError(
+            "LLM must not be called for deterministic execute-target-plan"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     calls = {"n": 0}
 

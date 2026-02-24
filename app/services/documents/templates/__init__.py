@@ -8,8 +8,8 @@ from .commutations_template import CommutationsHTMLTemplate
 from .summary_template import SummaryHTMLTemplate
 
 __all__ = [
-    'get_base_styles',
-    'GrantsHTMLTemplate',
-    'CommutationsHTMLTemplate',
-    'SummaryHTMLTemplate',
+    "get_base_styles",
+    "GrantsHTMLTemplate",
+    "CommutationsHTMLTemplate",
+    "SummaryHTMLTemplate",
 ]

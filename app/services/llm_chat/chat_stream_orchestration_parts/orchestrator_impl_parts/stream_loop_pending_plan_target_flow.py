@@ -57,7 +57,7 @@ def _maybe_handle_pending_plan_target_flow(
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
     extract_target_net_ils,
- ) -> StreamingResponse | None:
+) -> StreamingResponse | None:
     _PENDING_PLAN_TARGET_TTL_SECONDS = 5 * 60
 
     if (
@@ -94,7 +94,9 @@ def _maybe_handle_pending_plan_target_flow(
     pending_plan_target = None
     try:
         if request.client_id is not None:
-            pending_plan_target = _load_pending_plan_target(db=db, client_id=request.client_id)
+            pending_plan_target = _load_pending_plan_target(
+                db=db, client_id=request.client_id
+            )
     except Exception:
         pending_plan_target = None
 
@@ -139,7 +141,9 @@ def _maybe_handle_pending_plan_target_flow(
             portfolio_for_plan = effective_portfolio
 
             try:
-                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     portfolio_for_plan, _snapshot_at = loaded
             except Exception:
@@ -162,7 +166,9 @@ def _maybe_handle_pending_plan_target_flow(
             }
             client_obj = None
             try:
-                client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+                client_obj = (
+                    db.query(Client).filter(Client.id == request.client_id).first()
+                )
             except Exception:
                 client_obj = None
             inferred_age = infer_retirement_age_for_plan_args(
@@ -172,11 +178,13 @@ def _maybe_handle_pending_plan_target_flow(
             if inferred_age is not None and plan_args.get("retirement_age") is None:
                 plan_args["retirement_age"] = int(inferred_age)
 
-            policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
-                db=db,
-                client_id=int(request.client_id),
-                portfolio=portfolio_for_plan,
-                plan_args=plan_args,
+            policy_status, plan_args, policy_text = (
+                evaluate_blocked_balances_policy_for_build_target_plan(
+                    db=db,
+                    client_id=int(request.client_id),
+                    portfolio=portfolio_for_plan,
+                    plan_args=plan_args,
+                )
             )
             if isinstance(policy_text, str) and policy_text.strip():
                 yield policy_text.strip() + "\n\n"
@@ -225,7 +233,9 @@ def _maybe_handle_pending_plan_target_flow(
 
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            breakdown_lines.append(
+                f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪"
+            )
             if breakdown.other_income_offset_net > 0:
                 breakdown_lines.append(
                     f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
@@ -270,7 +280,9 @@ def _maybe_handle_pending_plan_target_flow(
 
             yield sanitize_user_visible_text(
                 "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                + format_tool_output_for_user_stream(
+                    "BUILD_TARGET_PENSION_PLAN", plan_result
+                )
             )
 
         return StreamingResponse(
@@ -314,6 +326,7 @@ def _maybe_handle_pending_plan_target_flow(
         and (target_net_for_plan is not None)
         and has_target_plan_keywords
     ):
+
         def _generate_target_plan_tools_first(req_id: str):
             if computed_data is not None:
                 computed_json = json.dumps(
@@ -329,7 +342,9 @@ def _maybe_handle_pending_plan_target_flow(
             portfolio_for_plan = effective_portfolio
 
             try:
-                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     portfolio_for_plan, _snapshot_at = loaded
             except Exception:
@@ -352,7 +367,9 @@ def _maybe_handle_pending_plan_target_flow(
             }
             client_obj = None
             try:
-                client_obj = db.query(Client).filter(Client.id == request.client_id).first()
+                client_obj = (
+                    db.query(Client).filter(Client.id == request.client_id).first()
+                )
             except Exception:
                 client_obj = None
             inferred_age = infer_retirement_age_for_plan_args(
@@ -362,11 +379,13 @@ def _maybe_handle_pending_plan_target_flow(
             if inferred_age is not None and plan_args.get("retirement_age") is None:
                 plan_args["retirement_age"] = int(inferred_age)
 
-            policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
-                db=db,
-                client_id=int(request.client_id),
-                portfolio=portfolio_for_plan,
-                plan_args=plan_args,
+            policy_status, plan_args, policy_text = (
+                evaluate_blocked_balances_policy_for_build_target_plan(
+                    db=db,
+                    client_id=int(request.client_id),
+                    portfolio=portfolio_for_plan,
+                    plan_args=plan_args,
+                )
             )
             if isinstance(policy_text, str) and policy_text.strip():
                 yield policy_text.strip() + "\n\n"
@@ -394,7 +413,9 @@ def _maybe_handle_pending_plan_target_flow(
 
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            breakdown_lines.append(
+                f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪"
+            )
             if breakdown.other_income_offset_net > 0:
                 breakdown_lines.append(
                     f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
@@ -432,7 +453,9 @@ def _maybe_handle_pending_plan_target_flow(
                 pass
             yield sanitize_user_visible_text(
                 "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-                + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                + format_tool_output_for_user_stream(
+                    "BUILD_TARGET_PENSION_PLAN", plan_result
+                )
             )
 
         return StreamingResponse(

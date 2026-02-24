@@ -9,10 +9,10 @@ from .pension_data import fetch_pension_data
 from .commutations_data import fetch_commutations_data
 
 __all__ = [
-    'fetch_fixation_data',
-    'FixationData',
-    'fetch_client_data',
-    'fetch_grants_data',
-    'fetch_pension_data',
-    'fetch_commutations_data',
+    "fetch_fixation_data",
+    "FixationData",
+    "fetch_client_data",
+    "fetch_grants_data",
+    "fetch_pension_data",
+    "fetch_commutations_data",
 ]

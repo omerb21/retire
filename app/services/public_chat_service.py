@@ -26,7 +26,6 @@ from app.services.pension_portfolio.snapshot_loader import (
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import get_current_request_id
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -102,7 +101,9 @@ def _load_snapshot_accounts(db: Session, client_id: int) -> list[dict[str, Any]]
     return accounts or None
 
 
-def _save_snapshot_accounts(db: Session, client_id: int, accounts: list[dict[str, Any]]) -> None:
+def _save_snapshot_accounts(
+    db: Session, client_id: int, accounts: list[dict[str, Any]]
+) -> None:
     upsert_snapshot(
         db,
         client_id,
@@ -128,8 +129,12 @@ def _safe_number(value: Any) -> float:
         return 0.0
 
 
-def _apply_severance_reset_to_accounts(accounts: list[dict[str, Any]], reset_info: dict[str, Any]) -> list[dict[str, Any]]:
-    if not (isinstance(reset_info, dict) and reset_info.get("portfolio_severance_to_reset")):
+def _apply_severance_reset_to_accounts(
+    accounts: list[dict[str, Any]], reset_info: dict[str, Any]
+) -> list[dict[str, Any]]:
+    if not (
+        isinstance(reset_info, dict) and reset_info.get("portfolio_severance_to_reset")
+    ):
         return accounts
     updated: list[dict[str, Any]] = []
     for acc in accounts:
@@ -141,8 +146,12 @@ def _apply_severance_reset_to_accounts(accounts: list[dict[str, Any]], reset_inf
     return updated
 
 
-def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
-    if not (isinstance(payload, dict) and payload.get("type") == "pension_portfolio_updates"):
+def _apply_portfolio_updates_to_accounts(
+    accounts: list[dict[str, Any]], payload: dict[str, Any]
+) -> list[dict[str, Any]]:
+    if not (
+        isinstance(payload, dict) and payload.get("type") == "pension_portfolio_updates"
+    ):
         return accounts
     updates = payload.get("updates")
     if not isinstance(updates, list) or not updates:
@@ -203,7 +212,11 @@ def _apply_portfolio_updates_to_accounts(accounts: list[dict[str, Any]], payload
             edu_delta = _safe_number(specific.get("קרן_השתלמות"))
             if edu_delta > 0:
                 for field in list(acc.keys()):
-                    if field.startswith("תגמולי_") or field in {"תגמולים", "סך_תגמולים", "קרן_השתלמות"}:
+                    if field.startswith("תגמולי_") or field in {
+                        "תגמולים",
+                        "סך_תגמולים",
+                        "קרן_השתלמות",
+                    }:
                         acc[field] = 0
                 acc["יתרה"] = 0
                 acc["balance"] = 0
@@ -251,7 +264,9 @@ def _apply_marker_payloads_to_snapshot_accounts(
     return updated_accounts
 
 
-def _extract_marker_payloads(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _extract_marker_payloads(
+    text: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not isinstance(text, str) or not text:
         return [], []
     portfolio_payloads: list[dict[str, Any]] = []
@@ -309,7 +324,9 @@ def _default_initial_tokens() -> int:
         return 5000
 
 
-def _ensure_client_credit_initialized(client: Client, initial_tokens: int | None = None) -> None:
+def _ensure_client_credit_initialized(
+    client: Client, initial_tokens: int | None = None
+) -> None:
     if client.public_chat_token_balance is None:
         client.public_chat_token_balance = 0
     if client.public_chat_tokens_spent is None:
@@ -318,13 +335,19 @@ def _ensure_client_credit_initialized(client: Client, initial_tokens: int | None
     if bool(getattr(client, "public_chat_credit_initialized", False)):
         return
 
-    token_balance = _default_initial_tokens() if initial_tokens is None else max(0, int(initial_tokens))
+    token_balance = (
+        _default_initial_tokens()
+        if initial_tokens is None
+        else max(0, int(initial_tokens))
+    )
     client.public_chat_token_balance = int(token_balance)
     client.public_chat_tokens_spent = 0
     client.public_chat_credit_initialized = True
 
 
-def start_or_get_session(db: Session, id_number: str, initial_tokens: int | None = None) -> PublicChatSession:
+def start_or_get_session(
+    db: Session, id_number: str, initial_tokens: int | None = None
+) -> PublicChatSession:
     normalized = normalize_id_number(id_number)
     if not normalized:
         raise ValueError("invalid_id_number")
@@ -363,7 +386,10 @@ def start_or_get_session(db: Session, id_number: str, initial_tokens: int | None
         desired_balance = int(client.public_chat_token_balance or 0)
         desired_spent = int(client.public_chat_tokens_spent or 0)
 
-        if existing.token_balance != desired_balance or existing.tokens_spent != desired_spent:
+        if (
+            existing.token_balance != desired_balance
+            or existing.tokens_spent != desired_spent
+        ):
             existing.token_balance = desired_balance
             existing.tokens_spent = desired_spent
             db.add(existing)
@@ -388,21 +414,32 @@ def start_or_get_session(db: Session, id_number: str, initial_tokens: int | None
 
 
 def get_session_by_key(db: Session, session_key: str) -> PublicChatSession:
-    session = db.query(PublicChatSession).filter(PublicChatSession.session_key == session_key).first()
+    session = (
+        db.query(PublicChatSession)
+        .filter(PublicChatSession.session_key == session_key)
+        .first()
+    )
     if not session:
         raise ValueError("session_not_found")
     return session
 
 
-def get_session_by_key_with_password(db: Session, session_key: str, password: str | None) -> PublicChatSession:
+def get_session_by_key_with_password(
+    db: Session, session_key: str, password: str | None
+) -> PublicChatSession:
     session = get_session_by_key(db, session_key)
 
-    client = session.client or db.query(Client).filter(Client.id == session.client_id).first()
+    client = (
+        session.client
+        or db.query(Client).filter(Client.id == session.client_id).first()
+    )
     if not client:
         raise ValueError("client_not_found")
 
     normalized = normalize_id_number(password or "")
-    if not normalized or not hmac.compare_digest(normalized, str(client.id_number or "")):
+    if not normalized or not hmac.compare_digest(
+        normalized, str(client.id_number or "")
+    ):
         raise ValueError("invalid_public_chat_password")
 
     return session
@@ -425,7 +462,9 @@ def get_history(db: Session, session: PublicChatSession) -> list[PublicChatMessa
     ]
 
 
-def _append_message(db: Session, session: PublicChatSession, role: str, content: str) -> PublicChatMessage:
+def _append_message(
+    db: Session, session: PublicChatSession, role: str, content: str
+) -> PublicChatMessage:
     msg = PublicChatMessage(
         session_id=session.id,
         role=role,
@@ -438,7 +477,9 @@ def _append_message(db: Session, session: PublicChatSession, role: str, content:
     return msg
 
 
-def _load_latest_pension_portfolio(db: Session, client_id: int) -> tuple[list[dict], str] | None:
+def _load_latest_pension_portfolio(
+    db: Session, client_id: int
+) -> tuple[list[dict], str] | None:
     result = load_latest_pension_portfolio_snapshot_models(db, client_id)
     if result is None:
         return None
@@ -447,7 +488,9 @@ def _load_latest_pension_portfolio(db: Session, client_id: int) -> tuple[list[di
     return [item.model_dump() for item in portfolio_models], snapshot_at
 
 
-async def send_message(db: Session, session: PublicChatSession, user_content: str) -> tuple[str, int]:
+async def send_message(
+    db: Session, session: PublicChatSession, user_content: str
+) -> tuple[str, int]:
     trimmed = (user_content or "").strip()
     if not trimmed:
         raise ValueError("empty_message")
@@ -455,7 +498,10 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
     if not session.is_active:
         raise ValueError("session_inactive")
 
-    client = session.client or db.query(Client).filter(Client.id == session.client_id).first()
+    client = (
+        session.client
+        or db.query(Client).filter(Client.id == session.client_id).first()
+    )
     if not client:
         raise ValueError("client_not_found")
 
@@ -472,7 +518,9 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
     _append_message(db, session, "user", trimmed)
 
     history = get_history(db, session)
-    chat_messages: list[ChatMessage] = [ChatMessage(role=m.role, content=m.content) for m in history]
+    chat_messages: list[ChatMessage] = [
+        ChatMessage(role=m.role, content=m.content) for m in history
+    ]
 
     pension_portfolio = None
     pension_portfolio_snapshot_at = None
@@ -505,7 +553,9 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
             stream_error_id,
             get_current_request_id(),
             getattr(session, "client_id", None),
-            getattr(session, "session_key", None) or getattr(session, "key", None) or "",
+            getattr(session, "session_key", None)
+            or getattr(session, "key", None)
+            or "",
         )
         chunks = []
 
@@ -523,7 +573,9 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
                 empty_error_id,
                 get_current_request_id(),
                 getattr(session, "client_id", None),
-                getattr(session, "session_key", None) or getattr(session, "key", None) or "",
+                getattr(session, "session_key", None)
+                or getattr(session, "key", None)
+                or "",
             )
             reply_text = (
                 "שגיאה: לא התקבלה תשובה מהמערכת (כשל זמני). נסה שוב בעוד רגע. "
@@ -549,7 +601,9 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
                 marker_error_id,
                 get_current_request_id(),
                 getattr(session, "client_id", None),
-                getattr(session, "session_key", None) or getattr(session, "key", None) or "",
+                getattr(session, "session_key", None)
+                or getattr(session, "key", None)
+                or "",
             )
 
     reply_text = _strip_stream_markers_for_public_chat(reply_text)
@@ -564,7 +618,9 @@ async def send_message(db: Session, session: PublicChatSession, user_content: st
     current_balance = int(client.public_chat_token_balance or 0)
     to_deduct = min(current_balance, int(tokens_used))
     client.public_chat_token_balance = current_balance - to_deduct
-    client.public_chat_tokens_spent = int(client.public_chat_tokens_spent or 0) + to_deduct
+    client.public_chat_tokens_spent = (
+        int(client.public_chat_tokens_spent or 0) + to_deduct
+    )
 
     session.token_balance = int(client.public_chat_token_balance or 0)
     session.tokens_spent = int(client.public_chat_tokens_spent or 0)
@@ -583,7 +639,10 @@ def top_up(db: Session, session_key: str, tokens: int) -> PublicChatSession:
 
     session = get_session_by_key(db, session_key)
 
-    client = session.client or db.query(Client).filter(Client.id == session.client_id).first()
+    client = (
+        session.client
+        or db.query(Client).filter(Client.id == session.client_id).first()
+    )
     if not client:
         raise ValueError("client_not_found")
 
@@ -593,7 +652,9 @@ def top_up(db: Session, session_key: str, tokens: int) -> PublicChatSession:
         client.public_chat_credit_initialized = True
 
     _ensure_client_credit_initialized(client)
-    client.public_chat_token_balance = int(client.public_chat_token_balance or 0) + int(tokens)
+    client.public_chat_token_balance = int(client.public_chat_token_balance or 0) + int(
+        tokens
+    )
 
     session.token_balance = int(client.public_chat_token_balance or 0)
     session.tokens_spent = int(client.public_chat_tokens_spent or 0)

@@ -25,7 +25,9 @@ def handle_get_tax_projection(
             scenario_id = item.get("scenario_id")
             if gross is None:
                 if scenario_id is not None:
-                    lines.append(f"תרחיש {scenario_id}: Error: Missing argument 'gross_monthly_pension'")
+                    lines.append(
+                        f"תרחיש {scenario_id}: Error: Missing argument 'gross_monthly_pension'"
+                    )
                 else:
                     lines.append("Error: Missing argument 'gross_monthly_pension'")
                 continue
@@ -33,7 +35,9 @@ def handle_get_tax_projection(
                 gross_value = float(gross)
             except Exception:
                 if scenario_id is not None:
-                    lines.append(f"תרחיש {scenario_id}: Error: invalid gross_monthly_pension")
+                    lines.append(
+                        f"תרחיש {scenario_id}: Error: invalid gross_monthly_pension"
+                    )
                 else:
                     lines.append("Error: invalid gross_monthly_pension")
                 continue

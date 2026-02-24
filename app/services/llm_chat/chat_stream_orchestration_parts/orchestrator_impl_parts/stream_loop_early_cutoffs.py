@@ -5,7 +5,7 @@ def _maybe_handle_early_cutoffs(
     original_user_msg: str,
     maybe_handle_conceptual_no_execute_hard_stop,
     maybe_handle_undo_snapshot_approval_request,
- ):
+):
     conceptual_no_execute_response = maybe_handle_conceptual_no_execute_hard_stop(
         request=request,
         original_user_msg=original_user_msg,

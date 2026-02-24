@@ -1,7 +1,9 @@
 ﻿from fastapi.responses import StreamingResponse
 
 
-def _maybe_handle_general_retirement_help(*, original_user_msg: str, is_general_retirement_help_request):
+def _maybe_handle_general_retirement_help(
+    *, original_user_msg: str, is_general_retirement_help_request
+):
     if not is_general_retirement_help_request(original_user_msg):
         return None
 
@@ -26,7 +28,9 @@ def _maybe_handle_general_retirement_help(*, original_user_msg: str, is_general_
     )
 
 
-def _maybe_handle_general_retirement_intro(*, original_user_msg: str, is_general_retirement_intro_request):
+def _maybe_handle_general_retirement_intro(
+    *, original_user_msg: str, is_general_retirement_intro_request
+):
     if not is_general_retirement_intro_request(original_user_msg):
         return None
 
@@ -60,7 +64,7 @@ def _maybe_handle_explain_in_words(
     extract_latest_target_pension_plan_payload,
     load_latest_target_pension_plan_data,
     load_latest_target_pension_plan,
- ):
+):
     if not is_explain_in_words_request(original_user_msg):
         return None
 
@@ -87,7 +91,8 @@ def _maybe_handle_explain_in_words(
 
         plan_res = (
             plan_payload.get("result")
-            if isinstance(plan_payload, dict) and isinstance(plan_payload.get("result"), dict)
+            if isinstance(plan_payload, dict)
+            and isinstance(plan_payload.get("result"), dict)
             else None
         )
         if isinstance(plan_res, dict):
@@ -106,9 +111,7 @@ def _maybe_handle_explain_in_words(
 
             yield (
                 "כותרת: הסבר במילים לתוצאת התכנית האחרונה\n\n"
-                "מה זה אומר\n"
-                + status_line
-                + "\n\n"
+                "מה זה אומר\n" + status_line + "\n\n"
                 "צעד הבא\n"
                 "- אם תרצה לעדכן יעד/גיל פרישה או לשנות הנחות, יש לבנות תכנית חדשה ואז להציג תזרים מתוך תוצאת התכנית.\n"
             )
@@ -143,7 +146,7 @@ def _maybe_handle_general_retirement_responses(
     extract_latest_target_pension_plan_payload,
     load_latest_target_pension_plan_data,
     load_latest_target_pension_plan,
- ):
+):
     resp = _maybe_handle_general_retirement_help(
         original_user_msg=original_user_msg,
         is_general_retirement_help_request=is_general_retirement_help_request,

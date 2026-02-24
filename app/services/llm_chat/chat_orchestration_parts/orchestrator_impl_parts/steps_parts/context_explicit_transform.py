@@ -1,7 +1,9 @@
 from typing import Any
 
 from app.schemas.llm_chat import ChatMessage, ChatResponse
-from app.services.llm_chat.chat_orchestration_parts.tool_calling import _execute_tool_call
+from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
+    _execute_tool_call,
+)
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_pension_portfolio_update_after_transform,
     format_transform_result_for_user,
@@ -23,128 +25,189 @@ from app.services.llm_chat.orchestration_utils import (
 )
 
 
-def _maybe_handle_explicit_transform(*, request, db, request_id: str, logger, log_llm_event_fn, original_user_msg, current_pension_portfolio, computed_data, messages, explicit_transform, no_tools_requested, is_doc_request, is_qa_mode, wants_ignore_blocked, wants_capital_transform):
+def _maybe_handle_explicit_transform(
+    *,
+    request,
+    db,
+    request_id: str,
+    logger,
+    log_llm_event_fn,
+    original_user_msg,
+    current_pension_portfolio,
+    computed_data,
+    messages,
+    explicit_transform,
+    no_tools_requested,
+    is_doc_request,
+    is_qa_mode,
+    wants_ignore_blocked,
+    wants_capital_transform,
+):
 
-        if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
-            derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
+    if (
+        explicit_transform
+        and (not no_tools_requested)
+        and (not is_doc_request)
+        and (not is_qa_mode)
+    ):
+        derived_accounts = build_transform_accounts_from_portfolio(
+            current_pension_portfolio
+        )
+        try:
+            logger.info(
+                "🔁 Deterministic transform requested (client_id=%s, portfolio_accounts=%s, derived_accounts=%s)",
+                request.client_id,
+                (
+                    len(current_pension_portfolio)
+                    if isinstance(current_pension_portfolio, list)
+                    else 0
+                ),
+                len(derived_accounts),
+            )
+        except Exception:
+            pass
+        if not derived_accounts:
             try:
                 logger.info(
-                    "🔁 Deterministic transform requested (client_id=%s, portfolio_accounts=%s, derived_accounts=%s)",
+                    "⚠️ Deterministic transform blocked: no derived accounts (client_id=%s)",
                     request.client_id,
-                    len(current_pension_portfolio) if isinstance(current_pension_portfolio, list) else 0,
-                    len(derived_accounts),
                 )
             except Exception:
                 pass
-            if not derived_accounts:
-                try:
-                    logger.info(
-                        "⚠️ Deterministic transform blocked: no derived accounts (client_id=%s)",
-                        request.client_id,
+            return ChatResponse(
+                reply=(
+                    "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "
+                    "כדי לבצע המרה מלאה צריך קודם לטעון תיק מסלקה כך שיופיע פירוט חשבונות."
+                ),
+                computed_data=computed_data,
+            )
+
+        tool_args: dict[str, Any] = {}
+        partial_req = parse_partial_pension_conversion_request(original_user_msg)
+        if partial_req is not None:
+            acc_num, amount = partial_req
+            partial_accounts = build_partial_pension_transform_accounts_from_portfolio(
+                pension_portfolio=current_pension_portfolio,
+                account_number=acc_num,
+                amount=amount,
+            )
+            if not partial_accounts:
+                messages.append(
+                    ChatMessage(
+                        role="system",
+                        content=(
+                            f"אזהרה: המשתמש ביקש המרה חלקית לחשבון {acc_num} אך החשבון לא נמצא בתיק. "
+                            "אסור לבצע המרת תיק מלאה. כעת אל תחזיר TOOL_CALL ותן תשובה טקסטואלית בלבד."
+                        ),
                     )
-                except Exception:
-                    pass
+                )
                 return ChatResponse(
                     reply=(
-                        "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "
-                        "כדי לבצע המרה מלאה צריך קודם לטעון תיק מסלקה כך שיופיע פירוט חשבונות."
+                        f"לא הצלחתי למצוא חשבון מספר {acc_num} בתיק כדי לבצע המרה חלקית. "
+                        "אנא ודא שמספר החשבון נכון ושיש סנאפשוט תיק מעודכן."
                     ),
                     computed_data=computed_data,
                 )
-
-            tool_args: dict[str, Any] = {}
-            partial_req = parse_partial_pension_conversion_request(original_user_msg)
-            if partial_req is not None:
-                acc_num, amount = partial_req
-                partial_accounts = build_partial_pension_transform_accounts_from_portfolio(
-                    pension_portfolio=current_pension_portfolio,
-                    account_number=acc_num,
-                    amount=amount,
+            tool_args["accounts"] = partial_accounts
+            tool_args["use_provided_accounts_only"] = True
+        else:
+            targeted_req = parse_targeted_component_conversion_request(
+                original_user_msg
+            )
+            if targeted_req is not None:
+                acc_num, fields, conv_type = targeted_req
+                targeted_accounts = (
+                    build_targeted_component_transform_accounts_from_portfolio(
+                        pension_portfolio=current_pension_portfolio,
+                        account_number=acc_num,
+                        fields=fields,
+                        conversion_type=conv_type,
+                    )
                 )
-                if not partial_accounts:
+                if not targeted_accounts:
                     messages.append(
                         ChatMessage(
                             role="system",
                             content=(
-                                f"אזהרה: המשתמש ביקש המרה חלקית לחשבון {acc_num} אך החשבון לא נמצא בתיק. "
+                                f"אזהרה: המשתמש ביקש המרה ממוקדת לחשבון {acc_num} אך לא נמצאו רכיבים מתאימים בתיק. "
                                 "אסור לבצע המרת תיק מלאה. כעת אל תחזיר TOOL_CALL ותן תשובה טקסטואלית בלבד."
                             ),
                         )
                     )
                     return ChatResponse(
                         reply=(
-                            f"לא הצלחתי למצוא חשבון מספר {acc_num} בתיק כדי לבצע המרה חלקית. "
-                            "אנא ודא שמספר החשבון נכון ושיש סנאפשוט תיק מעודכן."
+                            f"לא הצלחתי למצוא רכיבים מתאימים בחשבון מספר {acc_num} כדי לבצע המרה ממוקדת. "
+                            "אנא ודא שמספר החשבון נכון ושיש רכיב רלוונטי בתיק."
                         ),
                         computed_data=computed_data,
                     )
-                tool_args["accounts"] = partial_accounts
+                tool_args["accounts"] = targeted_accounts
                 tool_args["use_provided_accounts_only"] = True
             else:
-                targeted_req = parse_targeted_component_conversion_request(original_user_msg)
-                if targeted_req is not None:
-                    acc_num, fields, conv_type = targeted_req
-                    targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                        pension_portfolio=current_pension_portfolio,
-                        account_number=acc_num,
-                        fields=fields,
-                        conversion_type=conv_type,
+                prev_sev_req = (
+                    parse_portfolio_wide_prev_employers_severance_conversion_request(
+                        original_user_msg
                     )
-                    if not targeted_accounts:
-                        messages.append(
-                            ChatMessage(
-                                role="system",
-                                content=(
-                                    f"אזהרה: המשתמש ביקש המרה ממוקדת לחשבון {acc_num} אך לא נמצאו רכיבים מתאימים בתיק. "
-                                    "אסור לבצע המרת תיק מלאה. כעת אל תחזיר TOOL_CALL ותן תשובה טקסטואלית בלבד."
-                                ),
-                            )
-                        )
+                )
+                if prev_sev_req is not None:
+                    _fields, conv_type = prev_sev_req
+                    if conv_type == "blocked":
                         return ChatResponse(
                             reply=(
-                                f"לא הצלחתי למצוא רכיבים מתאימים בחשבון מספר {acc_num} כדי לבצע המרה ממוקדת. "
-                                "אנא ודא שמספר החשבון נכון ושיש רכיב רלוונטי בתיק."
+                                "מצאתי בקשה ל'פיצויים מעסיקים קודמים (רצף זכויות)', אך רכיב זה חסום להמרה במערכת "
+                                "ודורש טיפול חיצוני/התחשבנות. אם תרצה, אוכל להציג באילו חשבונות הוא מופיע."
                             ),
                             computed_data=computed_data,
                         )
-                    tool_args["accounts"] = targeted_accounts
+                    portfolio_accounts = build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio(
+                        pension_portfolio=current_pension_portfolio,
+                        conversion_type=conv_type,
+                    )
+                    if not portfolio_accounts:
+                        return ChatResponse(
+                            reply="לא מצאתי בתיק רכיב 'פיצויים מעסיקים קודמים (רצף קצבה)' להמרה.",
+                            computed_data=computed_data,
+                        )
+                    tool_args["accounts"] = portfolio_accounts
                     tool_args["use_provided_accounts_only"] = True
                 else:
-                    prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(original_user_msg)
-                    if prev_sev_req is not None:
-                        _fields, conv_type = prev_sev_req
-                        if conv_type == "blocked":
-                            return ChatResponse(
-                                reply=(
-                                    "מצאתי בקשה ל'פיצויים מעסיקים קודמים (רצף זכויות)', אך רכיב זה חסום להמרה במערכת "
-                                    "ודורש טיפול חיצוני/התחשבנות. אם תרצה, אוכל להציג באילו חשבונות הוא מופיע."
-                                ),
-                                computed_data=computed_data,
-                            )
-                        portfolio_accounts = build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio(
+                    after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
+                        original_user_msg
+                    )
+                    if after_settle_req is not None:
+                        _fields, conv_type = after_settle_req
+                        portfolio_accounts = build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio(
                             pension_portfolio=current_pension_portfolio,
                             conversion_type=conv_type,
                         )
                         if not portfolio_accounts:
                             return ChatResponse(
-                                reply="לא מצאתי בתיק רכיב 'פיצויים מעסיקים קודמים (רצף קצבה)' להמרה.",
+                                reply="לא מצאתי בתיק רכיב 'פיצויים לאחר התחשבנות' להמרה.",
                                 computed_data=computed_data,
                             )
-                        tool_args["accounts"] = portfolio_accounts
-                        tool_args["use_provided_accounts_only"] = True
+                        tool_args = {
+                            "accounts": portfolio_accounts,
+                            "use_provided_accounts_only": True,
+                        }
                     else:
-                        after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
-                            original_user_msg
+                        portfolio_wide_req = (
+                            parse_portfolio_wide_component_conversion_request(
+                                original_user_msg
+                            )
                         )
-                        if after_settle_req is not None:
-                            _fields, conv_type = after_settle_req
-                            portfolio_accounts = build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio(
+                        if portfolio_wide_req is not None:
+                            _fields, conv_type = portfolio_wide_req
+                            portfolio_accounts = build_portfolio_wide_component_transform_accounts_from_portfolio(
                                 pension_portfolio=current_pension_portfolio,
+                                fields=_fields,
                                 conversion_type=conv_type,
                             )
                             if not portfolio_accounts:
                                 return ChatResponse(
-                                    reply="לא מצאתי בתיק רכיב 'פיצויים לאחר התחשבנות' להמרה.",
+                                    reply=(
+                                        "לא מצאתי בתיק רכיבי 'תגמולים אחרי 2000' להמרה. "
+                                        "אם אתה מתכוון לרכיבים אחרים, ציין במפורש אילו רכיבים להמיר."
+                                    ),
                                     computed_data=computed_data,
                                 )
                             tool_args = {
@@ -152,95 +215,77 @@ def _maybe_handle_explicit_transform(*, request, db, request_id: str, logger, lo
                                 "use_provided_accounts_only": True,
                             }
                         else:
-                            portfolio_wide_req = parse_portfolio_wide_component_conversion_request(original_user_msg)
-                            if portfolio_wide_req is not None:
-                                _fields, conv_type = portfolio_wide_req
-                                portfolio_accounts = build_portfolio_wide_component_transform_accounts_from_portfolio(
+                            edu_req = (
+                                parse_portfolio_wide_education_fund_conversion_request(
+                                    original_user_msg
+                                )
+                            )
+                            if edu_req is not None:
+                                _fields, conv_type = edu_req
+                                edu_accounts = build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
                                     pension_portfolio=current_pension_portfolio,
-                                    fields=_fields,
                                     conversion_type=conv_type,
                                 )
-                                if not portfolio_accounts:
+                                if not edu_accounts:
                                     return ChatResponse(
-                                        reply=(
-                                            "לא מצאתי בתיק רכיבי 'תגמולים אחרי 2000' להמרה. "
-                                            "אם אתה מתכוון לרכיבים אחרים, ציין במפורש אילו רכיבים להמיר."
-                                        ),
+                                        reply="לא מצאתי בתיק קרנות השתלמות להמרה.",
                                         computed_data=computed_data,
                                     )
                                 tool_args = {
-                                    "accounts": portfolio_accounts,
+                                    "accounts": edu_accounts,
                                     "use_provided_accounts_only": True,
                                 }
                             else:
-                                edu_req = parse_portfolio_wide_education_fund_conversion_request(original_user_msg)
-                                if edu_req is not None:
-                                    _fields, conv_type = edu_req
-                                    edu_accounts = build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
-                                        pension_portfolio=current_pension_portfolio,
-                                        conversion_type=conv_type,
-                                    )
-                                    if not edu_accounts:
-                                        return ChatResponse(
-                                            reply="לא מצאתי בתיק קרנות השתלמות להמרה.",
-                                            computed_data=computed_data,
-                                        )
-                                    tool_args = {
-                                        "accounts": edu_accounts,
-                                        "use_provided_accounts_only": True,
-                                    }
-                                else:
-                                    tool_args["accounts"] = derived_accounts
+                                tool_args["accounts"] = derived_accounts
 
-            if wants_ignore_blocked:
-                tool_args["ignore_blocked_balances"] = True
-                tool_args["skip_non_convertible_accounts"] = True
+        if wants_ignore_blocked:
+            tool_args["ignore_blocked_balances"] = True
+            tool_args["skip_non_convertible_accounts"] = True
 
-            if wants_capital_transform:
-                return ChatResponse(
-                    reply=(
-                        "המרה להון של רכיבים קצבתיים (למשל 'תגמולים אחרי 2000') לא מבוצעת דרך TRANSFORM_FUNDS_TO_ASSETS, "
-                        "כדי למנוע הפרת קצבת מינימום.\n\n"
-                        "אם הכוונה ל*משיכה הונית מלאה* — בקש: 'משיכה הונית מלאה' ואז אשר את תרחיש 'מקסימום הון' "
-                        "(ששומר קצבת מינימום 5,500).\n"
-                        "אם הכוונה ל*היוון קצבה ספציפית* — בקש: 'הוון קצבה' וציין מספר חשבון/שם קצבה."
-                    ),
-                    computed_data=computed_data,
-                )
-
-            tool_result = _execute_tool_call(
-                "TRANSFORM_FUNDS_TO_ASSETS",
-                tool_args,
-                request.client_id,
-                db,
-                pension_portfolio=current_pension_portfolio,
-                force_max_exemption=False,
-                request_id=request_id,
+        if wants_capital_transform:
+            return ChatResponse(
+                reply=(
+                    "המרה להון של רכיבים קצבתיים (למשל 'תגמולים אחרי 2000') לא מבוצעת דרך TRANSFORM_FUNDS_TO_ASSETS, "
+                    "כדי למנוע הפרת קצבת מינימום.\n\n"
+                    "אם הכוונה ל*משיכה הונית מלאה* — בקש: 'משיכה הונית מלאה' ואז אשר את תרחיש 'מקסימום הון' "
+                    "(ששומר קצבת מינימום 5,500).\n"
+                    "אם הכוונה ל*היוון קצבה ספציפית* — בקש: 'הוון קצבה' וציין מספר חשבון/שם קצבה."
+                ),
+                computed_data=computed_data,
             )
 
-            log_llm_event_fn(
-                request_id=request_id,
-                event_type="tool_call",
-                payload={"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": tool_args},
-                client_id=request.client_id,
-            )
-            log_llm_event_fn(
-                request_id=request_id,
-                event_type="tool_result",
-                payload={"tool_name": "TRANSFORM_FUNDS_TO_ASSETS", "result": tool_result},
-                client_id=request.client_id,
-            )
+        tool_result = _execute_tool_call(
+            "TRANSFORM_FUNDS_TO_ASSETS",
+            tool_args,
+            request.client_id,
+            db,
+            pension_portfolio=current_pension_portfolio,
+            force_max_exemption=False,
+            request_id=request_id,
+        )
 
-            portfolio_update_marker = build_pension_portfolio_update_after_transform(
-                tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-                tool_result=tool_result,
-                tool_args=tool_args,
-                current_pension_portfolio=current_pension_portfolio,
-            )
+        log_llm_event_fn(
+            request_id=request_id,
+            event_type="tool_call",
+            payload={"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": tool_args},
+            client_id=request.client_id,
+        )
+        log_llm_event_fn(
+            request_id=request_id,
+            event_type="tool_result",
+            payload={"tool_name": "TRANSFORM_FUNDS_TO_ASSETS", "result": tool_result},
+            client_id=request.client_id,
+        )
 
-            reply_text = format_transform_result_for_user(tool_result=tool_result)
-            if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
-                reply_text = f"{portfolio_update_marker}{reply_text}"
+        portfolio_update_marker = build_pension_portfolio_update_after_transform(
+            tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+            tool_result=tool_result,
+            tool_args=tool_args,
+            current_pension_portfolio=current_pension_portfolio,
+        )
 
-            return ChatResponse(reply=reply_text, computed_data=computed_data)
+        reply_text = format_transform_result_for_user(tool_result=tool_result)
+        if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
+            reply_text = f"{portfolio_update_marker}{reply_text}"
 
+        return ChatResponse(reply=reply_text, computed_data=computed_data)

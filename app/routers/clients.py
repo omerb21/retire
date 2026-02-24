@@ -1,6 +1,7 @@
 """
 Clients router with CRUD operations for Client and CurrentEmployer
 """
+
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from sqlalchemy.orm import Session
@@ -11,47 +12,57 @@ from sqlalchemy import or_
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
-from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
+from app.services.retirement.utils.pension_utils import (
+    compute_pension_start_date_from_funds,
+)
 from app.services.client_service import normalize_id_number
-from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
+from app.services.current_employer import (
+    EmploymentService as CurrentEmployerEmploymentService,
+)
 from app.services.current_employer_service import CurrentEmployerService
 from app.services.client_crud_service import ClientCrudService
 from app.services.fixation_result_service import get_client_fixation_response
+
 # ייבוא סכמות הלקוח
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientList
 
 # ייבוא סכמות המעסיק הנוכחי
 try:
-    from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate, CurrentEmployerOut
+    from app.schemas.current_employer import (
+        CurrentEmployerCreate,
+        CurrentEmployerUpdate,
+        CurrentEmployerOut,
+    )
 except ImportError:
     # יצירת סכמות זמניות אם הקובץ לא קיים
     from pydantic import BaseModel
     from typing import Optional
     from datetime import date
-    
+
     class CurrentEmployerBase(BaseModel):
         employer_name: str
         start_date: date
         last_salary: Optional[float] = None
         severance_accrued: Optional[float] = None
-    
+
     class CurrentEmployerCreate(CurrentEmployerBase):
         pass
-    
+
     class CurrentEmployerUpdate(CurrentEmployerBase):
         employer_name: Optional[str] = None
         start_date: Optional[date] = None
         last_salary: Optional[float] = None
         severance_accrued: Optional[float] = None
-    
+
     class CurrentEmployerOut(CurrentEmployerBase):
         id: int
         client_id: int
         created_at: date
         updated_at: date
-        
+
         class Config:
             from_attributes = True
+
 
 # ייבוא סכמת תגובת API
 from app.schemas import APIResponse
@@ -81,7 +92,9 @@ def create_client(client: ClientCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{client_id}", response_model=ClientResponse)
-def get_client(client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)):
+def get_client(
+    client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)
+):
     """Get client by ID"""
     try:
         return ClientCrudService.get_client(db=db, client_id=client_id)
@@ -97,7 +110,9 @@ def get_client(client_id: int = Path(..., description="Client ID"), db: Session 
 def _update_client_impl(client: ClientUpdate, client_id: int, db: Session) -> Client:
     """Internal helper to update a client instance"""
     try:
-        return ClientCrudService.update_client(db=db, client_id=client_id, client=client)
+        return ClientCrudService.update_client(
+            db=db, client_id=client_id, client=client
+        )
     except ValueError as e:
         if str(e) == "client_not_found":
             raise HTTPException(
@@ -116,7 +131,7 @@ def _update_client_impl(client: ClientUpdate, client_id: int, db: Session) -> Cl
 def update_client(
     client: ClientUpdate,
     client_id: int = Path(..., description="Client ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Update client by ID using PUT"""
     return _update_client_impl(client, client_id, db)
@@ -126,14 +141,16 @@ def update_client(
 def patch_client(
     client: ClientUpdate,
     client_id: int = Path(..., description="Client ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Partially update client by ID using PATCH"""
     return _update_client_impl(client, client_id, db)
 
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_client(client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)):
+def delete_client(
+    client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)
+):
     """Delete client by ID"""
     try:
         ClientCrudService.delete_client(db=db, client_id=client_id)
@@ -149,7 +166,9 @@ def delete_client(client_id: int = Path(..., description="Client ID"), db: Sessi
 @router.get("", response_model=ClientList)
 def list_clients(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
+    limit: int = Query(
+        10, ge=1, le=100, description="Maximum number of records to return"
+    ),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     gender: Optional[str] = Query(None, description="Filter by gender"),
     search: Optional[str] = Query(None, description="Search by name or ID"),
@@ -176,7 +195,11 @@ def list_clients(
 """Current Employer CRUD operations bound to /api/v1/clients/{client_id}/current-employer"""
 
 
-@router.post("/{client_id}/current-employer", response_model=CurrentEmployerOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{client_id}/current-employer",
+    response_model=CurrentEmployerOut,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_current_employer(
     employer: CurrentEmployerCreate,
     client_id: int = Path(..., description="Client ID"),
@@ -190,7 +213,9 @@ def create_current_employer(
     """
     service = CurrentEmployerEmploymentService(db)
     try:
-        current_employer = service.create_or_update_employer(client_id=client_id, employer_data=employer)
+        current_employer = service.create_or_update_employer(
+            client_id=client_id, employer_data=employer
+        )
         return current_employer
     except ValueError as e:
         message = str(e)
@@ -245,11 +270,13 @@ def get_current_employer_for_client(
         )
 
 
-@router.get("/{client_id}/current-employer/{employer_id:int}", response_model=CurrentEmployerOut)
+@router.get(
+    "/{client_id}/current-employer/{employer_id:int}", response_model=CurrentEmployerOut
+)
 def get_current_employer(
     client_id: int = Path(..., description="Client ID"),
     employer_id: int = Path(..., description="Employer ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Get specific current employer"""
     db_employer = CurrentEmployerService.get_current_employer_by_id_for_client(
@@ -265,12 +292,14 @@ def get_current_employer(
     return db_employer
 
 
-@router.put("/{client_id}/current-employer/{employer_id:int}", response_model=CurrentEmployerOut)
+@router.put(
+    "/{client_id}/current-employer/{employer_id:int}", response_model=CurrentEmployerOut
+)
 def update_current_employer(
     employer: CurrentEmployerUpdate,
     client_id: int = Path(..., description="Client ID"),
     employer_id: int = Path(..., description="Employer ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Update current employer"""
     db_employer = CurrentEmployerService.update_current_employer_for_client(
@@ -287,11 +316,14 @@ def update_current_employer(
     return db_employer
 
 
-@router.delete("/{client_id}/current-employer/{employer_id:int}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{client_id}/current-employer/{employer_id:int}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_current_employer(
     client_id: int = Path(..., description="Client ID"),
     employer_id: int = Path(..., description="Employer ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Delete current employer"""
     deleted = CurrentEmployerService.delete_current_employer_for_client(
@@ -305,14 +337,15 @@ def delete_current_employer(
             detail="Current employer not found",
         )
 
+
 # ==========================================
 # FIXATION ENDPOINTS
 # ==========================================
 
+
 @router.get("/{client_id}/fixation", tags=["fixation"])
 async def get_client_fixation(
-    client_id: int = Path(..., description="Client ID"),
-    db: Session = Depends(get_db)
+    client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)
 ):
     """
     Get fixation of rights data for a client

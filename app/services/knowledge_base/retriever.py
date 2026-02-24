@@ -76,7 +76,9 @@ def _load_index(index_path: str) -> list[KnowledgeChunk]:
     except Exception:
         return []
 
-    return _load_index_cached(str(path), int(getattr(st, "st_mtime_ns", 0)), int(st.st_size))
+    return _load_index_cached(
+        str(path), int(getattr(st, "st_mtime_ns", 0)), int(st.st_size)
+    )
 
 
 def retrieve_relevant_chunks(

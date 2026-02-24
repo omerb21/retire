@@ -7,7 +7,10 @@ def _is_post_conversion_locked(*, effective_client_state) -> bool:
     if effective_client_state is None:
         return False
     try:
-        return str(getattr(effective_client_state, "mode", "")).strip() == "POST_CONVERSION_LOCKED"
+        return (
+            str(getattr(effective_client_state, "mode", "")).strip()
+            == "POST_CONVERSION_LOCKED"
+        )
     except Exception:
         return False
 
@@ -54,7 +57,9 @@ def _maybe_handle_post_conversion_lock_early_cutoff(
     load_pending_approval_ui_action_if_match,
     is_transform_request,
 ) -> StreamingResponse | None:
-    if not _should_show_post_conversion_messages(effective_client_state=effective_client_state):
+    if not _should_show_post_conversion_messages(
+        effective_client_state=effective_client_state
+    ):
         return None
     if not isinstance(original_user_msg, str):
         return None
@@ -62,9 +67,8 @@ def _maybe_handle_post_conversion_lock_early_cutoff(
     candidate = original_user_msg.strip()
     lowered = candidate.lower()
 
-    wants_execute_target_plan_local = (
-        ("בצע" in lowered)
-        and ("תכנית" in lowered or "תוכנית" in lowered or "מתווה" in lowered)
+    wants_execute_target_plan_local = ("בצע" in lowered) and (
+        "תכנית" in lowered or "תוכנית" in lowered or "מתווה" in lowered
     )
 
     pending_execute_target_plan = False

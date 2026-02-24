@@ -2,6 +2,7 @@
 Employment Service Module
 מודול שירותי העסקה
 """
+
 import logging
 from typing import Optional
 from datetime import date
@@ -11,17 +12,16 @@ from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
 from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate
 
-
 logger = logging.getLogger("app.current_employer.employment")
 
 
 class EmploymentService:
     """שירות ניהול העסקה"""
-    
+
     def __init__(self, db: Session):
         """
         אתחול שירות העסקה
-        
+
         Args:
             db: סשן מסד נתונים
         """
@@ -38,9 +38,15 @@ class EmploymentService:
             .all()
         )
 
-    def _choose_current_employer(self, *, client_id: int, context_tag: str) -> Optional[CurrentEmployer]:
+    def _choose_current_employer(
+        self, *, client_id: int, context_tag: str
+    ) -> Optional[CurrentEmployer]:
         candidates = self._get_ordered_employer_candidates(client_id)
-        candidate_ids = [int(getattr(c, "id", 0) or 0) for c in candidates if getattr(c, "id", None) is not None]
+        candidate_ids = [
+            int(getattr(c, "id", 0) or 0)
+            for c in candidates
+            if getattr(c, "id", None) is not None
+        ]
 
         if len(candidates) > 1:
             logger.warning(
@@ -79,7 +85,9 @@ class EmploymentService:
         if len(candidates) > 1 and complete_candidates:
             latest_severance = float(getattr(chosen, "severance_accrued", None) or 0.0)
             latest_salary = float(getattr(chosen, "last_salary", None) or 0.0)
-            latest_missing_critical_fields = latest_severance <= 0.0 or latest_salary <= 0.0
+            latest_missing_critical_fields = (
+                latest_severance <= 0.0 or latest_salary <= 0.0
+            )
 
             if latest_missing_critical_fields:
                 chosen = complete_candidates[0]
@@ -101,22 +109,20 @@ class EmploymentService:
         )
 
         return chosen
-    
+
     def create_or_update_employer(
-        self,
-        client_id: int,
-        employer_data: CurrentEmployerCreate
+        self, client_id: int, employer_data: CurrentEmployerCreate
     ) -> CurrentEmployer:
         """
         יצירה או עדכון מעסיק נוכחי
-        
+
         Args:
             client_id: מזהה לקוח
             employer_data: נתוני מעסיק
-            
+
         Returns:
             CurrentEmployer - מעסיק נוכחי
-            
+
         Raises:
             ValueError: אם הלקוח לא נמצא
         """
@@ -129,48 +135,48 @@ class EmploymentService:
             client_id=client_id,
             context_tag="EmploymentService.create_or_update_employer",
         )
-        
+
         if ce:
             # עדכון מעסיק קיים
             return self._update_existing_employer(ce, employer_data)
         else:
             # יצירת מעסיק חדש
             return self._create_new_employer(client_id, employer_data)
-    
+
     def _update_existing_employer(
-        self,
-        ce: CurrentEmployer,
-        employer_data: CurrentEmployerCreate
+        self, ce: CurrentEmployer, employer_data: CurrentEmployerCreate
     ) -> CurrentEmployer:
         """
         עדכון מעסיק קיים
-        
+
         Args:
             ce: מעסיק נוכחי קיים
             employer_data: נתונים חדשים
-            
+
         Returns:
             CurrentEmployer מעודכן
         """
         severance_accrued_before = getattr(ce, "severance_accrued", None)
         payload_severance_accrued = getattr(employer_data, "severance_balance", None)
         if payload_severance_accrued is None:
-            payload_severance_accrued = getattr(employer_data, "severance_accrued", None)
+            payload_severance_accrued = getattr(
+                employer_data, "severance_accrued", None
+            )
 
         # חשוב! לא לדרוס עם None
         data = employer_data.model_dump(exclude_none=True)
-        
+
         # מיפוי שדות Frontend ל-DB
-        if 'monthly_salary' in data and data['monthly_salary'] is not None:
-            data['last_salary'] = data['monthly_salary']
-            
-        if 'severance_balance' in data and data['severance_balance'] is not None:
-            data['severance_accrued'] = data['severance_balance']
-        
+        if "monthly_salary" in data and data["monthly_salary"] is not None:
+            data["last_salary"] = data["monthly_salary"]
+
+        if "severance_balance" in data and data["severance_balance"] is not None:
+            data["severance_accrued"] = data["severance_balance"]
+
         # הסרת שדות שלא קיימים בסכמת DB הנוכחית
-        data.pop('monthly_salary', None)
-        data.pop('severance_balance', None)
-        
+        data.pop("monthly_salary", None)
+        data.pop("severance_balance", None)
+
         # עדכון שדות
         for k, v in data.items():
             setattr(ce, k, v)
@@ -186,62 +192,57 @@ class EmploymentService:
             payload_severance_accrued,
             None,
         )
-        
+
         self.db.add(ce)
         self.db.commit()
         self.db.refresh(ce)
         return ce
-    
+
     def _create_new_employer(
-        self,
-        client_id: int,
-        employer_data: CurrentEmployerCreate
+        self, client_id: int, employer_data: CurrentEmployerCreate
     ) -> CurrentEmployer:
         """
         יצירת מעסיק חדש
-        
+
         Args:
             client_id: מזהה לקוח
             employer_data: נתוני מעסיק
-            
+
         Returns:
             CurrentEmployer חדש
         """
         # יצירה חדשה מהנתונים - מיפוי שדות Frontend ל-DB
         data = employer_data.model_dump(exclude_none=True)
-        
+
         # מיפוי שדות
-        if 'monthly_salary' in data and data['monthly_salary'] is not None:
-            data['last_salary'] = data['monthly_salary']
-            
-        if 'severance_balance' in data and data['severance_balance'] is not None:
-            data['severance_accrued'] = data['severance_balance']
-        
+        if "monthly_salary" in data and data["monthly_salary"] is not None:
+            data["last_salary"] = data["monthly_salary"]
+
+        if "severance_balance" in data and data["severance_balance"] is not None:
+            data["severance_accrued"] = data["severance_balance"]
+
         # הסרת שדות שלא קיימים בסכמת DB הנוכחית
-        data.pop('monthly_salary', None)
-        data.pop('severance_balance', None)
-        
-        ce = CurrentEmployer(
-            client_id=client_id,
-            **data
-        )
+        data.pop("monthly_salary", None)
+        data.pop("severance_balance", None)
+
+        ce = CurrentEmployer(client_id=client_id, **data)
         ce.last_update = date.today()
-        
+
         self.db.add(ce)
         self.db.commit()
         self.db.refresh(ce)
         return ce
-    
+
     def get_employer(self, client_id: int) -> Optional[CurrentEmployer]:
         """
         קבלת מעסיק נוכחי ללקוח
-        
+
         Args:
             client_id: מזהה לקוח
-            
+
         Returns:
             CurrentEmployer או None אם לא נמצא
-            
+
         Raises:
             ValueError: אם הלקוח לא נמצא
         """
@@ -249,29 +250,27 @@ class EmploymentService:
         client = self.db.get(Client, client_id)
         if client is None:
             raise ValueError("לקוח לא נמצא")
-        
+
         ce = self._choose_current_employer(
             client_id=client_id,
             context_tag="EmploymentService.get_employer",
         )
-        
+
         if ce is None:
             raise ValueError("אין מעסיק נוכחי רשום ללקוח")
-        
+
         return ce
-    
+
     def update_employer_end_date(
-        self,
-        employer: CurrentEmployer,
-        end_date: date
+        self, employer: CurrentEmployer, end_date: date
     ) -> CurrentEmployer:
         """
         עדכון תאריך סיום העסקה
-        
+
         Args:
             employer: מעסיק נוכחי
             end_date: תאריך סיום
-            
+
         Returns:
             CurrentEmployer מעודכן
         """
@@ -279,14 +278,14 @@ class EmploymentService:
         self.db.add(employer)
         self.db.flush()
         return employer
-    
+
     def clear_employer_end_date(self, employer: CurrentEmployer) -> CurrentEmployer:
         """
         ביטול תאריך סיום העסקה (ביטול עזיבה)
-        
+
         Args:
             employer: מעסיק נוכחי
-            
+
         Returns:
             CurrentEmployer מעודכן
         """

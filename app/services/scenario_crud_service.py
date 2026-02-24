@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.scenario import Scenario
 from app.services.calculations import generate_cashflow
-from app.routers.scenarios.schemas import ScenarioCreate, ScenarioUpdate, ScenarioResponse
+from app.routers.scenarios.schemas import (
+    ScenarioCreate,
+    ScenarioUpdate,
+    ScenarioResponse,
+)
 
 
 def get_client_or_404(db: Session, client_id: int) -> Client:
@@ -65,7 +69,9 @@ def get_scenarios_by_client(db: Session, client_id: int) -> List[ScenarioRespons
     return [ScenarioResponse.from_db_scenario(s) for s in scenarios]
 
 
-def get_scenario_by_id(db: Session, client_id: int, scenario_id: int) -> ScenarioResponse:
+def get_scenario_by_id(
+    db: Session, client_id: int, scenario_id: int
+) -> ScenarioResponse:
     db_scenario = (
         db.query(Scenario)
         .filter(Scenario.id == scenario_id, Scenario.client_id == client_id)
@@ -102,7 +108,9 @@ def update_scenario_by_id(
     if "parameters" in update_data:
         try:
             scenario_params = (
-                json.loads(update_data["parameters"]) if update_data["parameters"] != "{}" else {}
+                json.loads(update_data["parameters"])
+                if update_data["parameters"] != "{}"
+                else {}
             )
             cashflow_result = generate_cashflow(client_id, scenario_params)
             update_data["cashflow_projection"] = json.dumps(cashflow_result)

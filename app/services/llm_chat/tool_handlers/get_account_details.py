@@ -45,14 +45,10 @@ def handle_get_account_details(
 
                 fund_name = str(acc_dict.get("שם_תכנית", "") or "").lower()
                 company_name = str(
-                    acc_dict.get("חברה_מנהלת", "")
-                    or acc_dict.get("שם_חברה", "")
-                    or ""
+                    acc_dict.get("חברה_מנהלת", "") or acc_dict.get("שם_חברה", "") or ""
                 ).lower()
                 product_type = str(
-                    acc_dict.get("סוג_מוצר", "")
-                    or acc_dict.get("שם_מוצר", "")
-                    or ""
+                    acc_dict.get("סוג_מוצר", "") or acc_dict.get("שם_מוצר", "") or ""
                 ).lower()
 
                 if (
@@ -61,7 +57,9 @@ def handle_get_account_details(
                     or search_term in product_type
                 ):
                     balance = float(acc_dict.get("יתרה", 0) or 0)
-                    severance_current = float(acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0)
+                    severance_current = float(
+                        acc_dict.get("פיצויים_מעסיק_נוכחי", 0) or 0
+                    )
                     severance_after_settlement = float(
                         acc_dict.get("פיצויים_לאחר_התחשבנות", 0) or 0
                     )
@@ -75,9 +73,7 @@ def handle_get_account_details(
                         acc_dict.get("פיצויים_ממעסיקים_קודמים_רצף_קצבה", 0) or 0
                     )
                     tagmulim = float(
-                        acc_dict.get("תגמולים", 0)
-                        or acc_dict.get("סך_תגמולים", 0)
-                        or 0
+                        acc_dict.get("תגמולים", 0) or acc_dict.get("סך_תגמולים", 0) or 0
                     )
 
                     is_sequence_of_rights = severance_prev_rights > 0
@@ -94,7 +90,9 @@ def handle_get_account_details(
                         "severance_past_employers_sequence_rights": round(
                             severance_prev_rights, 2
                         ),
-                        "severance_after_settlement": round(severance_after_settlement, 2),
+                        "severance_after_settlement": round(
+                            severance_after_settlement, 2
+                        ),
                         "severance_not_settled": round(severance_not_settled, 2),
                         "tagmulim": round(tagmulim, 2),
                         "is_in_sequence_of_rights": is_sequence_of_rights,
@@ -103,7 +101,9 @@ def handle_get_account_details(
                     }
                     matching_accounts.append(account_details)
 
-        pension_funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        pension_funds = (
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        )
         logger.info(
             "🔍 D11.1: Searching in %s DB PensionFund records",
             len(pension_funds),
@@ -122,9 +122,11 @@ def handle_get_account_details(
                     "current_balance": round(balance, 2),
                     "annuity_factor": fund.annuity_factor,
                     "pension_amount": round(float(fund.pension_amount or 0), 2),
-                    "pension_start_date": str(fund.pension_start_date)
-                    if fund.pension_start_date
-                    else None,
+                    "pension_start_date": (
+                        str(fund.pension_start_date)
+                        if fund.pension_start_date
+                        else None
+                    ),
                     "tax_treatment": fund.tax_treatment,
                     "is_in_sequence_of_rights": False,
                     "source": "db",

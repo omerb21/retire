@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class ClientCase(str, Enum):
     """Client case types for workflow determination"""
+
     NO_CURRENT_EMPLOYER = "NO_CURRENT_EMPLOYER"
     SELF_EMPLOYED_ONLY = "SELF_EMPLOYED_ONLY"
     PAST_RETIREMENT_AGE = "PAST_RETIREMENT_AGE"
@@ -16,19 +17,27 @@ class ClientCase(str, Enum):
 
 class CaseDetectionResult(BaseModel):
     """Result of client case detection"""
+
     client_id: int = Field(..., description="Client ID")
-    case_id: Union[int, ClientCase] = Field(..., description="Case ID (1-5) or ClientCase enum")
+    case_id: Union[int, ClientCase] = Field(
+        ..., description="Case ID (1-5) or ClientCase enum"
+    )
     case_name: str = Field(..., description="Case name")
     reasons: List[str] = Field([], description="Reasons for case detection")
-    detected_at: datetime = Field(default_factory=datetime.utcnow, description="Detection timestamp")
-    
+    detected_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Detection timestamp"
+    )
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "client_id": 1,
                 "case_id": 5,
                 "case_name": "REGULAR_WITH_LEAVE",
-                "reasons": ["has_current_employer", "planned_leave_detected_or_default"],
+                "reasons": [
+                    "has_current_employer",
+                    "planned_leave_detected_or_default",
+                ],
                 "detected_at": "2025-09-03T12:34:56Z",
             }
         }
@@ -37,8 +46,9 @@ class CaseDetectionResult(BaseModel):
 
 class CaseDetectionResponse(BaseModel):
     """API response wrapper for case detection"""
+
     result: CaseDetectionResult
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -46,7 +56,10 @@ class CaseDetectionResponse(BaseModel):
                     "client_id": 1,
                     "case_id": 5,
                     "case_name": "REGULAR_WITH_LEAVE",
-                    "reasons": ["has_current_employer", "planned_leave_detected_or_default"],
+                    "reasons": [
+                        "has_current_employer",
+                        "planned_leave_detected_or_default",
+                    ],
                     "detected_at": "2025-09-03T13:25:00Z",
                 }
             }
@@ -56,4 +69,5 @@ class CaseDetectionResponse(BaseModel):
 
 class CaseDetectResponse(BaseModel):
     """Simple case detection response for sprint11 verification"""
+
     case: Optional[ClientCase] = None

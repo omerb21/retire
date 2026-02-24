@@ -8,13 +8,17 @@ from app.main import app
 from app.models.client import Client
 from app.models.scenario import Scenario
 from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
-from app.services.llm_chat.chat_orchestration_helpers import store_pending_approval_request
+from app.services.llm_chat.chat_orchestration_helpers import (
+    store_pending_approval_request,
+)
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     store_current_employer_termination_plan_preview,
 )
 
 
-def test_stream_text_approval_variant_with_pending_executes(monkeypatch, _test_db) -> None:
+def test_stream_text_approval_variant_with_pending_executes(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -50,11 +54,15 @@ def test_stream_text_approval_variant_with_pending_executes(monkeypatch, _test_d
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for text approval")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, user_approved: bool = False, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, user_approved: bool = False, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert user_approved is True
         return json.dumps({"success": True}, ensure_ascii=False)
@@ -72,7 +80,12 @@ def test_stream_text_approval_variant_with_pending_executes(monkeypatch, _test_d
     )
 
     assert resp.status_code == 200
-    assert tool_calls == [("TRANSFORM_FUNDS_TO_ASSETS", {"accounts": [], "use_provided_accounts_only": True})]
+    assert tool_calls == [
+        (
+            "TRANSFORM_FUNDS_TO_ASSETS",
+            {"accounts": [], "use_provided_accounts_only": True},
+        )
+    ]
     assert "אין בקשת אישור פתוחה" not in resp.text
 
 
@@ -80,7 +93,9 @@ def test_stream_text_approval_variant_without_pending_refuses(monkeypatch) -> No
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for text approval")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed without pending approval")
@@ -136,13 +151,19 @@ def test_stream_user_approved_json_with_pending_executes(monkeypatch, _test_db) 
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, user_approved: bool = False, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, user_approved: bool = False, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "TRANSFORM_FUNDS_TO_ASSETS"
         assert user_approved is True
@@ -170,15 +191,23 @@ def test_stream_user_approved_json_with_pending_executes(monkeypatch, _test_db) 
     assert "🔧" in resp.text
 
 
-def test_stream_user_approved_json_without_pending_allowlisted_executes(monkeypatch) -> None:
+def test_stream_user_approved_json_without_pending_allowlisted_executes(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, user_approved: bool = False, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, user_approved: bool = False, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "TRANSFORM_FUNDS_TO_ASSETS"
         assert user_approved is True
@@ -209,11 +238,17 @@ def test_stream_user_approved_json_without_pending_allowlisted_executes(monkeypa
     assert "🔧" not in body
 
 
-def test_stream_user_approved_json_without_pending_non_allowlisted_refuses(monkeypatch) -> None:
+def test_stream_user_approved_json_without_pending_non_allowlisted_refuses(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed without pending approval")
@@ -241,17 +276,25 @@ def test_stream_user_approved_json_without_pending_non_allowlisted_refuses(monke
     assert "🔧" not in body
 
 
-def test_stream_user_approved_json_dedupe_prevents_reexecution(monkeypatch, _test_db) -> None:
+def test_stream_user_approved_json_dedupe_prevents_reexecution(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, user_approved: bool = False, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, user_approved: bool = False, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert user_approved is True
         return json.dumps({"success": True}, ensure_ascii=False)
@@ -328,15 +371,21 @@ def _ensure_client(Session, *, client_id: int) -> None:
         db.commit()
 
 
-def test_stream_process_termination_user_approved_missing_nonce_blocks(monkeypatch, _test_db) -> None:
+def test_stream_process_termination_user_approved_missing_nonce_blocks(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     client_id = 970000001
     _ensure_client(Session, client_id=client_id)
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed when approval nonce is missing")
@@ -355,7 +404,9 @@ def test_stream_process_termination_user_approved_missing_nonce_blocks(monkeypat
                 "declined": False,
                 "preview_id": preview_id,
                 "used": False,
-                "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+                "expires_at": (
+                    datetime.now(timezone.utc) + timedelta(minutes=10)
+                ).isoformat(),
             },
         )
         store_pending_approval_request(
@@ -386,15 +437,21 @@ def test_stream_process_termination_user_approved_missing_nonce_blocks(monkeypat
     assert "🔧" not in resp.text
 
 
-def test_stream_process_termination_user_approved_wrong_approval_id_blocks(monkeypatch, _test_db) -> None:
+def test_stream_process_termination_user_approved_wrong_approval_id_blocks(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     client_id = 970000002
     _ensure_client(Session, client_id=client_id)
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed when approval_id mismatches")
@@ -413,7 +470,9 @@ def test_stream_process_termination_user_approved_wrong_approval_id_blocks(monke
                 "declined": False,
                 "preview_id": preview_id,
                 "used": False,
-                "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+                "expires_at": (
+                    datetime.now(timezone.utc) + timedelta(minutes=10)
+                ).isoformat(),
             },
         )
         store_pending_approval_request(
@@ -467,13 +526,19 @@ def test_stream_process_termination_user_approved_success_consumes_preview_and_b
     _ensure_client(Session, client_id=client_id)
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, user_approved: bool = False, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, user_approved: bool = False, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "PROCESS_TERMINATION"
         assert user_approved is True
@@ -493,7 +558,9 @@ def test_stream_process_termination_user_approved_success_consumes_preview_and_b
                 "declined": False,
                 "preview_id": preview_id,
                 "used": False,
-                "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+                "expires_at": (
+                    datetime.now(timezone.utc) + timedelta(minutes=10)
+                ).isoformat(),
             },
         )
         store_pending_approval_request(
@@ -532,7 +599,16 @@ def test_stream_process_termination_user_approved_success_consumes_preview_and_b
     )
     assert resp1.status_code == 200
     assert "🔧" in resp1.text
-    assert tool_calls == [("PROCESS_TERMINATION", {"confirmed": True, "approval_id": stored_approval_id, "preview_id": preview_id})]
+    assert tool_calls == [
+        (
+            "PROCESS_TERMINATION",
+            {
+                "confirmed": True,
+                "approval_id": stored_approval_id,
+                "preview_id": preview_id,
+            },
+        )
+    ]
 
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",

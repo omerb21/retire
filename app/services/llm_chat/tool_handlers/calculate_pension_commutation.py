@@ -6,7 +6,9 @@ from app.services.llm_agent_tools_service import AgentToolsService
 logger = logging.getLogger("app.llm_chat.tools")
 
 
-def handle_calculate_pension_commutation(*, args: dict, agent_tools: AgentToolsService) -> str:
+def handle_calculate_pension_commutation(
+    *, args: dict, agent_tools: AgentToolsService
+) -> str:
     reduction = args.get("target_monthly_pension_reduction")
     date_str = args.get("retirement_date")
 
@@ -38,10 +40,14 @@ def handle_calculate_pension_commutation(*, args: dict, agent_tools: AgentToolsS
             combined_result = {
                 "commutation": commutation_result,
                 "full_pension_comparison": {
-                    "total_gross_pension": cashflow_data.get("total_guaranteed_income", 0),
+                    "total_gross_pension": cashflow_data.get(
+                        "total_guaranteed_income", 0
+                    ),
                     "income_tax": cashflow_data.get("income_tax", 0),
                     "net_pension": cashflow_data.get("net_income", 0),
-                    "exemption_percentage": cashflow_data.get("exemption_percentage", 0),
+                    "exemption_percentage": cashflow_data.get(
+                        "exemption_percentage", 0
+                    ),
                 },
                 "comparison_summary": {
                     "lump_sum_net": commutation_result.get("lump_sum_net", 0),

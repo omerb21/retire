@@ -46,7 +46,9 @@ def _maybe_handle_target_plan_deterministic(
                 "build_target_pension_plan",
             )
             if any(k in lowered_user_msg for k in planning_keywords):
-                extracted_target = float(extract_target_pension_from_message(original_user_msg) or 0)
+                extracted_target = float(
+                    extract_target_pension_from_message(original_user_msg) or 0
+                )
                 explicit_target_plan_request = extracted_target > 0
     except Exception:
         explicit_target_plan_request = False

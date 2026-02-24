@@ -13,13 +13,18 @@ Usage from anywhere:
 
 Safe: never raises, never crashes the request.  On failure it logs and moves on.
 """
+
 import json
 import logging
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from app.utils.trace_context import generate_trace_id, get_current_trace_id, set_current_trace_id
+from app.utils.trace_context import (
+    generate_trace_id,
+    get_current_trace_id,
+    set_current_trace_id,
+)
 
 logger = logging.getLogger("app.agent_trace")
 
@@ -42,7 +47,7 @@ def _safe_json(obj: Any) -> tuple[str, bool, int]:
         truncated = {
             "truncated": True,
             "original_size": original_size,
-            "preview": raw[:MAX_PAYLOAD_SIZE // 2],
+            "preview": raw[: MAX_PAYLOAD_SIZE // 2],
         }
         return json.dumps(truncated, ensure_ascii=False), True, original_size
     return raw, False, original_size
@@ -75,7 +80,12 @@ def log_trace_event(
 
             from app.services.agent_eyes.event_collector import emit_event
 
-            emit_event(event_type=event_type, payload=payload, client_id=client_id, endpoint=endpoint)
+            emit_event(
+                event_type=event_type,
+                payload=payload,
+                client_id=client_id,
+                endpoint=endpoint,
+            )
         finally:
             try:
                 if prev_trace_id and prev_trace_id != effective_trace_id:
@@ -101,7 +111,9 @@ def emit_trace_error(
     try:
         tb_preview = _tb_mod.format_exc()
         if tb_preview == "NoneType: None\n" or not tb_preview.strip():
-            tb_preview = "".join(_tb_mod.format_exception(type(exc), exc, exc.__traceback__))
+            tb_preview = "".join(
+                _tb_mod.format_exception(type(exc), exc, exc.__traceback__)
+            )
         log_trace_event(
             event_type="error",
             payload={

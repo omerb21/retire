@@ -21,7 +21,7 @@ def _maybe_handle_orchestration_plan_shortcuts(
     sanitize_user_visible_text,
     format_system_inventory_snapshot,
     OrchestrationPlanClass,
- ):
+):
     if plan == OrchestrationPlanClass.SYSTEM_SNAPSHOT and request.client_id is not None:
 
         def _generate_orchestration_plan_system_snapshot(req_id: str):
@@ -42,11 +42,15 @@ def _maybe_handle_orchestration_plan_shortcuts(
                 user_approved=True,
                 request_id=req_id,
             )
-            if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+            if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+                "tool error"
+            ):
                 yield sanitize_user_visible_text(tool_result)
                 return
 
-            yield sanitize_user_visible_text(format_system_inventory_snapshot(tool_result))
+            yield sanitize_user_visible_text(
+                format_system_inventory_snapshot(tool_result)
+            )
 
         return StreamingResponse(
             _generate_orchestration_plan_system_snapshot(stream_request_id),
@@ -75,7 +79,9 @@ def _maybe_handle_orchestration_plan_shortcuts(
             )
 
             yield (
-                "🔧 **פלט כלי (סטטוס קיבוע זכויות):**\n" + sanitize_user_visible_text(tool_result) + "\n\n"
+                "🔧 **פלט כלי (סטטוס קיבוע זכויות):**\n"
+                + sanitize_user_visible_text(tool_result)
+                + "\n\n"
             )
 
             try:
@@ -89,7 +95,11 @@ def _maybe_handle_orchestration_plan_shortcuts(
             has_commutation = str(parsed.get("has_commutation") or "unknown")
             has_exempt_grants = str(parsed.get("has_exempt_grants") or "unknown")
             employment_ended = str(parsed.get("employment_ended") or "unknown")
-            missing_inputs = parsed.get("missing_inputs") if isinstance(parsed.get("missing_inputs"), list) else []
+            missing_inputs = (
+                parsed.get("missing_inputs")
+                if isinstance(parsed.get("missing_inputs"), list)
+                else []
+            )
 
             def _yn(value: str) -> str:
                 v = (value or "").strip().lower()
@@ -135,7 +145,9 @@ def _maybe_handle_orchestration_plan_shortcuts(
             portfolio_for_cashflow = effective_portfolio
 
             try:
-                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     portfolio_for_cashflow, _snapshot_at = loaded
             except Exception:

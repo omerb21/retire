@@ -28,7 +28,9 @@ def _is_target_plan_adjust_request(text: str | None) -> bool:
         return False
     if "קצבה" not in lowered:
         return False
-    if not any(token in lowered for token in ("גבוה", "גבוהה", "יותר", "מדי", "תקן", "לתקן")):
+    if not any(
+        token in lowered for token in ("גבוה", "גבוהה", "יותר", "מדי", "תקן", "לתקן")
+    ):
         return False
     return True
 
@@ -42,11 +44,18 @@ def _infer_target_is_net_explicit(text: str | None) -> bool | None:
     return None
 
 
-def _is_target_plan_adjust_followup(user_text: str | None, history: list[ChatMessage]) -> bool:
+def _is_target_plan_adjust_followup(
+    user_text: str | None, history: list[ChatMessage]
+) -> bool:
     lowered = (user_text or "").lower()
     if not lowered.strip():
         return False
-    if ("נטו" not in lowered) and ("ברוטו" not in lowered) and ("net" not in lowered) and ("gross" not in lowered):
+    if (
+        ("נטו" not in lowered)
+        and ("ברוטו" not in lowered)
+        and ("net" not in lowered)
+        and ("gross" not in lowered)
+    ):
         return False
     if not any(ch.isdigit() for ch in lowered):
         return False
@@ -58,20 +67,28 @@ def _is_target_plan_adjust_followup(user_text: str | None, history: list[ChatMes
     if not last_assistant:
         return False
     probe = last_assistant
-    return ("ברוטו" in probe and "נטו" in probe and "כדי לתקן" in probe)
+    return "ברוטו" in probe and "נטו" in probe and "כדי לתקן" in probe
 
 
 def _is_system_results_request(text: str | None) -> bool:
     lowered = (text or "").strip().lower()
     if not lowered:
         return False
-    if any(k in lowered for k in ("בנה", "תכנית", "תוכנית", "יעד", "תכנן", "מתווה")) and "קצבה" in lowered:
+    if (
+        any(k in lowered for k in ("בנה", "תכנית", "תוכנית", "יעד", "תכנן", "מתווה"))
+        and "קצבה" in lowered
+    ):
         return False
-    if any(k in lowered for k in ("המר", "המרה", "בצע", "ביצוע", "עזיבת עבודה", "קיבוע")):
+    if any(
+        k in lowered for k in ("המר", "המרה", "בצע", "ביצוע", "עזיבת עבודה", "קיבוע")
+    ):
         return False
     if "קצבה" not in lowered:
         return False
-    if any(k in lowered for k in ("כעת", "עכשיו", "במערכת", "מסך", "תוצאות", "בפועל", "סה\"כ", "סה")):
+    if any(
+        k in lowered
+        for k in ("כעת", "עכשיו", "במערכת", "מסך", "תוצאות", "בפועל", 'סה"כ', "סה")
+    ):
         return True
     if lowered.startswith("מה") and ("גובה" in lowered or "כמה" in lowered):
         return True
@@ -121,13 +138,19 @@ def _format_system_results_from_cashflow(tool_result: str) -> str:
         lines.append(f"קצבה נטו משוערת (אחרי מס הכנסה בלבד): {net:,.2f} ₪/חודש")
     if (exemption_pct is not None) or (exempt_monthly is not None):
         pct_str = f"{exemption_pct:.1f}%" if exemption_pct is not None else "לא ידוע"
-        exempt_str = f"{exempt_monthly:,.2f} ₪" if exempt_monthly is not None else "לא ידוע"
-        lines.append(f"פטור מקיבוע זכויות שהוחל: {pct_str} | קצבה פטורה חודשית: {exempt_str}")
+        exempt_str = (
+            f"{exempt_monthly:,.2f} ₪" if exempt_monthly is not None else "לא ידוע"
+        )
+        lines.append(
+            f"פטור מקיבוע זכויות שהוחל: {pct_str} | קצבה פטורה חודשית: {exempt_str}"
+        )
     if liquid is not None:
         lines.append(f"הון נזיל זמין במערכת: {liquid:,.2f} ₪")
 
     lines.append("")
-    lines.append("הערה: התשובה נבנתה ישירות מתוצאות החישוב של המערכת (ללא חישוב פנימי של הסוכן).")
+    lines.append(
+        "הערה: התשובה נבנתה ישירות מתוצאות החישוב של המערכת (ללא חישוב פנימי של הסוכן)."
+    )
     return "\n".join(lines).strip()
 
 
@@ -144,9 +167,19 @@ def _is_system_inventory_request(text: str | None) -> bool:
     lowered = (text or "").strip().lower()
     if not lowered:
         return False
-    if any(k in lowered for k in ("מה יש", "תציג", "הצג", "פירוט", "פרט", "רשימה", "inventory", "snapshot")) and any(
-        k in lowered for k in ("במערכת", "בפועל", "מסך", "נתונים")
-    ):
+    if any(
+        k in lowered
+        for k in (
+            "מה יש",
+            "תציג",
+            "הצג",
+            "פירוט",
+            "פרט",
+            "רשימה",
+            "inventory",
+            "snapshot",
+        )
+    ) and any(k in lowered for k in ("במערכת", "בפועל", "מסך", "נתונים")):
         return True
     if "כל האלמנטים" in lowered or "כל הנתונים" in lowered:
         return True
@@ -231,9 +264,11 @@ def _user_requested_target_pension_plan(text: str) -> bool:
     ]
     if not any(k in lowered for k in planning_keywords):
         return False
-    has_numeric = bool(re.search(r"\b\d{2,3}\s*[kK]\b", lowered)) or bool(
-        re.search(r"\b\d{4,6}\b", lowered)
-    ) or ("אלף" in lowered)
+    has_numeric = (
+        bool(re.search(r"\b\d{2,3}\s*[kK]\b", lowered))
+        or bool(re.search(r"\b\d{4,6}\b", lowered))
+        or ("אלף" in lowered)
+    )
     return has_numeric
 
 

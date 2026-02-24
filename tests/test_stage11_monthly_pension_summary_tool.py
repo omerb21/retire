@@ -17,7 +17,10 @@ def test_monthly_pension_summary_tool_returns_emission_ready_payload_and_marker(
 
     parsed = json.loads(raw)
 
-    assert parsed["reply"] == "Monthly pension summary computed. See computed_data for details."
+    assert (
+        parsed["reply"]
+        == "Monthly pension summary computed. See computed_data for details."
+    )
     assert parsed["computed_data"] == computed
 
     marker = parsed["computed_data_marker"]

@@ -7,7 +7,9 @@ from app.guards.tool_intent_guard import (
 from app.services.llm_chat.intent_classifier import ChatIntent
 
 
-def test_conceptual_words_only_sanitization_removes_client_leakage_and_tool_markers() -> None:
+def test_conceptual_words_only_sanitization_removes_client_leakage_and_tool_markers() -> (
+    None
+):
     msg = "מה ההבדל בין קצבה להון?"
     assert allow_tools_for_intent(msg, ChatIntent.ANALYSIS) is False
     assert get_tools_disabled_reason(msg, ChatIntent.ANALYSIS) == "conceptual"
@@ -17,7 +19,7 @@ def test_conceptual_words_only_sanitization_removes_client_leakage_and_tool_mark
         "בדיקת מקורות: לא נמצאו מקורות\n"
         "מקור: DB\n"
         "🔧 **פלט כלי:**\n"
-        "###TOOL_CALL### {\"tool_name\": \"X\"}\n"
+        '###TOOL_CALL### {"tool_name": "X"}\n'
         "קיבלתי. אפשר להמשיך בהסבר מילולי בלבד על בסיס הנתונים שנשלחו.\n"
         "טקסט כללי ארוך שמסביר על ההבדל בין קצבה להון באופן כללי וללא המלצה אישית או מידע פרטני.\n"
     )

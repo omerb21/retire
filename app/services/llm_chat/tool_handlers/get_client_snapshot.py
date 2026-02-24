@@ -29,11 +29,16 @@ def handle_get_client_snapshot(*, args: dict, client_id: int, db: Session) -> st
             "breakdown": {
                 "pension_funds": len(snapshot["snapshot"]["data"]["pension_funds"]),
                 "capital_assets": len(snapshot["snapshot"]["data"]["capital_assets"]),
-                "additional_incomes": len(snapshot["snapshot"]["data"]["additional_incomes"]),
+                "additional_incomes": len(
+                    snapshot["snapshot"]["data"]["additional_incomes"]
+                ),
                 "grants": len(snapshot["snapshot"]["data"]["grants"]),
-                "has_employer": snapshot["snapshot"]["data"]["current_employer"] is not None,
-                "has_termination": snapshot["snapshot"]["data"]["termination_event"] is not None,
-                "has_fixation": snapshot["snapshot"]["data"]["fixation_result"] is not None,
+                "has_employer": snapshot["snapshot"]["data"]["current_employer"]
+                is not None,
+                "has_termination": snapshot["snapshot"]["data"]["termination_event"]
+                is not None,
+                "has_fixation": snapshot["snapshot"]["data"]["fixation_result"]
+                is not None,
             },
         }
         return result

@@ -73,10 +73,14 @@ def find_optimal_scenario_for_target(
             npv = scenario.get("estimated_npv", 0)
 
             if pension >= target:
-                if best_achieving is None or npv > best_achieving.get("estimated_npv", 0):
+                if best_achieving is None or npv > best_achieving.get(
+                    "estimated_npv", 0
+                ):
                     best_achieving = scenario
 
-            if best_overall is None or pension > best_overall.get("total_pension_monthly", 0):
+            if best_overall is None or pension > best_overall.get(
+                "total_pension_monthly", 0
+            ):
                 best_overall = scenario
 
     if not all_results:
@@ -93,7 +97,9 @@ def find_optimal_scenario_for_target(
     for res in all_results:
         age = res.get("retirement_age")
         pension = res.get("total_pension_monthly", 0)
-        if age not in results_by_age or pension > results_by_age[age].get("total_pension_monthly", 0):
+        if age not in results_by_age or pension > results_by_age[age].get(
+            "total_pension_monthly", 0
+        ):
             results_by_age[age] = res
 
     sorted_ages = sorted(results_by_age.keys())
@@ -123,7 +129,9 @@ def find_optimal_scenario_for_target(
     explanation_parts: list[str] = []
 
     if best_achieving:
-        explanation_parts.append(f"✅ **נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש!**")
+        explanation_parts.append(
+            f"✅ **נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש!**"
+        )
         explanation_parts.append("")
         explanation_parts.append(f"**🎯 התרחיש המומלץ:**")
         explanation_parts.append(f"  • גיל פרישה: {best_achieving['retirement_age']}")
@@ -131,11 +139,15 @@ def find_optimal_scenario_for_target(
         explanation_parts.append(
             f"  • קצבה: {best_achieving['total_pension_monthly']:,.0f} ₪/חודש"
         )
-        explanation_parts.append(f"  • הון: {best_achieving.get('total_capital', 0):,.0f} ₪")
+        explanation_parts.append(
+            f"  • הון: {best_achieving.get('total_capital', 0):,.0f} ₪"
+        )
         explanation_parts.append(f"  • NPV: {best_achieving['estimated_npv']:,.0f} ₪")
     else:
         gap = target - best_overall.get("total_pension_monthly", 0)
-        explanation_parts.append(f"❌ **לא נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש**")
+        explanation_parts.append(
+            f"❌ **לא נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש**"
+        )
         explanation_parts.append("")
         explanation_parts.append(f"**📊 התרחיש הטוב ביותר:**")
         explanation_parts.append(f"  • גיל פרישה: {best_overall['retirement_age']}")
@@ -155,7 +167,9 @@ def find_optimal_scenario_for_target(
         if item["change_from_prev"] != 0:
             sign = "+" if item["change_from_prev"] > 0 else ""
             change_text = f" ({sign}{item['change_from_prev']:,.0f})"
-        explanation_parts.append(f"  {marker} גיל {item['age']}: {item['pension']:,.0f} ₪{change_text}")
+        explanation_parts.append(
+            f"  {marker} גיל {item['age']}: {item['pension']:,.0f} ₪{change_text}"
+        )
 
     # המלצות
     explanation_parts.append("")
@@ -166,10 +180,16 @@ def find_optimal_scenario_for_target(
         earliest_achieving = None
         for item in sensitivity_analysis:
             if item["meets_target"]:
-                if earliest_achieving is None or item["age"] < earliest_achieving["age"]:
+                if (
+                    earliest_achieving is None
+                    or item["age"] < earliest_achieving["age"]
+                ):
                     earliest_achieving = item
 
-        if earliest_achieving and earliest_achieving["age"] < best_achieving["retirement_age"]:
+        if (
+            earliest_achieving
+            and earliest_achieving["age"] < best_achieving["retirement_age"]
+        ):
             explanation_parts.append(
                 f"  • אפשר לפרוש כבר בגיל {earliest_achieving['age']} ולהגיע ליעד ({earliest_achieving['pension']:,.0f} ₪)"
             )
@@ -189,7 +209,9 @@ def find_optimal_scenario_for_target(
         if len(sensitivity_analysis) > 0:
             last_item = sensitivity_analysis[-1]
             if last_item["age"] < 75:
-                explanation_parts.append(f"  • דחיית פרישה מעבר לגיל {last_item['age']} עשויה לשפר את הקצבה")
+                explanation_parts.append(
+                    f"  • דחיית פרישה מעבר לגיל {last_item['age']} עשויה לשפר את הקצבה"
+                )
         explanation_parts.append(f"  • הגדלת ההפקדות השוטפות תקטין את הפער")
 
     explanation = "\n".join(explanation_parts)
@@ -204,7 +226,9 @@ def find_optimal_scenario_for_target(
     }
 
     if not best_achieving:
-        result_data["gap_to_target"] = target - best_overall.get("total_pension_monthly", 0)
+        result_data["gap_to_target"] = target - best_overall.get(
+            "total_pension_monthly", 0
+        )
 
     return {
         "success": True,

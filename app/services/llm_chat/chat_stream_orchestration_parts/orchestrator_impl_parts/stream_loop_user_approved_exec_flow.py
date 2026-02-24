@@ -88,7 +88,7 @@ def _maybe_handle_user_approved_exec_flow(
     compute_existing_income_offset_monthly,
     store_latest_target_pension_plan_data,
     store_latest_target_pension_plan,
- ):
+):
     if not (
         request.client_id is not None
         and isinstance(original_user_msg, str)
@@ -143,13 +143,17 @@ def _maybe_handle_user_approved_exec_flow(
 
         effective_portfolio = request.pension_portfolio
         try:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 effective_portfolio, _snapshot_at = loaded
         except Exception:
             pass
 
-        if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+        if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(
+            approved_args, dict
+        ):
             try:
                 if _accounts_are_thin(approved_args.get("accounts")):
                     approved_args["use_provided_accounts_only"] = False
@@ -185,7 +189,9 @@ def _maybe_handle_user_approved_exec_flow(
                 except Exception:
                     parsed_term = None
 
-            term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
+            term_success = (
+                isinstance(parsed_term, dict) and parsed_term.get("success") is True
+            )
 
             if term_success and isinstance(pending_build, dict):
                 try:
@@ -194,7 +200,10 @@ def _maybe_handle_user_approved_exec_flow(
                     pass
 
                 plan_args = pending_build.get("plan_args")
-                if isinstance(plan_args, dict) and plan_args.get("target_monthly_pension") is not None:
+                if (
+                    isinstance(plan_args, dict)
+                    and plan_args.get("target_monthly_pension") is not None
+                ):
                     try:
                         clear_pending_build_target_plan_after_termination(
                             db=db,
@@ -208,12 +217,16 @@ def _maybe_handle_user_approved_exec_flow(
 
                     refreshed_portfolio = effective_portfolio
                     try:
-                        loaded_after_term = load_latest_pension_portfolio_snapshot_models(
-                            db,
-                            request.client_id,
+                        loaded_after_term = (
+                            load_latest_pension_portfolio_snapshot_models(
+                                db,
+                                request.client_id,
+                            )
                         )
                         if loaded_after_term is not None:
-                            refreshed_portfolio, _snapshot_at_after_term = loaded_after_term
+                            refreshed_portfolio, _snapshot_at_after_term = (
+                                loaded_after_term
+                            )
                     except Exception:
                         refreshed_portfolio = effective_portfolio
 
@@ -248,12 +261,16 @@ def _maybe_handle_user_approved_exec_flow(
                         "\n\n"
                         + "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
                         + sanitize_user_visible_text(
-                            format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                            format_tool_output_for_user_stream(
+                                "BUILD_TARGET_PENSION_PLAN", plan_result
+                            )
                         )
                     )
                     yield plan_rendered
 
-        if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(approved_args, dict):
+        if approved_tool == "TRANSFORM_FUNDS_TO_ASSETS" and isinstance(
+            approved_args, dict
+        ):
             try:
                 parsed = json.loads(tool_result)
             except Exception:
@@ -291,12 +308,16 @@ def _maybe_handle_user_approved_exec_flow(
                 )
 
         tool_display = get_tool_display_name_hebrew(approved_tool)
-        user_tool_output = format_tool_output_for_user_stream(approved_tool, tool_result)
-        rendered = (
-            f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(user_tool_output)
+        user_tool_output = format_tool_output_for_user_stream(
+            approved_tool, tool_result
+        )
+        rendered = f"🔧 **פלט כלי ({tool_display}):**\n" + sanitize_user_visible_text(
+            user_tool_output
         )
 
-        yield append_transform_next_step_hint(tool_name=approved_tool, rendered_output=rendered)
+        yield append_transform_next_step_hint(
+            tool_name=approved_tool, rendered_output=rendered
+        )
 
     return StreamingResponse(
         _generate_user_approved_exec(stream_request_id),

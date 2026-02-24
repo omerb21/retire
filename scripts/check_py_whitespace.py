@@ -5,6 +5,7 @@ import sys
 
 ROOT = Path("app/services/llm_chat")
 
+
 def scan_file(p: Path) -> list[str]:
     bad = []
     try:
@@ -25,6 +26,7 @@ def scan_file(p: Path) -> list[str]:
 
     return [f"{p}: {msg}" for msg in bad]
 
+
 def main() -> int:
     errors: list[str] = []
     for p in ROOT.rglob("*.py"):
@@ -38,6 +40,7 @@ def main() -> int:
 
     print("OK: no TAB/NBSP issues under", ROOT)
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

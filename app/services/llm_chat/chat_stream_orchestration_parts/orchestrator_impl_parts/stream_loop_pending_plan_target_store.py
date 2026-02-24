@@ -15,7 +15,9 @@ def _store_pending_plan_target(
 ) -> None:
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=ttl_seconds)
-    pending_age, pending_date = infer_pending_retirement_fields_for_marker(client_id=client_id)
+    pending_age, pending_date = infer_pending_retirement_fields_for_marker(
+        client_id=client_id
+    )
     payload = {
         "kind": "pending_plan_target",
         "active": True,

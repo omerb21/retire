@@ -16,7 +16,11 @@ def _maybe_route_to_reports_page(*, request, original_user_msg: str):
             return False
         if ("תזרים" in lowered) or ("cashflow" in lowered):
             return False
-        if lowered.startswith("איך ") or lowered.startswith("כיצד ") or lowered.startswith("how "):
+        if (
+            lowered.startswith("איך ")
+            or lowered.startswith("כיצד ")
+            or lowered.startswith("how ")
+        ):
             return False
 
         # Do not intercept full report generation / QA flows.
@@ -39,7 +43,9 @@ def _maybe_route_to_reports_page(*, request, original_user_msg: str):
             return True
 
         # For generic "דוח" requests we only route when it's clearly a document open request.
-        wants_summary = ("דוח מסכם" in lowered) or ("מסכם" in lowered) or ("summary" in lowered)
+        wants_summary = (
+            ("דוח מסכם" in lowered) or ("מסכם" in lowered) or ("summary" in lowered)
+        )
         return bool(has_verb or wants_summary)
 
     if (
@@ -58,7 +64,11 @@ def _maybe_route_to_reports_page(*, request, original_user_msg: str):
                 }
             ],
         }
-        ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+        ui_action = (
+            "###UI_ACTION###"
+            + json.dumps(ui_payload, ensure_ascii=False)
+            + "###END_UI_ACTION###\n"
+        )
         return StreamingResponse(
             iter([ui_action, "פתחתי את הדוח בטאב חדש."]),
             media_type="text/plain",

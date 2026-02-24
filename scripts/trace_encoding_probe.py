@@ -13,14 +13,18 @@ def _hexdump(data: bytes, start: int = 0, length: int = 96) -> str:
     return " ".join(f"{b:02x}" for b in chunk)
 
 
-def _http_json(method: str, url: str, headers: dict[str, str], body: dict | None = None) -> tuple[int, bytes, dict]:
+def _http_json(
+    method: str, url: str, headers: dict[str, str], body: dict | None = None
+) -> tuple[int, bytes, dict]:
     raw_body = None
     req_headers = dict(headers)
     if body is not None:
         raw_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         req_headers["Content-Type"] = "application/json; charset=utf-8"
 
-    req = urllib.request.Request(url=url, data=raw_body, method=method, headers=req_headers)
+    req = urllib.request.Request(
+        url=url, data=raw_body, method=method, headers=req_headers
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = resp.read()
@@ -52,11 +56,20 @@ def _http_bytes(method: str, url: str, headers: dict[str, str]) -> tuple[int, by
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Proof-first encoding probe for trace JSON.")
-    ap.add_argument("--base-url", default=os.getenv("TRACE_PROBE_BASE_URL") or "http://localhost:8005")
+    ap = argparse.ArgumentParser(
+        description="Proof-first encoding probe for trace JSON."
+    )
+    ap.add_argument(
+        "--base-url",
+        default=os.getenv("TRACE_PROBE_BASE_URL") or "http://localhost:8005",
+    )
     ap.add_argument("--admin-token", default=os.getenv("ADMIN_DEBUG_TOKEN") or "")
     ap.add_argument("--client-id", type=int, required=True)
-    ap.add_argument("--fixture", default="termination", choices=["cashflow", "target_plan", "termination"])
+    ap.add_argument(
+        "--fixture",
+        default="termination",
+        choices=["cashflow", "target_plan", "termination"],
+    )
     args = ap.parse_args()
 
     headers: dict[str, str] = {}
@@ -104,14 +117,18 @@ def main() -> int:
     print("=== TRACE ENDPOINT BYTES (/traces/{trace_id}) ===")
     print(f"trace endpoint bytes len: {len(trace_bytes)}")
 
-    preview_text = pre.get("result_preview") if isinstance(pre.get("result_preview"), str) else ""
+    preview_text = (
+        pre.get("result_preview") if isinstance(pre.get("result_preview"), str) else ""
+    )
     if preview_text:
         preview_bytes = preview_text.encode("utf-8", errors="replace")
         idx = trace_bytes.find(preview_bytes)
         print(f"preview utf8 bytes found at index: {idx}")
         if idx >= 0:
             start = max(0, idx - 32)
-            print(f"trace bytes around preview hex: {_hexdump(trace_bytes, start, 160)}")
+            print(
+                f"trace bytes around preview hex: {_hexdump(trace_bytes, start, 160)}"
+            )
         else:
             print(f"trace bytes head hex: {_hexdump(trace_bytes, 0, 160)}")
     else:
@@ -120,9 +137,7 @@ def main() -> int:
     # 2) Fetch raw stored payload_json bytes for the tool_result event.
     event_id = from_db.get("event_id")
     if isinstance(event_id, int) and event_id > 0:
-        raw_url = (
-            f"{args.base_url.rstrip('/')}/api/v1/debug/traces/{trace_id}/events/{event_id}/payload-raw"
-        )
+        raw_url = f"{args.base_url.rstrip('/')}/api/v1/debug/traces/{trace_id}/events/{event_id}/payload-raw"
         _, raw_bytes = _http_bytes("GET", raw_url, headers=headers)
         print("=== RAW DB PAYLOAD JSON BYTES (/payload-raw) ===")
         print(f"payload-raw bytes len: {len(raw_bytes)}")
@@ -134,7 +149,9 @@ def main() -> int:
         except Exception:
             pass
     else:
-        print("No event_id from evidence.tool_result_from_db; skipping /payload-raw fetch")
+        print(
+            "No event_id from evidence.tool_result_from_db; skipping /payload-raw fetch"
+        )
 
     return 0
 

@@ -82,7 +82,9 @@ def execute_conversion_tasks(
 
             strict_plan_task = False
             try:
-                strict_plan_task = isinstance(task, dict) and (task.get("_execution_plan") is not None)
+                strict_plan_task = isinstance(task, dict) and (
+                    task.get("_execution_plan") is not None
+                )
             except Exception:
                 strict_plan_task = False
 
@@ -100,12 +102,21 @@ def execute_conversion_tasks(
                 or account.get("תאריך_מימוש")
                 or account.get("תאריך מימוש")
             )
-            effective_pension_start_date = _parse_date_value(account_pension_start_date_raw) or global_pension_start_date
+            effective_pension_start_date = (
+                _parse_date_value(account_pension_start_date_raw)
+                or global_pension_start_date
+            )
             if effective_pension_start_date is None:
-                effective_pension_start_date = retirement_date or date_type(retirement_year, 1, 1)
+                effective_pension_start_date = retirement_date or date_type(
+                    retirement_year, 1, 1
+                )
 
             projection_factor = 1.0
-            if (not strict_plan_task) and effective_pension_start_date and effective_pension_start_date > date_type.today():
+            if (
+                (not strict_plan_task)
+                and effective_pension_start_date
+                and effective_pension_start_date > date_type.today()
+            ):
                 try:
                     projection_factor = calculate_compound_factor(
                         from_date=date_type.today(),
@@ -115,7 +126,11 @@ def execute_conversion_tasks(
                     projection_factor = 1.0
 
             if conversion_type == "pension":
-                balance = float(base_amount) if strict_plan_task else (float(base_amount) * float(projection_factor))
+                balance = (
+                    float(base_amount)
+                    if strict_plan_task
+                    else (float(base_amount) * float(projection_factor))
+                )
             else:
                 balance = float(base_amount)
 
@@ -192,7 +207,10 @@ def execute_conversion_tasks(
                 if not remaining_only:
                     delete_pensions = conversion_type == "pension"
                     delete_capitals = conversion_type != "pension"
-                    deletion_key = (account_number, "pensions" if delete_pensions else "capitals")
+                    deletion_key = (
+                        account_number,
+                        "pensions" if delete_pensions else "capitals",
+                    )
                     if deletion_key not in deleted_for_accounts:
                         _delete_existing_tool_created_records(
                             db=db,
@@ -243,10 +261,14 @@ def execute_conversion_tasks(
             )
 
             if strict_plan_task and stop_after_target_gross is not None:
-                plan_meta = task.get("_execution_plan") if isinstance(task, dict) else None
+                plan_meta = (
+                    task.get("_execution_plan") if isinstance(task, dict) else None
+                )
                 if isinstance(plan_meta, dict):
                     try:
-                        running_gross += float(plan_meta.get("expected_monthly_pension") or 0)
+                        running_gross += float(
+                            plan_meta.get("expected_monthly_pension") or 0
+                        )
                     except Exception:
                         pass
 
@@ -265,7 +287,6 @@ def execute_conversion_tasks(
         converted_items,
         errors,
     )
-
 
 
 def apply_conversion_task_to_snapshot(
@@ -312,8 +333,13 @@ def apply_conversion_task_to_snapshot(
         expected_pension_from_plan = None
         try:
             plan_meta = task.get("_execution_plan") if isinstance(task, dict) else None
-            if isinstance(plan_meta, dict) and plan_meta.get("expected_monthly_pension") is not None:
-                expected_pension_from_plan = float(plan_meta.get("expected_monthly_pension") or 0)
+            if (
+                isinstance(plan_meta, dict)
+                and plan_meta.get("expected_monthly_pension") is not None
+            ):
+                expected_pension_from_plan = float(
+                    plan_meta.get("expected_monthly_pension") or 0
+                )
                 if expected_pension_from_plan <= 0:
                     expected_pension_from_plan = None
         except Exception:
@@ -350,7 +376,11 @@ def apply_conversion_task_to_snapshot(
                     option_name=None,
                     survivors_option="תקנוני",
                     spouse_age_diff=0,
-                    target_year=effective_pension_start_date.year if effective_pension_start_date else retirement_year,
+                    target_year=(
+                        effective_pension_start_date.year
+                        if effective_pension_start_date
+                        else retirement_year
+                    ),
                     birth_date=getattr(client_obj, "birth_date", None),
                     pension_start_date=effective_pension_start_date,
                 )
@@ -393,12 +423,18 @@ def apply_conversion_task_to_snapshot(
                 "company": company,
                 "product_type": product_type,
                 "start_date": start_date_raw,
-                "pension_start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
+                "pension_start_date": (
+                    effective_pension_start_date.isoformat()
+                    if effective_pension_start_date
+                    else None
+                ),
                 "original_amount": base_amount,
                 "projection_factor": projection_factor,
                 "components": components,
                 "resolved_annuity_factor": annuity_factor,
-                "coeff_source_table": coeff.get("source_table") if isinstance(coeff, dict) else None,
+                "coeff_source_table": (
+                    coeff.get("source_table") if isinstance(coeff, dict) else None
+                ),
                 "converted_at": datetime.now().isoformat(),
             },
             ensure_ascii=False,
@@ -411,7 +447,9 @@ def apply_conversion_task_to_snapshot(
                 .filter(
                     PensionFund.client_id == client_id,
                     PensionFund.deduction_file == account_number,
-                    PensionFund.conversion_source.like('%"source": "llm_transform_funds_to_assets"%'),
+                    PensionFund.conversion_source.like(
+                        '%"source": "llm_transform_funds_to_assets"%'
+                    ),
                 )
                 .first()
             )
@@ -427,7 +465,9 @@ def apply_conversion_task_to_snapshot(
                     PensionFund.fund_name == account_name,
                     PensionFund.fund_type == (product_type or "קרן פנסיה"),
                     PensionFund.balance == balance,
-                    PensionFund.conversion_source.like('%"source": "llm_transform_funds_to_assets"%'),
+                    PensionFund.conversion_source.like(
+                        '%"source": "llm_transform_funds_to_assets"%'
+                    ),
                 )
                 .first()
             )
@@ -438,13 +478,17 @@ def apply_conversion_task_to_snapshot(
             existing_pf.input_mode = "manual"
             if remaining_only:
                 try:
-                    existing_pf.balance = float(existing_pf.balance or 0) + float(balance or 0)
+                    existing_pf.balance = float(existing_pf.balance or 0) + float(
+                        balance or 0
+                    )
                 except Exception:
                     existing_pf.balance = balance
             else:
                 existing_pf.balance = balance
             existing_pf.annuity_factor = annuity_factor
-            existing_pf.pension_amount = float(existing_pf.balance or 0) / float(annuity_factor or 200.0)
+            existing_pf.pension_amount = float(existing_pf.balance or 0) / float(
+                annuity_factor or 200.0
+            )
             existing_pf.pension_start_date = effective_pension_start_date
             existing_pf.indexation_method = "none"
             existing_pf.tax_treatment = tax_treatment
@@ -472,7 +516,10 @@ def apply_conversion_task_to_snapshot(
         db.flush()
 
         if (
-            ((not use_provided_accounts_only) or (expected_pension_from_plan is not None))
+            (
+                (not use_provided_accounts_only)
+                or (expected_pension_from_plan is not None)
+            )
             and account_number
             and account_number not in source_zeroed_for_accounts
         ):
@@ -488,7 +535,9 @@ def apply_conversion_task_to_snapshot(
                 str(account_number).strip(),
                 {"total": 0.0, "fields": {}},
             )
-            entry["total"] = float(entry.get("total") or 0.0) + float(base_amount or 0.0)
+            entry["total"] = float(entry.get("total") or 0.0) + float(
+                base_amount or 0.0
+            )
             if isinstance(components, dict) and components:
                 fields = entry.get("fields")
                 if not isinstance(fields, dict):
@@ -511,10 +560,16 @@ def apply_conversion_task_to_snapshot(
                 "amount": balance,
                 "original_amount": base_amount,
                 "projection_factor": projection_factor,
-                "pension_start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
+                "pension_start_date": (
+                    effective_pension_start_date.isoformat()
+                    if effective_pension_start_date
+                    else None
+                ),
                 "annuity_factor": annuity_factor,
                 "pension_amount": pension_amount,
-                "coeff_source_table": coeff.get("source_table") if isinstance(coeff, dict) else None,
+                "coeff_source_table": (
+                    coeff.get("source_table") if isinstance(coeff, dict) else None
+                ),
                 "tax_treatment": tax_treatment,
                 "components": components,
             }
@@ -523,7 +578,9 @@ def apply_conversion_task_to_snapshot(
     elif conversion_type == "commutation":
         strict_plan_task = False
         try:
-            strict_plan_task = isinstance(task, dict) and (task.get("_execution_plan") is not None)
+            strict_plan_task = isinstance(task, dict) and (
+                task.get("_execution_plan") is not None
+            )
         except Exception:
             strict_plan_task = False
         task_tax_override = task.get("tax_treatment")
@@ -552,7 +609,11 @@ def apply_conversion_task_to_snapshot(
                 option_name=None,
                 survivors_option="תקנוני",
                 spouse_age_diff=0,
-                target_year=effective_pension_start_date.year if effective_pension_start_date else retirement_year,
+                target_year=(
+                    effective_pension_start_date.year
+                    if effective_pension_start_date
+                    else retirement_year
+                ),
                 birth_date=getattr(client_obj, "birth_date", None),
                 pension_start_date=effective_pension_start_date,
             )
@@ -573,7 +634,11 @@ def apply_conversion_task_to_snapshot(
                 "company": company,
                 "product_type": product_type,
                 "start_date": start_date_raw,
-                "pension_start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
+                "pension_start_date": (
+                    effective_pension_start_date.isoformat()
+                    if effective_pension_start_date
+                    else None
+                ),
                 "original_amount": base_amount,
                 "projection_factor": projection_factor,
                 "components": components,
@@ -623,7 +688,9 @@ def apply_conversion_task_to_snapshot(
                 str(account_number).strip(),
                 {"total": 0.0, "fields": {}},
             )
-            entry["total"] = float(entry.get("total") or 0.0) + float(base_amount or 0.0)
+            entry["total"] = float(entry.get("total") or 0.0) + float(
+                base_amount or 0.0
+            )
             if isinstance(components, dict) and components:
                 fields = entry.get("fields")
                 if not isinstance(fields, dict):
@@ -647,11 +714,17 @@ def apply_conversion_task_to_snapshot(
                 "amount": balance,
                 "original_amount": base_amount,
                 "projection_factor": projection_factor,
-                "start_date": effective_pension_start_date.isoformat() if effective_pension_start_date else None,
+                "start_date": (
+                    effective_pension_start_date.isoformat()
+                    if effective_pension_start_date
+                    else None
+                ),
                 "asset_type": "provident_fund",
                 "tax_treatment": tax_treatment,
                 "annuity_factor": annuity_factor,
-                "coeff_source_table": coeff.get("source_table") if isinstance(coeff, dict) else None,
+                "coeff_source_table": (
+                    coeff.get("source_table") if isinstance(coeff, dict) else None
+                ),
                 "components": components,
             }
         )
@@ -659,7 +732,9 @@ def apply_conversion_task_to_snapshot(
     else:  # capital_asset
         strict_plan_task = False
         try:
-            strict_plan_task = isinstance(task, dict) and (task.get("_execution_plan") is not None)
+            strict_plan_task = isinstance(task, dict) and (
+                task.get("_execution_plan") is not None
+            )
         except Exception:
             strict_plan_task = False
         # Convert to capital asset
@@ -712,7 +787,9 @@ def apply_conversion_task_to_snapshot(
                 "company": company,
                 "product_type": product_type,
                 "start_date": start_date_raw,
-                "pension_start_date": payment_date.isoformat() if payment_date else None,
+                "pension_start_date": (
+                    payment_date.isoformat() if payment_date else None
+                ),
                 "original_amount": base_amount,
                 "projection_factor": projection_factor,
                 "components": components,
@@ -729,9 +806,15 @@ def apply_conversion_task_to_snapshot(
                 .filter(
                     CapitalAsset.client_id == client_id,
                     CapitalAsset.conversion_source.isnot(None),
-                    CapitalAsset.conversion_source.like('%"source": "llm_transform_funds_to_assets"%'),
-                    CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
-                    CapitalAsset.conversion_source.like(f'%"capital_tax_treatment": "{tax_treatment}"%'),
+                    CapitalAsset.conversion_source.like(
+                        '%"source": "llm_transform_funds_to_assets"%'
+                    ),
+                    CapitalAsset.conversion_source.like(
+                        f'%"account_number": "{account_number}"%'
+                    ),
+                    CapitalAsset.conversion_source.like(
+                        f'%"capital_tax_treatment": "{tax_treatment}"%'
+                    ),
                 )
                 .first()
             )
@@ -813,7 +896,9 @@ def apply_conversion_task_to_snapshot(
                 str(account_number).strip(),
                 {"total": 0.0, "fields": {}},
             )
-            entry["total"] = float(entry.get("total") or 0.0) + float(base_amount or 0.0)
+            entry["total"] = float(entry.get("total") or 0.0) + float(
+                base_amount or 0.0
+            )
             if isinstance(components, dict) and components:
                 fields = entry.get("fields")
                 if not isinstance(fields, dict):

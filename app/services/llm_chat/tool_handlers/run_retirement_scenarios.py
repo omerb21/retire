@@ -9,7 +9,9 @@ def _as_bool(value) -> bool:
     return bool(value)
 
 
-def handle_run_retirement_scenarios(*, args: dict, agent_tools: AgentToolsService) -> str:
+def handle_run_retirement_scenarios(
+    *, args: dict, agent_tools: AgentToolsService
+) -> str:
     retirement_age = args.get("retirement_age")
     if retirement_age is None:
         return "Error: Missing argument 'retirement_age'"

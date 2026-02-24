@@ -10,12 +10,16 @@ from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.utils.date_serializer import parse_date_flexible
-from app.services.pension_portfolio.snapshot_loader import dedupe_pension_portfolio_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    dedupe_pension_portfolio_snapshot,
+)
 
 logger = logging.getLogger("app.llm_chat.tools")
 
 
-def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Session) -> str:
+def handle_execute_pension_commutation(
+    *, args: dict, client_id: int, db: Session
+) -> str:
     logger.info(" EXECUTE_PENSION_COMMUTATION called - Execution Mode!")
 
     pension_fund_id = args.get("pension_fund_id")
@@ -62,7 +66,9 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
 
     fund = (
         db.query(PensionFund)
-        .filter(PensionFund.client_id == client_id, PensionFund.id == pension_fund_id_int)
+        .filter(
+            PensionFund.client_id == client_id, PensionFund.id == pension_fund_id_int
+        )
         .first()
     )
     if fund is None:
@@ -73,9 +79,7 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
     rounded_amount = round(amount, 2)
     rounded_balance = round(fund_balance, 2)
     if rounded_amount > rounded_balance:
-        return (
-            f"Error: סכום ההיוון ({rounded_amount:,.2f}) גדול מהיתרה המקורית של הקצבה ({rounded_balance:,.2f})"
-        )
+        return f"Error: סכום ההיוון ({rounded_amount:,.2f}) גדול מהיתרה המקורית של הקצבה ({rounded_balance:,.2f})"
 
     pension_tax_treatment = str(getattr(fund, "tax_treatment", "taxable") or "taxable")
     if pension_tax_treatment == "exempt" and tax_treatment != "exempt":
@@ -89,7 +93,11 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
         "balance": fund.balance,
         "annuity_factor": fund.annuity_factor,
         "pension_amount": fund.pension_amount,
-        "pension_start_date": fund.pension_start_date.isoformat() if isinstance(fund.pension_start_date, date) else None,
+        "pension_start_date": (
+            fund.pension_start_date.isoformat()
+            if isinstance(fund.pension_start_date, date)
+            else None
+        ),
         "indexation_method": fund.indexation_method,
         "tax_treatment": fund.tax_treatment,
         "deduction_file": fund.deduction_file or "",
@@ -134,7 +142,10 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
 
     fund.balance = new_balance
     fund.pension_amount = new_pension_amount
-    if new_pension_amount <= 0 and getattr(fund, "fund_type", None) == "monthly_pension":
+    if (
+        new_pension_amount <= 0
+        and getattr(fund, "fund_type", None) == "monthly_pension"
+    ):
         fund.record_status = "draft"
 
     portfolio_account_number: str | None = None
@@ -157,10 +168,16 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
 
     if is_from_snapshot:
         try:
-            src_acc = str(source.get("account_number") or "").strip() if isinstance(source, dict) else ""
+            src_acc = (
+                str(source.get("account_number") or "").strip()
+                if isinstance(source, dict)
+                else ""
+            )
         except Exception:
             src_acc = ""
-        portfolio_account_number = (src_acc or str(getattr(fund, "deduction_file", "") or "")).strip() or None
+        portfolio_account_number = (
+            src_acc or str(getattr(fund, "deduction_file", "") or "")
+        ).strip() or None
 
         def _digits_only(value: str | None) -> str:
             return "".join(ch for ch in (value or "") if ch.isdigit())
@@ -214,13 +231,18 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
                 for item in portfolio:
                     if not isinstance(item, dict):
                         continue
-                    acc_num = str(item.get("מספר_חשבון") or item.get("account_number") or "").strip()
+                    acc_num = str(
+                        item.get("מספר_חשבון") or item.get("account_number") or ""
+                    ).strip()
                     if not acc_num:
                         continue
                     if portfolio_account_number and acc_num == portfolio_account_number:
                         matched = True
                     else:
-                        matched = bool(target_digits) and _digits_only(acc_num) == target_digits
+                        matched = (
+                            bool(target_digits)
+                            and _digits_only(acc_num) == target_digits
+                        )
                     if not matched:
                         continue
 
@@ -247,7 +269,9 @@ def handle_execute_pension_commutation(*, args: dict, client_id: int, db: Sessio
                         except Exception:
                             current_total = 0.0
 
-                    remaining_total = max(0.0, float(current_total or 0.0) - float(amount or 0.0))
+                    remaining_total = max(
+                        0.0, float(current_total or 0.0) - float(amount or 0.0)
+                    )
 
                     item["יתרה"] = 0.0 if remaining_total <= 0.01 else remaining_total
                     if "balance" in item:

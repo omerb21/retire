@@ -9,7 +9,9 @@ from app.schemas.current_employer import CurrentEmployerCreate
 from app.services.current_employer.employment import EmploymentService
 
 
-def test_current_employer_write_path_persists_severance_accrued_after(db_session, caplog) -> None:
+def test_current_employer_write_path_persists_severance_accrued_after(
+    db_session, caplog
+) -> None:
     caplog.set_level(logging.INFO)
 
     client_id = 990000030
@@ -60,7 +62,9 @@ def test_current_employer_write_path_persists_severance_accrued_after(db_session
     assert log_lines, "Expected CURRENT_EMPLOYER_WRITE_PATH log line"
 
     m = re.search(r"severance_accrued_after=([^\s]+)", str(log_lines[-1]))
-    assert m is not None, f"Could not parse severance_accrued_after from log: {log_lines[-1]}"
+    assert (
+        m is not None
+    ), f"Could not parse severance_accrued_after from log: {log_lines[-1]}"
 
     after_raw = m.group(1)
     after_value = float(after_raw)

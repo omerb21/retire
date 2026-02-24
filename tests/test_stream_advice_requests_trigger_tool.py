@@ -8,10 +8,14 @@ def test_stream_advice_requests_trigger_tool(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for advice requests")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("Tools must not be executed when advice request is missing cashflow inputs")
+        raise AssertionError(
+            "Tools must not be executed when advice request is missing cashflow inputs"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -20,7 +24,9 @@ def test_stream_advice_requests_trigger_tool(monkeypatch) -> None:
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "תן לי המלצה קצרה מה לעשות עם הפיצויים"}],
+            "messages": [
+                {"role": "user", "content": "תן לי המלצה קצרה מה לעשות עם הפיצויים"}
+            ],
         },
     )
 

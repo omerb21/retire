@@ -22,15 +22,21 @@ from app.services.llm_chat.orchestration_core.core_types import (
     ToolResultEnvelope,
 )
 from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
-from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
+from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
+    enrich_state_snapshot,
+)
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
     is_net_pension_request,
 )
 
-from .stream_loop_missing_required_tools_guardrail import _maybe_append_missing_required_tools_guardrail
+from .stream_loop_missing_required_tools_guardrail import (
+    _maybe_append_missing_required_tools_guardrail,
+)
 from .stream_loop_forced_document_reply import _stream_maybe_emit_forced_document_reply
 from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
-from .stream_loop_mandatory_fixation_chain import _stream_maybe_run_mandatory_fixation_chain
+from .stream_loop_mandatory_fixation_chain import (
+    _stream_maybe_run_mandatory_fixation_chain,
+)
 from ..stream_tool_execution import _execute_tool_call
 
 
@@ -123,7 +129,9 @@ def _stream_handle_post_tool_execution_processing(
     gross_for_tax = None
     tax_result = None
     try:
-        _is_net = is_net_pension_request((find_last_user_message(request.messages) or ""))
+        _is_net = is_net_pension_request(
+            (find_last_user_message(request.messages) or "")
+        )
         gross_for_tax = get_gross_for_tax_chaining(
             is_net=_is_net,
             tool_name=tool_name,
@@ -160,7 +168,9 @@ def _stream_handle_post_tool_execution_processing(
                 state_snapshot=enriched,
                 last_tool_result=env,
             )
-            core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+            core_deps = OrchestrationDeps(
+                llm_generate=lambda messages, client_id=None: ""
+            )
             core_decision, _ = orchestrate(core_input, core_deps)
             if (
                 getattr(core_decision, "decision_code", None) == DecisionCode.TOOL_CALL

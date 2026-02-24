@@ -26,9 +26,13 @@ def test_stream_phrase_plan_triggers_prompt_not_cashflow(monkeypatch, _test_db) 
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic plan-target prompt")
+        raise AssertionError(
+            "LLM must not be called for deterministic plan-target prompt"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("No tool must be executed when prompting for target net")

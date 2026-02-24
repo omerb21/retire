@@ -6,9 +6,13 @@ from app.main import app
 
 def test_stream_execute_plan_without_payload_prompts_for_target(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic execute-plan prompt")
+        raise AssertionError(
+            "LLM must not be called for deterministic execute-plan prompt"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(

@@ -4,7 +4,6 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional, Union
 
-
 DEFAULT_NET_ANNUAL_RATE = 0.03
 DAYS_IN_YEAR = 365.25
 

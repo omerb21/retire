@@ -2,7 +2,9 @@ import json
 
 from app.models.scenario import Scenario
 from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
-from app.services.llm_chat.tool_handlers.transform_funds_conversion import _create_updated_snapshot_scenario
+from app.services.llm_chat.tool_handlers.transform_funds_conversion import (
+    _create_updated_snapshot_scenario,
+)
 
 
 def test_snapshot_two_writes_keep_single_row(db_session, client) -> None:
@@ -38,7 +40,9 @@ def test_snapshot_two_writes_keep_single_row(db_session, client) -> None:
     assert len(rows) == 1
 
 
-def test_snapshot_transform_updates_operation_type_and_keeps_single_row(db_session, client) -> None:
+def test_snapshot_transform_updates_operation_type_and_keeps_single_row(
+    db_session, client
+) -> None:
     client_id = int(getattr(client, "id", 0) or 0)
 
     db_session.query(Scenario).filter(Scenario.client_id == client_id).filter(

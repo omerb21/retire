@@ -3,6 +3,7 @@ Employment API router for legacy employment & termination endpoints.
 This router exposes the /api/v1/clients/{client_id}/employment/... paths
 used by tests/test_employment_api.py, delegating to EmploymentService.
 """
+
 import logging
 import time
 from datetime import date
@@ -44,7 +45,9 @@ def validate_client_exists_and_active(client_id: int, db: Session) -> Client:
     return client
 
 
-@router.patch("/{client_id}/employment/termination/plan", response_model=TerminationEventOut)
+@router.patch(
+    "/{client_id}/employment/termination/plan", response_model=TerminationEventOut
+)
 def plan_termination(
     client_id: int,
     termination_data: TerminationPlanIn,
@@ -133,7 +136,9 @@ def plan_termination(
         )
 
 
-def generate_fixation_package_for_client_background(db: Session, client_id: int) -> None:
+def generate_fixation_package_for_client_background(
+    db: Session, client_id: int
+) -> None:
     """Trigger fixation package generation in a background thread.
 
     This mirrors the helper from the legacy employment router and is
@@ -147,7 +152,9 @@ def generate_fixation_package_for_client_background(db: Session, client_id: int)
     trigger_fixation_package_for_client_background(db=db, client_id=client_id)
 
 
-@router.post("/{client_id}/employment/termination/confirm", response_model=TerminationEventOut)
+@router.post(
+    "/{client_id}/employment/termination/confirm", response_model=TerminationEventOut
+)
 def confirm_termination(
     client_id: int,
     termination_data: TerminationConfirmIn,

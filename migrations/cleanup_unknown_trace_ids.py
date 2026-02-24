@@ -3,11 +3,12 @@ Migration: Delete agent_trace_event rows with trace_id='unknown' or NULL or empt
 Date: 2026-02-12
 Description: Clean up polluted trace events that have no real trace_id.
 """
+
 import sqlite3
 
 
 def run_migration():
-    conn = sqlite3.connect('retire.db')
+    conn = sqlite3.connect("retire.db")
     cursor = conn.cursor()
 
     try:

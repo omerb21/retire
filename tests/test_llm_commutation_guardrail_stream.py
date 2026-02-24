@@ -25,7 +25,9 @@ def test_stream_commutation_blocks_transform_tool_call(monkeypatch) -> None:
 
         yield "final"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -39,7 +41,9 @@ def test_stream_commutation_blocks_transform_tool_call(monkeypatch) -> None:
         force_max_exemption: bool = False,
     ) -> str:
         try:
-            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+            from app.services.agent_execution.tool_execution_context import (
+                mark_tool_ok_seen,
+            )
 
             mark_tool_ok_seen()
         except Exception:

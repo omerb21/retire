@@ -1,4 +1,7 @@
-from app.guards.tool_intent_guard import allow_tools_for_intent, sanitize_words_only_output
+from app.guards.tool_intent_guard import (
+    allow_tools_for_intent,
+    sanitize_words_only_output,
+)
 from app.services.llm_chat.intent_classifier import ChatIntent
 
 
@@ -9,7 +12,7 @@ def test_conceptual_question_disables_tools() -> None:
 
 def test_words_only_sanitizer_removes_digits_and_tool_blocks() -> None:
     raw = (
-        "###TRANSPARENCY_LOG### {\"test\": true}\n"
+        '###TRANSPARENCY_LOG### {"test": true}\n'
         "🔧 **פלט כלי:**\n"
         "סכום: 12345₪\n"
         "open_path: C:/tmp/report_123.pdf\n"

@@ -1,6 +1,7 @@
 """
 המרת HTML ל-PDF באמצעות wkhtmltopdf
 """
+
 from pathlib import Path
 import subprocess
 import logging
@@ -20,29 +21,30 @@ def _to_wkhtmltopdf_input_url(path: Path) -> str:
 def find_wkhtmltopdf() -> Optional[str]:
     """
     מחפש את wkhtmltopdf במיקומים נפוצים
-    
+
     Returns:
         נתיב ל-wkhtmltopdf או None אם לא נמצא
     """
     wkhtmltopdf_paths = [
         r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe",
         r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe",
-        "wkhtmltopdf"  # אם זמין ב-PATH
+        "wkhtmltopdf",  # אם זמין ב-PATH
     ]
-    
+
     for path in wkhtmltopdf_paths:
         try:
             subprocess.run(
-                [path, "--version"],
-                capture_output=True,
-                check=True,
-                timeout=5
+                [path, "--version"], capture_output=True, check=True, timeout=5
             )
             logger.info(f"✅ Found wkhtmltopdf at: {path}")
             return path
-        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        except (
+            FileNotFoundError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+        ):
             continue
-    
+
     logger.error("❌ wkhtmltopdf not found in any common location")
     return None
 
@@ -50,15 +52,15 @@ def find_wkhtmltopdf() -> Optional[str]:
 def html_to_pdf(
     html_path: Path,
     pdf_path: Path,
-    page_size: str = 'A4',
-    margin_top: str = '10mm',
-    margin_right: str = '10mm',
-    margin_bottom: str = '10mm',
-    margin_left: str = '10mm'
+    page_size: str = "A4",
+    margin_top: str = "10mm",
+    margin_right: str = "10mm",
+    margin_bottom: str = "10mm",
+    margin_left: str = "10mm",
 ) -> Path:
     """
     ממיר קובץ HTML ל-PDF באמצעות wkhtmltopdf
-    
+
     Args:
         html_path: נתיב לקובץ HTML
         pdf_path: נתיב לקובץ PDF היעד
@@ -67,15 +69,15 @@ def html_to_pdf(
         margin_right: שוליים ימניים
         margin_bottom: שוליים תחתונים
         margin_left: שוליים שמאליים
-        
+
     Returns:
         נתיב לקובץ PDF שנוצר
-        
+
     Raises:
         RuntimeError: אם wkhtmltopdf לא נמצא או ההמרה נכשלה
     """
     wkhtmltopdf_path = find_wkhtmltopdf()
-    
+
     if not wkhtmltopdf_path:
         raise RuntimeError(
             "wkhtmltopdf not found. Please install it from: "
@@ -83,37 +85,38 @@ def html_to_pdf(
         )
 
     html_input = _to_wkhtmltopdf_input_url(html_path)
-    
+
     cmd = [
         wkhtmltopdf_path,
-        '--enable-local-file-access',
-        '--encoding', 'UTF-8',
-        '--page-size', page_size,
-        '--margin-top', margin_top,
-        '--margin-right', margin_right,
-        '--margin-bottom', margin_bottom,
-        '--margin-left', margin_left,
+        "--enable-local-file-access",
+        "--encoding",
+        "UTF-8",
+        "--page-size",
+        page_size,
+        "--margin-top",
+        margin_top,
+        "--margin-right",
+        margin_right,
+        "--margin-bottom",
+        margin_bottom,
+        "--margin-left",
+        margin_left,
         html_input,
-        str(pdf_path)
+        str(pdf_path),
     ]
-    
+
     logger.info(f"🔄 Converting HTML to PDF: {html_path} -> {pdf_path}")
     logger.debug("wkhtmltopdf command: %s", cmd)
-    
+
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
         if result.returncode != 0:
             raise RuntimeError(f"wkhtmltopdf failed: {result.stderr.strip()}")
-        
+
         logger.info(f"✅ PDF created successfully: {pdf_path}")
         return pdf_path
-        
+
     except subprocess.TimeoutExpired:
         raise RuntimeError("wkhtmltopdf timed out after 30 seconds")
     except Exception as e:

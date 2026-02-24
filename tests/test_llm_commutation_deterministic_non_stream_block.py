@@ -5,7 +5,9 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 
 
-def test_non_stream_commutation_request_does_not_trigger_deterministic_transform(monkeypatch, db_session) -> None:
+def test_non_stream_commutation_request_does_not_trigger_deterministic_transform(
+    monkeypatch, db_session
+) -> None:
     tool_calls: list[str] = []
 
     def fake_execute_tool_call(
@@ -20,7 +22,10 @@ def test_non_stream_commutation_request_does_not_trigger_deterministic_transform
         user_approved: bool = False,
     ) -> str:
         tool_calls.append(tool_name)
-        return json.dumps({"success": True, "pension_fund_id": 1, "commutation_asset_id": 2}, ensure_ascii=False)
+        return json.dumps(
+            {"success": True, "pension_fund_id": 1, "commutation_asset_id": 2},
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(chat_orch, "execute_tool_call", fake_execute_tool_call)
 

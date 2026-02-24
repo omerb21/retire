@@ -3,7 +3,9 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 
 
-def test_non_stream_blocks_build_target_plan_without_numeric_target(db_session, client, monkeypatch) -> None:
+def test_non_stream_blocks_build_target_plan_without_numeric_target(
+    db_session, client, monkeypatch
+) -> None:
     responses = iter(
         [
             '###TOOL_CALL### {"name": "BUILD_TARGET_PENSION_PLAN", "arguments": {}}',
@@ -17,7 +19,9 @@ def test_non_stream_blocks_build_target_plan_without_numeric_target(db_session, 
     monkeypatch.setattr(chat_orchestration.pension_llm_service, "chat", fake_chat)
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call should not be invoked for invalid BUILD_TARGET_PENSION_PLAN calls")
+        raise AssertionError(
+            "execute_tool_call should not be invoked for invalid BUILD_TARGET_PENSION_PLAN calls"
+        )
 
     monkeypatch.setattr(chat_orchestration, "execute_tool_call", fake_execute_tool_call)
 

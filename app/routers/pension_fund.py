@@ -6,8 +6,16 @@ import json
 import logging
 from app.database import get_db
 from app.models.pension_fund import PensionFund
-from app.schemas.pension_fund import PensionFundCreate, PensionFundUpdate, PensionFundOut
-from app.services.pension_fund_service import compute_and_persist, compute_and_persist_fund, compute_all_pension_funds
+from app.schemas.pension_fund import (
+    PensionFundCreate,
+    PensionFundUpdate,
+    PensionFundOut,
+)
+from app.services.pension_fund_service import (
+    compute_and_persist,
+    compute_and_persist_fund,
+    compute_all_pension_funds,
+)
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 
 router = APIRouter(prefix="/api/v1", tags=["pension-funds"])
@@ -37,9 +45,20 @@ def _validate_monthly_pension_invariant(
             },
         )
 
-@router.post("/clients/{client_id}/pension-funds", response_model=PensionFundOut, status_code=status.HTTP_201_CREATED)
-@router.post("/clients/{client_id}/pension-funds/", response_model=PensionFundOut, status_code=status.HTTP_201_CREATED)
-def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session = Depends(get_db)):
+
+@router.post(
+    "/clients/{client_id}/pension-funds",
+    response_model=PensionFundOut,
+    status_code=status.HTTP_201_CREATED,
+)
+@router.post(
+    "/clients/{client_id}/pension-funds/",
+    response_model=PensionFundOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_pension_fund(
+    client_id: int, payload: PensionFundCreate, db: Session = Depends(get_db)
+):
     if payload.client_id != client_id:
         raise HTTPException(status_code=422, detail={"error": "client_id mismatch"})
 
@@ -59,13 +78,19 @@ def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session 
                     and isinstance(start_date, date)
                     and start_date > date.today()
                 ):
-                    factor = calculate_compound_factor(from_date=date.today(), to_date=start_date)
+                    factor = calculate_compound_factor(
+                        from_date=date.today(), to_date=start_date
+                    )
                     balance = data.get("balance")
                     if balance is not None:
                         data["balance"] = float(balance) * float(factor)
                         annuity_factor = data.get("annuity_factor")
                         try:
-                            af = float(annuity_factor) if annuity_factor is not None else 0.0
+                            af = (
+                                float(annuity_factor)
+                                if annuity_factor is not None
+                                else 0.0
+                            )
                         except (TypeError, ValueError):
                             af = 0.0
                         if af > 0:
@@ -74,8 +99,12 @@ def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session 
         pass
 
     fund = PensionFund(**data)
-    logger.debug("Create pension fund before commit (balance=%s, input_mode=%s)", fund.balance, fund.input_mode)
-    
+    logger.debug(
+        "Create pension fund before commit (balance=%s, input_mode=%s)",
+        fund.balance,
+        fund.input_mode,
+    )
+
     # API-level invariant: reject active monthly_pension with pension_amount <= 0
     _validate_monthly_pension_invariant(
         fund_type=data.get("fund_type"),
@@ -85,13 +114,18 @@ def create_pension_fund(client_id: int, payload: PensionFundCreate, db: Session 
 
     # אל תאפס את ה-balance! זה קריטי להיוון!
     if fund.input_mode == "calculated" and fund.balance:
-        logger.debug("Create pension fund calculated mode - preserving balance=%s", fund.balance)
-    
+        logger.debug(
+            "Create pension fund calculated mode - preserving balance=%s", fund.balance
+        )
+
     db.add(fund)
     db.commit()
     db.refresh(fund)
-    logger.debug("Create pension fund after refresh (id=%s, balance=%s)", fund.id, fund.balance)
+    logger.debug(
+        "Create pension fund after refresh (id=%s, balance=%s)", fund.id, fund.balance
+    )
     return fund
+
 
 @router.get("/pension-funds/{fund_id}", response_model=PensionFundOut)
 def get_pension_fund(fund_id: int, db: Session = Depends(get_db)):
@@ -100,8 +134,11 @@ def get_pension_fund(fund_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
     return fund
 
+
 @router.put("/pension-funds/{fund_id}", response_model=PensionFundOut)
-def update_pension_fund(fund_id: int, payload: PensionFundUpdate, db: Session = Depends(get_db)):
+def update_pension_fund(
+    fund_id: int, payload: PensionFundUpdate, db: Session = Depends(get_db)
+):
     fund = db.get(PensionFund, fund_id)
     if not fund:
         raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
@@ -121,36 +158,43 @@ def update_pension_fund(fund_id: int, payload: PensionFundUpdate, db: Session = 
     db.refresh(fund)
     return fund
 
+
 @router.delete("/pension-funds/{fund_id}", status_code=status.HTTP_200_OK)
 def delete_pension_fund(fund_id: int, db: Session = Depends(get_db)):
     from app.services.asset_deletion_service import delete_pension_fund_with_restoration
-    
+
     result = delete_pension_fund_with_restoration(db, fund_id)
-    
+
     if not result["success"]:
         raise HTTPException(status_code=404, detail={"error": result["error"]})
-    
+
     db.commit()
     return result
 
-@router.delete("/clients/{client_id}/pension-funds/{fund_id}", status_code=status.HTTP_200_OK)
-@router.delete("/clients/{client_id}/pension-funds/{fund_id}/", status_code=status.HTTP_200_OK)
-def delete_client_pension_fund(client_id: int, fund_id: int, db: Session = Depends(get_db)):
+
+@router.delete(
+    "/clients/{client_id}/pension-funds/{fund_id}", status_code=status.HTTP_200_OK
+)
+@router.delete(
+    "/clients/{client_id}/pension-funds/{fund_id}/", status_code=status.HTTP_200_OK
+)
+def delete_client_pension_fund(
+    client_id: int, fund_id: int, db: Session = Depends(get_db)
+):
     from app.services.asset_deletion_service import delete_pension_fund_with_restoration
-    
+
     result = delete_pension_fund_with_restoration(db, fund_id, client_id)
-    
+
     if not result["success"]:
         raise HTTPException(status_code=404, detail={"error": result["error"]})
-    
+
     db.commit()
     return result
+
 
 @router.post("/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
 def compute_pension_fund(
-    fund_id: int, 
-    reference_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    fund_id: int, reference_date: Optional[date] = None, db: Session = Depends(get_db)
 ):
     try:
         fund = compute_and_persist_fund(db, fund_id)
@@ -158,52 +202,68 @@ def compute_pension_fund(
     except ValueError as e:
         raise HTTPException(status_code=404, detail={"error": str(e)})
 
-@router.post("/clients/{client_id}/pension-funds/{fund_id}/compute", response_model=PensionFundOut)
-@router.post("/clients/{client_id}/pension-funds/{fund_id}/compute/", response_model=PensionFundOut)
+
+@router.post(
+    "/clients/{client_id}/pension-funds/{fund_id}/compute",
+    response_model=PensionFundOut,
+)
+@router.post(
+    "/clients/{client_id}/pension-funds/{fund_id}/compute/",
+    response_model=PensionFundOut,
+)
 def compute_client_pension_fund(
     client_id: int,
-    fund_id: int, 
+    fund_id: int,
     reference_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     try:
         fund = db.get(PensionFund, fund_id)
         if not fund:
             raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא"})
         if fund.client_id != client_id:
-            raise HTTPException(status_code=404, detail={"error": "מקור קצבה לא נמצא עבור לקוח זה"})
-        
+            raise HTTPException(
+                status_code=404, detail={"error": "מקור קצבה לא נמצא עבור לקוח זה"}
+            )
+
         fund = compute_and_persist_fund(db, fund_id)
         return fund
     except ValueError as e:
         raise HTTPException(status_code=404, detail={"error": str(e)})
 
-@router.post("/clients/{client_id}/pension-funds/compute-all", response_model=List[PensionFundOut])
-@router.post("/clients/{client_id}/pension-funds/compute-all/", response_model=List[PensionFundOut])
+
+@router.post(
+    "/clients/{client_id}/pension-funds/compute-all",
+    response_model=List[PensionFundOut],
+)
+@router.post(
+    "/clients/{client_id}/pension-funds/compute-all/",
+    response_model=List[PensionFundOut],
+)
 def compute_all_client_pension_funds(
-    client_id: int,
-    reference_date: Optional[date] = None,
-    db: Session = Depends(get_db)
+    client_id: int, reference_date: Optional[date] = None, db: Session = Depends(get_db)
 ):
     """Compute all pension funds for a client"""
     # Check if client exists
     from app.models.client import Client
+
     client = db.get(Client, client_id)
     if not client:
         raise HTTPException(status_code=404, detail={"error": "לקוח לא נמצא"})
-    
+
     # Get all pension funds for the client
     funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
     if not funds:
         return []
-    
+
     # Compute and update all funds
     updated_funds = []
     for fund in funds:
         updated_fund = compute_and_persist(db, fund, reference_date)
         updated_funds.append(updated_fund)
-    
+
     return updated_funds
+
 
 @router.get("/clients/{client_id}/pension-funds", response_model=List[PensionFundOut])
 @router.get("/clients/{client_id}/pension-funds/", response_model=List[PensionFundOut])
@@ -211,10 +271,19 @@ def get_client_pension_funds(client_id: int, db: Session = Depends(get_db)):
     """Get all pension funds for a client - FAST VERSION"""
     try:
         funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
-        logger.debug("Get pension funds (client_id=%s, count=%s)", client_id, len(funds))
+        logger.debug(
+            "Get pension funds (client_id=%s, count=%s)", client_id, len(funds)
+        )
         for fund in funds:
-            logger.debug("Pension fund row (id=%s, balance=%s, input_mode=%s)", fund.id, fund.balance, fund.input_mode)
+            logger.debug(
+                "Pension fund row (id=%s, balance=%s, input_mode=%s)",
+                fund.id,
+                fund.balance,
+                fund.input_mode,
+            )
         return funds
     except Exception as e:
-        logger.exception("Error getting pension funds for client_id=%s: %s", client_id, e)
+        logger.exception(
+            "Error getting pension funds for client_id=%s: %s", client_id, e
+        )
         return []

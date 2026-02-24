@@ -17,7 +17,9 @@ from app.services.llm_chat.orchestration_core.core_types import (
     ToolResultEnvelope,
 )
 from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
-from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
+from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
+    enrich_state_snapshot,
+)
 from app.utils.llm_chat_log import log_llm_event
 
 from ..stream_tool_execution import _execute_tool_call
@@ -63,7 +65,10 @@ def _stream_execute_tool_and_process_result(
             if isinstance(tool_result, str) and tool_result.strip():
                 full_response = tool_result
 
-            if tool_name == "BUILD_TARGET_PENSION_PLAN" and request.client_id is not None:
+            if (
+                tool_name == "BUILD_TARGET_PENSION_PLAN"
+                and request.client_id is not None
+            ):
                 try:
                     store_latest_target_pension_plan(
                         db=tool_db,
@@ -86,7 +91,10 @@ def _stream_execute_tool_and_process_result(
                 and "###UI_ACTION###" in tool_result
                 and "approval_request" in tool_result
             ):
-                if tool_name in {"TRANSFORM_FUNDS_TO_ASSETS", "EXECUTE_RETIREMENT_SCENARIO"}:
+                if tool_name in {
+                    "TRANSFORM_FUNDS_TO_ASSETS",
+                    "EXECUTE_RETIREMENT_SCENARIO",
+                }:
                     request_kind = (
                         "transform_tool"
                         if tool_name == "TRANSFORM_FUNDS_TO_ASSETS"
@@ -110,12 +118,16 @@ def _stream_execute_tool_and_process_result(
                     pending = extract_latest_approval_request(request.messages)
                     if pending is not None:
                         pending_tool, pending_args = pending
-                        pending_sig = get_tool_call_approval_signature(pending_tool, pending_args)
+                        pending_sig = get_tool_call_approval_signature(
+                            pending_tool, pending_args
+                        )
                         current_sig = get_tool_call_approval_signature(
                             tool_name,
                             tool_args if isinstance(tool_args, dict) else {},
                         )
-                        already_sent = bool(pending_sig and current_sig and pending_sig == current_sig)
+                        already_sent = bool(
+                            pending_sig and current_sig and pending_sig == current_sig
+                        )
                 except Exception:
                     already_sent = False
 
@@ -146,9 +158,14 @@ def _stream_execute_tool_and_process_result(
                     state_snapshot=enriched,
                     last_tool_result=env,
                 )
-                core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                core_deps = OrchestrationDeps(
+                    llm_generate=lambda messages, client_id=None: ""
+                )
                 core_decision, _ = orchestrate(core_input, core_deps)
-                if getattr(core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY:
+                if (
+                    getattr(core_decision, "decision_code", None)
+                    == DecisionCode.RESPOND_ONLY
+                ):
                     final_text = str(getattr(core_decision, "final_text", "") or "")
                     if already_sent:
                         log_llm_event(

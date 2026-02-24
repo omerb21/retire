@@ -15,7 +15,9 @@ def test_transform_stream_appends_next_step_hint(monkeypatch, _test_db) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic transform")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(
         *,
@@ -73,13 +75,17 @@ def test_transform_stream_appends_next_step_hint(monkeypatch, _test_db) -> None:
     assert "השלב הבא המומלץ: הפקת דוח" in resp.text
 
 
-def test_report_blocked_when_latest_snapshot_is_not_transform(monkeypatch, _test_db) -> None:
+def test_report_blocked_when_latest_snapshot_is_not_transform(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic report gating")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("Report tool must not be executed when gated")
@@ -107,7 +113,10 @@ def test_report_blocked_when_latest_snapshot_is_not_transform(monkeypatch, _test
             apply_capitalization=False,
             apply_exemption_shield=False,
             parameters=json.dumps(
-                {"pension_portfolio": [], "_meta": {"operation_type": "restore_snapshot"}},
+                {
+                    "pension_portfolio": [],
+                    "_meta": {"operation_type": "restore_snapshot"},
+                },
                 ensure_ascii=False,
             ),
         )
@@ -130,13 +139,19 @@ def test_report_blocked_when_latest_snapshot_is_not_transform(monkeypatch, _test
     assert f"/clients/{client_id}/pension-portfolio" in body
 
 
-def test_report_allowed_after_transform_and_replay_is_stable(monkeypatch, _test_db) -> None:
+def test_report_allowed_after_transform_and_replay_is_stable(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic system-results report")
+        raise AssertionError(
+            "LLM must not be called for deterministic system-results report"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -188,7 +203,10 @@ def test_report_allowed_after_transform_and_replay_is_stable(monkeypatch, _test_
             apply_capitalization=False,
             apply_exemption_shield=False,
             parameters=json.dumps(
-                {"pension_portfolio": [], "_meta": {"operation_type": "restore_snapshot"}},
+                {
+                    "pension_portfolio": [],
+                    "_meta": {"operation_type": "restore_snapshot"},
+                },
                 ensure_ascii=False,
             ),
         )
@@ -202,7 +220,10 @@ def test_report_allowed_after_transform_and_replay_is_stable(monkeypatch, _test_
             apply_capitalization=False,
             apply_exemption_shield=False,
             parameters=json.dumps(
-                {"pension_portfolio": [], "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS"}},
+                {
+                    "pension_portfolio": [],
+                    "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS"},
+                },
                 ensure_ascii=False,
             ),
         )

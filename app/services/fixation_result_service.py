@@ -48,7 +48,9 @@ def get_client_fixation_response(db: Session, client_id: int) -> dict:
             "eligibility_year": raw_result.get("exemption_summary", {}).get(
                 "eligibility_year", 0
             ),
-            "total_impact": raw_result.get("exemption_summary", {}).get("total_impact", 0),
+            "total_impact": raw_result.get("exemption_summary", {}).get(
+                "total_impact", 0
+            ),
         },
         "grants": raw_result.get("grants", []),
         "calculation_details": raw_result.get("calculation_details", {}),

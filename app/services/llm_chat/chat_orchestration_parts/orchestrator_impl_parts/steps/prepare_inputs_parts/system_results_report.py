@@ -17,9 +17,8 @@ def _maybe_handle_system_results_report(
 ) -> ChatResponse | None:
     lowered_early = (original_user_msg or "").lower()
     is_system_results_report_request = (
-        ("דוח" in lowered_early and "תוצאות" in lowered_early)
-        or ("report" in lowered_early and "results" in lowered_early)
-    )
+        "דוח" in lowered_early and "תוצאות" in lowered_early
+    ) or ("report" in lowered_early and "results" in lowered_early)
 
     from app.services.llm_chat.orchestration_utils import (
         is_document_request,

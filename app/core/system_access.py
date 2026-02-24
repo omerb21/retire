@@ -44,7 +44,9 @@ def _safe_digest_eq(a: str, b: str) -> bool:
 
 
 class SystemAccessMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable]):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable]
+    ):
         try:
             return await self._dispatch_inner(request, call_next)
         except Exception as exc:
@@ -63,7 +65,9 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
                 },
             )
 
-    async def _dispatch_inner(self, request: Request, call_next: Callable[[Request], Awaitable]):
+    async def _dispatch_inner(
+        self, request: Request, call_next: Callable[[Request], Awaitable]
+    ):
         if not is_protection_enabled():
             return await call_next(request)
 
@@ -87,7 +91,10 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
         if path.startswith("/api/v1/files"):
             return await call_next(request)
 
-        if path.startswith("/api/v1/public-chat/") and path != "/api/v1/public-chat/topup":
+        if (
+            path.startswith("/api/v1/public-chat/")
+            and path != "/api/v1/public-chat/topup"
+        ):
             return await call_next(request)
 
         try:
@@ -102,15 +109,21 @@ class SystemAccessMiddleware(BaseHTTPMiddleware):
                     },
                 )
 
-            if (not header_password) or (not any(_safe_digest_eq(header_password, p) for p in expected_passwords)):
+            if (not header_password) or (
+                not any(_safe_digest_eq(header_password, p) for p in expected_passwords)
+            ):
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Unauthorized: invalid or missing system access password"},
+                    content={
+                        "detail": "Unauthorized: invalid or missing system access password"
+                    },
                 )
         except Exception as pwd_exc:
             _logger.error(
                 "SystemAccessMiddleware password check error on %s %s: %s",
-                request.method, request.url.path, pwd_exc,
+                request.method,
+                request.url.path,
+                pwd_exc,
             )
             return JSONResponse(
                 status_code=401,

@@ -6,7 +6,9 @@ from app.schemas.current_employer import TerminationDecisionCreate
 from app.services.current_employer.termination import TerminationService
 
 
-def test_process_termination_reset_flag_false_when_reset_severance_balance_false(db_session) -> None:
+def test_process_termination_reset_flag_false_when_reset_severance_balance_false(
+    db_session,
+) -> None:
     client_id = 993000001
 
     client = db_session.query(Client).filter(Client.id == client_id).first()

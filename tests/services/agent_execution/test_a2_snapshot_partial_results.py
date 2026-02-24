@@ -1,13 +1,17 @@
 import pytest
 
 
-def test_a2_snapshot_with_client_id_returns_computed_data(db_session, client, monkeypatch) -> None:
+def test_a2_snapshot_with_client_id_returns_computed_data(
+    db_session, client, monkeypatch
+) -> None:
     from app.schemas.llm_chat import ChatMessage, ChatRequest
     from app.services.agent_execution.execute_agent_request import execute_agent_request
     from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
     from app.utils.trace_context import set_current_trace_id
 
-    monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml")
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
     load_capability_map.cache_clear()
 
     trace_id = "trace_a2_snapshot_with_client_id"
@@ -31,13 +35,17 @@ def test_a2_snapshot_with_client_id_returns_computed_data(db_session, client, mo
     assert isinstance(computed_data.get("breakdown"), dict)
 
 
-def test_a2_snapshot_without_client_id_returns_partial_missing_data(db_session, monkeypatch) -> None:
+def test_a2_snapshot_without_client_id_returns_partial_missing_data(
+    db_session, monkeypatch
+) -> None:
     from app.schemas.llm_chat import ChatMessage, ChatRequest
     from app.services.agent_execution.execute_agent_request import execute_agent_request
     from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
     from app.utils.trace_context import set_current_trace_id
 
-    monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml")
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
     load_capability_map.cache_clear()
 
     trace_id = "trace_a2_snapshot_missing_client_id"
@@ -63,7 +71,9 @@ def test_a2_snapshot_without_client_id_returns_partial_missing_data(db_session, 
 def test_a2_capability_map_source_is_stage16_fixture(monkeypatch) -> None:
     from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 
-    monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml")
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
     load_capability_map.cache_clear()
 
     cap_map = load_capability_map()

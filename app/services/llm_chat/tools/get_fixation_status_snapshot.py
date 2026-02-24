@@ -2,7 +2,14 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.models import Commutation, CurrentEmployer, FixationResult, Grant, Pension, TerminationEvent
+from app.models import (
+    Commutation,
+    CurrentEmployer,
+    FixationResult,
+    Grant,
+    Pension,
+    TerminationEvent,
+)
 
 
 def _yes_no_unknown(value: bool | None) -> str:
@@ -19,7 +26,10 @@ def get_fixation_status_snapshot(*, client_id: int, db: Session) -> dict:
     has_prior_fixation_val: bool | None = None
     try:
         has_prior_fixation_val = (
-            db.query(FixationResult).filter(FixationResult.client_id == client_id).count() > 0
+            db.query(FixationResult)
+            .filter(FixationResult.client_id == client_id)
+            .count()
+            > 0
         )
     except Exception:
         has_prior_fixation_val = None
@@ -27,7 +37,10 @@ def get_fixation_status_snapshot(*, client_id: int, db: Session) -> dict:
     has_161d_val: bool | None = None
     try:
         has_161d_val = (
-            db.query(FixationResult).filter(FixationResult.client_id == client_id).count() > 0
+            db.query(FixationResult)
+            .filter(FixationResult.client_id == client_id)
+            .count()
+            > 0
         )
     except Exception:
         has_161d_val = None
@@ -35,7 +48,10 @@ def get_fixation_status_snapshot(*, client_id: int, db: Session) -> dict:
     has_161_val: bool | None = None
     try:
         has_161_val = (
-            db.query(TerminationEvent).filter(TerminationEvent.client_id == client_id).count() > 0
+            db.query(TerminationEvent)
+            .filter(TerminationEvent.client_id == client_id)
+            .count()
+            > 0
         )
     except Exception:
         has_161_val = None
@@ -54,7 +70,9 @@ def get_fixation_status_snapshot(*, client_id: int, db: Session) -> dict:
 
     has_exempt_grants_val: bool | None = None
     try:
-        has_exempt_grants_val = db.query(Grant).filter(Grant.client_id == client_id).count() > 0
+        has_exempt_grants_val = (
+            db.query(Grant).filter(Grant.client_id == client_id).count() > 0
+        )
     except Exception:
         has_exempt_grants_val = None
 
@@ -96,7 +114,9 @@ def get_fixation_status_snapshot(*, client_id: int, db: Session) -> dict:
     return payload
 
 
-def handle_get_fixation_status_snapshot(*, args: dict, client_id: int, db: Session) -> str:
+def handle_get_fixation_status_snapshot(
+    *, args: dict, client_id: int, db: Session
+) -> str:
     _ = args
     payload = get_fixation_status_snapshot(client_id=client_id, db=db)
     return json.dumps(payload, ensure_ascii=False)

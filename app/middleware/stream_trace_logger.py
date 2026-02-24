@@ -2,7 +2,6 @@ import logging
 import time
 from typing import Any
 
-
 logger = logging.getLogger("app.llm_chat")
 
 
@@ -28,10 +27,13 @@ class StreamTraceLoggerMiddleware:
         try:
             headers_list = list(scope.get("headers") or [])
             headers = {
-                k.decode("latin-1").lower(): v.decode("latin-1") for k, v in headers_list
+                k.decode("latin-1").lower(): v.decode("latin-1")
+                for k, v in headers_list
             }
             trace_id = (headers.get("x-trace-id") or "").strip() or "unknown"
-            railway_request_id = (headers.get("x-railway-request-id") or "").strip() or "unknown"
+            railway_request_id = (
+                headers.get("x-railway-request-id") or ""
+            ).strip() or "unknown"
         except Exception:
             pass
 

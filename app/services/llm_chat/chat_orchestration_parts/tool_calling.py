@@ -24,7 +24,9 @@ def _get_execute_tool_call():
     fn = getattr(facade, "execute_tool_call", None)
     if callable(fn):
         return fn
-    from app.services.agent_execution.tool_executor import execute_tool_call as _local_execute_tool_call
+    from app.services.agent_execution.tool_executor import (
+        execute_tool_call as _local_execute_tool_call,
+    )
 
     return _local_execute_tool_call
 
@@ -87,7 +89,7 @@ def _execute_tool_call(
         execute_fn = _get_execute_tool_call()
         sig = inspect.signature(execute_fn)
         params = sig.parameters
-        supports_tool_call_id = ("tool_call_id" in params)
+        supports_tool_call_id = "tool_call_id" in params
         if "agent_reply" in params or "user_approved" in params:
             _exec_kwargs = {
                 "tool_name": tool_name,

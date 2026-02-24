@@ -8,7 +8,9 @@ from app.services.pension_portfolio.snapshot_loader import (
     load_current_effective_state,
     load_latest_pension_portfolio_snapshot_models,
 )
-from app.services.llm_chat.pending_approvals import load_pending_approval_ui_action_if_match
+from app.services.llm_chat.pending_approvals import (
+    load_pending_approval_ui_action_if_match,
+)
 
 from ..stream_tool_execution import _execute_tool_call
 from ..stream_streaming_helpers import _stream_request_approval
@@ -29,7 +31,9 @@ def _maybe_handle_max_capital_request(
     force_max_exemption: bool,
     stream_request_id: str,
 ):
-    max_capital_request = (not explicit_termination) and is_max_capital_request(original_user_msg)
+    max_capital_request = (not explicit_termination) and is_max_capital_request(
+        original_user_msg
+    )
     wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
 
     if request.client_id is not None and wants_execute_max_capital:
@@ -59,7 +63,9 @@ def _maybe_handle_max_capital_request(
             effective_state = None
 
         banner = None
-        if isinstance(effective_state, dict) and bool(effective_state.get("recent_update")):
+        if isinstance(effective_state, dict) and bool(
+            effective_state.get("recent_update")
+        ):
             op_type = str(effective_state.get("last_operation_type") or "").strip()
             if op_type:
                 banner = f"מצב מערכת: עודכן לאחר פעולה אחרונה ({op_type})"
@@ -67,7 +73,9 @@ def _maybe_handle_max_capital_request(
                 banner = "מצב מערכת: עודכן לאחר פעולה אחרונה"
 
         try:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 effective_portfolio, _snapshot_at = loaded
         except Exception:
@@ -76,7 +84,9 @@ def _maybe_handle_max_capital_request(
         retirement_age = None
         try:
             client = db.query(Client).filter(Client.id == request.client_id).first()
-            client_age = client.get_age() if client and hasattr(client, "get_age") else None
+            client_age = (
+                client.get_age() if client and hasattr(client, "get_age") else None
+            )
             from app.services.retirement_age_service import (
                 DEFAULT_MALE_RETIREMENT_AGE,
                 get_retirement_age_simple,
@@ -84,8 +94,14 @@ def _maybe_handle_max_capital_request(
 
             legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
             try:
-                if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+                if (
+                    client
+                    and getattr(client, "birth_date", None)
+                    and getattr(client, "gender", None)
+                ):
+                    legal_ret_age = int(
+                        get_retirement_age_simple(client.birth_date, client.gender)
+                    )
             except Exception:
                 legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
 
@@ -110,7 +126,10 @@ def _maybe_handle_max_capital_request(
 
         scenario_id = None
         for row in (parsed.get("scenarios") if isinstance(parsed, dict) else []) or []:
-            if isinstance(row, dict) and row.get("scenario_key") == "scenario_2_max_capital":
+            if (
+                isinstance(row, dict)
+                and row.get("scenario_key") == "scenario_2_max_capital"
+            ):
                 scenario_id = row.get("scenario_id")
                 break
 

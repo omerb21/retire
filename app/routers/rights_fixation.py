@@ -1,6 +1,7 @@
 """
 נקודות קצה API לקיבוע זכויות
 """
+
 from fastapi import APIRouter, HTTPException, Depends, Response
 from typing import Dict, List, Any, Optional
 from datetime import date, datetime
@@ -37,8 +38,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/rights-fixation", tags=["rights_fixation"])
 
+
 @router.post("/calculate")
-async def calculate_rights_fixation(client_data: Dict[str, Any], response: Response, db: Session = Depends(get_db)):
+async def calculate_rights_fixation(
+    client_data: Dict[str, Any], response: Response, db: Session = Depends(get_db)
+):
     """
     חישוב קיבוע זכויות מלא עבור לקוח
 
@@ -125,14 +129,18 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
 
             if client.birth_date and client.gender:
                 # חישוב תאריך זכאות (גיל פרישה)
-                eligibility_date = calc_eligibility_date(client.birth_date, client.gender)
+                eligibility_date = calc_eligibility_date(
+                    client.birth_date, client.gender
+                )
 
                 # בדיקת זכאות - לשער הקיבוע החיצוני אנחנו בודקים זכאות גם לפי גיל
                 # וגם לפי תחילת קצבה בפועל (כפי שהתנהג הקוד המקורי), אך מחזירים
                 # קוד 409 במקום 400 כאשר אחד התנאים אינו מתקיים.
                 today = date.today()
                 age_condition_ok = today >= eligibility_date
-                pension_condition_ok = pension_start_date is not None and today >= pension_start_date
+                pension_condition_ok = (
+                    pension_start_date is not None and today >= pension_start_date
+                )
 
                 # אם הלקוח לא זכאי לפי גיל/קצבה, נחזיר 409 עם מבנה תשובה המתאים לשער הזכאות
                 if not (age_condition_ok and pension_condition_ok):
@@ -153,16 +161,20 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
                     return {
                         "ok": False,
                         "reasons": reasons,
-                        "eligibility_date": eligibility_date.isoformat()
-                        if eligibility_date
-                        else None,
+                        "eligibility_date": (
+                            eligibility_date.isoformat() if eligibility_date else None
+                        ),
                         "age_condition_ok": age_condition_ok,
                         "pension_condition_ok": pension_condition_ok,
                     }
 
                 # קביעת תאריך זכאות אפקטיבי לחישוב – המאוחר מבין גיל פרישה לתחילת קצבה בפועל
                 effective_eligibility_date = eligibility_date
-                if pension_start_date and effective_eligibility_date and pension_start_date > effective_eligibility_date:
+                if (
+                    pension_start_date
+                    and effective_eligibility_date
+                    and pension_start_date > effective_eligibility_date
+                ):
                     effective_eligibility_date = pension_start_date
 
             # הכנת נתונים לשירות
@@ -171,24 +183,52 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
 
             formatted_data = {
                 "id": client_id,
-                "birth_date": client.birth_date.isoformat() if client.birth_date else None,
+                "birth_date": (
+                    client.birth_date.isoformat() if client.birth_date else None
+                ),
                 "gender": client.gender,
                 "grants": [
                     {
                         "grant_amount": grant.grant_amount,
-                        "work_start_date": grant.work_start_date.isoformat() if grant.work_start_date else None,
-                        "work_end_date": grant.work_end_date.isoformat() if grant.work_end_date else None,
-                        "grant_date": grant.grant_date.isoformat() if hasattr(grant, 'grant_date') and grant.grant_date else None,
-                        "employer_name": grant.employer_name
+                        "work_start_date": (
+                            grant.work_start_date.isoformat()
+                            if grant.work_start_date
+                            else None
+                        ),
+                        "work_end_date": (
+                            grant.work_end_date.isoformat()
+                            if grant.work_end_date
+                            else None
+                        ),
+                        "grant_date": (
+                            grant.grant_date.isoformat()
+                            if hasattr(grant, "grant_date") and grant.grant_date
+                            else None
+                        ),
+                        "employer_name": grant.employer_name,
                     }
                     for grant in grants
                 ],
-                "eligibility_date": calc_eligibility_date_value.isoformat() if calc_eligibility_date_value else None,
-                "eligibility_year": calc_eligibility_date_value.year if calc_eligibility_date_value else None,
-                "effective_pension_start_date": pension_start_date.isoformat() if pension_start_date else None,
+                "eligibility_date": (
+                    calc_eligibility_date_value.isoformat()
+                    if calc_eligibility_date_value
+                    else None
+                ),
+                "eligibility_year": (
+                    calc_eligibility_date_value.year
+                    if calc_eligibility_date_value
+                    else None
+                ),
+                "effective_pension_start_date": (
+                    pension_start_date.isoformat() if pension_start_date else None
+                ),
             }
 
-            logger.debug("Rights fixation formatted payload for service (client_id=%s): %s", client_id, formatted_data)
+            logger.debug(
+                "Rights fixation formatted payload for service (client_id=%s): %s",
+                client_id,
+                formatted_data,
+            )
             try:
                 result = calculate_full_fixation(formatted_data)
             except Exception as e:
@@ -202,11 +242,18 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
                     },
                 )
 
-            logger.debug("Rights fixation calculation result (client_id=%s): %s", client_id, result)
+            logger.debug(
+                "Rights fixation calculation result (client_id=%s): %s",
+                client_id,
+                result,
+            )
 
             # לא שומרים אוטומטית - רק מחזירים את התוצאות
             # השמירה תתבצע רק כאשר המשתמש לוחץ על "שמור"
-            logger.debug("Rights fixation calculation completed for client %s - NOT saved to DB", client_id)
+            logger.debug(
+                "Rights fixation calculation completed for client %s - NOT saved to DB",
+                client_id,
+            )
 
             return result
         else:
@@ -237,8 +284,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
             detail={
                 "error": "שגיאה בנתונים",
                 "message": error_msg,
-                "suggestion": "אנא בדוק שכל הנתונים הנדרשים קיימים ותקינים"
-            }
+                "suggestion": "אנא בדוק שכל הנתונים הנדרשים קיימים ותקינים",
+            },
         )
     except Exception as e:
         # General errors
@@ -256,8 +303,8 @@ async def calculate_rights_fixation(client_data: Dict[str, Any], response: Respo
             detail={
                 "error": "שגיאה בחישוב קיבוע זכויות",
                 "message": error_msg,
-                "suggestion": "אנא פנה לתמיכה טכנית"
-            }
+                "suggestion": "אנא פנה לתמיכה טכנית",
+            },
         )
 
 
@@ -295,34 +342,49 @@ async def save_rights_fixation(data: Dict[str, Any], db: Session = Depends(get_d
                     exemption_summary = {}
 
                 # איתור נתוני צה"ל מהתוצאה או מה-payload המעוצב
-                idf_data = result.get("idf_security_forces") or formatted_data.get("idf_security_forces")
+                idf_data = result.get("idf_security_forces") or formatted_data.get(
+                    "idf_security_forces"
+                )
 
-                if isinstance(idf_data, dict) and idf_data.get("retired_from_security_forces"):
+                if isinstance(idf_data, dict) and idf_data.get(
+                    "retired_from_security_forces"
+                ):
                     eligibility_year_val = (
                         result.get("eligibility_year")
                         or exemption_summary.get("eligibility_year")
                         or formatted_data.get("eligibility_year")
                     )
                     try:
-                        eligibility_year_int = int(eligibility_year_val) if eligibility_year_val is not None else None
+                        eligibility_year_int = (
+                            int(eligibility_year_val)
+                            if eligibility_year_val is not None
+                            else None
+                        )
                     except (TypeError, ValueError):
                         eligibility_year_int = None
 
-                    eligibility_date_val = (
-                        result.get("eligibility_date")
-                        or formatted_data.get("eligibility_date")
-                    )
+                    eligibility_date_val = result.get(
+                        "eligibility_date"
+                    ) or formatted_data.get("eligibility_date")
 
                     if eligibility_year_int is not None and eligibility_date_val:
                         monthly_cap = get_monthly_cap(eligibility_year_int)
 
-                        commutation_date_val = idf_data.get("commutation_date") or eligibility_date_val
-                        promoter_age_date_val = idf_data.get("promoter_age_date") or eligibility_date_val
+                        commutation_date_val = (
+                            idf_data.get("commutation_date") or eligibility_date_val
+                        )
+                        promoter_age_date_val = (
+                            idf_data.get("promoter_age_date") or eligibility_date_val
+                        )
 
                         idf_result = compute_idf_fixation_impact(
                             reduction_amount=idf_data.get("reduction_amount"),
-                            original_commutation_percent=idf_data.get("original_commutation_percent"),
-                            current_commutation_percent=idf_data.get("current_commutation_percent"),
+                            original_commutation_percent=idf_data.get(
+                                "original_commutation_percent"
+                            ),
+                            current_commutation_percent=idf_data.get(
+                                "current_commutation_percent"
+                            ),
                             monthly_cap=monthly_cap,
                             eligibility_date=eligibility_date_val,
                             commutation_date=commutation_date_val,
@@ -333,7 +395,9 @@ async def save_rights_fixation(data: Dict[str, Any], db: Session = Depends(get_d
                         idf_data["impact_on_exemption"] = idf_result.impact
                         idf_data["overlap_months"] = idf_result.overlap_months
                         idf_data["base_reduction"] = idf_result.base_reduction
-                        idf_data["monthly_reduction_for_calc"] = idf_result.monthly_reduction_for_calc
+                        idf_data["monthly_reduction_for_calc"] = (
+                            idf_result.monthly_reduction_for_calc
+                        )
                         if idf_result.error:
                             idf_data["error"] = idf_result.error
 
@@ -345,9 +409,13 @@ async def save_rights_fixation(data: Dict[str, Any], db: Session = Depends(get_d
                         except (TypeError, ValueError):
                             idf_impact_value = 0.0
 
-                        exemption_summary["idf_security_forces_impact"] = idf_impact_value
+                        exemption_summary["idf_security_forces_impact"] = (
+                            idf_impact_value
+                        )
                         if idf_result.error:
-                            exemption_summary["idf_security_forces_error"] = idf_result.error
+                            exemption_summary["idf_security_forces_error"] = (
+                                idf_result.error
+                            )
 
                         # עדכון האובייקטים בחזרה לתוצאה ול-payload לשמירה מלאה
                         result["idf_security_forces"] = idf_data
@@ -355,36 +423,45 @@ async def save_rights_fixation(data: Dict[str, Any], db: Session = Depends(get_d
                         formatted_data["idf_security_forces"] = idf_data
         except Exception as e:
             # שגיאה בלוגיקת צה"ל לא אמורה להפיל שמירה של קיבוע – רק נרשום ל-log ונמשיך
-            logger.error("שגיאה בחישוב פגיעה בפטור לפורשי צה\"ל בעת שמירת קיבוע: %s", e)
+            logger.error('שגיאה בחישוב פגיעה בפטור לפורשי צה"ל בעת שמירת קיבוע: %s', e)
 
         # Compute effective pension start date on save, so it's always present in the payload
         client = db.query(Client).filter(Client.id == client_id).first()
         effective_pension_start_date = get_effective_pension_start_date(db, client)
         formatted_data["effective_pension_start_date"] = (
-            effective_pension_start_date.isoformat() if effective_pension_start_date else None
+            effective_pension_start_date.isoformat()
+            if effective_pension_start_date
+            else None
         )
 
         # Check if there's an existing result and update, or create new
-        existing = db.query(FixationResult).filter(
-            FixationResult.client_id == client_id
-        ).order_by(FixationResult.created_at.desc()).first()
+        existing = (
+            db.query(FixationResult)
+            .filter(FixationResult.client_id == client_id)
+            .order_by(FixationResult.created_at.desc())
+            .first()
+        )
 
         if existing:
             # Update existing record
             existing.raw_result = result
             existing.raw_payload = formatted_data
-            existing.exempt_capital_remaining = result.get("exemption_summary", {}).get("remaining_exempt_capital", 0)
+            existing.exempt_capital_remaining = result.get("exemption_summary", {}).get(
+                "remaining_exempt_capital", 0
+            )
             existing.created_at = datetime.now()
         else:
             # Create new record
             fixation_record = FixationResult(
                 client_id=client_id,
                 created_at=datetime.now(),
-                exempt_capital_remaining=result.get("exemption_summary", {}).get("remaining_exempt_capital", 0),
+                exempt_capital_remaining=result.get("exemption_summary", {}).get(
+                    "remaining_exempt_capital", 0
+                ),
                 used_commutation=0.0,
                 raw_payload=formatted_data,
                 raw_result=result,
-                notes="Saved via rights_fixation service"
+                notes="Saved via rights_fixation service",
             )
             db.add(fixation_record)
 
@@ -393,7 +470,7 @@ async def save_rights_fixation(data: Dict[str, Any], db: Session = Depends(get_d
         return {
             "success": True,
             "message": "תוצאות קיבוע הזכויות נשמרו בהצלחה",
-            "calculation_date": datetime.now().isoformat()
+            "calculation_date": datetime.now().isoformat(),
         }
 
     except Exception as e:
@@ -415,7 +492,7 @@ async def calculate_grant_effect(grant_data: Dict[str, Any]):
     }
     """
     try:
-        eligibility_date = grant_data.pop('eligibility_date')
+        eligibility_date = grant_data.pop("eligibility_date")
         effect = compute_grant_effect(grant_data, eligibility_date)
 
         if effect is None:
@@ -443,8 +520,8 @@ async def calculate_exemption_summary(data: Dict[str, Any]):
     }
     """
     try:
-        grants = data.get('grants', [])
-        eligibility_year = data.get('eligibility_year', 2025)
+        grants = data.get("grants", [])
+        eligibility_year = data.get("eligibility_year", 2025)
 
         summary = compute_client_exemption(grants, eligibility_year)
         return summary
@@ -463,7 +540,7 @@ async def get_caps_for_year(year: int):
             "year": year,
             "monthly_cap": get_monthly_cap(year),
             "exemption_percentage": get_exemption_percentage(year),
-            "exempt_capital": calc_exempt_capital(year)
+            "exempt_capital": calc_exempt_capital(year),
         }
     except Exception as e:
         logger.error(f"שגיאה בקבלת תקרות לשנה {year}: {e}")
@@ -485,15 +562,15 @@ async def calculate_eligibility_date(data: Dict[str, Any]):
     try:
         from datetime import datetime
 
-        birth_date = datetime.strptime(data['birth_date'], '%Y-%m-%d').date()
-        gender = data['gender']
-        pension_start = datetime.strptime(data['pension_start'], '%Y-%m-%d').date()
+        birth_date = datetime.strptime(data["birth_date"], "%Y-%m-%d").date()
+        gender = data["gender"]
+        pension_start = datetime.strptime(data["pension_start"], "%Y-%m-%d").date()
 
         eligibility_date = calculate_eligibility_age(birth_date, gender, pension_start)
 
         return {
             "eligibility_date": eligibility_date.isoformat(),
-            "eligibility_year": eligibility_date.year
+            "eligibility_year": eligibility_date.year,
         }
     except Exception as e:
         logger.error(f"שגיאה בחישוב תאריך זכאות: {e}")
@@ -555,7 +632,9 @@ async def get_saved_fixation(client_id: int, db: Session = Depends(get_db)):
             eligibility_date = calc_eligibility_date(client.birth_date, client.gender)
             today = date.today()
             age_condition_ok = today >= eligibility_date
-            pension_condition_ok = pension_start_date is not None and today >= pension_start_date
+            pension_condition_ok = (
+                pension_start_date is not None and today >= pension_start_date
+            )
             eligible = age_condition_ok and pension_condition_ok
 
         return {
@@ -616,22 +695,19 @@ async def test_cbs_api():
     """
     try:
         from app.services.rights_fixation import calculate_adjusted_amount
-        
+
         # בדיקה עם נתונים לדוגמה
         test_amount = 100000
         test_date = "2020-01-01"
-        
+
         result = calculate_adjusted_amount(test_amount, test_date)
-        
+
         return {
             "status": "success" if result else "failed",
             "test_amount": test_amount,
             "test_date": test_date,
-            "indexed_amount": result
+            "indexed_amount": result,
         }
     except Exception as e:
         logger.error(f"שגיאה בבדיקת API: {e}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        return {"status": "error", "error": str(e)}

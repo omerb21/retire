@@ -28,7 +28,12 @@ def test_stage7_guardrail_rag_prompt_called_only_from_message_preparation() -> N
         except Exception:
             continue
 
-        if "build_rag_system_message(" in text and "def build_rag_system_message" not in text:
+        if (
+            "build_rag_system_message(" in text
+            and "def build_rag_system_message" not in text
+        ):
             offenders.append(str(py_file.relative_to(repo_root)))
 
-    assert offenders == [], f"Unexpected build_rag_system_message call sites: {offenders}"
+    assert (
+        offenders == []
+    ), f"Unexpected build_rag_system_message call sites: {offenders}"

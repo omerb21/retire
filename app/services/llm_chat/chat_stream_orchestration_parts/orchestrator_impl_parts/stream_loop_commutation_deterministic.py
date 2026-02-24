@@ -33,7 +33,12 @@ def _maybe_handle_commutation_deterministic(
     # Early deterministic handling for pension commutation requests.
     # Only run this path when the user provided a specific account identifier.
     # If the request is vague (no account number), fall back to the LLM flow.
-    if commutation_intent and request.client_id is not None and (not is_doc_request) and (not is_qa_mode):
+    if (
+        commutation_intent
+        and request.client_id is not None
+        and (not is_doc_request)
+        and (not is_qa_mode)
+    ):
         account_number = _extract_commutation_account_number(original_user_msg)
         if account_number:
             fund = None
@@ -60,11 +65,15 @@ def _maybe_handle_commutation_deterministic(
 
                 if not comm_amount or comm_amount <= 0:
                     return StreamingResponse(
-                        generate_commutation_need_amount_existing(computed_data=computed_data),
+                        generate_commutation_need_amount_existing(
+                            computed_data=computed_data
+                        ),
                         media_type="text/plain",
                     )
 
-                tax_type = "exempt" if "פטור" in (original_user_msg or "") else "taxable"
+                tax_type = (
+                    "exempt" if "פטור" in (original_user_msg or "") else "taxable"
+                )
                 exec_args = {
                     "pension_fund_id": int(getattr(fund, "id")),
                     "commutation_amount": float(comm_amount),
@@ -83,9 +92,11 @@ def _maybe_handle_commutation_deterministic(
 
             target_digits = _digits_only(account_number)
             matched: dict | None = None
-            for acc in (effective_portfolio or []):
+            for acc in effective_portfolio or []:
                 data = _item_to_dict(acc)
-                acc_num = str(data.get("מספר_חשבון") or data.get("account_number") or "").strip()
+                acc_num = str(
+                    data.get("מספר_חשבון") or data.get("account_number") or ""
+                ).strip()
                 if not acc_num:
                     continue
                 if acc_num == account_number:
@@ -100,7 +111,9 @@ def _maybe_handle_commutation_deterministic(
 
             if fund is None:
                 return StreamingResponse(
-                    generate_commutation_missing(computed_data=computed_data, account_number=account_number),
+                    generate_commutation_missing(
+                        computed_data=computed_data, account_number=account_number
+                    ),
                     media_type="text/plain",
                 )
 

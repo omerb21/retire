@@ -6,12 +6,16 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_system_results_bypasses_llm_and_uses_get_products_tool(monkeypatch) -> None:
+def test_stream_system_results_bypasses_llm_and_uses_get_products_tool(
+    monkeypatch,
+) -> None:
     # If the LLM is called, the test must fail.
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM should not be called for system results requests")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
@@ -30,7 +34,11 @@ def test_stream_system_results_bypasses_llm_and_uses_get_products_tool(monkeypat
             {
                 "products": [
                     {"category": "pension", "fund_name": "פנסיה א", "balance": 1000},
-                    {"category": "capital", "asset_name": "הון ב", "current_value": 2000},
+                    {
+                        "category": "capital",
+                        "asset_name": "הון ב",
+                        "current_value": 2000,
+                    },
                 ]
             },
             ensure_ascii=False,
@@ -53,7 +61,7 @@ def test_stream_system_results_bypasses_llm_and_uses_get_products_tool(monkeypat
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "מה גובה סה\"כ הקצבה כעת?"}],
+            "messages": [{"role": "user", "content": 'מה גובה סה"כ הקצבה כעת?'}],
         },
     )
 

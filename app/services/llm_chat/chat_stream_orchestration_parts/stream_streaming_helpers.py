@@ -19,7 +19,9 @@ from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
-from app.services.llm_chat.chat_orchestration_helpers import format_transform_result_for_user
+from app.services.llm_chat.chat_orchestration_helpers import (
+    format_transform_result_for_user,
+)
 
 from .stream_tool_execution import _execute_tool_call
 from .stream_top_level_helpers import _store_pending_approval_request

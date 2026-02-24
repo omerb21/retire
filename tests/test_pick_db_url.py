@@ -7,16 +7,17 @@ Covers:
 - RuntimeError with clear message when nothing is valid.
 - Valid DATABASE_URL is picked first.
 """
+
 import os
 import pytest
 from unittest.mock import patch
 
 from app.core.db_url import pick_db_url, _is_valid_pg_url
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _env(**kv):
     """Return a dict suitable for monkeypatching os.environ."""
@@ -26,6 +27,7 @@ def _env(**kv):
 # ---------------------------------------------------------------------------
 # _is_valid_pg_url unit checks
 # ---------------------------------------------------------------------------
+
 
 class TestIsValidPgUrl:
     def test_valid_postgresql(self):
@@ -65,6 +67,7 @@ class TestIsValidPgUrl:
 # ---------------------------------------------------------------------------
 # pick_db_url integration tests (with env patching)
 # ---------------------------------------------------------------------------
+
 
 class TestPickDbUrl:
     def test_poisoned_database_url_falls_back_to_postgres_url(self):

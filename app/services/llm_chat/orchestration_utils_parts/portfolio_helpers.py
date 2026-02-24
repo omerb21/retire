@@ -12,7 +12,9 @@ from typing import Any
 from app.services.retirement_age_service import get_retirement_date
 
 try:
-    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+    from app.services.retirement_age_service import (
+        DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK,
+    )
 except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
@@ -26,7 +28,6 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     get_tool_display_name_hebrew,
     normalize_tool_name,
 )
-
 
 
 def build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio(
@@ -64,7 +65,11 @@ def build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfo
             "קרן_השתלמות",
         ]
 
-        specific_amounts = acc.get("specific_amounts") if isinstance(acc.get("specific_amounts"), dict) else {}
+        specific_amounts = (
+            acc.get("specific_amounts")
+            if isinstance(acc.get("specific_amounts"), dict)
+            else {}
+        )
 
         selected: dict[str, float] = {}
         total = 0.0
@@ -91,7 +96,9 @@ def build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfo
                 base.pop(k, None)
         base["_partial_conversion"] = True
         base["specific_amounts"] = selected
-        base["component_conversion_overrides"] = {f: str(conversion_type or "pension") for f in selected.keys()}
+        base["component_conversion_overrides"] = {
+            f: str(conversion_type or "pension") for f in selected.keys()
+        }
         try:
             base["balance"] = float(total)
             base["יתרה"] = float(total)
@@ -100,6 +107,7 @@ def build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfo
         results.append(base)
 
     return results
+
 
 def build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
     *,
@@ -123,12 +131,22 @@ def build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
         account_name = str(acc.get("account_name") or acc.get("שם_תכנית") or "")
         candidate = f"{product_type} {account_name}".lower()
 
-        if ("השתלמות" not in candidate) and ("education" not in candidate) and ("klal_stud" not in candidate):
+        if (
+            ("השתלמות" not in candidate)
+            and ("education" not in candidate)
+            and ("klal_stud" not in candidate)
+        ):
             continue
 
-        specific_amounts = acc.get("specific_amounts") if isinstance(acc.get("specific_amounts"), dict) else {}
+        specific_amounts = (
+            acc.get("specific_amounts")
+            if isinstance(acc.get("specific_amounts"), dict)
+            else {}
+        )
         try:
-            ef_val = float(specific_amounts.get("קרן_השתלמות") or acc.get("קרן_השתלמות") or 0)
+            ef_val = float(
+                specific_amounts.get("קרן_השתלמות") or acc.get("קרן_השתלמות") or 0
+            )
         except Exception:
             ef_val = 0.0
         if ef_val <= 0:
@@ -176,7 +194,9 @@ def build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
                 base.pop(k, None)
         base["_partial_conversion"] = True
         base["specific_amounts"] = selected
-        base["component_conversion_overrides"] = {f: str(conversion_type or "capital_asset") for f in selected.keys()}
+        base["component_conversion_overrides"] = {
+            f: str(conversion_type or "capital_asset") for f in selected.keys()
+        }
         try:
             base["balance"] = float(total)
             base["יתרה"] = float(total)
@@ -185,6 +205,7 @@ def build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
         results.append(base)
 
     return results
+
 
 def build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio(
     *,
@@ -210,9 +231,15 @@ def build_portfolio_wide_after_settlement_severance_transform_accounts_from_port
         if "השתלמות" in candidate or "education" in candidate:
             continue
 
-        specific_amounts = acc.get("specific_amounts") if isinstance(acc.get("specific_amounts"), dict) else {}
+        specific_amounts = (
+            acc.get("specific_amounts")
+            if isinstance(acc.get("specific_amounts"), dict)
+            else {}
+        )
         try:
-            ef_val = float(specific_amounts.get("קרן_השתלמות") or acc.get("קרן_השתלמות") or 0)
+            ef_val = float(
+                specific_amounts.get("קרן_השתלמות") or acc.get("קרן_השתלמות") or 0
+            )
         except Exception:
             ef_val = 0.0
         if ef_val > 0:
@@ -260,7 +287,9 @@ def build_portfolio_wide_after_settlement_severance_transform_accounts_from_port
                 base.pop(k, None)
         base["_partial_conversion"] = True
         base["specific_amounts"] = selected
-        base["component_conversion_overrides"] = {f: str(conversion_type or "capital_asset") for f in selected.keys()}
+        base["component_conversion_overrides"] = {
+            f: str(conversion_type or "capital_asset") for f in selected.keys()
+        }
         try:
             base["balance"] = float(total)
             base["יתרה"] = float(total)
@@ -270,7 +299,10 @@ def build_portfolio_wide_after_settlement_severance_transform_accounts_from_port
 
     return results
 
-def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict[str, Any]]:
+
+def build_transform_accounts_from_portfolio(
+    pension_portfolio: Any,
+) -> list[dict[str, Any]]:
     if not isinstance(pension_portfolio, list) or not pension_portfolio:
         return []
 
@@ -370,11 +402,16 @@ def build_transform_accounts_from_portfolio(pension_portfolio: Any) -> list[dict
                 "סוג_מוצר": product_type,
                 "יתרה": balance,
                 "תאריך_התחלה": start_date,
-                **{field: data.get(field) for field in component_fields if field in data},
+                **{
+                    field: data.get(field)
+                    for field in component_fields
+                    if field in data
+                },
             }
         )
 
     return accounts
+
 
 def build_portfolio_wide_component_transform_accounts_from_portfolio(
     *,
@@ -405,9 +442,15 @@ def build_portfolio_wide_component_transform_accounts_from_portfolio(
         if "השתלמות" in candidate or "education" in candidate:
             continue
 
-        specific_amounts = acc.get("specific_amounts") if isinstance(acc.get("specific_amounts"), dict) else {}
+        specific_amounts = (
+            acc.get("specific_amounts")
+            if isinstance(acc.get("specific_amounts"), dict)
+            else {}
+        )
         try:
-            ef_val = float(specific_amounts.get("קרן_השתלמות") or acc.get("קרן_השתלמות") or 0)
+            ef_val = float(
+                specific_amounts.get("קרן_השתלמות") or acc.get("קרן_השתלמות") or 0
+            )
         except Exception:
             ef_val = 0.0
         if ef_val > 0:
@@ -455,7 +498,9 @@ def build_portfolio_wide_component_transform_accounts_from_portfolio(
                 base.pop(k, None)
         base["_partial_conversion"] = True
         base["specific_amounts"] = selected
-        base["component_conversion_overrides"] = {f: str(conversion_type or "pension") for f in selected.keys()}
+        base["component_conversion_overrides"] = {
+            f: str(conversion_type or "pension") for f in selected.keys()
+        }
         try:
             base["balance"] = float(total)
             base["יתרה"] = float(total)
@@ -464,6 +509,7 @@ def build_portfolio_wide_component_transform_accounts_from_portfolio(
         results.append(base)
 
     return results
+
 
 def build_partial_pension_transform_accounts_from_portfolio(
     *,
@@ -493,7 +539,12 @@ def build_partial_pension_transform_accounts_from_portfolio(
                     item = None
         if not isinstance(item, dict):
             continue
-        num = str(item.get("מספר_חשבון") or item.get("account_number") or item.get("מספר חשבון") or "").strip()
+        num = str(
+            item.get("מספר_חשבון")
+            or item.get("account_number")
+            or item.get("מספר חשבון")
+            or ""
+        ).strip()
         if num == str(account_number).strip():
             matched = item
             break
@@ -534,6 +585,7 @@ def build_partial_pension_transform_accounts_from_portfolio(
         pass
     return [acc]
 
+
 def build_targeted_component_transform_accounts_from_portfolio(
     *,
     pension_portfolio: Any,
@@ -557,7 +609,12 @@ def build_targeted_component_transform_accounts_from_portfolio(
                     item = None
         if not isinstance(item, dict):
             continue
-        num = str(item.get("מספר_חשבון") or item.get("account_number") or item.get("מספר חשבון") or "").strip()
+        num = str(
+            item.get("מספר_חשבון")
+            or item.get("account_number")
+            or item.get("מספר חשבון")
+            or ""
+        ).strip()
         if num == str(account_number).strip():
             matched = item
             break
@@ -570,7 +627,11 @@ def build_targeted_component_transform_accounts_from_portfolio(
         return []
 
     base = dict(derived[0])
-    specific_amounts = base.get("specific_amounts") if isinstance(base.get("specific_amounts"), dict) else {}
+    specific_amounts = (
+        base.get("specific_amounts")
+        if isinstance(base.get("specific_amounts"), dict)
+        else {}
+    )
     selected: dict[str, float] = {}
     total = 0.0
     for f in fields:
@@ -611,7 +672,9 @@ def build_targeted_component_transform_accounts_from_portfolio(
             base.pop(k, None)
     base["_partial_conversion"] = True
     base["specific_amounts"] = selected
-    base["component_conversion_overrides"] = {f: str(conversion_type or "pension") for f in selected.keys()}
+    base["component_conversion_overrides"] = {
+        f: str(conversion_type or "pension") for f in selected.keys()
+    }
     try:
         base["balance"] = float(total)
         base["יתרה"] = float(total)
@@ -619,4 +682,3 @@ def build_targeted_component_transform_accounts_from_portfolio(
         pass
 
     return [base]
-

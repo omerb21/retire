@@ -40,7 +40,9 @@ def handle_create_individual_asset(*, args: dict, client_id: int, db: Session) -
             fund_type = asset_type or "קרן פנסיה"
             factor = float(annuity_factor) if annuity_factor else 200
             pension_amount = (
-                float(balance) / factor if monthly_amount is None else float(monthly_amount)
+                float(balance) / factor
+                if monthly_amount is None
+                else float(monthly_amount)
             )
 
             pf = PensionFund(

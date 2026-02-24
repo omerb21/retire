@@ -1,6 +1,7 @@
 """
 תבנית HTML לנספח מענקים
 """
+
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from .styles import get_grants_styles
@@ -8,27 +9,27 @@ from .styles import get_grants_styles
 
 class GrantsHTMLTemplate:
     """תבנית HTML לנספח מענקים"""
-    
+
     def __init__(
         self,
         client_name: str,
         client_id_number: str,
         eligibility_date: Optional[str],
         grants_summary: List[Dict[str, Any]],
-        grants_dates_map: Dict[str, Dict[str, str]]
+        grants_dates_map: Dict[str, Dict[str, str]],
     ):
         self.client_name = client_name
         self.client_id_number = client_id_number
         self.eligibility_date = eligibility_date
         self.grants_summary = grants_summary
         self.grants_dates_map = grants_dates_map
-    
+
     def _build_header(self) -> str:
         """בניית כותרת"""
         eligibility_str = self.eligibility_date if self.eligibility_date else "לא ידוע"
         if self.eligibility_date and isinstance(self.eligibility_date, datetime):
             eligibility_str = self.eligibility_date.strftime("%d/%m/%Y")
-        
+
         return f"""
     <h1>נספח מענקים - קיבוע זכויות</h1>
     <div class="client-info">
@@ -37,7 +38,7 @@ class GrantsHTMLTemplate:
         <p><strong>תאריך זכאות:</strong> {eligibility_str}</p>
     </div>
 """
-    
+
     def _build_table(self) -> str:
         """בניית טבלת מענקים"""
         rows = ""
@@ -45,19 +46,19 @@ class GrantsHTMLTemplate:
         total_relevant_nominal = 0
         total_indexed = 0
         total_impact = 0
-        
+
         for grant in self.grants_summary:
-            employer_name = grant.get('employer_name', '')
-            grant_date = grant.get('grant_date', '')
-            nominal = grant.get('grant_amount', 0)
-            relevant_nominal = grant.get('grant_amount', 0)
-            indexed = grant.get('limited_indexed_amount', 0)
-            impact = grant.get('impact_on_exemption', 0)
-            
+            employer_name = grant.get("employer_name", "")
+            grant_date = grant.get("grant_date", "")
+            nominal = grant.get("grant_amount", 0)
+            relevant_nominal = grant.get("grant_amount", 0)
+            indexed = grant.get("limited_indexed_amount", 0)
+            impact = grant.get("impact_on_exemption", 0)
+
             dates_info = self.grants_dates_map.get(employer_name, {})
-            work_start = dates_info.get('work_start_date', '-')
-            work_end = dates_info.get('work_end_date', '-')
-            
+            work_start = dates_info.get("work_start_date", "-")
+            work_end = dates_info.get("work_end_date", "-")
+
             rows += f"""
             <tr>
                 <td>{employer_name}</td>
@@ -74,7 +75,7 @@ class GrantsHTMLTemplate:
             total_relevant_nominal += relevant_nominal
             total_indexed += indexed
             total_impact += impact
-        
+
         return f"""
     <table>
         <thead>
@@ -102,7 +103,7 @@ class GrantsHTMLTemplate:
         </tbody>
     </table>
 """
-    
+
     def render(self) -> str:
         """מייצר את ה-HTML המלא"""
         return f"""<!DOCTYPE html>

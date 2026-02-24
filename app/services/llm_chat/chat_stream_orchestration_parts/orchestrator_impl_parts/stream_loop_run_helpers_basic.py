@@ -194,7 +194,8 @@ def is_general_retirement_intro_request(user_msg: str) -> bool:
 
     has_age = bool(re.search(r"\b(?:בן|בת|גיל)\s*\d{2}\b", lowered))
     has_retired = any(
-        tok in lowered for tok in ("סיימתי לעבוד", "סיים לעבוד", "פרשתי", "יצאתי לפנסיה")
+        tok in lowered
+        for tok in ("סיימתי לעבוד", "סיים לעבוד", "פרשתי", "יצאתי לפנסיה")
     )
     if not (has_age and has_retired):
         return False

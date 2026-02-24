@@ -2,7 +2,6 @@ import re
 
 from app.guards.advice_domain import AdviceDomain
 
-
 _WORD_RE = re.compile(r"[\w\u0590-\u05FF]+", re.UNICODE)
 
 

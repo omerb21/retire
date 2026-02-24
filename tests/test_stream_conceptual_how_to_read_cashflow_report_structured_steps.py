@@ -4,7 +4,9 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_conceptual_how_to_read_cashflow_report_structured_steps(monkeypatch) -> None:
+def test_stream_conceptual_how_to_read_cashflow_report_structured_steps(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         injected = "\n\n".join(
             str(getattr(m, "content", ""))
@@ -23,10 +25,14 @@ def test_stream_conceptual_how_to_read_cashflow_report_structured_steps(monkeypa
             "ד. נטו: ודא מה נגזר אחרי מס\n"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked for conceptual questions")
+        raise AssertionError(
+            "execute_tool_call must not be invoked for conceptual questions"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

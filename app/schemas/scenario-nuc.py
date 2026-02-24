@@ -2,6 +2,7 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
+
 class ScenarioIn(BaseModel):
     # ׳₪׳¨׳׳˜׳¨׳™׳ ׳¢׳™׳§׳¨׳™׳™׳ ׳׳×׳¨׳—׳™׳© ׳—׳™׳©׳•׳‘
     planned_termination_date: Optional[date] = None
@@ -9,11 +10,13 @@ class ScenarioIn(BaseModel):
     monthly_expenses: Optional[float] = Field(None, ge=0)
     other_incomes_monthly: Optional[float] = Field(None, ge=0)
 
+
 class CashflowPoint(BaseModel):
     date: date
     inflow: float
     outflow: float
     net: float
+
 
 class ScenarioOut(BaseModel):
     # ׳×׳§׳¦׳™׳¨ ׳×׳•׳¦׳׳•׳×
@@ -25,6 +28,7 @@ class ScenarioOut(BaseModel):
     pension_monthly: float
     indexation_factor: float
     cashflow: List[CashflowPoint]
+
 
 class ScenarioCreateIn(BaseModel):
     # ׳™׳¦׳™׳¨׳× ׳×׳¨׳—׳™׳© ׳—׳“׳© ׳¢׳ ׳©׳
@@ -38,9 +42,11 @@ class ScenarioCreateIn(BaseModel):
     # Additional parameters
     other_parameters: Dict[str, Any] = Field(default_factory=dict)
 
+
 class ScenarioCreateResponse(BaseModel):
     # ׳×׳’׳•׳‘׳” ׳₪׳©׳•׳˜׳” ׳׳™׳¦׳™׳¨׳× ׳×׳¨׳—׳™׳©
     scenario_id: int
+
 
 class ScenarioCreateOut(BaseModel):
     # ׳×׳’׳•׳‘׳” ׳׳™׳¦׳™׳¨׳× ׳×׳¨׳—׳™׳© + ׳×׳•׳¦׳׳•׳× ׳—׳™׳©׳•׳‘
@@ -54,6 +60,7 @@ class ScenarioCreateOut(BaseModel):
     indexation_factor: float
     cashflow: List[CashflowPoint]
 
+
 class ScenarioListItem(BaseModel):
     # ׳₪׳¨׳™׳˜ ׳‘׳¨׳©׳™׳׳× ׳×׳¨׳—׳™׳©׳™׳
     id: int
@@ -63,7 +70,7 @@ class ScenarioListItem(BaseModel):
     apply_exemption_shield: bool
     created_at: datetime
 
+
 class ScenarioListOut(BaseModel):
     # ׳¨׳©׳™׳׳× ׳×׳¨׳—׳™׳©׳™׳
     scenarios: List[ScenarioListItem]
-

@@ -29,14 +29,18 @@ class PortfolioToolsMixin:
         capital_products: list[dict[str, Any]] = []
 
         # 1. קרנות פנסיה וקופות גמל
-        pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
-        ).all()
+        pension_funds = (
+            self.db.query(PensionFund)
+            .filter(PensionFund.client_id == self.client_id)
+            .all()
+        )
 
         # 2. נכסים הוניים (ביטוח מנהלים, גמל להשקעה)
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id
-        ).all()
+        capital_assets = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .all()
+        )
 
         logger.info(
             "GET_PENSION_PRODUCTS: client %s has %d pension funds and %d capital assets",
@@ -55,9 +59,15 @@ class PortfolioToolsMixin:
                 "fund_type": pf.fund_type,
                 "input_mode": pf.input_mode,
                 "balance": float(pf.balance or 0),
-                "annuity_factor": float(pf.annuity_factor) if pf.annuity_factor else None,
-                "pension_amount": float(pf.pension_amount) if pf.pension_amount else None,
-                "pension_start_date": pf.pension_start_date.isoformat() if pf.pension_start_date else None,
+                "annuity_factor": (
+                    float(pf.annuity_factor) if pf.annuity_factor else None
+                ),
+                "pension_amount": (
+                    float(pf.pension_amount) if pf.pension_amount else None
+                ),
+                "pension_start_date": (
+                    pf.pension_start_date.isoformat() if pf.pension_start_date else None
+                ),
                 "tax_treatment": pf.tax_treatment,
                 "deduction_file": pf.deduction_file,
                 "conversion_source": pf.conversion_source,
@@ -77,7 +87,9 @@ class PortfolioToolsMixin:
                 "asset_name": ca.asset_name,
                 "asset_type": ca.asset_type,
                 "current_value": float(ca.current_value or 0),
-                "monthly_income": float(ca.monthly_income) if ca.monthly_income else None,
+                "monthly_income": (
+                    float(ca.monthly_income) if ca.monthly_income else None
+                ),
                 "start_date": ca.start_date.isoformat() if ca.start_date else None,
                 "end_date": ca.end_date.isoformat() if ca.end_date else None,
                 "tax_treatment": ca.tax_treatment,
@@ -110,7 +122,7 @@ class PortfolioToolsMixin:
         # יצירת הסבר טקסטואלי קצר לשימוש המודל
         explanation = (
             f"נמצאו {len(products)} מוצרים בתיק.\n"
-            f"סה\"כ צבירה: {total_balance:,.0f} ₪."
+            f'סה"כ צבירה: {total_balance:,.0f} ₪.'
         )
 
         return {

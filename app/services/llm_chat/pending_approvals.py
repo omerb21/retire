@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.models import Scenario
 
-
 _PENDING_APPROVAL_SCENARIO_NAME = "pending_approval"
 _DEFAULT_TTL_SECONDS = 15 * 60
 
@@ -19,7 +18,9 @@ def _utcnow() -> datetime:
 
 def _stable_json(obj) -> str:
     try:
-        return json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
     except Exception:
         return "{}"
 
@@ -110,7 +111,9 @@ def compute_intent_key(
     request_kind: str,
     tool_args: dict,
 ) -> str:
-    raw = f"{client_id}|{request_kind}|{tool_name}|{_stable_json(tool_args)}".encode("utf-8")
+    raw = f"{client_id}|{request_kind}|{tool_name}|{_stable_json(tool_args)}".encode(
+        "utf-8"
+    )
     return hashlib.sha256(raw).hexdigest()
 
 

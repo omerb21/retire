@@ -23,7 +23,9 @@ def _parse_iso_datetime_utc(raw: object) -> datetime | None:
         return None
 
 
-def _load_latest_snapshot_meta(*, db: Session, client_id: int | None) -> dict[str, Any] | None:
+def _load_latest_snapshot_meta(
+    *, db: Session, client_id: int | None
+) -> dict[str, Any] | None:
     if client_id is None:
         return None
     latest = (
@@ -76,7 +78,9 @@ def _build_restore_snapshot_banner(
     return "מצב מערכת: שוחזר סנאפסוט (restore_snapshot). אפשר להמשיך לתכנית/תרחיש."
 
 
-def _latest_snapshot_operation_type(*, db: Session, client_id: int | None) -> str | None:
+def _latest_snapshot_operation_type(
+    *, db: Session, client_id: int | None
+) -> str | None:
     if client_id is None:
         return None
     meta = _load_latest_snapshot_meta(db=db, client_id=client_id)
@@ -101,7 +105,11 @@ def _wrap_with_restore_banner(
         effective_state=effective_state,
         now_utc=now,
     )
-    if isinstance(banner, str) and banner.strip() and (resolved_intent != ChatIntent.REPORT):
+    if (
+        isinstance(banner, str)
+        and banner.strip()
+        and (resolved_intent != ChatIntent.REPORT)
+    ):
         yield banner.strip() + "\n\n"
     yield from inner
 

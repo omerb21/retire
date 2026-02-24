@@ -10,7 +10,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monkeypatch, _test_db) -> None:
+def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     client_id = 995000001
 
@@ -59,16 +61,22 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic blocked-balances regression test")
+        raise AssertionError(
+            "LLM must not be called for deterministic blocked-balances regression test"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_build_target_pension_plan(
         self,
@@ -105,7 +113,9 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     api = TestClient(app)
 
@@ -114,7 +124,9 @@ def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(monk
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )

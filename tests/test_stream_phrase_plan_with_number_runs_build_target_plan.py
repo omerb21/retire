@@ -9,7 +9,9 @@ from app.main import app
 from app.models.client import Client
 
 
-def test_stream_phrase_plan_with_number_runs_build_target_plan(monkeypatch, _test_db) -> None:
+def test_stream_phrase_plan_with_number_runs_build_target_plan(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -28,15 +30,23 @@ def test_stream_phrase_plan_with_number_runs_build_target_plan(monkeypatch, _tes
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for target-plan tools-first routing")
+        raise AssertionError(
+            "LLM must not be called for target-plan tools-first routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         try:
-            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+            from app.services.agent_execution.tool_execution_context import (
+                mark_tool_ok_seen,
+            )
 
             mark_tool_ok_seen()
         except Exception:

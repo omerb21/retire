@@ -87,7 +87,6 @@ def _collect_llm_response_once(
         return None, "invalid_response"
 
 
-
 def _collect_llm_response_with_retry(
     *,
     history_messages,
@@ -120,7 +119,11 @@ def _collect_llm_response_with_retry(
                 pass
         if attempt < (retries - 1):
             try:
-                delay = float(backoffs[attempt]) if attempt < len(backoffs) else float(backoffs[-1])
+                delay = (
+                    float(backoffs[attempt])
+                    if attempt < len(backoffs)
+                    else float(backoffs[-1])
+                )
             except Exception:
                 delay = 1.0
             time.sleep(max(0.0, delay))

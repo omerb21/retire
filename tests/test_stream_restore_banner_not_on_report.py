@@ -15,7 +15,9 @@ def test_report_does_not_include_restore_banner(monkeypatch, _test_db) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for REPORT intent")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == 930300002).first()

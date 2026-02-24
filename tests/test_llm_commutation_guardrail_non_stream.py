@@ -5,7 +5,9 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 
 
-def test_non_stream_commutation_blocks_transform_tool_call(db_session, client, monkeypatch) -> None:
+def test_non_stream_commutation_blocks_transform_tool_call(
+    db_session, client, monkeypatch
+) -> None:
     responses = iter(
         [
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": []}}',

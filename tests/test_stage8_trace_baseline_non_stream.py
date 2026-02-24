@@ -14,7 +14,9 @@ def test_stage8_trace_baseline_non_stream_event_order(monkeypatch, db_session):
 
     monkeypatch.setattr(core_mod, "log_trace_event", fake_log_trace_event)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="monthly_pension")], client_id=1)
+    req = ChatRequest(
+        messages=[ChatMessage(role="user", content="monthly_pension")], client_id=1
+    )
     core_mod.execute_agent_request(req, db_session)
 
     types = [t for (t, _p) in events]

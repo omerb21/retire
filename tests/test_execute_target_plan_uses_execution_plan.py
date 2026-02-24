@@ -16,7 +16,9 @@ def _extract_ui_action_payload(body: str) -> dict:
     return json.loads(body[start + len("###UI_ACTION###") : end])
 
 
-def test_execute_target_plan_uses_execution_plan_accounts_stream_and_non_stream(_test_db) -> None:
+def test_execute_target_plan_uses_execution_plan_accounts_stream_and_non_stream(
+    _test_db,
+) -> None:
     Session = _test_db["Session"]
     client_id = 960000002
 

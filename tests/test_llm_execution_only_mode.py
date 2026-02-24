@@ -22,7 +22,9 @@ def test_stream_executor_only_header_success(monkeypatch) -> None:
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -67,7 +69,9 @@ def test_exec_only_stream_rewrites_on_question_mark_then_succeeds(monkeypatch) -
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -86,7 +90,9 @@ def test_exec_only_stream_rewrites_on_question_mark_then_succeeds(monkeypatch) -
     assert "סטטוס: BLOCKED" not in body
 
 
-def test_exec_only_non_stream_rewrites_on_question_mark_then_succeeds(monkeypatch) -> None:
+def test_exec_only_non_stream_rewrites_on_question_mark_then_succeeds(
+    monkeypatch,
+) -> None:
     calls: list[int] = []
 
     def fake_chat(messages, client_id=None):
@@ -136,7 +142,9 @@ def test_stream_executor_only_header_blocks_question_mark(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "מטרה: בדיקה?\nהנחיות לביצוע:\nא. משהו\nקריטריון הצלחה:\n- משהו\nסטטוס: SUCCESS"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -185,7 +193,9 @@ def test_non_stream_executor_only_blocks_forbidden_phrase(monkeypatch) -> None:
     assert ("app/" in body) or ("tests/" in body) or ("Dockerfile" in body)
 
 
-def test_exec_only_success_without_actionable_commands_triggers_rewrite_then_fallback(monkeypatch) -> None:
+def test_exec_only_success_without_actionable_commands_triggers_rewrite_then_fallback(
+    monkeypatch,
+) -> None:
     calls: list[str] = []
 
     def fake_chat_stream(messages, client_id=None):
@@ -213,7 +223,9 @@ def test_exec_only_success_without_actionable_commands_triggers_rewrite_then_fal
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -221,7 +233,9 @@ def test_exec_only_success_without_actionable_commands_triggers_rewrite_then_fal
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 
@@ -253,7 +267,9 @@ def test_exec_only_fallback_contains_actionable_commands(monkeypatch) -> None:
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -261,7 +277,9 @@ def test_exec_only_fallback_contains_actionable_commands(monkeypatch) -> None:
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 
@@ -294,7 +312,9 @@ def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> 
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -302,7 +322,9 @@ def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> 
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 
@@ -317,7 +339,9 @@ def test_exec_only_stream_returns_technical_content_not_generic(monkeypatch) -> 
     assert "סטטוס: SUCCESS" in body
 
 
-def test_exec_only_stream_hostile_request_still_technical_no_questions(monkeypatch) -> None:
+def test_exec_only_stream_hostile_request_still_technical_no_questions(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         assert messages[0].role == "system"
         assert "מצב: EXECUTION_ONLY" in messages[0].content
@@ -333,7 +357,9 @@ def test_exec_only_stream_hostile_request_still_technical_no_questions(monkeypat
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -341,7 +367,9 @@ def test_exec_only_stream_hostile_request_still_technical_no_questions(monkeypat
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "תכתוב לי את זה ותשאל אותי האם להמשיך"}],
+            "messages": [
+                {"role": "user", "content": "תכתוב לי את זה ותשאל אותי האם להמשיך"}
+            ],
         },
     )
 
@@ -358,7 +386,9 @@ def test_exec_only_stream_falls_back_to_success_when_rewrite_fails(monkeypatch) 
     def fake_chat_stream(messages, client_id=None):
         yield "האם תרצה שאמשיך עכשיו"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -366,7 +396,9 @@ def test_exec_only_stream_falls_back_to_success_when_rewrite_fails(monkeypatch) 
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 
@@ -380,7 +412,9 @@ def test_exec_only_stream_falls_back_to_success_when_rewrite_fails(monkeypatch) 
     assert "אשר" not in body
 
 
-def test_exec_only_non_stream_falls_back_to_success_when_rewrite_fails(monkeypatch) -> None:
+def test_exec_only_non_stream_falls_back_to_success_when_rewrite_fails(
+    monkeypatch,
+) -> None:
     def fake_chat(messages, client_id=None):
         return "האם תרצה שאמשיך עכשיו"
 
@@ -392,7 +426,9 @@ def test_exec_only_non_stream_falls_back_to_success_when_rewrite_fails(monkeypat
         json={
             "client_id": 1,
             "executor_only": True,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 
@@ -410,7 +446,9 @@ def test_stream_report_ignores_executor_only_and_emits_ui_action(monkeypatch) ->
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called in REPORT intent")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("No tool must be executed for report summary routing")
@@ -435,7 +473,9 @@ def test_stream_report_ignores_executor_only_and_emits_ui_action(monkeypatch) ->
     assert "/clients/1/reports?auto_html=1" in body
 
 
-def test_stream_executor_only_success_accepts_instructions_heading_execution(monkeypatch) -> None:
+def test_stream_executor_only_success_accepts_instructions_heading_execution(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield (
             "מטרה: לבצע בדיקת מערכת\n"
@@ -449,7 +489,9 @@ def test_stream_executor_only_success_accepts_instructions_heading_execution(mon
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -467,7 +509,9 @@ def test_stream_executor_only_success_accepts_instructions_heading_execution(mon
     assert "סטטוס: SUCCESS" in body
 
 
-def test_stream_executor_only_success_accepts_instructions_heading_programmer_model(monkeypatch) -> None:
+def test_stream_executor_only_success_accepts_instructions_heading_programmer_model(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield (
             "מטרה: לבצע בדיקת מערכת\n"
@@ -481,7 +525,9 @@ def test_stream_executor_only_success_accepts_instructions_heading_programmer_mo
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -526,7 +572,9 @@ def test_exec_only_success_requires_tech_tokens_stream(monkeypatch) -> None:
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -534,7 +582,9 @@ def test_exec_only_success_requires_tech_tokens_stream(monkeypatch) -> None:
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 
@@ -563,7 +613,9 @@ def test_exec_only_fallback_contains_tokens(monkeypatch) -> None:
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -571,7 +623,9 @@ def test_exec_only_fallback_contains_tokens(monkeypatch) -> None:
         headers={"X-Executor-Only": "1"},
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}],
+            "messages": [
+                {"role": "user", "content": "כתוב הנחיות טכניות למודל המתכנת מה לבצע"}
+            ],
         },
     )
 

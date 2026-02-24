@@ -23,7 +23,14 @@ _DOC_SOURCES: tuple[_KnowledgeSource, ...] = (
     ),
     _KnowledgeSource(
         name="validation_rules",
-        keywords=("תיקוף", "ולידציה", "validation", "מספר זהות", "תעודת זהות", "birth date"),
+        keywords=(
+            "תיקוף",
+            "ולידציה",
+            "validation",
+            "מספר זהות",
+            "תעודת זהות",
+            "birth date",
+        ),
         relative_path_parts=("MD", "docs", "validation_rules.md"),
         window_lines=45,
         max_chars=2400,

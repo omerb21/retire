@@ -36,7 +36,7 @@ def _maybe_handle_plan_phrase_flow(
     format_tool_output_for_user_stream,
     infer_pending_retirement_fields_for_marker,
     store_pending_plan_target_marker,
- ):
+):
     plan_phrase_detected = False
     try:
         msg_norm = (original_user_msg or "").replace("תוכנית", "תכנית")
@@ -71,7 +71,9 @@ def _maybe_handle_plan_phrase_flow(
             effective_portfolio = request.pension_portfolio
             try:
                 if not isinstance(effective_portfolio, list) or not effective_portfolio:
-                    loaded = load_latest_pension_portfolio_snapshot_models(db, client_id)
+                    loaded = load_latest_pension_portfolio_snapshot_models(
+                        db, client_id
+                    )
                     if loaded is not None:
                         effective_portfolio, _effective_snapshot_at = loaded
             except Exception:
@@ -79,7 +81,9 @@ def _maybe_handle_plan_phrase_flow(
 
             client_obj = None
             try:
-                client_obj = db.query(ClientModel).filter(ClientModel.id == client_id).first()
+                client_obj = (
+                    db.query(ClientModel).filter(ClientModel.id == client_id).first()
+                )
             except Exception:
                 client_obj = None
 
@@ -106,11 +110,13 @@ def _maybe_handle_plan_phrase_flow(
             if inferred_age is not None:
                 tool_args["retirement_age"] = int(inferred_age)
 
-            policy_status, tool_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
-                db=db,
-                client_id=int(client_id),
-                portfolio=effective_portfolio,
-                plan_args=tool_args,
+            policy_status, tool_args, policy_text = (
+                evaluate_blocked_balances_policy_for_build_target_plan(
+                    db=db,
+                    client_id=int(client_id),
+                    portfolio=effective_portfolio,
+                    plan_args=tool_args,
+                )
             )
             if isinstance(policy_text, str) and policy_text.strip():
                 yield policy_text.strip() + "\n\n"
@@ -185,7 +191,9 @@ def _maybe_handle_plan_phrase_flow(
                 pass
             breakdown_lines: list[str] = []
             breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-            breakdown_lines.append(f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪")
+            breakdown_lines.append(
+                f"- יעד חודשי מבוקש (נטו): {breakdown.desired_net_total:,.0f} ₪"
+            )
             if breakdown.other_income_offset_net > 0:
                 breakdown_lines.append(
                     f"- קיזוז הכנסות נוספות (נטו): {breakdown.other_income_offset_net:,.0f} ₪"
@@ -198,7 +206,9 @@ def _maybe_handle_plan_phrase_flow(
                 sanitize_user_visible_text("\n".join(breakdown_lines))
                 + "\n\n"
                 + sanitize_user_visible_text(
-                    "🔧 **פלט כלי (" + get_tool_display_name_hebrew(tool_name) + "):**\n"
+                    "🔧 **פלט כלי ("
+                    + get_tool_display_name_hebrew(tool_name)
+                    + "):**\n"
                     + format_tool_output_for_user_stream(tool_name, tool_result)
                 )
             )
@@ -226,8 +236,7 @@ def _maybe_handle_plan_phrase_flow(
 
     def _prompt_for_target_net_for_phrase():
         yield sanitize_user_visible_text(
-            "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
-            "כתוב: יעד נטו: <מספר>."
+            "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n" "כתוב: יעד נטו: <מספר>."
         )
 
     return StreamingResponse(

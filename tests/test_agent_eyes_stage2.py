@@ -83,19 +83,22 @@ class TestAgentEyesStage2(unittest.TestCase):
     def _ensure_test_client(self):
         """Create a minimal client row so tool execution doesn't fail on missing client."""
         from app.models.client import Client
+
         db = TestingSessionLocal()
         try:
             existing = db.query(Client).filter(Client.id == 1).first()
             if not existing:
-                db.add(Client(
-                    id=1,
-                    id_number="123456782",
-                    id_number_raw="123456782",
-                    first_name="Test",
-                    last_name="User",
-                    full_name="Test User",
-                    birth_date=date(1980, 1, 1),
-                ))
+                db.add(
+                    Client(
+                        id=1,
+                        id_number="123456782",
+                        id_number_raw="123456782",
+                        first_name="Test",
+                        last_name="User",
+                        full_name="Test User",
+                        birth_date=date(1980, 1, 1),
+                    )
+                )
                 db.commit()
         finally:
             db.close()
@@ -107,63 +110,98 @@ class TestAgentEyesStage2(unittest.TestCase):
         trace_id = "test-trace-simulated-chain"
         set_current_trace_id(trace_id)
 
-        emit_event("user_input", {
-            "user_message": "מה הקבועים?",
-            "client_id": 1,
-            "endpoint": "/api/v1/llm/pension-chat",
-            "streaming": False,
-            "message_count": 1,
-            "body": {"messages_count": 1, "client_id": 1},
-        }, client_id=1, endpoint="/api/v1/llm/pension-chat")
+        emit_event(
+            "user_input",
+            {
+                "user_message": "מה הקבועים?",
+                "client_id": 1,
+                "endpoint": "/api/v1/llm/pension-chat",
+                "streaming": False,
+                "message_count": 1,
+                "body": {"messages_count": 1, "client_id": 1},
+            },
+            client_id=1,
+            endpoint="/api/v1/llm/pension-chat",
+        )
 
         time.sleep(0.001)
-        emit_event("llm_request_prepared", {
-            "provider": "openai",
-            "model": "gpt-4",
-            "messages_count": 3,
-            "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "מה הקבועים?"}],
-            "streaming": False,
-        }, client_id=1)
+        emit_event(
+            "llm_request_prepared",
+            {
+                "provider": "openai",
+                "model": "gpt-4",
+                "messages_count": 3,
+                "messages": [
+                    {"role": "system", "content": "..."},
+                    {"role": "user", "content": "מה הקבועים?"},
+                ],
+                "streaming": False,
+            },
+            client_id=1,
+        )
 
         time.sleep(0.001)
-        emit_event("tool_call", {
-            "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
-            "args": {},
-            "original_tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
-            "client_id": 1,
-            "user_approved": False,
-        }, client_id=1)
+        emit_event(
+            "tool_call",
+            {
+                "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
+                "args": {},
+                "original_tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
+                "client_id": 1,
+                "user_approved": False,
+            },
+            client_id=1,
+        )
 
         time.sleep(0.001)
-        emit_event("tool_result", {
-            "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
-            "success": True,
-            "elapsed_ms": 12,
-            "result_preview": '{"tax_ceiling": 10000}',
-            "result_length": 25,
-        }, client_id=1)
+        emit_event(
+            "tool_result",
+            {
+                "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
+                "success": True,
+                "elapsed_ms": 12,
+                "result_preview": '{"tax_ceiling": 10000}',
+                "result_length": 25,
+            },
+            client_id=1,
+        )
 
         time.sleep(0.001)
-        emit_event("assistant_output", {
-            "reply_length": 31,
-            "reply_preview": "הנה הקבועים המספריים של המערכת.",
-            "has_computed_data": False,
-            "streaming": False,
-        }, client_id=1, endpoint="/api/v1/llm/pension-chat")
+        emit_event(
+            "assistant_output",
+            {
+                "reply_length": 31,
+                "reply_preview": "הנה הקבועים המספריים של המערכת.",
+                "has_computed_data": False,
+                "streaming": False,
+            },
+            client_id=1,
+            endpoint="/api/v1/llm/pension-chat",
+        )
 
         events = get_events_by_trace(trace_id)
         event_types = [e["event_type"] for e in events]
 
-        mandatory = {"user_input", "llm_request_prepared", "tool_call", "tool_result", "assistant_output"}
+        mandatory = {
+            "user_input",
+            "llm_request_prepared",
+            "tool_call",
+            "tool_result",
+            "assistant_output",
+        }
         present = set(event_types)
         missing = mandatory - present
         self.assertEqual(missing, set(), f"Missing: {missing}. Present: {event_types}")
 
         timestamps = [e["ts_mono"] for e in events]
-        self.assertEqual(timestamps, sorted(timestamps), "Events not in chronological order")
+        self.assertEqual(
+            timestamps, sorted(timestamps), "Events not in chronological order"
+        )
 
         for ev in events:
-            self.assertIsNotNone(ev.get("payload"), f"Payload is None for {ev['event_type']}")
+            self.assertIsNotNone(
+                ev.get("payload"), f"Payload is None for {ev['event_type']}"
+            )
             self.assertEqual(ev["trace_id"], trace_id)
             self.assertEqual(ev["client_id"], 1)
 

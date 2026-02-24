@@ -11,7 +11,6 @@ from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import log_llm_event
 from app.utils.trace_context import get_current_trace_id
 
-
 logger = logging.getLogger("app.llm_chat")
 
 
@@ -25,7 +24,9 @@ def _compute_final_out_with_numeric_provenance_guardrail(
 ):
     inline_tool_blocks = extract_inline_tool_output_blocks(full_response)
     if inline_tool_blocks:
-        tool_only_text = "\n\n".join(b for b in inline_tool_blocks if isinstance(b, str) and b.strip()).strip()
+        tool_only_text = "\n\n".join(
+            b for b in inline_tool_blocks if isinstance(b, str) and b.strip()
+        ).strip()
         safe_user_out = (
             tool_only_text
             + "\n\n"
@@ -102,7 +103,11 @@ def _compute_final_out_with_numeric_provenance_guardrail(
             ln for ln in final_out.splitlines() if "מדרגות מס" not in ln
         )
     if is_portfolio_analysis and isinstance(final_out, str) and final_out.strip():
-        if "הערכה" not in final_out and "הערכה גסה" not in final_out and "ראשונית" not in final_out:
+        if (
+            "הערכה" not in final_out
+            and "הערכה גסה" not in final_out
+            and "ראשונית" not in final_out
+        ):
             final_out = (
                 "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\n"
                 + final_out

@@ -39,7 +39,9 @@ def _handle_tool_call_step(
     computed_data,
 ):
     from app.services.llm_chat.numeric_provenance import extract_numeric_matches
-    from app.services.llm_chat.numeric_provenance import sanitize_transparency_and_risk_blocks
+    from app.services.llm_chat.numeric_provenance import (
+        sanitize_transparency_and_risk_blocks,
+    )
     from app.utils.trace_context import get_current_trace_id
 
     raw_reply = sanitize_transparency_and_risk_blocks(raw_reply) or ""
@@ -80,7 +82,9 @@ def _handle_tool_call_step(
         ToolResultEnvelope,
     )
     from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
-    from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
+    from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
+        enrich_state_snapshot,
+    )
     from app.services.llm_chat.message_utils import (
         extract_target_pension_from_message,
         find_last_user_message,
@@ -107,7 +111,9 @@ def _handle_tool_call_step(
     from app.services.llm_chat.chat_orchestration_parts.chat_top_level_helpers import (
         _load_latest_pension_portfolio_snapshot_models,
     )
-    from app.services.llm_chat.chat_orchestration_parts.tool_calling import _execute_tool_call
+    from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
+        _execute_tool_call,
+    )
     from app.services.llm_chat.orchestration_utils import (
         build_partial_pension_transform_accounts_from_portfolio,
         build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio,
@@ -160,7 +166,10 @@ def _handle_tool_call_step(
             if analysis_default_retirement_age is not None:
                 tool_args["retirement_age"] = analysis_default_retirement_age
 
-        if _user_requested_target_pension_plan(original_user_msg) and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
+        if (
+            _user_requested_target_pension_plan(original_user_msg)
+            and tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
+        ):
             messages.append(
                 ChatMessage(
                     role="system",
@@ -263,7 +272,9 @@ def _handle_tool_call_step(
             )
 
         if tool_name == "PROCESS_TERMINATION" and (not explicit_termination):
-            allow_change_after_execution = bool(termination_already_executed and termination_change)
+            allow_change_after_execution = bool(
+                termination_already_executed and termination_change
+            )
             if not allow_change_after_execution:
                 messages.append(
                     ChatMessage(
@@ -355,25 +366,36 @@ def _handle_tool_call_step(
                 )
 
             if (not current_pension_portfolio) and request.client_id is not None:
-                loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = _load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     current_pension_portfolio, _effective_snapshot_at = loaded
 
-            if isinstance(current_pension_portfolio, list) and current_pension_portfolio:
-                targeted_req = parse_targeted_component_conversion_request(original_user_msg)
+            if (
+                isinstance(current_pension_portfolio, list)
+                and current_pension_portfolio
+            ):
+                targeted_req = parse_targeted_component_conversion_request(
+                    original_user_msg
+                )
                 if targeted_req is not None:
                     acc_num, fields, conv_type = targeted_req
-                    targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                        pension_portfolio=current_pension_portfolio,
-                        account_number=acc_num,
-                        fields=fields,
-                        conversion_type=conv_type,
+                    targeted_accounts = (
+                        build_targeted_component_transform_accounts_from_portfolio(
+                            pension_portfolio=current_pension_portfolio,
+                            account_number=acc_num,
+                            fields=fields,
+                            conversion_type=conv_type,
+                        )
                     )
                     if targeted_accounts:
                         tool_args["accounts"] = targeted_accounts
                         tool_args["use_provided_accounts_only"] = True
                 else:
-                    prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(original_user_msg)
+                    prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(
+                        original_user_msg
+                    )
                     if prev_sev_req is not None:
                         _fields, conv_type = prev_sev_req
                         if conv_type != "blocked":
@@ -385,7 +407,9 @@ def _handle_tool_call_step(
                                 tool_args["accounts"] = portfolio_accounts
                                 tool_args["use_provided_accounts_only"] = True
                     else:
-                        after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(original_user_msg)
+                        after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
+                            original_user_msg
+                        )
                         if after_settle_req is not None:
                             _fields, conv_type = after_settle_req
                             portfolio_accounts = build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio(
@@ -396,7 +420,11 @@ def _handle_tool_call_step(
                                 tool_args["accounts"] = portfolio_accounts
                                 tool_args["use_provided_accounts_only"] = True
                         else:
-                            portfolio_wide_req = parse_portfolio_wide_component_conversion_request(original_user_msg)
+                            portfolio_wide_req = (
+                                parse_portfolio_wide_component_conversion_request(
+                                    original_user_msg
+                                )
+                            )
                             if portfolio_wide_req is not None:
                                 fields, conv_type = portfolio_wide_req
                                 portfolio_accounts = build_portfolio_wide_component_transform_accounts_from_portfolio(
@@ -408,7 +436,9 @@ def _handle_tool_call_step(
                                     tool_args["accounts"] = portfolio_accounts
                                     tool_args["use_provided_accounts_only"] = True
                             else:
-                                edu_req = parse_portfolio_wide_education_fund_conversion_request(original_user_msg)
+                                edu_req = parse_portfolio_wide_education_fund_conversion_request(
+                                    original_user_msg
+                                )
                                 if edu_req is not None:
                                     _fields, conv_type = edu_req
                                     edu_accounts = build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
@@ -447,17 +477,21 @@ def _handle_tool_call_step(
                 )
 
             if (not current_pension_portfolio) and request.client_id is not None:
-                loaded = _load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = _load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     current_pension_portfolio, _effective_snapshot_at = loaded
 
             partial_req = parse_partial_pension_conversion_request(original_user_msg)
             if partial_req is not None:
                 acc_num, amount = partial_req
-                partial_accounts = build_partial_pension_transform_accounts_from_portfolio(
-                    pension_portfolio=current_pension_portfolio,
-                    account_number=acc_num,
-                    amount=amount,
+                partial_accounts = (
+                    build_partial_pension_transform_accounts_from_portfolio(
+                        pension_portfolio=current_pension_portfolio,
+                        account_number=acc_num,
+                        amount=amount,
+                    )
                 )
                 if not partial_accounts:
                     messages.append(
@@ -488,14 +522,18 @@ def _handle_tool_call_step(
                 tool_args["accounts"] = partial_accounts
                 tool_args["use_provided_accounts_only"] = True
             else:
-                targeted_req = parse_targeted_component_conversion_request(original_user_msg)
+                targeted_req = parse_targeted_component_conversion_request(
+                    original_user_msg
+                )
                 if targeted_req is not None:
                     acc_num, fields, conv_type = targeted_req
-                    targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                        pension_portfolio=current_pension_portfolio,
-                        account_number=acc_num,
-                        fields=fields,
-                        conversion_type=conv_type,
+                    targeted_accounts = (
+                        build_targeted_component_transform_accounts_from_portfolio(
+                            pension_portfolio=current_pension_portfolio,
+                            account_number=acc_num,
+                            fields=fields,
+                            conversion_type=conv_type,
+                        )
                     )
                     if not targeted_accounts:
                         messages.append(
@@ -526,7 +564,9 @@ def _handle_tool_call_step(
                     tool_args["accounts"] = targeted_accounts
                     tool_args["use_provided_accounts_only"] = True
                 else:
-                    derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
+                    derived_accounts = build_transform_accounts_from_portfolio(
+                        current_pension_portfolio
+                    )
                     if not derived_accounts:
                         messages.append(
                             ChatMessage(
@@ -553,17 +593,31 @@ def _handle_tool_call_step(
                             current_step,
                         )
 
-                    tool_args_accounts = tool_args.get("accounts") if isinstance(tool_args, dict) else None
+                    tool_args_accounts = (
+                        tool_args.get("accounts")
+                        if isinstance(tool_args, dict)
+                        else None
+                    )
                     if not isinstance(tool_args, dict):
                         tool_args = {}
-                    if not (isinstance(tool_args_accounts, list) and tool_args_accounts):
+                    if not (
+                        isinstance(tool_args_accounts, list) and tool_args_accounts
+                    ):
                         tool_args["accounts"] = derived_accounts
                     else:
-                        if any(_is_aggregate_account(acc) for acc in tool_args_accounts if isinstance(acc, dict)):
+                        if any(
+                            _is_aggregate_account(acc)
+                            for acc in tool_args_accounts
+                            if isinstance(acc, dict)
+                        ):
                             tool_args["accounts"] = derived_accounts
                         else:
                             by_number = {
-                                (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip(): acc
+                                (
+                                    acc.get("account_number")
+                                    or acc.get("מספר_חשבון")
+                                    or ""
+                                ).strip(): acc
                                 for acc in derived_accounts
                                 if isinstance(acc, dict)
                             }
@@ -571,7 +625,11 @@ def _handle_tool_call_step(
                             for acc in tool_args_accounts:
                                 if not isinstance(acc, dict):
                                     continue
-                                num = (acc.get("account_number") or acc.get("מספר_חשבון") or "").strip()
+                                num = (
+                                    acc.get("account_number")
+                                    or acc.get("מספר_חשבון")
+                                    or ""
+                                ).strip()
                                 base = by_number.get(num) if num else None
                                 if base is None:
                                     continue
@@ -716,20 +774,29 @@ def _handle_tool_call_step(
 
         if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
             date_str = tool_args.get("retirement_date")
-            if isinstance(date_str, str) and date_str.strip() and request.client_id is not None:
+            if (
+                isinstance(date_str, str)
+                and date_str.strip()
+                and request.client_id is not None
+            ):
                 client = db.query(Client).filter(Client.id == request.client_id).first()
                 birth_date = getattr(client, "birth_date", None) if client else None
                 if birth_date is not None:
                     before_val = date_str.strip()
-                    tool_args["retirement_date"] = normalize_retirement_date_if_jan1_placeholder(
-                        retirement_date=before_val,
-                        birth_date=birth_date,
-                        user_message=original_user_msg,
+                    tool_args["retirement_date"] = (
+                        normalize_retirement_date_if_jan1_placeholder(
+                            retirement_date=before_val,
+                            birth_date=birth_date,
+                            user_message=original_user_msg,
+                        )
                     )
                     after_val = tool_args["retirement_date"]
                     if before_val != after_val:
                         try:
-                            from app.services.agent_trace_logger import log_trace_event as _log_norm
+                            from app.services.agent_trace_logger import (
+                                log_trace_event as _log_norm,
+                            )
+
                             _log_norm(
                                 event_type="args_normalized",
                                 payload={
@@ -745,7 +812,9 @@ def _handle_tool_call_step(
         if text_part:
             messages.append(ChatMessage(role="assistant", content=text_part))
 
-        tool_msg_content = build_tool_call_message_content(tool_call_data, ensure_ascii=True)
+        tool_msg_content = build_tool_call_message_content(
+            tool_call_data, ensure_ascii=True
+        )
         messages.append(ChatMessage(role="assistant", content=tool_msg_content))
 
         if tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"}:
@@ -915,10 +984,17 @@ def _handle_tool_call_step(
                         state_snapshot=enriched,
                         last_tool_result=env,
                     )
-                    core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                    core_deps = OrchestrationDeps(
+                        llm_generate=lambda messages, client_id=None: ""
+                    )
                     core_decision, _ = orchestrate(core_input, core_deps)
-                    if getattr(core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY:
-                        final_reply = str(getattr(core_decision, "final_text", "") or "")
+                    if (
+                        getattr(core_decision, "decision_code", None)
+                        == DecisionCode.RESPOND_ONLY
+                    ):
+                        final_reply = str(
+                            getattr(core_decision, "final_text", "") or ""
+                        )
                     else:
                         final_reply = forced_document_reply
                 except Exception:
@@ -997,11 +1073,15 @@ def _handle_tool_call_step(
                     state_snapshot=enriched,
                     last_tool_result=env,
                 )
-                core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                core_deps = OrchestrationDeps(
+                    llm_generate=lambda messages, client_id=None: ""
+                )
                 core_decision, _ = orchestrate(core_input, core_deps)
                 if (
-                    getattr(core_decision, "decision_code", None) == DecisionCode.TOOL_CALL
-                    and getattr(core_decision, "tool_name", None) == "GET_TAX_PROJECTION"
+                    getattr(core_decision, "decision_code", None)
+                    == DecisionCode.TOOL_CALL
+                    and getattr(core_decision, "tool_name", None)
+                    == "GET_TAX_PROJECTION"
                 ):
                     core_args = getattr(core_decision, "tool_args", None)
                     tax_args = core_args if isinstance(core_args, dict) else {}
@@ -1023,18 +1103,24 @@ def _handle_tool_call_step(
             )
             tax_msg = build_tax_result_system_message_for_chat(tax_result)
             messages.append(ChatMessage(role="system", content=tax_msg))
-            forced_user_prefix += "🔧 **פלט כלי (הערכת מס - שרשור אוטומטי):**\n" + tax_result + "\n\n"
+            forced_user_prefix += (
+                "🔧 **פלט כלי (הערכת מס - שרשור אוטומטי):**\n" + tax_result + "\n\n"
+            )
 
         if False and (
             (not forced_fixation_chain_done)
             and tool_name in {"TRANSFORM_FUNDS_TO_ASSETS", "PROCESS_TERMINATION"}
         ):
             user_msg_for_chain = find_last_user_message(request.messages) or ""
-            user_wants_target_plan = _user_requested_target_pension_plan(user_msg_for_chain)
+            user_wants_target_plan = _user_requested_target_pension_plan(
+                user_msg_for_chain
+            )
             if user_wants_target_plan and _infer_target_is_net(user_msg_for_chain):
                 target_val = None
                 try:
-                    target_val = float(extract_target_pension_from_message(user_msg_for_chain) or 0)
+                    target_val = float(
+                        extract_target_pension_from_message(user_msg_for_chain) or 0
+                    )
                 except Exception:
                     target_val = None
                 if target_val and target_val > 0:
@@ -1130,21 +1216,29 @@ def _handle_tool_call_step(
                                 user_text="",
                                 client_id=getattr(request, "client_id", None),
                                 session_id=getattr(request, "session_id", None),
-                                conversation_id=getattr(request, "conversation_id", None),
+                                conversation_id=getattr(
+                                    request, "conversation_id", None
+                                ),
                                 trace_id=getattr(request, "trace_id", None),
                                 feature_flags={},
                                 request_meta=None,
                                 state_snapshot=enriched,
                                 last_tool_result=env,
                             )
-                            core_deps = OrchestrationDeps(llm_generate=lambda messages, client_id=None: "")
+                            core_deps = OrchestrationDeps(
+                                llm_generate=lambda messages, client_id=None: ""
+                            )
                             core_decision, _ = orchestrate(core_input, core_deps)
                             if (
-                                getattr(core_decision, "decision_code", None) == DecisionCode.TOOL_CALL
-                                and getattr(core_decision, "tool_name", None) == "GET_TAX_PROJECTION"
+                                getattr(core_decision, "decision_code", None)
+                                == DecisionCode.TOOL_CALL
+                                and getattr(core_decision, "tool_name", None)
+                                == "GET_TAX_PROJECTION"
                             ):
                                 core_args = getattr(core_decision, "tool_args", None)
-                                tax_args = core_args if isinstance(core_args, dict) else {}
+                                tax_args = (
+                                    core_args if isinstance(core_args, dict) else {}
+                                )
                                 tax_after = _execute_tool_call(
                                     "GET_TAX_PROJECTION",
                                     tax_args,
@@ -1163,11 +1257,15 @@ def _handle_tool_call_step(
                         messages.append(
                             ChatMessage(
                                 role="system",
-                                content=build_tax_result_system_message_for_chat(tax_after),
+                                content=build_tax_result_system_message_for_chat(
+                                    tax_after
+                                ),
                             )
                         )
                         forced_user_prefix += (
-                            "🔧 **פלט כלי (הערכת מס - אחרי קיבוע זכויות):**\n" + tax_after + "\n\n"
+                            "🔧 **פלט כלי (הערכת מס - אחרי קיבוע זכויות):**\n"
+                            + tax_after
+                            + "\n\n"
                         )
 
                     forced_fixation_chain_done = True
@@ -1231,17 +1329,25 @@ def _handle_no_tool_call_step(
     forced_user_prefix: str,
     final_reply: str,
     current_step: int,
- ):
+):
     from app.models.client import Client
-    from app.services.llm_chat.numeric_provenance import extract_inline_tool_output_blocks
+    from app.services.llm_chat.numeric_provenance import (
+        extract_inline_tool_output_blocks,
+    )
     from app.services.llm_chat.numeric_provenance import extract_numeric_matches
-    from app.services.llm_chat.numeric_provenance import sanitize_transparency_and_risk_blocks
-    from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
+    from app.services.llm_chat.numeric_provenance import (
+        sanitize_transparency_and_risk_blocks,
+    )
+    from app.services.llm_chat.numeric_provenance import (
+        validate_reply_numeric_provenance,
+    )
     from app.services.llm_chat.orchestration_utils import (
         is_tax_documents_request,
     )
     from app.utils.trace_context import get_current_trace_id
-    from app.services.llm_chat.chat_orchestration_parts.chat_helpers import _user_requested_target_pension_plan
+    from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
+        _user_requested_target_pension_plan,
+    )
     from app.services.llm_chat.message_utils import find_last_user_message
     from app.services.llm_chat.orchestration_utils import is_net_pension_request
 
@@ -1313,7 +1419,11 @@ def _handle_no_tool_call_step(
 
     if is_doc_request and not has_tool_results:
         is_tax_doc_request = is_tax_documents_request(original_user_msg)
-        doc_tool = "GENERATE_TAX_DEDUCTION_DOCUMENTS" if is_tax_doc_request else "GENERATE_FULL_REPORT"
+        doc_tool = (
+            "GENERATE_TAX_DEDUCTION_DOCUMENTS"
+            if is_tax_doc_request
+            else "GENERATE_FULL_REPORT"
+        )
         warning_msg = (
             "אזהרה: המשתמש ביקש דוח/מסמך להורדה. אסור לך להשיב טקסט חופשי או לטעון שהופק דוח ללא הפעלת כלי GENERATE_* "
             "והחזרת download_url. התשובה האחרונה שלך בוטלה. "
@@ -1326,14 +1436,14 @@ def _handle_no_tool_call_step(
 
     allowed_sources: list[str] = []
     try:
-        for msg in (request.messages or []):
+        for msg in request.messages or []:
             if getattr(msg, "role", None) == "user":
                 allowed_sources.append(getattr(msg, "content", "") or "")
     except Exception:
         pass
 
     try:
-        for msg in (messages or []):
+        for msg in messages or []:
             if getattr(msg, "role", None) != "system":
                 continue
             content = getattr(msg, "content", "") or ""
@@ -1345,7 +1455,7 @@ def _handle_no_tool_call_step(
                 or ("📂 **תיק פנסיוני" in content)
                 or ("סיכום נתונים גולמיים" in content)
                 or ("סיכום מהיר" in content)
-                or ("סה\"כ יתרות" in content)
+                or ('סה"כ יתרות' in content)
                 or ("תרחישי פרישה" in content)
                 or ("📋 **פרטי הלקוח**" in content)
                 or ("💰 **סיכום פיננסי**" in content)

@@ -16,9 +16,15 @@ def _format_list_all_entities(
         parsed = None
 
     entities = parsed.get("entities") if isinstance(parsed, dict) else {}
-    pension_funds = entities.get("pension_funds") if isinstance(entities, dict) else None
-    capital_assets = entities.get("capital_assets") if isinstance(entities, dict) else None
-    additional_incomes = entities.get("additional_incomes") if isinstance(entities, dict) else None
+    pension_funds = (
+        entities.get("pension_funds") if isinstance(entities, dict) else None
+    )
+    capital_assets = (
+        entities.get("capital_assets") if isinstance(entities, dict) else None
+    )
+    additional_incomes = (
+        entities.get("additional_incomes") if isinstance(entities, dict) else None
+    )
 
     lines: list[str] = []
     lines.append("הנתונים שנמצאים כרגע במערכת (DB) + תיק מסלקה שניטען:")
@@ -38,7 +44,11 @@ def _format_list_all_entities(
         for ai in additional_incomes:
             if not isinstance(ai, dict):
                 continue
-            desc = (ai.get("description") or ai.get("source_type") or "הכנסה").strip() if isinstance(ai.get("description") or ai.get("source_type") or "", str) else "הכנסה"
+            desc = (
+                (ai.get("description") or ai.get("source_type") or "הכנסה").strip()
+                if isinstance(ai.get("description") or ai.get("source_type") or "", str)
+                else "הכנסה"
+            )
             amount = _fmt_money(ai.get("amount"))
             freq = ai.get("frequency") or ""
             start = ai.get("start_date") or ""
@@ -55,12 +65,18 @@ def _format_list_all_entities(
         for pf in pension_funds:
             if not isinstance(pf, dict):
                 continue
-            name = (pf.get("fund_name") or "קופה").strip() if isinstance(pf.get("fund_name") or "", str) else "קופה"
+            name = (
+                (pf.get("fund_name") or "קופה").strip()
+                if isinstance(pf.get("fund_name") or "", str)
+                else "קופה"
+            )
             p_amount = _fmt_money(pf.get("pension_amount"))
             bal = _fmt_money(pf.get("balance"))
             lines.append(f"- {name}: קצבה={p_amount} ₪/חודש | יתרה={bal} ₪")
     else:
-        lines.append("- לא נמצאו קצבאות/קופות ב-DB (ייתכן שעדיין לא בוצעה המרה מהמסלקה לנכסים)")
+        lines.append(
+            "- לא נמצאו קצבאות/קופות ב-DB (ייתכן שעדיין לא בוצעה המרה מהמסלקה לנכסים)"
+        )
 
     # Capital assets
     lines.append("")
@@ -69,7 +85,11 @@ def _format_list_all_entities(
         for ca in capital_assets:
             if not isinstance(ca, dict):
                 continue
-            name = (ca.get("asset_name") or "נכס").strip() if isinstance(ca.get("asset_name") or "", str) else "נכס"
+            name = (
+                (ca.get("asset_name") or "נכס").strip()
+                if isinstance(ca.get("asset_name") or "", str)
+                else "נכס"
+            )
             cur = _fmt_money(ca.get("current_value"))
             mi = _fmt_money(ca.get("monthly_income"))
             lines.append(f"- {name}: שווי={cur} ₪ | הכנסה חודשית={mi} ₪")

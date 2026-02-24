@@ -9,7 +9,6 @@ import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_p
 from app.main import app
 from app.models.client import Client
 
-
 _FORBIDDEN_SUBSTRINGS: tuple[str, ...] = (
     "###UI_ACTION###",
     "approval_request",
@@ -45,17 +44,28 @@ def _setup_client(_test_db, *, client_id: int) -> int:
 
 
 def _block_tools_and_llm(monkeypatch) -> None:
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
-        raise AssertionError("No tools must be executed for termination/compensation conceptual-only")
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
+        raise AssertionError(
+            "No tools must be executed for termination/compensation conceptual-only"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for termination/compensation conceptual-only")
+        raise AssertionError(
+            "LLM must not be called for termination/compensation conceptual-only"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
-def test_stream_termination_conceptual_only_A_explainer_only(monkeypatch, _test_db) -> None:
+
+def test_stream_termination_conceptual_only_A_explainer_only(
+    monkeypatch, _test_db
+) -> None:
     client_id = _setup_client(_test_db, client_id=920000010)
 
     def fake_today() -> date:
@@ -86,7 +96,9 @@ def test_stream_termination_conceptual_only_A_explainer_only(monkeypatch, _test_
         assert bad not in text
 
 
-def test_stream_termination_conceptual_only_B_execute_phrase_but_no_execute(monkeypatch, _test_db) -> None:
+def test_stream_termination_conceptual_only_B_execute_phrase_but_no_execute(
+    monkeypatch, _test_db
+) -> None:
     client_id = _setup_client(_test_db, client_id=920000012)
 
     def fake_today() -> date:

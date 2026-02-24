@@ -5,7 +5,6 @@ from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
 
-
 _LEGACY_MODULE: ModuleType | None = None
 
 

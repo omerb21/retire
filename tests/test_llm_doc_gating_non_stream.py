@@ -5,7 +5,9 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 
 
-def test_doc_request_non_qa_blocks_non_doc_tools(db_session, client, monkeypatch) -> None:
+def test_doc_request_non_qa_blocks_non_doc_tools(
+    db_session, client, monkeypatch
+) -> None:
     responses = iter(
         [
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "PROCESS_TERMINATION", "arguments": {"confirmed": true}}',
@@ -46,7 +48,9 @@ def test_doc_request_non_qa_blocks_non_doc_tools(db_session, client, monkeypatch
     monkeypatch.setattr(chat_orchestration, "execute_tool_call", fake_execute_tool_call)
 
     req = ChatRequest(
-        messages=[ChatMessage(role="user", content="אנא הפק דוח מלא להורדה עבור הלקוח הנוכחי")],
+        messages=[
+            ChatMessage(role="user", content="אנא הפק דוח מלא להורדה עבור הלקוח הנוכחי")
+        ],
         client_id=client.id,
         pension_portfolio=None,
     )

@@ -12,7 +12,9 @@ from app.services.llm_chat.tool_handlers.transform_funds_to_assets import (
 )
 
 
-def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client) -> None:
+def test_transform_capital_asset_and_zero_source_and_cashflow(
+    db_session, client
+) -> None:
     account_number = "ACC123"
 
     db_session.query(CapitalAsset).filter(
@@ -50,7 +52,9 @@ def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client
     db_session.add(source_pf)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
 
     result_str = handle_transform_funds_to_assets(
         args={
@@ -78,7 +82,9 @@ def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client
         .filter(
             CapitalAsset.client_id == client.id,
             CapitalAsset.conversion_source.isnot(None),
-            CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+            CapitalAsset.conversion_source.like(
+                f'%"account_number": "{account_number}"%'
+            ),
         )
         .first()
     )
@@ -106,7 +112,9 @@ def test_transform_capital_asset_and_zero_source_and_cashflow(db_session, client
     assert float(cashflow[0]["net_return"]) == 100000.0
 
 
-def test_transform_creates_capital_assets_with_current_value(db_session, client) -> None:
+def test_transform_creates_capital_assets_with_current_value(
+    db_session, client
+) -> None:
     account_number = "ACC-API-CAP-1"
     db_session.query(CapitalAsset).filter(
         CapitalAsset.client_id == client.id,
@@ -115,7 +123,9 @@ def test_transform_creates_capital_assets_with_current_value(db_session, client)
     ).delete(synchronize_session=False)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
     result_str = handle_transform_funds_to_assets(
         args={
             "accounts": [
@@ -147,7 +157,8 @@ def test_transform_creates_capital_assets_with_current_value(db_session, client)
         for a in assets
         if isinstance(a, dict)
         and str(a.get("conversion_source") or "").find(account_number) >= 0
-        and str(a.get("conversion_source") or "").find("llm_transform_funds_to_assets") >= 0
+        and str(a.get("conversion_source") or "").find("llm_transform_funds_to_assets")
+        >= 0
     ]
     assert created
 
@@ -190,7 +201,9 @@ def test_transform_reduces_pension_portfolio_components(db_session, client) -> N
     db_session.add(snapshot)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
     result_str = handle_transform_funds_to_assets(
         args={
             "accounts": [
@@ -219,7 +232,14 @@ def test_transform_reduces_pension_portfolio_components(db_session, client) -> N
     assert resp.status_code == 200
     updated = resp.json()
     assert isinstance(updated, list)
-    row = next((r for r in updated if isinstance(r, dict) and r.get("מספר_חשבון") == account_number), None)
+    row = next(
+        (
+            r
+            for r in updated
+            if isinstance(r, dict) and r.get("מספר_חשבון") == account_number
+        ),
+        None,
+    )
     assert row is not None
     assert float(row.get("יתרה") or 0) == 0.0
     assert float(row.get("תגמולי_עובד_אחרי_2000") or 0) == 0.0
@@ -229,7 +249,9 @@ def test_transform_reduces_pension_portfolio_components(db_session, client) -> N
     assert float(row["specific_amounts"].get("תגמולי_מעביד_אחרי_2000") or 0) == 0.0
 
 
-def test_transform_does_not_convert_current_employer_severance_via_tagmulim(db_session, client) -> None:
+def test_transform_does_not_convert_current_employer_severance_via_tagmulim(
+    db_session, client
+) -> None:
     account_number = "ACC-SEV-1"
     severance_amount = 12345.0
 
@@ -244,7 +266,9 @@ def test_transform_does_not_convert_current_employer_severance_via_tagmulim(db_s
         PensionFund.deduction_file == account_number,
     ).delete(synchronize_session=False)
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
 
     result_str = handle_transform_funds_to_assets(
         args={
@@ -274,17 +298,23 @@ def test_transform_does_not_convert_current_employer_severance_via_tagmulim(db_s
 
     skipped_items = payload.get("skipped_items") or []
     assert any(
-        item.get("field") == "פיצויים_מעסיק_נוכחי" and float(item.get("amount") or 0) == severance_amount
+        item.get("field") == "פיצויים_מעסיק_נוכחי"
+        and float(item.get("amount") or 0) == severance_amount
         for item in skipped_items
     )
-    assert float(payload.get("employer_current_severance_not_converted") or 0) == severance_amount
+    assert (
+        float(payload.get("employer_current_severance_not_converted") or 0)
+        == severance_amount
+    )
 
     ca = (
         db_session.query(CapitalAsset)
         .filter(
             CapitalAsset.client_id == client.id,
             CapitalAsset.conversion_source.isnot(None),
-            CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+            CapitalAsset.conversion_source.like(
+                f'%"account_number": "{account_number}"%'
+            ),
         )
         .first()
     )
@@ -301,7 +331,9 @@ def test_transform_does_not_convert_current_employer_severance_via_tagmulim(db_s
     assert pf is None
 
 
-def test_transform_pension_does_not_zero_tool_created_pension_fund(db_session, client) -> None:
+def test_transform_pension_does_not_zero_tool_created_pension_fund(
+    db_session, client
+) -> None:
     account_number = "ACC-PEN-1"
     amount = 100000.0
 
@@ -335,7 +367,9 @@ def test_transform_pension_does_not_zero_tool_created_pension_fund(db_session, c
     db_session.add(source_pf)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
 
     result_str = handle_transform_funds_to_assets(
         args={
@@ -367,7 +401,9 @@ def test_transform_pension_does_not_zero_tool_created_pension_fund(db_session, c
             PensionFund.client_id == client.id,
             PensionFund.deduction_file == account_number,
             PensionFund.conversion_source.isnot(None),
-            PensionFund.conversion_source.like('%"source": "llm_transform_funds_to_assets"%'),
+            PensionFund.conversion_source.like(
+                '%"source": "llm_transform_funds_to_assets"%'
+            ),
         )
         .first()
     )
@@ -378,7 +414,9 @@ def test_transform_pension_does_not_zero_tool_created_pension_fund(db_session, c
     assert float(source_pf.balance or 0) == 0.0
 
 
-def test_transform_updates_snapshot_scenario_zeroes_converted_components(db_session, client) -> None:
+def test_transform_updates_snapshot_scenario_zeroes_converted_components(
+    db_session, client
+) -> None:
     account_number = "ACC-SNAP-1"
 
     db_session.query(Scenario).filter(
@@ -403,12 +441,16 @@ def test_transform_updates_snapshot_scenario_zeroes_converted_components(db_sess
         apply_tax_planning=False,
         apply_capitalization=False,
         apply_exemption_shield=False,
-        parameters=json.dumps({"pension_portfolio": initial_portfolio}, ensure_ascii=False),
+        parameters=json.dumps(
+            {"pension_portfolio": initial_portfolio}, ensure_ascii=False
+        ),
     )
     db_session.add(snapshot)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
     result_str = handle_transform_funds_to_assets(
         args={
             "accounts": [
@@ -446,7 +488,9 @@ def test_transform_updates_snapshot_scenario_zeroes_converted_components(db_sess
     latest_params = json.loads(latest_snapshot.parameters)
     latest_portfolio = latest_params.get("pension_portfolio")
     assert isinstance(latest_portfolio, list) and latest_portfolio
-    row = next((r for r in latest_portfolio if r.get("מספר_חשבון") == account_number), None)
+    row = next(
+        (r for r in latest_portfolio if r.get("מספר_חשבון") == account_number), None
+    )
     assert row is not None
     assert float(row.get("יתרה") or 0) == 0.0
     assert float(row.get("תגמולי_עובד_אחרי_2008_לא_משלמת") or 0) == 0.0
@@ -485,12 +529,16 @@ def test_transform_updates_snapshot_scenario_zeroes_education_fund_even_when_edu
         apply_tax_planning=False,
         apply_capitalization=False,
         apply_exemption_shield=False,
-        parameters=json.dumps({"pension_portfolio": initial_portfolio}, ensure_ascii=False),
+        parameters=json.dumps(
+            {"pension_portfolio": initial_portfolio}, ensure_ascii=False
+        ),
     )
     db_session.add(snapshot)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
     result_str = handle_transform_funds_to_assets(
         args={
             "accounts": [
@@ -526,7 +574,9 @@ def test_transform_updates_snapshot_scenario_zeroes_education_fund_even_when_edu
     latest_params = json.loads(latest_snapshot.parameters)
     latest_portfolio = latest_params.get("pension_portfolio")
     assert isinstance(latest_portfolio, list) and latest_portfolio
-    row = next((r for r in latest_portfolio if r.get("מספר_חשבון") == account_number), None)
+    row = next(
+        (r for r in latest_portfolio if r.get("מספר_חשבון") == account_number), None
+    )
     assert row is not None
     assert float(row.get("יתרה") or 0) == 0.0
     assert float(row.get("קרן_השתלמות") or 0) == 0.0
@@ -550,7 +600,9 @@ def test_transform_tagmulim_to_2000_capital_is_exempt(db_session, client) -> Non
         PensionFund.deduction_file == account_number,
     ).delete(synchronize_session=False)
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
 
     result_str = handle_transform_funds_to_assets(
         args={
@@ -581,7 +633,9 @@ def test_transform_tagmulim_to_2000_capital_is_exempt(db_session, client) -> Non
         .filter(
             CapitalAsset.client_id == client.id,
             CapitalAsset.conversion_source.isnot(None),
-            CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+            CapitalAsset.conversion_source.like(
+                f'%"account_number": "{account_number}"%'
+            ),
         )
         .first()
     )

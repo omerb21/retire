@@ -16,7 +16,7 @@ def _maybe_handle_post_conversion_lock_early_block(
     load_pending_approval_ui_action_if_match,
     build_post_conversion_lock_message,
     build_post_conversion_plan_message,
- ):
+):
     if not (request.client_id is not None and isinstance(original_user_msg, str)):
         return None
 
@@ -95,7 +95,7 @@ def _maybe_handle_post_conversion_lock_late_block(
     load_pending_approval_ui_action_if_match,
     build_post_conversion_lock_message,
     build_post_conversion_plan_message,
- ):
+):
     if not (request.client_id is not None and isinstance(original_user_msg, str)):
         return None
 

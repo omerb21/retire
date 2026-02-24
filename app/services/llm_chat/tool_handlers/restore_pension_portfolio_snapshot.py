@@ -9,7 +9,9 @@ from app.services.pension_portfolio.snapshot_loader import (
     dedupe_pension_portfolio_snapshot,
     upsert_snapshot,
 )
-from app.services.llm_chat.chat_orchestration_helpers import clear_pending_approval_request
+from app.services.llm_chat.chat_orchestration_helpers import (
+    clear_pending_approval_request,
+)
 from app.utils.llm_chat_log import get_current_request_id
 
 
@@ -67,7 +69,9 @@ def handle_restore_pension_portfolio_snapshot(
         .order_by(Scenario.id.desc())
         .first()
     )
-    previous_snapshot_scenario_id = int(getattr(latest, "id", 0) or 0) if latest is not None else None
+    previous_snapshot_scenario_id = (
+        int(getattr(latest, "id", 0) or 0) if latest is not None else None
+    )
 
     try:
         params = json.loads(source.parameters) if source.parameters else {}
@@ -101,7 +105,9 @@ def handle_restore_pension_portfolio_snapshot(
             portfolio,
             meta=meta,
         )
-        kept_snapshot_id, _deleted_ids = dedupe_pension_portfolio_snapshot(db, client_id)
+        kept_snapshot_id, _deleted_ids = dedupe_pension_portfolio_snapshot(
+            db, client_id
+        )
         db.refresh(scenario)
         try:
             clear_pending_approval_request(db=db, client_id=client_id)

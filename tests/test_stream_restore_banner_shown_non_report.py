@@ -9,13 +9,19 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_restore_banner_shown_for_2_minutes_non_report(monkeypatch, _test_db) -> None:
+def test_stream_restore_banner_shown_for_2_minutes_non_report(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic data awareness flow")
+        raise AssertionError(
+            "LLM must not be called for deterministic data awareness flow"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(
         *,
@@ -31,7 +37,10 @@ def test_stream_restore_banner_shown_for_2_minutes_non_report(monkeypatch, _test
     ) -> str:
         assert user_approved is True
         if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
-            return json.dumps({"generated_at": "now", "counts": {}, "entities": {}}, ensure_ascii=False)
+            return json.dumps(
+                {"generated_at": "now", "counts": {}, "entities": {}},
+                ensure_ascii=False,
+            )
         raise AssertionError(f"Unexpected tool call: {tool_name}")
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
@@ -77,12 +86,16 @@ def test_stream_restore_banner_shown_for_2_minutes_non_report(monkeypatch, _test
     )
     assert resp.status_code == 200
     body = resp.text
-    assert "מצב מערכת: שוחזר סנאפסוט (restore_snapshot). אפשר להמשיך לתכנית/תרחיש." in body
+    assert (
+        "מצב מערכת: שוחזר סנאפסוט (restore_snapshot). אפשר להמשיך לתכנית/תרחיש." in body
+    )
 
     # Expired banner should not show (simulate old restore)
     with Session() as db:
         old_meta = dict(restore_meta)
-        old_meta["restored_at_utc"] = (datetime.now(timezone.utc) - timedelta(seconds=121)).isoformat()
+        old_meta["restored_at_utc"] = (
+            datetime.now(timezone.utc) - timedelta(seconds=121)
+        ).isoformat()
         old_params = {"pension_portfolio": [], "_meta": old_meta}
         snap2 = Scenario(
             client_id=client_id,
@@ -104,4 +117,7 @@ def test_stream_restore_banner_shown_for_2_minutes_non_report(monkeypatch, _test
     )
     assert resp2.status_code == 200
     body2 = resp2.text
-    assert "מצב מערכת: שוחזר סנאפסוט (restore_snapshot). אפשר להמשיך לתכנית/תרחיש." not in body2
+    assert (
+        "מצב מערכת: שוחזר סנאפסוט (restore_snapshot). אפשר להמשיך לתכנית/תרחיש."
+        not in body2
+    )

@@ -1,10 +1,12 @@
 """
 Grant schema models for Pydantic validation
 """
+
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import date, datetime
 from decimal import Decimal
+
 
 class GrantBase(BaseModel):
     employer_name: str = Field(..., description="שם המעסיק")
@@ -16,8 +18,10 @@ class GrantBase(BaseModel):
     service_years: Optional[float] = Field(None, description="שנות שירות")
     reason: Optional[str] = Field(None, description="סיבת המענק")
 
+
 class GrantCreate(GrantBase):
     pass
+
 
 class GrantUpdate(BaseModel):
     employer_name: Optional[str] = None
@@ -29,16 +33,19 @@ class GrantUpdate(BaseModel):
     service_years: Optional[float] = Field(None, ge=0)
     reason: Optional[str] = None
 
+
 class GrantCalculation(BaseModel):
     grant_exempt: float = Field(0, description="סכום פטור ממס")
     grant_taxable: float = Field(0, description="סכום חייב במס")
     tax_due: float = Field(0, description="מס לתשלום")
 
+
 class GrantOut(GrantBase):
     id: int
     client_id: int
-    
+
     model_config = ConfigDict(from_attributes=True)
+
 
 class GrantWithCalculation(GrantOut):
     calculation: Optional[GrantCalculation] = None

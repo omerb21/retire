@@ -13,7 +13,9 @@ _DECIMAL_RE = re.compile(r"\d+\.\d+")
 _THOUSANDS_RE = re.compile(r"\d{1,3}(?:,\d{3})+")
 _COMMA_NUMBER_RE = re.compile(r"\d+,\d+")
 _LONG_NUMBER_RE = re.compile(r"\d{4,}")
-_ALLOWED_FORM_SECTION_RE = re.compile(r"(?:טופס|טפסי|סעיף)\s*\d{1,4}(?:[א-ת])?|\b\d{1,4}[א-ת]\b")
+_ALLOWED_FORM_SECTION_RE = re.compile(
+    r"(?:טופס|טפסי|סעיף)\s*\d{1,4}(?:[א-ת])?|\b\d{1,4}[א-ת]\b"
+)
 
 _FORBIDDEN_SYMBOLS: tuple[str, ...] = (
     "%",
@@ -98,7 +100,9 @@ def enforce_behavioral_limits(text: str) -> tuple[bool, str]:
         ):
             return False, STANDARD_BLOCK_MESSAGE
 
-        allowed_spans = [(m.start(), m.end()) for m in _ALLOWED_FORM_SECTION_RE.finditer(candidate)]
+        allowed_spans = [
+            (m.start(), m.end()) for m in _ALLOWED_FORM_SECTION_RE.finditer(candidate)
+        ]
 
         def _is_span_allowed(start: int, end: int) -> bool:
             for a_start, a_end in allowed_spans:

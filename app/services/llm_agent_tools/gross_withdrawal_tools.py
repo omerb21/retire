@@ -51,9 +51,12 @@ class GrossWithdrawalToolsMixin:
 
         # אם לא סופקה קצבה, נסה לקחת מהתרחישים
         if guaranteed_pension is None:
-            scenarios = self.db.query(Scenario).filter(
-                Scenario.client_id == self.client_id
-            ).order_by(Scenario.created_at.desc()).first()
+            scenarios = (
+                self.db.query(Scenario)
+                .filter(Scenario.client_id == self.client_id)
+                .order_by(Scenario.created_at.desc())
+                .first()
+            )
 
             if scenarios and scenarios.summary_results:
                 try:
@@ -72,7 +75,9 @@ class GrossWithdrawalToolsMixin:
                     .filter(PensionFund.client_id == self.client_id)
                     .all()
                 )
-                guaranteed_pension = sum(float(pf.pension_amount or 0) for pf in pension_funds)
+                guaranteed_pension = sum(
+                    float(pf.pension_amount or 0) for pf in pension_funds
+                )
             except Exception:
                 guaranteed_pension = 0
 
@@ -124,7 +129,9 @@ class GrossWithdrawalToolsMixin:
                 pass
 
             try:
-                monthly_val = float(additional_income_service.calculate_monthly_amount(inc) or 0)
+                monthly_val = float(
+                    additional_income_service.calculate_monthly_amount(inc) or 0
+                )
             except Exception:
                 try:
                     monthly_val = float(getattr(inc, "amount", 0) or 0)
@@ -190,9 +197,9 @@ class GrossWithdrawalToolsMixin:
         exempt_pension_amount_monthly = 0.0
         if exempt_pension_pct > 0:
             try:
-                exempt_pension_amount_monthly = float(get_monthly_cap(current_year)) * float(
-                    exempt_pension_pct
-                )
+                exempt_pension_amount_monthly = float(
+                    get_monthly_cap(current_year)
+                ) * float(exempt_pension_pct)
             except Exception:
                 exempt_pension_amount_monthly = 0.0
 
@@ -218,8 +225,12 @@ class GrossWithdrawalToolsMixin:
             interest_income=annual_interest_income,
             dividend_income=annual_dividend_income,
             other_income=annual_other_income,
-            pension_contributions=float(getattr(client, "pension_contributions", 0) or 0),
-            study_fund_contributions=float(getattr(client, "study_fund_contributions", 0) or 0),
+            pension_contributions=float(
+                getattr(client, "pension_contributions", 0) or 0
+            ),
+            study_fund_contributions=float(
+                getattr(client, "study_fund_contributions", 0) or 0
+            ),
             insurance_premiums=float(getattr(client, "insurance_premiums", 0) or 0),
             charitable_donations=float(getattr(client, "charitable_donations", 0) or 0),
             exempt_pension_amount=exempt_pension_amount_monthly,
@@ -248,10 +259,16 @@ class GrossWithdrawalToolsMixin:
                 interest_income=annual_interest_income,
                 dividend_income=annual_dividend_income,
                 other_income=annual_other_income + (float(withdrawal_monthly) * 12),
-                pension_contributions=float(getattr(client, "pension_contributions", 0) or 0),
-                study_fund_contributions=float(getattr(client, "study_fund_contributions", 0) or 0),
+                pension_contributions=float(
+                    getattr(client, "pension_contributions", 0) or 0
+                ),
+                study_fund_contributions=float(
+                    getattr(client, "study_fund_contributions", 0) or 0
+                ),
                 insurance_premiums=float(getattr(client, "insurance_premiums", 0) or 0),
-                charitable_donations=float(getattr(client, "charitable_donations", 0) or 0),
+                charitable_donations=float(
+                    getattr(client, "charitable_donations", 0) or 0
+                ),
                 exempt_pension_amount=exempt_pension_amount_monthly,
                 pension_months_in_year=12,
             )
@@ -262,8 +279,14 @@ class GrossWithdrawalToolsMixin:
             annual_tax = float(tax_result.net_tax)
             monthly_tax = annual_tax / 12
 
-            gross_total_monthly = float(gross_monthly_pension) + float(taxable_additional_monthly) + float(withdrawal_monthly)
-            net_total_monthly = gross_total_monthly - float(monthly_tax) - float(monthly_fixed_tax)
+            gross_total_monthly = (
+                float(gross_monthly_pension)
+                + float(taxable_additional_monthly)
+                + float(withdrawal_monthly)
+            )
+            net_total_monthly = (
+                gross_total_monthly - float(monthly_tax) - float(monthly_fixed_tax)
+            )
             return float(net_total_monthly), float(monthly_tax), tax_result
 
         low = 0.0
@@ -303,27 +326,47 @@ class GrossWithdrawalToolsMixin:
                 low = mid
 
         required_gross_withdrawal = float(high)
-        net_income_estimated, monthly_tax_estimated, final_tax_result = _net_for_withdrawal(required_gross_withdrawal)
+        net_income_estimated, monthly_tax_estimated, final_tax_result = (
+            _net_for_withdrawal(required_gross_withdrawal)
+        )
 
         explanation_lines: list[str] = []
         explanation_lines.append("🧾 חישוב משיכה חודשית ברוטו מההון כדי להגיע ליעד נטו")
         explanation_lines.append("")
         explanation_lines.append("**נלקח בחשבון:**")
-        explanation_lines.append(f"  • קצבה מובטחת חודשית (ברוטו): {gross_monthly_pension:,.0f} ₪")
+        explanation_lines.append(
+            f"  • קצבה מובטחת חודשית (ברוטו): {gross_monthly_pension:,.0f} ₪"
+        )
         if taxable_additional_monthly > 0:
-            explanation_lines.append(f"  • הכנסות נוספות חייבות למס הכנסה: {taxable_additional_monthly:,.0f} ₪/חודש")
+            explanation_lines.append(
+                f"  • הכנסות נוספות חייבות למס הכנסה: {taxable_additional_monthly:,.0f} ₪/חודש"
+            )
         if fixed_rate_income_monthly > 0:
-            explanation_lines.append(f"  • הכנסות נוספות במס קבוע: {fixed_rate_income_monthly:,.0f} ₪/חודש")
-            explanation_lines.append(f"  • מס במסלול קבוע (חודשי): {monthly_fixed_tax:,.0f} ₪")
+            explanation_lines.append(
+                f"  • הכנסות נוספות במס קבוע: {fixed_rate_income_monthly:,.0f} ₪/חודש"
+            )
+            explanation_lines.append(
+                f"  • מס במסלול קבוע (חודשי): {monthly_fixed_tax:,.0f} ₪"
+            )
         if exempt_pension_pct > 0:
-            explanation_lines.append(f"  • פטור קצבה (אחוז): {exempt_pension_pct*100:.1f}%")
+            explanation_lines.append(
+                f"  • פטור קצבה (אחוז): {exempt_pension_pct*100:.1f}%"
+            )
 
         explanation_lines.append("")
         explanation_lines.append("**תוצאה:**")
-        explanation_lines.append(f"  • יעד נטו: {float(desired_net_income):,.0f} ₪/חודש")
-        explanation_lines.append(f"  • משיכה חודשית ברוטו נדרשת (מההון): {required_gross_withdrawal:,.0f} ₪")
-        explanation_lines.append(f"  • נטו מחושב (כולל מס הכנסה ומס קבוע): {net_income_estimated:,.0f} ₪/חודש")
-        explanation_lines.append(f"  • מס הכנסה חודשי מחושב: {monthly_tax_estimated:,.0f} ₪")
+        explanation_lines.append(
+            f"  • יעד נטו: {float(desired_net_income):,.0f} ₪/חודש"
+        )
+        explanation_lines.append(
+            f"  • משיכה חודשית ברוטו נדרשת (מההון): {required_gross_withdrawal:,.0f} ₪"
+        )
+        explanation_lines.append(
+            f"  • נטו מחושב (כולל מס הכנסה ומס קבוע): {net_income_estimated:,.0f} ₪/חודש"
+        )
+        explanation_lines.append(
+            f"  • מס הכנסה חודשי מחושב: {monthly_tax_estimated:,.0f} ₪"
+        )
 
         return {
             "success": True,
@@ -339,8 +382,12 @@ class GrossWithdrawalToolsMixin:
                 "portfolio_additional_income_monthly": taxable_additional_monthly,
                 "exempt_pension_percentage": exempt_pension_pct,
                 "exempt_pension_amount_monthly": exempt_pension_amount_monthly,
-                "tax_breakdown": _to_jsonable(getattr(final_tax_result, "tax_breakdown", [])),
-                "income_breakdown": _to_jsonable(getattr(final_tax_result, "income_breakdown", [])),
+                "tax_breakdown": _to_jsonable(
+                    getattr(final_tax_result, "tax_breakdown", [])
+                ),
+                "income_breakdown": _to_jsonable(
+                    getattr(final_tax_result, "income_breakdown", [])
+                ),
             },
             "explanation": "\n".join(explanation_lines),
         }

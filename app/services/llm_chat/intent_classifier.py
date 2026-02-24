@@ -39,7 +39,7 @@ _NO_TOOLS_TRIGGERS: tuple[str, ...] = (
 
 _REPORT_TRIGGERS: tuple[str, ...] = (
     "דוח",
-    "דו\"ח",
+    'דו"ח',
     "מסמך",
     "מסמכים",
     "הפקת דוח",

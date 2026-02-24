@@ -47,9 +47,13 @@ def test_portfolio_analysis_includes_additional_incomes(monkeypatch, _test_db) -
         db.commit()
 
     def fake_chat_stream(*args, **kwargs):
-        raise AssertionError("LLM must not be called for deterministic portfolio analysis")
+        raise AssertionError(
+            "LLM must not be called for deterministic portfolio analysis"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_run_retirement_scenarios(self, *args, **kwargs):
         return {"success": False}
@@ -79,4 +83,4 @@ def test_portfolio_analysis_includes_additional_incomes(monkeypatch, _test_db) -
     assert "Apt" in body
     assert "תדירות: חודשי" in body
     assert "מס: פטור" in body
-    assert "סה\"כ הכנסות נוספות נטו חודשי משוער" in body
+    assert 'סה"כ הכנסות נוספות נטו חודשי משוער' in body

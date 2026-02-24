@@ -22,7 +22,6 @@ from app.schemas.calculation_result import (
 from app.services.cashflow_service import generate_cashflow
 from app.services.case_service import detect_case
 
-
 router = APIRouter(
     prefix="/api/v1",
     tags=["calc"],
@@ -107,7 +106,9 @@ def run_calculation(
         add_gross = float(row.get("additional_income_gross", 0) or 0)
         cap_gross = float(row.get("capital_return_gross", 0) or 0)
         add_tax_total = float(
-            row.get("additional_income_tax_for_total", row.get("additional_income_tax", 0))
+            row.get(
+                "additional_income_tax_for_total", row.get("additional_income_tax", 0)
+            )
             or 0
         )
         cap_tax = float(row.get("capital_return_tax", 0) or 0)

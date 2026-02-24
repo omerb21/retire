@@ -10,7 +10,9 @@ from app.models.scenario import Scenario
 from app.services.llm_agent_tools_service import AgentToolsService
 
 
-def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeypatch, _test_db) -> None:
+def test_stream_build_target_plan_no_sources_requests_transform_approval(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 950000001
@@ -48,7 +50,9 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -57,10 +61,16 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         return {
             "success": False,
@@ -69,14 +79,18 @@ def test_stream_build_target_plan_no_sources_requests_transform_approval(monkeyp
             "explanation": "לא נמצאו מקורות קצבה (קרנות פנסיה או נכסי הון) ללקוח.",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     api = TestClient(app)
     resp = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )

@@ -20,11 +20,14 @@ _log = logging.getLogger("app.access")
 def _extract_headers(scope: dict) -> dict[str, str]:
     """Pull a small subset of headers from the ASGI scope."""
     wanted = {
-        b"host", b"x-forwarded-for", b"x-forwarded-proto",
-        b"x-railway-request-id", b"x-trace-id",
+        b"host",
+        b"x-forwarded-for",
+        b"x-forwarded-proto",
+        b"x-railway-request-id",
+        b"x-trace-id",
     }
     out: dict[str, str] = {}
-    for raw_name, raw_value in (scope.get("headers") or []):
+    for raw_name, raw_value in scope.get("headers") or []:
         if raw_name in wanted:
             out[raw_name.decode("latin-1")] = raw_value.decode("latin-1")
     return out
@@ -36,7 +39,9 @@ class AccessLogMiddleware:
     def __init__(self, app: Callable) -> None:
         self.app = app
 
-    async def __call__(self, scope: dict[str, Any], receive: Callable, send: Callable) -> None:
+    async def __call__(
+        self, scope: dict[str, Any], receive: Callable, send: Callable
+    ) -> None:
         if scope.get("type") != "http":
             return await self.app(scope, receive, send)
 
@@ -68,12 +73,19 @@ class AccessLogMiddleware:
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             _log.exception(
                 "REQ_EX  %s %s status=%s %dms exc=%s",
-                method, path, status_code, elapsed_ms, exc,
+                method,
+                path,
+                status_code,
+                elapsed_ms,
+                exc,
             )
             raise
         else:
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             _log.info(
                 "REQ_OUT %s %s status=%s %dms",
-                method, path, status_code, elapsed_ms,
+                method,
+                path,
+                status_code,
+                elapsed_ms,
             )

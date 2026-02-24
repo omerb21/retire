@@ -5,7 +5,9 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 
 
-def test_tax_question_does_not_trigger_transform_tool(db_session, client, monkeypatch) -> None:
+def test_tax_question_does_not_trigger_transform_tool(
+    db_session, client, monkeypatch
+) -> None:
     tool_call_reply = (
         '###TRANSPARENCY_LOG### {"test": true}\n'
         '###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n'
@@ -37,9 +39,7 @@ def test_tax_question_does_not_trigger_transform_tool(db_session, client, monkey
 
     req = ChatRequest(
         messages=[
-            ChatMessage(
-                role="user", content="כמה מס אשלם אם אמשוך קצבה של 20000"
-            )
+            ChatMessage(role="user", content="כמה מס אשלם אם אמשוך קצבה של 20000")
         ],
         client_id=client.id,
         pension_portfolio=[],

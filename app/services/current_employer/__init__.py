@@ -14,17 +14,13 @@ Current Employer Service Package
 from .employment import EmploymentService
 from .grants import GrantService
 from .termination import TerminationService
-from .calculations import (
-    ServiceYearsCalculator,
-    SeveranceCalculator,
-    GrantCalculator
-)
+from .calculations import ServiceYearsCalculator, SeveranceCalculator, GrantCalculator
 
 __all__ = [
-    'EmploymentService',
-    'GrantService',
-    'TerminationService',
-    'ServiceYearsCalculator',
-    'SeveranceCalculator',
-    'GrantCalculator'
+    "EmploymentService",
+    "GrantService",
+    "TerminationService",
+    "ServiceYearsCalculator",
+    "SeveranceCalculator",
+    "GrantCalculator",
 ]

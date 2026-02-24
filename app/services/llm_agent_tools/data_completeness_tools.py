@@ -35,43 +35,56 @@ class DataCompletenessToolsMixin:
             recommendations.append("הזן שכר שנתי לחישוב יעד קצבה מומלץ")
 
         # בדיקת קיום מוצרים פנסיוניים
-        pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
-        ).all()
+        pension_funds = (
+            self.db.query(PensionFund)
+            .filter(PensionFund.client_id == self.client_id)
+            .all()
+        )
 
         if not pension_funds:
             warnings.append("לא נמצאו מוצרים פנסיוניים")
             recommendations.append("העלה תיק פנסיוני (קובץ XML מהמסלקה)")
         else:
             # בדיקה שיש יתרות/מקדמים
-            funds_with_balance = [pf for pf in pension_funds if pf.balance and pf.balance > 0]
-            funds_with_pension = [pf for pf in pension_funds if pf.pension_amount and pf.pension_amount > 0]
+            funds_with_balance = [
+                pf for pf in pension_funds if pf.balance and pf.balance > 0
+            ]
+            funds_with_pension = [
+                pf
+                for pf in pension_funds
+                if pf.pension_amount and pf.pension_amount > 0
+            ]
             if not funds_with_balance and not funds_with_pension:
                 warnings.append("המוצרים הפנסיוניים ללא יתרות או קצבות")
                 recommendations.append("וודא שהתיק הפנסיוני מכיל יתרות")
 
         # בדיקת תרחישים קיימים
-        scenarios_count = self.db.query(Scenario).filter(
-            Scenario.client_id == self.client_id
-        ).count()
+        scenarios_count = (
+            self.db.query(Scenario).filter(Scenario.client_id == self.client_id).count()
+        )
 
         if scenarios_count == 0:
             warnings.append("לא נמצאו תרחישי פרישה")
             recommendations.append("הרץ תרחישי פרישה לגיל הרצוי")
 
         # בדיקת קיבוע זכויות
-        fixation_exists = self.db.query(FixationResult).filter(
-            FixationResult.client_id == self.client_id
-        ).first() is not None
+        fixation_exists = (
+            self.db.query(FixationResult)
+            .filter(FixationResult.client_id == self.client_id)
+            .first()
+            is not None
+        )
 
         if not fixation_exists:
             warnings.append("לא בוצע קיבוע זכויות")
             recommendations.append("בצע קיבוע זכויות לחישוב פטור ממס")
 
         # בדיקת מעסיק נוכחי
-        employers_count = self.db.query(CurrentEmployer).filter(
-            CurrentEmployer.client_id == self.client_id
-        ).count()
+        employers_count = (
+            self.db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == self.client_id)
+            .count()
+        )
 
         if employers_count == 0:
             warnings.append("לא הוגדר מעסיק נוכחי")
@@ -86,7 +99,9 @@ class DataCompletenessToolsMixin:
             explanation_parts.append("✅ **כל הנתונים הנדרשים קיימים!**")
             explanation_parts.append("")
             explanation_parts.append("ניתן להמשיך בחישוב תרחישים ובניית תכניות פרישה.")
-            explanation_parts.append(f"נמצאו {len(pension_funds)} מוצרים פנסיוניים ו-{scenarios_count} תרחישים שמורים.")
+            explanation_parts.append(
+                f"נמצאו {len(pension_funds)} מוצרים פנסיוניים ו-{scenarios_count} תרחישים שמורים."
+            )
         elif is_complete and warnings:
             explanation_parts.append("⚠️ **הנתונים הבסיסיים קיימים, אך יש התראות:**")
             explanation_parts.append("")

@@ -22,7 +22,9 @@ from app.services.documents.templates.full_report_styles import get_full_report_
 from app.services.documents.templates.full_report_template import FullReportHTMLTemplate
 
 
-def _calc_yearly_totals(cashflow_rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
+def _calc_yearly_totals(
+    cashflow_rows: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, float]]:
     yearly_totals: Dict[str, Dict[str, float]] = {}
 
     for row in cashflow_rows:
@@ -42,8 +44,12 @@ def _calc_yearly_totals(cashflow_rows: List[Dict[str, Any]]) -> Dict[str, Dict[s
 
         yearly_totals[year]["inflow"] += float(row.get("inflow", 0) or 0)
         yearly_totals[year]["outflow"] += float(row.get("outflow", 0) or 0)
-        yearly_totals[year]["additional_income_net"] += float(row.get("additional_income_net", 0) or 0)
-        yearly_totals[year]["capital_return_net"] += float(row.get("capital_return_net", 0) or 0)
+        yearly_totals[year]["additional_income_net"] += float(
+            row.get("additional_income_net", 0) or 0
+        )
+        yearly_totals[year]["capital_return_net"] += float(
+            row.get("capital_return_net", 0) or 0
+        )
         yearly_totals[year]["net"] += float(row.get("net", 0) or 0)
 
     return yearly_totals
@@ -109,7 +115,9 @@ def generate_full_report_pdf(
     )
 
     commutation_ids = {getattr(c, "id", None) for c in commutations}
-    capital_assets = [a for a in capital_assets_all if getattr(a, "id", None) not in commutation_ids]
+    capital_assets = [
+        a for a in capital_assets_all if getattr(a, "id", None) not in commutation_ids
+    ]
 
     css_filename = f"{report_id}.css"
     html_filename = f"{report_id}.html"
@@ -143,7 +151,11 @@ def generate_full_report_pdf(
     html_to_pdf(html_path, pdf_path)
 
     pdf_bytes = pdf_path.read_bytes()
-    if not (isinstance(pdf_bytes, (bytes, bytearray)) and len(pdf_bytes) > 100 and bytes(pdf_bytes).startswith(b"%PDF")):
+    if not (
+        isinstance(pdf_bytes, (bytes, bytearray))
+        and len(pdf_bytes) > 100
+        and bytes(pdf_bytes).startswith(b"%PDF")
+    ):
         raise ValueError("Invalid PDF produced by HTML-to-PDF")
 
     return bytes(pdf_bytes)

@@ -5,7 +5,9 @@ import app.services.llm_chat.tool_execution as tool_exec
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 
 
-def test_run_retirement_scenarios_preview_does_not_persist(db_session, client, monkeypatch) -> None:
+def test_run_retirement_scenarios_preview_does_not_persist(
+    db_session, client, monkeypatch
+) -> None:
     # LLM asks to run scenarios in preview mode
     responses = iter(
         [
@@ -21,13 +23,27 @@ def test_run_retirement_scenarios_preview_does_not_persist(db_session, client, m
 
     def fake_builder_build_all_scenarios(self):
         return {
-            "scenario_1_max_pension": {"scenario_name": "S1", "total_pension_monthly": 1, "total_capital": 2, "estimated_npv": 3},
-            "scenario_2_max_capital": {"scenario_name": "S2", "total_pension_monthly": 4, "total_capital": 5, "estimated_npv": 6},
+            "scenario_1_max_pension": {
+                "scenario_name": "S1",
+                "total_pension_monthly": 1,
+                "total_capital": 2,
+                "estimated_npv": 3,
+            },
+            "scenario_2_max_capital": {
+                "scenario_name": "S2",
+                "total_pension_monthly": 4,
+                "total_capital": 5,
+                "estimated_npv": 6,
+            },
         }
 
     from app.services.retirement import RetirementScenariosBuilder
 
-    monkeypatch.setattr(RetirementScenariosBuilder, "build_all_scenarios", fake_builder_build_all_scenarios)
+    monkeypatch.setattr(
+        RetirementScenariosBuilder,
+        "build_all_scenarios",
+        fake_builder_build_all_scenarios,
+    )
 
     # Capture DB commits to ensure none are done by preview
     commit_calls = {"n": 0}

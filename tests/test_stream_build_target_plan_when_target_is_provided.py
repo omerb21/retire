@@ -6,9 +6,13 @@ from app.main import app
 
 def test_stream_build_target_plan_when_target_is_provided(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for target-plan tools-first routing")
+        raise AssertionError(
+            "LLM must not be called for target-plan tools-first routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -46,7 +50,9 @@ def test_stream_build_target_plan_when_target_is_provided(monkeypatch) -> None:
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "קצבת יעד 28000 נטו - בנה תכנית פרישה"}],
+            "messages": [
+                {"role": "user", "content": "קצבת יעד 28000 נטו - בנה תכנית פרישה"}
+            ],
         },
     )
 

@@ -8,7 +8,9 @@ from sqlalchemy import or_
 
 from app.models.client import Client
 from app.schemas.client import ClientCreate, ClientUpdate
-from app.services.retirement.utils.pension_utils import compute_pension_start_date_from_funds
+from app.services.retirement.utils.pension_utils import (
+    compute_pension_start_date_from_funds,
+)
 from app.services.client_service import normalize_id_number
 
 
@@ -21,7 +23,9 @@ class ClientCrudService:
 
         existing_client = None
         if normalized_id:
-            existing_client = db.query(Client).filter(Client.id_number == normalized_id).first()
+            existing_client = (
+                db.query(Client).filter(Client.id_number == normalized_id).first()
+            )
         if existing_client:
             raise ValueError("duplicate_id_number")
 
@@ -46,7 +50,9 @@ class ClientCrudService:
         if not db_client:
             raise ValueError("client_not_found")
 
-        effective_pension_start_date = compute_pension_start_date_from_funds(db, db_client)
+        effective_pension_start_date = compute_pension_start_date_from_funds(
+            db, db_client
+        )
         if db_client.pension_start_date != effective_pension_start_date:
             db_client.pension_start_date = effective_pension_start_date
             db.add(db_client)
@@ -144,18 +150,18 @@ class ClientCrudService:
                 .all()
             ]
             if session_ids:
-                db.query(PublicChatMessage).filter(PublicChatMessage.session_id.in_(session_ids)).delete(
-                    synchronize_session=False
-                )
-            db.query(PublicChatSession).filter(PublicChatSession.client_id == client_id).delete(
-                synchronize_session=False
-            )
+                db.query(PublicChatMessage).filter(
+                    PublicChatMessage.session_id.in_(session_ids)
+                ).delete(synchronize_session=False)
+            db.query(PublicChatSession).filter(
+                PublicChatSession.client_id == client_id
+            ).delete(synchronize_session=False)
 
         # 2) Termination events (depend on employment)
         if TerminationEvent is not None:
-            db.query(TerminationEvent).filter(TerminationEvent.client_id == client_id).delete(
-                synchronize_session=False
-            )
+            db.query(TerminationEvent).filter(
+                TerminationEvent.client_id == client_id
+            ).delete(synchronize_session=False)
 
         # 3) Employment
         if Employment is not None:
@@ -165,25 +171,35 @@ class ClientCrudService:
 
         # 4) Pensions
         if Pension is not None:
-            db.query(Pension).filter(Pension.client_id == client_id).delete(synchronize_session=False)
+            db.query(Pension).filter(Pension.client_id == client_id).delete(
+                synchronize_session=False
+            )
 
         # 5) Scenarios
         if Scenario is not None:
-            db.query(Scenario).filter(Scenario.client_id == client_id).delete(synchronize_session=False)
+            db.query(Scenario).filter(Scenario.client_id == client_id).delete(
+                synchronize_session=False
+            )
 
         # 6) Retirement assets
         if PensionFund is not None:
-            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(synchronize_session=False)
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).delete(
+                synchronize_session=False
+            )
         if CapitalAsset is not None:
-            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(synchronize_session=False)
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).delete(
+                synchronize_session=False
+            )
 
         # 7) Grants / fixation results
         if Grant is not None:
-            db.query(Grant).filter(Grant.client_id == client_id).delete(synchronize_session=False)
-        if FixationResult is not None:
-            db.query(FixationResult).filter(FixationResult.client_id == client_id).delete(
+            db.query(Grant).filter(Grant.client_id == client_id).delete(
                 synchronize_session=False
             )
+        if FixationResult is not None:
+            db.query(FixationResult).filter(
+                FixationResult.client_id == client_id
+            ).delete(synchronize_session=False)
 
         # 8) Current employer + employer grants
         if CurrentEmployer is not None:
@@ -194,12 +210,12 @@ class ClientCrudService:
                 .all()
             ]
             if employer_ids and EmployerGrant is not None:
-                db.query(EmployerGrant).filter(EmployerGrant.employer_id.in_(employer_ids)).delete(
-                    synchronize_session=False
-                )
-            db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).delete(
-                synchronize_session=False
-            )
+                db.query(EmployerGrant).filter(
+                    EmployerGrant.employer_id.in_(employer_ids)
+                ).delete(synchronize_session=False)
+            db.query(CurrentEmployer).filter(
+                CurrentEmployer.client_id == client_id
+            ).delete(synchronize_session=False)
 
         # 9) Finally delete the client row
         db.delete(db_client)

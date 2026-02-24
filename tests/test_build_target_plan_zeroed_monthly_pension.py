@@ -9,6 +9,7 @@ Scenario:
 4. Run build_target_pension_plan again — neither should appear as existing sources,
    and no plan step should reference them with a positive contribution.
 """
+
 import json
 from datetime import date
 from typing import Any, Dict
@@ -101,9 +102,9 @@ def test_zeroed_monthly_pension_excluded_from_plan(monkeypatch, _test_db) -> Non
     res1 = result1["result"]
 
     # The existing pension total should include both funds (3000 + 2000 = 5000)
-    assert res1["existing_pension_total_gross"] >= 5000.0, (
-        f"Phase 1: expected existing_pension_total_gross >= 5000, got {res1['existing_pension_total_gross']}"
-    )
+    assert (
+        res1["existing_pension_total_gross"] >= 5000.0
+    ), f"Phase 1: expected existing_pension_total_gross >= 5000, got {res1['existing_pension_total_gross']}"
 
     # Verify pension_fund_id is present in sources_used or existing sources
     all_sources_1 = res1.get("sources_used", []) + res1.get("sources_not_used", [])
@@ -140,9 +141,9 @@ def test_zeroed_monthly_pension_excluded_from_plan(monkeypatch, _test_db) -> Non
 
     # The existing pension total must NOT include the zeroed funds
     existing_total_2 = float(res2.get("existing_pension_total_gross", 0))
-    assert existing_total_2 < 1.0, (
-        f"Phase 2: expected existing_pension_total_gross ~0, got {existing_total_2}"
-    )
+    assert (
+        existing_total_2 < 1.0
+    ), f"Phase 2: expected existing_pension_total_gross ~0, got {existing_total_2}"
 
     # No plan step should reference the zeroed pension fund IDs with positive pension_added
     for step in res2.get("plan_steps", []):
@@ -159,9 +160,10 @@ def test_zeroed_monthly_pension_excluded_from_plan(monkeypatch, _test_db) -> Non
         if s.get("source_type") == "existing_pension":
             s_pf_id = s.get("pension_fund_id")
             if s_pf_id is not None:
-                assert int(s_pf_id) not in {pf1_id, pf2_id}, (
-                    f"Phase 2: sources_used contains zeroed existing_pension pf_id={s_pf_id}"
-                )
+                assert int(s_pf_id) not in {
+                    pf1_id,
+                    pf2_id,
+                }, f"Phase 2: sources_used contains zeroed existing_pension pf_id={s_pf_id}"
 
 
 def test_api_rejects_active_monthly_pension_with_zero_amount(_test_db) -> None:
@@ -267,9 +269,9 @@ def test_draft_monthly_pension_not_counted_in_plan(_test_db) -> None:
     res = result.get("result", {})
     # The draft pension (5000) must NOT be counted as existing pension
     existing_total = float(res.get("existing_pension_total_gross", 0))
-    assert existing_total < 1.0, (
-        f"Draft pension was counted: existing_pension_total_gross={existing_total}"
-    )
+    assert (
+        existing_total < 1.0
+    ), f"Draft pension was counted: existing_pension_total_gross={existing_total}"
 
 
 def test_maintenance_fix_zeroed_monthly_pensions(_test_db) -> None:
@@ -328,8 +330,12 @@ def test_maintenance_fix_zeroed_monthly_pensions(_test_db) -> None:
         bad2_id = pf_bad2.id
 
         # Verify the model event listener already demoted them
-        assert pf_bad1.record_status == "draft", "Event listener should have demoted pf_bad1"
-        assert pf_bad2.record_status == "draft", "Event listener should have demoted pf_bad2"
+        assert (
+            pf_bad1.record_status == "draft"
+        ), "Event listener should have demoted pf_bad1"
+        assert (
+            pf_bad2.record_status == "draft"
+        ), "Event listener should have demoted pf_bad2"
 
         # Force them back to active to test the maintenance command
         db.execute(
@@ -354,7 +360,9 @@ def test_maintenance_fix_zeroed_monthly_pensions(_test_db) -> None:
         fix_result = fix_zeroed_monthly_pensions(db)
         db.commit()
 
-    assert fix_result["fixed_count"] >= 2, f"Expected at least 2 fixed, got {fix_result}"
+    assert (
+        fix_result["fixed_count"] >= 2
+    ), f"Expected at least 2 fixed, got {fix_result}"
     assert bad1_id in fix_result["fixed_ids"]
     assert bad2_id in fix_result["fixed_ids"]
 
@@ -362,5 +370,9 @@ def test_maintenance_fix_zeroed_monthly_pensions(_test_db) -> None:
     with Session() as db:
         pf_after1 = db.get(PensionFund, bad1_id)
         pf_after2 = db.get(PensionFund, bad2_id)
-        assert pf_after1.record_status == "draft", f"pf_bad1 still {pf_after1.record_status}"
-        assert pf_after2.record_status == "draft", f"pf_bad2 still {pf_after2.record_status}"
+        assert (
+            pf_after1.record_status == "draft"
+        ), f"pf_bad1 still {pf_after1.record_status}"
+        assert (
+            pf_after2.record_status == "draft"
+        ), f"pf_bad2 still {pf_after2.record_status}"

@@ -50,7 +50,9 @@ def test_stream_text_approval_executes_pending_transform(monkeypatch, _test_db) 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for text approval")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 

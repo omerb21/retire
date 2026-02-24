@@ -21,10 +21,10 @@ from .cashflow_engine import CashflowEngine
 from .calculation_engine import CalculationEngine
 
 __all__ = [
-    'BaseEngine',
-    'SeniorityEngine',
-    'GrantEngine',
-    'PensionEngine',
-    'CashflowEngine',
-    'CalculationEngine'
+    "BaseEngine",
+    "SeniorityEngine",
+    "GrantEngine",
+    "PensionEngine",
+    "CashflowEngine",
+    "CalculationEngine",
 ]

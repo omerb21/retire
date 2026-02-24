@@ -10,8 +10,8 @@ class CashflowGenerateRequest(BaseModel):
     from_: str = Field(..., alias="from", description="YYYY-MM, e.g. 2025-01")
     to: str = Field(..., description="YYYY-MM, e.g. 2025-12")
     frequency: Literal["monthly"] = "monthly"
-    
-    @validator('from_', 'to')
+
+    @validator("from_", "to")
     def validate_date_format(cls, v):
         if not isinstance(v, str) or len(v) != 7 or v[4] != "-":
             raise ValueError("Date must be in YYYY-MM format")
@@ -27,8 +27,8 @@ class CashflowGenerateRequest(BaseModel):
                 raise ValueError("Date must be in YYYY-MM format with valid numbers")
             raise
         return v
-    
-    @validator('to')
+
+    @validator("to")
     def validate_date_range(cls, v, values):
         # Range validation is handled in the service layer (generate_cashflow),
         # which raises ValueError mapped to HTTP 400. Here we only accept format.
@@ -55,8 +55,10 @@ CashflowGenerateResponse = List[CashflowRow]
 
 # ── integrate-all input schemas ──────────────────────────────────────
 
+
 class ScenarioCashflowItem(BaseModel):
     """Single row in the flat-list format accepted by integrate-all."""
+
     date: str  # ISO date string, e.g. "2025-01-01"
     inflow: float
     outflow: float
@@ -68,6 +70,7 @@ class ScenarioCashflowItem(BaseModel):
 
 class MonthlyCashflowItem(BaseModel):
     """Single row inside the *envelope* format returned by GET …/cashflow."""
+
     date: str
     income: float
     expenses: float
@@ -79,6 +82,7 @@ class MonthlyCashflowItem(BaseModel):
 
 class CashflowEnvelope(BaseModel):
     """Envelope object that wraps a ``monthly`` list (GET cashflow shape)."""
+
     monthly: List[MonthlyCashflowItem]
 
     class Config:

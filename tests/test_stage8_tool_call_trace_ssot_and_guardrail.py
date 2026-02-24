@@ -17,7 +17,9 @@ def test_stage8_tool_call_trace_ssot(monkeypatch, db_session):
     monkeypatch.setattr(core_mod, "log_trace_event", fake_log_trace_event)
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="GET_CLIENT_SNAPSHOT")], client_id=1)
+    req = ChatRequest(
+        messages=[ChatMessage(role="user", content="GET_CLIENT_SNAPSHOT")], client_id=1
+    )
     core_mod.execute_agent_request(req, db_session)
 
     types = [t for (t, _p) in events]

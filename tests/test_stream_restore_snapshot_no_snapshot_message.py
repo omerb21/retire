@@ -7,9 +7,13 @@ from app.main import app
 def test_stream_restore_snapshot_no_snapshot_message(monkeypatch, _test_db) -> None:
     # Guardrail: should be deterministic and not call LLM.
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic restore snapshot flow")
+        raise AssertionError(
+            "LLM must not be called for deterministic restore snapshot flow"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     resp = api.post(

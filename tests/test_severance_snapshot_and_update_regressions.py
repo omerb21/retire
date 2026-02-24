@@ -96,12 +96,16 @@ def test_snapshot_roundtrip_does_not_emit_identity_map_sawarning(db_session) -> 
         assert restored.get("success") is True
 
     identity_map_warnings = [
-        w for w in caught if "Identity map already had an identity for" in str(w.message)
+        w
+        for w in caught
+        if "Identity map already had an identity for" in str(w.message)
     ]
     assert not identity_map_warnings, [str(w.message) for w in identity_map_warnings]
 
 
-def test_update_current_employer_does_not_clear_severance_when_field_missing(db_session) -> None:
+def test_update_current_employer_does_not_clear_severance_when_field_missing(
+    db_session,
+) -> None:
     client_id = 992000002
 
     client = db_session.query(Client).filter(Client.id == client_id).first()
@@ -140,6 +144,10 @@ def test_update_current_employer_does_not_clear_severance_when_field_missing(db_
     assert updated is not None
 
     db_session.expire_all()
-    after = db_session.query(CurrentEmployer).filter(CurrentEmployer.id == employer.id).first()
+    after = (
+        db_session.query(CurrentEmployer)
+        .filter(CurrentEmployer.id == employer.id)
+        .first()
+    )
     assert after is not None
     assert abs(float(after.severance_accrued or 0.0) - 252000.0) < 0.01

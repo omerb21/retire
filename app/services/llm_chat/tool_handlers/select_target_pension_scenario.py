@@ -3,7 +3,9 @@ import json
 from app.services.llm_agent_tools_service import AgentToolsService
 
 
-def handle_select_target_pension_scenario(*, args: dict, agent_tools: AgentToolsService) -> str:
+def handle_select_target_pension_scenario(
+    *, args: dict, agent_tools: AgentToolsService
+) -> str:
     target_monthly_pension = args.get("target_monthly_pension")
     if target_monthly_pension is None:
         return "Error: Missing argument 'target_monthly_pension'"

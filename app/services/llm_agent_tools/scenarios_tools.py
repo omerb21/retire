@@ -37,7 +37,9 @@ def _to_jsonable(value: Any) -> Any:
 
 
 class ScenariosToolsMixin:
-    def get_saved_scenarios_summary(self, retirement_age: Optional[int] = None) -> Dict[str, Any]:
+    def get_saved_scenarios_summary(
+        self, retirement_age: Optional[int] = None
+    ) -> Dict[str, Any]:
         """מחזיר סיכום של התרחישים השמורים"""
         from app.models.scenario import Scenario
 
@@ -62,16 +64,26 @@ class ScenariosToolsMixin:
         for scenario in scenarios:
             try:
                 params = json.loads(scenario.parameters) if scenario.parameters else {}
-                summary = json.loads(scenario.summary_results) if scenario.summary_results else {}
-                
-                scenarios_list.append({
-                    "scenario_id": scenario.id,
-                    "scenario_name": summary.get("scenario_name", scenario.scenario_name),
-                    "retirement_age": params.get("retirement_age"),
-                    "total_pension_monthly": summary.get("total_pension_monthly", 0),
-                    "total_capital": summary.get("total_capital", 0),
-                    "estimated_npv": summary.get("estimated_npv", 0),
-                })
+                summary = (
+                    json.loads(scenario.summary_results)
+                    if scenario.summary_results
+                    else {}
+                )
+
+                scenarios_list.append(
+                    {
+                        "scenario_id": scenario.id,
+                        "scenario_name": summary.get(
+                            "scenario_name", scenario.scenario_name
+                        ),
+                        "retirement_age": params.get("retirement_age"),
+                        "total_pension_monthly": summary.get(
+                            "total_pension_monthly", 0
+                        ),
+                        "total_capital": summary.get("total_capital", 0),
+                        "estimated_npv": summary.get("estimated_npv", 0),
+                    }
+                )
             except Exception as e:
                 logger.warning(f"Failed to parse scenario {scenario.id}: {e}")
 
@@ -115,41 +127,48 @@ class ScenariosToolsMixin:
         # סינון תרחישים שמגיעים ליעד
         target = float(target_monthly_pension)
         achieving_target = [
-            s for s in scenarios
-            if s.get("total_pension_monthly", 0) >= target
+            s for s in scenarios if s.get("total_pension_monthly", 0) >= target
         ]
 
         # בניית הסבר מפורט
         explanation_parts: list[str] = []
-        
+
         if achieving_target:
             # בוחרים את התרחיש עם ה-NPV הגבוה ביותר מבין אלו שמגיעים ליעד
             best = max(achieving_target, key=lambda s: s.get("estimated_npv", 0))
-            
-            explanation_parts.append(f"✅ **נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש!**")
+
+            explanation_parts.append(
+                f"✅ **נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש!**"
+            )
             explanation_parts.append("")
             explanation_parts.append("**🎯 התרחיש הנבחר:**")
             explanation_parts.append(f"  • שם: {best['scenario_name']}")
-            explanation_parts.append(f"  • קצבה: {best['total_pension_monthly']:,.0f} ₪/חודש")
+            explanation_parts.append(
+                f"  • קצבה: {best['total_pension_monthly']:,.0f} ₪/חודש"
+            )
             explanation_parts.append(f"  • הון: {best.get('total_capital', 0):,.0f} ₪")
             explanation_parts.append(f"  • NPV: {best['estimated_npv']:,.0f} ₪")
-            
+
             if len(achieving_target) > 1:
                 explanation_parts.append("")
-                explanation_parts.append(f"**📊 אלטרנטיבות ({len(achieving_target) - 1} נוספות):**")
+                explanation_parts.append(
+                    f"**📊 אלטרנטיבות ({len(achieving_target) - 1} נוספות):**"
+                )
                 for alt in achieving_target:
                     if alt != best:
                         explanation_parts.append(
                             f"  • {alt['scenario_name']}: {alt['total_pension_monthly']:,.0f} ₪/חודש"
                         )
-            
+
             # יתרונות וחסרונות
             explanation_parts.append("")
             explanation_parts.append("**💡 למה התרחיש הזה?**")
             explanation_parts.append("  • NPV הגבוה ביותר = ערך כלכלי מקסימלי")
-            if best.get('total_capital', 0) > 0:
-                explanation_parts.append(f"  • נשאר הון של {best.get('total_capital', 0):,.0f} ₪ לגמישות")
-            
+            if best.get("total_capital", 0) > 0:
+                explanation_parts.append(
+                    f"  • נשאר הון של {best.get('total_capital', 0):,.0f} ₪ לגמישות"
+                )
+
             return {
                 "success": True,
                 "tool_name": "SELECT_TARGET_PENSION_SCENARIO",
@@ -169,24 +188,32 @@ class ScenariosToolsMixin:
             gap = target - max_pension
             gap_pct = (gap / target * 100) if target > 0 else 0
 
-            explanation_parts.append(f"❌ **לא נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש**")
+            explanation_parts.append(
+                f"❌ **לא נמצא תרחיש שמגיע ליעד של {target:,.0f} ₪/חודש**"
+            )
             explanation_parts.append("")
             explanation_parts.append("**📊 התרחיש הטוב ביותר:**")
             explanation_parts.append(f"  • שם: {best['scenario_name']}")
             explanation_parts.append(f"  • קצבה: {max_pension:,.0f} ₪/חודש")
-            explanation_parts.append(f"  • פער מהיעד: {gap:,.0f} ₪/חודש ({gap_pct:.0f}%)")
-            
+            explanation_parts.append(
+                f"  • פער מהיעד: {gap:,.0f} ₪/חודש ({gap_pct:.0f}%)"
+            )
+
             explanation_parts.append("")
             explanation_parts.append("**💡 איך לגשר על הפער?**")
             explanation_parts.append("  • דחיית גיל פרישה - כל שנה מגדילה את הקצבה")
             explanation_parts.append("  • הגדלת הפקדות שוטפות")
             explanation_parts.append("  • שקול להוריד את היעד ליעד ריאלי יותר")
-            
+
             # בדוק אם יש תרחיש קרוב ליעד
-            closest = min(scenarios, key=lambda s: abs(s.get("total_pension_monthly", 0) - target))
+            closest = min(
+                scenarios, key=lambda s: abs(s.get("total_pension_monthly", 0) - target)
+            )
             if closest != best:
                 explanation_parts.append("")
-                explanation_parts.append(f"**🔍 תרחיש קרוב ליעד:** {closest['scenario_name']} ({closest['total_pension_monthly']:,.0f} ₪)")
+                explanation_parts.append(
+                    f"**🔍 תרחיש קרוב ליעד:** {closest['scenario_name']} ({closest['total_pension_monthly']:,.0f} ₪)"
+                )
 
             return {
                 "success": True,
@@ -242,7 +269,9 @@ class ScenariosToolsMixin:
 
         try:
             pension_portfolio_serialized = (
-                _to_jsonable(pension_portfolio) if pension_portfolio is not None else None
+                _to_jsonable(pension_portfolio)
+                if pension_portfolio is not None
+                else None
             )
             if pension_portfolio_serialized is not None and not isinstance(
                 pension_portfolio_serialized, list
@@ -265,18 +294,21 @@ class ScenariosToolsMixin:
                 self.db.query(Scenario).filter(
                     Scenario.client_id == self.client_id,
                     Scenario.scenario_name == scenario_data["scenario_name"],
-                    Scenario.parameters.like(f'%"retirement_age": {retirement_age}%')
+                    Scenario.parameters.like(f'%"retirement_age": {retirement_age}%'),
                 ).delete(synchronize_session=False)
 
                 new_scenario = Scenario(
                     client_id=self.client_id,
                     scenario_name=scenario_data["scenario_name"],
-                    parameters=json.dumps({
-                        "retirement_age": retirement_age,
-                        "scenario_type": scenario_key,
-                        "pension_portfolio": pension_portfolio_serialized,
-                        "include_current_employer_termination": include_current_employer_termination,
-                    }, ensure_ascii=False),
+                    parameters=json.dumps(
+                        {
+                            "retirement_age": retirement_age,
+                            "scenario_type": scenario_key,
+                            "pension_portfolio": pension_portfolio_serialized,
+                            "include_current_employer_termination": include_current_employer_termination,
+                        },
+                        ensure_ascii=False,
+                    ),
                     summary_results=json.dumps(scenario_data, ensure_ascii=False),
                 )
                 self.db.add(new_scenario)
@@ -288,60 +320,86 @@ class ScenariosToolsMixin:
             # בניית סיכום
             summary = []
             for key, data in scenarios.items():
-                summary.append({
-                    "scenario_id": saved_ids[key],
-                    "scenario_key": key,
-                    "scenario_name": data.get("scenario_name"),
-                    "total_pension_monthly": data.get("total_pension_monthly", 0),
-                    "total_capital": data.get("total_capital", 0),
-                    "estimated_npv": data.get("estimated_npv", 0),
-                })
+                summary.append(
+                    {
+                        "scenario_id": saved_ids[key],
+                        "scenario_key": key,
+                        "scenario_name": data.get("scenario_name"),
+                        "total_pension_monthly": data.get("total_pension_monthly", 0),
+                        "total_capital": data.get("total_capital", 0),
+                        "estimated_npv": data.get("estimated_npv", 0),
+                    }
+                )
 
             # חילוץ נתונים לסיכום
             max_pension_scenario = scenarios.get("scenario_1_max_pension", {})
             max_capital_scenario = scenarios.get("scenario_2_max_capital", {})
             max_npv_scenario = scenarios.get("scenario_3_max_npv", {})
-            
+
             max_pension = max_pension_scenario.get("total_pension_monthly", 0)
             max_capital = max_capital_scenario.get("total_capital", 0)
             max_npv = max_npv_scenario.get("estimated_npv", 0)
-            
+
             # בניית הסבר מפורט
             explanation_parts: list[str] = []
             explanation_parts.append(f"🎯 **תרחישי פרישה לגיל {retirement_age}**")
             explanation_parts.append("")
-            
+
             # תרחיש 1 - קצבה מקסימלית
-            explanation_parts.append(f"**1. {max_pension_scenario.get('scenario_name', 'קצבה מקסימלית')}** [ממקסם קצבה]")
+            explanation_parts.append(
+                f"**1. {max_pension_scenario.get('scenario_name', 'קצבה מקסימלית')}** [ממקסם קצבה]"
+            )
             explanation_parts.append(f"   • קצבה: {max_pension:,.0f} ₪/חודש")
-            explanation_parts.append(f"   • הון: {max_pension_scenario.get('total_capital', 0):,.0f} ₪")
-            explanation_parts.append(f"   • מתאים ל: מי שרוצה הכנסה קבועה ויציבה לכל החיים")
+            explanation_parts.append(
+                f"   • הון: {max_pension_scenario.get('total_capital', 0):,.0f} ₪"
+            )
+            explanation_parts.append(
+                f"   • מתאים ל: מי שרוצה הכנסה קבועה ויציבה לכל החיים"
+            )
             explanation_parts.append("")
-            
+
             # תרחיש 2 - הון מקסימלי
-            explanation_parts.append(f"**2. {max_capital_scenario.get('scenario_name', 'הון מקסימלי')}** [ממקסם הון]")
-            explanation_parts.append(f"   • קצבה: {max_capital_scenario.get('total_pension_monthly', 0):,.0f} ₪/חודש")
+            explanation_parts.append(
+                f"**2. {max_capital_scenario.get('scenario_name', 'הון מקסימלי')}** [ממקסם הון]"
+            )
+            explanation_parts.append(
+                f"   • קצבה: {max_capital_scenario.get('total_pension_monthly', 0):,.0f} ₪/חודש"
+            )
             explanation_parts.append(f"   • הון: {max_capital:,.0f} ₪")
-            explanation_parts.append(f"   • מתאים ל: מי שרוצה גמישות, הון לילדים, או הכנסות נוספות")
+            explanation_parts.append(
+                f"   • מתאים ל: מי שרוצה גמישות, הון לילדים, או הכנסות נוספות"
+            )
             explanation_parts.append("")
-            
+
             # תרחיש 3 - NPV מקסימלי
-            explanation_parts.append(f"**3. {max_npv_scenario.get('scenario_name', 'NPV מקסימלי')}** [ממקסם ערך נוכחי]")
-            explanation_parts.append(f"   • קצבה: {max_npv_scenario.get('total_pension_monthly', 0):,.0f} ₪/חודש")
-            explanation_parts.append(f"   • הון: {max_npv_scenario.get('total_capital', 0):,.0f} ₪")
+            explanation_parts.append(
+                f"**3. {max_npv_scenario.get('scenario_name', 'NPV מקסימלי')}** [ממקסם ערך נוכחי]"
+            )
+            explanation_parts.append(
+                f"   • קצבה: {max_npv_scenario.get('total_pension_monthly', 0):,.0f} ₪/חודש"
+            )
+            explanation_parts.append(
+                f"   • הון: {max_npv_scenario.get('total_capital', 0):,.0f} ₪"
+            )
             explanation_parts.append(f"   • NPV: {max_npv:,.0f} ₪")
             explanation_parts.append(f"   • מתאים ל: איזון אופטימלי בין קצבה להון")
             explanation_parts.append("")
-            
+
             # המלצה
             explanation_parts.append("**💡 המלצה:**")
             if max_pension > 20000:
-                explanation_parts.append(f"   הקצבה המקסימלית ({max_pension:,.0f} ₪) גבוהה - אפשר לשקול להשאיר חלק כהון.")
+                explanation_parts.append(
+                    f"   הקצבה המקסימלית ({max_pension:,.0f} ₪) גבוהה - אפשר לשקול להשאיר חלק כהון."
+                )
             elif max_pension < 10000:
-                explanation_parts.append(f"   הקצבה המקסימלית ({max_pension:,.0f} ₪) נמוכה יחסית - שקול לדחות את הפרישה.")
+                explanation_parts.append(
+                    f"   הקצבה המקסימלית ({max_pension:,.0f} ₪) נמוכה יחסית - שקול לדחות את הפרישה."
+                )
             else:
-                explanation_parts.append(f"   התרחישים מציגים טווח סביר. בחר לפי הצרכים האישיים שלך.")
-            
+                explanation_parts.append(
+                    f"   התרחישים מציגים טווח סביר. בחר לפי הצרכים האישיים שלך."
+                )
+
             explanation = "\n".join(explanation_parts)
 
             return {

@@ -3,7 +3,9 @@ import json
 from app.services.llm_chat.tool_execution import execute_tool_call
 
 
-def test_execute_tool_call_check_data_completeness_returns_json(db_session, client) -> None:
+def test_execute_tool_call_check_data_completeness_returns_json(
+    db_session, client
+) -> None:
     result = execute_tool_call(
         tool_name="CHECK_DATA_COMPLETENESS",
         args={},

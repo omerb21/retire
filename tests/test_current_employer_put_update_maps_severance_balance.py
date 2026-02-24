@@ -7,7 +7,9 @@ from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
 
 
-def test_put_update_current_employer_maps_severance_balance_to_accrued(db_session) -> None:
+def test_put_update_current_employer_maps_severance_balance_to_accrued(
+    db_session,
+) -> None:
     client_id = 990000050
 
     client = db_session.query(Client).filter(Client.id == client_id).first()
@@ -43,11 +45,17 @@ def test_put_update_current_employer_maps_severance_balance_to_accrued(db_sessio
         "monthly_salary": 12345.0,
     }
 
-    res = api.put(f"/api/v1/clients/{client_id}/current-employer/{employer.id}", json=payload)
+    res = api.put(
+        f"/api/v1/clients/{client_id}/current-employer/{employer.id}", json=payload
+    )
     assert res.status_code == 200
 
     db_session.expire_all()
-    refreshed = db_session.query(CurrentEmployer).filter(CurrentEmployer.id == employer.id).first()
+    refreshed = (
+        db_session.query(CurrentEmployer)
+        .filter(CurrentEmployer.id == employer.id)
+        .first()
+    )
     assert refreshed is not None
 
     assert abs(float(refreshed.severance_accrued or 0.0) - 252695.89) < 0.01

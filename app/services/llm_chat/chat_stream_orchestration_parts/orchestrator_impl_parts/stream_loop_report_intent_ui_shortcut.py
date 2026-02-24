@@ -12,7 +12,7 @@ def _maybe_handle_report_intent_ui_shortcut(
     tools_enabled: bool,
     ui_action_short_circuit_allowed: bool,
     resolved_intent,
- ):
+):
     if not (
         tools_enabled
         and ui_action_short_circuit_allowed
@@ -29,7 +29,11 @@ def _maybe_handle_report_intent_ui_shortcut(
         }
     ]
     ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
-    ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+    ui_action = (
+        "###UI_ACTION###"
+        + json.dumps(ui_payload, ensure_ascii=False)
+        + "###END_UI_ACTION###\n"
+    )
     return StreamingResponse(
         iter([ui_action, "פתחתי את הדוח בטאב חדש."]),
         media_type="text/plain",

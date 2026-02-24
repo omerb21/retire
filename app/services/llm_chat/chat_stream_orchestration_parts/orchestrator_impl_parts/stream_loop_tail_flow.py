@@ -89,12 +89,16 @@
     is_doc_request = is_document_request(original_user_msg)
     is_tax_doc_request = is_tax_documents_request(original_user_msg)
     is_qa_mode = is_qa_request(original_user_msg)
-    no_tools_requested = (resolved_intent == ChatIntentClass.NO_TOOLS) or is_no_tools_request(original_user_msg)
+    no_tools_requested = (
+        resolved_intent == ChatIntentClass.NO_TOOLS
+    ) or is_no_tools_request(original_user_msg)
     if advice_compensation_mode:
         no_tools_requested = False
     force_max_exemption = is_max_exemption_request(original_user_msg)
     commutation_intent = is_pension_commutation_request(original_user_msg)
-    explicit_transform = (not commutation_intent) and is_transform_request(original_user_msg)
+    explicit_transform = (not commutation_intent) and is_transform_request(
+        original_user_msg
+    )
     explicit_termination = is_process_termination_request(original_user_msg)
     termination_change = is_termination_change_request(original_user_msg)
     is_cashflow_request = is_retirement_cashflow_request(original_user_msg)
@@ -110,34 +114,39 @@
     lowered_user_msg = (original_user_msg or "").lower()
     target_net_for_cashflow = extract_target_net_ils(original_user_msg or "")
     wants_capital_transform = (
-        (
-            ("להון" in lowered_user_msg)
-            or ("to capital" in lowered_user_msg)
-            or ("הונית" in lowered_user_msg)
-            or ("הוני" in lowered_user_msg)
-            or ("מקסימום הון" in lowered_user_msg)
-        )
-        and (
-            "המר" in lowered_user_msg
-            or "המרה" in lowered_user_msg
-            or "convert" in lowered_user_msg
-            or "משיכה" in lowered_user_msg
-            or "משוך" in lowered_user_msg
-        )
+        ("להון" in lowered_user_msg)
+        or ("to capital" in lowered_user_msg)
+        or ("הונית" in lowered_user_msg)
+        or ("הוני" in lowered_user_msg)
+        or ("מקסימום הון" in lowered_user_msg)
+    ) and (
+        "המר" in lowered_user_msg
+        or "המרה" in lowered_user_msg
+        or "convert" in lowered_user_msg
+        or "משיכה" in lowered_user_msg
+        or "משוך" in lowered_user_msg
     )
-    wants_execute_target_plan = (
-        "בצע" in lowered_user_msg
-        and ("תכנית" in lowered_user_msg or "תוכנית" in lowered_user_msg or "מתווה" in lowered_user_msg)
+    wants_execute_target_plan = "בצע" in lowered_user_msg and (
+        "תכנית" in lowered_user_msg
+        or "תוכנית" in lowered_user_msg
+        or "מתווה" in lowered_user_msg
     )
     wants_fixation_execute = (
-        "בצע" in lowered_user_msg and ("קיבוע" in lowered_user_msg) and ("זכויות" in lowered_user_msg)
+        "בצע" in lowered_user_msg
+        and ("קיבוע" in lowered_user_msg)
+        and ("זכויות" in lowered_user_msg)
     )
 
     wants_fixation_documents = bool(
-        is_tax_doc_request and any(token in lowered_user_msg for token in ("קיבוע", "זכויות", "161ד", "161d"))
+        is_tax_doc_request
+        and any(
+            token in lowered_user_msg for token in ("קיבוע", "זכויות", "161ד", "161d")
+        )
     )
 
-    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
+    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or (
+        "cashflow" in lowered_user_msg
+    )
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
@@ -153,7 +162,11 @@
         or (target_net_for_cashflow is not None)
     )
 
-    if plan_phrase_detected and (not explicit_cashflow_request) and (not wants_cashflow_refresh):
+    if (
+        plan_phrase_detected
+        and (not explicit_cashflow_request)
+        and (not wants_cashflow_refresh)
+    ):
         requested_cashflow_calc = False
 
     requested_cashflow_calc_response = maybe_handle_requested_cashflow_calc(
@@ -235,7 +248,9 @@
 
             _snap_result = _build_snap(client_id=request.client_id, db=db)
             try:
-                from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+                from app.services.agent_execution.tool_execution_context import (
+                    mark_tool_ok_seen,
+                )
 
                 mark_tool_ok_seen()
             except Exception:
@@ -279,8 +294,18 @@
                     _tc_payload["tool_call_id"] = _uuid.uuid4().hex
                 except Exception:
                     _tc_payload["tool_call_id"] = None
-                _lt(event_type="tool_call", payload=_tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
-                _ee("tool_call", _tc_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _lt(
+                    event_type="tool_call",
+                    payload=_tc_payload,
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+                _ee(
+                    "tool_call",
+                    _tc_payload,
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
 
                 _tr_payload = {
                     "tool_name": "GET_SYSTEM_STATE_SNAPSHOT",
@@ -290,8 +315,18 @@
                     "result_length": len(_snap_json),
                     "shortcut": True,
                 }
-                _lt(event_type="tool_result", payload=_tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
-                _ee("tool_result", _tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _lt(
+                    event_type="tool_result",
+                    payload=_tr_payload,
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+                _ee(
+                    "tool_result",
+                    _tr_payload,
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
 
                 _tr_payload = {
                     "tool_name": "GET_CLIENT_SNAPSHOT",
@@ -301,8 +336,18 @@
                     "result_length": len(_snap_json),
                     "shortcut": True,
                 }
-                _lt(event_type="tool_result", payload=_tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
-                _ee("tool_result", _tr_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat-stream")
+                _lt(
+                    event_type="tool_result",
+                    payload=_tr_payload,
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
+                _ee(
+                    "tool_result",
+                    _tr_payload,
+                    client_id=request.client_id,
+                    endpoint="/api/v1/llm/pension-chat-stream",
+                )
             except Exception:
                 pass
 
@@ -317,43 +362,46 @@
         pass
     # ── End explicit GET_CLIENT_SNAPSHOT shortcut ────────────────────
 
-    deterministic_routing_response, analysis_default_retirement_age, termination_already_executed = (
-        run_deterministic_routing_block(
-            request=request,
-            db=db,
-            computed_data=computed_data,
-            effective_portfolio=effective_portfolio,
-            original_user_msg=original_user_msg,
-            lowered_user_msg=lowered_user_msg,
-            is_doc_request=bool(is_doc_request),
-            is_tax_doc_request=bool(is_tax_doc_request),
-            is_qa_mode=bool(is_qa_mode),
-            no_tools_requested=bool(no_tools_requested),
-            commutation_intent=bool(commutation_intent),
-            wants_fixation_documents=bool(wants_fixation_documents),
-            conceptual_tools_disabled=bool(conceptual_tools_disabled),
-            explicit_termination=bool(explicit_termination),
-            termination_change=bool(termination_change),
-            wants_execute_target_plan=bool(wants_execute_target_plan),
-            wants_fixation_execute=bool(wants_fixation_execute),
-            force_max_exemption=bool(force_max_exemption),
-            stream_request_id=stream_request_id,
-            is_portfolio_analysis=bool(is_portfolio_analysis),
-            maybe_handle_target_plan_deterministic=maybe_handle_target_plan_deterministic,
-            extract_commutation_account_number=extract_commutation_account_number,
-            generate_commutation_need_account=generate_commutation_need_account,
-            maybe_handle_cashflow_deterministic=maybe_handle_cashflow_deterministic,
-            maybe_handle_max_capital_request=maybe_handle_max_capital_request,
-            maybe_handle_fixation_documents_deterministic=maybe_handle_fixation_documents_deterministic,
-            maybe_handle_commutation_deterministic=maybe_handle_commutation_deterministic,
-            compute_analysis_default_retirement_age=compute_analysis_default_retirement_age,
-            maybe_handle_termination_deterministic=maybe_handle_termination_deterministic,
-            maybe_handle_approval_or_cancel_flow=maybe_handle_approval_or_cancel_flow,
-        )
+    (
+        deterministic_routing_response,
+        analysis_default_retirement_age,
+        termination_already_executed,
+    ) = run_deterministic_routing_block(
+        request=request,
+        db=db,
+        computed_data=computed_data,
+        effective_portfolio=effective_portfolio,
+        original_user_msg=original_user_msg,
+        lowered_user_msg=lowered_user_msg,
+        is_doc_request=bool(is_doc_request),
+        is_tax_doc_request=bool(is_tax_doc_request),
+        is_qa_mode=bool(is_qa_mode),
+        no_tools_requested=bool(no_tools_requested),
+        commutation_intent=bool(commutation_intent),
+        wants_fixation_documents=bool(wants_fixation_documents),
+        conceptual_tools_disabled=bool(conceptual_tools_disabled),
+        explicit_termination=bool(explicit_termination),
+        termination_change=bool(termination_change),
+        wants_execute_target_plan=bool(wants_execute_target_plan),
+        wants_fixation_execute=bool(wants_fixation_execute),
+        force_max_exemption=bool(force_max_exemption),
+        stream_request_id=stream_request_id,
+        is_portfolio_analysis=bool(is_portfolio_analysis),
+        maybe_handle_target_plan_deterministic=maybe_handle_target_plan_deterministic,
+        extract_commutation_account_number=extract_commutation_account_number,
+        generate_commutation_need_account=generate_commutation_need_account,
+        maybe_handle_cashflow_deterministic=maybe_handle_cashflow_deterministic,
+        maybe_handle_max_capital_request=maybe_handle_max_capital_request,
+        maybe_handle_fixation_documents_deterministic=maybe_handle_fixation_documents_deterministic,
+        maybe_handle_commutation_deterministic=maybe_handle_commutation_deterministic,
+        compute_analysis_default_retirement_age=compute_analysis_default_retirement_age,
+        maybe_handle_termination_deterministic=maybe_handle_termination_deterministic,
+        maybe_handle_approval_or_cancel_flow=maybe_handle_approval_or_cancel_flow,
     )
     if deterministic_routing_response is not None:
         try:
             from app.services.agent_trace_logger import log_trace_event
+
             log_trace_event(
                 event_type="execution_path",
                 payload={
@@ -400,6 +448,7 @@
 
     try:
         from app.services.agent_trace_logger import log_trace_event
+
         log_trace_event(
             event_type="execution_path",
             payload={

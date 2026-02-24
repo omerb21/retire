@@ -72,7 +72,9 @@ def handle_generate_tax_deduction_documents(
                     if not file_name:
                         continue
                     rel_path = (
-                        f"{folder_in_packages}/{file_name}" if folder_in_packages else file_name
+                        f"{folder_in_packages}/{file_name}"
+                        if folder_in_packages
+                        else file_name
                     )
                     file_entries.append(
                         {
@@ -82,7 +84,9 @@ def handle_generate_tax_deduction_documents(
                     )
 
             safe_filename = f"fixation_{client_id}_documents.zip"
-            hebrew_filename = f"מסמכי_קיבוע_{client_obj.first_name}_{client_obj.last_name}.zip"
+            hebrew_filename = (
+                f"מסמכי_קיבוע_{client_obj.first_name}_{client_obj.last_name}.zip"
+            )
             encoded_filename = quote(hebrew_filename)
             download_url = f"/api/v1/fixation/{client_id}/package"
 
@@ -104,10 +108,16 @@ def handle_generate_tax_deduction_documents(
             )
 
         # ===== GUARDRAIL: Check for critical assets =====
-        pension_count = db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
-        capital_count = db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+        pension_count = (
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+        )
+        capital_count = (
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+        )
         income_count = (
-            db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).count()
+            db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == client_id)
+            .count()
         )
 
         total_assets = pension_count + capital_count + income_count
@@ -165,7 +175,13 @@ def handle_generate_tax_deduction_documents(
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.enums import TA_RIGHT, TA_CENTER
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.platypus import (
+            SimpleDocTemplate,
+            Paragraph,
+            Spacer,
+            Table,
+            TableStyle,
+        )
         from reportlab.lib import colors
         from reportlab.lib.units import inch
         import io as io_module
@@ -202,7 +218,9 @@ def handle_generate_tax_deduction_documents(
 
         # Client info
         story.append(Paragraph(f"שם לקוח: {client_obj.full_name}", hebrew_style))
-        story.append(Paragraph(f"ת.ז.: {client_obj.id_number or 'לא צוין'}", hebrew_style))
+        story.append(
+            Paragraph(f"ת.ז.: {client_obj.id_number or 'לא צוין'}", hebrew_style)
+        )
         story.append(
             Paragraph(
                 f"תאריך הפקה: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
@@ -213,7 +231,9 @@ def handle_generate_tax_deduction_documents(
 
         # Document-specific content
         if document_type == "kibua_zechuyot":
-            story.append(Paragraph("אישור קיבוע זכויות לפטור ממס על קצבה", hebrew_style))
+            story.append(
+                Paragraph("אישור קיבוע זכויות לפטור ממס על קצבה", hebrew_style)
+            )
             story.append(Spacer(1, 10))
             story.append(
                 Paragraph(
@@ -258,7 +278,9 @@ def handle_generate_tax_deduction_documents(
 
         # Save PDF to artifacts folder
         artifacts_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            ),
             "artifacts",
             "documents",
         )

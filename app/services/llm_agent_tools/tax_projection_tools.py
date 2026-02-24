@@ -39,9 +39,12 @@ class TaxProjectionToolsMixin:
 
         # אם לא סופקה קצבה, נסה לקחת מהתרחישים
         if monthly_pension is None:
-            scenarios = self.db.query(Scenario).filter(
-                Scenario.client_id == self.client_id
-            ).order_by(Scenario.created_at.desc()).first()
+            scenarios = (
+                self.db.query(Scenario)
+                .filter(Scenario.client_id == self.client_id)
+                .order_by(Scenario.created_at.desc())
+                .first()
+            )
 
             if scenarios and scenarios.summary_results:
                 try:
@@ -60,7 +63,9 @@ class TaxProjectionToolsMixin:
                     .filter(PensionFund.client_id == self.client_id)
                     .all()
                 )
-                monthly_pension = sum(float(pf.pension_amount or 0) for pf in pension_funds)
+                monthly_pension = sum(
+                    float(pf.pension_amount or 0) for pf in pension_funds
+                )
             except Exception:
                 monthly_pension = 0
 
@@ -102,7 +107,9 @@ class TaxProjectionToolsMixin:
                 pass
 
             try:
-                monthly_val = float(additional_income_service.calculate_monthly_amount(inc) or 0)
+                monthly_val = float(
+                    additional_income_service.calculate_monthly_amount(inc) or 0
+                )
             except Exception:
                 try:
                     monthly_val = float(getattr(inc, "amount", 0) or 0)
@@ -176,9 +183,9 @@ class TaxProjectionToolsMixin:
         exempt_pension_amount_monthly = 0.0
         if exempt_pension_pct > 0:
             try:
-                exempt_pension_amount_monthly = float(get_monthly_cap(current_year)) * float(
-                    exempt_pension_pct
-                )
+                exempt_pension_amount_monthly = float(
+                    get_monthly_cap(current_year)
+                ) * float(exempt_pension_pct)
             except Exception:
                 exempt_pension_amount_monthly = 0.0
 
@@ -204,8 +211,12 @@ class TaxProjectionToolsMixin:
             interest_income=annual_interest_income,
             dividend_income=annual_dividend_income,
             other_income=annual_other_income,
-            pension_contributions=float(getattr(client, "pension_contributions", 0) or 0),
-            study_fund_contributions=float(getattr(client, "study_fund_contributions", 0) or 0),
+            pension_contributions=float(
+                getattr(client, "pension_contributions", 0) or 0
+            ),
+            study_fund_contributions=float(
+                getattr(client, "study_fund_contributions", 0) or 0
+            ),
             insurance_premiums=float(getattr(client, "insurance_premiums", 0) or 0),
             charitable_donations=float(getattr(client, "charitable_donations", 0) or 0),
             exempt_pension_amount=exempt_pension_amount_monthly,
@@ -220,7 +231,9 @@ class TaxProjectionToolsMixin:
 
         # Explanations must be based on system-calculated outputs only.
         tax_explanation_parts: list[str] = []
-        tax_explanation_parts.append("💵 **הערכת מס בפרישה (דטרמיניסטי - מחשבון מערכת)**")
+        tax_explanation_parts.append(
+            "💵 **הערכת מס בפרישה (דטרמיניסטי - מחשבון מערכת)**"
+        )
         tax_explanation_parts.append("")
         tax_explanation_parts.append("**📊 הכנסות שנלקחו בחשבון:**")
         tax_explanation_parts.append(f"  • קצבה חודשית: {gross_monthly_pension:,.0f} ₪")
@@ -272,7 +285,9 @@ class TaxProjectionToolsMixin:
                 "exempt_pension_percentage": exempt_pension_pct,
                 "exempt_pension_amount_monthly": exempt_pension_amount_monthly,
                 "tax_breakdown": _to_jsonable(getattr(tax_result, "tax_breakdown", [])),
-                "income_breakdown": _to_jsonable(getattr(tax_result, "income_breakdown", [])),
+                "income_breakdown": _to_jsonable(
+                    getattr(tax_result, "income_breakdown", [])
+                ),
             },
             "explanation": "\n".join(tax_explanation_parts),
         }

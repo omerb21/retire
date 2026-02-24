@@ -1,16 +1,25 @@
 ﻿from fastapi.responses import StreamingResponse
 
-from app.services.llm_chat.chat_orchestration_helpers import load_undo_snapshot, store_pending_approval_request
+from app.services.llm_chat.chat_orchestration_helpers import (
+    load_undo_snapshot,
+    store_pending_approval_request,
+)
 from app.services.llm_chat.message_utils import is_undo_intent_text
-from app.services.llm_chat.chat_orchestration_helpers import build_approval_request_ui_action
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+)
 
 
-def _maybe_handle_undo_snapshot_approval_request(*, request, db, original_user_msg: str):
+def _maybe_handle_undo_snapshot_approval_request(
+    *, request, db, original_user_msg: str
+):
     if not (
         request.client_id is not None
         and is_undo_intent_text(original_user_msg)
         and (not str(original_user_msg or "").strip().startswith("###USER_APPROVED###"))
-        and (not str(original_user_msg or "").strip().startswith("###USER_CANCELLED###"))
+        and (
+            not str(original_user_msg or "").strip().startswith("###USER_CANCELLED###")
+        )
     ):
         return None
 

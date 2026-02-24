@@ -101,7 +101,9 @@ def _post_json_stream_until(
             if not _contains_required_tools(text=text, required_tools=required_tools):
                 continue
 
-            if not _contains_required_substrings(text=text, required_contains=required_contains):
+            if not _contains_required_substrings(
+                text=text, required_contains=required_contains
+            ):
                 continue
 
             if require_ui_action and "###UI_ACTION###" not in text:
@@ -198,7 +200,10 @@ def _extract_tools_used(response_text: str) -> list[str]:
         deduped.append(t)
         seen.add(t)
 
-    if "###PENSION_PORTFOLIO_UPDATE###" in text and "TRANSFORM_FUNDS_TO_ASSETS" not in seen:
+    if (
+        "###PENSION_PORTFOLIO_UPDATE###" in text
+        and "TRANSFORM_FUNDS_TO_ASSETS" not in seen
+    ):
         deduped.append("TRANSFORM_FUNDS_TO_ASSETS")
         seen.add("TRANSFORM_FUNDS_TO_ASSETS")
     return deduped
@@ -265,7 +270,9 @@ def _summarize_db(*, db_path: str, client_id: int) -> dict[str, Any]:
         con.close()
 
 
-def _load_portfolio_from_llm_capital_assets(*, db_path: str, client_id: int) -> list[dict[str, Any]]:
+def _load_portfolio_from_llm_capital_assets(
+    *, db_path: str, client_id: int
+) -> list[dict[str, Any]]:
     con = sqlite3.connect(db_path)
     try:
         cur = con.cursor()
@@ -313,7 +320,9 @@ def _load_portfolio_from_llm_capital_assets(*, db_path: str, client_id: int) -> 
         con.close()
 
 
-def _load_portfolio_from_llm_pension_funds(*, db_path: str, client_id: int) -> list[dict[str, Any]]:
+def _load_portfolio_from_llm_pension_funds(
+    *, db_path: str, client_id: int
+) -> list[dict[str, Any]]:
     con = sqlite3.connect(db_path)
     try:
         cur = con.cursor()
@@ -364,13 +373,17 @@ def _load_portfolio_from_llm_pension_funds(*, db_path: str, client_id: int) -> l
 def _load_portfolio(*, db_path: str, client_id: int) -> list[dict[str, Any]]:
     accounts_by_number: dict[str, dict[str, Any]] = {}
 
-    for acc in _load_portfolio_from_llm_capital_assets(db_path=db_path, client_id=client_id):
+    for acc in _load_portfolio_from_llm_capital_assets(
+        db_path=db_path, client_id=client_id
+    ):
         acc_no = str(acc.get("מספר_חשבון") or "").strip()
         if not acc_no:
             continue
         accounts_by_number[acc_no] = acc
 
-    for acc in _load_portfolio_from_llm_pension_funds(db_path=db_path, client_id=client_id):
+    for acc in _load_portfolio_from_llm_pension_funds(
+        db_path=db_path, client_id=client_id
+    ):
         acc_no = str(acc.get("מספר_חשבון") or "").strip()
         if not acc_no:
             continue
@@ -391,16 +404,18 @@ def _evaluate_response(*, response_text: str) -> dict[str, bool]:
                 if not isinstance(action, dict):
                     continue
                 path = action.get("path")
-                if isinstance(path, str) and ("/reports" in path or "auto_html" in path):
+                if isinstance(path, str) and (
+                    "/reports" in path or "auto_html" in path
+                ):
                     has_open_path_via_ui = True
                     break
 
     pension_portfolio_update_start = "###PENSION_PORTFOLIO_UPDATE###"
     pension_portfolio_update_end = "###END_PENSION_PORTFOLIO_UPDATE###"
     has_pension_portfolio_update = False
-    if pension_portfolio_update_start in (response_text or "") and pension_portfolio_update_end in (
+    if pension_portfolio_update_start in (
         response_text or ""
-    ):
+    ) and pension_portfolio_update_end in (response_text or ""):
         try:
             start_idx = response_text.index(pension_portfolio_update_start) + len(
                 pension_portfolio_update_start
@@ -483,9 +498,13 @@ def _run_case_once(
                 require_ui_action=bool(expect.get("require_ui_action")),
                 require_open_path=bool(expect.get("require_open_path")),
                 require_pass_fail=bool(expect.get("require_pass_fail")),
-                require_pension_portfolio_update=bool(expect.get("require_pension_portfolio_update")),
+                require_pension_portfolio_update=bool(
+                    expect.get("require_pension_portfolio_update")
+                ),
                 required_tools=required_tools,
-                required_contains=required_contains if isinstance(required_contains, list) else [],
+                required_contains=(
+                    required_contains if isinstance(required_contains, list) else []
+                ),
             )
         else:
             response_text = _post_json(url=url, payload=payload, timeout_s=timeout_s)
@@ -515,7 +534,9 @@ def _run_case_once(
     }
 
 
-def _check_case_expectations(*, case: dict[str, Any], case_runs: list[dict[str, Any]]) -> list[str]:
+def _check_case_expectations(
+    *, case: dict[str, Any], case_runs: list[dict[str, Any]]
+) -> list[str]:
     errors: list[str] = []
 
     if not case_runs:
@@ -540,7 +561,9 @@ def _check_case_expectations(*, case: dict[str, Any], case_runs: list[dict[str, 
     ):
         errors.append("missing_pension_portfolio_update_marker")
 
-    if expect.get("forbid_pension_portfolio_update") and markers.get("has_pension_portfolio_update"):
+    if expect.get("forbid_pension_portfolio_update") and markers.get(
+        "has_pension_portfolio_update"
+    ):
         errors.append("forbidden_pension_portfolio_update_marker")
 
     required_contains = expect.get("require_contains")
@@ -610,9 +633,13 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", type=str, default="http://localhost:8005")
     parser.add_argument("--db", type=str, default="retire.db")
-    parser.add_argument("--cases", type=str, default=os.path.join("scripts", "llm_eval_cases.json"))
+    parser.add_argument(
+        "--cases", type=str, default=os.path.join("scripts", "llm_eval_cases.json")
+    )
     parser.add_argument("--timeout", type=int, default=300)
-    parser.add_argument("--output", type=str, default=os.path.join("logs", "llm_eval_results.json"))
+    parser.add_argument(
+        "--output", type=str, default=os.path.join("logs", "llm_eval_results.json")
+    )
     parser.add_argument("--case-id", type=str, default=None)
     args = parser.parse_args()
 

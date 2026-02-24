@@ -8,7 +8,9 @@ def test_stream_report_variants_include_hebrew_verbs(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for report routing")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tool must be executed for report routing")

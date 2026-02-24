@@ -1,4 +1,3 @@
-
 import os
 
 file_path = r"app\services\llm_agent_tools_service.py"
@@ -10,18 +9,22 @@ with open(file_path, "rb") as f:
 # Find the point where corruption likely started (around line 1369)
 # The previous valid content ended with the return of get_tax_projection.
 # We search for the byte sequence corresponding to the end of that method.
-end_marker = b'            "explanation": "\\n".join(tax_explanation_parts),\r\n        }\r\n'
+end_marker = (
+    b'            "explanation": "\\n".join(tax_explanation_parts),\r\n        }\r\n'
+)
 end_pos = content.find(end_marker)
 
 if end_pos == -1:
     # Try with just \n
-    end_marker = b'            "explanation": "\\n".join(tax_explanation_parts),\n        }\n'
+    end_marker = (
+        b'            "explanation": "\\n".join(tax_explanation_parts),\n        }\n'
+    )
     end_pos = content.find(end_marker)
 
 if end_pos != -1:
     # Cut off everything after the marker
-    clean_content = content[:end_pos + len(end_marker)]
-    
+    clean_content = content[: end_pos + len(end_marker)]
+
     # Append the new method
     new_method = """
     def get_pension_products(self) -> Dict[str, Any]:
@@ -97,13 +100,15 @@ if end_pos != -1:
         }
 """
     # Write back the clean content + new method
-    # We write as binary to preserve existing encoding of the first part, 
+    # We write as binary to preserve existing encoding of the first part,
     # and encode the new part as utf-8 (which is standard for python files)
     with open(file_path, "wb") as f:
         f.write(clean_content)
-        f.write(new_method.encode('utf-8'))
-    
+        f.write(new_method.encode("utf-8"))
+
     print("Successfully repaired file and appended new method.")
 else:
-    print("Could not find the end marker. File structure might be different than expected.")
+    print(
+        "Could not find the end marker. File structure might be different than expected."
+    )
     # Fallback: Read text, find line 1368 approx, truncate and write

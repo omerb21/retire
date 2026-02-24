@@ -5,7 +5,9 @@ from datetime import date
 
 import app.services.llm_chat.chat_orchestration as chat_orchestration
 from app.services.llm_chat.chat_orchestration import run_pension_chat
-from app.services.llm_chat.tool_execution import execute_tool_call as real_execute_tool_call
+from app.services.llm_chat.tool_execution import (
+    execute_tool_call as real_execute_tool_call,
+)
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.pension_fund import PensionFund
 from app.models.capital_asset import CapitalAsset
@@ -57,7 +59,9 @@ def _build_sample_portfolio() -> list[dict]:
     ]
 
 
-def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, monkeypatch):
+def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(
+    db_session, monkeypatch
+):
     portfolio = _build_sample_portfolio()
 
     unique_id = gen_valid_id()
@@ -78,7 +82,7 @@ def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, mo
         [
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": '
             + json.dumps(portfolio, ensure_ascii=False)
-            + '}}',
+            + "}}",
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GENERATE_FULL_REPORT", "arguments": {"report_type": "full"}}',
             "PASS - סיכום QA סופי",
@@ -139,10 +143,14 @@ def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, mo
     assert "PASS - סיכום QA סופי" in resp1.reply
 
     pension_count_1 = (
-        db_session.query(PensionFund).filter(PensionFund.client_id == test_client.id).count()
+        db_session.query(PensionFund)
+        .filter(PensionFund.client_id == test_client.id)
+        .count()
     )
     capital_count_1 = (
-        db_session.query(CapitalAsset).filter(CapitalAsset.client_id == test_client.id).count()
+        db_session.query(CapitalAsset)
+        .filter(CapitalAsset.client_id == test_client.id)
+        .count()
     )
 
     assert pension_count_1 >= 2
@@ -153,7 +161,7 @@ def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, mo
         [
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "TRANSFORM_FUNDS_TO_ASSETS", "arguments": {"accounts": '
             + json.dumps(portfolio, ensure_ascii=False)
-            + '}}',
+            + "}}",
             '###TRANSPARENCY_LOG### {"test": true}\n###RISK_REVIEW### {"approval_required": false, "conflict_with_rag": false}\n###TOOL_CALL### {"name": "GET_PENSION_PRODUCTS", "arguments": {}}',
             "PASS - סיכום QA סופי",
         ]
@@ -168,10 +176,14 @@ def test_llm_qa_harness_creates_expected_assets_and_is_idempotent(db_session, mo
     assert "PASS - סיכום QA סופי" in resp2.reply
 
     pension_count_2 = (
-        db_session.query(PensionFund).filter(PensionFund.client_id == test_client.id).count()
+        db_session.query(PensionFund)
+        .filter(PensionFund.client_id == test_client.id)
+        .count()
     )
     capital_count_2 = (
-        db_session.query(CapitalAsset).filter(CapitalAsset.client_id == test_client.id).count()
+        db_session.query(CapitalAsset)
+        .filter(CapitalAsset.client_id == test_client.id)
+        .count()
     )
 
     assert pension_count_2 == pension_count_1

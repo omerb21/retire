@@ -30,7 +30,10 @@ def test_save_dedupes_multiple_snapshot_rows(_test_db) -> None:
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": [{"account_number": f"A{i}"}]}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": [{"account_number": f"A{i}"}]},
+                    ensure_ascii=False,
+                ),
             )
             db.add(sc)
         db.commit()

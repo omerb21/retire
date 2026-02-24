@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_pre_retirement_plan_resolution import (
     _store_ignore_blocked_balances_decision,
- )
+)
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     build_default_termination_plan_preview,
     clear_current_employer_termination_plan_preview,
@@ -17,7 +17,9 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     store_current_employer_severance_execution_decision,
     store_current_employer_termination_plan_preview,
 )
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot_models,
+)
 
 
 def _has_positive_component_amounts(raw: object) -> bool:
@@ -85,7 +87,7 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
     store_latest_target_pension_plan,
     clear_pending_plan_target_marker,
     clear_pending_approval_request,
- ):
+):
     normalized = (lowered_user_msg or "").strip()
     answer = None
     if normalized in {"כן", "לא"}:
@@ -97,7 +99,20 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                 if not rest:
                     answer = token
                     break
-                if rest[:1] in {" ", "\t", "\n", ".", ",", "!", "?", ":", ";", "-", "–", "—"}:
+                if rest[:1] in {
+                    " ",
+                    "\t",
+                    "\n",
+                    ".",
+                    ",",
+                    "!",
+                    "?",
+                    ":",
+                    ";",
+                    "-",
+                    "–",
+                    "—",
+                }:
                     answer = token
                     break
 
@@ -106,20 +121,26 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
 
     pending_current_employer = None
     try:
-        pending_current_employer = load_pending_current_employer_severance_termination_question(
-            db=db,
-            client_id=request.client_id,
+        pending_current_employer = (
+            load_pending_current_employer_severance_termination_question(
+                db=db,
+                client_id=request.client_id,
+            )
         )
     except Exception:
         pending_current_employer = None
 
-    if isinstance(pending_current_employer, dict) and isinstance(pending_current_employer.get("plan_args"), dict):
+    if isinstance(pending_current_employer, dict) and isinstance(
+        pending_current_employer.get("plan_args"), dict
+    ):
         plan_args = dict(pending_current_employer.get("plan_args") or {})
         plan_args["ignore_blocked_balances"] = True
 
         effective_portfolio = request.pension_portfolio
         try:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 effective_portfolio, _effective_snapshot_at = loaded
         except Exception:
@@ -175,7 +196,9 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                         sanitize_user_visible_text(
                             "קיבלתי – נמשיך בלי לבצע עזיבת עבודה, תוך התעלמות מפיצויי מעסיק נוכחי.\n\n"
                             "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-                            + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                            + format_tool_output_for_user_stream(
+                                "BUILD_TARGET_PENSION_PLAN", plan_result
+                            )
                         )
                     ]
                 ),
@@ -201,7 +224,9 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         current_employer_amount = 0.0
         try:
             current_employer_amount = float(
-                get_current_employer_severance_amount_ssot(db=db, client_id=int(request.client_id))
+                get_current_employer_severance_amount_ssot(
+                    db=db, client_id=int(request.client_id)
+                )
                 or 0
             )
         except Exception:
@@ -240,7 +265,10 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
     except Exception:
         preview_payload = None
 
-    if isinstance(preview_payload, dict) and bool(preview_payload.get("awaiting_user_confirmation")) is True:
+    if (
+        isinstance(preview_payload, dict)
+        and bool(preview_payload.get("awaiting_user_confirmation")) is True
+    ):
         plan_args = preview_payload.get("plan_args")
         if not isinstance(plan_args, dict):
             plan_args = {}
@@ -249,7 +277,9 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
 
         effective_portfolio = request.pension_portfolio
         try:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 effective_portfolio, _effective_snapshot_at = loaded
         except Exception:
@@ -344,7 +374,9 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                 parsed_term = json.loads(raw_json)
             except Exception:
                 parsed_term = None
-        term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
+        term_success = (
+            isinstance(parsed_term, dict) and parsed_term.get("success") is True
+        )
 
         if term_success:
             try:
@@ -356,7 +388,8 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
                 pass
 
         term_text = sanitize_user_visible_text(
-            "🔧 **פלט כלי (עזיבת עבודה):**\n" + format_tool_output_for_user_stream("PROCESS_TERMINATION", term_result)
+            "🔧 **פלט כלי (עזיבת עבודה):**\n"
+            + format_tool_output_for_user_stream("PROCESS_TERMINATION", term_result)
         )
 
         if not term_success:
@@ -377,7 +410,9 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
         except Exception:
             pass
         try:
-            loaded_after_term = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded_after_term = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded_after_term is not None:
                 refreshed_portfolio, _snapshot_at_after = loaded_after_term
         except Exception:
@@ -411,7 +446,10 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
             pass
 
         plan_text = sanitize_user_visible_text(
-            "🔧 **פלט כלי (בניית תכנית קצבה):**\n" + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+            "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
+            + format_tool_output_for_user_stream(
+                "BUILD_TARGET_PENSION_PLAN", plan_result
+            )
         )
         return StreamingResponse(
             iter([term_text + "\n\n" + plan_text]),
@@ -427,7 +465,10 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
     except Exception:
         pending_payload = None
 
-    if not (isinstance(pending_payload, dict) and pending_payload.get("requested_target") is not None):
+    if not (
+        isinstance(pending_payload, dict)
+        and pending_payload.get("requested_target") is not None
+    ):
         return None
 
     effective_portfolio = request.pension_portfolio
@@ -451,7 +492,9 @@ def _maybe_handle_pre_retirement_plan_resolution_yes_no(
 
     if answer == "לא":
         try:
-            clear_pending_pre_retirement_plan_resolution(db=db, client_id=request.client_id)
+            clear_pending_pre_retirement_plan_resolution(
+                db=db, client_id=request.client_id
+            )
         except Exception:
             pass
         try:

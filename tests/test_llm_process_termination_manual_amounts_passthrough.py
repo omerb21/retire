@@ -67,7 +67,11 @@ def test_process_termination_tool_preserves_manual_amounts(db_session) -> None:
 
     out = tool_execution.execute_tool_call(
         tool_name="PROCESS_TERMINATION",
-        args={"confirmed": True, "exempt_choice": "annuity", "taxable_choice": "annuity"},
+        args={
+            "confirmed": True,
+            "exempt_choice": "annuity",
+            "taxable_choice": "annuity",
+        },
         client_id=int(client.id),
         db=db_session,
         pension_portfolio=[],

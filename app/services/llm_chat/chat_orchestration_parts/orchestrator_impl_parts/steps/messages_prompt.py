@@ -15,8 +15,12 @@ def _build_messages_and_prompt(*, request, db, logger):
     request_has_portfolio = isinstance(req_portfolio, list) and len(req_portfolio) > 0
 
     # Optional override flags (safe even if not defined on request)
-    prefer_db_snapshot = bool(getattr(request, "prefer_db_pension_portfolio_snapshot", False))
-    force_db_snapshot = bool(getattr(request, "force_db_pension_portfolio_snapshot", False))
+    prefer_db_snapshot = bool(
+        getattr(request, "prefer_db_pension_portfolio_snapshot", False)
+    )
+    force_db_snapshot = bool(
+        getattr(request, "force_db_pension_portfolio_snapshot", False)
+    )
     use_db_even_if_request_has_portfolio = prefer_db_snapshot or force_db_snapshot
 
     effective_portfolio = req_portfolio if request_has_portfolio else []
@@ -24,7 +28,9 @@ def _build_messages_and_prompt(*, request, db, logger):
 
     # Request portfolio count for logs
     try:
-        request_portfolio_count = len(req_portfolio) if isinstance(req_portfolio, list) else 0
+        request_portfolio_count = (
+            len(req_portfolio) if isinstance(req_portfolio, list) else 0
+        )
     except Exception:
         request_portfolio_count = 0
 
@@ -42,7 +48,11 @@ def _build_messages_and_prompt(*, request, db, logger):
                     "📦 Portfolio source=DB snapshot (client_id=%s, request_accounts=%s, db_accounts=%s, db_snapshot_at=%s, forced=%s)",
                     request.client_id,
                     request_portfolio_count,
-                    len(effective_portfolio) if isinstance(effective_portfolio, list) else 0,
+                    (
+                        len(effective_portfolio)
+                        if isinstance(effective_portfolio, list)
+                        else 0
+                    ),
                     effective_snapshot_at,
                     bool(use_db_even_if_request_has_portfolio),
                 )
@@ -74,6 +84,7 @@ def _build_messages_and_prompt(*, request, db, logger):
     # Log state_source for trace observability
     try:
         from app.services.agent_trace_logger import log_trace_event
+
         _portfolio_source = "request_payload"
         if request.client_id is not None and (
             (not request_has_portfolio) or use_db_even_if_request_has_portfolio
@@ -83,8 +94,12 @@ def _build_messages_and_prompt(*, request, db, logger):
             event_type="state_source",
             payload={
                 "portfolio_source": _portfolio_source,
-                "portfolio_count": len(effective_portfolio) if effective_portfolio else 0,
-                "snapshot_at": str(effective_snapshot_at) if effective_snapshot_at else None,
+                "portfolio_count": (
+                    len(effective_portfolio) if effective_portfolio else 0
+                ),
+                "snapshot_at": (
+                    str(effective_snapshot_at) if effective_snapshot_at else None
+                ),
             },
             client_id=request.client_id,
             endpoint="/api/v1/llm/pension-chat",

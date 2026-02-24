@@ -2,8 +2,14 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.schemas.llm_chat import ChatMessage, ChatRequest
-from app.services.llm_chat.chat_orchestration_helpers import get_gross_for_tax_chaining, run_tax_projection_autochain
-from app.services.llm_chat.message_utils import extract_target_pension_from_message, find_last_user_message
+from app.services.llm_chat.chat_orchestration_helpers import (
+    get_gross_for_tax_chaining,
+    run_tax_projection_autochain,
+)
+from app.services.llm_chat.message_utils import (
+    extract_target_pension_from_message,
+    find_last_user_message,
+)
 from app.services.llm_chat.orchestration_utils import (
     build_tax_result_system_message_for_stream,
     build_tool_result_system_message_for_stream,
@@ -32,7 +38,9 @@ def _stream_run_forced_fixation_chain_if_needed(
     if user_wants_target_plan and _infer_target_is_net(user_msg_for_chain):
         target_val = None
         try:
-            target_val = float(extract_target_pension_from_message(user_msg_for_chain) or 0)
+            target_val = float(
+                extract_target_pension_from_message(user_msg_for_chain) or 0
+            )
         except Exception:
             target_val = None
         if target_val and target_val > 0:
@@ -124,9 +132,7 @@ def _stream_run_forced_fixation_chain_if_needed(
                 history_messages.append(
                     ChatMessage(
                         role="system",
-                        content=build_tax_result_system_message_for_stream(
-                            tax_after
-                        ),
+                        content=build_tax_result_system_message_for_stream(tax_after),
                     )
                 )
 

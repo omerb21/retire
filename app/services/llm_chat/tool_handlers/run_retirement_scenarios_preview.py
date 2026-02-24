@@ -4,21 +4,30 @@ from app.services.llm_agent_tools_service import AgentToolsService, _to_jsonable
 from app.services.retirement import RetirementScenariosBuilder
 
 
-def handle_run_retirement_scenarios_preview(*, args: dict, agent_tools: AgentToolsService) -> str:
+def handle_run_retirement_scenarios_preview(
+    *, args: dict, agent_tools: AgentToolsService
+) -> str:
     retirement_age = args.get("retirement_age")
     if retirement_age is None:
         return "Error: Missing argument 'retirement_age'"
 
-    include_current_employer_termination = args.get("include_current_employer_termination", False)
+    include_current_employer_termination = args.get(
+        "include_current_employer_termination", False
+    )
     if isinstance(include_current_employer_termination, str):
-        include_current_employer_termination_val = include_current_employer_termination.strip().lower() in {
-            "true",
-            "1",
-            "yes",
-            "y",
-        }
+        include_current_employer_termination_val = (
+            include_current_employer_termination.strip().lower()
+            in {
+                "true",
+                "1",
+                "yes",
+                "y",
+            }
+        )
     else:
-        include_current_employer_termination_val = bool(include_current_employer_termination)
+        include_current_employer_termination_val = bool(
+            include_current_employer_termination
+        )
 
     portfolio = getattr(agent_tools, "pension_portfolio_data", None)
     portfolio_serialized = _to_jsonable(portfolio) if portfolio is not None else None
@@ -60,8 +69,12 @@ def handle_run_retirement_scenarios_preview(*, args: dict, agent_tools: AgentToo
             }
         )
 
-    max_pension = max((float(s.get("total_pension_monthly") or 0) for s in summary), default=0.0)
-    max_capital = max((float(s.get("total_capital") or 0) for s in summary), default=0.0)
+    max_pension = max(
+        (float(s.get("total_pension_monthly") or 0) for s in summary), default=0.0
+    )
+    max_capital = max(
+        (float(s.get("total_capital") or 0) for s in summary), default=0.0
+    )
     max_npv = max((float(s.get("estimated_npv") or 0) for s in summary), default=0.0)
 
     return json.dumps(

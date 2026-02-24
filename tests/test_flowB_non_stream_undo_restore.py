@@ -13,7 +13,9 @@ from app.services.snapshot_service import SnapshotService
 
 def _extract_ui_action_payload(body: str) -> dict:
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     return json.loads(payload_json)
 
 
@@ -76,13 +78,19 @@ def test_flowB_non_stream_undo_restore(monkeypatch, _test_db) -> None:
     # 1) Ask undo -> should return approval request
     resp1 = api.post(
         "/api/v1/llm/pension-chat",
-        json={"client_id": client_id, "messages": [{"role": "user", "content": "undo"}]},
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "undo"}],
+        },
     )
     assert resp1.status_code == 200
     reply1 = resp1.json().get("reply")
     payload = _extract_ui_action_payload(reply1)
     assert payload.get("actions")[0].get("tool_name") == "RESTORE_SYSTEM_SNAPSHOT"
-    assert payload.get("actions")[0].get("arguments").get("snapshot_scenario_id") == undo_id
+    assert (
+        payload.get("actions")[0].get("arguments").get("snapshot_scenario_id")
+        == undo_id
+    )
 
     # 2) Approve -> should execute restore and clear undo_snapshot
     resp2 = api.post(

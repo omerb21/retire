@@ -9,6 +9,7 @@ Provides structured JSONL logging for LLM agent conversations, including:
 
 All entries share a request_id for correlation.
 """
+
 import json
 import logging
 import os
@@ -22,7 +23,9 @@ from app.utils.trace_context import get_current_trace_id
 
 logger = logging.getLogger(__name__)
 
-_current_request_id: ContextVar[Optional[str]] = ContextVar("llm_request_id", default=None)
+_current_request_id: ContextVar[Optional[str]] = ContextVar(
+    "llm_request_id", default=None
+)
 _current_case_id: ContextVar[Optional[str]] = ContextVar("llm_case_id", default=None)
 
 # Maximum characters to log for large payloads (tool results, answers)

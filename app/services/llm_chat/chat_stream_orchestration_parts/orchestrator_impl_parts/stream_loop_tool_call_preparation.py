@@ -9,12 +9,24 @@ from app.services.llm_chat.orchestration_utils import (
 from app.utils.llm_chat_log import log_llm_event
 
 from ..chat_helpers import _user_requested_target_pension_plan
-from .stream_loop_build_target_pension_plan_guardrail import _maybe_apply_build_target_pension_plan_guardrail
-from .stream_loop_cashflow_retirement_date_normalization import _maybe_normalize_cashflow_retirement_date
-from .stream_loop_document_request_allowed_tools_guardrail import _maybe_guardrail_document_request_allowed_tools
-from .stream_loop_pre_tool_execution_guardrails import _maybe_apply_pre_tool_execution_guardrails
-from .stream_loop_retirement_scenarios_portfolio_analysis import _maybe_prepare_retirement_scenarios_args_for_portfolio_analysis
-from .stream_loop_transform_funds_to_assets_guardrails import _maybe_guardrail_transform_funds_to_assets
+from .stream_loop_build_target_pension_plan_guardrail import (
+    _maybe_apply_build_target_pension_plan_guardrail,
+)
+from .stream_loop_cashflow_retirement_date_normalization import (
+    _maybe_normalize_cashflow_retirement_date,
+)
+from .stream_loop_document_request_allowed_tools_guardrail import (
+    _maybe_guardrail_document_request_allowed_tools,
+)
+from .stream_loop_pre_tool_execution_guardrails import (
+    _maybe_apply_pre_tool_execution_guardrails,
+)
+from .stream_loop_retirement_scenarios_portfolio_analysis import (
+    _maybe_prepare_retirement_scenarios_args_for_portfolio_analysis,
+)
+from .stream_loop_transform_funds_to_assets_guardrails import (
+    _maybe_guardrail_transform_funds_to_assets,
+)
 from .stream_loop_commutation_approval import _stream_maybe_request_commutation_approval
 
 
@@ -94,7 +106,9 @@ def _stream_prepare_tool_call_and_maybe_request_commutation_approval(
         return True, False, False, tool_name, tool_args, current_pension_portfolio
 
     if tool_name == "PROCESS_TERMINATION" and (not explicit_termination):
-        allow_change_after_execution = bool(termination_already_executed and termination_change)
+        allow_change_after_execution = bool(
+            termination_already_executed and termination_change
+        )
         if not allow_change_after_execution:
             history_messages.append(
                 ChatMessage(

@@ -12,7 +12,9 @@ from typing import Any
 from app.services.retirement_age_service import get_retirement_date
 
 try:
-    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+    from app.services.retirement_age_service import (
+        DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK,
+    )
 except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
@@ -28,11 +30,11 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
 )
 
 
-
 def is_net_pension_request(user_message: str) -> bool:
     net_keywords = ["נטו", "ביד", "אחרי מס", "נקי", "net"]
     message_lower = (user_message or "").lower()
     return any(keyword in message_lower for keyword in net_keywords)
+
 
 def _is_target_pension_plan_request_text(user_message: str) -> bool:
     lowered = (user_message or "").lower().replace(",", "")
@@ -54,10 +56,13 @@ def _is_target_pension_plan_request_text(user_message: str) -> bool:
     ]
     if not any(k in lowered for k in planning_keywords):
         return False
-    has_numeric = bool(re.search(r"\b\d{2,3}\s*[kK]\b", lowered)) or bool(
-        re.search(r"\b\d{4,6}\b", lowered)
-    ) or ("אלף" in lowered)
+    has_numeric = (
+        bool(re.search(r"\b\d{2,3}\s*[kK]\b", lowered))
+        or bool(re.search(r"\b\d{4,6}\b", lowered))
+        or ("אלף" in lowered)
+    )
     return has_numeric
+
 
 def is_data_awareness_request(user_message: str | None) -> bool:
     if not user_message:
@@ -77,6 +82,7 @@ def is_data_awareness_request(user_message: str | None) -> bool:
         "כל מקורות",
     )
     return any(t in lowered for t in triggers) and ("?" in lowered or "האם" in lowered)
+
 
 def is_list_all_financial_entities_request(user_message: str | None) -> bool:
     if not user_message:
@@ -107,6 +113,7 @@ def is_list_all_financial_entities_request(user_message: str | None) -> bool:
         return False
     return True
 
+
 def infer_desired_income_is_net_explicit(user_message: str | None) -> bool | None:
     if not user_message:
         return None
@@ -135,6 +142,7 @@ def infer_desired_income_is_net_explicit(user_message: str | None) -> bool | Non
         return False
     return None
 
+
 def is_cashflow_missing_income_followup(user_message: str | None) -> bool:
     if not user_message:
         return False
@@ -154,6 +162,7 @@ def is_cashflow_missing_income_followup(user_message: str | None) -> bool:
     ):
         return True
     return False
+
 
 def is_retirement_cashflow_request(user_message: str) -> bool:
     if not user_message:
@@ -201,7 +210,10 @@ def is_retirement_cashflow_request(user_message: str) -> bool:
     )
 
     # Only treat as a cashflow request when the user explicitly asked to compute/run an analysis.
-    return any(t in lowered for t in compute_tokens) and any(t in lowered for t in domain_tokens)
+    return any(t in lowered for t in compute_tokens) and any(
+        t in lowered for t in domain_tokens
+    )
+
 
 def is_process_termination_request(user_message: str) -> bool:
     if not user_message:
@@ -220,9 +232,16 @@ def is_process_termination_request(user_message: str) -> bool:
         "process termination",
         "termination",
     )
-    has_explicit_termination_intent = any(k in lowered for k in explicit_termination_keywords)
+    has_explicit_termination_intent = any(
+        k in lowered for k in explicit_termination_keywords
+    )
     if not has_explicit_termination_intent:
-        has_convert_verb = ("המר" in lowered) or ("המרה" in lowered) or ("להמיר" in lowered) or ("convert" in lowered)
+        has_convert_verb = (
+            ("המר" in lowered)
+            or ("המרה" in lowered)
+            or ("להמיר" in lowered)
+            or ("convert" in lowered)
+        )
         component_intent_tokens = (
             "מעסיקים קודמים",
             "ממעסיקים קודמים",
@@ -244,7 +263,9 @@ def is_process_termination_request(user_message: str) -> bool:
     try:
         from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
-        if has_explicit_termination_intent and is_conceptual_no_execute_request(user_message):
+        if has_explicit_termination_intent and is_conceptual_no_execute_request(
+            user_message
+        ):
             return True
     except Exception:
         pass
@@ -291,7 +312,10 @@ def is_process_termination_request(user_message: str) -> bool:
         "מעסיק נוכחי",
     ]
 
-    return any(a in lowered for a in action_tokens) and any(d in lowered for d in domain_tokens)
+    return any(a in lowered for a in action_tokens) and any(
+        d in lowered for d in domain_tokens
+    )
+
 
 def is_no_termination_request(user_message: str) -> bool:
     if not user_message:
@@ -316,6 +340,7 @@ def is_no_termination_request(user_message: str) -> bool:
     return any(t in lowered for t in negative_tokens) and any(
         t in lowered for t in domain_tokens
     )
+
 
 def is_termination_change_request(user_message: str) -> bool:
     if not user_message:
@@ -352,7 +377,10 @@ def is_termination_change_request(user_message: str) -> bool:
         "משיכה",
     ]
 
-    return any(t in lowered for t in change_tokens) and any(d in lowered for d in domain_tokens)
+    return any(t in lowered for t in change_tokens) and any(
+        d in lowered for d in domain_tokens
+    )
+
 
 def is_retirement_comparison_request(user_message: str) -> bool:
     if not user_message:
@@ -387,6 +415,7 @@ def is_retirement_comparison_request(user_message: str) -> bool:
     )
     return any(t in lowered for t in retirement_tokens)
 
+
 def is_max_exemption_request(user_message: str) -> bool:
     if not user_message:
         return False
@@ -402,6 +431,7 @@ def is_max_exemption_request(user_message: str) -> bool:
     ]
     lowered = user_message.lower()
     return any(keyword.lower() in lowered for keyword in keywords)
+
 
 def is_document_request(user_message: str) -> bool:
     if not user_message:
@@ -456,6 +486,7 @@ def is_document_request(user_message: str) -> bool:
     ]
     return any(k in lowered for k in direct_doc_intents)
 
+
 def is_tax_documents_request(user_message: str) -> bool:
     if not user_message:
         return False
@@ -491,6 +522,7 @@ def is_tax_documents_request(user_message: str) -> bool:
     ]
     return any(k in lowered for k in tax_doc_keywords)
 
+
 def is_full_report_request(user_message: str) -> bool:
     if not user_message:
         return False
@@ -507,6 +539,7 @@ def is_full_report_request(user_message: str) -> bool:
         "עמוד דוחות",
     ]
     return any(k in lowered for k in report_keywords)
+
 
 def is_max_capital_request(user_message: str) -> bool:
     if not user_message:
@@ -525,9 +558,21 @@ def is_max_capital_request(user_message: str) -> bool:
     if "בצורה הונית" in lowered:
         return True
     if "הונית" in lowered or "הוני" in lowered:
-        if any(k in lowered for k in ("משוך", "משיכה", "למשוך", "משוך את כל", "כל התיק", "כל הסכומים", "100%")):
+        if any(
+            k in lowered
+            for k in (
+                "משוך",
+                "משיכה",
+                "למשוך",
+                "משוך את כל",
+                "כל התיק",
+                "כל הסכומים",
+                "100%",
+            )
+        ):
             return True
     return False
+
 
 def infer_tax_document_type(user_message: str) -> str:
     lowered = (user_message or "").lower()
@@ -540,6 +585,7 @@ def infer_tax_document_type(user_message: str) -> str:
         return "ptor_pitzuim"
 
     return "kibua_zechuyot"
+
 
 def is_pension_commutation_request(user_message: str) -> bool:
     if not user_message:
@@ -556,6 +602,7 @@ def is_pension_commutation_request(user_message: str) -> bool:
     ):
         return True
     return False
+
 
 def is_transform_request(user_message: str) -> bool:
     if not user_message:
@@ -637,6 +684,7 @@ def is_transform_request(user_message: str) -> bool:
 
     return any(t in lowered for t in triggers)
 
+
 def is_portfolio_breakdown_request(user_message: str) -> bool:
     if not user_message:
         return False
@@ -666,8 +714,19 @@ def is_portfolio_breakdown_request(user_message: str) -> bool:
         return False
 
     # Common goal phrasing: "אני צריך/זקוק לקצבה" + a numeric target (e.g., 25K / 25000)
-    has_need_phrase = any(k in lowered for k in ["צריך קצבה", "זקוק לקצבה", "זקוקה לקצבה", "אני צריך קצבה", "אני זקוק לקצבה"])
-    has_numeric_target = bool(re.search(r"\b\d{2,3}\s*k\b", lowered)) or bool(re.search(r"\b\d{4,6}\b", lowered))
+    has_need_phrase = any(
+        k in lowered
+        for k in [
+            "צריך קצבה",
+            "זקוק לקצבה",
+            "זקוקה לקצבה",
+            "אני צריך קצבה",
+            "אני זקוק לקצבה",
+        ]
+    )
+    has_numeric_target = bool(re.search(r"\b\d{2,3}\s*k\b", lowered)) or bool(
+        re.search(r"\b\d{4,6}\b", lowered)
+    )
     if has_need_phrase and has_numeric_target:
         return False
 
@@ -703,6 +762,7 @@ def is_portfolio_breakdown_request(user_message: str) -> bool:
         "summary",
     ]
     return has_analysis_intent or any(t in lowered for t in triggers)
+
 
 def is_portfolio_analysis_request(user_message: str) -> bool:
     if not user_message:
@@ -740,6 +800,7 @@ def is_portfolio_analysis_request(user_message: str) -> bool:
     ]
     return any(k in lowered for k in portfolio_keywords)
 
+
 def is_no_tools_request(user_message: str) -> bool:
     if not user_message:
         return False
@@ -773,6 +834,7 @@ def is_no_tools_request(user_message: str) -> bool:
 
     return any(t in lowered for t in triggers)
 
+
 def is_qa_request(user_message: str) -> bool:
     if not user_message:
         return False
@@ -793,4 +855,3 @@ def is_qa_request(user_message: str) -> bool:
     ]
 
     return any(t.lower() in lowered for t in triggers)
-

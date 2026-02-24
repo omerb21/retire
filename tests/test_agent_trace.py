@@ -16,24 +16,29 @@ from fastapi.testclient import TestClient
 
 from tests.conftest import test_client
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _write_event(db, **kwargs):
     """Insert an AgentTraceEvent row via the writer and return the row."""
     from app.services.agent_trace_logger import log_trace_event
+
     log_trace_event(**kwargs)
 
 
 def _count_events(db, trace_id: str) -> int:
     from app.models.agent_trace_event import AgentTraceEvent
-    return db.query(AgentTraceEvent).filter(AgentTraceEvent.trace_id == trace_id).count()
+
+    return (
+        db.query(AgentTraceEvent).filter(AgentTraceEvent.trace_id == trace_id).count()
+    )
 
 
 def _get_events(db, trace_id: str):
     from app.models.agent_trace_event import AgentTraceEvent
+
     return (
         db.query(AgentTraceEvent)
         .filter(AgentTraceEvent.trace_id == trace_id)
@@ -45,6 +50,7 @@ def _get_events(db, trace_id: str):
 # ---------------------------------------------------------------------------
 # 1. Trace writer unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestTraceWriter:
     """Verify log_trace_event persists rows with correct fields."""
@@ -84,14 +90,23 @@ class TestTraceWriter:
 
     def test_multiple_event_types(self, db_session):
         tid = f"test-multi-{uuid.uuid4().hex[:12]}"
-        for etype in ["user_input", "llm_request_prepared", "tool_call", "tool_result", "assistant_output"]:
-            _write_event(db_session, trace_id=tid, event_type=etype, payload={"t": etype})
+        for etype in [
+            "user_input",
+            "llm_request_prepared",
+            "tool_call",
+            "tool_result",
+            "assistant_output",
+        ]:
+            _write_event(
+                db_session, trace_id=tid, event_type=etype, payload={"t": etype}
+            )
         assert _count_events(db_session, tid) == 5
 
 
 # ---------------------------------------------------------------------------
 # 2. Debug API auth tests
 # ---------------------------------------------------------------------------
+
 
 class TestDebugAPIAuth:
     """Verify security gates on /api/v1/debug/traces."""
@@ -143,14 +158,23 @@ class TestDebugAPIAuth:
 # 3. Debug API returns events chronologically
 # ---------------------------------------------------------------------------
 
+
 class TestDebugAPITraceRetrieval:
     """Verify /api/v1/debug/traces/{trace_id} returns events in order."""
 
     def test_trace_events_returned_in_order(self, test_client: TestClient, db_session):
         tid = f"test-api-{uuid.uuid4().hex[:12]}"
-        event_types = ["user_input", "llm_request_prepared", "tool_call", "tool_result", "assistant_output"]
+        event_types = [
+            "user_input",
+            "llm_request_prepared",
+            "tool_call",
+            "tool_result",
+            "assistant_output",
+        ]
         for etype in event_types:
-            _write_event(db_session, trace_id=tid, event_type=etype, payload={"step": etype})
+            _write_event(
+                db_session, trace_id=tid, event_type=etype, payload={"step": etype}
+            )
 
         os.environ["AGENT_TRACE_DEBUG_ENABLED"] = "1"
         os.environ["ADMIN_DEBUG_TOKEN"] = "secret123"
@@ -187,7 +211,9 @@ class TestDebugAPITraceRetrieval:
 
     def test_list_traces_shows_recent(self, test_client: TestClient, db_session):
         tid = f"test-list-{uuid.uuid4().hex[:12]}"
-        _write_event(db_session, trace_id=tid, event_type="user_input", payload={"x": 1})
+        _write_event(
+            db_session, trace_id=tid, event_type="user_input", payload={"x": 1}
+        )
 
         os.environ["AGENT_TRACE_DEBUG_ENABLED"] = "1"
         os.environ["ADMIN_DEBUG_TOKEN"] = "secret123"
@@ -210,6 +236,7 @@ class TestDebugAPITraceRetrieval:
 # ---------------------------------------------------------------------------
 # 4. New event types: execution_path, args_normalized, state_source
 # ---------------------------------------------------------------------------
+
 
 class TestNewEventTypes:
     """Verify the new path-tag event types persist correctly."""
@@ -252,7 +279,9 @@ class TestNewEventTypes:
         row = events[0]
         assert row.event_type == "args_normalized"
         parsed = json.loads(row.payload_json)
-        assert parsed["normalizer_name"] == "normalize_retirement_date_if_jan1_placeholder"
+        assert (
+            parsed["normalizer_name"] == "normalize_retirement_date_if_jan1_placeholder"
+        )
         assert parsed["before"]["retirement_date"] != parsed["after"]["retirement_date"]
 
     def test_state_source_event(self, db_session):
@@ -291,7 +320,9 @@ class TestNewEventTypes:
             "assistant_output",
         ]
         for etype in chain:
-            _write_event(db_session, trace_id=tid, event_type=etype, payload={"step": etype})
+            _write_event(
+                db_session, trace_id=tid, event_type=etype, payload={"step": etype}
+            )
         assert _count_events(db_session, tid) == 8
         events = _get_events(db_session, tid)
         returned_types = [e.event_type for e in events]
@@ -301,6 +332,7 @@ class TestNewEventTypes:
 # ---------------------------------------------------------------------------
 # 5. Trace fixtures endpoint
 # ---------------------------------------------------------------------------
+
 
 class TestTraceFixtures:
     """Verify POST /api/v1/debug/trace-fixtures/run."""

@@ -15,7 +15,9 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan_data,
     store_pending_plan_target_marker,
 )
-from app.services.llm_chat.message_utils import extract_latest_target_pension_plan_payload
+from app.services.llm_chat.message_utils import (
+    extract_latest_target_pension_plan_payload,
+)
 from app.services.llm_chat.orchestration_utils import (
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,
@@ -33,7 +35,9 @@ from app.services.llm_chat.pending_approvals import (
     store_pending_approval_ui_action,
 )
 
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot_models,
+)
 
 from .stream_top_level_helpers import (
     _build_transform_accounts_from_target_plan_payload,
@@ -41,7 +45,9 @@ from .stream_top_level_helpers import (
 )
 from .stream_tool_execution import _execute_tool_call
 
-_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = (
+    "pending_pre_retirement_plan_resolution"
+)
 
 
 def _has_positive_component_amounts(raw: object) -> bool:
@@ -170,7 +176,9 @@ def generate_forced_approval(
     # If the user explicitly asked to execute termination and it wasn't done yet,
     # we must request approval BEFORE running.
     if explicit_termination and (not termination_already_executed):
-        if is_conceptual_no_execute_request(getattr(request, "user_message", None) or ""):
+        if is_conceptual_no_execute_request(
+            getattr(request, "user_message", None) or ""
+        ):
             yield (
                 "כותרת: עזיבת עבודה – הסבר עקרוני (ללא ביצוע)\n\n"
                 "כדי לבצע עזיבת עבודה במערכת צריך אישור מפורש. כרגע ביקשת בלי לבצע, לכן אני מסביר עקרונית בלבד:\n"
@@ -189,7 +197,9 @@ def generate_forced_approval(
         )
         tool_args: dict[str, Any] = {"confirmed": True}
         tool_args.update(extract_process_termination_choice_overrides(recent_user_text))
-        termination_date_override = extract_process_termination_date_override(recent_user_text)
+        termination_date_override = extract_process_termination_date_override(
+            recent_user_text
+        )
         if termination_date_override:
             tool_args["termination_date"] = termination_date_override
 
@@ -228,9 +238,15 @@ def generate_forced_approval(
         has_db_state_sources = False
         try:
             has_db_state_sources = bool(
-                db.query(PensionFund).filter(PensionFund.client_id == request.client_id).count() > 0
+                db.query(PensionFund)
+                .filter(PensionFund.client_id == request.client_id)
+                .count()
+                > 0
             ) or bool(
-                db.query(CapitalAsset).filter(CapitalAsset.client_id == request.client_id).count() > 0
+                db.query(CapitalAsset)
+                .filter(CapitalAsset.client_id == request.client_id)
+                .count()
+                > 0
             )
         except Exception:
             has_db_state_sources = False
@@ -238,7 +254,9 @@ def generate_forced_approval(
         blocked_decision = None
         if (not has_db_state_sources) and callable(_load_blocked_balances_decision):
             try:
-                blocked_decision = _load_blocked_balances_decision(db=db, client_id=request.client_id)
+                blocked_decision = _load_blocked_balances_decision(
+                    db=db, client_id=request.client_id
+                )
             except Exception:
                 blocked_decision = None
 
@@ -246,7 +264,10 @@ def generate_forced_approval(
             pending_blocked = (
                 db.query(Scenario)
                 .filter(Scenario.client_id == request.client_id)
-                .filter(Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO)
+                .filter(
+                    Scenario.scenario_name
+                    == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
+                )
                 .order_by(Scenario.created_at.desc())
                 .first()
             )
@@ -269,14 +290,22 @@ def generate_forced_approval(
             yield pending_ui
             return
 
-        payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-        payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+        payload_plan = load_latest_target_pension_plan(
+            db=db, client_id=request.client_id
+        )
+        payload_data = load_latest_target_pension_plan_data(
+            db=db, client_id=request.client_id
+        )
 
         def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
             if not isinstance(p, dict):
                 return None, []
             res = p.get("result") if isinstance(p.get("result"), dict) else {}
-            exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else None
+            exec_plan = (
+                res.get("execution_plan")
+                if isinstance(res.get("execution_plan"), dict)
+                else None
+            )
             if not isinstance(exec_plan, dict):
                 return None, []
             raw = exec_plan.get("accounts")
@@ -324,10 +353,18 @@ def generate_forced_approval(
                     )
                 except Exception:
                     pass
-                payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-                payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
-                plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
-                data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
+                payload_plan = load_latest_target_pension_plan(
+                    db=db, client_id=request.client_id
+                )
+                payload_data = load_latest_target_pension_plan_data(
+                    db=db, client_id=request.client_id
+                )
+                plan_exec, plan_accounts = _extract_execution_plan_accounts(
+                    payload_plan
+                )
+                data_exec, data_accounts = _extract_execution_plan_accounts(
+                    payload_data
+                )
                 if plan_accounts:
                     payload = payload_plan if isinstance(payload_plan, dict) else None
                     execution_plan = plan_exec
@@ -337,7 +374,9 @@ def generate_forced_approval(
                     execution_plan = data_exec
                     accounts_for_execution = data_accounts
                 else:
-                    derived = _build_transform_accounts_from_target_plan_payload(msg_payload)
+                    derived = _build_transform_accounts_from_target_plan_payload(
+                        msg_payload
+                    )
                     if derived:
                         payload = msg_payload
                         execution_plan = None
@@ -359,7 +398,9 @@ def generate_forced_approval(
             )
             return
 
-        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        result = (
+            payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        )
 
         transform_args: dict[str, Any] = {
             "use_provided_accounts_only": True,
@@ -374,12 +415,23 @@ def generate_forced_approval(
             transform_args["execution_plan"] = execution_plan
             transform_args["accounts"] = accounts_for_execution
         else:
-            accounts = accounts_for_execution or _build_transform_accounts_from_target_plan_payload(payload)
+            accounts = (
+                accounts_for_execution
+                or _build_transform_accounts_from_target_plan_payload(payload)
+            )
             if not accounts:
                 non_exec_reason = None
                 try:
-                    res_obj = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-                    exec_obj = res_obj.get("execution_plan") if isinstance(res_obj.get("execution_plan"), dict) else {}
+                    res_obj = (
+                        payload.get("result")
+                        if isinstance(payload.get("result"), dict)
+                        else {}
+                    )
+                    exec_obj = (
+                        res_obj.get("execution_plan")
+                        if isinstance(res_obj.get("execution_plan"), dict)
+                        else {}
+                    )
                     raw_reason = exec_obj.get("non_executable_reason")
                     if isinstance(raw_reason, str) and raw_reason.strip():
                         non_exec_reason = raw_reason.strip()
@@ -398,7 +450,9 @@ def generate_forced_approval(
 
         reason = "נדרש אישור לפני ביצוע המרות לפי תכנית היעד במערכת."
         try:
-            if _should_apply_restore_transform_cooldown(db=db, client_id=request.client_id):
+            if _should_apply_restore_transform_cooldown(
+                db=db, client_id=request.client_id
+            ):
                 reason = "בוצע שחזור סנאפסוט ממש עכשיו. כדי למנוע כפל המרות, ודא שזו הפעולה הנכונה ואז אשר."
         except Exception:
             pass
@@ -454,7 +508,9 @@ def generate_forced_approval(
             pass
 
         out = sanitize_user_visible_text(
-            format_tool_output_for_user_stream("CALCULATE_FIXATION_OF_RIGHTS", tool_result)
+            format_tool_output_for_user_stream(
+                "CALCULATE_FIXATION_OF_RIGHTS", tool_result
+            )
         )
         yield out
 
@@ -476,13 +532,19 @@ def generate_execute_target_after_termination(
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
     payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-    payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+    payload_data = load_latest_target_pension_plan_data(
+        db=db, client_id=request.client_id
+    )
 
     def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
         if not isinstance(p, dict):
             return None, []
         res = p.get("result") if isinstance(p.get("result"), dict) else {}
-        exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else None
+        exec_plan = (
+            res.get("execution_plan")
+            if isinstance(res.get("execution_plan"), dict)
+            else None
+        )
         if not isinstance(exec_plan, dict):
             return None, []
         raw = exec_plan.get("accounts")
@@ -530,8 +592,12 @@ def generate_execute_target_after_termination(
                 )
             except Exception:
                 pass
-            payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-            payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+            payload_plan = load_latest_target_pension_plan(
+                db=db, client_id=request.client_id
+            )
+            payload_data = load_latest_target_pension_plan_data(
+                db=db, client_id=request.client_id
+            )
             plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
             data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
             if plan_accounts:
@@ -543,7 +609,9 @@ def generate_execute_target_after_termination(
                 execution_plan = data_exec
                 accounts_for_execution = data_accounts
             else:
-                derived = _build_transform_accounts_from_target_plan_payload(msg_payload)
+                derived = _build_transform_accounts_from_target_plan_payload(
+                    msg_payload
+                )
                 if derived:
                     payload = msg_payload
                     execution_plan = None
@@ -576,11 +644,18 @@ def generate_execute_target_after_termination(
         transform_args["execution_plan"] = execution_plan
         transform_args["accounts"] = accounts_for_execution
     else:
-        accounts = accounts_for_execution or _build_transform_accounts_from_target_plan_payload(payload)
+        accounts = (
+            accounts_for_execution
+            or _build_transform_accounts_from_target_plan_payload(payload)
+        )
         if not accounts:
             non_exec_reason = None
             try:
-                res_obj = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+                res_obj = (
+                    payload.get("result")
+                    if isinstance(payload.get("result"), dict)
+                    else {}
+                )
                 exec_obj = (
                     res_obj.get("execution_plan")
                     if isinstance(res_obj.get("execution_plan"), dict)
@@ -653,7 +728,9 @@ def generate_approval_exec(
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-    tool_args = dict(approved_tool_args or {}) if isinstance(approved_tool_args, dict) else {}
+    tool_args = (
+        dict(approved_tool_args or {}) if isinstance(approved_tool_args, dict) else {}
+    )
     tool_result = _execute_tool_call(
         approved_tool_name,
         tool_args,
@@ -749,11 +826,16 @@ def generate_approval_exec(
             except Exception:
                 parsed_term = None
 
-        term_success = isinstance(parsed_term, dict) and parsed_term.get("success") is True
+        term_success = (
+            isinstance(parsed_term, dict) and parsed_term.get("success") is True
+        )
 
         if term_success and isinstance(pending_build, dict):
             plan_args = pending_build.get("plan_args")
-            if isinstance(plan_args, dict) and plan_args.get("target_monthly_pension") is not None:
+            if (
+                isinstance(plan_args, dict)
+                and plan_args.get("target_monthly_pension") is not None
+            ):
                 try:
                     clear_pending_build_target_plan_after_termination(
                         db=db,
@@ -809,7 +891,9 @@ def generate_approval_exec(
 
                 yield "\n\n" + sanitize_user_visible_text(
                     "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-                    + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                    + format_tool_output_for_user_stream(
+                        "BUILD_TARGET_PENSION_PLAN", plan_result
+                    )
                 )
 
     out = sanitize_user_visible_text(

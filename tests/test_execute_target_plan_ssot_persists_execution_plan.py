@@ -10,7 +10,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_execute_target_plan_ssot_persists_execution_plan(monkeypatch, _test_db) -> None:
+def test_execute_target_plan_ssot_persists_execution_plan(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -36,13 +38,19 @@ def test_execute_target_plan_ssot_persists_execution_plan(monkeypatch, _test_db)
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic SSOT regression test")
+        raise AssertionError(
+            "LLM must not be called for deterministic SSOT regression test"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
         payload = {
@@ -101,8 +109,16 @@ def test_execute_target_plan_ssot_persists_execution_plan(monkeypatch, _test_db)
         assert row is not None
         stored = json.loads(row.parameters)
         res = stored.get("result") if isinstance(stored.get("result"), dict) else {}
-        exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else {}
-        accounts = exec_plan.get("accounts") if isinstance(exec_plan.get("accounts"), list) else []
+        exec_plan = (
+            res.get("execution_plan")
+            if isinstance(res.get("execution_plan"), dict)
+            else {}
+        )
+        accounts = (
+            exec_plan.get("accounts")
+            if isinstance(exec_plan.get("accounts"), list)
+            else []
+        )
         assert accounts
 
     resp2 = api.post(
@@ -125,9 +141,19 @@ def test_execute_target_plan_ssot_persists_execution_plan(monkeypatch, _test_db)
     assert isinstance(first, dict)
     args = first.get("arguments") if isinstance(first.get("arguments"), dict) else {}
 
-    exec_plan_args = args.get("execution_plan") if isinstance(args.get("execution_plan"), dict) else {}
-    exec_plan_accounts = exec_plan_args.get("accounts") if isinstance(exec_plan_args.get("accounts"), list) else []
+    exec_plan_args = (
+        args.get("execution_plan")
+        if isinstance(args.get("execution_plan"), dict)
+        else {}
+    )
+    exec_plan_accounts = (
+        exec_plan_args.get("accounts")
+        if isinstance(exec_plan_args.get("accounts"), list)
+        else []
+    )
     assert exec_plan_accounts
 
-    accounts_args = args.get("accounts") if isinstance(args.get("accounts"), list) else []
+    accounts_args = (
+        args.get("accounts") if isinstance(args.get("accounts"), list) else []
+    )
     assert accounts_args

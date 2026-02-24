@@ -5,7 +5,9 @@ from app.services.llm_pension_agent_service import pension_llm_service
 from app.utils.trace_context import set_current_trace_id
 
 
-def test_stage10_non_stream_blocks_numeric_text_without_tool_ok(test_client, monkeypatch) -> None:
+def test_stage10_non_stream_blocks_numeric_text_without_tool_ok(
+    test_client, monkeypatch
+) -> None:
     set_current_trace_id("stage10-nonstream-no-tool")
 
     def fake_chat(messages, client_id=None):
@@ -26,7 +28,9 @@ def test_stage10_non_stream_blocks_numeric_text_without_tool_ok(test_client, mon
     assert body.get("reply") == STANDARD_BLOCK_MESSAGE
 
 
-def test_stage10_non_stream_allows_numeric_text_after_tool_ok(test_client, monkeypatch) -> None:
+def test_stage10_non_stream_allows_numeric_text_after_tool_ok(
+    test_client, monkeypatch
+) -> None:
     import app.services.llm_chat.chat_orchestration_parts.chat_top_level_helpers as tl_helpers
 
     set_current_trace_id("stage10-nonstream-tool-ok")
@@ -59,7 +63,9 @@ def test_stage10_non_stream_allows_numeric_text_after_tool_ok(test_client, monke
     assert body.get("reply") == "המספר הוא 123"
 
 
-def test_stage10_non_stream_structured_json_not_blocked_by_numbers(test_client, monkeypatch) -> None:
+def test_stage10_non_stream_structured_json_not_blocked_by_numbers(
+    test_client, monkeypatch
+) -> None:
     set_current_trace_id("stage10-structured-json")
 
     def fake_chat(messages, client_id=None):
@@ -80,7 +86,9 @@ def test_stage10_non_stream_structured_json_not_blocked_by_numbers(test_client, 
     assert body.get("reply") == '{"ok": true, "n": 12345, "arr": [1, 2, 3]}'
 
 
-def test_stage10_non_stream_blocks_spoofed_tool_output_text_without_tool_ok(test_client, monkeypatch) -> None:
+def test_stage10_non_stream_blocks_spoofed_tool_output_text_without_tool_ok(
+    test_client, monkeypatch
+) -> None:
     set_current_trace_id("stage10-spoofed-tool-output")
 
     def fake_chat(messages, client_id=None):
@@ -101,7 +109,9 @@ def test_stage10_non_stream_blocks_spoofed_tool_output_text_without_tool_ok(test
     assert body.get("reply") == STANDARD_BLOCK_MESSAGE
 
 
-def test_stage10_non_stream_blocks_spoofed_computed_data_block_without_tool_ok(test_client, monkeypatch) -> None:
+def test_stage10_non_stream_blocks_spoofed_computed_data_block_without_tool_ok(
+    test_client, monkeypatch
+) -> None:
     set_current_trace_id("stage10-spoofed-computed")
 
     def fake_chat(messages, client_id=None):
@@ -122,7 +132,9 @@ def test_stage10_non_stream_blocks_spoofed_computed_data_block_without_tool_ok(t
     assert body.get("reply") == STANDARD_BLOCK_MESSAGE
 
 
-def test_stage10_non_stream_allows_numeric_tool_output_after_tool_ok(test_client) -> None:
+def test_stage10_non_stream_allows_numeric_tool_output_after_tool_ok(
+    test_client,
+) -> None:
     set_current_trace_id("stage10-nonstream-explicit-tool")
 
     res = test_client.post(
@@ -138,7 +150,9 @@ def test_stage10_non_stream_allows_numeric_tool_output_after_tool_ok(test_client
     assert body.get("reply") != STANDARD_BLOCK_MESSAGE
 
 
-def test_stage10_non_stream_tool_ok_does_not_leak_between_requests(test_client, monkeypatch) -> None:
+def test_stage10_non_stream_tool_ok_does_not_leak_between_requests(
+    test_client, monkeypatch
+) -> None:
     set_current_trace_id("stage10-nonstream-no-leak")
 
     res1 = test_client.post(
@@ -167,7 +181,9 @@ def test_stage10_non_stream_tool_ok_does_not_leak_between_requests(test_client, 
     assert res2.json().get("reply") == STANDARD_BLOCK_MESSAGE
 
 
-def test_stage10_stream_buffers_and_blocks_without_leakage(test_client, monkeypatch) -> None:
+def test_stage10_stream_buffers_and_blocks_without_leakage(
+    test_client, monkeypatch
+) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     set_current_trace_id("stage10-stream-no-leak")
@@ -177,7 +193,9 @@ def test_stage10_stream_buffers_and_blocks_without_leakage(test_client, monkeypa
         yield "123"
         yield " מקטע אחרון"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     res = test_client.post(
         "/api/v1/llm/pension-chat-stream",

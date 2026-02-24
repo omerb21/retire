@@ -145,5 +145,7 @@ def apply_max_exemption_if_requested(
         tool_args["apply_max_exemption"] = True
 
 
-def build_tool_call_message_content(tool_data: dict[str, Any], ensure_ascii: bool) -> str:
+def build_tool_call_message_content(
+    tool_data: dict[str, Any], ensure_ascii: bool
+) -> str:
     return f"###TOOL_CALL### {json.dumps(tool_data, ensure_ascii=ensure_ascii)}"

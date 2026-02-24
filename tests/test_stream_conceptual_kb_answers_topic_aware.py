@@ -8,7 +8,9 @@ def test_stream_conceptual_kb_answer_topic_aware_fallback(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "בתיק שלך קיימים רכיבים שדורשים בדיקת מקורות.\nקיבלתי. אפשר להמשיך"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -33,7 +35,9 @@ def test_stream_conceptual_kb_answer_keeps_kitzba_vs_hon_fallback(monkeypatch) -
     def fake_chat_stream(messages, client_id=None):
         yield "בתיק שלך קיימים רכיבים שדורשים בדיקת מקורות.\nקיבלתי. אפשר להמשיך"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(

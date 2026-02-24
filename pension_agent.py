@@ -5,8 +5,8 @@ from langchain.tools import tool
 from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-
 # --- שלב 1: פונקציית הליבה (MOCK) של מערכת תכנון הפרישה ---
+
 
 def execute_retirement_plan(
     age: int,
@@ -131,24 +131,38 @@ def run_chat_demo() -> None:
     base_result = calculate_pension_flow.invoke(base_args)
 
     explain_prompt = (
-        "סיכום ביניים: ללקוח יש גיל 40, חיסכון פנסיוני נוכחי של 950,000 ש""ח "
-        "והפקדה חודשית של 3,000 ש""ח. מנוע החישוב החזיר הון עתידי משוער של "
-        f"{base_result.get('future_capital')} ש""ח וקצבה חודשית מוערכת של "
-        f"{base_result.get('monthly_pension_estimate')} ש""ח. "
+        "סיכום ביניים: ללקוח יש גיל 40, חיסכון פנסיוני נוכחי של 950,000 ש"
+        "ח "
+        "והפקדה חודשית של 3,000 ש"
+        "ח. מנוע החישוב החזיר הון עתידי משוער של "
+        f"{base_result.get('future_capital')} ש"
+        "ח וקצבה חודשית מוערכת של "
+        f"{base_result.get('monthly_pension_estimate')} ש"
+        "ח. "
         "נא הסבר ללקוח בעברית פשוטה מה המשמעות של המספרים האלה לגיל הפרישה שלו."
     )
     step(explain_prompt)
 
     # תרחיש "מה אם" – הגדלת ההפקדה החודשית
-    what_if_args = {"age": 40, "current_savings": 950000.0, "monthly_contribution": 5000.0}
+    what_if_args = {
+        "age": 40,
+        "current_savings": 950000.0,
+        "monthly_contribution": 5000.0,
+    }
     what_if_result = calculate_pension_flow.invoke(what_if_args)
 
     what_if_prompt = (
-        "הלקוח מבקש תרחיש 'מה אם' שבו ההפקדה החודשית גדלה מ-3,000 ש""ח ל-5,000 ש""ח.\n"
-        f"בתרחיש המקורי: הון עתידי משוער {base_result.get('future_capital')} ש""ח, "
-        f"קצבה חודשית מוערכת {base_result.get('monthly_pension_estimate')} ש""ח.\n"
-        f"בתרחיש החדש: הון עתידי משוער {what_if_result.get('future_capital')} ש""ח, "
-        f"קצבה חודשית מוערכת {what_if_result.get('monthly_pension_estimate')} ש""ח.\n"
+        "הלקוח מבקש תרחיש 'מה אם' שבו ההפקדה החודשית גדלה מ-3,000 ש"
+        "ח ל-5,000 ש"
+        "ח.\n"
+        f"בתרחיש המקורי: הון עתידי משוער {base_result.get('future_capital')} ש"
+        "ח, "
+        f"קצבה חודשית מוערכת {base_result.get('monthly_pension_estimate')} ש"
+        "ח.\n"
+        f"בתרחיש החדש: הון עתידי משוער {what_if_result.get('future_capital')} ש"
+        "ח, "
+        f"קצבה חודשית מוערכת {what_if_result.get('monthly_pension_estimate')} ש"
+        "ח.\n"
         "הסבר ללקוח באופן השוואתי מה ההשפעה של הגדלת ההפקדה על עתידו הפנסיוני."
     )
     step(what_if_prompt)

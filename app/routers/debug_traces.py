@@ -11,6 +11,7 @@ Protection:
     * Env AGENT_TRACE_DEBUG_ENABLED must be "1" (default off).
     * Header X-Admin-Token must match env AGENT_TRACE_ADMIN_TOKEN (if set).
 """
+
 import json
 import os
 import logging
@@ -61,14 +62,16 @@ def list_traces(
     rows = q.all()
     traces = []
     for r in rows:
-        traces.append({
-            "trace_id": r.trace_id,
-            "started_at": r.started_at.isoformat() if r.started_at else None,
-            "ended_at": r.ended_at.isoformat() if r.ended_at else None,
-            "event_count": r.event_count,
-            "client_id": r.client_id,
-            "endpoint": r.endpoint,
-        })
+        traces.append(
+            {
+                "trace_id": r.trace_id,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                "event_count": r.event_count,
+                "client_id": r.client_id,
+                "endpoint": r.endpoint,
+            }
+        )
     return {"traces": traces, "count": len(traces)}
 
 
@@ -93,17 +96,19 @@ def get_trace_events(
                 payload = json.loads(ev.payload_json)
             except Exception:
                 payload = ev.payload_json
-        result.append({
-            "id": ev.id,
-            "trace_id": ev.trace_id,
-            "session_id": ev.session_id,
-            "client_id": ev.client_id,
-            "endpoint": ev.endpoint,
-            "event_type": ev.event_type,
-            "payload": payload,
-            "payload_text": ev.payload_text,
-            "created_at": ev.created_at.isoformat() if ev.created_at else None,
-        })
+        result.append(
+            {
+                "id": ev.id,
+                "trace_id": ev.trace_id,
+                "session_id": ev.session_id,
+                "client_id": ev.client_id,
+                "endpoint": ev.endpoint,
+                "event_type": ev.event_type,
+                "payload": payload,
+                "payload_text": ev.payload_text,
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
+            }
+        )
     return {"trace_id": trace_id, "events": result, "count": len(result)}
 
 

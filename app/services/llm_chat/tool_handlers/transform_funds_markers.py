@@ -33,11 +33,19 @@ def build_transform_funds_response(
         "converted_commutations": converted_commutations,
         "total_converted": total_converted,
         "skipped_zero_balance": skipped_accounts,
-        "skipped_non_convertible": skipped_non_convertible if skipped_non_convertible else None,
+        "skipped_non_convertible": (
+            skipped_non_convertible if skipped_non_convertible else None
+        ),
         "converted_items": converted_items if converted_items else None,
         "skipped_items": skipped_items if skipped_items else None,
-        "ignored_blocked_amount": blocked_field_amount if blocked_field_amount > 0 else None,
-        "employer_current_severance_not_converted": employer_current_severance_total if employer_current_severance_total > 0 else None,
+        "ignored_blocked_amount": (
+            blocked_field_amount if blocked_field_amount > 0 else None
+        ),
+        "employer_current_severance_not_converted": (
+            employer_current_severance_total
+            if employer_current_severance_total > 0
+            else None
+        ),
         "errors": errors if errors else None,
         "next_step": next_step,
         "source_data_cleared": source_data_cleared,

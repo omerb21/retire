@@ -6,13 +6,14 @@ Test that RUN_RETIREMENT_CASHFLOW_ANALYSIS correctly calculates:
 3. Net pension income
 4. Maximum exemption from rights fixation (kibua zchuyot)
 """
+
 import json
 import sys
 from datetime import date
 from types import SimpleNamespace
 
 # Fix encoding for Windows console
-sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding="utf-8")
 
 from app.database import get_db
 from app.models.scenario import Scenario
@@ -28,13 +29,17 @@ def print_result(year: str, res: dict, with_exemption: bool = False) -> None:
     print(f"  === GROSS (Bruto) ===")
     print(f"  Projected Pension (Gross): {res.get('projected_pension'):,.2f} ILS/month")
     print(f"  Social Security: {res.get('social_security'):,.2f} ILS/month")
-    print(f"  Total Guaranteed Income (Gross): {res.get('total_guaranteed_income'):,.2f} ILS/month")
+    print(
+        f"  Total Guaranteed Income (Gross): {res.get('total_guaranteed_income'):,.2f} ILS/month"
+    )
 
     if with_exemption:
         print(f"")
         print(f"  === EXEMPTION (Kibua Zchuyot) ===")
         print(f"  Exemption Percentage: {res.get('exemption_percentage'):.1f}%")
-        print(f"  Exempt Pension Monthly: {res.get('exempt_pension_monthly'):,.2f} ILS/month")
+        print(
+            f"  Exempt Pension Monthly: {res.get('exempt_pension_monthly'):,.2f} ILS/month"
+        )
 
     print(f"")
     print(f"  === TAX ANALYSIS ===")
@@ -43,8 +48,12 @@ def print_result(year: str, res: dict, with_exemption: bool = False) -> None:
     print(f"  Total Tax Deduction: {res.get('monthly_tax_deduction'):,.2f} ILS/month")
     print(f"")
     print(f"  === NET (Neto) ===")
-    print(f"  Projected Pension (Net): {res.get('projected_pension_net'):,.2f} ILS/month")
-    print(f"  Total Guaranteed Income (Net): {res.get('total_guaranteed_income_net'):,.2f} ILS/month")
+    print(
+        f"  Projected Pension (Net): {res.get('projected_pension_net'):,.2f} ILS/month"
+    )
+    print(
+        f"  Total Guaranteed Income (Net): {res.get('total_guaranteed_income_net'):,.2f} ILS/month"
+    )
     print(f"")
     print(f"  === OTHER ===")
     print(f"  Total Liquid Capital: {res.get('total_liquid_capital'):,.2f} ILS")
@@ -100,7 +109,9 @@ def main() -> None:
         )
 
         if result_2028_no_exempt.get("success"):
-            print_result("2028", result_2028_no_exempt.get("result", {}), with_exemption=False)
+            print_result(
+                "2028", result_2028_no_exempt.get("result", {}), with_exemption=False
+            )
         else:
             print(f"\n[FAILED] {result_2028_no_exempt.get('explanation')}")
 
@@ -115,7 +126,9 @@ def main() -> None:
         )
 
         if result_2029_no_exempt.get("success"):
-            print_result("2029", result_2029_no_exempt.get("result", {}), with_exemption=False)
+            print_result(
+                "2029", result_2029_no_exempt.get("result", {}), with_exemption=False
+            )
         else:
             print(f"\n[FAILED] {result_2029_no_exempt.get('explanation')}")
 
@@ -135,7 +148,9 @@ def main() -> None:
         )
 
         if result_2028_with_exempt.get("success"):
-            print_result("2028", result_2028_with_exempt.get("result", {}), with_exemption=True)
+            print_result(
+                "2028", result_2028_with_exempt.get("result", {}), with_exemption=True
+            )
         else:
             print(f"\n[FAILED] {result_2028_with_exempt.get('explanation')}")
 
@@ -150,7 +165,9 @@ def main() -> None:
         )
 
         if result_2029_with_exempt.get("success"):
-            print_result("2029", result_2029_with_exempt.get("result", {}), with_exemption=True)
+            print_result(
+                "2029", result_2029_with_exempt.get("result", {}), with_exemption=True
+            )
         else:
             print(f"\n[FAILED] {result_2029_with_exempt.get('explanation')}")
 
@@ -159,18 +176,27 @@ def main() -> None:
         print("[PART 3] COMPARISON: NO EXEMPTION vs WITH MAX EXEMPTION")
         print("=" * 80)
 
-        if (result_2028_no_exempt.get("success") and result_2029_no_exempt.get("success") and
-            result_2028_with_exempt.get("success") and result_2029_with_exempt.get("success")):
+        if (
+            result_2028_no_exempt.get("success")
+            and result_2029_no_exempt.get("success")
+            and result_2028_with_exempt.get("success")
+            and result_2029_with_exempt.get("success")
+        ):
 
             res_2028_no = result_2028_no_exempt["result"]
             res_2029_no = result_2029_no_exempt["result"]
             res_2028_ex = result_2028_with_exempt["result"]
             res_2029_ex = result_2029_with_exempt["result"]
 
-            print(f"\n  {'Year':<6} {'Exemption':<15} {'Gross':<12} {'Tax':<12} {'Net':<12} {'Savings':<12}")
+            print(
+                f"\n  {'Year':<6} {'Exemption':<15} {'Gross':<12} {'Tax':<12} {'Net':<12} {'Savings':<12}"
+            )
             print(f"  {'-'*6} {'-'*15} {'-'*12} {'-'*12} {'-'*12} {'-'*12}")
 
-            for year, res_no, res_ex in [("2028", res_2028_no, res_2028_ex), ("2029", res_2029_no, res_2029_ex)]:
+            for year, res_no, res_ex in [
+                ("2028", res_2028_no, res_2028_ex),
+                ("2029", res_2029_no, res_2029_ex),
+            ]:
                 gross = res_no.get("projected_pension", 0)
                 tax_no = res_no.get("monthly_tax_deduction", 0)
                 net_no = res_no.get("projected_pension_net", 0)
@@ -178,15 +204,27 @@ def main() -> None:
                 net_ex = res_ex.get("projected_pension_net", 0)
                 savings = net_ex - net_no
 
-                print(f"  {year:<6} {'No':<15} {gross:>9,.0f} {tax_no:>9,.0f} {net_no:>9,.0f}")
-                print(f"  {'':<6} {'Max':<15} {gross:>9,.0f} {tax_ex:>9,.0f} {net_ex:>9,.0f} {'+' + f'{savings:,.0f}':>9}")
+                print(
+                    f"  {year:<6} {'No':<15} {gross:>9,.0f} {tax_no:>9,.0f} {net_no:>9,.0f}"
+                )
+                print(
+                    f"  {'':<6} {'Max':<15} {gross:>9,.0f} {tax_ex:>9,.0f} {net_ex:>9,.0f} {'+' + f'{savings:,.0f}':>9}"
+                )
                 print()
 
             print(f"\n  SUMMARY:")
-            print(f"  - 2028 Tax Savings with Max Exemption: {res_2028_ex.get('projected_pension_net', 0) - res_2028_no.get('projected_pension_net', 0):,.0f} ILS/month")
-            print(f"  - 2029 Tax Savings with Max Exemption: {res_2029_ex.get('projected_pension_net', 0) - res_2029_no.get('projected_pension_net', 0):,.0f} ILS/month")
-            print(f"  - 2028 Exemption Percentage: {res_2028_ex.get('exemption_percentage', 0):.1f}%")
-            print(f"  - 2029 Exemption Percentage: {res_2029_ex.get('exemption_percentage', 0):.1f}%")
+            print(
+                f"  - 2028 Tax Savings with Max Exemption: {res_2028_ex.get('projected_pension_net', 0) - res_2028_no.get('projected_pension_net', 0):,.0f} ILS/month"
+            )
+            print(
+                f"  - 2029 Tax Savings with Max Exemption: {res_2029_ex.get('projected_pension_net', 0) - res_2029_no.get('projected_pension_net', 0):,.0f} ILS/month"
+            )
+            print(
+                f"  - 2028 Exemption Percentage: {res_2028_ex.get('exemption_percentage', 0):.1f}%"
+            )
+            print(
+                f"  - 2029 Exemption Percentage: {res_2029_ex.get('exemption_percentage', 0):.1f}%"
+            )
 
         print("\n" + "=" * 80)
 

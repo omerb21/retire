@@ -17,9 +17,13 @@ def _maybe_handle_list_all_financial_entities(
     _execute_tool_call,
     _fmt_money,
 ) -> ChatResponse | None:
-    from app.services.llm_chat.orchestration_utils import is_list_all_financial_entities_request
+    from app.services.llm_chat.orchestration_utils import (
+        is_list_all_financial_entities_request,
+    )
 
-    if request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
+    if request.client_id is not None and is_list_all_financial_entities_request(
+        original_user_msg
+    ):
         tool_result = _execute_tool_call(
             "GET_SYSTEM_STATE_SNAPSHOT",
             {},
@@ -37,9 +41,15 @@ def _maybe_handle_list_all_financial_entities(
             parsed = None
 
         entities = parsed.get("entities") if isinstance(parsed, dict) else {}
-        pension_funds = entities.get("pension_funds") if isinstance(entities, dict) else None
-        capital_assets = entities.get("capital_assets") if isinstance(entities, dict) else None
-        additional_incomes = entities.get("additional_incomes") if isinstance(entities, dict) else None
+        pension_funds = (
+            entities.get("pension_funds") if isinstance(entities, dict) else None
+        )
+        capital_assets = (
+            entities.get("capital_assets") if isinstance(entities, dict) else None
+        )
+        additional_incomes = (
+            entities.get("additional_incomes") if isinstance(entities, dict) else None
+        )
 
         lines: list[str] = []
         lines.append("הנתונים שנמצאים כרגע במערכת (DB) + תיק מסלקה שניטען:")
@@ -59,7 +69,9 @@ def _maybe_handle_list_all_financial_entities(
                     continue
                 desc = (
                     (ai.get("description") or ai.get("source_type") or "הכנסה").strip()
-                    if isinstance(ai.get("description") or ai.get("source_type") or "", str)
+                    if isinstance(
+                        ai.get("description") or ai.get("source_type") or "", str
+                    )
                     else "הכנסה"
                 )
                 amount = _fmt_money(ai.get("amount"))

@@ -33,7 +33,7 @@ def _maybe_handle_pending_plan_target_marker_flow(
     format_tool_output_for_user_stream,
     store_latest_target_pension_plan_data,
     store_latest_target_pension_plan,
- ):
+):
     if not (
         pending_plan is not None
         and target_net is not None
@@ -46,7 +46,8 @@ def _maybe_handle_pending_plan_target_marker_flow(
 
         def _prompt_for_target_net_again():
             yield sanitize_user_visible_text(
-                "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n" "כתוב: יעד נטו: <מספר>."
+                "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\n"
+                "כתוב: יעד נטו: <מספר>."
             )
 
         return StreamingResponse(
@@ -66,7 +67,11 @@ def _maybe_handle_pending_plan_target_marker_flow(
                 target_is_net=True,
             )
 
-        _effective = breakdown.effective_plan_target if breakdown is not None else requested_target
+        _effective = (
+            breakdown.effective_plan_target
+            if breakdown is not None
+            else requested_target
+        )
         if _effective <= 0:
             yield "היעד כבר מושג מהכנסות קיימות, אין צורך בבניית קצבה נוספת."
             delete_marker(pending_plan)
@@ -78,11 +83,13 @@ def _maybe_handle_pending_plan_target_marker_flow(
         }
 
         if client_id is not None:
-            policy_status, tool_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
-                db=db,
-                client_id=int(client_id),
-                portfolio=request.pension_portfolio,
-                plan_args=tool_args,
+            policy_status, tool_args, policy_text = (
+                evaluate_blocked_balances_policy_for_build_target_plan(
+                    db=db,
+                    client_id=int(client_id),
+                    portfolio=request.pension_portfolio,
+                    plan_args=tool_args,
+                )
             )
             if isinstance(policy_text, str) and policy_text.strip():
                 yield policy_text.strip() + "\n\n"
@@ -129,12 +136,16 @@ def _maybe_handle_pending_plan_target_marker_flow(
             pending_payload = None
         client_obj = None
         try:
-            client_obj = db.query(ClientModel).filter(ClientModel.id == client_id).first()
+            client_obj = (
+                db.query(ClientModel).filter(ClientModel.id == client_id).first()
+            )
         except Exception:
             client_obj = None
         inferred_age = infer_retirement_age_for_plan_args(
             client_obj=client_obj,
-            pending_payload=pending_payload if isinstance(pending_payload, dict) else None,
+            pending_payload=(
+                pending_payload if isinstance(pending_payload, dict) else None
+            ),
         )
         if inferred_age is not None:
             tool_args["retirement_age"] = int(inferred_age)
@@ -165,7 +176,9 @@ def _maybe_handle_pending_plan_target_marker_flow(
         except Exception:
             pass
         yield sanitize_user_visible_text(
-            "🔧 **פלט כלי (" + get_tool_display_name_hebrew(tool_name) + "):**\n"
+            "🔧 **פלט כלי ("
+            + get_tool_display_name_hebrew(tool_name)
+            + "):**\n"
             + format_tool_output_for_user_stream(tool_name, tool_result)
         )
         delete_marker(pending_plan)

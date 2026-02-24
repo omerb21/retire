@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.client import Client
 
-
 _ADMIN_TOKEN = "test-guardrail-token-xyz"
 
 
@@ -61,7 +60,9 @@ def test_trace_id_shows_up_in_list(_test_db, monkeypatch):
     with Session() as db:
         client = db.query(Client).filter(Client.id == 1).first()
         if client is None:
-            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=1, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.commit()
 
@@ -94,15 +95,15 @@ def test_trace_id_shows_up_in_list(_test_db, monkeypatch):
 
     # Find our trace in the list
     matching = [t for t in items if t["trace_id"] == trace_id]
-    assert len(matching) == 1, (
-        f"Expected trace_id {trace_id} in list, got {[t['trace_id'] for t in items]}"
-    )
+    assert (
+        len(matching) == 1
+    ), f"Expected trace_id {trace_id} in list, got {[t['trace_id'] for t in items]}"
 
     trace_summary = matching[0]
     assert trace_summary["trace_id"] != "unknown"
-    assert trace_summary["events_count"] >= 1, (
-        f"events_count should be >= 1, got {trace_summary['events_count']}"
-    )
+    assert (
+        trace_summary["events_count"] >= 1
+    ), f"events_count should be >= 1, got {trace_summary['events_count']}"
     # endpoint may be null for some events, but the MAX() aggregate should pick one
     # We don't hard-assert endpoint != None here because the shortcut path
     # logs with endpoint set, but we do assert it's not "unknown"
@@ -133,23 +134,23 @@ def test_fetch_returns_same_count(_test_db):
         f"/api/v1/agent-eyes/traces/{trace_id}",
         headers=_eyes_headers(),
     )
-    assert detail_resp.status_code == 200, (
-        f"Expected 200, got {detail_resp.status_code}: {detail_resp.text}"
-    )
+    assert (
+        detail_resp.status_code == 200
+    ), f"Expected 200, got {detail_resp.status_code}: {detail_resp.text}"
 
     detail_data = detail_resp.json()
     assert detail_data["trace_id"] == trace_id
     items = detail_data.get("items", [])
 
-    assert len(items) == expected_count, (
-        f"Expected {expected_count} items, got {len(items)}"
-    )
+    assert (
+        len(items) == expected_count
+    ), f"Expected {expected_count} items, got {len(items)}"
 
     # Verify chronological order
     timestamps = [it.get("created_at") for it in items]
-    assert timestamps == sorted(timestamps), (
-        f"Items not in chronological order: {timestamps}"
-    )
+    assert timestamps == sorted(
+        timestamps
+    ), f"Items not in chronological order: {timestamps}"
 
     # Verify at least one meaningful event_type
     event_types = {it.get("event_type") for it in items}

@@ -66,10 +66,16 @@ def handle_generate_full_report(
             return json.dumps(response, ensure_ascii=False)
 
         # ===== GUARDRAIL: Check for critical assets =====
-        pension_count = db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
-        capital_count = db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+        pension_count = (
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+        )
+        capital_count = (
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+        )
         income_count = (
-            db.query(AdditionalIncome).filter(AdditionalIncome.client_id == client_id).count()
+            db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == client_id)
+            .count()
         )
 
         total_assets = pension_count + capital_count + income_count
@@ -215,7 +221,11 @@ def handle_generate_full_report(
         report_id = f"RPT-{client_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
         artifacts_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                )
+            ),
             "artifacts",
             "reports",
         )
@@ -258,7 +268,9 @@ def handle_generate_full_report(
             base_date = None
             if isinstance(retirement_date_arg, str) and retirement_date_arg.strip():
                 base_date = retirement_date_arg.strip()
-            elif isinstance(analysis_result, dict) and isinstance(analysis_result.get("retirement_date"), str):
+            elif isinstance(analysis_result, dict) and isinstance(
+                analysis_result.get("retirement_date"), str
+            ):
                 base_date = str(analysis_result.get("retirement_date")).strip()
 
             if base_date and len(base_date) >= 7:
@@ -342,7 +354,7 @@ def handle_generate_full_report(
         # __file__ is in app/services/llm_chat/tool_handlers/generate_full_report.py
         # Need to go up 5 levels to reach project root (retire/)
         pdf_path = os.path.join(artifacts_dir, f"{report_id}.pdf")
-        
+
         # Get PDF content and validate it's not empty
         pdf_content = pdf_buffer.getvalue()
         if not pdf_content or len(pdf_content) < 100:
@@ -361,7 +373,7 @@ def handle_generate_full_report(
                 "error_details": f"PDF buffer size: {len(pdf_content) if pdf_content else 0} bytes",
             }
             return json.dumps(error_response, ensure_ascii=False)
-        
+
         with open(pdf_path, "wb") as f:
             f.write(pdf_content)
 
@@ -382,7 +394,7 @@ def handle_generate_full_report(
                 "error_details": f"File not found at: {pdf_path}",
             }
             return json.dumps(error_response, ensure_ascii=False)
-        
+
         pdf_size = os.path.getsize(pdf_path)
         if pdf_size < 100:
             logger.error(
@@ -401,7 +413,7 @@ def handle_generate_full_report(
                 "error_details": f"File size: {pdf_size} bytes",
             }
             return json.dumps(error_response, ensure_ascii=False)
-        
+
         logger.info("📄 PDF saved: %s (%d bytes)", pdf_path, pdf_size)
 
         logger.info(

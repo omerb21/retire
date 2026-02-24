@@ -17,7 +17,9 @@ def _build_sample_portfolio() -> list[dict]:
     ]
 
 
-def test_llm_scenarios_chat_flow_runs_tools_then_summarizes(db_session, client, monkeypatch) -> None:
+def test_llm_scenarios_chat_flow_runs_tools_then_summarizes(
+    db_session, client, monkeypatch
+) -> None:
     calls: list[tuple[str, dict]] = []
 
     llm_replies = iter(
@@ -89,7 +91,12 @@ def test_llm_scenarios_chat_flow_runs_tools_then_summarizes(db_session, client, 
     monkeypatch.setattr(chat_orchestration, "execute_tool_call", fake_execute_tool_call)
 
     req = ChatRequest(
-        messages=[ChatMessage(role="user", content="תן לי 3 תרחישים לפרישה ובחר אחד שמתאים ליעד קצבה 12,000")],
+        messages=[
+            ChatMessage(
+                role="user",
+                content="תן לי 3 תרחישים לפרישה ובחר אחד שמתאים ליעד קצבה 12,000",
+            )
+        ],
         client_id=client.id,
         pension_portfolio=_build_sample_portfolio(),
     )

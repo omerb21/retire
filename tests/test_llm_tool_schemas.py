@@ -47,7 +47,9 @@ def test_process_termination_description_is_termination_scoped() -> None:
 
 
 def test_llm_chat_package_exports_are_available() -> None:
-    from app.services.llm_chat import get_tools_definitions_json as pkg_get_tools_definitions_json
+    from app.services.llm_chat import (
+        get_tools_definitions_json as pkg_get_tools_definitions_json,
+    )
 
     tools = json.loads(pkg_get_tools_definitions_json())
     _get_tool(tools, "PROCESS_TERMINATION")
@@ -77,10 +79,14 @@ def test_retirement_scenario_tools_exist_in_schema() -> None:
     assert "retirement_age" in run_tool.get("parameters", {}).get("required", [])
 
     select_tool = _get_tool(tools, "SELECT_TARGET_PENSION_SCENARIO")
-    assert "target_monthly_pension" in select_tool.get("parameters", {}).get("required", [])
+    assert "target_monthly_pension" in select_tool.get("parameters", {}).get(
+        "required", []
+    )
 
     find_tool = _get_tool(tools, "FIND_OPTIMAL_SCENARIO")
-    assert "target_monthly_pension" in find_tool.get("parameters", {}).get("required", [])
+    assert "target_monthly_pension" in find_tool.get("parameters", {}).get(
+        "required", []
+    )
 
     execute_tool = _get_tool(tools, "EXECUTE_RETIREMENT_SCENARIO")
     assert "scenario_id" in execute_tool.get("parameters", {}).get("required", [])

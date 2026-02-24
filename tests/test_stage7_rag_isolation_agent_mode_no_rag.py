@@ -2,10 +2,14 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
-from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_execution_context import (
+    set_tool_execution_context,
+)
 
 
-def test_stage7_agent_mode_does_not_inject_rag_or_snippets(monkeypatch, db_session, client) -> None:
+def test_stage7_agent_mode_does_not_inject_rag_or_snippets(
+    monkeypatch, db_session, client
+) -> None:
     sentinel = "__SENTINEL_RAG__"
 
     snippet_calls = {"n": 0}
@@ -54,9 +58,16 @@ def test_stage7_agent_mode_does_not_inject_rag_or_snippets(monkeypatch, db_sessi
     assert calls["n"] == 0
     assert snippet_calls["n"] == 0
 
-    system_contents = [m.content or "" for m in messages if getattr(m, "role", None) == "system"]
+    system_contents = [
+        m.content or "" for m in messages if getattr(m, "role", None) == "system"
+    ]
     assert not any(sentinel in c for c in system_contents)
 
     # Ensure the dedicated RAG/snippets blocks are not present at all.
-    assert not any((c or "").lstrip().startswith("ידע מערכת שנשלף מה-Knowledge Base") for c in system_contents)
-    assert not any((c or "").lstrip().startswith("ידע מערכת רלוונטי") for c in system_contents)
+    assert not any(
+        (c or "").lstrip().startswith("ידע מערכת שנשלף מה-Knowledge Base")
+        for c in system_contents
+    )
+    assert not any(
+        (c or "").lstrip().startswith("ידע מערכת רלוונטי") for c in system_contents
+    )

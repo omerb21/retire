@@ -27,7 +27,9 @@ def _calculate_employment_years(self, start_date: date, end_date: date) -> float
     return max(0.0, years)
 
 
-def _calculate_capital_tax(self, gross_amount: float, spread_years: int) -> Dict[str, Any]:
+def _calculate_capital_tax(
+    self, gross_amount: float, spread_years: int
+) -> Dict[str, Any]:
     """
     D4.2: חישוב מס שולי על מענק הוני עם פריסת מס
 
@@ -49,9 +51,9 @@ def _calculate_capital_tax(self, gross_amount: float, spread_years: int) -> Dict
     # חישוב מס שנתי לפי מדרגות מס 2025
     tax_brackets = TaxConstants.INCOME_TAX_BRACKETS_2025
 
-    annual_tax = Decimal('0')
+    annual_tax = Decimal("0")
     remaining_income = Decimal(str(annual_portion))
-    prev_threshold = Decimal('0')
+    prev_threshold = Decimal("0")
 
     for bracket in tax_brackets:
         if remaining_income <= 0:
@@ -93,5 +95,5 @@ def _calculate_capital_tax(self, gross_amount: float, spread_years: int) -> Dict
         "annual_tax": round(float(annual_tax), 2),
         "total_tax": round(total_tax, 2),
         "net_amount": round(net_amount, 2),
-        "effective_rate": round(effective_rate, 2)
+        "effective_rate": round(effective_rate, 2),
     }

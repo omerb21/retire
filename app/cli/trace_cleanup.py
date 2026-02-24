@@ -30,12 +30,18 @@ def main() -> int:
 
     from app.services.agent_eyes.event_collector import delete_trace_events_older_than
 
-    count = delete_trace_events_older_than(cutoff_dt=cutoff_dt, dry_run=bool(args.dry_run))
+    count = delete_trace_events_older_than(
+        cutoff_dt=cutoff_dt, dry_run=bool(args.dry_run)
+    )
 
     if args.dry_run:
-        print(f"trace_cleanup dry_run=1 retention_days={retention_days} would_delete={count}")
+        print(
+            f"trace_cleanup dry_run=1 retention_days={retention_days} would_delete={count}"
+        )
     else:
-        print(f"trace_cleanup dry_run=0 retention_days={retention_days} deleted={count}")
+        print(
+            f"trace_cleanup dry_run=0 retention_days={retention_days} deleted={count}"
+        )
 
     return 0
 

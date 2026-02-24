@@ -1,4 +1,6 @@
-def classify_product_type(product_type_str: str, default_conversion_type: str = "pension") -> str:
+def classify_product_type(
+    product_type_str: str, default_conversion_type: str = "pension"
+) -> str:
     """Classify product type to determine conversion destination."""
     if not product_type_str:
         return default_conversion_type

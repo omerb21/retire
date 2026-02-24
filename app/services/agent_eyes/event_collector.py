@@ -116,7 +116,9 @@ def _persist_to_db(
         from app.models.agent_trace_event import AgentTraceEvent
 
         try:
-            redaction_enabled = (os.getenv("TRACE_PII_REDACTION_ENABLED") or "1").strip() != "0"
+            redaction_enabled = (
+                os.getenv("TRACE_PII_REDACTION_ENABLED") or "1"
+            ).strip() != "0"
         except Exception:
             redaction_enabled = True
 
@@ -166,6 +168,7 @@ def _persist_to_db(
         session_factory = _session_factory_override
         if session_factory is None:
             from app.database import SessionLocal
+
             session_factory = SessionLocal
 
         payload_json_str: str | None = None
@@ -212,6 +215,7 @@ def _persist_to_db(
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def emit_event(
     event_type: str,
     payload: Any = None,
@@ -246,7 +250,15 @@ def emit_event(
         try:
             _log.info(json.dumps(event, ensure_ascii=False, default=str))
         except Exception:
-            _log.info(json.dumps({"event_type": event_type, "trace_id": trace_id, "error": "serialization_failed"}))
+            _log.info(
+                json.dumps(
+                    {
+                        "event_type": event_type,
+                        "trace_id": trace_id,
+                        "error": "serialization_failed",
+                    }
+                )
+            )
 
         # 3) DB persistence (best-effort)
         try:
@@ -289,7 +301,9 @@ def clear_buffer() -> None:
         _buffer.clear()
 
 
-def delete_trace_events_older_than(*, cutoff_dt: datetime, dry_run: bool = False) -> int:
+def delete_trace_events_older_than(
+    *, cutoff_dt: datetime, dry_run: bool = False
+) -> int:
     """Delete trace events with created_at < cutoff_dt.
 
     Returns the number of rows deleted (or that would be deleted in dry-run).

@@ -3,11 +3,13 @@ from pathlib import Path
 
 doc = json.load(open("openapi_prod.json", encoding="utf-8"))
 paths = doc.get("paths", {}) or {}
-schemas = ((doc.get("components") or {}).get("schemas") or {})
+schemas = (doc.get("components") or {}).get("schemas") or {}
+
 
 def resolve_ref(ref: str):
     name = ref.split("/")[-1]
     return schemas.get(name) or {}
+
 
 def make_dummy(schema):
     if not schema:
@@ -46,6 +48,7 @@ def make_dummy(schema):
         return out
     return "test"
 
+
 cands = []
 for p, methods in paths.items():
     for m, op in (methods or {}).items():
@@ -55,7 +58,7 @@ for p, methods in paths.items():
         if not any(x in pl for x in ("chat", "llm", "public-chat", "public_chat")):
             continue
         rb = (op or {}).get("requestBody") or {}
-        content = (rb.get("content") or {})
+        content = rb.get("content") or {}
         appjson = content.get("application/json") or {}
         schema = appjson.get("schema") or {}
         cands.append((p, op.get("operationId"), schema))
@@ -71,8 +74,16 @@ path, opid, schema = cands[0]
 payload = make_dummy(schema)
 
 Path("chat_endpoint.txt").write_text(path, encoding="utf-8")
-json.dump(payload, open("chat_payload.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+json.dump(
+    payload,
+    open("chat_payload.json", "w", encoding="utf-8"),
+    ensure_ascii=False,
+    indent=2,
+)
 
 print("CHOSEN_CHAT_POST:", path)
 print("OPERATION_ID:", opid)
-print("PAYLOAD_KEYS:", list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__)
+print(
+    "PAYLOAD_KEYS:",
+    list(payload.keys()) if isinstance(payload, dict) else type(payload).__name__,
+)

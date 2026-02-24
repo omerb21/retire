@@ -6,11 +6,15 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_system_inventory_bypasses_llm_and_uses_snapshot_tool(monkeypatch) -> None:
+def test_stream_system_inventory_bypasses_llm_and_uses_snapshot_tool(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM should not be called for system inventory requests")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
@@ -83,7 +87,9 @@ def test_stream_list_all_entities_bypasses_llm_and_formats(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM should not be called for list-all-entities requests")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(
         *,
@@ -99,7 +105,11 @@ def test_stream_list_all_entities_bypasses_llm_and_formats(monkeypatch) -> None:
             {
                 "client_id": client_id,
                 "generated_at": "2026-01-01T12:00:00Z",
-                "counts": {"pension_funds": 0, "capital_assets": 0, "additional_incomes": 1},
+                "counts": {
+                    "pension_funds": 0,
+                    "capital_assets": 0,
+                    "additional_incomes": 1,
+                },
                 "entities": {
                     "additional_incomes": [
                         {
@@ -137,7 +147,12 @@ def test_stream_list_all_entities_bypasses_llm_and_formats(monkeypatch) -> None:
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "תציג לי את כל ההכנסות, הקצבאות ונכסי הון שיש לי"}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "תציג לי את כל ההכנסות, הקצבאות ונכסי הון שיש לי",
+                }
+            ],
             "pension_portfolio": [],
         },
     )

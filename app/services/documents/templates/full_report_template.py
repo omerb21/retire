@@ -42,7 +42,7 @@ def _render_net_chart_svg(cashflow_rows: List[Dict[str, Any]]) -> str:
             points.append(0.0)
 
     if not points:
-        return "<div class=\"small\">אין נתוני תזרים להצגת גרף</div>"
+        return '<div class="small">אין נתוני תזרים להצגת גרף</div>'
 
     w = 820
     h = 220
@@ -145,7 +145,9 @@ class FullReportHTMLTemplate:
 """
 
     def _render_fixation_section(self) -> str:
-        if not self.fixation_data or not isinstance(self.fixation_data.exemption_summary, dict):
+        if not self.fixation_data or not isinstance(
+            self.fixation_data.exemption_summary, dict
+        ):
             return ""
         es = self.fixation_data.exemption_summary
         pct = 0.0
@@ -179,7 +181,7 @@ class FullReportHTMLTemplate:
                 "</tr>"
             )
 
-        body = "".join(rows) if rows else "<tr><td colspan=\"5\">אין נתונים</td></tr>"
+        body = "".join(rows) if rows else '<tr><td colspan="5">אין נתונים</td></tr>'
         return f"""
 <div class=\"section card page-break\">
   <h2>פירוט קצבאות</h2>
@@ -203,7 +205,7 @@ class FullReportHTMLTemplate:
                 "</tr>"
             )
 
-        body = "".join(rows) if rows else "<tr><td colspan=\"5\">אין נתונים</td></tr>"
+        body = "".join(rows) if rows else '<tr><td colspan="5">אין נתונים</td></tr>'
         return f"""
 <div class=\"section card\">
   <h2>הכנסות נוספות</h2>
@@ -226,7 +228,7 @@ class FullReportHTMLTemplate:
                 "</tr>"
             )
 
-        body = "".join(rows) if rows else "<tr><td colspan=\"4\">אין נתונים</td></tr>"
+        body = "".join(rows) if rows else '<tr><td colspan="4">אין נתונים</td></tr>'
         return f"""
 <div class=\"section card\">
   <h2>נכסי הון</h2>
@@ -249,7 +251,7 @@ class FullReportHTMLTemplate:
                 "</tr>"
             )
 
-        body = "".join(rows) if rows else "<tr><td colspan=\"4\">אין נתונים</td></tr>"
+        body = "".join(rows) if rows else '<tr><td colspan="4">אין נתונים</td></tr>'
         return f"""
 <div class=\"section card\">
   <h2>היוונים (פטורים ממס)</h2>
@@ -299,7 +301,7 @@ class FullReportHTMLTemplate:
                 "</tr>"
             )
 
-        body = "".join(rows) if rows else "<tr><td colspan=\"6\">אין נתונים</td></tr>"
+        body = "".join(rows) if rows else '<tr><td colspan="6">אין נתונים</td></tr>'
         return f"""
 <div class=\"section card page-break\">
   <h2>סיכום שנתי</h2>
@@ -326,10 +328,10 @@ class FullReportHTMLTemplate:
                 "</tr>"
             )
 
-        body = "".join(rows) if rows else "<tr><td colspan=\"6\">אין נתונים</td></tr>"
+        body = "".join(rows) if rows else '<tr><td colspan="6">אין נתונים</td></tr>'
         chart_html = ""
         if self.include_charts:
-            chart_html = f"<div class=\"section\"><h2>גרף תזרים נטו</h2>{_render_net_chart_svg(self.cashflow_rows)}</div>"
+            chart_html = f'<div class="section"><h2>גרף תזרים נטו</h2>{_render_net_chart_svg(self.cashflow_rows)}</div>'
 
         return f"""
 <div class=\"section card\">

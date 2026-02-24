@@ -63,7 +63,9 @@ def test_snapshot_loader_ignores_non_snapshot_scenarios(db_session, client):
         apply_tax_planning=False,
         apply_capitalization=False,
         apply_exemption_shield=False,
-        parameters=json.dumps({"pension_portfolio": partial_accounts}, ensure_ascii=False),
+        parameters=json.dumps(
+            {"pension_portfolio": partial_accounts}, ensure_ascii=False
+        ),
         created_at=datetime.now(timezone.utc) + timedelta(minutes=1),
     )
 

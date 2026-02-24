@@ -31,7 +31,9 @@ def _load_pending_approval_args(Session, *, client_id: int) -> dict:
         return dict(args)
 
 
-def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _test_db) -> None:
+def test_blocked_balances_notice_once_for_non_settled_and_rights(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000001
@@ -81,7 +83,9 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -90,7 +94,9 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     calls: list[tuple[str, dict]] = []
 
@@ -107,7 +113,9 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
         request_id: str | None = None,
     ) -> str:
         try:
-            from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+            from app.services.agent_execution.tool_execution_context import (
+                mark_tool_ok_seen,
+            )
 
             mark_tool_ok_seen()
         except Exception:
@@ -125,7 +133,9 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -136,7 +146,9 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -154,7 +166,9 @@ def test_blocked_balances_notice_once_for_non_settled_and_rights(monkeypatch, _t
         assert notice is not None
 
 
-def test_current_employer_severance_asks_yes_no_before_build(monkeypatch, _test_db) -> None:
+def test_current_employer_severance_asks_yes_no_before_build(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000002
@@ -214,7 +228,9 @@ def test_current_employer_severance_asks_yes_no_before_build(monkeypatch, _test_
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -223,7 +239,9 @@ def test_current_employer_severance_asks_yes_no_before_build(monkeypatch, _test_
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("Build tool must not be executed before yes/no decision")
@@ -236,7 +254,9 @@ def test_current_employer_severance_asks_yes_no_before_build(monkeypatch, _test_
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -331,7 +351,9 @@ def test_current_employer_severance_skips_question_when_target_met_by_existing_p
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -340,7 +362,9 @@ def test_current_employer_severance_skips_question_when_target_met_by_existing_p
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -368,7 +392,9 @@ def test_current_employer_severance_skips_question_when_target_met_by_existing_p
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -380,14 +406,19 @@ def test_current_employer_severance_skips_question_when_target_met_by_existing_p
         pending = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_current_employer_severance_termination_question")
+            .filter(
+                Scenario.scenario_name
+                == "pending_current_employer_severance_termination_question"
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
         assert pending is None
 
 
-def test_current_employer_severance_nested_components_blocks_before_build(monkeypatch, _test_db) -> None:
+def test_current_employer_severance_nested_components_blocks_before_build(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000005
@@ -451,7 +482,9 @@ def test_current_employer_severance_nested_components_blocks_before_build(monkey
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -460,10 +493,14 @@ def test_current_employer_severance_nested_components_blocks_before_build(monkey
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("Build tool must not be executed when severance is blocked")
+        raise AssertionError(
+            "Build tool must not be executed when severance is blocked"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -480,7 +517,9 @@ def test_current_employer_severance_nested_components_blocks_before_build(monkey
     assert "האם תרצה לבצע עזיבת עבודה עכשיו" in resp.text
 
 
-def test_current_employer_severance_yes_triggers_termination_approval_and_rebuild(monkeypatch, _test_db) -> None:
+def test_current_employer_severance_yes_triggers_termination_approval_and_rebuild(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000003
@@ -542,7 +581,9 @@ def test_current_employer_severance_yes_triggers_termination_approval_and_rebuil
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -551,7 +592,9 @@ def test_current_employer_severance_yes_triggers_termination_approval_and_rebuil
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
     can_execute = {"ok": False}
@@ -585,7 +628,9 @@ def test_current_employer_severance_yes_triggers_termination_approval_and_rebuil
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -620,7 +665,9 @@ def test_current_employer_severance_yes_triggers_termination_approval_and_rebuil
     assert "בניית תכנית קצבה" in resp3.text
 
 
-def test_current_employer_severance_yes_shows_default_plan_preview_before_approval(monkeypatch, _test_db) -> None:
+def test_current_employer_severance_yes_shows_default_plan_preview_before_approval(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000006
@@ -682,7 +729,9 @@ def test_current_employer_severance_yes_shows_default_plan_preview_before_approv
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -691,7 +740,9 @@ def test_current_employer_severance_yes_shows_default_plan_preview_before_approv
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tool should run before preview confirmation")
@@ -703,7 +754,9 @@ def test_current_employer_severance_yes_shows_default_plan_preview_before_approv
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -733,7 +786,9 @@ def test_current_employer_severance_yes_shows_default_plan_preview_before_approv
         assert pending_approval is None
 
 
-def test_current_employer_severance_preview_not_duplicated_by_build_tool_output(monkeypatch, _test_db) -> None:
+def test_current_employer_severance_preview_not_duplicated_by_build_tool_output(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000010
@@ -795,7 +850,9 @@ def test_current_employer_severance_preview_not_duplicated_by_build_tool_output(
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -804,10 +861,14 @@ def test_current_employer_severance_preview_not_duplicated_by_build_tool_output(
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("BUILD must not run while waiting for preview confirmation")
+        raise AssertionError(
+            "BUILD must not run while waiting for preview confirmation"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -836,7 +897,9 @@ def test_current_employer_severance_preview_not_duplicated_by_build_tool_output(
     assert "🔧 **פלט כלי (בניית תכנית קצבה):**" not in resp2.text
 
 
-def test_user_cancelled_stops_process_termination_and_clears_pending(monkeypatch, _test_db) -> None:
+def test_user_cancelled_stops_process_termination_and_clears_pending(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000011
@@ -899,7 +962,9 @@ def test_user_cancelled_stops_process_termination_and_clears_pending(monkeypatch
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -908,7 +973,9 @@ def test_user_cancelled_stops_process_termination_and_clears_pending(monkeypatch
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
     can_execute = {"ok": False}
@@ -955,7 +1022,9 @@ def test_user_cancelled_stops_process_termination_and_clears_pending(monkeypatch
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"plan_args": {"target_monthly_pension": 30000}}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"plan_args": {"target_monthly_pension": 30000}}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -963,7 +1032,10 @@ def test_user_cancelled_stops_process_termination_and_clears_pending(monkeypatch
 
     api = TestClient(app)
 
-    cancelled_payload = {"tool_name": "PROCESS_TERMINATION", "arguments": {"confirmed": True}}
+    cancelled_payload = {
+        "tool_name": "PROCESS_TERMINATION",
+        "arguments": {"confirmed": True},
+    }
     resp4 = api.post(
         "/api/v1/llm/pension-chat-stream",
         json={
@@ -994,14 +1066,18 @@ def test_user_cancelled_stops_process_termination_and_clears_pending(monkeypatch
         pending_build = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_build_target_plan_after_termination")
+            .filter(
+                Scenario.scenario_name == "pending_build_target_plan_after_termination"
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
         assert pending_build is None
 
 
-def test_user_approved_process_termination_cannot_bypass_preview(monkeypatch, _test_db) -> None:
+def test_user_approved_process_termination_cannot_bypass_preview(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000012
@@ -1064,7 +1140,9 @@ def test_user_approved_process_termination_cannot_bypass_preview(monkeypatch, _t
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -1073,7 +1151,9 @@ def test_user_approved_process_termination_cannot_bypass_preview(monkeypatch, _t
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
     can_execute = {"ok": False}
@@ -1117,7 +1197,11 @@ def test_user_approved_process_termination_cannot_bypass_preview(monkeypatch, _t
 
     approved_payload = {
         "tool_name": "PROCESS_TERMINATION",
-        "arguments": {"confirmed": True, "exempt_choice": "redeem_with_exemption", "taxable_choice": "annuity"},
+        "arguments": {
+            "confirmed": True,
+            "exempt_choice": "redeem_with_exemption",
+            "taxable_choice": "annuity",
+        },
     }
     resp2 = api.post(
         "/api/v1/llm/pension-chat-stream",
@@ -1153,7 +1237,9 @@ def test_user_approved_process_termination_cannot_bypass_preview(monkeypatch, _t
     assert tool_calls == ["PROCESS_TERMINATION", "BUILD_TARGET_PENSION_PLAN"]
 
 
-def test_current_employer_termination_preview_decline_stops_and_asks_alternatives(monkeypatch, _test_db) -> None:
+def test_current_employer_termination_preview_decline_stops_and_asks_alternatives(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000007
@@ -1216,7 +1302,9 @@ def test_current_employer_termination_preview_decline_stops_and_asks_alternative
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -1225,7 +1313,9 @@ def test_current_employer_termination_preview_decline_stops_and_asks_alternative
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tool should run when preview is declined")
@@ -1237,7 +1327,9 @@ def test_current_employer_termination_preview_decline_stops_and_asks_alternative
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -1333,7 +1425,9 @@ def test_stale_declined_termination_preview_is_ignored_and_default_preview_is_sh
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -1389,7 +1483,9 @@ def test_stale_declined_termination_preview_is_ignored_and_default_preview_is_sh
                     {
                         "preview_id": active_preview_id,
                         "created_at": datetime.now(timezone.utc).isoformat(),
-                        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+                        "expires_at": (
+                            datetime.now(timezone.utc) + timedelta(minutes=10)
+                        ).isoformat(),
                     },
                     ensure_ascii=False,
                 ),
@@ -1402,7 +1498,9 @@ def test_stale_declined_termination_preview_is_ignored_and_default_preview_is_sh
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tools must be executed when stale declined is ignored")
@@ -1415,7 +1513,9 @@ def test_stale_declined_termination_preview_is_ignored_and_default_preview_is_sh
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -1436,7 +1536,9 @@ def test_stale_declined_termination_preview_is_ignored_and_default_preview_is_sh
         pending_build = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_build_target_plan_after_termination")
+            .filter(
+                Scenario.scenario_name == "pending_build_target_plan_after_termination"
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
@@ -1520,13 +1622,17 @@ def test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_a
         today = date.today()
         reference_date = date(today.year, today.month, 1)
         monthly_gross = income_service.calculate_monthly_amount(income)
-        tax_amount, _ = income_service.calculate_tax(monthly_gross, income, None, reference_date)
+        tax_amount, _ = income_service.calculate_tax(
+            monthly_gross, income, None, reference_date
+        )
         expected_offset = float(monthly_gross - tax_amount)
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     portfolio_before = [
         {
@@ -1559,7 +1665,9 @@ def test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_a
             return portfolio_after, datetime.now(timezone.utc)
         return portfolio_before, datetime.now(timezone.utc)
 
-    monkeypatch.setattr(stream_orch, "load_latest_pension_portfolio_snapshot_models", fake_loader)
+    monkeypatch.setattr(
+        stream_orch, "load_latest_pension_portfolio_snapshot_models", fake_loader
+    )
 
     tool_calls: list[str] = []
 
@@ -1591,7 +1699,9 @@ def test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_a
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -1622,7 +1732,9 @@ def test_current_employer_termination_approved_rebuild_uses_refreshed_snapshot_a
     assert tool_calls == ["PROCESS_TERMINATION", "BUILD_TARGET_PENSION_PLAN"]
 
 
-def test_current_employer_termination_failure_does_not_rebuild_plan(monkeypatch, _test_db) -> None:
+def test_current_employer_termination_failure_does_not_rebuild_plan(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 985000009
@@ -1685,7 +1797,9 @@ def test_current_employer_termination_failure_does_not_rebuild_plan(monkeypatch,
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -1694,7 +1808,9 @@ def test_current_employer_termination_failure_does_not_rebuild_plan(monkeypatch,
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -1724,7 +1840,9 @@ def test_current_employer_termination_failure_does_not_rebuild_plan(monkeypatch,
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -1816,7 +1934,9 @@ def test_current_employer_severance_no_builds_ignoring(monkeypatch, _test_db) ->
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -1825,7 +1945,9 @@ def test_current_employer_severance_no_builds_ignoring(monkeypatch, _test_db) ->
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -1854,7 +1976,9 @@ def test_current_employer_severance_no_builds_ignoring(monkeypatch, _test_db) ->
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -1874,7 +1998,9 @@ def test_current_employer_severance_no_builds_ignoring(monkeypatch, _test_db) ->
     assert tool_calls == ["BUILD_TARGET_PENSION_PLAN"]
 
 
-def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execution(monkeypatch, _test_db) -> None:
+def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execution(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     client_id = 985000020
 
@@ -1937,7 +2063,9 @@ def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execut
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -1946,7 +2074,9 @@ def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execut
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -1983,7 +2113,9 @@ def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execut
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -2040,7 +2172,9 @@ def test_termination_declined_then_all_to_annuity_shows_preview_and_gates_execut
     assert tool_calls == ["PROCESS_TERMINATION", "BUILD_TARGET_PENSION_PLAN"]
 
 
-def test_termination_declined_then_exempt_and_taxable_annuity_parses(monkeypatch, _test_db) -> None:
+def test_termination_declined_then_exempt_and_taxable_annuity_parses(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     client_id = 985000021
 
@@ -2103,7 +2237,9 @@ def test_termination_declined_then_exempt_and_taxable_annuity_parses(monkeypatch
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -2112,7 +2248,9 @@ def test_termination_declined_then_exempt_and_taxable_annuity_parses(monkeypatch
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic policy test")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -2147,7 +2285,9 @@ def test_termination_declined_then_exempt_and_taxable_annuity_parses(monkeypatch
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -2253,16 +2393,22 @@ def test_termination_alternative_unparseable_keeps_state_and_asks_clarifying_que
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when awaiting termination alternative")
+        raise AssertionError(
+            "LLM must not be called when awaiting termination alternative"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tools must be executed for unparseable alternative")
@@ -2275,7 +2421,9 @@ def test_termination_alternative_unparseable_keeps_state_and_asks_clarifying_que
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )
@@ -2319,7 +2467,10 @@ def test_termination_alternative_unparseable_keeps_state_and_asks_clarifying_que
         pending = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "pending_current_employer_severance_termination_question")
+            .filter(
+                Scenario.scenario_name
+                == "pending_current_employer_severance_termination_question"
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
@@ -2328,7 +2479,10 @@ def test_termination_alternative_unparseable_keeps_state_and_asks_clarifying_que
         decision = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == "current_employer_severance_execution_decision")
+            .filter(
+                Scenario.scenario_name
+                == "current_employer_severance_execution_decision"
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )

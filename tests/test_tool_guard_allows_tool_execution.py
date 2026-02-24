@@ -1,18 +1,32 @@
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.client import Client
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
-from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_execution_context import (
+    set_tool_execution_context,
+)
 from app.services.agent_execution.tool_executor import execute_with_guard
 
 
-def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test_db) -> None:
+def test_tool_guard_allows_tool_execution_no_validation_error(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     import app.services.llm_chat.tool_execution as tool_exec
 
     calls = {"n": 0}
 
-    def fake_execute_tool_call(*, tool_name, args, client_id, db, pension_portfolio=None, force_max_exemption=False, agent_reply=None, user_approved=False):
+    def fake_execute_tool_call(
+        *,
+        tool_name,
+        args,
+        client_id,
+        db,
+        pension_portfolio=None,
+        force_max_exemption=False,
+        agent_reply=None,
+        user_approved=False
+    ):
         calls["n"] += 1
         return '{"success": true, "tool_name": "GET_CLIENT_SNAPSHOT", "total_items": 0, "breakdown": {}}'
 
@@ -21,23 +35,38 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
     emitted = []
 
     def fake_log_trace_event(*, event_type, payload, client_id=None, endpoint=None):
-        emitted.append({"event_type": event_type, "payload": payload, "client_id": client_id, "endpoint": endpoint})
+        emitted.append(
+            {
+                "event_type": event_type,
+                "payload": payload,
+                "client_id": client_id,
+                "endpoint": endpoint,
+            }
+        )
 
     import app.services.agent_execution.tool_executor as te
 
     monkeypatch.setattr(te, "log_trace_event", fake_log_trace_event)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="GET_CLIENT_SNAPSHOT")], client_id=1)
-    decision = PolicyDecision(mode=ExecutionMode.LLM_TOOL_ROUTED, tools_allowed=True, write_allowed=False)
+    req = ChatRequest(
+        messages=[ChatMessage(role="user", content="GET_CLIENT_SNAPSHOT")], client_id=1
+    )
+    decision = PolicyDecision(
+        mode=ExecutionMode.LLM_TOOL_ROUTED, tools_allowed=True, write_allowed=False
+    )
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == 1).first()
         if client is None:
-            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=1, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.commit()
 
-        set_tool_execution_context(request=req, policy_decision=decision, intent_type=None, streaming=False)
+        set_tool_execution_context(
+            request=req, policy_decision=decision, intent_type=None, streaming=False
+        )
 
         res = execute_with_guard(
             request=req,
@@ -54,6 +83,6 @@ def test_tool_guard_allows_tool_execution_no_validation_error(monkeypatch, _test
             request_id=None,
         )
 
-    assert "\"tool_name\": \"GET_CLIENT_SNAPSHOT\"" in res
+    assert '"tool_name": "GET_CLIENT_SNAPSHOT"' in res
     assert calls["n"] == 1
     assert not [e for e in emitted if e["event_type"] == "validation_error"], emitted

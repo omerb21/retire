@@ -5,7 +5,9 @@ from datetime import datetime
 from app.services.llm_agent_tools_service import AgentToolsService
 
 
-def handle_calculate_capital_withdrawal_tax(*, args: dict, agent_tools: AgentToolsService) -> str:
+def handle_calculate_capital_withdrawal_tax(
+    *, args: dict, agent_tools: AgentToolsService
+) -> str:
     amount = args.get("withdrawal_amount_gross")
     year = args.get("withdrawal_year", datetime.now().year)
 

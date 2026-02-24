@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 
-def compute_termination_amounts_ssot(*, formula_total: float | None, accrued_total: float | None, exempt_amount: float | None) -> dict:
+def compute_termination_amounts_ssot(
+    *,
+    formula_total: float | None,
+    accrued_total: float | None,
+    exempt_amount: float | None,
+) -> dict:
     try:
         formula_val = float(formula_total or 0)
     except Exception:

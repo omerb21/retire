@@ -10,7 +10,9 @@ from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
 
 
-def test_stream_post_conversion_lock_blocks_transform_loop(monkeypatch, _test_db) -> None:
+def test_stream_post_conversion_lock_blocks_transform_loop(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     with Session() as db:
         client = db.query(Client).filter(Client.id == 900000001).first()
@@ -37,18 +39,26 @@ def test_stream_post_conversion_lock_blocks_transform_loop(monkeypatch, _test_db
             start_date=date(2020, 1, 1),
             indexation_method="none",
             tax_treatment="taxable",
-            conversion_source=json.dumps({"source": "scenario_conversion"}, ensure_ascii=False),
+            conversion_source=json.dumps(
+                {"source": "scenario_conversion"}, ensure_ascii=False
+            ),
         )
         db.add(asset)
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when post-conversion lock is active")
+        raise AssertionError(
+            "LLM must not be called when post-conversion lock is active"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked when post-conversion lock is active")
+        raise AssertionError(
+            "execute_tool_call must not be invoked when post-conversion lock is active"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

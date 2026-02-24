@@ -2,6 +2,7 @@
 Direct test of get_annuity_coefficient for ages 70 and 71
 Run 15 - Verify coefficient data differs by age
 """
+
 from datetime import date
 from app.services.annuity_coefficient import get_annuity_coefficient
 
@@ -62,8 +63,8 @@ print("\n" + "=" * 80)
 print("📊 COMPARISON")
 print("=" * 80)
 
-factor70 = coeff70.get('factor_value', 0)
-factor71 = coeff71.get('factor_value', 0)
+factor70 = coeff70.get("factor_value", 0)
+factor71 = coeff71.get("factor_value", 0)
 
 print(f"\n  Age 70 Factor: {factor70}")
 print(f"  Age 71 Factor: {factor71}")

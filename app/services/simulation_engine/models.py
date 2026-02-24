@@ -104,8 +104,17 @@ class SimulationResult(BaseModel):
         if not isinstance(v, dict):
             raise TypeError("raw_calculation_map must be a dict")
         for key, value in v.items():
-            if isinstance(value, dict) or isinstance(value, list) or isinstance(value, tuple) or isinstance(value, set):
-                raise ValueError("raw_calculation_map values must be flat primitive types (no nested dict/list)")
+            if (
+                isinstance(value, dict)
+                or isinstance(value, list)
+                or isinstance(value, tuple)
+                or isinstance(value, set)
+            ):
+                raise ValueError(
+                    "raw_calculation_map values must be flat primitive types (no nested dict/list)"
+                )
             if not isinstance(value, (int, float, str, bool)) and value is not None:
-                raise ValueError("raw_calculation_map values must be int|float|str|bool|None")
+                raise ValueError(
+                    "raw_calculation_map values must be int|float|str|bool|None"
+                )
         return v

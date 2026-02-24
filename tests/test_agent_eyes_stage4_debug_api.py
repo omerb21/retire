@@ -82,13 +82,25 @@ def _seed_events():
     _clean_db()
 
     set_current_trace_id("trace-AAA")
-    emit_event("user_input", {"msg": "hello"}, client_id=1, endpoint="/api/v1/llm/pension-chat")
+    emit_event(
+        "user_input", {"msg": "hello"}, client_id=1, endpoint="/api/v1/llm/pension-chat"
+    )
     time.sleep(0.002)
-    emit_event("assistant_output", {"reply": "world"}, client_id=1, endpoint="/api/v1/llm/pension-chat")
+    emit_event(
+        "assistant_output",
+        {"reply": "world"},
+        client_id=1,
+        endpoint="/api/v1/llm/pension-chat",
+    )
 
     time.sleep(0.002)
     set_current_trace_id("trace-BBB")
-    emit_event("user_input", {"msg": "second"}, client_id=2, endpoint="/api/v1/llm/pension-chat-stream")
+    emit_event(
+        "user_input",
+        {"msg": "second"},
+        client_id=2,
+        endpoint="/api/v1/llm/pension-chat-stream",
+    )
     time.sleep(0.002)
     emit_event("tool_call", {"tool": "X"}, client_id=2)
     time.sleep(0.002)
@@ -98,6 +110,7 @@ def _seed_events():
 # ===================================================================
 # Auth / feature-flag tests
 # ===================================================================
+
 
 class TestDebugAPIAuth(unittest.TestCase):
 
@@ -172,6 +185,7 @@ class TestDebugAPIAuth(unittest.TestCase):
 # Functional tests (all with auth enabled)
 # ===================================================================
 
+
 class TestDebugAPIEndpoints(unittest.TestCase):
 
     @classmethod
@@ -220,7 +234,8 @@ class TestDebugAPIEndpoints(unittest.TestCase):
     def test_list_traces_filter_by_client_id(self):
         """Filter by client_id=2 returns only trace-BBB."""
         resp = self.client.get(
-            f"{_BASE}/traces?client_id=2", headers=self.headers,
+            f"{_BASE}/traces?client_id=2",
+            headers=self.headers,
         )
         items = resp.json()["items"]
         trace_ids = {item["trace_id"] for item in items}
@@ -233,7 +248,8 @@ class TestDebugAPIEndpoints(unittest.TestCase):
     def test_get_trace_returns_chronological_events(self):
         """Events for trace-BBB are returned in created_at ASC order."""
         resp = self.client.get(
-            f"{_BASE}/traces/trace-BBB", headers=self.headers,
+            f"{_BASE}/traces/trace-BBB",
+            headers=self.headers,
         )
         self.assertEqual(resp.status_code, 200)
 
@@ -253,14 +269,16 @@ class TestDebugAPIEndpoints(unittest.TestCase):
     def test_get_trace_not_found(self):
         """Non-existent trace_id returns 404."""
         resp = self.client.get(
-            f"{_BASE}/traces/nonexistent", headers=self.headers,
+            f"{_BASE}/traces/nonexistent",
+            headers=self.headers,
         )
         self.assertEqual(resp.status_code, 404)
 
     def test_get_trace_payload_parsed(self):
         """payload_json is returned as parsed JSON, not a raw string."""
         resp = self.client.get(
-            f"{_BASE}/traces/trace-AAA", headers=self.headers,
+            f"{_BASE}/traces/trace-AAA",
+            headers=self.headers,
         )
         items = resp.json()["items"]
         first = items[0]
@@ -273,21 +291,24 @@ class TestDebugAPIEndpoints(unittest.TestCase):
     def test_delete_trace_removes_rows(self):
         """DELETE removes all rows for the trace and returns count."""
         resp = self.client.delete(
-            f"{_BASE}/traces/trace-AAA", headers=self.headers,
+            f"{_BASE}/traces/trace-AAA",
+            headers=self.headers,
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["deleted"], 2)
 
         # Verify gone
         resp2 = self.client.get(
-            f"{_BASE}/traces/trace-AAA", headers=self.headers,
+            f"{_BASE}/traces/trace-AAA",
+            headers=self.headers,
         )
         self.assertEqual(resp2.status_code, 404)
 
     def test_delete_nonexistent_trace_returns_zero(self):
         """DELETE on non-existent trace returns deleted=0."""
         resp = self.client.delete(
-            f"{_BASE}/traces/nonexistent", headers=self.headers,
+            f"{_BASE}/traces/nonexistent",
+            headers=self.headers,
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["deleted"], 0)

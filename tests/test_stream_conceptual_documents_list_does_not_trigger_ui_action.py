@@ -4,14 +4,20 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_conceptual_documents_list_does_not_trigger_ui_action(monkeypatch) -> None:
+def test_stream_conceptual_documents_list_does_not_trigger_ui_action(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "בתיק שלך"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked for conceptual document-list questions")
+        raise AssertionError(
+            "execute_tool_call must not be invoked for conceptual document-list questions"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

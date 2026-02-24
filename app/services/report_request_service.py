@@ -37,7 +37,9 @@ def parse_scenario_ids_csv(scenario_ids: str) -> List[int]:
         raise ValueError("invalid_scenario_ids") from exc
 
 
-def get_or_create_default_scenario(db: Session, client_id: int, scenario_id: int) -> Scenario:
+def get_or_create_default_scenario(
+    db: Session, client_id: int, scenario_id: int
+) -> Scenario:
     scenario = (
         db.query(Scenario)
         .filter(Scenario.id == scenario_id, Scenario.client_id == client_id)

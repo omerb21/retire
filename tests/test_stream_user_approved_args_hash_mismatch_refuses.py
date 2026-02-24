@@ -41,7 +41,9 @@ def test_stream_user_approved_args_hash_mismatch_refuses(monkeypatch, _test_db) 
                 start_date=date(2020, 1, 1),
                 indexation_method="none",
                 tax_treatment="taxable",
-                conversion_source=json.dumps({"source": "scenario_conversion"}, ensure_ascii=False),
+                conversion_source=json.dumps(
+                    {"source": "scenario_conversion"}, ensure_ascii=False
+                ),
             )
         )
 
@@ -61,9 +63,13 @@ def test_stream_user_approved_args_hash_mismatch_refuses(monkeypatch, _test_db) 
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed on args_hash mismatch")

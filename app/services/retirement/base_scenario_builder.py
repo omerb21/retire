@@ -3,6 +3,7 @@ Base Scenario Builder
 
 כלי בסיס לבניית תרחישי פרישה
 """
+
 import logging
 from datetime import date
 from decimal import Decimal
@@ -25,7 +26,7 @@ logger = logging.getLogger("app.scenarios.base")
 
 class BaseScenarioBuilder:
     """Base class for all retirement scenario builders"""
-    
+
     def __init__(
         self,
         db: Session,
@@ -41,14 +42,14 @@ class BaseScenarioBuilder:
         self.use_current_employer_termination = use_current_employer_termination
         self.scenario_results: Dict = {}
         self.execution_plan: List[Dict] = []
-        
+
         # Cache client and retirement date/year
         self._client: Optional[Client] = (
             self.db.query(Client).filter(Client.id == self.client_id).first()
         )
         self._retirement_date: Optional[date] = None
         self._retirement_year: Optional[int] = None
-        
+
         if self._client and self._client.birth_date:
             try:
                 self._retirement_date = date(
@@ -71,7 +72,7 @@ class BaseScenarioBuilder:
                 int(self.retirement_age or 0) - int(DEFAULT_MALE_RETIREMENT_AGE),
                 0,
             )
-        
+
         # Shared services for all scenarios
         retirement_year_for_conversion = self._retirement_year or date.today().year
         self.conversion_service = ConversionService(
@@ -96,14 +97,14 @@ class BaseScenarioBuilder:
             # העמודה הזו מטופלת רק דרך זרימת "מעסיק נוכחי" (CurrentEmployer) ולא דרך תרחישים.
             ignore_current_employer_severance=True,
         )
-    
+
     def build_scenario(self) -> Dict:
         """Build and return the scenario results
-        
+
         This method must be implemented by all subclasses
         """
         raise NotImplementedError("Subclasses must implement build_scenario()")
-    
+
     def _get_retirement_year(self) -> int:
         """מחשב שנת פרישה עבור גיל הפרישה המבוקש"""
         if self._retirement_year is not None:
@@ -111,7 +112,7 @@ class BaseScenarioBuilder:
         if self._client and self._client.birth_date:
             return self._client.birth_date.year + self.retirement_age
         return date.today().year + (self.retirement_age or 0)
-    
+
     def _get_retirement_date(self) -> Optional[date]:
         """מחזיר את תאריך הפרישה (אם ניתן לחשב אותו)"""
         if self._retirement_date is not None:
@@ -130,7 +131,7 @@ class BaseScenarioBuilder:
                 )
             return self._retirement_date
         return None
-    
+
     def _add_action(
         self,
         action_type: str,
@@ -149,48 +150,55 @@ class BaseScenarioBuilder:
                 "amount": float(amount or 0),
             }
         )
-    
+
     def _import_pension_portfolio_if_needed(self) -> None:
         """Import pension portfolio data if provided"""
         if not self.pension_portfolio:
             return
-        
+
         logger.info("📥 Importing pension portfolio data...")
         self.portfolio_import_service.import_pension_portfolio(self.pension_portfolio)
-    
+
     def _apply_retirement_projection_if_needed(self) -> None:
         """הצמדת היתרות ונכסי ההון לריבית דריבית 3% נטו עד תאריך הפרישה.
-        
+
         אם תאריך הפרישה מרוחק פחות או שישה חודשים – לא מתבצעת הצמדה.
         """
         retirement_date = self._get_retirement_date()
         if not retirement_date:
             logger.info("  ℹ️ Retirement date not available, skipping 3% projection")
             return
-        
+
         today = date.today()
         days_to_retirement = (retirement_date - today).days
         if days_to_retirement <= 0:
-            logger.info("  ℹ️ Retirement date is in the past or today, skipping 3% projection")
-            return
-        
-        # פחות או שישה חודשים – לא מצמידים
-        if days_to_retirement <= 182:
-            logger.info("  ℹ️ Retirement date is within ~6 months, skipping 3% projection")
+            logger.info(
+                "  ℹ️ Retirement date is in the past or today, skipping 3% projection"
+            )
             return
 
-        growth_factor = calculate_compound_factor(from_date=today, to_date=retirement_date)
-        logger.info(
-            f"  📈 Applying 3% compound projection "
-            f"(factor={growth_factor:.4f})"
+        # פחות או שישה חודשים – לא מצמידים
+        if days_to_retirement <= 182:
+            logger.info(
+                "  ℹ️ Retirement date is within ~6 months, skipping 3% projection"
+            )
+            return
+
+        growth_factor = calculate_compound_factor(
+            from_date=today, to_date=retirement_date
         )
-        
+        logger.info(
+            f"  📈 Applying 3% compound projection " f"(factor={growth_factor:.4f})"
+        )
+
         factor_decimal = Decimal(str(growth_factor))
-        
+
         # הצמדת כל היתרות בטבלת המוצרים הפנסיוניים
-        pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
-        ).all()
+        pension_funds = (
+            self.db.query(PensionFund)
+            .filter(PensionFund.client_id == self.client_id)
+            .all()
+        )
         for pf in pension_funds:
             if pf.balance and pf.balance > 0:
                 old_balance = pf.balance
@@ -199,11 +207,13 @@ class BaseScenarioBuilder:
                     f"  🔁 Projected pension fund '{pf.fund_name}': "
                     f"{old_balance:,.2f} → {pf.balance:,.2f}"
                 )
-        
+
         # הצמדת נכסי הון – ערך נוכחי ותשלום חודשי
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id
-        ).all()
+        capital_assets = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .all()
+        )
         for ca in capital_assets:
             updated = False
             if ca.current_value is not None:
@@ -218,7 +228,7 @@ class BaseScenarioBuilder:
                 logger.info(
                     f"  🔁 Projected capital asset '{ca.asset_name}' to retirement date"
                 )
-        
+
         self.db.flush()
 
     def _is_lump_sum_capital(self, ca: CapitalAsset) -> bool:
@@ -246,19 +256,30 @@ class BaseScenarioBuilder:
 
     def _calculate_scenario_results(self, scenario_name: str) -> Dict:
         """Calculate and return the scenario results"""
-        client = self._client or self.db.query(Client).filter(Client.id == self.client_id).first()
-        
-        pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
-        ).all()
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id
-        ).all()
-        additional_incomes = self.db.query(AdditionalIncome).filter(
-            AdditionalIncome.client_id == self.client_id
-        ).all()
-        
-        total_pension_monthly = sum(float(pf.pension_amount or 0) for pf in pension_funds)
+        client = (
+            self._client
+            or self.db.query(Client).filter(Client.id == self.client_id).first()
+        )
+
+        pension_funds = (
+            self.db.query(PensionFund)
+            .filter(PensionFund.client_id == self.client_id)
+            .all()
+        )
+        capital_assets = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .all()
+        )
+        additional_incomes = (
+            self.db.query(AdditionalIncome)
+            .filter(AdditionalIncome.client_id == self.client_id)
+            .all()
+        )
+
+        total_pension_monthly = sum(
+            float(pf.pension_amount or 0) for pf in pension_funds
+        )
 
         # סך הון חד-פעמי (מוצג בנפרד, לא נכלל ב-NPV של התזרים)
         total_capital = 0.0
@@ -322,7 +343,7 @@ class BaseScenarioBuilder:
             except Exception:
                 # אם יש בעיה כלשהי בחישוב, נשאיר את ה-NPV ללא התאמה כדי לא לשבור את התרחישים
                 pass
-        
+
         results = {
             "scenario_name": scenario_name,
             "client_id": self.client_id,
@@ -336,16 +357,16 @@ class BaseScenarioBuilder:
             "additional_incomes_count": len(additional_incomes),
             "execution_plan": self.execution_plan,
         }
-        
+
         self.scenario_results = results
         return results
-        
+
     def _log_scenario_start(self, scenario_name: str) -> None:
         """Log the start of scenario processing"""
         logger.info(f"🚀 Starting scenario: {scenario_name}")
         logger.info(f"Client ID: {self.client_id}")
         logger.info(f"Retirement age: {self.retirement_age}")
-        
+
     def _log_scenario_complete(self, scenario_name: str) -> None:
         """Log the completion of scenario processing"""
         logger.info(f"✅ Completed scenario: {scenario_name}")

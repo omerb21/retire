@@ -6,7 +6,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from app.services.report.config import DEFAULT_HEBREW_FONT
 
-
 _REGISTERED_FONT_NAME: Optional[str] = None
 
 

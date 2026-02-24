@@ -11,31 +11,27 @@ All actual implementation is now in app/services/report/ subdirectories.
 from app.services.report import (
     # Main service class
     ReportService,
-    
     # High-level generation function
     generate_report_pdf,
-    
     # Font management
     FontManager,
     ensure_fonts,
     get_default_font,
     DEFAULT_HEBREW_FONT,
-    
     # Utilities
     PDFStyles,
     DataFormatters,
-    
     # Charts
     CashflowChartRenderer,
     ScenariosChartRenderer,
     render_cashflow_chart,
     create_net_cashflow_chart,
     render_scenarios_compare_chart,
-    
     # Internal services (for advanced usage)
     DataService,
     PDFService,
 )
+
 
 # For backward compatibility - create module-level function wrapper
 def create_pdf_with_cashflow(*args, **kwargs):
@@ -46,28 +42,24 @@ def create_pdf_with_cashflow(*args, **kwargs):
 # Export all public APIs
 __all__ = [
     # Main service
-    'ReportService',
-    'generate_report_pdf',
-    'create_pdf_with_cashflow',
-    
+    "ReportService",
+    "generate_report_pdf",
+    "create_pdf_with_cashflow",
     # Font management
-    'FontManager',
-    'ensure_fonts',
-    'get_default_font',
-    'DEFAULT_HEBREW_FONT',
-    
+    "FontManager",
+    "ensure_fonts",
+    "get_default_font",
+    "DEFAULT_HEBREW_FONT",
     # Utilities
-    'PDFStyles',
-    'DataFormatters',
-    
+    "PDFStyles",
+    "DataFormatters",
     # Charts
-    'CashflowChartRenderer',
-    'ScenariosChartRenderer',
-    'render_cashflow_chart',
-    'create_net_cashflow_chart',
-    'render_scenarios_compare_chart',
-    
+    "CashflowChartRenderer",
+    "ScenariosChartRenderer",
+    "render_cashflow_chart",
+    "create_net_cashflow_chart",
+    "render_scenarios_compare_chart",
     # Internal services
-    'DataService',
-    'PDFService',
+    "DataService",
+    "PDFService",
 ]

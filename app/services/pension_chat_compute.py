@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from app.models.pension_fund import PensionFund
 
 
-def compute_monthly_pension_summary(session: Session, client_id: int, today: date) -> dict[str, Any]:
+def compute_monthly_pension_summary(
+    session: Session, client_id: int, today: date
+) -> dict[str, Any]:
     def _to_decimal(value: object) -> Decimal:
         try:
             if value is None:
@@ -51,7 +53,9 @@ def compute_monthly_pension_summary(session: Session, client_id: int, today: dat
     for r in rows:
         start_date = getattr(r, "pension_start_date", None)
         is_future = bool(start_date and start_date > today)
-        tax_treatment = (getattr(r, "tax_treatment", None) or "taxable").strip() or "taxable"
+        tax_treatment = (
+            getattr(r, "tax_treatment", None) or "taxable"
+        ).strip() or "taxable"
         amount_raw = getattr(r, "pension_amount", None)
         amount = _to_decimal(amount_raw)
 

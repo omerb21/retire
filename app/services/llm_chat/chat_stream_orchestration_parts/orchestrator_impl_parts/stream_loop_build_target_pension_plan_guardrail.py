@@ -1,6 +1,10 @@
 from app.schemas.llm_chat import ChatMessage
 
-from ..chat_helpers import _extract_target_monthly_pension, _infer_target_is_net, _user_requested_target_pension_plan
+from ..chat_helpers import (
+    _extract_target_monthly_pension,
+    _infer_target_is_net,
+    _user_requested_target_pension_plan,
+)
 
 
 def _maybe_apply_build_target_pension_plan_guardrail(

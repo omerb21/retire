@@ -4,7 +4,9 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 
 
-def test_system_health_includes_db_diagnostics_and_pension_fund_count(db_session, test_client) -> None:
+def test_system_health_includes_db_diagnostics_and_pension_fund_count(
+    db_session, test_client
+) -> None:
     client_obj = Client(
         id_number_raw="health-1",
         id_number="health-1",

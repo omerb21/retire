@@ -1,6 +1,7 @@
 """
 CRUD operations for scenarios
 """
+
 from __future__ import annotations
 
 from typing import List
@@ -17,9 +18,7 @@ def get_client_or_404(db: Session, client_id: int) -> Client:
 
 
 def create_scenario_with_cashflow(
-    db: Session,
-    client_id: int,
-    scenario: ScenarioCreate
+    db: Session, client_id: int, scenario: ScenarioCreate
 ) -> ScenarioResponse:
     """Create a new scenario with cashflow generation"""
     return scenario_crud_service.create_scenario_with_cashflow(
@@ -34,7 +33,9 @@ def get_scenarios_by_client(db: Session, client_id: int) -> List[ScenarioRespons
     return scenario_crud_service.get_scenarios_by_client(db=db, client_id=client_id)
 
 
-def get_scenario_by_id(db: Session, client_id: int, scenario_id: int) -> ScenarioResponse:
+def get_scenario_by_id(
+    db: Session, client_id: int, scenario_id: int
+) -> ScenarioResponse:
     """Get specific scenario"""
     return scenario_crud_service.get_scenario_by_id(
         db=db,
@@ -44,10 +45,7 @@ def get_scenario_by_id(db: Session, client_id: int, scenario_id: int) -> Scenari
 
 
 def update_scenario_by_id(
-    db: Session,
-    client_id: int,
-    scenario_id: int,
-    scenario: ScenarioUpdate
+    db: Session, client_id: int, scenario_id: int, scenario: ScenarioUpdate
 ) -> ScenarioResponse:
     """Update scenario"""
     return scenario_crud_service.update_scenario_by_id(

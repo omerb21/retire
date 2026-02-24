@@ -16,10 +16,14 @@ def test_stream_intent_no_tools_blocks_tool_call(monkeypatch) -> None:
             return
         yield "PASS - הסבר QA ללא כלים\nסיכום קצר"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call should not be invoked in no-tools intent")
+        raise AssertionError(
+            "execute_tool_call should not be invoked in no-tools intent"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -41,11 +45,15 @@ def test_stream_intent_no_tools_blocks_tool_call(monkeypatch) -> None:
     assert "###TOOL_CALL###" not in response.text
 
 
-def test_stream_intent_report_emits_ui_action_only_and_optional_exact_qa(monkeypatch) -> None:
+def test_stream_intent_report_emits_ui_action_only_and_optional_exact_qa(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called in REPORT intent")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("No tool must be executed for report summary routing")
@@ -82,7 +90,9 @@ def test_stream_intent_report_without_qa_emits_ui_action_only(monkeypatch) -> No
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called in REPORT intent")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("No tool must be executed for report summary routing")
@@ -125,7 +135,9 @@ def test_stream_intent_analysis_allows_tool_execution(monkeypatch) -> None:
             return
         raise AssertionError("ANALYSIS stop-after-tool: LLM should not be called again")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 

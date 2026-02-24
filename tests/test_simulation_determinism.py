@@ -3,7 +3,11 @@ from datetime import date
 import pytest
 
 from app.services.simulation_engine.engine import run_simulation
-from app.services.simulation_engine.models import ScenarioParameters, SelectedSource, SimulationRequest
+from app.services.simulation_engine.models import (
+    ScenarioParameters,
+    SelectedSource,
+    SimulationRequest,
+)
 
 
 def _create_sim_client(db_session) -> int:

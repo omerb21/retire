@@ -15,7 +15,9 @@ def test_stage6_guardrail_no_new_tool_dispatch_paths() -> None:
 
     repo_root = Path(__file__).resolve().parents[1]
 
-    allowed_file = repo_root / "app" / "services" / "agent_execution" / "tool_executor.py"
+    allowed_file = (
+        repo_root / "app" / "services" / "agent_execution" / "tool_executor.py"
+    )
     assert allowed_file.exists()
 
     offenders: list[str] = []
@@ -36,4 +38,6 @@ def test_stage6_guardrail_no_new_tool_dispatch_paths() -> None:
             offenders.append(str(py_file.relative_to(repo_root)))
             continue
 
-    assert offenders == [], f"Found forbidden tool dispatch import/usage outside SSOT: {offenders}"
+    assert (
+        offenders == []
+    ), f"Found forbidden tool dispatch import/usage outside SSOT: {offenders}"

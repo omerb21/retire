@@ -18,7 +18,9 @@ def _build_chat_response(
     computed_data: Any,
 ) -> ChatResponse:
     if current_step >= max_steps:
-        final_reply += "\n\n(הערה: עצרתי את רצף הפעולות האוטומטי כדי למנוע לולאה אינסופית)"
+        final_reply += (
+            "\n\n(הערה: עצרתי את רצף הפעולות האוטומטי כדי למנוע לולאה אינסופית)"
+        )
 
     if qa_summary_required:
         lowered_final = (final_reply or "").lower()
@@ -29,21 +31,29 @@ def _build_chat_response(
                     f"open_path: {report_open_path}"
                 )
             else:
-                final_reply += "\n\nFAIL - לא התקבלה תשובת QA סופית מהמודל לאחר יצירת הדוח."
+                final_reply += (
+                    "\n\nFAIL - לא התקבלה תשובת QA סופית מהמודל לאחר יצירת הדוח."
+                )
 
     return ChatResponse(
         reply=(
-            (lambda txt: (
-                (
-                    "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\n"
-                    + txt
+            (
+                lambda txt: (
+                    (
+                        "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\n"
+                        + txt
+                    )
+                    if is_portfolio_analysis
+                    and isinstance(txt, str)
+                    and txt.strip()
+                    and (
+                        "הערכה" not in txt
+                        and "הערכה גסה" not in txt
+                        and "ראשונית" not in txt
+                    )
+                    else txt
                 )
-                if is_portfolio_analysis
-                and isinstance(txt, str)
-                and txt.strip()
-                and ("הערכה" not in txt and "הערכה גסה" not in txt and "ראשונית" not in txt)
-                else txt
-            ))(sanitize_user_visible_text(forced_user_prefix + final_reply))
+            )(sanitize_user_visible_text(forced_user_prefix + final_reply))
         ),
         computed_data=computed_data,
     )

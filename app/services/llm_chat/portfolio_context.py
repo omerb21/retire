@@ -87,7 +87,9 @@ def _tax_label(tax: str | None) -> str:
     return "לא ידוע"
 
 
-def _build_conversion_line(*, display: str, amount: float, rule: dict[str, object]) -> list[str]:
+def _build_conversion_line(
+    *, display: str, amount: float, rule: dict[str, object]
+) -> list[str]:
     if amount <= 0:
         return []
 
@@ -150,7 +152,9 @@ def build_pension_portfolio_context(
     context_lines.append("📂 **תיק פנסיוני (נתונים גולמיים מקובץ מסלקה)**")
     formatted_snapshot = _format_snapshot_at(snapshot_at)
     if formatted_snapshot:
-        context_lines.append(f"🕒 **הנתונים נכונים לתאריך snapshot:** {formatted_snapshot}")
+        context_lines.append(
+            f"🕒 **הנתונים נכונים לתאריך snapshot:** {formatted_snapshot}"
+        )
     context_lines.append(
         "⚠️ **אזהרה קריטית:** קיום יתרות חסומות בתיק *לא* מונע ניתוח/חישוב/מענה על שאלות לגבי שאר התיק. "
         "פשוט מתייחסים ליתרות החסומות כ'מחוץ לטווח ביצוע' וממשיכים עם כל מה שניתן."
@@ -223,8 +227,12 @@ def build_pension_portfolio_context(
         severance_current = _get_attr_float(acc, "פיצויים_מעסיק_נוכחי")
         severance_after_settlement = _get_attr_float(acc, "פיצויים_לאחר_התחשבנות")
         severance_not_settled = _get_attr_float(acc, "פיצויים_שלא_עברו_התחשבנות")
-        severance_prev_rights = _get_attr_float(acc, "פיצויים_ממעסיקים_קודמים_רצף_זכויות")
-        severance_prev_pension = _get_attr_float(acc, "פיצויים_ממעסיקים_קודמים_רצף_קצבה")
+        severance_prev_rights = _get_attr_float(
+            acc, "פיצויים_ממעסיקים_קודמים_רצף_זכויות"
+        )
+        severance_prev_pension = _get_attr_float(
+            acc, "פיצויים_ממעסיקים_קודמים_רצף_קצבה"
+        )
 
         totals["severance_current_employer"] += severance_current
         totals["severance_after_settlement"] += severance_after_settlement
@@ -239,12 +247,18 @@ def build_pension_portfolio_context(
 
         tagmul_emp_to_2000 = _get_attr_float(acc, "תגמולי_עובד_עד_2000")
         tagmul_emp_after_2000 = _get_attr_float(acc, "תגמולי_עובד_אחרי_2000")
-        tagmul_emp_after_2008_np = _get_attr_float(acc, "תגמולי_עובד_אחרי_2008_לא_משלמת")
+        tagmul_emp_after_2008_np = _get_attr_float(
+            acc, "תגמולי_עובד_אחרי_2008_לא_משלמת"
+        )
         tagmul_empr_to_2000 = _get_attr_float(acc, "תגמולי_מעביד_עד_2000")
         tagmul_empr_after_2000 = _get_attr_float(acc, "תגמולי_מעביד_אחרי_2000")
-        tagmul_empr_after_2008_np = _get_attr_float(acc, "תגמולי_מעביד_אחרי_2008_לא_משלמת")
+        tagmul_empr_after_2008_np = _get_attr_float(
+            acc, "תגמולי_מעביד_אחרי_2008_לא_משלמת"
+        )
 
-        tagmulim_total = _as_float(getattr(acc, "סך_תגמולים", None) or getattr(acc, "תגמולים", None))
+        tagmulim_total = _as_float(
+            getattr(acc, "סך_תגמולים", None) or getattr(acc, "תגמולים", None)
+        )
         if tagmulim_total <= 0:
             tagmulim_total = (
                 tagmul_emp_to_2000
@@ -276,16 +290,26 @@ def build_pension_portfolio_context(
 
         if not (is_education or is_investment):
             conversion_totals["severance_current_employer"] += severance_current
-            conversion_totals["severance_after_settlement"] += severance_after_settlement
+            conversion_totals[
+                "severance_after_settlement"
+            ] += severance_after_settlement
             conversion_totals["severance_not_settled"] += severance_not_settled
-            conversion_totals["severance_prev_employers_sequence_rights"] += severance_prev_rights
-            conversion_totals["severance_prev_employers_sequence_pension"] += severance_prev_pension
+            conversion_totals[
+                "severance_prev_employers_sequence_rights"
+            ] += severance_prev_rights
+            conversion_totals[
+                "severance_prev_employers_sequence_pension"
+            ] += severance_prev_pension
             conversion_totals["tagmulim_employee_to_2000"] += tagmul_emp_to_2000
             conversion_totals["tagmulim_employee_after_2000"] += tagmul_emp_after_2000
-            conversion_totals["tagmulim_employee_after_2008_non_paying"] += tagmul_emp_after_2008_np
+            conversion_totals[
+                "tagmulim_employee_after_2008_non_paying"
+            ] += tagmul_emp_after_2008_np
             conversion_totals["tagmulim_employer_to_2000"] += tagmul_empr_to_2000
             conversion_totals["tagmulim_employer_after_2000"] += tagmul_empr_after_2000
-            conversion_totals["tagmulim_employer_after_2008_non_paying"] += tagmul_empr_after_2008_np
+            conversion_totals[
+                "tagmulim_employer_after_2008_non_paying"
+            ] += tagmul_empr_after_2008_np
             conversion_totals["tagmulim_total"] += tagmulim_total
 
         account_number = (acc.מספר_חשבון or "").strip() or None
@@ -294,9 +318,7 @@ def build_pension_portfolio_context(
 
         raw_specific_amounts = getattr(acc, "specific_amounts", None)
         specific_amounts_for_summary = (
-            raw_specific_amounts
-            if isinstance(raw_specific_amounts, dict)
-            else {}
+            raw_specific_amounts if isinstance(raw_specific_amounts, dict) else {}
         )
 
         def _summary_component_dedupe_key(*, component_key: str, amount: float) -> str:
@@ -307,7 +329,9 @@ def build_pension_portfolio_context(
             stable_product_type = str(product_type_for_key or "").strip()
             return f"__fallback__::{stable_product_type}::{component_key}::{stable_amount}::{stable_start_date}"
 
-        def _classify_summary_component(*, component_key: str, product_type: str) -> str:
+        def _classify_summary_component(
+            *, component_key: str, product_type: str
+        ) -> str:
             if _is_education_fund(product_type):
                 return "capital"
             if component_key in (
@@ -334,17 +358,18 @@ def build_pension_portfolio_context(
             if component_key in ("קרן_השתלמות",):
                 return "capital"
             if component_key in ("תגמולים", "סך_תגמולים"):
-                if (
-                    _is_investment_provident_fund(product_type)
-                    or _is_regular_provident_fund(product_type)
-                ):
+                if _is_investment_provident_fund(
+                    product_type
+                ) or _is_regular_provident_fund(product_type):
                     return "capital"
                 if _is_pension_or_insurance(product_type):
                     return "pension"
                 return "capital"
             return "capital"
 
-        def _push_summary_component(*, component_key: str, amount: float, product_type: str) -> None:
+        def _push_summary_component(
+            *, component_key: str, amount: float, product_type: str
+        ) -> None:
             amt = float(amount or 0)
             if amt <= 0:
                 return
@@ -352,7 +377,9 @@ def build_pension_portfolio_context(
                 component_key=component_key,
                 product_type=product_type,
             )
-            dkey = _summary_component_dedupe_key(component_key=component_key, amount=amt)
+            dkey = _summary_component_dedupe_key(
+                component_key=component_key, amount=amt
+            )
             existing = summary_components_by_key.get(dkey)
             if existing is not None:
                 try:
@@ -369,14 +396,20 @@ def build_pension_portfolio_context(
         if _is_education_fund(product_type):
             education_amount = 0.0
             try:
-                education_amount = float(specific_amounts_for_summary.get("קרן_השתלמות") or 0)
+                education_amount = float(
+                    specific_amounts_for_summary.get("קרן_השתלמות") or 0
+                )
             except Exception:
                 education_amount = 0.0
             if education_amount <= 0:
                 education_amount = float(balance or 0)
             if education_amount <= 0:
                 try:
-                    education_amount = float(sum(float(v or 0) for v in specific_amounts_for_summary.values()))
+                    education_amount = float(
+                        sum(
+                            float(v or 0) for v in specific_amounts_for_summary.values()
+                        )
+                    )
                 except Exception:
                     education_amount = 0.0
             _push_summary_component(
@@ -410,7 +443,9 @@ def build_pension_portfolio_context(
                     "סך_תגמולים",
                 ):
                     try:
-                        component_candidates[field] = float(_as_float(getattr(acc, field, 0)) or 0)
+                        component_candidates[field] = float(
+                            _as_float(getattr(acc, field, 0)) or 0
+                        )
                     except Exception:
                         continue
 
@@ -465,7 +500,9 @@ def build_pension_portfolio_context(
             if _is_education_fund(product_type):
                 tagmulim_aggregate_by_kind["education_fund"] += tagmulim_total
             elif _is_investment_provident_fund(product_type):
-                tagmulim_aggregate_by_kind["investment_provident_fund"] += tagmulim_total
+                tagmulim_aggregate_by_kind[
+                    "investment_provident_fund"
+                ] += tagmulim_total
             elif _is_regular_provident_fund(product_type):
                 tagmulim_aggregate_by_kind["regular_provident_fund"] += tagmulim_total
             elif _is_pension_or_insurance(product_type):
@@ -473,7 +510,11 @@ def build_pension_portfolio_context(
             else:
                 tagmulim_aggregate_by_kind["unknown"] += tagmulim_total
 
-            if _is_education_fund(product_type) or _is_regular_provident_fund(product_type) or _is_investment_provident_fund(product_type):
+            if (
+                _is_education_fund(product_type)
+                or _is_regular_provident_fund(product_type)
+                or _is_investment_provident_fund(product_type)
+            ):
                 capital_sum += tagmulim_total
             elif _is_pension_or_insurance(product_type):
                 pension_sum += tagmulim_total
@@ -573,7 +614,9 @@ def build_pension_portfolio_context(
         )
 
     if has_unsettled_severance or has_rights_sequence:
-        context_lines.append("🚫 **חשוב מאוד – יתרות חסומות שאי אפשר לטפל בהן במערכת:**")
+        context_lines.append(
+            "🚫 **חשוב מאוד – יתרות חסומות שאי אפשר לטפל בהן במערכת:**"
+        )
         context_lines.append(
             "הרכיבים הללו *חסומים לביצוע במערכת* (המרה/משיכה/טיפול תפעולי דורשים התחשבנות/השלמת רצפים מול הגוף המנהל). "
             "עם זאת, זה *לא* מונע מהסוכן לבצע ניתוח, השוואות וחישובים על שאר התיק: פשוט מתייחסים ליתרות החסומות כ'מחוץ לטווח הביצוע' "
@@ -588,7 +631,11 @@ def build_pension_portfolio_context(
                 "- קיימות יתרות ב־'רצף זכויות (פיצויים ממעסיקים קודמים)' (חסום לטיפול במערכת)."
             )
         if blocked_accounts:
-            blocked_sorted = sorted(blocked_accounts, key=lambda x: float(x.get("blocked_sum") or 0), reverse=True)
+            blocked_sorted = sorted(
+                blocked_accounts,
+                key=lambda x: float(x.get("blocked_sum") or 0),
+                reverse=True,
+            )
             context_lines.append("")
             context_lines.append("**פירוט חשבונות עם יתרות חסומות (פורמט קריא):**")
             for b in blocked_sorted[:15]:
@@ -601,7 +648,9 @@ def build_pension_portfolio_context(
                 context_lines.append(
                     f"  חסום: רצף זכויות: {float(b.get('severance_prev_rights') or 0):,.0f} ₪"
                 )
-                context_lines.append(f"  סה\"כ חסום: {float(b.get('blocked_sum') or 0):,.0f} ₪")
+                context_lines.append(
+                    f"  סה\"כ חסום: {float(b.get('blocked_sum') or 0):,.0f} ₪"
+                )
                 if b.get("account_number"):
                     context_lines.append(f"  מספר חשבון: {b.get('account_number')}")
                 context_lines.append("")
@@ -627,7 +676,7 @@ def build_pension_portfolio_context(
 
     context_lines.append("## סיכום מהיר")
     context_lines.append("**סיכום נתונים גולמיים:**")
-    context_lines.append(f"  • סה\"כ יתרות: {summary_total_balance:,.0f} ₪")
+    context_lines.append(f'  • סה"כ יתרות: {summary_total_balance:,.0f} ₪')
     if summary_capital_sum > 0 or summary_pension_sum > 0:
         context_lines.append(
             "  • חלוקה דטרמיניסטית (לפי עמודות + חריגים לפי חוקי המרה/קרן השתלמות):"
@@ -647,10 +696,22 @@ def build_pension_portfolio_context(
 
     for field, amount in (
         ("פיצויים_מעסיק_נוכחי", float(conversion_totals["severance_current_employer"])),
-        ("פיצויים_לאחר_התחשבנות", float(conversion_totals["severance_after_settlement"])),
-        ("פיצויים_שלא_עברו_התחשבנות", float(conversion_totals["severance_not_settled"])),
-        ("פיצויים_ממעסיקים_קודמים_רצף_זכויות", float(conversion_totals["severance_prev_employers_sequence_rights"])),
-        ("פיצויים_ממעסיקים_קודמים_רצף_קצבה", float(conversion_totals["severance_prev_employers_sequence_pension"])),
+        (
+            "פיצויים_לאחר_התחשבנות",
+            float(conversion_totals["severance_after_settlement"]),
+        ),
+        (
+            "פיצויים_שלא_עברו_התחשבנות",
+            float(conversion_totals["severance_not_settled"]),
+        ),
+        (
+            "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
+            float(conversion_totals["severance_prev_employers_sequence_rights"]),
+        ),
+        (
+            "פיצויים_ממעסיקים_קודמים_רצף_קצבה",
+            float(conversion_totals["severance_prev_employers_sequence_pension"]),
+        ),
     ):
         rule = _COMPONENT_RULES.get(field)
         if rule is None:
@@ -658,18 +719,22 @@ def build_pension_portfolio_context(
         group_rows.append((_FIELD_DISPLAY.get(field, field), amount, rule))
 
     tagmulim_to_2000 = float(
-        conversion_totals["tagmulim_employee_to_2000"] + conversion_totals["tagmulim_employer_to_2000"]
+        conversion_totals["tagmulim_employee_to_2000"]
+        + conversion_totals["tagmulim_employer_to_2000"]
     )
     if tagmulim_to_2000 > 0:
         base_rule = _COMPONENT_RULES.get("תגמולי_עובד_עד_2000") or {}
         group_rows.append(("תגמולי עד 2000 (עובד+מעביד)", tagmulim_to_2000, base_rule))
 
     tagmulim_after_2000 = float(
-        conversion_totals["tagmulim_employee_after_2000"] + conversion_totals["tagmulim_employer_after_2000"]
+        conversion_totals["tagmulim_employee_after_2000"]
+        + conversion_totals["tagmulim_employer_after_2000"]
     )
     if tagmulim_after_2000 > 0:
         base_rule = _COMPONENT_RULES.get("תגמולי_עובד_אחרי_2000") or {}
-        group_rows.append(("תגמולי אחרי 2000 (עובד+מעביד)", tagmulim_after_2000, base_rule))
+        group_rows.append(
+            ("תגמולי אחרי 2000 (עובד+מעביד)", tagmulim_after_2000, base_rule)
+        )
 
     tagmulim_after_2008_np = float(
         conversion_totals["tagmulim_employee_after_2008_non_paying"]
@@ -677,13 +742,23 @@ def build_pension_portfolio_context(
     )
     if tagmulim_after_2008_np > 0:
         base_rule = _COMPONENT_RULES.get("תגמולי_עובד_אחרי_2008_לא_משלמת") or {}
-        group_rows.append(("תגמולי אחרי 2008 לא משלמת (עובד+מעביד)", tagmulim_after_2008_np, base_rule))
+        group_rows.append(
+            (
+                "תגמולי אחרי 2008 לא משלמת (עובד+מעביד)",
+                tagmulim_after_2008_np,
+                base_rule,
+            )
+        )
 
     if group_rows:
         for display, amount, rule in group_rows:
-            context_lines.extend(_build_conversion_line(display=display, amount=amount, rule=rule))
+            context_lines.extend(
+                _build_conversion_line(display=display, amount=amount, rule=rule)
+            )
     else:
-        context_lines.append("לא נמצאו רכיבים חיוביים בטבלת המוצרים כדי להציג את חוקי ההמרה.")
+        context_lines.append(
+            "לא נמצאו רכיבים חיוביים בטבלת המוצרים כדי להציג את חוקי ההמרה."
+        )
 
     tagmulim_agg_total = float(sum(tagmulim_aggregate_by_kind.values()))
     if tagmulim_agg_total > 0:
@@ -717,14 +792,14 @@ def build_pension_portfolio_context(
         context_lines.append("**סייגים לפי סוג מוצר (חוקי המרה מיוחדים):**")
         if education_fund_total_balance > 0:
             context_lines.append(
-                f"- סה\"כ בקרנות השתלמות: {education_fund_total_balance:,.0f} ₪"
+                f'- סה"כ בקרנות השתלמות: {education_fund_total_balance:,.0f} ₪'
             )
             context_lines.append(
                 "  בקרן השתלמות: המערכת מתייחסת לכספים כהוניים, ויחסי המס בהמרה הם פטור ממס (גם להון וגם לקצבה)."
             )
         if investment_provident_total_balance > 0:
             context_lines.append(
-                f"- סה\"כ בגמל להשקעה: {investment_provident_total_balance:,.0f} ₪"
+                f'- סה"כ בגמל להשקעה: {investment_provident_total_balance:,.0f} ₪'
             )
             context_lines.append(
                 "  בגמל להשקעה: הון -> מס רווח הון; קצבה -> פטור ממס (לפי חוקי ההמרה)."
@@ -753,7 +828,7 @@ def build_pension_portfolio_context(
         + totals["severance_prev_employers_sequence_pension"]
     )
     if total_severance > 0:
-        context_lines.append(f"  • סה\"כ פיצויים: {total_severance:,.0f} ₪")
+        context_lines.append(f'  • סה"כ פיצויים: {total_severance:,.0f} ₪')
         if totals["severance_current_employer"] > 0:
             context_lines.append(
                 f"    ◦ פיצויים מעסיק נוכחי: {totals['severance_current_employer']:,.0f} ₪"
@@ -777,12 +852,19 @@ def build_pension_portfolio_context(
 
     if totals["tagmulim_total"] > 0:
         context_lines.append(f"  • סה\"כ תגמולים: {totals['tagmulim_total']:,.0f} ₪")
-        if totals["tagmulim_employee_to_2000"] + totals["tagmulim_employer_to_2000"] > 0:
+        if (
+            totals["tagmulim_employee_to_2000"] + totals["tagmulim_employer_to_2000"]
+            > 0
+        ):
             context_lines.append(
                 "    ◦ עד 2000 (לרוב הוני/נזיל): "
                 f"{(totals['tagmulim_employee_to_2000'] + totals['tagmulim_employer_to_2000']):,.0f} ₪"
             )
-        if totals["tagmulim_employee_after_2000"] + totals["tagmulim_employer_after_2000"] > 0:
+        if (
+            totals["tagmulim_employee_after_2000"]
+            + totals["tagmulim_employer_after_2000"]
+            > 0
+        ):
             context_lines.append(
                 "    ◦ אחרי 2000 (לרוב קצבתי/קופת גמל): "
                 f"{(totals['tagmulim_employee_after_2000'] + totals['tagmulim_employer_after_2000']):,.0f} ₪"
@@ -797,7 +879,9 @@ def build_pension_portfolio_context(
                 f"{(totals['tagmulim_employee_after_2008_non_paying'] + totals['tagmulim_employer_after_2008_non_paying']):,.0f} ₪"
             )
 
-    total_capital_only = sum(p["balance"] for p in products_list if p["is_capital_only"])
+    total_capital_only = sum(
+        p["balance"] for p in products_list if p["is_capital_only"]
+    )
     if total_capital_only > 0:
         context_lines.append(
             f"  • הון הוני בלבד (למשל קרן השתלמות/גמל להשקעה): {total_capital_only:,.0f} ₪"
@@ -810,13 +894,19 @@ def build_pension_portfolio_context(
         )
         context_lines.append("    ◦ פירוט (כדי לשייך לטבלת המוצרים):")
         for p in capital_only_sorted[:10]:
-            context_lines.append(f"      - {(p.get('name') or '')[:60]} | {float(p.get('balance') or 0):,.0f} ₪")
+            context_lines.append(
+                f"      - {(p.get('name') or '')[:60]} | {float(p.get('balance') or 0):,.0f} ₪"
+            )
             if p.get("account_number"):
                 context_lines.append(f"        מספר חשבון: {p.get('account_number')}")
 
-    total_unspecified = sum(1 for p in products_list if p.get("is_unspecified_candidate"))
+    total_unspecified = sum(
+        1 for p in products_list if p.get("is_unspecified_candidate")
+    )
     if total_unspecified > 0:
-        context_lines.append(f"  • חשבונות עם רכיבים לא מסווגים/חסומים: {total_unspecified}")
+        context_lines.append(
+            f"  • חשבונות עם רכיבים לא מסווגים/חסומים: {total_unspecified}"
+        )
 
     if requested_split in ("company", "product_type"):
         grouped: dict[str, dict] = {}
@@ -839,7 +929,11 @@ def build_pension_portfolio_context(
             row["pension"] += float(p.get("pension_classified") or 0)
             row["blocked"] += float(p.get("blocked_classified") or 0)
 
-        rows = sorted(grouped.items(), key=lambda kv: float(kv[1].get("balance") or 0), reverse=True)
+        rows = sorted(
+            grouped.items(),
+            key=lambda kv: float(kv[1].get("balance") or 0),
+            reverse=True,
+        )
         context_lines.append("**סיכום לפי קבוצה (פורמט קריא):**")
         for k, r in rows:
             context_lines.append(f"- קבוצה: {k[:60]}")
@@ -852,16 +946,24 @@ def build_pension_portfolio_context(
 
     if requested_split == "capital_pension":
         context_lines.append("**חלוקה לפי הון/קצבה/חסום (פורמט קריא):**")
-        rows = sorted(products_list, key=lambda p: float(p.get("balance") or 0), reverse=True)
+        rows = sorted(
+            products_list, key=lambda p: float(p.get("balance") or 0), reverse=True
+        )
         for p in rows[:25]:
             context_lines.append(f"- תכנית: {(p.get('name') or '')[:60]}")
             context_lines.append(f"  סוג מוצר: {(p.get('type') or '')[:60]}")
             if p.get("company"):
                 context_lines.append(f"  חברה מנהלת: {(p.get('company') or '')[:60]}")
             context_lines.append(f"  יתרה: {float(p.get('balance') or 0):,.0f} ₪")
-            context_lines.append(f"  הון: {float(p.get('capital_classified') or 0):,.0f} ₪")
-            context_lines.append(f"  קצבה: {float(p.get('pension_classified') or 0):,.0f} ₪")
-            context_lines.append(f"  חסום/לא מסווג: {float(p.get('blocked_classified') or 0):,.0f} ₪")
+            context_lines.append(
+                f"  הון: {float(p.get('capital_classified') or 0):,.0f} ₪"
+            )
+            context_lines.append(
+                f"  קצבה: {float(p.get('pension_classified') or 0):,.0f} ₪"
+            )
+            context_lines.append(
+                f"  חסום/לא מסווג: {float(p.get('blocked_classified') or 0):,.0f} ₪"
+            )
             if p.get("account_number"):
                 context_lines.append(f"  מספר חשבון: {p.get('account_number')}")
             if p.get("start_date"):
@@ -869,7 +971,9 @@ def build_pension_portfolio_context(
             context_lines.append("")
 
     if requested_split == "overview":
-        rows = sorted(products_list, key=lambda p: float(p.get("balance") or 0), reverse=True)
+        rows = sorted(
+            products_list, key=lambda p: float(p.get("balance") or 0), reverse=True
+        )
         context_lines.append("**מוצרים מובילים לפי יתרה (פורמט קריא):**")
         for p in rows[:15]:
             context_lines.append(f"- תכנית: {(p.get('name') or '')[:60]}")

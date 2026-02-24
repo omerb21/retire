@@ -10,7 +10,15 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
 )
 
 
-def _setup_client_and_employer(db_session, *, client_id: int, start_date: date, end_date: date, last_salary: float, severance_accrued: float) -> tuple[int, int]:
+def _setup_client_and_employer(
+    db_session,
+    *,
+    client_id: int,
+    start_date: date,
+    end_date: date,
+    last_salary: float,
+    severance_accrued: float
+) -> tuple[int, int]:
     client = db_session.query(Client).filter(Client.id == client_id).first()
     if client is None:
         client = Client(
@@ -55,7 +63,9 @@ def _setup_client_and_employer(db_session, *, client_id: int, start_date: date, 
     return int(client.id), int(employer.id)
 
 
-def _compute_formula_and_exempt(db_session, *, start_date: date, end_date: date, last_salary: float) -> tuple[float, float]:
+def _compute_formula_and_exempt(
+    db_session, *, start_date: date, end_date: date, last_salary: float
+) -> tuple[float, float]:
     svc = TerminationService(db_session)
     calc = svc.calculate_severance(
         start_date=start_date,
@@ -73,7 +83,9 @@ def _extract_tool_json(result: str) -> dict:
     return json.loads(result.split("###SEVERANCE_RESET###", 1)[0])
 
 
-def _approve_default_termination_preview(db_session, *, client_id: int, termination_date: date) -> None:
+def _approve_default_termination_preview(
+    db_session, *, client_id: int, termination_date: date
+) -> None:
     store_current_employer_termination_plan_preview(
         db=db_session,
         client_id=int(client_id),
@@ -125,11 +137,18 @@ def test_ssot_accrued_greater_than_formula(db_session, client) -> None:
         user_approved=True,
     )
     payload_exec = _extract_tool_json(out_exec)
-    sev_exec = (payload_exec.get("severance_calculated") or {})
-    assert abs(float(sev_exec.get("severance_amount") or 0) - float(accrued_total)) < 0.01
-    assert abs(float(sev_exec.get("exempt_amount") or 0) - float(exempt_amount_expected)) < 0.01
+    sev_exec = payload_exec.get("severance_calculated") or {}
+    assert (
+        abs(float(sev_exec.get("severance_amount") or 0) - float(accrued_total)) < 0.01
+    )
+    assert (
+        abs(float(sev_exec.get("exempt_amount") or 0) - float(exempt_amount_expected))
+        < 0.01
+    )
 
-    _approve_default_termination_preview(db_session, client_id=client_id, termination_date=end)
+    _approve_default_termination_preview(
+        db_session, client_id=client_id, termination_date=end
+    )
     out_proc = tool_execution.execute_tool_call(
         tool_name="PROCESS_TERMINATION",
         args={
@@ -144,13 +163,20 @@ def test_ssot_accrued_greater_than_formula(db_session, client) -> None:
         user_approved=True,
     )
     payload_proc = _extract_tool_json(out_proc)
-    details = (payload_proc.get("details") or {})
+    details = payload_proc.get("details") or {}
 
-    assert abs(float(details.get("severance_amount") or 0) - float(accrued_total)) < 0.01
-    assert abs(float(details.get("exempt_amount") or 0) - float(exempt_amount_expected)) < 0.01
+    assert (
+        abs(float(details.get("severance_amount") or 0) - float(accrued_total)) < 0.01
+    )
+    assert (
+        abs(float(details.get("exempt_amount") or 0) - float(exempt_amount_expected))
+        < 0.01
+    )
 
     expected_taxable = max(0.0, float(accrued_total) - float(exempt_amount_expected))
-    assert abs(float(details.get("taxable_amount") or 0) - float(expected_taxable)) < 0.01
+    assert (
+        abs(float(details.get("taxable_amount") or 0) - float(expected_taxable)) < 0.01
+    )
 
 
 def test_ssot_accrued_lower_than_formula(db_session, client) -> None:
@@ -186,11 +212,18 @@ def test_ssot_accrued_lower_than_formula(db_session, client) -> None:
         user_approved=True,
     )
     payload_exec = _extract_tool_json(out_exec)
-    sev_exec = (payload_exec.get("severance_calculated") or {})
-    assert abs(float(sev_exec.get("severance_amount") or 0) - float(formula_total)) < 0.01
-    assert abs(float(sev_exec.get("exempt_amount") or 0) - float(exempt_amount_expected)) < 0.01
+    sev_exec = payload_exec.get("severance_calculated") or {}
+    assert (
+        abs(float(sev_exec.get("severance_amount") or 0) - float(formula_total)) < 0.01
+    )
+    assert (
+        abs(float(sev_exec.get("exempt_amount") or 0) - float(exempt_amount_expected))
+        < 0.01
+    )
 
-    _approve_default_termination_preview(db_session, client_id=client_id, termination_date=end)
+    _approve_default_termination_preview(
+        db_session, client_id=client_id, termination_date=end
+    )
     out_proc = tool_execution.execute_tool_call(
         tool_name="PROCESS_TERMINATION",
         args={
@@ -205,13 +238,20 @@ def test_ssot_accrued_lower_than_formula(db_session, client) -> None:
         user_approved=True,
     )
     payload_proc = _extract_tool_json(out_proc)
-    details = (payload_proc.get("details") or {})
+    details = payload_proc.get("details") or {}
 
-    assert abs(float(details.get("severance_amount") or 0) - float(formula_total)) < 0.01
-    assert abs(float(details.get("exempt_amount") or 0) - float(exempt_amount_expected)) < 0.01
+    assert (
+        abs(float(details.get("severance_amount") or 0) - float(formula_total)) < 0.01
+    )
+    assert (
+        abs(float(details.get("exempt_amount") or 0) - float(exempt_amount_expected))
+        < 0.01
+    )
 
     expected_taxable = max(0.0, float(formula_total) - float(exempt_amount_expected))
-    assert abs(float(details.get("taxable_amount") or 0) - float(expected_taxable)) < 0.01
+    assert (
+        abs(float(details.get("taxable_amount") or 0) - float(expected_taxable)) < 0.01
+    )
 
 
 def test_ssot_consistency_between_both_paths(db_session, client) -> None:
@@ -247,9 +287,11 @@ def test_ssot_consistency_between_both_paths(db_session, client) -> None:
         user_approved=True,
     )
     payload_exec = _extract_tool_json(out_exec)
-    sev_exec = (payload_exec.get("severance_calculated") or {})
+    sev_exec = payload_exec.get("severance_calculated") or {}
 
-    _approve_default_termination_preview(db_session, client_id=client_id, termination_date=end)
+    _approve_default_termination_preview(
+        db_session, client_id=client_id, termination_date=end
+    )
     out_proc = tool_execution.execute_tool_call(
         tool_name="PROCESS_TERMINATION",
         args={
@@ -264,7 +306,19 @@ def test_ssot_consistency_between_both_paths(db_session, client) -> None:
         user_approved=True,
     )
     payload_proc = _extract_tool_json(out_proc)
-    details = (payload_proc.get("details") or {})
+    details = payload_proc.get("details") or {}
 
-    assert abs(float(details.get("severance_amount") or 0) - float(sev_exec.get("severance_amount") or 0)) < 0.01
-    assert abs(float(details.get("taxable_amount") or 0) - float(sev_exec.get("taxable_amount") or 0)) < 0.01
+    assert (
+        abs(
+            float(details.get("severance_amount") or 0)
+            - float(sev_exec.get("severance_amount") or 0)
+        )
+        < 0.01
+    )
+    assert (
+        abs(
+            float(details.get("taxable_amount") or 0)
+            - float(sev_exec.get("taxable_amount") or 0)
+        )
+        < 0.01
+    )

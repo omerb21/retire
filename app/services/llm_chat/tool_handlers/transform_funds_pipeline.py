@@ -84,7 +84,9 @@ def execute_transform_funds_pipeline(
             plan_accounts = [a for a in raw_accounts if isinstance(a, dict)]
 
         try:
-            expected_total_gross_from_plan = float(execution_plan.get("expected_total_gross") or 0)
+            expected_total_gross_from_plan = float(
+                execution_plan.get("expected_total_gross") or 0
+            )
         except Exception:
             expected_total_gross_from_plan = 0.0
         try:
@@ -106,7 +108,9 @@ def execute_transform_funds_pipeline(
         # Build conversion_tasks strictly from execution_plan.
         conversion_tasks = []
         for item in plan_accounts:
-            acc_id = str(item.get("account_number") or item.get("account_id") or "").strip()
+            acc_id = str(
+                item.get("account_number") or item.get("account_id") or ""
+            ).strip()
             component = str(item.get("component") or "").strip()
             try:
                 amount_to_convert = float(item.get("amount_to_convert") or 0)
@@ -131,7 +135,9 @@ def execute_transform_funds_pipeline(
                     "amount": float(amount_to_convert),
                     "components": {component: float(amount_to_convert)},
                     "_execution_plan": {
-                        "expected_monthly_pension": item.get("expected_monthly_pension"),
+                        "expected_monthly_pension": item.get(
+                            "expected_monthly_pension"
+                        ),
                     },
                 }
             )
@@ -188,7 +194,11 @@ def execute_transform_funds_pipeline(
                     break
                 if not isinstance(t, dict):
                     continue
-                plan_meta = t.get("_execution_plan") if isinstance(t.get("_execution_plan"), dict) else {}
+                plan_meta = (
+                    t.get("_execution_plan")
+                    if isinstance(t.get("_execution_plan"), dict)
+                    else {}
+                )
                 try:
                     exp = float(plan_meta.get("expected_monthly_pension") or 0)
                 except Exception:
@@ -202,9 +212,9 @@ def execute_transform_funds_pipeline(
 
     try:
         conversion_tasks.sort(
-            key=lambda t: 0
-            if str((t or {}).get("task_type") or "").lower() == "pension"
-            else 1
+            key=lambda t: (
+                0 if str((t or {}).get("task_type") or "").lower() == "pension" else 1
+            )
         )
     except Exception:
         pass
@@ -249,7 +259,14 @@ def execute_transform_funds_pipeline(
     )
 
     if strict_plan_mode:
-        if int((converted_pensions or 0) + (converted_capitals or 0) + (converted_commutations or 0)) <= 0:
+        if (
+            int(
+                (converted_pensions or 0)
+                + (converted_capitals or 0)
+                + (converted_commutations or 0)
+            )
+            <= 0
+        ):
             res = build_transform_funds_response(
                 success=False,
                 message="EXECUTION_NO_SOURCE_CONSUMED",
@@ -327,12 +344,14 @@ def execute_transform_funds_pipeline(
     scenarios_updated = 0
 
     try:
-        scenario_source_cleanup_ok, scenarios_updated = _create_updated_snapshot_scenario(
-            db=db,
-            client_id=client_id,
-            deltas=snapshot_deltas,
-            trace_id=get_current_trace_id(),
-            operation_type="TRANSFORM_FUNDS_TO_ASSETS",
+        scenario_source_cleanup_ok, scenarios_updated = (
+            _create_updated_snapshot_scenario(
+                db=db,
+                client_id=client_id,
+                deltas=snapshot_deltas,
+                trace_id=get_current_trace_id(),
+                operation_type="TRANSFORM_FUNDS_TO_ASSETS",
+            )
         )
     except Exception:
         scenario_source_cleanup_ok = False
@@ -347,14 +366,10 @@ def execute_transform_funds_pipeline(
 
     try:
         pf_count = (
-            db.query(PensionFund)
-            .filter(PensionFund.client_id == client_id)
-            .count()
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
         )
         ca_count = (
-            db.query(CapitalAsset)
-            .filter(CapitalAsset.client_id == client_id)
-            .count()
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
         )
         logger.info(
             "🔎 TRANSFORM_FUNDS_TO_ASSETS post-commit: client_id=%s db_url=%s pension_funds=%s capital_assets=%s",
@@ -385,7 +400,11 @@ def execute_transform_funds_pipeline(
         blocked_field_amount=blocked_field_amount,
         employer_current_severance_total=employer_current_severance_total,
         errors=errors,
-        next_step="כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT" if total_converted > 0 else None,
+        next_step=(
+            "כעת ניתן להפיק דוח באמצעות GENERATE_FULL_REPORT"
+            if total_converted > 0
+            else None
+        ),
         source_data_cleared=False,
         memory_cleared=False,
         scenarios_updated=scenarios_updated,
@@ -394,5 +413,3 @@ def execute_transform_funds_pipeline(
     )
 
     return response
-
-

@@ -38,7 +38,7 @@ def _stream_handle_tool_call_iteration(
     stream_execute_tool_and_process_result,
     is_tool_error_text,
     execution_only_blocked,
- ):
+):
     try:
         (
             should_continue,
@@ -98,7 +98,9 @@ def _stream_handle_tool_call_iteration(
             if not isinstance(portfolio_for_cashflow, list):
                 portfolio_for_cashflow = []
             try:
-                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     portfolio_for_cashflow, _snap_at = loaded
             except Exception:

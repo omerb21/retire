@@ -3,7 +3,9 @@ import json
 from sqlalchemy.orm import Session
 
 from app.models.scenario import Scenario
-from app.services.llm_chat.chat_orchestration_helpers import clear_pending_approval_request
+from app.services.llm_chat.chat_orchestration_helpers import (
+    clear_pending_approval_request,
+)
 from app.services.snapshot_service import SnapshotService
 
 

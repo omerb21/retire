@@ -9,6 +9,7 @@ Usage:
     from app.core.db_url import pick_db_url
     db_url, picked_from = pick_db_url()
 """
+
 import logging
 import os
 import re
@@ -31,12 +32,12 @@ _CANDIDATE_KEYS: list[str] = [
 
 # Patterns that indicate the value was poisoned by a shell wrapper / start cmd.
 _POISON_PATTERNS: list[re.Pattern] = [
-    re.compile(r"\s"),            # whitespace anywhere
-    re.compile(r'["\']'),         # quotes
-    re.compile(r"sh\s+-c"),       # shell invocation
-    re.compile(r"&&"),            # chained commands
-    re.compile(r"uvicorn"),       # start command leaked
-    re.compile(r"python\s+-m"),   # start command leaked
+    re.compile(r"\s"),  # whitespace anywhere
+    re.compile(r'["\']'),  # quotes
+    re.compile(r"sh\s+-c"),  # shell invocation
+    re.compile(r"&&"),  # chained commands
+    re.compile(r"uvicorn"),  # start command leaked
+    re.compile(r"python\s+-m"),  # start command leaked
 ]
 
 
@@ -87,9 +88,7 @@ def pick_db_url(
         if _is_valid_pg_url(raw):
             return raw, key
         else:
-            logger.warning(
-                "DB URL candidate %s rejected (invalid or poisoned)", key
-            )
+            logger.warning("DB URL candidate %s rejected (invalid or poisoned)", key)
 
     # Fallback: build from individual PG* variables
     built = _build_url_from_pg_vars()

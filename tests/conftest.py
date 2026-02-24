@@ -7,6 +7,7 @@ except Exception:
     matplotlib = None
 
 import pytest
+
 try:
     import httpx
 except Exception:
@@ -37,10 +38,12 @@ test_engine = get_engine(TEST_DATABASE_URL)
 SessionLocal.configure(bind=test_engine)
 Base.metadata.create_all(bind=test_engine)
 
+
 @pytest.fixture(scope="session")
 def engine():
     yield test_engine
     Base.metadata.drop_all(bind=test_engine)
+
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -49,6 +52,7 @@ def db_session():
         yield session
     finally:
         session.close()
+
 
 @pytest.fixture
 def client(db_session):
@@ -105,19 +109,24 @@ def client(db_session):
 
     return orm_client
 
+
 """Pytest configuration and shared fixtures for tests"""
+
 
 @pytest.fixture
 def test_client():
     """FastAPI TestClient for API tests"""
     from fastapi.testclient import TestClient
     from app.main import app
+
     return TestClient(app)
+
 
 @pytest.fixture
 def test_client_data(client):
     """Test client data dictionary including DB id"""
     from datetime import date
+
     return {
         "id": client.id,
         "id_number": client.id_number,

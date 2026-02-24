@@ -10,7 +10,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_non_stream_text_approval_executes_pending_approval(monkeypatch, _test_db) -> None:
+def test_non_stream_text_approval_executes_pending_approval(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -64,7 +66,9 @@ def test_non_stream_text_approval_executes_pending_approval(monkeypatch, _test_d
     )
 
     def fake_chat(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic approval execution")
+        raise AssertionError(
+            "LLM must not be called for deterministic approval execution"
+        )
 
     monkeypatch.setattr(orch.pension_llm_service, "chat", fake_chat)
 
@@ -81,11 +85,15 @@ def test_non_stream_text_approval_executes_pending_approval(monkeypatch, _test_d
         agent_reply: str | None = None,
         user_approved: bool = False,
     ) -> str:
-        tool_calls.append((tool_name, args if isinstance(args, dict) else {}, bool(user_approved)))
+        tool_calls.append(
+            (tool_name, args if isinstance(args, dict) else {}, bool(user_approved))
+        )
         assert tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
         if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
             assert user_approved is True
-            return json.dumps({"success": True, "total_converted": 1}, ensure_ascii=False)
+            return json.dumps(
+                {"success": True, "total_converted": 1}, ensure_ascii=False
+            )
         return json.dumps({"success": True}, ensure_ascii=False)
 
     monkeypatch.setattr(orch, "execute_tool_call", fake_execute_tool_call)

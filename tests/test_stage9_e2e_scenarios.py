@@ -77,7 +77,9 @@ def _seed_client(*, db, client_id: int) -> None:
         db.flush()
 
 
-def _seed_pending_approval(*, db, client_id: int, tool_name: str, arguments: dict) -> None:
+def _seed_pending_approval(
+    *, db, client_id: int, tool_name: str, arguments: dict
+) -> None:
     db.query(Scenario).filter(Scenario.client_id == client_id).filter(
         Scenario.scenario_name == "pending_approval"
     ).delete(synchronize_session=False)
@@ -89,7 +91,9 @@ def _seed_pending_approval(*, db, client_id: int, tool_name: str, arguments: dic
             apply_tax_planning=False,
             apply_capitalization=False,
             apply_exemption_shield=False,
-            parameters=json.dumps({"tool_name": tool_name, "arguments": arguments}, ensure_ascii=False),
+            parameters=json.dumps(
+                {"tool_name": tool_name, "arguments": arguments}, ensure_ascii=False
+            ),
         )
     )
     db.commit()
@@ -124,12 +128,16 @@ def _get_latest_undo_snapshot_row(*, db, client_id: int):
 
 def _extract_ui_action_payload(body: str) -> dict:
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     return json.loads(payload_json)
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-def test_stage9_scenario_a_preview_readonly(monkeypatch, _test_db, streaming: bool) -> None:
+def test_stage9_scenario_a_preview_readonly(
+    monkeypatch, _test_db, streaming: bool
+) -> None:
     Session = _test_db["Session"]
     client_id = 991000001
 
@@ -140,7 +148,9 @@ def test_stage9_scenario_a_preview_readonly(monkeypatch, _test_db, streaming: bo
     events = _install_trace_capture(monkeypatch)
 
     api = TestClient(app)
-    endpoint = "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    endpoint = (
+        "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    )
     resp = api.post(
         endpoint,
         json={
@@ -161,16 +171,22 @@ def test_stage9_scenario_a_preview_readonly(monkeypatch, _test_db, streaming: bo
     assert "pension_funds" in breakdown
     assert "capital_assets" in breakdown
 
-    _assert_trace_invariants(events, expected_execution_mode="agent_mode", expect_tool_calls=True)
+    _assert_trace_invariants(
+        events, expected_execution_mode="agent_mode", expect_tool_calls=True
+    )
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-def test_stage9_scenario_b_approval_write_flow(monkeypatch, _test_db, streaming: bool) -> None:
+def test_stage9_scenario_b_approval_write_flow(
+    monkeypatch, _test_db, streaming: bool
+) -> None:
     Session = _test_db["Session"]
     client_id = 991000002
 
     def _no_llm(*args, **kwargs):
-        raise AssertionError("LLM must not be called for deterministic approval execution")
+        raise AssertionError(
+            "LLM must not be called for deterministic approval execution"
+        )
 
     monkeypatch.setattr(orch.pension_llm_service, "chat", _no_llm)
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", _no_llm)
@@ -195,7 +211,9 @@ def test_stage9_scenario_b_approval_write_flow(monkeypatch, _test_db, streaming:
 
     monkeypatch.setattr(SnapshotService, "save_snapshot", fake_save_snapshot)
 
-    def fake_transform(*, args: dict, client_id: int, db, agent_tools=None, **kwargs) -> str:
+    def fake_transform(
+        *, args: dict, client_id: int, db, agent_tools=None, **kwargs
+    ) -> str:
         return json.dumps(
             {
                 "success": True,
@@ -222,7 +240,9 @@ def test_stage9_scenario_b_approval_write_flow(monkeypatch, _test_db, streaming:
     events = _install_trace_capture(monkeypatch)
 
     api = TestClient(app)
-    endpoint = "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    endpoint = (
+        "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    )
     resp = api.post(
         endpoint,
         json={
@@ -240,16 +260,22 @@ def test_stage9_scenario_b_approval_write_flow(monkeypatch, _test_db, streaming:
         undo_row = _get_latest_undo_snapshot_row(db=db, client_id=client_id)
         assert undo_row is not None
 
-    _assert_trace_invariants(events, expected_execution_mode="agent_mode", expect_tool_calls=True)
+    _assert_trace_invariants(
+        events, expected_execution_mode="agent_mode", expect_tool_calls=True
+    )
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, streaming: bool) -> None:
+def test_stage9_scenario_c_termination_with_severance(
+    monkeypatch, _test_db, streaming: bool
+) -> None:
     Session = _test_db["Session"]
     client_id = 991000003
 
     def _no_llm(*args, **kwargs):
-        raise AssertionError("LLM must not be called for deterministic approval execution")
+        raise AssertionError(
+            "LLM must not be called for deterministic approval execution"
+        )
 
     monkeypatch.setattr(orch.pension_llm_service, "chat", _no_llm)
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", _no_llm)
@@ -268,7 +294,11 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
         if termination_date is None:
             termination_date = date(2025, 1, 1)
 
-        employer = db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).first()
+        employer = (
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .first()
+        )
         assert employer is not None
 
         employer.end_date = termination_date
@@ -283,7 +313,9 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
             ensure_ascii=False,
         )
 
-    monkeypatch.setattr(tool_exec, "handle_process_termination", fake_process_termination)
+    monkeypatch.setattr(
+        tool_exec, "handle_process_termination", fake_process_termination
+    )
 
     with Session() as db:
         _seed_client(db=db, client_id=client_id)
@@ -307,10 +339,15 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
 
     with Session() as db:
         reloaded_employer = (
-            db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).order_by(CurrentEmployer.id.desc()).first()
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .order_by(CurrentEmployer.id.desc())
+            .first()
         )
         assert reloaded_employer is not None
-        initial_severance = float(getattr(reloaded_employer, "severance_accrued", 0) or 0)
+        initial_severance = float(
+            getattr(reloaded_employer, "severance_accrued", 0) or 0
+        )
 
     with Session() as db:
         store_current_employer_termination_plan_preview(
@@ -347,7 +384,9 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
     events = _install_trace_capture(monkeypatch)
 
     api = TestClient(app)
-    endpoint = "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    endpoint = (
+        "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    )
     resp = api.post(
         endpoint,
         json={
@@ -363,22 +402,32 @@ def test_stage9_scenario_c_termination_with_severance(monkeypatch, _test_db, str
         assert pending is None
 
         reloaded_employer = (
-            db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).order_by(CurrentEmployer.id.desc()).first()
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .order_by(CurrentEmployer.id.desc())
+            .first()
         )
         assert reloaded_employer is not None
 
         assert reloaded_employer.end_date is not None
         assert reloaded_employer.end_date.isoformat() == termination_date_str
 
-        assert float(getattr(reloaded_employer, "severance_accrued", 0) or 0) == initial_severance
+        assert (
+            float(getattr(reloaded_employer, "severance_accrued", 0) or 0)
+            == initial_severance
+        )
         if initial_severance > 0:
             assert float(getattr(reloaded_employer, "severance_accrued", 0) or 0) != 0.0
 
-    _assert_trace_invariants(events, expected_execution_mode="agent_mode", expect_tool_calls=True)
+    _assert_trace_invariants(
+        events, expected_execution_mode="agent_mode", expect_tool_calls=True
+    )
 
 
 @pytest.mark.parametrize("streaming", [False, True])
-def test_stage9_scenario_d_undo_restore_flow(monkeypatch, _test_db, streaming: bool) -> None:
+def test_stage9_scenario_d_undo_restore_flow(
+    monkeypatch, _test_db, streaming: bool
+) -> None:
     Session = _test_db["Session"]
     client_id = 991000004
 
@@ -437,19 +486,29 @@ def test_stage9_scenario_d_undo_restore_flow(monkeypatch, _test_db, streaming: b
     api = TestClient(app)
     events_1 = _install_trace_capture(monkeypatch)
 
-    endpoint = "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    endpoint = (
+        "/api/v1/llm/pension-chat-stream" if streaming else "/api/v1/llm/pension-chat"
+    )
     resp1 = api.post(
         endpoint,
-        json={"client_id": client_id, "messages": [{"role": "user", "content": "undo"}]},
+        json={
+            "client_id": client_id,
+            "messages": [{"role": "user", "content": "undo"}],
+        },
     )
     assert resp1.status_code == 200
 
     body1 = resp1.text if streaming else resp1.json().get("reply")
     ui_payload = _extract_ui_action_payload(body1)
     assert ui_payload.get("actions")[0].get("tool_name") == "RESTORE_SYSTEM_SNAPSHOT"
-    assert ui_payload.get("actions")[0].get("arguments").get("snapshot_scenario_id") == undo_id
+    assert (
+        ui_payload.get("actions")[0].get("arguments").get("snapshot_scenario_id")
+        == undo_id
+    )
 
-    _assert_trace_invariants(events_1, expected_execution_mode="agent_mode", expect_tool_calls=False)
+    _assert_trace_invariants(
+        events_1, expected_execution_mode="agent_mode", expect_tool_calls=False
+    )
 
     events_2 = _install_trace_capture(monkeypatch)
 
@@ -493,7 +552,9 @@ def test_stage9_scenario_d_undo_restore_flow(monkeypatch, _test_db, streaming: b
         pending_after = _get_pending_approval_row(db=db, client_id=client_id)
         assert pending_after is None
 
-    _assert_trace_invariants(events_2, expected_execution_mode="agent_mode", expect_tool_calls=True)
+    _assert_trace_invariants(
+        events_2, expected_execution_mode="agent_mode", expect_tool_calls=True
+    )
 
 
 def test_stage9_guardrail_no_tool_execution_dispatch_outside_ssot() -> None:

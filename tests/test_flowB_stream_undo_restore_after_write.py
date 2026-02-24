@@ -13,7 +13,9 @@ import app.services.llm_chat.tool_execution as tool_exec
 
 def _extract_ui_action_payload(body: str) -> dict:
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     return json.loads(payload_json)
 
 
@@ -22,9 +24,13 @@ def test_flowB_stream_undo_restore_after_write(monkeypatch, _test_db) -> None:
 
     # Ensure deterministic stream (no LLM)
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for undo/approval deterministic flow")
+        raise AssertionError(
+            "LLM must not be called for undo/approval deterministic flow"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     client_id = 950500001
     with Session() as db:
@@ -57,7 +63,10 @@ def test_flowB_stream_undo_restore_after_write(monkeypatch, _test_db) -> None:
                 parameters=json.dumps(
                     {
                         "tool_name": "TRANSFORM_FUNDS_TO_ASSETS",
-                        "arguments": {"accounts": [], "use_provided_accounts_only": True},
+                        "arguments": {
+                            "accounts": [],
+                            "use_provided_accounts_only": True,
+                        },
                     },
                     ensure_ascii=False,
                 ),
@@ -66,14 +75,39 @@ def test_flowB_stream_undo_restore_after_write(monkeypatch, _test_db) -> None:
         db.commit()
 
     # Avoid real DB mutations from transform, but keep tool_execution path intact.
-    def fake_transform(*, args: dict, client_id: int, db, pension_portfolio=None, force_max_exemption: bool = False, agent_reply=None):
-        return json.dumps({"success": True, "tool_name": "TRANSFORM_FUNDS_TO_ASSETS"}, ensure_ascii=False)
+    def fake_transform(
+        *,
+        args: dict,
+        client_id: int,
+        db,
+        pension_portfolio=None,
+        force_max_exemption: bool = False,
+        agent_reply=None,
+    ):
+        return json.dumps(
+            {"success": True, "tool_name": "TRANSFORM_FUNDS_TO_ASSETS"},
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(tool_exec, "handle_transform_funds_to_assets", fake_transform)
 
     # Capture snapshot deterministically
     def fake_save_snapshot(self, client_id: int, snapshot_name: str = None):
-        return {"snapshot": {"data": {"pension_funds": [], "capital_assets": [], "additional_incomes": [], "current_employer": None, "grants": [], "legacy_grants": [], "termination_event": None, "fixation_result": None}}, "success": True}
+        return {
+            "snapshot": {
+                "data": {
+                    "pension_funds": [],
+                    "capital_assets": [],
+                    "additional_incomes": [],
+                    "current_employer": None,
+                    "grants": [],
+                    "legacy_grants": [],
+                    "termination_event": None,
+                    "fixation_result": None,
+                }
+            },
+            "success": True,
+        }
 
     monkeypatch.setattr(tool_exec.SnapshotService, "save_snapshot", fake_save_snapshot)
 
@@ -81,7 +115,9 @@ def test_flowB_stream_undo_restore_after_write(monkeypatch, _test_db) -> None:
     def fake_restore_snapshot(self, client_id: int, snapshot_data: dict):
         return {"success": True, "message": "restored"}
 
-    monkeypatch.setattr(tool_exec.SnapshotService, "restore_snapshot", fake_restore_snapshot)
+    monkeypatch.setattr(
+        tool_exec.SnapshotService, "restore_snapshot", fake_restore_snapshot
+    )
 
     api = TestClient(app)
 
@@ -119,7 +155,10 @@ def test_flowB_stream_undo_restore_after_write(monkeypatch, _test_db) -> None:
     assert resp2.status_code == 200
     payload = _extract_ui_action_payload(resp2.text)
     assert payload.get("actions")[0].get("tool_name") == "RESTORE_SYSTEM_SNAPSHOT"
-    assert payload.get("actions")[0].get("arguments").get("snapshot_scenario_id") == undo_id
+    assert (
+        payload.get("actions")[0].get("arguments").get("snapshot_scenario_id")
+        == undo_id
+    )
 
     # 3) approve restore -> should execute restore and clear undo_snapshot
     resp3 = api.post(

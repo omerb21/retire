@@ -12,15 +12,9 @@
 """
 
 # ייבוא כל הפונקציות הציבוריות מהמודולים השונים
-from .indexation import (
-    calculate_adjusted_amount,
-    index_grant
-)
+from .indexation import calculate_adjusted_amount, index_grant
 
-from .work_ratio import (
-    work_ratio_within_last_32y,
-    ratio_last_32y
-)
+from .work_ratio import work_ratio_within_last_32y, ratio_last_32y
 
 from .exemption_caps import (
     get_monthly_cap,
@@ -28,58 +22,44 @@ from .exemption_caps import (
     calc_exempt_capital,
     ANNUAL_CAPS,
     EXEMPTION_PERCENTAGES,
-    MULTIPLIER
+    MULTIPLIER,
 )
 
-from .grant_impact import (
-    compute_grant_effect,
-    compute_client_exemption
-)
+from .grant_impact import compute_grant_effect, compute_client_exemption
 
-from .eligibility import (
-    calculate_eligibility_age
-)
+from .eligibility import calculate_eligibility_age
 
 from .idf_fixation import (
     IdfFixationResult,
     compute_idf_fixation_impact,
 )
 
-from .core import (
-    process_grant,
-    calculate_full_fixation
-)
+from .core import process_grant, calculate_full_fixation
 
 # רשימת כל הפונקציות והמשתנים הציבוריים
 __all__ = [
     # Indexation
-    'calculate_adjusted_amount',
-    'index_grant',
-    
+    "calculate_adjusted_amount",
+    "index_grant",
     # Work Ratio
-    'work_ratio_within_last_32y',
-    'ratio_last_32y',
-    
+    "work_ratio_within_last_32y",
+    "ratio_last_32y",
     # Exemption Caps
-    'get_monthly_cap',
-    'get_exemption_percentage',
-    'calc_exempt_capital',
-    'ANNUAL_CAPS',
-    'EXEMPTION_PERCENTAGES',
-    'MULTIPLIER',
-    
+    "get_monthly_cap",
+    "get_exemption_percentage",
+    "calc_exempt_capital",
+    "ANNUAL_CAPS",
+    "EXEMPTION_PERCENTAGES",
+    "MULTIPLIER",
     # Grant Impact
-    'compute_grant_effect',
-    'compute_client_exemption',
-    
+    "compute_grant_effect",
+    "compute_client_exemption",
     # IDF Security Forces fixation helpers
-    'IdfFixationResult',
-    'compute_idf_fixation_impact',
-    
+    "IdfFixationResult",
+    "compute_idf_fixation_impact",
     # Eligibility
-    'calculate_eligibility_age',
-    
+    "calculate_eligibility_age",
     # Core
-    'process_grant',
-    'calculate_full_fixation'
+    "process_grant",
+    "calculate_full_fixation",
 ]

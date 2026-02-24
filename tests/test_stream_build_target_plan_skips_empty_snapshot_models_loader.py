@@ -10,7 +10,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_build_target_plan_skips_empty_snapshot_models_loader(monkeypatch, _test_db) -> None:
+def test_stream_build_target_plan_skips_empty_snapshot_models_loader(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -79,13 +81,19 @@ def test_stream_build_target_plan_skips_empty_snapshot_models_loader(monkeypatch
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic stream regression test")
+        raise AssertionError(
+            "LLM must not be called for deterministic stream regression test"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, pension_portfolio=None, **kwargs) -> str:
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, pension_portfolio=None, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
         assert pension_portfolio is not None

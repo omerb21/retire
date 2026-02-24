@@ -8,14 +8,14 @@ def _build_allowed_sources_for_numeric_provenance(
 ) -> list[str]:
     allowed_sources: list[str] = []
     try:
-        for msg in (request.messages or []):
+        for msg in request.messages or []:
             if getattr(msg, "role", None) == "user":
                 allowed_sources.append(getattr(msg, "content", "") or "")
     except Exception:
         pass
 
     try:
-        for msg in (history_messages or []):
+        for msg in history_messages or []:
             if getattr(msg, "role", None) != "system":
                 continue
             content = getattr(msg, "content", "") or ""
@@ -27,7 +27,7 @@ def _build_allowed_sources_for_numeric_provenance(
                 or ("📂 **תיק פנסיוני" in content)
                 or ("סיכום נתונים גולמיים" in content)
                 or ("סיכום מהיר" in content)
-                or ("סה\"כ יתרות" in content)
+                or ('סה"כ יתרות' in content)
                 or ("תרחישי פרישה" in content)
                 or ("📋 **פרטי הלקוח**" in content)
                 or ("💰 **סיכום פיננסי**" in content)

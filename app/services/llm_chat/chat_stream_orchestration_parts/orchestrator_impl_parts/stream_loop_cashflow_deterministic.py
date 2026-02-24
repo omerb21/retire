@@ -1,7 +1,9 @@
 ﻿from fastapi.responses import StreamingResponse
 
 from app.schemas.llm_chat import ChatRequest
-from app.services.llm_chat.orchestration_utils import is_cashflow_missing_income_followup
+from app.services.llm_chat.orchestration_utils import (
+    is_cashflow_missing_income_followup,
+)
 
 from ..stream_system_prompt_generators import generate_cashflow
 
@@ -21,7 +23,9 @@ def _maybe_handle_cashflow_deterministic(
     force_max_exemption: bool,
     stream_request_id: str,
 ):
-    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
+    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or (
+        "cashflow" in lowered_user_msg
+    )
 
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 

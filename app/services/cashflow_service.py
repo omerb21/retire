@@ -6,7 +6,6 @@ import os
 
 from sqlalchemy.orm import Session
 
-
 # Import the actual function from the calculation module
 from app.calculation.income_integration import integrate_all_incomes_with_scenario
 from app.utils.calculation_log import log_calc
@@ -68,7 +67,7 @@ def generate_cashflow(
     if case_id is None:
         case_detection_result = detect_case(db, client_id)
         case_id = case_detection_result.case_id
-    
+
     # Log calculation start
     payload = {
         "client_id": client_id,
@@ -76,25 +75,29 @@ def generate_cashflow(
         "start_ym": start_ym,
         "end_ym": end_ym,
         "frequency": frequency,
-        "case_id": case_id
+        "case_id": case_id,
     }
-    
+
     debug_info = None
     if os.getenv("DEBUG_CALC", "0") == "1":
         debug_info = {
             "validation_checks": {
                 "frequency_supported": frequency == "monthly",
-                "date_range_valid": start_ym <= end_ym
+                "date_range_valid": start_ym <= end_ym,
             }
         }
-    
+
     if frequency != "monthly":
-        log_calc("generate_cashflow_error", payload, None, {"error": "Invalid frequency"})
+        log_calc(
+            "generate_cashflow_error", payload, None, {"error": "Invalid frequency"}
+        )
         raise ValueError("supported: monthly")
-    
+
     # Validate date range
     if start_ym > end_ym:
-        log_calc("generate_cashflow_error", payload, None, {"error": "Invalid date range"})
+        log_calc(
+            "generate_cashflow_error", payload, None, {"error": "Invalid date range"}
+        )
         raise ValueError("'from' date must be less than or equal to 'to' date")
 
     months = _month_iter(start_ym, end_ym)
@@ -102,12 +105,14 @@ def generate_cashflow(
 
     for month_d in months:
         # בסיס: שורה ריקה (0) לאותו חודש
-        scenario_cashflow = [{
-            "date": month_d,
-            "inflow": 0,
-            "outflow": 0,
-            "net": 0,
-        }]
+        scenario_cashflow = [
+            {
+                "date": month_d,
+                "inflow": 0,
+                "outflow": 0,
+                "net": 0,
+            }
+        ]
 
         # שימוש בלוגיקה הקיימת של אינטגרציה (כמו endpoint integrate-all)
         enriched = integrate_all_incomes_with_scenario(
@@ -127,7 +132,7 @@ def generate_cashflow(
                 "additional_income_net": 0,
                 "capital_return_net": 0,
                 "net": 0,
-                "meta": {"is_empty_month": True}
+                "meta": {"is_empty_month": True},
             }
         else:
             row = enriched[0]
@@ -137,17 +142,17 @@ def generate_cashflow(
         outflow = float(row.get("outflow", 0) or 0)
         add_net = float(row.get("additional_income_net", 0) or 0)
         cap_net = float(row.get("capital_return_net", 0) or 0)
-        
+
         # Recalculate net with all components for consistency
         row["inflow"] = inflow
         row["outflow"] = outflow
         row["additional_income_net"] = add_net
         row["capital_return_net"] = cap_net
         row["net"] = inflow - outflow + add_net + cap_net
-        
+
         # Apply case-specific logic
         final_tax = True  # Default for most cases
-        
+
         # Case-specific modifications
         if case_id in [1, 2, 3]:  # Cases 1-3: No current employer integration
             # For these cases, don't include current employer calculations if they exist
@@ -158,26 +163,30 @@ def generate_cashflow(
         elif case_id == 5:  # Case 5: Regular with leave (default full scenario)
             # Use existing behavior for Case 5
             pass
-            
+
         # Add meta information about the case
         if "meta" not in row:
             row["meta"] = {}
         row["meta"]["case_id"] = case_id
         row["meta"]["final_tax"] = final_tax
-        
+
         results.append(row)
-    
+
     # Ensure full month grid with exactly 12 months per year
     results = ensure_full_month_grid(results, start_ym, end_ym)
 
     # Log successful completion
     log_calc("generate_cashflow", payload, results, debug_info)
-    
+
     # Explicitly log the number of months returned
     month_count = len(results)
     year_month_range = f"{start_ym}..{end_ym}"
-    log_calc("generate_cashflow_stats", {"month_count": month_count, "range": year_month_range}, None)
-    
+    log_calc(
+        "generate_cashflow_stats",
+        {"month_count": month_count, "range": year_month_range},
+        None,
+    )
+
     return results
 
 
@@ -189,7 +198,7 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
         # Normalize date to YYYY-MM string
         dstr = str(r["date"])
         ym = dstr[:7] if len(dstr) >= 7 else dstr
-        
+
         # Extract values, ensure they're numeric
         inflow = float(r.get("inflow", 0) or 0)
         outflow = float(r.get("outflow", 0) or 0)
@@ -200,13 +209,13 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
         add_tax_total = float(r.get("additional_income_tax_for_total", 0) or 0)
         cap_gross = float(r.get("capital_return_gross", 0) or 0)
         cap_tax = float(r.get("capital_return_tax", 0) or 0)
-        
+
         # Always recalculate net for consistency
         net = inflow - outflow + add_net + cap_net
-        
+
         # Copy any meta information
         meta = r.get("meta", {})
-        
+
         by_ym[ym] = {
             "date": f"{ym}-01",  # Always string format YYYY-MM-01
             "inflow": inflow,
@@ -219,7 +228,7 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
             "capital_return_gross": cap_gross,
             "capital_return_tax": cap_tax,
             "net": net,
-            "meta": meta
+            "meta": meta,
         }
 
     # Generate complete month grid
@@ -237,20 +246,22 @@ def ensure_full_month_grid(rows: list[dict], from_ym: str, to_ym: str) -> list[d
             add_net = 0
             cap_net = 0
             net = inflow - outflow + add_net + cap_net
-            
-            out.append({
-                "date": f"{ym}-01",  # Always string format
-                "inflow": inflow, 
-                "outflow": outflow,
-                "additional_income_net": add_net,
-                "capital_return_net": cap_net,
-                "additional_income_gross": 0.0,
-                "additional_income_tax": 0.0,
-                "additional_income_tax_for_total": 0.0,
-                "capital_return_gross": 0.0,
-                "capital_return_tax": 0.0,
-                "net": net,
-                "meta": {"is_filled": True}  # Mark as grid-filled month
-            })
+
+            out.append(
+                {
+                    "date": f"{ym}-01",  # Always string format
+                    "inflow": inflow,
+                    "outflow": outflow,
+                    "additional_income_net": add_net,
+                    "capital_return_net": cap_net,
+                    "additional_income_gross": 0.0,
+                    "additional_income_tax": 0.0,
+                    "additional_income_tax_for_total": 0.0,
+                    "capital_return_gross": 0.0,
+                    "capital_return_tax": 0.0,
+                    "net": net,
+                    "meta": {"is_filled": True},  # Mark as grid-filled month
+                }
+            )
         cur = _add_month(cur)
     return out

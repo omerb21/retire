@@ -50,16 +50,22 @@ def test_build_target_plan_ignores_executable_filter(monkeypatch, _test_db) -> N
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic plan phrase request")
+        raise AssertionError(
+            "LLM must not be called for deterministic plan phrase request"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
 

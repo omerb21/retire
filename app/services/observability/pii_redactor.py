@@ -4,7 +4,6 @@ import os
 import re
 from typing import Any
 
-
 _REDACTION_FAILED_STR = "[REDACTION_FAILED]"
 _REDACTED_STR = "[REDACTED]"
 

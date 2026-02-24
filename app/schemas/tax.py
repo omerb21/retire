@@ -2,9 +2,11 @@
 from typing import Dict, List, Tuple
 from pydantic import BaseModel, Field
 
+
 class TaxBracket(BaseModel):
     up_to: float | None  # None = ׳׳׳ ׳×׳§׳¨׳”
-    rate: float          # 0..1
+    rate: float  # 0..1
+
 
 class TaxParameters(BaseModel):
     # CPI: ׳׳™׳₪׳•׳™ YYYY-MM-01 -> ׳¢׳¨׳ ׳׳“׳“ (׳׳¡׳₪׳¨ ׳‘׳¡׳™׳¡׳™), ׳—׳™׳™׳‘ ׳׳›׳׳•׳ ׳׳× ׳˜׳•׳•׳— ׳”׳—׳™׳©׳•׳‘
@@ -16,4 +18,3 @@ class TaxParameters(BaseModel):
     income_tax_brackets: List[TaxBracket] = Field(default_factory=list)
     # ׳§׳¦׳‘׳׳•׳×: ׳׳§׳“׳ ׳”׳׳¨׳” ׳”׳™׳₪׳•׳×׳˜׳™ (׳₪׳©׳˜׳ ׳™ ׳׳©׳׳‘ ׳–׳”)
     annuity_factor: float = 200.0  # ׳”׳•׳ / 200 = ׳₪׳ ׳¡׳™׳” ׳—׳•׳“׳©׳™׳× ׳׳©׳•׳¢׳¨׳×
-

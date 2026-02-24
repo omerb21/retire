@@ -45,7 +45,9 @@ def _extract_first_json_object(raw: str) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _normalize_tool_args_for_approval_signature(tool_name: str, tool_args: dict) -> dict:
+def _normalize_tool_args_for_approval_signature(
+    tool_name: str, tool_args: dict
+) -> dict:
     if not isinstance(tool_args, dict):
         return {}
     if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
@@ -76,7 +78,9 @@ def extract_achieved_pension_from_result(tool_result: str) -> float | None:
     try:
         parsed = json.loads(tool_result)
         if isinstance(parsed, dict):
-            res = parsed.get("result") if isinstance(parsed.get("result"), dict) else None
+            res = (
+                parsed.get("result") if isinstance(parsed.get("result"), dict) else None
+            )
             if isinstance(res, dict) and res.get("accumulated_pension") is not None:
                 try:
                     return float(res.get("accumulated_pension") or 0)
@@ -152,7 +156,9 @@ def extract_target_pension_from_message(message: str) -> float:
     return 0.0
 
 
-def extract_latest_target_pension_plan_payload(messages: list[ChatMessage]) -> dict | None:
+def extract_latest_target_pension_plan_payload(
+    messages: list[ChatMessage],
+) -> dict | None:
     marker = "###TARGET_PENSION_PLAN_DATA###"
     end_marker = "###END_TARGET_PENSION_PLAN_DATA###"
     if not messages:
@@ -259,7 +265,6 @@ def is_undo_intent_text(user_message: str | None) -> bool:
         "undo",
     )
     return any(t in lowered for t in triggers)
-
 
 
 def is_user_approval_intent_text(text: str) -> bool:

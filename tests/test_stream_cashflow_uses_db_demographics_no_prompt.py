@@ -30,10 +30,14 @@ def test_stream_cashflow_uses_db_demographics_no_prompt(monkeypatch, _test_db) -
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic cashflow")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

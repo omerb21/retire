@@ -299,7 +299,10 @@ def _parse_tool_result_json(tool_result: Any) -> tuple[dict | None, str | None]:
     try:
         parsed = json.loads(raw)
     except Exception as e:
-        return None, f"Tool result is not valid JSON: {type(e).__name__}: {str(e)[:500]}"
+        return (
+            None,
+            f"Tool result is not valid JSON: {type(e).__name__}: {str(e)[:500]}",
+        )
 
     if not isinstance(parsed, dict):
         return None, f"Tool result JSON is not an object: {type(parsed).__name__}"

@@ -4,8 +4,12 @@ import re
 from app.models.pension_fund import PensionFund
 
 
-def test_pension_chat_returns_monthly_pension_computed_data_and_non_empty_reply(test_client, db_session, client) -> None:
-    db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(synchronize_session=False)
+def test_pension_chat_returns_monthly_pension_computed_data_and_non_empty_reply(
+    test_client, db_session, client
+) -> None:
+    db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(
+        synchronize_session=False
+    )
     db_session.commit()
 
     db_session.add_all(

@@ -67,11 +67,13 @@ def _stream_handle_explicit_transform(
         targeted_req = parse_targeted_component_conversion_request(original_user_msg)
         if targeted_req is not None:
             acc_num, fields, conv_type = targeted_req
-            targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                pension_portfolio=current_pension_portfolio,
-                account_number=acc_num,
-                fields=fields,
-                conversion_type=conv_type,
+            targeted_accounts = (
+                build_targeted_component_transform_accounts_from_portfolio(
+                    pension_portfolio=current_pension_portfolio,
+                    account_number=acc_num,
+                    fields=fields,
+                    conversion_type=conv_type,
+                )
             )
             if not targeted_accounts:
                 yield (
@@ -84,7 +86,11 @@ def _stream_handle_explicit_transform(
                 "use_provided_accounts_only": True,
             }
         else:
-            prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(original_user_msg)
+            prev_sev_req = (
+                parse_portfolio_wide_prev_employers_severance_conversion_request(
+                    original_user_msg
+                )
+            )
             if prev_sev_req is not None:
                 fields, conv_type = prev_sev_req
                 if conv_type == "blocked":
@@ -100,10 +106,15 @@ def _stream_handle_explicit_transform(
                 if not portfolio_accounts:
                     yield "לא מצאתי בתיק רכיב 'פיצויים מעסיקים קודמים (רצף קצבה)' להמרה."
                     return
-                tool_args = {"accounts": portfolio_accounts, "use_provided_accounts_only": True}
+                tool_args = {
+                    "accounts": portfolio_accounts,
+                    "use_provided_accounts_only": True,
+                }
             else:
-                after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
-                    original_user_msg
+                after_settle_req = (
+                    parse_portfolio_wide_after_settlement_severance_conversion_request(
+                        original_user_msg
+                    )
                 )
                 if after_settle_req is not None:
                     fields, conv_type = after_settle_req
@@ -119,7 +130,11 @@ def _stream_handle_explicit_transform(
                         "use_provided_accounts_only": True,
                     }
                 else:
-                    portfolio_wide_req = parse_portfolio_wide_component_conversion_request(original_user_msg)
+                    portfolio_wide_req = (
+                        parse_portfolio_wide_component_conversion_request(
+                            original_user_msg
+                        )
+                    )
                     if portfolio_wide_req is not None:
                         fields, conv_type = portfolio_wide_req
                         portfolio_accounts = build_portfolio_wide_component_transform_accounts_from_portfolio(
@@ -138,7 +153,11 @@ def _stream_handle_explicit_transform(
                             "use_provided_accounts_only": True,
                         }
                     else:
-                        edu_req = parse_portfolio_wide_education_fund_conversion_request(original_user_msg)
+                        edu_req = (
+                            parse_portfolio_wide_education_fund_conversion_request(
+                                original_user_msg
+                            )
+                        )
                         if edu_req is not None:
                             _fields, conv_type = edu_req
                             edu_accounts = build_portfolio_wide_education_fund_transform_accounts_from_portfolio(
@@ -153,7 +172,9 @@ def _stream_handle_explicit_transform(
                                 "use_provided_accounts_only": True,
                             }
                         else:
-                            derived_accounts = build_transform_accounts_from_portfolio(current_pension_portfolio)
+                            derived_accounts = build_transform_accounts_from_portfolio(
+                                current_pension_portfolio
+                            )
                             if not derived_accounts:
                                 yield (
                                     "לא ניתן לבצע המרה כי אין תיק מסלקה/סנאפשוט זמין במערכת (pension_portfolio_snapshot ריק). "

@@ -26,7 +26,9 @@ def _to_float_2(v: Any) -> float:
     return float(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
-def _is_active_in_month(*, start: Optional[date], end: Optional[date], month: date) -> bool:
+def _is_active_in_month(
+    *, start: Optional[date], end: Optional[date], month: date
+) -> bool:
     m = _first_of_month(month)
     if start is not None and _first_of_month(start) > m:
         return False
@@ -107,8 +109,16 @@ def compute_from_snapshot(snapshot: dict, request: SimulationRequest) -> dict:
 
     return MinimalComputation(
         monthly_cashflow=monthly_cashflow,
-        tax_breakdown={"taxable_income_monthly": None, "tax_monthly": None, "notes": []},
-        sustainability_metrics={"is_sustainable": None, "depletion_month": None, "notes": []},
+        tax_breakdown={
+            "taxable_income_monthly": None,
+            "tax_monthly": None,
+            "notes": [],
+        },
+        sustainability_metrics={
+            "is_sustainable": None,
+            "depletion_month": None,
+            "notes": [],
+        },
         exempt_pension_component={},
         raw_calculation_map=raw_calculation_map,
     ).__dict__

@@ -91,7 +91,7 @@ _REQUIRED_PATH_PREFIXES = ("app/", "tests/", "Dockerfile")
 
 
 def _has_required_exec_only_tech_payload(text: str) -> bool:
-    t = (text or "")
+    t = text or ""
     t_lower = t.lower()
     if not all(tok.lower() in t_lower for tok in _REQUIRED_TECH_TOKENS):
         return False
@@ -100,9 +100,11 @@ def _has_required_exec_only_tech_payload(text: str) -> bool:
     return False
 
 
-def _has_required_exec_only_actionable_payload(*, full_text: str, steps_block: str) -> bool:
-    text = (full_text or "")
-    steps = (steps_block or "")
+def _has_required_exec_only_actionable_payload(
+    *, full_text: str, steps_block: str
+) -> bool:
+    text = full_text or ""
+    steps = steps_block or ""
 
     steps_lines = [ln.strip() for ln in steps.splitlines() if (ln or "").strip()]
 
@@ -120,20 +122,27 @@ def _has_required_exec_only_actionable_payload(*, full_text: str, steps_block: s
         prefix = (ln_lower.split("curl.exe", 1)[0] or "").strip()
         if not prefix:
             return True
-        if prefix.endswith(":") and ("powershell" in prefix or prefix == "ps:" or prefix.startswith("ps ")):
+        if prefix.endswith(":") and (
+            "powershell" in prefix or prefix == "ps:" or prefix.startswith("ps ")
+        ):
             return True
         return False
 
     has_git_add = any("git add" in ln for ln in normalized_steps_lower)
     has_git_commit = any("git commit" in ln for ln in normalized_steps_lower)
     has_git_push = any("git push" in ln for ln in normalized_steps_lower)
-    has_git_step = any(ln.startswith("git ") or "git " in ln for ln in normalized_steps_lower)
-
-    has_pytest_step = any(
-        ln.startswith("python -m pytest") or ("pytest -q" in ln) for ln in normalized_steps_lower
+    has_git_step = any(
+        ln.startswith("git ") or "git " in ln for ln in normalized_steps_lower
     )
 
-    has_curl_trace_step = any(_is_actionable_curl_trace_line(ln) for ln in normalized_steps_lower)
+    has_pytest_step = any(
+        ln.startswith("python -m pytest") or ("pytest -q" in ln)
+        for ln in normalized_steps_lower
+    )
+
+    has_curl_trace_step = any(
+        _is_actionable_curl_trace_line(ln) for ln in normalized_steps_lower
+    )
 
     has_path = (
         re.search(r"(?i)\b(app/|tests/)[^\s\"']+", text) is not None
@@ -215,9 +224,13 @@ def validate_execution_only_output(text: str) -> None:
     if status_line == "סטטוס: SUCCESS":
         if not _has_required_exec_only_tech_payload(text):
             raise ExecutionOnlyViolation("invalid_format")
-        if not _has_required_exec_only_actionable_payload(full_text=text, steps_block=steps_block):
+        if not _has_required_exec_only_actionable_payload(
+            full_text=text, steps_block=steps_block
+        ):
             raise ExecutionOnlyViolation("invalid_format")
-    elif status_line == "סטטוס: BLOCKED" or status_line.startswith("סטטוס: BLOCKED | סיבה: "):
+    elif status_line == "סטטוס: BLOCKED" or status_line.startswith(
+        "סטטוס: BLOCKED | סיבה: "
+    ):
         pass
     else:
         raise ExecutionOnlyViolation("invalid_status")

@@ -10,10 +10,14 @@ def test_stream_target_net_overrides_default_15000(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for target-net cashflow routing")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

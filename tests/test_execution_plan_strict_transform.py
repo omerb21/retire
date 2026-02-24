@@ -89,7 +89,11 @@ def test_execution_plan_strict_transform_consumes_sources_and_skips_blocked(
         tax_treatment="taxable",
         deduction_file="A1",
         conversion_source=json.dumps(
-            {"source": "pension_portfolio", "type": "pension_portfolio", "account_number": "A1"},
+            {
+                "source": "pension_portfolio",
+                "type": "pension_portfolio",
+                "account_number": "A1",
+            },
             ensure_ascii=False,
         ),
     )
@@ -111,10 +115,16 @@ def test_execution_plan_strict_transform_consumes_sources_and_skips_blocked(
     )
     assert plan.get("success") is True, plan
     plan_res = plan.get("result") if isinstance(plan.get("result"), dict) else {}
-    execution_plan = plan_res.get("execution_plan") if isinstance(plan_res.get("execution_plan"), dict) else None
+    execution_plan = (
+        plan_res.get("execution_plan")
+        if isinstance(plan_res.get("execution_plan"), dict)
+        else None
+    )
     assert isinstance(execution_plan, dict)
     assert isinstance(execution_plan.get("accounts"), list)
-    assert float(execution_plan.get("expected_total_gross") or 0) <= float(execution_plan.get("target_gross") or 0)
+    assert float(execution_plan.get("expected_total_gross") or 0) <= float(
+        execution_plan.get("target_gross") or 0
+    )
 
     transform_res_raw = handle_transform_funds_to_assets(
         args={

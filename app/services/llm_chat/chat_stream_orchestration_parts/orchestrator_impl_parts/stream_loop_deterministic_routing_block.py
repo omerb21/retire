@@ -33,7 +33,7 @@ def _run_deterministic_routing_block(
     compute_analysis_default_retirement_age,
     maybe_handle_termination_deterministic,
     maybe_handle_approval_or_cancel_flow,
- ):
+):
     if not conceptual_tools_disabled:
         target_plan_response = maybe_handle_target_plan_deterministic(
             request=request,
@@ -137,24 +137,30 @@ def _run_deterministic_routing_block(
         is_portfolio_analysis=is_portfolio_analysis,
     )
 
-    termination_already_executed, termination_response = maybe_handle_termination_deterministic(
-        request=request,
-        db=db,
-        original_user_msg=original_user_msg,
-        explicit_termination=explicit_termination,
-        termination_change=termination_change,
-        no_tools_requested=no_tools_requested,
-        is_qa_mode=is_qa_mode,
-        wants_execute_target_plan=wants_execute_target_plan,
-        wants_fixation_execute=wants_fixation_execute,
-        computed_data=computed_data,
-        effective_portfolio=effective_portfolio,
-        force_max_exemption=force_max_exemption,
-        stream_request_id=stream_request_id,
-        is_portfolio_analysis=is_portfolio_analysis,
+    termination_already_executed, termination_response = (
+        maybe_handle_termination_deterministic(
+            request=request,
+            db=db,
+            original_user_msg=original_user_msg,
+            explicit_termination=explicit_termination,
+            termination_change=termination_change,
+            no_tools_requested=no_tools_requested,
+            is_qa_mode=is_qa_mode,
+            wants_execute_target_plan=wants_execute_target_plan,
+            wants_fixation_execute=wants_fixation_execute,
+            computed_data=computed_data,
+            effective_portfolio=effective_portfolio,
+            force_max_exemption=force_max_exemption,
+            stream_request_id=stream_request_id,
+            is_portfolio_analysis=is_portfolio_analysis,
+        )
     )
     if termination_response is not None:
-        return termination_response, analysis_default_retirement_age, termination_already_executed
+        return (
+            termination_response,
+            analysis_default_retirement_age,
+            termination_already_executed,
+        )
 
     approval_response = maybe_handle_approval_or_cancel_flow(
         request=request,
@@ -173,6 +179,10 @@ def _run_deterministic_routing_block(
         is_qa_mode=is_qa_mode,
     )
     if approval_response is not None:
-        return approval_response, analysis_default_retirement_age, termination_already_executed
+        return (
+            approval_response,
+            analysis_default_retirement_age,
+            termination_already_executed,
+        )
 
     return None, analysis_default_retirement_age, termination_already_executed

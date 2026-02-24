@@ -45,7 +45,9 @@ _TAX_SIMULATION_RE = re.compile(
 )
 
 
-def classify_intent(*, user_message: str, request: ChatRequest) -> tuple[IntentType, str]:
+def classify_intent(
+    *, user_message: str, request: ChatRequest
+) -> tuple[IntentType, str]:
     """Stage 3 introduces IntentType as the SSOT for operational intent.
 
     Existing ChatIntent remains unchanged and is still used for current tools gating.
@@ -66,39 +68,43 @@ def classify_intent(*, user_message: str, request: ChatRequest) -> tuple[IntentT
 
     lowered = text.lower()
 
-    if (
-        _SYSTEM_HEALTH_RE.search(lowered)
-        or any(tok in lowered for tok in ("אבחון", "תקלה", "בריאות מערכת", "שגיאה", "500"))
+    if _SYSTEM_HEALTH_RE.search(lowered) or any(
+        tok in lowered for tok in ("אבחון", "תקלה", "בריאות מערכת", "שגיאה", "500")
     ):
         return IntentType.SYSTEM_HEALTH, "regex:system_health"
 
-    if (
-        _DATA_REQUEST_RE.search(lowered)
-        or any(tok in lowered for tok in ("שלוף נתונים", "תראה לי", "החזר מצב לקוח", "רשימת קופות", "סטטוס תיק"))
+    if _DATA_REQUEST_RE.search(lowered) or any(
+        tok in lowered
+        for tok in (
+            "שלוף נתונים",
+            "תראה לי",
+            "החזר מצב לקוח",
+            "רשימת קופות",
+            "סטטוס תיק",
+        )
     ):
         return IntentType.DATA_REQUEST, "regex:data_request"
 
-    if (
-        _BUILD_TARGET_PLAN_RE.search(lowered)
-        or any(tok in lowered for tok in ("יעד קצבה", "יעד נטו", "בנה תכנית", "תכנית פרישה", "תוכנית פרישה"))
+    if _BUILD_TARGET_PLAN_RE.search(lowered) or any(
+        tok in lowered
+        for tok in ("יעד קצבה", "יעד נטו", "בנה תכנית", "תכנית פרישה", "תוכנית פרישה")
     ):
         return IntentType.BUILD_TARGET_PLAN, "regex:build_target_plan"
 
-    if (
-        _ADJUST_PLAN_RE.search(lowered)
-        or any(tok in lowered for tok in ("עדכן תכנית", "שנה יעד", "התאם", "כוון מחדש", "אופטימיזציה"))
+    if _ADJUST_PLAN_RE.search(lowered) or any(
+        tok in lowered
+        for tok in ("עדכן תכנית", "שנה יעד", "התאם", "כוון מחדש", "אופטימיזציה")
     ):
         return IntentType.ADJUST_PLAN, "regex:adjust_plan"
 
-    if (
-        _RUN_SCENARIO_RE.search(lowered)
-        or any(tok in lowered for tok in ("תרחיש", "עזיבת עבודה", "השוואה", "השווה", "סנריו"))
+    if _RUN_SCENARIO_RE.search(lowered) or any(
+        tok in lowered for tok in ("תרחיש", "עזיבת עבודה", "השוואה", "השווה", "סנריו")
     ):
         return IntentType.RUN_SCENARIO, "regex:run_scenario"
 
-    if (
-        _TAX_SIMULATION_RE.search(lowered)
-        or any(tok in lowered for tok in ("מס", "סימולציית מס", "מס על מענק", "מס על היוון", "מס על קצבה"))
+    if _TAX_SIMULATION_RE.search(lowered) or any(
+        tok in lowered
+        for tok in ("מס", "סימולציית מס", "מס על מענק", "מס על היוון", "מס על קצבה")
     ):
         return IntentType.TAX_SIMULATION, "regex:tax_simulation"
 

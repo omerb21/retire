@@ -1,6 +1,7 @@
 """
 Report data models for structured report information
 """
+
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 
 class ClientInfo(BaseModel):
     """Client information for report"""
+
     full_name: str
     id_number: str
     birth_date: str
@@ -18,6 +20,7 @@ class ClientInfo(BaseModel):
 
 class EmploymentInfo(BaseModel):
     """Employment information"""
+
     employer_name: str
     start_date: str
     end_date: str
@@ -27,6 +30,7 @@ class EmploymentInfo(BaseModel):
 
 class ScenarioSummary(BaseModel):
     """Scenario summary information"""
+
     id: int
     name: str
     created_at: str
@@ -40,6 +44,7 @@ class ScenarioSummary(BaseModel):
 
 class CaseInfo(BaseModel):
     """Case detection information"""
+
     id: int
     name: str
     display_name: str
@@ -48,6 +53,7 @@ class CaseInfo(BaseModel):
 
 class ReportMetadata(BaseModel):
     """Report metadata"""
+
     generated_at: str
     scenarios_count: int
     client_is_active: bool
@@ -55,6 +61,7 @@ class ReportMetadata(BaseModel):
 
 class SummaryData(BaseModel):
     """Complete summary data structure"""
+
     client_info: ClientInfo
     employment_info: List[EmploymentInfo]
     scenarios_summary: List[ScenarioSummary]
@@ -65,6 +72,7 @@ class SummaryData(BaseModel):
 
 class ReportData(BaseModel):
     """Main report data container"""
+
     client_id: int
     scenario_ids: List[int]
     summary: SummaryData

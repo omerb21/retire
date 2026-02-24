@@ -5,7 +5,9 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 
 
-def test_non_stream_transform_emits_pension_portfolio_update_marker(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_emits_pension_portfolio_update_marker(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "A-001",
@@ -74,7 +76,9 @@ def test_non_stream_transform_emits_pension_portfolio_update_marker(db_session, 
     assert tool_calls == ["TRANSFORM_FUNDS_TO_ASSETS"]
 
 
-def test_non_stream_marker_is_preserved_when_document_ui_action_added(db_session, client, monkeypatch) -> None:
+def test_non_stream_marker_is_preserved_when_document_ui_action_added(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "A-001",
@@ -156,11 +160,15 @@ def test_non_stream_marker_is_preserved_when_document_ui_action_added(db_session
 
     assert "###PENSION_PORTFOLIO_UPDATE###" in resp.reply
     assert "###UI_ACTION###" in resp.reply
-    assert resp.reply.index("###PENSION_PORTFOLIO_UPDATE###") < resp.reply.index("###UI_ACTION###")
+    assert resp.reply.index("###PENSION_PORTFOLIO_UPDATE###") < resp.reply.index(
+        "###UI_ACTION###"
+    )
     assert tool_calls == ["TRANSFORM_FUNDS_TO_ASSETS", "GENERATE_FULL_REPORT"]
 
 
-def test_non_stream_transform_portfolio_wide_after2000_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_portfolio_wide_after2000_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -242,13 +250,18 @@ def test_non_stream_transform_portfolio_wide_after2000_is_filtered(db_session, c
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_אחרי_2000", "תגמולי_מעביד_אחרי_2000"}
 
 
-def test_non_stream_transform_portfolio_wide_severance_after_settlement_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_portfolio_wide_severance_after_settlement_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -329,13 +342,18 @@ def test_non_stream_transform_portfolio_wide_severance_after_settlement_is_filte
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"פיצויים_לאחר_התחשבנות"}
 
 
-def test_non_stream_transform_targeted_account_to2000_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_targeted_account_to2000_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "494930",
@@ -409,7 +427,9 @@ def test_non_stream_transform_targeted_account_to2000_is_filtered(db_session, cl
     assert set(specific.keys()) == {"תגמולי_עובד_עד_2000", "תגמולי_מעביד_עד_2000"}
 
 
-def test_non_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -486,7 +506,10 @@ def test_non_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(db_
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-TO-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-TO-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_עד_2000", "תגמולי_מעביד_עד_2000"}
@@ -496,7 +519,9 @@ def test_non_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(db_
     assert set(str(v) for v in overrides.values()) == {"capital_asset"}
 
 
-def test_non_stream_transform_portfolio_wide_education_fund_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_portfolio_wide_education_fund_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -570,7 +595,10 @@ def test_non_stream_transform_portfolio_wide_education_fund_is_filtered(db_sessi
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "EDU-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "EDU-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"קרן_השתלמות"}
@@ -580,7 +608,9 @@ def test_non_stream_transform_portfolio_wide_education_fund_is_filtered(db_sessi
     assert set(str(v) for v in overrides.values()) == {"capital_asset"}
 
 
-def test_non_stream_transform_prev_employers_severance_katzba_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_prev_employers_severance_katzba_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "494930",
@@ -706,7 +736,11 @@ def test_non_stream_transform_prev_employers_severance_baatsa_merah_does_not_tri
     monkeypatch.setattr(chat_orchestration, "execute_tool_call", fake_execute_tool_call)
 
     req = ChatRequest(
-        messages=[ChatMessage(role="user", content="בצע המרה של פיצויים מעסיקים קודמים (קצבה)")],
+        messages=[
+            ChatMessage(
+                role="user", content="בצע המרה של פיצויים מעסיקים קודמים (קצבה)"
+            )
+        ],
         client_id=client.id,
         pension_portfolio=portfolio_accounts,
     )
@@ -776,7 +810,9 @@ def test_non_stream_transform_after_settlement_baatsa_merah_does_not_trigger_ter
     monkeypatch.setattr(chat_orchestration, "execute_tool_call", fake_execute_tool_call)
 
     req = ChatRequest(
-        messages=[ChatMessage(role="user", content="בצע המרה של פיצויים לאחר התחשבנות")],
+        messages=[
+            ChatMessage(role="user", content="בצע המרה של פיצויים לאחר התחשבנות")
+        ],
         client_id=client.id,
         pension_portfolio=portfolio_accounts,
     )
@@ -797,7 +833,9 @@ def test_non_stream_transform_after_settlement_baatsa_merah_does_not_trigger_ter
     assert overrides.get("פיצויים_לאחר_התחשבנות") == "capital_asset"
 
 
-def test_non_stream_transform_portfolio_wide_to2000_includes_all_accounts(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_portfolio_wide_to2000_includes_all_accounts(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "494930",
@@ -815,7 +853,10 @@ def test_non_stream_transform_portfolio_wide_to2000_includes_all_accounts(db_ses
             "סוג_מוצר": "פוליסת ביטוח",
             "יתרה": 100,
             "תאריך_התחלה": "1996-01-01",
-            "specific_amounts": {"תגמולי_עובד_עד_2000": 1.5, "תגמולי_מעביד_עד_2000": 2.5},
+            "specific_amounts": {
+                "תגמולי_עובד_עד_2000": 1.5,
+                "תגמולי_מעביד_עד_2000": 2.5,
+            },
         },
     ]
 
@@ -870,11 +911,15 @@ def test_non_stream_transform_portfolio_wide_to2000_includes_all_accounts(db_ses
     assert args.get("use_provided_accounts_only") is True
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
-    account_numbers = {str(a.get("account_number") or a.get("מספר_חשבון")) for a in accounts}
+    account_numbers = {
+        str(a.get("account_number") or a.get("מספר_חשבון")) for a in accounts
+    }
     assert account_numbers == {"494930", "6120158"}
 
 
-def test_non_stream_transform_portfolio_wide_to2000_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_portfolio_wide_to2000_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -956,7 +1001,10 @@ def test_non_stream_transform_portfolio_wide_to2000_is_filtered(db_session, clie
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-TO-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-TO-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_עד_2000", "תגמולי_מעביד_עד_2000"}
@@ -966,7 +1014,9 @@ def test_non_stream_transform_portfolio_wide_to2000_is_filtered(db_session, clie
     assert set(str(v) for v in overrides.values()) == {"capital_asset"}
 
 
-def test_non_stream_transform_prev_employers_severance_pension_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_prev_employers_severance_pension_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "A-111",
@@ -1051,7 +1101,9 @@ def test_non_stream_transform_prev_employers_severance_pension_is_filtered(db_se
     assert set(specific.keys()) == {"פיצויים_ממעסיקים_קודמים_רצף_קצבה"}
 
 
-def test_non_stream_transform_targeted_account_after2000_is_filtered(db_session, client, monkeypatch) -> None:
+def test_non_stream_transform_targeted_account_after2000_is_filtered(
+    db_session, client, monkeypatch
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "494930",
@@ -1132,7 +1184,10 @@ def test_non_stream_transform_targeted_account_after2000_is_filtered(db_session,
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "494930"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "494930"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_אחרי_2000", "תגמולי_מעביד_אחרי_2000"}

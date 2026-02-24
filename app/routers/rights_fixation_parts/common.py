@@ -17,7 +17,9 @@ from app.services.retirement_age_service import calc_eligibility_date
 logger = logging.getLogger(__name__)
 
 
-def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optional[FixationResult]:
+def calculate_and_save_fixation_for_client(
+    db: Session, client_id: int
+) -> Optional[FixationResult]:
     """Compute and persist rights fixation for a client using an existing DB session.
 
     This helper mirrors the logic of the /calculate and /save endpoints and is
@@ -26,7 +28,9 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
     """
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
-        logger.warning(f"Rights fixation: client {client_id} not found, skipping auto-fixation")
+        logger.warning(
+            f"Rights fixation: client {client_id} not found, skipping auto-fixation"
+        )
         return None
 
     grants = db.query(Grant).filter(Grant.client_id == client_id).all()
@@ -35,7 +39,11 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
     pension_start_date = get_effective_pension_start_date(db, client)
 
     # Determine statutory eligibility date (retirement date)
-    eligibility_date = calc_eligibility_date(client.birth_date, client.gender) if client.birth_date and client.gender else None
+    eligibility_date = (
+        calc_eligibility_date(client.birth_date, client.gender)
+        if client.birth_date and client.gender
+        else None
+    )
 
     # For internal flows (e.g. retirement scenarios) we always calculate and persist fixation,
     # even if the client is not yet "eligible" by today's date, so we deliberately
@@ -49,7 +57,11 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
     effective_eligibility_date: Optional[date] = None
     if eligibility_date:
         effective_eligibility_date = eligibility_date
-        if pension_start_date and effective_eligibility_date and pension_start_date > effective_eligibility_date:
+        if (
+            pension_start_date
+            and effective_eligibility_date
+            and pension_start_date > effective_eligibility_date
+        ):
             effective_eligibility_date = pension_start_date
 
     eligibility_date_to_use = effective_eligibility_date or eligibility_date or today
@@ -60,16 +72,26 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
         "grants": [
             {
                 "grant_amount": grant.grant_amount,
-                "work_start_date": grant.work_start_date.isoformat() if grant.work_start_date else None,
-                "work_end_date": grant.work_end_date.isoformat() if grant.work_end_date else None,
-                "grant_date": grant.grant_date.isoformat() if getattr(grant, "grant_date", None) else None,
+                "work_start_date": (
+                    grant.work_start_date.isoformat() if grant.work_start_date else None
+                ),
+                "work_end_date": (
+                    grant.work_end_date.isoformat() if grant.work_end_date else None
+                ),
+                "grant_date": (
+                    grant.grant_date.isoformat()
+                    if getattr(grant, "grant_date", None)
+                    else None
+                ),
                 "employer_name": grant.employer_name,
             }
             for grant in grants
         ],
         "eligibility_date": eligibility_date_to_use.isoformat(),
         "eligibility_year": eligibility_date_to_use.year,
-        "effective_pension_start_date": pension_start_date.isoformat() if pension_start_date else None,
+        "effective_pension_start_date": (
+            pension_start_date.isoformat() if pension_start_date else None
+        ),
     }
 
     logger.info("Rights fixation: calculating full fixation for client %s", client_id)
@@ -77,11 +99,17 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
 
     # If calculation failed, do not save a broken result
     if not isinstance(result, dict) or result.get("error"):
-        logger.error("Rights fixation: calculation failed for client %s with error: %s", client_id, result.get("error"))
+        logger.error(
+            "Rights fixation: calculation failed for client %s with error: %s",
+            client_id,
+            result.get("error"),
+        )
         return None
 
     exemption_summary = result.get("exemption_summary", {}) or {}
-    remaining_exempt_capital = exemption_summary.get("remaining_exempt_capital", 0) or 0.0
+    remaining_exempt_capital = (
+        exemption_summary.get("remaining_exempt_capital", 0) or 0.0
+    )
 
     # Upsert FixationResult for this client using the same semantics as /save
     existing = (
@@ -112,7 +140,11 @@ def calculate_and_save_fixation_for_client(db: Session, client_id: int) -> Optio
         db.add(fixation_record)
 
     db.flush()
-    logger.info("Rights fixation: auto-fixation saved for client %s (remaining_exempt_capital=%.2f)", client_id, remaining_exempt_capital)
+    logger.info(
+        "Rights fixation: auto-fixation saved for client %s (remaining_exempt_capital=%.2f)",
+        client_id,
+        remaining_exempt_capital,
+    )
     return fixation_record
 
 
@@ -132,15 +164,20 @@ def update_fixation_exempt_pension_fields(fixation: FixationResult) -> None:
         if not isinstance(exemption_summary, dict):
             exemption_summary = {}
 
-        exempt_capital_initial = float(exemption_summary.get("exempt_capital_initial") or 0.0)
-        remaining_exempt_capital = float(getattr(fixation, "exempt_capital_remaining", 0.0) or 0.0)
+        exempt_capital_initial = float(
+            exemption_summary.get("exempt_capital_initial") or 0.0
+        )
+        remaining_exempt_capital = float(
+            getattr(fixation, "exempt_capital_remaining", 0.0) or 0.0
+        )
 
-        eligibility_year = (
-            raw_result.get("eligibility_year")
-            or exemption_summary.get("eligibility_year")
+        eligibility_year = raw_result.get("eligibility_year") or exemption_summary.get(
+            "eligibility_year"
         )
         try:
-            eligibility_year_int = int(eligibility_year) if eligibility_year is not None else None
+            eligibility_year_int = (
+                int(eligibility_year) if eligibility_year is not None else None
+            )
         except (TypeError, ValueError):
             eligibility_year_int = None
 
@@ -158,8 +195,12 @@ def update_fixation_exempt_pension_fields(fixation: FixationResult) -> None:
 
         pension_ceiling = get_monthly_cap(eligibility_year_int)
         if pension_ceiling > 0:
-            exempt_pension_percentage = (remaining_exempt_capital / 180.0) / pension_ceiling
-            remaining_monthly_exemption = round(exempt_pension_percentage * pension_ceiling, 2)
+            exempt_pension_percentage = (
+                remaining_exempt_capital / 180.0
+            ) / pension_ceiling
+            remaining_monthly_exemption = round(
+                exempt_pension_percentage * pension_ceiling, 2
+            )
         else:
             exempt_pension_percentage = 0.0
             remaining_monthly_exemption = 0.0

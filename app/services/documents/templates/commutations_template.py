@@ -1,6 +1,7 @@
 """
 תבנית HTML לנספח היוונים
 """
+
 from typing import List
 import re
 from .styles import get_commutations_styles
@@ -9,17 +10,14 @@ from app.models.capital_asset import CapitalAsset
 
 class CommutationsHTMLTemplate:
     """תבנית HTML לנספח היוונים"""
-    
+
     def __init__(
-        self,
-        client_name: str,
-        client_id_number: str,
-        commutations: List[CapitalAsset]
+        self, client_name: str, client_id_number: str, commutations: List[CapitalAsset]
     ):
         self.client_name = client_name
         self.client_id_number = client_id_number
         self.commutations = commutations
-    
+
     def _build_header(self) -> str:
         """בניית כותרת"""
         return f"""
@@ -29,20 +27,24 @@ class CommutationsHTMLTemplate:
         <p><strong>תעודת זהות:</strong> {self.client_id_number}</p>
     </div>
 """
-    
+
     def _build_table(self) -> str:
         """בניית טבלת היוונים"""
         rows = ""
         total_amount = 0
-        
+
         for comm in self.commutations:
-            amount_match = re.search(r'amount=([\d.]+)', comm.remarks or '')
-            amount = float(amount_match.group(1)) if amount_match else (comm.current_value or 0)
-            
-            fund_name = comm.asset_name or comm.description or 'לא ידוע'
+            amount_match = re.search(r"amount=([\d.]+)", comm.remarks or "")
+            amount = (
+                float(amount_match.group(1))
+                if amount_match
+                else (comm.current_value or 0)
+            )
+
+            fund_name = comm.asset_name or comm.description or "לא ידוע"
             start_date = comm.start_date.strftime("%d/%m/%Y") if comm.start_date else ""
             tax_treatment = "פטור ממס" if comm.tax_treatment == "exempt" else "חייב במס"
-            
+
             rows += f"""
             <tr>
                 <td>{fund_name}</td>
@@ -53,7 +55,7 @@ class CommutationsHTMLTemplate:
             </tr>
 """
             total_amount += amount
-        
+
         return f"""
     <table>
         <thead>
@@ -75,7 +77,7 @@ class CommutationsHTMLTemplate:
         </tbody>
     </table>
 """
-    
+
     def render(self) -> str:
         """מייצר את ה-HTML המלא"""
         return f"""<!DOCTYPE html>

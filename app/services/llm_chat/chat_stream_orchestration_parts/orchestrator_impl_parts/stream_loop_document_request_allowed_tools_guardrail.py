@@ -12,10 +12,7 @@ def _maybe_guardrail_document_request_allowed_tools(
 ) -> bool:
     if is_doc_request and not is_qa_mode:
         allowed_doc_tools = {"GENERATE_FULL_REPORT"}
-        if (
-            isinstance(current_pension_portfolio, list)
-            and current_pension_portfolio
-        ):
+        if isinstance(current_pension_portfolio, list) and current_pension_portfolio:
             allowed_doc_tools.add("TRANSFORM_FUNDS_TO_ASSETS")
 
         if is_tax_doc_request:

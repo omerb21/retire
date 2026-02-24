@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Text, Index
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Boolean,
+    Text,
+    Index,
+)
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -27,7 +36,9 @@ class PublicChatSession(Base):
     is_active = Column(Boolean, nullable=False, default=True)
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     messages = relationship(
         "PublicChatMessage",
@@ -45,7 +56,9 @@ class PublicChatMessage(Base):
     __tablename__ = "public_chat_message"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(Integer, ForeignKey("public_chat_session.id"), nullable=False, index=True)
+    session_id = Column(
+        Integer, ForeignKey("public_chat_session.id"), nullable=False, index=True
+    )
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
 

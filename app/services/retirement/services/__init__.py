@@ -9,8 +9,8 @@ from .termination_service import TerminationService
 from .portfolio_import_service import PortfolioImportService
 
 __all__ = [
-    'StateService',
-    'ConversionService',
-    'TerminationService',
-    'PortfolioImportService'
+    "StateService",
+    "ConversionService",
+    "TerminationService",
+    "PortfolioImportService",
 ]

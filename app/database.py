@@ -1,12 +1,14 @@
 """
 Database configuration module for SQLAlchemy and connection management
 """
+
 import logging
 import os
 from sqlalchemy import create_engine
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
+
 
 # ---------------------------------------------------------------------------
 # Resolve the database URL.  In production we MUST connect to Postgres.
@@ -17,7 +19,8 @@ def _resolve_database_url() -> tuple[str, str]:
     # PLANNING_DATABASE_URL takes absolute priority if set
     planning_url = os.getenv("PLANNING_DATABASE_URL")
     if planning_url and (
-        planning_url.startswith("postgresql://") or planning_url.startswith("postgres://")
+        planning_url.startswith("postgresql://")
+        or planning_url.startswith("postgres://")
     ):
         return planning_url, "PLANNING_DATABASE_URL"
 
@@ -28,20 +31,25 @@ def _resolve_database_url() -> tuple[str, str]:
 
     try:
         from app.core.db_url import pick_db_url
+
         url, key = pick_db_url()
         return url, key
     except RuntimeError:
         # No valid Postgres URL anywhere → local dev fallback
         return "sqlite:///./retire.db", "sqlite_fallback"
 
+
 _db_url, _db_url_source = _resolve_database_url()
 DATABASE_URL = _db_url
 
 _startup_logger = logging.getLogger("app.database")
-_startup_logger.info("DB selected from=%s scheme=%s", _db_url_source, DATABASE_URL.split(":", 1)[0])
+_startup_logger.info(
+    "DB selected from=%s scheme=%s", _db_url_source, DATABASE_URL.split(":", 1)[0]
+)
 
 # Create base class for declarative models
 Base = declarative_base()
+
 
 def get_engine(url=None):
     """Get SQLAlchemy engine with proper configuration"""
@@ -86,9 +94,11 @@ def get_engine(url=None):
 
     return create_engine(url, connect_args=connect_args, **engine_kwargs)
 
+
 def setup_database(engine):
     """Setup database with proper mapper clearing"""
     from sqlalchemy.orm import clear_mappers
+
     clear_mappers()
     Base.metadata.create_all(bind=engine)
 
@@ -108,31 +118,60 @@ def ensure_client_public_chat_credit_schema(engine) -> None:
         dialect = (engine.dialect.name or "").lower()
 
         def add_column_sqlite(conn, col_name: str, col_type_sql: str):
-            conn.execute(text(f"ALTER TABLE client ADD COLUMN {col_name} {col_type_sql}"))
+            conn.execute(
+                text(f"ALTER TABLE client ADD COLUMN {col_name} {col_type_sql}")
+            )
 
         def add_column_postgres_like(conn, col_name: str, col_type_sql: str):
-            conn.execute(text(f"ALTER TABLE client ADD COLUMN IF NOT EXISTS {col_name} {col_type_sql}"))
+            conn.execute(
+                text(
+                    f"ALTER TABLE client ADD COLUMN IF NOT EXISTS {col_name} {col_type_sql}"
+                )
+            )
 
         with engine.begin() as conn:
-            add_column = add_column_sqlite if dialect == "sqlite" else add_column_postgres_like
+            add_column = (
+                add_column_sqlite if dialect == "sqlite" else add_column_postgres_like
+            )
 
             if "public_chat_token_balance" not in columns:
                 add_column(conn, "public_chat_token_balance", "INTEGER")
-                conn.execute(text("UPDATE client SET public_chat_token_balance = 0 WHERE public_chat_token_balance IS NULL"))
+                conn.execute(
+                    text(
+                        "UPDATE client SET public_chat_token_balance = 0 WHERE public_chat_token_balance IS NULL"
+                    )
+                )
 
             if "public_chat_tokens_spent" not in columns:
                 add_column(conn, "public_chat_tokens_spent", "INTEGER")
-                conn.execute(text("UPDATE client SET public_chat_tokens_spent = 0 WHERE public_chat_tokens_spent IS NULL"))
+                conn.execute(
+                    text(
+                        "UPDATE client SET public_chat_tokens_spent = 0 WHERE public_chat_tokens_spent IS NULL"
+                    )
+                )
 
             if "public_chat_credit_initialized" not in columns:
-                add_column(conn, "public_chat_credit_initialized", "BOOLEAN" if dialect != "sqlite" else "INTEGER")
+                add_column(
+                    conn,
+                    "public_chat_credit_initialized",
+                    "BOOLEAN" if dialect != "sqlite" else "INTEGER",
+                )
                 if dialect == "sqlite":
-                    conn.execute(text("UPDATE client SET public_chat_credit_initialized = 0 WHERE public_chat_credit_initialized IS NULL"))
+                    conn.execute(
+                        text(
+                            "UPDATE client SET public_chat_credit_initialized = 0 WHERE public_chat_credit_initialized IS NULL"
+                        )
+                    )
                 else:
-                    conn.execute(text("UPDATE client SET public_chat_credit_initialized = FALSE WHERE public_chat_credit_initialized IS NULL"))
+                    conn.execute(
+                        text(
+                            "UPDATE client SET public_chat_credit_initialized = FALSE WHERE public_chat_credit_initialized IS NULL"
+                        )
+                    )
     except Exception:
         # best-effort only; avoid breaking app startup
         return
+
 
 def ensure_agent_trace_event_schema(engine) -> None:
     """Best-effort migration: add is_truncated / payload_size to agent_trace_event."""
@@ -140,20 +179,38 @@ def ensure_agent_trace_event_schema(engine) -> None:
         inspector = inspect(engine)
         if "agent_trace_event" not in set(inspector.get_table_names() or []):
             return
-        columns = {c.get("name") for c in (inspector.get_columns("agent_trace_event") or [])}
+        columns = {
+            c.get("name") for c in (inspector.get_columns("agent_trace_event") or [])
+        }
         dialect = (engine.dialect.name or "").lower()
 
         with engine.begin() as conn:
             if "is_truncated" not in columns:
                 if dialect == "sqlite":
-                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN is_truncated INTEGER NOT NULL DEFAULT 0"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE agent_trace_event ADD COLUMN is_truncated INTEGER NOT NULL DEFAULT 0"
+                        )
+                    )
                 else:
-                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS is_truncated BOOLEAN NOT NULL DEFAULT FALSE"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS is_truncated BOOLEAN NOT NULL DEFAULT FALSE"
+                        )
+                    )
             if "payload_size" not in columns:
                 if dialect == "sqlite":
-                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN payload_size INTEGER"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE agent_trace_event ADD COLUMN payload_size INTEGER"
+                        )
+                    )
                 else:
-                    conn.execute(text("ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS payload_size INTEGER"))
+                    conn.execute(
+                        text(
+                            "ALTER TABLE agent_trace_event ADD COLUMN IF NOT EXISTS payload_size INTEGER"
+                        )
+                    )
     except Exception:
         return
 
@@ -169,7 +226,9 @@ def ensure_pension_funds_record_status_schema(engine) -> None:
         if "pension_funds" not in set(inspector.get_table_names() or []):
             return
 
-        columns = {c.get("name") for c in (inspector.get_columns("pension_funds") or [])}
+        columns = {
+            c.get("name") for c in (inspector.get_columns("pension_funds") or [])
+        }
         dialect = (engine.dialect.name or "").lower()
 
         with engine.begin() as conn:
@@ -230,10 +289,11 @@ except Exception:
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db():
     """
     Dependency for FastAPI to get database session
-    
+
     Yields:
         SQLAlchemy session
     """
@@ -242,5 +302,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-

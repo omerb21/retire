@@ -24,8 +24,12 @@ PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 logger = logging.getLogger("app.llm_chat")
 
 store_pending_approval_request = store_pending_approval_request
-load_latest_pension_portfolio_snapshot_models = load_latest_pension_portfolio_snapshot_models
-build_transform_accounts_from_target_plan_payload = build_transform_accounts_from_target_plan_payload
+load_latest_pension_portfolio_snapshot_models = (
+    load_latest_pension_portfolio_snapshot_models
+)
+build_transform_accounts_from_target_plan_payload = (
+    build_transform_accounts_from_target_plan_payload
+)
 
 __all__ = [
     "run_pension_chat_stream",

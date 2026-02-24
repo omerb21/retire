@@ -18,7 +18,11 @@ def _clean_account_name_for_transform(source_name: str | None) -> str:
 
 def build_transform_accounts_from_target_plan_payload(payload: dict) -> list[dict]:
     result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-    sources_used = result.get("sources_used") if isinstance(result.get("sources_used"), list) else []
+    sources_used = (
+        result.get("sources_used")
+        if isinstance(result.get("sources_used"), list)
+        else []
+    )
 
     required_gross = result.get("required_gross_for_target")
     if required_gross is None:

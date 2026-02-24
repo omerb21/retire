@@ -20,7 +20,7 @@ def _maybe_handle_requested_cashflow_calc(
     build_recent_state_banner,
     load_latest_pension_portfolio_snapshot_models,
     generate_cashflow,
- ):
+):
     if not (
         requested_cashflow_calc
         and (not commutation_intent)
@@ -43,7 +43,9 @@ def _maybe_handle_requested_cashflow_calc(
             portfolio_for_cashflow = effective_portfolio
 
             try:
-                loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+                loaded = load_latest_pension_portfolio_snapshot_models(
+                    db, request.client_id
+                )
                 if loaded is not None:
                     portfolio_for_cashflow, _snapshot_at = loaded
             except Exception:

@@ -11,7 +11,9 @@ from app.models.scenario import Scenario
 from app.services.snapshot_service import SnapshotService
 
 
-def test_debug_current_employer_endpoint_reports_fallback_flag(db_session, monkeypatch) -> None:
+def test_debug_current_employer_endpoint_reports_fallback_flag(
+    db_session, monkeypatch
+) -> None:
     monkeypatch.setenv("DEBUG_ENDPOINTS_ENABLED", "1")
     monkeypatch.setenv("ADMIN_DEBUG_TOKEN", "token")
 
@@ -55,7 +57,9 @@ def test_debug_current_employer_endpoint_reports_fallback_flag(db_session, monke
     assert body.get("used_fallback_expected_severance") is True
 
 
-def test_debug_latest_snapshot_exposes_employer_severance_field(db_session, monkeypatch) -> None:
+def test_debug_latest_snapshot_exposes_employer_severance_field(
+    db_session, monkeypatch
+) -> None:
     monkeypatch.setenv("DEBUG_ENDPOINTS_ENABLED", "1")
     monkeypatch.setenv("ADMIN_DEBUG_TOKEN", "token")
 

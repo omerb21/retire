@@ -4,14 +4,22 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_orchestration_plan_compensation_advice_runs_cashflow_tool_and_appends_summary(monkeypatch) -> None:
+def test_stream_orchestration_plan_compensation_advice_runs_cashflow_tool_and_appends_summary(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for compensation advice orchestration")
+        raise AssertionError(
+            "LLM must not be called for compensation advice orchestration"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("No tools should be executed for cashflow-only when no plan exists")
+        raise AssertionError(
+            "No tools should be executed for cashflow-only when no plan exists"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

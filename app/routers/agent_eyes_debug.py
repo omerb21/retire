@@ -26,6 +26,7 @@ router = APIRouter(prefix="/api/v1/agent-eyes", tags=["agent-eyes-debug"])
 # Auth dependency
 # ---------------------------------------------------------------------------
 
+
 def _check_enabled_and_auth(
     x_admin_token: Optional[str] = Header(None),
 ) -> None:
@@ -46,6 +47,7 @@ def _check_enabled_and_auth(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _row_to_dict(row: AgentTraceEvent) -> dict[str, Any]:
     payload_parsed: Any = None
@@ -69,6 +71,7 @@ def _row_to_dict(row: AgentTraceEvent) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # A) List recent traces
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/traces",
@@ -103,13 +106,17 @@ def list_traces(
 
     items = []
     for row in q.all():
-        items.append({
-            "trace_id": row.trace_id,
-            "last_event_at": row.last_event_at.isoformat() if row.last_event_at else None,
-            "events_count": row.events_count,
-            "client_id": row.client_id,
-            "endpoint": row.endpoint,
-        })
+        items.append(
+            {
+                "trace_id": row.trace_id,
+                "last_event_at": (
+                    row.last_event_at.isoformat() if row.last_event_at else None
+                ),
+                "events_count": row.events_count,
+                "client_id": row.client_id,
+                "endpoint": row.endpoint,
+            }
+        )
 
     return {"items": items}
 
@@ -117,6 +124,7 @@ def list_traces(
 # ---------------------------------------------------------------------------
 # B) Get events for a trace
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/traces/{trace_id}",
@@ -149,6 +157,7 @@ def get_trace_events(
 # ---------------------------------------------------------------------------
 # C) Delete a trace
 # ---------------------------------------------------------------------------
+
 
 @router.delete(
     "/traces/{trace_id}",

@@ -24,15 +24,21 @@ def test_explicit_get_client_snapshot_json_only(monkeypatch, _test_db) -> None:
 
     # Ensure the LLM is never called — if it is, the test fails.
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut")
+        raise AssertionError(
+            "LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     # Ensure client exists
     with Session() as db:
         client = db.query(Client).filter(Client.id == 1).first()
         if client is None:
-            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=1, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.commit()
 
@@ -60,21 +66,28 @@ def test_explicit_get_client_snapshot_json_only(monkeypatch, _test_db) -> None:
     assert "success" in parsed
 
 
-def test_explicit_get_client_snapshot_non_stream_json_only(monkeypatch, _test_db) -> None:
+def test_explicit_get_client_snapshot_non_stream_json_only(
+    monkeypatch, _test_db
+) -> None:
     """Same test but via the non-stream /pension-chat endpoint."""
     Session = _test_db["Session"]
 
     # Block LLM
     from app.services.llm_pension_agent_service import pension_llm_service
+
     def fake_chat(messages, client_id=None):
-        raise AssertionError("LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut")
+        raise AssertionError(
+            "LLM must NOT be called for explicit GET_CLIENT_SNAPSHOT shortcut"
+        )
 
     monkeypatch.setattr(pension_llm_service, "chat", fake_chat)
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == 1).first()
         if client is None:
-            client = Client(id=1, id_number_raw="1", id_number="1", full_name="Test User")
+            client = Client(
+                id=1, id_number_raw="1", id_number="1", full_name="Test User"
+            )
             db.add(client)
             db.commit()
 

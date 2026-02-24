@@ -36,7 +36,9 @@ def run_pre_tool_guard(
     except Exception:
         tools_enabled = True
 
-    if policy_decision is not None and (not bool(getattr(policy_decision, "tools_allowed", True))):
+    if policy_decision is not None and (
+        not bool(getattr(policy_decision, "tools_allowed", True))
+    ):
         return GuardResult(
             ok=False,
             error_code="TOOLS_NOT_ALLOWED",
@@ -50,7 +52,9 @@ def run_pre_tool_guard(
             error_code="TOOLS_NOT_ALLOWED",
             message="Tools are disabled for this request.",
             details={
-                "tools_disabled_reason": getattr(request, "tools_disabled_reason", None),
+                "tools_disabled_reason": getattr(
+                    request, "tools_disabled_reason", None
+                ),
             },
         )
 
@@ -59,7 +63,11 @@ def run_pre_tool_guard(
         from app.services.llm_chat.case_context import get_current_case_id
 
         case_id = get_current_case_id()
-        if case_id == "interactive_readonly" and (not bool(user_approved)) and tool_name in set(WRITE_TOOLS or set()):
+        if (
+            case_id == "interactive_readonly"
+            and (not bool(user_approved))
+            and tool_name in set(WRITE_TOOLS or set())
+        ):
             return GuardResult(
                 ok=False,
                 error_code="TOOL_NOT_ALLOWED",
@@ -80,17 +88,24 @@ def run_pre_tool_guard(
     return GuardResult(ok=True, error_code=None, message=None, details={})
 
 
-def build_blocked_tool_result(*, tool_name: str, error_code: str, message: str, details: dict) -> object:
+def build_blocked_tool_result(
+    *, tool_name: str, error_code: str, message: str, details: dict
+) -> object:
     detected_capability_id = "unknown"
     mode = "ACTION"
     try:
         from app.utils.trace_context import get_current_trace_id
-        from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+        from app.services.llm_chat.capability_router.runtime_context import (
+            get_router_decision,
+        )
 
         trace_id = get_current_trace_id()
         router_decision = get_router_decision(trace_id=trace_id)
         if router_decision is not None:
-            detected_capability_id = str(getattr(router_decision, "capability_id", None) or detected_capability_id)
+            detected_capability_id = str(
+                getattr(router_decision, "capability_id", None)
+                or detected_capability_id
+            )
             mode = str(getattr(router_decision, "mode", None) or mode)
     except Exception:
         pass

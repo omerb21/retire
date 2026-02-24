@@ -12,7 +12,9 @@ def _format_system_inventory_snapshot(tool_result: str) -> str:
         return tool_result
 
     counts = parsed.get("counts") if isinstance(parsed.get("counts"), dict) else {}
-    entities = parsed.get("entities") if isinstance(parsed.get("entities"), dict) else {}
+    entities = (
+        parsed.get("entities") if isinstance(parsed.get("entities"), dict) else {}
+    )
 
     def _count(name: str) -> int:
         try:
@@ -33,7 +35,9 @@ def _format_system_inventory_snapshot(tool_result: str) -> str:
     lines.append(f"- מעסיק נוכחי (CurrentEmployer): {_count('current_employers')}")
     lines.append(f"- מענקי מעסיק נוכחי (EmployerGrant): {_count('employer_grants')}")
     lines.append(f"- מענקים ממעסיקים קודמים (Grant legacy): {_count('legacy_grants')}")
-    lines.append(f"- אירועי עזיבת עבודה (TerminationEvent): {_count('termination_events')}")
+    lines.append(
+        f"- אירועי עזיבת עבודה (TerminationEvent): {_count('termination_events')}"
+    )
     lines.append(f"- קיבוע זכויות (FixationResult): {_count('fixation_results')}")
     lines.append(f"- קצבאות מערכת קיבוע ישנה (Pension): {_count('pensions')}")
     lines.append(f"- היוונים מערכת קיבוע ישנה (Commutation): {_count('commutations')}")

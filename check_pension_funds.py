@@ -1,18 +1,23 @@
 ﻿import sqlite3, os
 
-dbs = ['retire.db','retire-nuc.db','test_retire.db']
+dbs = ["retire.db", "retire-nuc.db", "test_retire.db"]
 
 for db in dbs:
     if not os.path.exists(db):
         continue
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("DB:", db)
 
     con = sqlite3.connect(db)
     cur = con.cursor()
 
-    tables = [r[0] for r in cur.execute("select name from sqlite_master where type='table' order by name").fetchall()]
+    tables = [
+        r[0]
+        for r in cur.execute(
+            "select name from sqlite_master where type='table' order by name"
+        ).fetchall()
+    ]
     print("tables_count=", len(tables))
     print("has_pension_funds=", "pension_funds" in tables)
 

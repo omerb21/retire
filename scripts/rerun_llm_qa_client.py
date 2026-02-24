@@ -7,7 +7,9 @@ from collections import Counter
 from typing import Any
 
 
-def _load_portfolio_from_llm_capital_assets(*, db_path: str, client_id: int) -> list[dict[str, Any]]:
+def _load_portfolio_from_llm_capital_assets(
+    *, db_path: str, client_id: int
+) -> list[dict[str, Any]]:
     con = sqlite3.connect(db_path)
     try:
         cur = con.cursor()
@@ -43,7 +45,7 @@ def _load_portfolio_from_llm_capital_assets(*, db_path: str, client_id: int) -> 
             accounts.append(
                 {
                     "מספר_חשבון": str(account_number),
-                    "שם_תכנית": meta.get("account_name") or "", 
+                    "שם_תכנית": meta.get("account_name") or "",
                     "חברה_מנהלת": meta.get("company") or "",
                     "סוג_מוצר": meta.get("product_type") or "",
                     "יתרה": balance or 0,
@@ -56,7 +58,9 @@ def _load_portfolio_from_llm_capital_assets(*, db_path: str, client_id: int) -> 
         con.close()
 
 
-def _load_portfolio_from_llm_pension_funds(*, db_path: str, client_id: int) -> list[dict[str, Any]]:
+def _load_portfolio_from_llm_pension_funds(
+    *, db_path: str, client_id: int
+) -> list[dict[str, Any]]:
     con = sqlite3.connect(db_path)
     try:
         cur = con.cursor()
@@ -187,13 +191,17 @@ def main() -> int:
 
     accounts_by_number: dict[str, dict[str, Any]] = {}
 
-    for acc in _load_portfolio_from_llm_capital_assets(db_path=args.db, client_id=args.client_id):
+    for acc in _load_portfolio_from_llm_capital_assets(
+        db_path=args.db, client_id=args.client_id
+    ):
         acc_no = str(acc.get("מספר_חשבון") or "").strip()
         if not acc_no:
             continue
         accounts_by_number[acc_no] = acc
 
-    for acc in _load_portfolio_from_llm_pension_funds(db_path=args.db, client_id=args.client_id):
+    for acc in _load_portfolio_from_llm_pension_funds(
+        db_path=args.db, client_id=args.client_id
+    ):
         acc_no = str(acc.get("מספר_חשבון") or "").strip()
         if not acc_no:
             continue

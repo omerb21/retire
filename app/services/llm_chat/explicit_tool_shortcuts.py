@@ -50,6 +50,7 @@ def _normalize_snapshot_intent_text(text: str) -> str:
     candidate = re.sub(r"\s+", " ", candidate)
     return candidate.strip()
 
+
 _JSON_ONLY_PHRASES = (
     "רק json",
     "json בלבד",
@@ -124,14 +125,19 @@ def is_natural_client_snapshot_request(text: str) -> bool:
     ):
         return True
 
-    if "סיכום" in normalized and any(anchor in lowered or anchor in normalized for anchor in _NATURAL_SNAPSHOT_SUMMARY_ANCHORS):
+    if "סיכום" in normalized and any(
+        anchor in lowered or anchor in normalized
+        for anchor in _NATURAL_SNAPSHOT_SUMMARY_ANCHORS
+    ):
         return True
 
     return False
 
 
 def is_client_snapshot_shortcut_request(text: str) -> bool:
-    return is_explicit_client_snapshot_request(text) or is_natural_client_snapshot_request(text)
+    return is_explicit_client_snapshot_request(
+        text
+    ) or is_natural_client_snapshot_request(text)
 
 
 def wants_json_only(text: str) -> bool:
@@ -165,9 +171,7 @@ def extract_first_json(text: str) -> Optional[str]:
     return None
 
 
-def build_client_snapshot_tool_result(
-    *, client_id: int, db: Session
-) -> dict:
+def build_client_snapshot_tool_result(*, client_id: int, db: Session) -> dict:
     """Execute GET_CLIENT_SNAPSHOT deterministically (no LLM) and return
     the parsed result dict.
 

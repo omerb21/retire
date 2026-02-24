@@ -2,6 +2,7 @@
 Termination event handling service
 שירות טיפול באירועי עזיבת עבודה
 """
+
 import logging
 import json
 from datetime import date
@@ -15,8 +16,12 @@ from app.models.termination_event import TerminationEvent
 from app.models.current_employment import CurrentEmployer
 from app.models.current_employment import EmployerGrant
 from app.models.current_employment.enums import GrantType
-from app.services.current_employer.termination import TerminationService as CurrentEmployerTerminationService
-from app.services.current_employer.employment import EmploymentService as CurrentEmployerEmploymentService
+from app.services.current_employer.termination import (
+    TerminationService as CurrentEmployerTerminationService,
+)
+from app.services.current_employer.employment import (
+    EmploymentService as CurrentEmployerEmploymentService,
+)
 from app.services.current_employer_service import CurrentEmployerService
 from app.schemas.current_employer import TerminationDecisionCreate
 from app.services.tax_data import TaxDataService
@@ -28,7 +33,7 @@ logger = logging.getLogger("app.scenarios.termination")
 
 class TerminationService:
     """שירות לטיפול באירועי עזיבת עבודה"""
-    
+
     def __init__(
         self,
         db: Session,
@@ -42,13 +47,13 @@ class TerminationService:
         self.retirement_age = retirement_age
         self.add_action = add_action_callback
         self.use_current_employer_termination = use_current_employer_termination
-    
+
     def _get_retirement_year(self, client: Client) -> int:
         """מחשב שנת פרישה"""
         if not client.birth_date:
             raise ValueError("תאריך לידה חסר")
         return client.birth_date.year + self.retirement_age
-    
+
     def _calculate_max_spread_years(self, service_years: float) -> int:
         """חישוב שנות פריסת מס מקסימליות לפי שנות ותק (כמו בפרונט)"""
         if service_years >= 22:
@@ -64,7 +69,7 @@ class TerminationService:
         if service_years >= 2:
             return 1
         return 0
-    
+
     def _calculate_severance_breakdown(
         self,
         employer: CurrentEmployer,
@@ -132,7 +137,9 @@ class TerminationService:
 
         termination_year = termination_date.year
         try:
-            monthly_cap = float(TaxDataService.get_current_severance_cap(termination_year))
+            monthly_cap = float(
+                TaxDataService.get_current_severance_cap(termination_year)
+            )
         except Exception as e:
             logger.warning(
                 "  ⚠️ Failed to get severance cap for year %s: %s, using fallback 13,750",
@@ -234,12 +241,16 @@ class TerminationService:
             return
 
         try:
-            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(self.client_id)
+            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(
+                self.client_id
+            )
         except Exception:
             current_employer = None
 
         if not current_employer:
-            logger.info("  ℹ️ No current employer found for scenario termination, skipping")
+            logger.info(
+                "  ℹ️ No current employer found for scenario termination, skipping"
+            )
             return
 
         # קביעת תאריך עזיבה: אם המשתמש הגדיר end_date במסך מעסיק נוכחי, זה מקור האמת.
@@ -255,7 +266,11 @@ class TerminationService:
                 getattr(current_employer, "end_date", None),
                 scenario_fallback_date,
                 termination_date,
-                "employer_end_date" if current_employer.end_date else "scenario_fallback",
+                (
+                    "employer_end_date"
+                    if current_employer.end_date
+                    else "scenario_fallback"
+                ),
             )
         except Exception as e:
             logger.warning(
@@ -275,7 +290,9 @@ class TerminationService:
         )
 
         if not decision:
-            logger.info("  ℹ️ Scenario termination decision could not be built, skipping")
+            logger.info(
+                "  ℹ️ Scenario termination decision could not be built, skipping"
+            )
             return
 
         termination_service = CurrentEmployerTerminationService(self.db)
@@ -303,13 +320,17 @@ class TerminationService:
     def handle_termination_for_pension(self) -> None:
         """טיפול בעזיבת עבודה - בחירה בקצבה"""
         # ננסה קודם למצוא אירוע עזיבה (זרימה ישנה) – אך הלוגיקה מבוססת תמיד על CurrentEmployer + EmployerGrant
-        termination = self.db.query(TerminationEvent).filter(
-            TerminationEvent.client_id == self.client_id
-        ).first()
+        termination = (
+            self.db.query(TerminationEvent)
+            .filter(TerminationEvent.client_id == self.client_id)
+            .first()
+        )
 
         # מציאת מעביד נוכחי/אחרון עבור הלקוח (תומך גם בזרימה החדשה של מעסיק נוכחי)
         try:
-            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(self.client_id)
+            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(
+                self.client_id
+            )
         except Exception:
             current_employer = None
 
@@ -318,10 +339,14 @@ class TerminationService:
             return
 
         # מציאת כל מענקי הפיצויים של המעביד הנוכחי
-        grants = self.db.query(EmployerGrant).filter(
-            EmployerGrant.employer_id == current_employer.id,
-            EmployerGrant.grant_type == GrantType.severance
-        ).all()
+        grants = (
+            self.db.query(EmployerGrant)
+            .filter(
+                EmployerGrant.employer_id == current_employer.id,
+                EmployerGrant.grant_type == GrantType.severance,
+            )
+            .all()
+        )
 
         if not grants:
             logger.info("  ℹ️ No severance grants found for termination")
@@ -357,17 +382,21 @@ class TerminationService:
 
         logger.info(f"  🎯 Total pensions created: {total_pensions_created}")
         self.db.flush()
-    
+
     def handle_termination_for_capital(self) -> None:
         """טיפול בעזיבת עבודה - בחירה בהון"""
         # ננסה קודם למצוא אירוע עזיבה (אם קיים), אך נבסס את ההיוון על CurrentEmployer + EmployerGrant
-        termination = self.db.query(TerminationEvent).filter(
-            TerminationEvent.client_id == self.client_id
-        ).first()
+        termination = (
+            self.db.query(TerminationEvent)
+            .filter(TerminationEvent.client_id == self.client_id)
+            .first()
+        )
 
         # מציאת מעביד נוכחי/אחרון עבור הלקוח
         try:
-            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(self.client_id)
+            current_employer = CurrentEmployerEmploymentService(self.db).get_employer(
+                self.client_id
+            )
         except Exception:
             current_employer = None
 
@@ -376,10 +405,14 @@ class TerminationService:
             return
 
         # מציאת כל מענקי הפיצויים של המעביד הנוכחי
-        grants = self.db.query(EmployerGrant).filter(
-            EmployerGrant.employer_id == current_employer.id,
-            EmployerGrant.grant_type == GrantType.severance
-        ).all()
+        grants = (
+            self.db.query(EmployerGrant)
+            .filter(
+                EmployerGrant.employer_id == current_employer.id,
+                EmployerGrant.grant_type == GrantType.severance,
+            )
+            .all()
+        )
 
         if not grants:
             logger.info("  ℹ️ No severance grants found for termination")
@@ -413,7 +446,7 @@ class TerminationService:
 
         logger.info(f"  🎯 Total capital assets created: {total_assets_created}")
         self.db.flush()
-    
+
     def _group_grants_by_plan(self, grants):
         """קיבוץ מענקים לפי תכנית"""
         grants_by_plan = {}
@@ -422,66 +455,84 @@ class TerminationService:
                 plan_key = grant.plan_name or "ללא תכנית"
                 if plan_key not in grants_by_plan:
                     grants_by_plan[plan_key] = {
-                        'grants': [],
-                        'plan_start_date': grant.plan_start_date,
-                        'plan_name': grant.plan_name,
-                        'product_type': grant.product_type
+                        "grants": [],
+                        "plan_start_date": grant.plan_start_date,
+                        "plan_name": grant.plan_name,
+                        "product_type": grant.product_type,
                     }
-                grants_by_plan[plan_key]['grants'].append(grant)
+                grants_by_plan[plan_key]["grants"].append(grant)
         return grants_by_plan
-    
-    def _create_pension_from_plan(self, plan_data, current_employer, client, pension_start_date, termination_id):
+
+    def _create_pension_from_plan(
+        self, plan_data, current_employer, client, pension_start_date, termination_id
+    ):
         """יצירת קצבה מתכנית"""
-        plan_grants = plan_data['grants']
-        plan_start_date = plan_data['plan_start_date']
-        plan_name = plan_data['plan_name'] or "תכנית ללא שם"
-        product_type = plan_data.get('product_type') or 'ביטוח מנהלים'
-        
+        plan_grants = plan_data["grants"]
+        plan_start_date = plan_data["plan_start_date"]
+        plan_name = plan_data["plan_name"] or "תכנית ללא שם"
+        product_type = plan_data.get("product_type") or "ביטוח מנהלים"
+
         # חישוב סכומים לתכנית זו
         plan_severance = 0
         plan_exempt = 0
-        
+
         for grant in plan_grants:
             calc_result = CurrentEmployerService.calculate_severance_grant(
                 current_employer, grant
             )
             plan_severance += calc_result.indexed_amount
             plan_exempt += calc_result.grant_exempt
-            logger.info(f"    💰 Grant for {plan_name}: {grant.grant_amount} ₪ (Exempt: {calc_result.grant_exempt:,.0f}, Taxable: {calc_result.grant_taxable:,.0f})")
-        
+            logger.info(
+                f"    💰 Grant for {plan_name}: {grant.grant_amount} ₪ (Exempt: {calc_result.grant_exempt:,.0f}, Taxable: {calc_result.grant_taxable:,.0f})"
+            )
+
         if plan_severance == 0:
             logger.info(f"  ℹ️ No severance amount for plan {plan_name}")
             return False
-        
+
         # חישוב מקדם קצבה דינמי
         try:
-            logger.info(f"  📊 Calculating coefficient for {plan_name}: product_type='{product_type}'")
+            logger.info(
+                f"  📊 Calculating coefficient for {plan_name}: product_type='{product_type}'"
+            )
             coefficient_result = get_annuity_coefficient(
                 product_type=product_type,
-                start_date=plan_start_date if plan_start_date else (current_employer.start_date if current_employer.start_date else date.today()),
-                gender=client.gender if client else 'זכר',
+                start_date=(
+                    plan_start_date
+                    if plan_start_date
+                    else (
+                        current_employer.start_date
+                        if current_employer.start_date
+                        else date.today()
+                    )
+                ),
+                gender=client.gender if client else "זכר",
                 retirement_age=self.retirement_age,
-                survivors_option='תקנוני',
+                survivors_option="תקנוני",
                 spouse_age_diff=0,
                 birth_date=client.birth_date if client else None,
-                pension_start_date=pension_start_date
+                pension_start_date=pension_start_date,
             )
-            annuity_factor = coefficient_result['factor_value']
-            factor_source = coefficient_result['source_table']
-            logger.info(f"  📊 Dynamic annuity coefficient for {plan_name}: {annuity_factor} (source: {factor_source})")
+            annuity_factor = coefficient_result["factor_value"]
+            factor_source = coefficient_result["source_table"]
+            logger.info(
+                f"  📊 Dynamic annuity coefficient for {plan_name}: {annuity_factor} (source: {factor_source})"
+            )
         except Exception as e:
-            logger.warning(f"  ⚠️ Failed to calculate dynamic coefficient for {plan_name}: {e}, using default {PENSION_COEFFICIENT}")
+            logger.warning(
+                f"  ⚠️ Failed to calculate dynamic coefficient for {plan_name}: {e}, using default {PENSION_COEFFICIENT}"
+            )
             annuity_factor = PENSION_COEFFICIENT
             factor_source = "default"
-        
+
         # חישוב קצבה
         pension_amount = plan_severance / annuity_factor
-        
+
         # קביעת יחס מס
         exempt_ratio = plan_exempt / plan_severance if plan_severance > 0 else 0
         tax_treatment = "exempt" if exempt_ratio > 0.8 else "taxable"
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
-        
+
         pf = PensionFund(
             client_id=self.client_id,
             fund_name=f"קצבה מפיצויי פרישה - {plan_name}",
@@ -494,60 +545,71 @@ class TerminationService:
             indexation_method="none",
             tax_treatment=tax_treatment,
             remarks=f"תכנית: {plan_name}\nמקדם קצבה: {annuity_factor:.2f} (מקור: {factor_source})\nתאריך התחלת תכנית: {plan_start_date.strftime('%d/%m/%Y') if plan_start_date else 'לא ידוע'}",
-            conversion_source=json.dumps({
-                "source": "termination_event",
-                "termination_id": termination_id,
-                "employer_id": current_employer.id,
-                "plan_name": plan_name,
-                "plan_start_date": plan_start_date.isoformat() if plan_start_date else None,
-                "plan_severance": plan_severance,
-                "plan_exempt": plan_exempt,
-                "annuity_factor": annuity_factor,
-                "factor_source": factor_source
-            }, ensure_ascii=False)
+            conversion_source=json.dumps(
+                {
+                    "source": "termination_event",
+                    "termination_id": termination_id,
+                    "employer_id": current_employer.id,
+                    "plan_name": plan_name,
+                    "plan_start_date": (
+                        plan_start_date.isoformat() if plan_start_date else None
+                    ),
+                    "plan_severance": plan_severance,
+                    "plan_exempt": plan_exempt,
+                    "annuity_factor": annuity_factor,
+                    "factor_source": factor_source,
+                },
+                ensure_ascii=False,
+            ),
         )
         self.db.add(pf)
-        
-        logger.info(f"  ✅ Created pension for {plan_name}: {pension_amount:,.0f} ₪/month ({tax_status})")
-        
+
+        logger.info(
+            f"  ✅ Created pension for {plan_name}: {pension_amount:,.0f} ₪/month ({tax_status})"
+        )
+
         if self.add_action:
             self.add_action(
                 "conversion",
                 f"המרת פיצויי פרישה לקצבה - {plan_name} ({tax_status})",
                 from_asset=f"פיצויים מ-{plan_name}: {plan_severance:,.0f} ₪ (פטור: {plan_exempt:,.0f})",
                 to_asset=f"קצבה: {pension_amount:,.0f} ₪/חודש ({tax_status})",
-                amount=plan_severance
+                amount=plan_severance,
             )
-        
+
         return True
-    
-    def _create_capital_from_plan(self, plan_data, current_employer, retirement_year, termination_id):
+
+    def _create_capital_from_plan(
+        self, plan_data, current_employer, retirement_year, termination_id
+    ):
         """יצירת נכס הון מתכנית"""
-        plan_grants = plan_data['grants']
-        plan_start_date = plan_data['plan_start_date']
-        plan_name = plan_data['plan_name'] or "תכנית ללא שם"
-        
+        plan_grants = plan_data["grants"]
+        plan_start_date = plan_data["plan_start_date"]
+        plan_name = plan_data["plan_name"] or "תכנית ללא שם"
+
         # חישוב סכומים לתכנית זו
         plan_severance = 0
         plan_exempt = 0
-        
+
         for grant in plan_grants:
             calc_result = CurrentEmployerService.calculate_severance_grant(
                 current_employer, grant
             )
             plan_severance += calc_result.indexed_amount
             plan_exempt += calc_result.grant_exempt
-            logger.info(f"    💰 Grant for {plan_name}: {grant.grant_amount} ₪ (Exempt: {calc_result.grant_exempt:,.0f}, Taxable: {calc_result.grant_taxable:,.0f})")
-        
+            logger.info(
+                f"    💰 Grant for {plan_name}: {grant.grant_amount} ₪ (Exempt: {calc_result.grant_exempt:,.0f}, Taxable: {calc_result.grant_taxable:,.0f})"
+            )
+
         if plan_severance == 0:
             logger.info(f"  ℹ️ No severance amount for plan {plan_name}")
             return False
-        
+
         # קביעת יחס מס
         exempt_ratio = plan_exempt / plan_severance if plan_severance > 0 else 0
         tax_treatment = "exempt" if exempt_ratio > 0.8 else "taxable"
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
-        
+
         ca = CapitalAsset(
             client_id=self.client_id,
             asset_name=f"פיצויי פרישה - {plan_name}",
@@ -559,28 +621,35 @@ class TerminationService:
             start_date=date(retirement_year, 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
-            conversion_source=json.dumps({
-                "source": "scenario_conversion",
-                "scenario_type": "retirement",
-                "termination_id": termination_id,
-                "employer_id": current_employer.id,
-                "plan_name": plan_name,
-                "plan_start_date": plan_start_date.isoformat() if plan_start_date else None,
-                "plan_severance": plan_severance,
-                "plan_exempt": plan_exempt
-            }, ensure_ascii=False)
+            conversion_source=json.dumps(
+                {
+                    "source": "scenario_conversion",
+                    "scenario_type": "retirement",
+                    "termination_id": termination_id,
+                    "employer_id": current_employer.id,
+                    "plan_name": plan_name,
+                    "plan_start_date": (
+                        plan_start_date.isoformat() if plan_start_date else None
+                    ),
+                    "plan_severance": plan_severance,
+                    "plan_exempt": plan_exempt,
+                },
+                ensure_ascii=False,
+            ),
         )
         self.db.add(ca)
-        
-        logger.info(f"  ✅ Created capital asset for {plan_name}: {plan_severance:,.0f} ₪ ({tax_status})")
-        
+
+        logger.info(
+            f"  ✅ Created capital asset for {plan_name}: {plan_severance:,.0f} ₪ ({tax_status})"
+        )
+
         if self.add_action:
             self.add_action(
                 "conversion",
                 f"שמירת פיצויי פרישה כנכס הוני - {plan_name} ({tax_status})",
                 from_asset=f"פיצויים מ-{plan_name}: {plan_severance:,.0f} ₪ (פטור: {plan_exempt:,.0f})",
                 to_asset=f"הון: {plan_severance:,.0f} ₪ ({tax_status})",
-                amount=plan_severance
+                amount=plan_severance,
             )
-        
+
         return True

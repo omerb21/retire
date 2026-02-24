@@ -6,6 +6,7 @@ Usage:
     from app.services.pension_fund_maintenance import fix_zeroed_monthly_pensions
     result = fix_zeroed_monthly_pensions(db)
 """
+
 import logging
 from typing import Any
 

@@ -8,9 +8,13 @@ from app.main import app
 
 def test_stream_pending_approval_replay_execute_scenario(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic max-capital routing")
+        raise AssertionError(
+            "LLM must not be called for deterministic max-capital routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 

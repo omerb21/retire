@@ -2,8 +2,12 @@ import json
 
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
-from app.services.retirement.utils.capital_utils import create_capital_asset_from_pension
-from app.services.retirement.utils.pension_utils import convert_education_fund_to_capital
+from app.services.retirement.utils.capital_utils import (
+    create_capital_asset_from_pension,
+)
+from app.services.retirement.utils.pension_utils import (
+    convert_education_fund_to_capital,
+)
 
 
 def test_scenario_conversion_commutation_asset_is_lump_sum(db_session, client) -> None:
@@ -61,7 +65,9 @@ def test_scenario_conversion_commutation_asset_is_lump_sum(db_session, client) -
     assert created.payment_frequency == "annually"
 
 
-def test_scenario_conversion_education_fund_asset_current_value_equals_original_balance(db_session, client) -> None:
+def test_scenario_conversion_education_fund_asset_current_value_equals_original_balance(
+    db_session, client
+) -> None:
     ef = PensionFund(
         client_id=client.id,
         fund_name="Scenario Education Fund",

@@ -13,13 +13,18 @@ from app.services.llm_chat.message_utils import (
     find_last_user_message,
     is_user_approval_intent_text,
 )
-from app.services.llm_chat.orchestration_utils import extract_process_termination_choice_overrides
+from app.services.llm_chat.orchestration_utils import (
+    extract_process_termination_choice_overrides,
+)
 
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     clear_pending_build_target_plan_after_termination,
 )
 
-from ..stream_approval_generators import generate_approval_exec, generate_execute_target_after_termination
+from ..stream_approval_generators import (
+    generate_approval_exec,
+    generate_execute_target_after_termination,
+)
 
 
 def _maybe_handle_approval_or_cancel_flow(
@@ -51,7 +56,11 @@ def _maybe_handle_approval_or_cancel_flow(
             pending_db = None
 
         last_user_text = find_last_user_message(request.messages)
-        if pending_db is not None and isinstance(last_user_text, str) and last_user_text:
+        if (
+            pending_db is not None
+            and isinstance(last_user_text, str)
+            and last_user_text
+        ):
             try:
                 if "###USER_APPROVED###" in last_user_text:
                     after = last_user_text.split("###USER_APPROVED###", 1)[1].strip()
@@ -226,7 +235,11 @@ def _maybe_handle_approval_or_cancel_flow(
         except Exception:
             pass
         return StreamingResponse(
-            iter([f"בוצעה ביטול להפעלת הכלי: {cancelled_tool_name}. לא בוצע שינוי במערכת."]),
+            iter(
+                [
+                    f"בוצעה ביטול להפעלת הכלי: {cancelled_tool_name}. לא בוצע שינוי במערכת."
+                ]
+            ),
             media_type="text/plain",
         )
 

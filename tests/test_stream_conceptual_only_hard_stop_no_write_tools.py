@@ -5,14 +5,20 @@ import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_p
 from app.main import app
 
 
-def test_stream_conceptual_only_request_does_not_execute_write_tools(monkeypatch) -> None:
+def test_stream_conceptual_only_request_does_not_execute_write_tools(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "זו תשובה מושגית בלבד."
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked for conceptual-only requests")
+        raise AssertionError(
+            "execute_tool_call must not be invoked for conceptual-only requests"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
     monkeypatch.setattr(stream_loop, "_execute_tool_call", fake_execute_tool_call)

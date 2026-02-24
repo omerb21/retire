@@ -12,7 +12,9 @@ from typing import Any
 from app.services.retirement_age_service import get_retirement_date
 
 try:
-    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+    from app.services.retirement_age_service import (
+        DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK,
+    )
 except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
@@ -28,7 +30,9 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
 )
 
 
-def extract_explicit_gender_and_age_from_text(user_message: str | None) -> tuple[str | None, int | None]:
+def extract_explicit_gender_and_age_from_text(
+    user_message: str | None,
+) -> tuple[str | None, int | None]:
     if not user_message:
         return None, None
 
@@ -157,6 +161,7 @@ def extract_relative_retirement_years_from_text(user_message: str | None) -> int
         return None
     return years
 
+
 def extract_desired_monthly_income_from_text(user_message: str | None) -> float | None:
     if not user_message:
         return None
@@ -166,7 +171,12 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
     if not lowered.strip():
         return None
 
-    if "תזרים" not in lowered and "cashflow" not in lowered and "הכנסה" not in lowered and "בחודש" not in lowered:
+    if (
+        "תזרים" not in lowered
+        and "cashflow" not in lowered
+        and "הכנסה" not in lowered
+        and "בחודש" not in lowered
+    ):
         return None
 
     cleaned = re.sub(r"[^0-9\s,\.₪\u0590-\u05FF\"']", " ", text)
@@ -180,8 +190,15 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
             return False
         if n not in {2000, 2008}:
             return False
-        window = lowered_clean[max(0, start_idx - 8) : min(len(lowered_clean), start_idx + 8)]
-        return ("אחרי" in window) or ("עד" in window) or ("before" in window) or ("after" in window)
+        window = lowered_clean[
+            max(0, start_idx - 8) : min(len(lowered_clean), start_idx + 8)
+        ]
+        return (
+            ("אחרי" in window)
+            or ("עד" in window)
+            or ("before" in window)
+            or ("after" in window)
+        )
 
     amount_hints = (
         "₪",
@@ -201,7 +218,9 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
 
     # Support common shorthand: "40 אלף" / "40k".
     # We treat these as explicit user-provided amounts (not estimates).
-    for m in re.finditer(r"\b(\d{1,3})\s*(?:אלף|k)\b", lowered_clean, flags=re.IGNORECASE):
+    for m in re.finditer(
+        r"\b(\d{1,3})\s*(?:אלף|k)\b", lowered_clean, flags=re.IGNORECASE
+    ):
         raw_num = str(m.group(1) or "").strip()
         start = int(m.start(1))
         if not raw_num:
@@ -242,6 +261,7 @@ def extract_desired_monthly_income_from_text(user_message: str | None) -> float 
 
     return None
 
+
 def parse_portfolio_wide_prev_employers_severance_conversion_request(
     user_message: str | None,
 ) -> tuple[list[str], str] | None:
@@ -273,7 +293,11 @@ def parse_portfolio_wide_prev_employers_severance_conversion_request(
         return None
     if ("מעסיק" not in lowered) and ("קודמ" not in lowered):
         return None
-    if ("קודמ" not in lowered) and ("previous" not in lowered) and ("prev" not in lowered):
+    if (
+        ("קודמ" not in lowered)
+        and ("previous" not in lowered)
+        and ("prev" not in lowered)
+    ):
         return None
 
     # If user explicitly refers to rights sequence, do not auto-run conversion.
@@ -288,6 +312,7 @@ def parse_portfolio_wide_prev_employers_severance_conversion_request(
 
     # Default for ambiguous "מעסיקים קודמים": treat as 'רצף קצבה' (convertible).
     return ["פיצויים_ממעסיקים_קודמים_רצף_קצבה"], "pension"
+
 
 def parse_portfolio_wide_after_settlement_severance_conversion_request(
     user_message: str | None,
@@ -309,6 +334,7 @@ def parse_portfolio_wide_after_settlement_severance_conversion_request(
         return None
 
     return ["פיצויים_לאחר_התחשבנות"], "capital_asset"
+
 
 def extract_process_termination_choice_overrides(user_message: str) -> dict[str, Any]:
     if not isinstance(user_message, str) or not user_message.strip():
@@ -359,21 +385,31 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
         )
     )
     has_lump_sum_intent = any(t in lowered for t in lump_sum_tokens)
-    has_any_grant_term = ("פיצויים" in lowered) or ("מענק" in lowered) or ("מענקים" in lowered)
+    has_any_grant_term = (
+        ("פיצויים" in lowered) or ("מענק" in lowered) or ("מענקים" in lowered)
+    )
 
     if "exempt_choice" not in overrides:
-        if any(t in lowered for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")) and any(
+        if any(
+            t in lowered for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")
+        ) and any(
             t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")
         ):
             overrides["exempt_choice"] = "redeem_with_exemption"
 
     if "taxable_choice" not in overrides:
         if ("חייב" in lowered or "חייב במס" in lowered) and (
-            "רצף קצבה" in lowered or ("לקצבה" in lowered) or re.search(r"\bכ?קצבה\b", lowered)
+            "רצף קצבה" in lowered
+            or ("לקצבה" in lowered)
+            or re.search(r"\bכ?קצבה\b", lowered)
         ):
             overrides["taxable_choice"] = "annuity"
 
-    if has_any_grant_term and has_lump_sum_intent and (not any(t in lowered for t in annuity_tokens) or has_no_annuity_intent):
+    if (
+        has_any_grant_term
+        and has_lump_sum_intent
+        and (not any(t in lowered for t in annuity_tokens) or has_no_annuity_intent)
+    ):
         overrides.setdefault("exempt_choice", "redeem_with_exemption")
         overrides.setdefault("taxable_choice", "redeem_no_exemption")
 
@@ -392,55 +428,68 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
     ]
 
     exempt_clause = next(
-        (
-            c
-            for c in clauses
-            if ("מענק" in c)
-            and ("פטור" in c)
-        ),
+        (c for c in clauses if ("מענק" in c) and ("פטור" in c)),
         "",
     )
     taxable_clause = next(
-        (
-            c
-            for c in clauses
-            if ("מענק" in c)
-            and ("חייב" in c)
-        ),
+        (c for c in clauses if ("מענק" in c) and ("חייב" in c)),
         "",
     )
 
     if exempt_clause:
         if "exempt_choice" not in overrides:
-            if any(t in exempt_clause for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")):
+            if any(
+                t in exempt_clause for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")
+            ):
                 overrides["exempt_choice"] = "redeem_with_exemption"
-            elif any(t in exempt_clause for t in ("בלי שימוש בפטור", "ללא שימוש בפטור", "ללא פטור")):
+            elif any(
+                t in exempt_clause
+                for t in ("בלי שימוש בפטור", "ללא שימוש בפטור", "ללא פטור")
+            ):
                 overrides["exempt_choice"] = "redeem_no_exemption"
-            elif "רצף קצבה" in exempt_clause or ("לקצבה" in exempt_clause) or re.search(r"\bכ?קצבה\b", exempt_clause):
+            elif (
+                "רצף קצבה" in exempt_clause
+                or ("לקצבה" in exempt_clause)
+                or re.search(r"\bכ?קצבה\b", exempt_clause)
+            ):
                 overrides["exempt_choice"] = "annuity"
 
     if taxable_clause:
         if "taxable_choice" not in overrides:
-            if "רצף קצבה" in taxable_clause or ("לקצבה" in taxable_clause) or re.search(r"\bכ?קצבה\b", taxable_clause):
+            if (
+                "רצף קצבה" in taxable_clause
+                or ("לקצבה" in taxable_clause)
+                or re.search(r"\bכ?קצבה\b", taxable_clause)
+            ):
                 overrides["taxable_choice"] = "annuity"
-            elif any(t in taxable_clause for t in ("משיכה", "חד פעמ", "משיכת הון", "משיכת מענק", "הוני")):
+            elif any(
+                t in taxable_clause
+                for t in ("משיכה", "חד פעמ", "משיכת הון", "משיכת מענק", "הוני")
+            ):
                 overrides["taxable_choice"] = "redeem_no_exemption"
 
     if "exempt_choice" not in overrides and ("פטור" in lowered):
-        if any(t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")) and not (
-            "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
-        ):
+        if any(
+            t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")
+        ) and not ("רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)):
             overrides["exempt_choice"] = "redeem_with_exemption"
-        elif "רצף קצבה" in lowered or ("לקצבה" in lowered) or re.search(r"\bכ?קצבה\b", lowered):
+        elif (
+            "רצף קצבה" in lowered
+            or ("לקצבה" in lowered)
+            or re.search(r"\bכ?קצבה\b", lowered)
+        ):
             overrides["exempt_choice"] = "annuity"
 
-    if "taxable_choice" not in overrides and ("חייב" in lowered or "חייב במס" in lowered):
-        if any(t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")) and not (
-            "רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)
-        ):
+    if "taxable_choice" not in overrides and (
+        "חייב" in lowered or "חייב במס" in lowered
+    ):
+        if any(
+            t in lowered for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")
+        ) and not ("רצף קצבה" in lowered or re.search(r"\bכ?קצבה\b", lowered)):
             overrides["taxable_choice"] = "redeem_no_exemption"
 
     return overrides
+
 
 def extract_process_termination_date_override(user_message: str) -> str | None:
     if not isinstance(user_message, str) or not user_message.strip():
@@ -466,7 +515,10 @@ def extract_process_termination_date_override(user_message: str) -> str | None:
 
     return None
 
-def parse_partial_pension_conversion_request(user_message: str | None) -> tuple[str, float] | None:
+
+def parse_partial_pension_conversion_request(
+    user_message: str | None,
+) -> tuple[str, float] | None:
     if not user_message:
         return None
 
@@ -546,8 +598,15 @@ def parse_partial_pension_conversion_request(user_message: str | None) -> tuple[
                 return False
             if n not in {2000, 2008}:
                 return False
-            window = lowered_clean[max(0, start_idx - 8) : min(len(lowered_clean), start_idx + 8)]
-            return ("אחרי" in window) or ("עד" in window) or ("before" in window) or ("after" in window)
+            window = lowered_clean[
+                max(0, start_idx - 8) : min(len(lowered_clean), start_idx + 8)
+            ]
+            return (
+                ("אחרי" in window)
+                or ("עד" in window)
+                or ("before" in window)
+                or ("after" in window)
+            )
 
         candidates: list[tuple[int, str]] = []
         for m in re.finditer(r"\b(\d{1,9}(?:,\d{3})*)\b", cleaned):
@@ -565,7 +624,9 @@ def parse_partial_pension_conversion_request(user_message: str | None) -> tuple[
             if _is_year_marker(raw_plain, start):
                 continue
             # Require a local hint that this number is an amount (prevents confusing account ids / year markers).
-            near = lowered_clean[max(0, start - 12) : min(len(lowered_clean), start + 12)]
+            near = lowered_clean[
+                max(0, start - 12) : min(len(lowered_clean), start + 12)
+            ]
             if any(h in near for h in amount_hints):
                 chosen_raw = raw_plain
                 break
@@ -580,6 +641,7 @@ def parse_partial_pension_conversion_request(user_message: str | None) -> tuple[
         return None
 
     return account_number, float(amount)
+
 
 def parse_targeted_component_conversion_request(
     user_message: str | None,
@@ -645,7 +707,10 @@ def parse_targeted_component_conversion_request(
 
     return None
 
-def parse_portfolio_wide_education_fund_conversion_request(user_message: str | None) -> tuple[list[str], str] | None:
+
+def parse_portfolio_wide_education_fund_conversion_request(
+    user_message: str | None,
+) -> tuple[list[str], str] | None:
     if not user_message:
         return None
 
@@ -655,12 +720,19 @@ def parse_portfolio_wide_education_fund_conversion_request(user_message: str | N
     if ("המר" not in lowered) and ("המרה" not in lowered) and ("להמיר" not in lowered):
         return None
 
-    if ("השתלמות" not in lowered) and ("education" not in lowered) and ("study" not in lowered):
+    if (
+        ("השתלמות" not in lowered)
+        and ("education" not in lowered)
+        and ("study" not in lowered)
+    ):
         return None
 
     return ["קרן_השתלמות"], "capital_asset"
 
-def parse_portfolio_wide_component_conversion_request(user_message: str | None) -> tuple[list[str], str] | None:
+
+def parse_portfolio_wide_component_conversion_request(
+    user_message: str | None,
+) -> tuple[list[str], str] | None:
     if not user_message:
         return None
 
@@ -685,8 +757,12 @@ def parse_portfolio_wide_component_conversion_request(user_message: str | None) 
         "apply",
         "run",
     )
-    has_imperative = any(t in lowered for t in imperative_tokens) or lowered.strip().startswith("המר")
-    has_portfolio_scope = any(t in lowered for t in ("תיק", "בתיק", "portfolio", "במערכת"))
+    has_imperative = any(
+        t in lowered for t in imperative_tokens
+    ) or lowered.strip().startswith("המר")
+    has_portfolio_scope = any(
+        t in lowered for t in ("תיק", "בתיק", "portfolio", "במערכת")
+    )
     has_all_scope = any(t in lowered for t in ("כל", "כל היתרות", "כל היתרה"))
 
     # Historically we required portfolio/all markers to reduce false positives, but this caused

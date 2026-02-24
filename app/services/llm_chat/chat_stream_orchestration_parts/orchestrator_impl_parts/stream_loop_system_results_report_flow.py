@@ -19,15 +19,14 @@ def _maybe_handle_system_results_report_request(
     is_no_tools_request,
     SessionLocal,
     execute_tool_call,
- ):
+):
     if not (tools_enabled and request.client_id is not None):
         return None
 
     lowered_for_report = (original_user_msg or "").lower()
     is_system_results_report_request = (
-        (("דוח" in lowered_for_report) and ("תוצאות" in lowered_for_report))
-        or (("report" in lowered_for_report) and ("results" in lowered_for_report))
-    )
+        ("דוח" in lowered_for_report) and ("תוצאות" in lowered_for_report)
+    ) or (("report" in lowered_for_report) and ("results" in lowered_for_report))
     if not (
         is_system_results_report_request
         and is_document_request(original_user_msg)
@@ -50,7 +49,11 @@ def _maybe_handle_system_results_report_request(
             ],
             "status_message": "כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב.",
         }
-        ui_action = "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+        ui_action = (
+            "###UI_ACTION###"
+            + json.dumps(ui_payload, ensure_ascii=False)
+            + "###END_UI_ACTION###\n"
+        )
         return StreamingResponse(iter([ui_action]), media_type="text/plain")
 
     def _generate_system_results_report_only(req_id: str):
@@ -77,15 +80,21 @@ def _maybe_handle_system_results_report_request(
             if isinstance(parsed_tool, dict):
                 open_path = parsed_tool.get("open_path")
                 download_url = parsed_tool.get("download_url")
-                status_message = parsed_tool.get("status_message") or parsed_tool.get("message")
+                status_message = parsed_tool.get("status_message") or parsed_tool.get(
+                    "message"
+                )
         except Exception:
             pass
 
         actions: list[dict[str, str]] = []
         if isinstance(open_path, str) and open_path.strip():
-            actions.append({"type": "open_url", "url": open_path.strip(), "label": "פתח דוח"})
+            actions.append(
+                {"type": "open_url", "url": open_path.strip(), "label": "פתח דוח"}
+            )
         elif isinstance(download_url, str) and download_url.strip():
-            actions.append({"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"})
+            actions.append(
+                {"type": "open_url", "url": download_url.strip(), "label": "פתח להורדה"}
+            )
             actions.append(
                 {
                     "type": "open_url",
@@ -106,7 +115,9 @@ def _maybe_handle_system_results_report_request(
         if isinstance(status_message, str) and status_message.strip():
             ui_payload["status_message"] = status_message.strip()
 
-        yield "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+        yield "###UI_ACTION###" + json.dumps(
+            ui_payload, ensure_ascii=False
+        ) + "###END_UI_ACTION###\n"
         yield "פתחתי את הדוח בטאב חדש."
 
     return StreamingResponse(

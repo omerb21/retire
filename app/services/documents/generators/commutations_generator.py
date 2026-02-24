@@ -1,27 +1,34 @@
 """
 מחולל נספח היוונים
 """
+
 from pathlib import Path
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
-from ..data_fetchers import fetch_client_data, fetch_pension_data, fetch_commutations_data
+from ..data_fetchers import (
+    fetch_client_data,
+    fetch_pension_data,
+    fetch_commutations_data,
+)
 from ..templates import CommutationsHTMLTemplate
 from ..converters import html_to_pdf
 
 logger = logging.getLogger(__name__)
 
 
-def generate_commutations_appendix(db: Session, client_id: int, output_dir: Path) -> Optional[Path]:
+def generate_commutations_appendix(
+    db: Session, client_id: int, output_dir: Path
+) -> Optional[Path]:
     """
     יוצר נספח קצבאות בפורמט HTML וממיר ל-PDF
-    
+
     Args:
         db: סשן DB
         client_id: מזהה לקוח
         output_dir: תיקיית פלט
-        
+
     Returns:
         נתיב לנספח שנוצר או None אם נכשל
     """
@@ -29,14 +36,14 @@ def generate_commutations_appendix(db: Session, client_id: int, output_dir: Path
         client = fetch_client_data(db, client_id)
         if not client:
             return None
-        
+
         # שליפת קצבאות
         pensions = fetch_pension_data(db, client_id)
-        
+
         if not pensions:
             logger.info(f"No pension funds found for client {client_id}")
             return None
-        
+
         # יצירת HTML
         html_content = f"""
 <!DOCTYPE html>
@@ -92,15 +99,19 @@ def generate_commutations_appendix(db: Session, client_id: int, output_dir: Path
         </thead>
         <tbody>
 """
-        
+
         total_balance = 0
         total_pension = 0
-        
+
         for pension in pensions:
             balance = pension.balance or 0
             monthly_pension = pension.pension_amount or 0
-            start_date = pension.pension_start_date.strftime("%d/%m/%Y") if pension.pension_start_date else ""
-            
+            start_date = (
+                pension.pension_start_date.strftime("%d/%m/%Y")
+                if pension.pension_start_date
+                else ""
+            )
+
             html_content += f"""
             <tr>
                 <td>{pension.fund_name or ''}</td>
@@ -109,10 +120,10 @@ def generate_commutations_appendix(db: Session, client_id: int, output_dir: Path
                 <td>{start_date}</td>
             </tr>
 """
-            
+
             total_balance += balance
             total_pension += monthly_pension
-        
+
         html_content += f"""
             <tr class="total-row">
                 <td>סה"כ</td>
@@ -125,11 +136,11 @@ def generate_commutations_appendix(db: Session, client_id: int, output_dir: Path
 </body>
 </html>
 """
-        
+
         # שמירת HTML
         html_path = output_dir / "commutations_appendix.html"
-        html_path.write_text(html_content, encoding='utf-8')
-        
+        html_path.write_text(html_content, encoding="utf-8")
+
         # המרה ל-PDF
         pdf_path = output_dir / "נספח קצבאות.pdf"
         try:
@@ -139,21 +150,23 @@ def generate_commutations_appendix(db: Session, client_id: int, output_dir: Path
         except Exception as e:
             logger.warning(f"Could not convert HTML to PDF: {e}")
             return html_path
-        
+
     except Exception as e:
         logger.error(f"❌ Error creating commutations appendix: {e}", exc_info=True)
         return None
 
 
-def generate_actual_commutations_appendix(db: Session, client_id: int, output_dir: Path) -> Optional[Path]:
+def generate_actual_commutations_appendix(
+    db: Session, client_id: int, output_dir: Path
+) -> Optional[Path]:
     """
     יוצר נספח היוונים (ממש היוונים, לא קצבאות) בפורמט HTML וממיר ל-PDF
-    
+
     Args:
         db: סשן DB
         client_id: מזהה לקוח
         output_dir: תיקיית פלט
-        
+
     Returns:
         נתיב לנספח שנוצר או None אם נכשל
     """
@@ -161,31 +174,31 @@ def generate_actual_commutations_appendix(db: Session, client_id: int, output_di
         client = fetch_client_data(db, client_id)
         if not client:
             return None
-        
+
         # שליפת היוונים
         commutations = fetch_commutations_data(db, client_id)
-        
+
         if not commutations:
             logger.info(f"No exempt commutations found for client {client_id}")
             return None
-        
+
         # יצירת תבנית HTML
         client_name = f"{client.first_name} {client.last_name}"
-        client_id_number = client.id_number or ''
-        
+        client_id_number = client.id_number or ""
+
         template = CommutationsHTMLTemplate(
             client_name=client_name,
             client_id_number=client_id_number,
-            commutations=commutations
+            commutations=commutations,
         )
-        
+
         # רינדור HTML
         html_content = template.render()
-        
+
         # שמירת HTML
         html_path = output_dir / "commutations_appendix.html"
-        html_path.write_text(html_content, encoding='utf-8')
-        
+        html_path.write_text(html_content, encoding="utf-8")
+
         # המרה ל-PDF
         pdf_path = output_dir / "נספח היוונים.pdf"
         try:
@@ -195,7 +208,7 @@ def generate_actual_commutations_appendix(db: Session, client_id: int, output_di
         except Exception as e:
             logger.warning(f"Could not convert HTML to PDF: {e}")
             return html_path
-        
+
     except Exception as e:
         logger.error(f"❌ Error creating commutations appendix: {e}", exc_info=True)
         return None

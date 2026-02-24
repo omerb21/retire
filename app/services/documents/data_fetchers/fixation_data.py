@@ -1,6 +1,7 @@
 """
 שליפת נתוני קיבוע זכויות מה-DB
 """
+
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ class FixationData:
     """
     מבנה נתונים לקיבוע זכויות
     """
+
     client: Client
     exemption_summary: Dict[str, Any]
     grants_summary: List[Dict[str, Any]]
@@ -28,11 +30,11 @@ class FixationData:
 def fetch_fixation_data(db: Session, client_id: int) -> Optional[FixationData]:
     """
     שולף נתוני קיבוע זכויות מה-DB
-    
+
     Args:
         db: סשן DB
         client_id: מזהה לקוח
-        
+
     Returns:
         FixationData או None אם לא נמצא
     """
@@ -42,12 +44,15 @@ def fetch_fixation_data(db: Session, client_id: int) -> Optional[FixationData]:
         if not client:
             logger.warning(f"Client {client_id} not found")
             return None
-        
+
         # שליפת תוצאות קיבוע זכויות מה-DB (האחרונות)
-        fixation = db.query(FixationResult).filter(
-            FixationResult.client_id == client_id
-        ).order_by(desc(FixationResult.created_at)).first()
-        
+        fixation = (
+            db.query(FixationResult)
+            .filter(FixationResult.client_id == client_id)
+            .order_by(desc(FixationResult.created_at))
+            .first()
+        )
+
         if not fixation or not fixation.raw_result:
             logger.warning(f"No fixation data found for client {client_id}")
             return None
@@ -66,7 +71,9 @@ def fetch_fixation_data(db: Session, client_id: int) -> Optional[FixationData]:
         # remaining_exempt_capital is persisted on the fixation record and should be
         # the authoritative value for documents.
         try:
-            remaining_exempt = float(getattr(fixation, "exempt_capital_remaining", 0.0) or 0.0)
+            remaining_exempt = float(
+                getattr(fixation, "exempt_capital_remaining", 0.0) or 0.0
+            )
         except (TypeError, ValueError):
             remaining_exempt = 0.0
         exemption_summary["remaining_exempt_capital"] = remaining_exempt
@@ -81,7 +88,9 @@ def fetch_fixation_data(db: Session, client_id: int) -> Optional[FixationData]:
             used_commutation = 0.0
 
         try:
-            existing_total = float(exemption_summary.get("total_commutations", 0.0) or 0.0)
+            existing_total = float(
+                exemption_summary.get("total_commutations", 0.0) or 0.0
+            )
         except (TypeError, ValueError):
             existing_total = 0.0
 
@@ -94,22 +103,22 @@ def fetch_fixation_data(db: Session, client_id: int) -> Optional[FixationData]:
         raw_result["exemption_summary"] = exemption_summary
         fixation.raw_result = raw_result
 
-        grants_summary = raw_result.get('grants', [])
-        eligibility_date = raw_result.get('eligibility_date', '')
-        
+        grants_summary = raw_result.get("grants", [])
+        eligibility_date = raw_result.get("eligibility_date", "")
+
         logger.info(
             f"✅ Fetched fixation data for client {client_id}: "
             f"{len(grants_summary)} grants"
         )
-        
+
         return FixationData(
             client=client,
             exemption_summary=exemption_summary,
             grants_summary=grants_summary,
             raw_result=raw_result,
-            eligibility_date=eligibility_date
+            eligibility_date=eligibility_date,
         )
-        
+
     except Exception as e:
         logger.error(f"❌ Error fetching fixation data: {e}", exc_info=True)
         return None

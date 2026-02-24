@@ -2,6 +2,7 @@
 System Health Router - בדיקת תקינות המערכת
 מאפשר לבדוק בכל עת את תקינות הטבלאות והנתונים הקריטיים
 """
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
@@ -70,7 +71,7 @@ def _get_db_diagnostics(db: Session) -> Dict[str, Any]:
 def get_system_health(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     בדיקת תקינות מערכת מלאה
-    
+
     Returns:
         {
             "status": "healthy" | "unhealthy",
@@ -115,7 +116,7 @@ def get_system_health(db: Session = Depends(get_db)) -> Dict[str, Any]:
 def auto_fix_system(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     ניסיון לתקן אוטומטית נתונים חסרים
-    
+
     Returns:
         {
             "success": bool,
@@ -125,36 +126,37 @@ def auto_fix_system(db: Session = Depends(get_db)) -> Dict[str, Any]:
         }
     """
     validator = SystemValidator(db)
-    
+
     # בדוק תקינות ראשונית
     is_valid_before, _ = validator.validate_all()
-    
+
     if is_valid_before:
         return {
             "success": True,
             "fixed_tables": [],
             "failed_tables": [],
-            "message": "המערכת תקינה - אין צורך בתיקון"
+            "message": "המערכת תקינה - אין צורך בתיקון",
         }
-    
+
     # נסה לתקן
     fix_results = validator.auto_fix_missing_data()
-    
+
     # בדוק תקינות אחרי התיקון
     is_valid_after, errors_after = validator.validate_all()
-    
+
     fixed_tables = [table for table, success in fix_results.items() if success]
     failed_tables = [table for table, success in fix_results.items() if not success]
-    
+
     return {
         "success": is_valid_after,
         "fixed_tables": fixed_tables,
         "failed_tables": failed_tables,
         "message": (
-            "התיקון הצליח - המערכת תקינה" if is_valid_after
+            "התיקון הצליח - המערכת תקינה"
+            if is_valid_after
             else f"התיקון נכשל - {len(errors_after)} שגיאות נותרו"
         ),
-        "remaining_errors": errors_after if not is_valid_after else []
+        "remaining_errors": errors_after if not is_valid_after else [],
     }
 
 
@@ -162,7 +164,7 @@ def auto_fix_system(db: Session = Depends(get_db)) -> Dict[str, Any]:
 def get_validation_report(db: Session = Depends(get_db)) -> Dict[str, str]:
     """
     קבלת דוח אימות מפורט
-    
+
     Returns:
         {
             "report": str  # דוח טקסט מפורט
@@ -189,10 +191,10 @@ def get_validation_report(db: Session = Depends(get_db)) -> Dict[str, str]:
 def get_table_info(table_name: str, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     מידע מפורט על טבלה ספציפית
-    
+
     Args:
         table_name: שם הטבלה
-    
+
     Returns:
         {
             "table_name": str,
@@ -210,34 +212,32 @@ def get_table_info(table_name: str, db: Session = Depends(get_db)) -> Dict[str, 
                 "table_name": table_name,
                 "exists": False,
                 "row_count": 0,
-                "sample_data": []
+                "sample_data": [],
             }
 
         # ספור שורות
         count_result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).fetchone()
         row_count = count_result[0] if count_result else 0
-        
+
         # קבל 5 שורות לדוגמה
-        sample_result = db.execute(text(f"SELECT * FROM {table_name} LIMIT 5")).fetchall()
-        
+        sample_result = db.execute(
+            text(f"SELECT * FROM {table_name} LIMIT 5")
+        ).fetchall()
+
         # המר לרשימת מילונים
         if sample_result:
             columns = sample_result[0].keys()
             sample_data = [dict(zip(columns, row)) for row in sample_result]
         else:
             sample_data = []
-        
+
         return {
             "table_name": table_name,
             "exists": True,
             "row_count": row_count,
-            "sample_data": sample_data
+            "sample_data": sample_data,
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting table info for {table_name}: {e}")
-        return {
-            "table_name": table_name,
-            "exists": False,
-            "error": str(e)
-        }
+        return {"table_name": table_name, "exists": False, "error": str(e)}

@@ -48,7 +48,9 @@ def _handle_post_deterministics_and_finalize(
         _item_to_dict,
         _user_wants_full_balance,
     )
-    from app.services.llm_chat.chat_orchestration_parts.tool_calling import _execute_tool_call
+    from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
+        _execute_tool_call,
+    )
     from app.services.llm_chat.chat_orchestration_helpers import (
         build_approval_request_ui_action,
         build_forced_document_reply,
@@ -89,7 +91,9 @@ def _handle_post_deterministics_and_finalize(
     if is_portfolio_analysis and request.client_id is not None:
         try:
             client = db.query(Client).filter(Client.id == request.client_id).first()
-            client_age = client.get_age() if client and hasattr(client, "get_age") else None
+            client_age = (
+                client.get_age() if client and hasattr(client, "get_age") else None
+            )
             from app.services.retirement_age_service import (
                 DEFAULT_MALE_RETIREMENT_AGE,
                 get_retirement_age_simple,
@@ -97,12 +101,20 @@ def _handle_post_deterministics_and_finalize(
 
             legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
             try:
-                if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+                if (
+                    client
+                    and getattr(client, "birth_date", None)
+                    and getattr(client, "gender", None)
+                ):
+                    legal_ret_age = int(
+                        get_retirement_age_simple(client.birth_date, client.gender)
+                    )
             except Exception:
                 legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
 
-            analysis_default_retirement_age = max(int(legal_ret_age), int(client_age or legal_ret_age))
+            analysis_default_retirement_age = max(
+                int(legal_ret_age), int(client_age or legal_ret_age)
+            )
         except Exception:
             analysis_default_retirement_age = None
 
@@ -167,7 +179,9 @@ def _handle_post_deterministics_and_finalize(
             "confirmed": True,
         }
         tool_args.update(extract_process_termination_choice_overrides(recent_user_text))
-        termination_date_override = extract_process_termination_date_override(recent_user_text)
+        termination_date_override = extract_process_termination_date_override(
+            recent_user_text
+        )
         if termination_date_override:
             tool_args["termination_date"] = termination_date_override
 
@@ -207,14 +221,22 @@ def _handle_post_deterministics_and_finalize(
                 _store_pending_pre_retirement_plan_resolution,
             )
 
-            payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-            payload_data = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+            payload_plan = load_latest_target_pension_plan(
+                db=db, client_id=request.client_id
+            )
+            payload_data = load_latest_target_pension_plan_data(
+                db=db, client_id=request.client_id
+            )
 
             def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
                 if not isinstance(p, dict):
                     return None, []
                 res = p.get("result") if isinstance(p.get("result"), dict) else {}
-                exec_plan = res.get("execution_plan") if isinstance(res.get("execution_plan"), dict) else None
+                exec_plan = (
+                    res.get("execution_plan")
+                    if isinstance(res.get("execution_plan"), dict)
+                    else None
+                )
                 if not isinstance(exec_plan, dict):
                     return None, []
                 raw = exec_plan.get("accounts")
@@ -244,7 +266,9 @@ def _handle_post_deterministics_and_finalize(
                     payload = payload_data
                 if isinstance(payload, dict):
                     try:
-                        derived_accounts = build_transform_accounts_from_target_plan_payload(payload)
+                        derived_accounts = (
+                            build_transform_accounts_from_target_plan_payload(payload)
+                        )
                     except Exception:
                         derived_accounts = []
                     if isinstance(derived_accounts, list) and derived_accounts:
@@ -269,17 +293,27 @@ def _handle_post_deterministics_and_finalize(
                     computed_data=computed_data,
                 )
 
-            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            result = (
+                payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            )
             execution_plan = execution_plan or (
-                result.get("execution_plan") if isinstance(result.get("execution_plan"), dict) else None
+                result.get("execution_plan")
+                if isinstance(result.get("execution_plan"), dict)
+                else None
             )
 
             has_db_state_sources = False
             try:
                 has_db_state_sources = bool(
-                    db.query(PensionFund).filter(PensionFund.client_id == request.client_id).count() > 0
+                    db.query(PensionFund)
+                    .filter(PensionFund.client_id == request.client_id)
+                    .count()
+                    > 0
                 ) or bool(
-                    db.query(CapitalAsset).filter(CapitalAsset.client_id == request.client_id).count() > 0
+                    db.query(CapitalAsset)
+                    .filter(CapitalAsset.client_id == request.client_id)
+                    .count()
+                    > 0
                 )
             except Exception:
                 has_db_state_sources = False
@@ -297,25 +331,37 @@ def _handle_post_deterministics_and_finalize(
             if (not has_db_state_sources) and blocked_decision is None:
                 has_blocked = False
                 portfolio_for_blocked_check = effective_portfolio
-                if (not isinstance(portfolio_for_blocked_check, list)) or (not portfolio_for_blocked_check):
+                if (not isinstance(portfolio_for_blocked_check, list)) or (
+                    not portfolio_for_blocked_check
+                ):
                     try:
                         from app.services.pension_portfolio.snapshot_loader import (
                             load_latest_pension_portfolio_snapshot,
                         )
 
-                        loaded = load_latest_pension_portfolio_snapshot(db=db, client_id=request.client_id)
+                        loaded = load_latest_pension_portfolio_snapshot(
+                            db=db, client_id=request.client_id
+                        )
                         if loaded is not None:
                             portfolio_for_blocked_check, _effective_snapshot_at = loaded
                     except Exception:
                         portfolio_for_blocked_check = effective_portfolio
                 try:
-                    has_blocked = _detect_blocked_balances_in_snapshot(portfolio=portfolio_for_blocked_check)
+                    has_blocked = _detect_blocked_balances_in_snapshot(
+                        portfolio=portfolio_for_blocked_check
+                    )
                 except Exception:
                     has_blocked = False
                 if has_blocked:
                     try:
-                        args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
-                        requested_target = float(args_payload.get("target_monthly_pension") or 0)
+                        args_payload = (
+                            payload.get("args")
+                            if isinstance(payload.get("args"), dict)
+                            else {}
+                        )
+                        requested_target = float(
+                            args_payload.get("target_monthly_pension") or 0
+                        )
                         target_is_net = bool(args_payload.get("target_is_net", True))
                         retirement_age = args_payload.get("retirement_age")
                     except Exception:
@@ -348,7 +394,9 @@ def _handle_post_deterministics_and_finalize(
 
             ignore_blocked_balances_val = True
             try:
-                args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                args_payload = (
+                    payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                )
                 raw_ignore = args_payload.get("ignore_blocked_balances")
                 if raw_ignore is not None:
                     ignore_blocked_balances_val = bool(raw_ignore)
@@ -473,9 +521,13 @@ def _handle_post_deterministics_and_finalize(
         ):
             payload = extract_latest_target_pension_plan_payload(request.messages)
             if payload is None:
-                payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+                payload = load_latest_target_pension_plan_data(
+                    db=db, client_id=request.client_id
+                )
             if payload is None:
-                payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+                payload = load_latest_target_pension_plan(
+                    db=db, client_id=request.client_id
+                )
             if not isinstance(payload, dict):
                 return ChatResponse(
                     reply=(
@@ -485,7 +537,9 @@ def _handle_post_deterministics_and_finalize(
                     computed_data=computed_data,
                 )
 
-            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            result = (
+                payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            )
             execution_plan = (
                 result.get("execution_plan")
                 if isinstance(result.get("execution_plan"), dict)
@@ -493,7 +547,9 @@ def _handle_post_deterministics_and_finalize(
             )
             ignore_blocked_balances_val = True
             try:
-                args_payload = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                args_payload = (
+                    payload.get("args") if isinstance(payload.get("args"), dict) else {}
+                )
                 raw_ignore = args_payload.get("ignore_blocked_balances")
                 if raw_ignore is not None:
                     ignore_blocked_balances_val = bool(raw_ignore)
@@ -543,7 +599,10 @@ def _handle_post_deterministics_and_finalize(
             )
 
             reply_text = format_transform_result_for_user(tool_result=transform_result)
-            if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
+            if (
+                isinstance(portfolio_update_marker, str)
+                and portfolio_update_marker.strip()
+            ):
                 reply_text = f"{portfolio_update_marker}{reply_text}"
             return ChatResponse(
                 reply=sanitize_user_visible_text(reply_text),
@@ -586,14 +645,20 @@ def _handle_post_deterministics_and_finalize(
         if approved_tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
             reply_text = format_transform_result_for_user(tool_result=tool_result)
         else:
-            reply_text = format_tool_output_for_user_stream(approved_tool_name, reply_text)
+            reply_text = format_tool_output_for_user_stream(
+                approved_tool_name, reply_text
+            )
 
         if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
             reply_text = f"{portfolio_update_marker}{reply_text}"
 
         sanitized = sanitize_user_visible_text(reply_text)
         if is_portfolio_analysis and isinstance(sanitized, str) and sanitized.strip():
-            if "הערכה" not in sanitized and "הערכה גסה" not in sanitized and "ראשונית" not in sanitized:
+            if (
+                "הערכה" not in sanitized
+                and "הערכה גסה" not in sanitized
+                and "ראשונית" not in sanitized
+            ):
                 sanitized = (
                     "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\n"
                     + sanitized

@@ -72,12 +72,18 @@ def _target_plan_additional_needed_is_zero(
 
 
 _BLOCKED_BALANCES_NOTICE_SHOWN_SCENARIO = "blocked_balances_notice_shown"
-_CURRENT_EMPLOYER_SEVERANCE_DECISION_SCENARIO = "current_employer_severance_execution_decision"
+_CURRENT_EMPLOYER_SEVERANCE_DECISION_SCENARIO = (
+    "current_employer_severance_execution_decision"
+)
 _PENDING_CURRENT_EMPLOYER_SEVERANCE_TERMINATION_QUESTION_SCENARIO = (
     "pending_current_employer_severance_termination_question"
 )
-_PENDING_BUILD_TARGET_PLAN_AFTER_TERMINATION_SCENARIO = "pending_build_target_plan_after_termination"
-_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO = "current_employer_termination_plan_preview"
+_PENDING_BUILD_TARGET_PLAN_AFTER_TERMINATION_SCENARIO = (
+    "pending_build_target_plan_after_termination"
+)
+_CURRENT_EMPLOYER_TERMINATION_PLAN_PREVIEW_SCENARIO = (
+    "current_employer_termination_plan_preview"
+)
 _CURRENT_TERMINATION_PREVIEW_ID_SCENARIO = "current_termination_preview_id"
 
 
@@ -235,10 +241,14 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
     summary = compute_blocked_balances_summary_from_portfolio(portfolio)
 
     try:
-        ssot_amount = get_current_employer_severance_amount_ssot(db=db, client_id=client_id)
+        ssot_amount = get_current_employer_severance_amount_ssot(
+            db=db, client_id=client_id
+        )
         if ssot_amount > 0:
             summary.current_employer_severance_amount = max(
-                float(getattr(summary, "current_employer_severance_amount", 0.0) or 0.0),
+                float(
+                    getattr(summary, "current_employer_severance_amount", 0.0) or 0.0
+                ),
                 float(ssot_amount),
             )
     except Exception:
@@ -248,12 +258,16 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
     notice_kinds = blocked_balances_notice_kinds(summary)
     if notice_kinds:
         try:
-            already_shown = load_blocked_balances_notice_shown(db=db, client_id=client_id)
+            already_shown = load_blocked_balances_notice_shown(
+                db=db, client_id=client_id
+            )
         except Exception:
             already_shown = False
         if not already_shown:
             try:
-                store_blocked_balances_notice_shown(db=db, client_id=client_id, kinds=notice_kinds)
+                store_blocked_balances_notice_shown(
+                    db=db, client_id=client_id, kinds=notice_kinds
+                )
             except Exception:
                 pass
             notice_text = (
@@ -266,14 +280,18 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
     )
     if needs_current_employer_handling:
         try:
-            already_executed = termination_already_executed_for_client(db=db, client_id=client_id)
+            already_executed = termination_already_executed_for_client(
+                db=db, client_id=client_id
+            )
         except Exception:
             already_executed = False
 
         if not already_executed:
             decision = None
             try:
-                decision = load_current_employer_severance_execution_decision(db=db, client_id=client_id)
+                decision = load_current_employer_severance_execution_decision(
+                    db=db, client_id=client_id
+                )
             except Exception:
                 decision = None
 
@@ -333,7 +351,9 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                 declined_at = None
                 if isinstance(preview_payload, dict):
                     preview_approved = bool(preview_payload.get("approved")) is True
-                    preview_awaiting = bool(preview_payload.get("awaiting_user_confirmation")) is True
+                    preview_awaiting = (
+                        bool(preview_payload.get("awaiting_user_confirmation")) is True
+                    )
                     preview_declined = bool(preview_payload.get("declined")) is True
 
                     preview_used = bool(preview_payload.get("used")) is True
@@ -342,7 +362,9 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
 
                 active_preview_id = None
                 try:
-                    active_preview_id = load_current_termination_preview_id(db=db, client_id=client_id)
+                    active_preview_id = load_current_termination_preview_id(
+                        db=db, client_id=client_id
+                    )
                 except Exception:
                     active_preview_id = None
 
@@ -372,11 +394,14 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                     return "needs_termination_plan_alternative", plan_args, msg
 
                 if not preview_approved:
-                    preview_text, args_template = build_default_termination_plan_preview(
-                        current_employer_amount=float(
-                            getattr(summary, "current_employer_severance_amount", 0) or 0
-                        ),
-                        context={"plan_args": plan_args},
+                    preview_text, args_template = (
+                        build_default_termination_plan_preview(
+                            current_employer_amount=float(
+                                getattr(summary, "current_employer_severance_amount", 0)
+                                or 0
+                            ),
+                            context={"plan_args": plan_args},
+                        )
                     )
                     try:
                         store_current_employer_termination_plan_preview(
@@ -386,13 +411,24 @@ def evaluate_blocked_balances_policy_for_build_target_plan(
                                 "plan_args": plan_args,
                                 "plan": {
                                     "exempt_choice": args_template.get("exempt_choice"),
-                                    "taxable_choice": args_template.get("taxable_choice"),
-                                    "taxable_annuity_amount": args_template.get("taxable_annuity_amount"),
-                                    "taxable_capital_amount": args_template.get("taxable_capital_amount"),
+                                    "taxable_choice": args_template.get(
+                                        "taxable_choice"
+                                    ),
+                                    "taxable_annuity_amount": args_template.get(
+                                        "taxable_annuity_amount"
+                                    ),
+                                    "taxable_capital_amount": args_template.get(
+                                        "taxable_capital_amount"
+                                    ),
                                 },
                                 "amounts": {
                                     "current_employer_severance_amount": float(
-                                        getattr(summary, "current_employer_severance_amount", 0) or 0
+                                        getattr(
+                                            summary,
+                                            "current_employer_severance_amount",
+                                            0,
+                                        )
+                                        or 0
                                     ),
                                 },
                                 "termination_arguments_template": args_template,
@@ -437,7 +473,8 @@ def blocked_balances_notice_kinds(summary: BlockedBalancesSummary) -> list[str]:
 def has_any_blocked_balances(summary: BlockedBalancesSummary) -> bool:
     return bool(
         float(getattr(summary, "non_settled_severance_amount", 0) or 0) > 0
-        or float(getattr(summary, "prior_employers_continuity_rights_amount", 0) or 0) > 0
+        or float(getattr(summary, "prior_employers_continuity_rights_amount", 0) or 0)
+        > 0
         or float(getattr(summary, "current_employer_severance_amount", 0) or 0) > 0
     )
 
@@ -456,7 +493,9 @@ def _coerce_float_safe(value: Any) -> float:
         return 0.0
 
 
-def compute_blocked_balances_summary_from_portfolio(portfolio: Any) -> BlockedBalancesSummary:
+def compute_blocked_balances_summary_from_portfolio(
+    portfolio: Any,
+) -> BlockedBalancesSummary:
     out = BlockedBalancesSummary()
     if not isinstance(portfolio, list) or not portfolio:
         return out
@@ -494,11 +533,15 @@ def compute_blocked_balances_summary_from_portfolio(portfolio: Any) -> BlockedBa
                 total += _coerce_float_safe(src.get(field))
             return total
 
-        out.non_settled_severance_amount += _sum_from_all_sources("פיצויים_שלא_עברו_התחשבנות")
+        out.non_settled_severance_amount += _sum_from_all_sources(
+            "פיצויים_שלא_עברו_התחשבנות"
+        )
         out.prior_employers_continuity_rights_amount += _sum_from_all_sources(
             "פיצויים_ממעסיקים_קודמים_רצף_זכויות"
         )
-        out.current_employer_severance_amount += _sum_from_all_sources("פיצויים_מעסיק_נוכחי")
+        out.current_employer_severance_amount += _sum_from_all_sources(
+            "פיצויים_מעסיק_נוכחי"
+        )
 
     return out
 
@@ -521,13 +564,19 @@ def build_default_termination_plan_preview(
         "אני עומד לבצע עכשיו עזיבת עבודה בברירת המחדל הבאה:\n"
         "- החלק הפטור: משיכה הונית בפטור (redeem_with_exemption)\n"
         "- החלק החייב: המרה לרצף קצבה (annuity)\n\n"
-        + ("סכום פיצויי מעסיק נוכחי לפי נתוני המערכת: קיים\n\n" if current_employer_amount_val > 0 else "")
+        + (
+            "סכום פיצויי מעסיק נוכחי לפי נתוני המערכת: קיים\n\n"
+            if current_employer_amount_val > 0
+            else ""
+        )
         + "לאשר את תכנית ברירת המחדל?\n\nאפשרויות:\nכן\nלא"
     )
     return preview, args_template
 
 
-def load_current_employer_termination_plan_preview(*, db: Session, client_id: int) -> dict | None:
+def load_current_employer_termination_plan_preview(
+    *, db: Session, client_id: int
+) -> dict | None:
     return _load_latest_scenario_payload(
         db=db,
         client_id=client_id,
@@ -535,7 +584,9 @@ def load_current_employer_termination_plan_preview(*, db: Session, client_id: in
     )
 
 
-def store_current_employer_termination_plan_preview(*, db: Session, client_id: int, payload: dict) -> None:
+def store_current_employer_termination_plan_preview(
+    *, db: Session, client_id: int, payload: dict
+) -> None:
     payload = dict(payload or {})
     now = datetime.now(timezone.utc)
 
@@ -573,7 +624,9 @@ def store_current_employer_termination_plan_preview(*, db: Session, client_id: i
             pass
 
 
-def clear_current_employer_termination_plan_preview(*, db: Session, client_id: int) -> None:
+def clear_current_employer_termination_plan_preview(
+    *, db: Session, client_id: int
+) -> None:
     _clear_scenario(
         db=db,
         client_id=client_id,
@@ -586,7 +639,9 @@ def clear_current_employer_termination_plan_preview(*, db: Session, client_id: i
         pass
 
 
-def _load_latest_scenario_payload(*, db: Session, client_id: int, scenario_name: str) -> dict | None:
+def _load_latest_scenario_payload(
+    *, db: Session, client_id: int, scenario_name: str
+) -> dict | None:
     try:
         row = (
             db.query(Scenario)
@@ -606,7 +661,9 @@ def _load_latest_scenario_payload(*, db: Session, client_id: int, scenario_name:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _store_single_scenario_payload(*, db: Session, client_id: int, scenario_name: str, payload: dict) -> None:
+def _store_single_scenario_payload(
+    *, db: Session, client_id: int, scenario_name: str, payload: dict
+) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == scenario_name
@@ -660,7 +717,9 @@ def load_blocked_balances_notice_shown(*, db: Session, client_id: int) -> bool:
     return bool(payload.get("shown")) is True
 
 
-def store_blocked_balances_notice_shown(*, db: Session, client_id: int, kinds: list[str]) -> None:
+def store_blocked_balances_notice_shown(
+    *, db: Session, client_id: int, kinds: list[str]
+) -> None:
     payload = {
         "shown": True,
         "shown_at": datetime.now(timezone.utc).isoformat(),
@@ -674,7 +733,9 @@ def store_blocked_balances_notice_shown(*, db: Session, client_id: int, kinds: l
     )
 
 
-def load_current_employer_severance_execution_decision(*, db: Session, client_id: int) -> str | None:
+def load_current_employer_severance_execution_decision(
+    *, db: Session, client_id: int
+) -> str | None:
     payload = _load_latest_scenario_payload(
         db=db,
         client_id=client_id,
@@ -734,7 +795,9 @@ def clear_pending_current_employer_severance_termination_question(
     )
 
 
-def load_pending_build_target_plan_after_termination(*, db: Session, client_id: int) -> dict | None:
+def load_pending_build_target_plan_after_termination(
+    *, db: Session, client_id: int
+) -> dict | None:
     return _load_latest_scenario_payload(
         db=db,
         client_id=client_id,
@@ -753,7 +816,9 @@ def store_pending_build_target_plan_after_termination(
     )
 
 
-def clear_pending_build_target_plan_after_termination(*, db: Session, client_id: int) -> None:
+def clear_pending_build_target_plan_after_termination(
+    *, db: Session, client_id: int
+) -> None:
     _clear_scenario(
         db=db,
         client_id=client_id,

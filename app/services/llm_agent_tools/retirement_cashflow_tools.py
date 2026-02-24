@@ -7,7 +7,10 @@ from app.models.pension_fund import PensionFund
 from app.schemas.tax_schemas import PersonalDetails, TaxCalculationInput
 from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.retirement.constants import PENSION_COEFFICIENT
-from app.services.rights_fixation.exemption_caps import get_exemption_percentage, get_monthly_cap
+from app.services.rights_fixation.exemption_caps import (
+    get_exemption_percentage,
+    get_monthly_cap,
+)
 from app.services.tax_calculator import TaxCalculator
 from app.utils.date_serializer import parse_date_flexible
 
@@ -33,7 +36,7 @@ class RetirementCashflowToolsMixin:
         """
         from datetime import datetime, date
         from dateutil.relativedelta import relativedelta
-        
+
         client = self.client
         if not client:
             return {
@@ -101,46 +104,69 @@ class RetirementCashflowToolsMixin:
             age_at_retirement = int(explicit_age)
         except Exception:
             age_at_retirement = None
-        if age_at_retirement is None or age_at_retirement < 40 or age_at_retirement > 80:
+        if (
+            age_at_retirement is None
+            or age_at_retirement < 40
+            or age_at_retirement > 80
+        ):
             return {
                 "success": False,
                 "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
                 "result": {},
                 "explanation": "גיל לא תקין לביצוע חישוב. אנא ציין גיל בין 40 ל-80.",
             }
-        
+
         # Refresh client to ensure relationships are loaded
         self.db.refresh(client)
 
         # 3. חישוב קצבה פנסיונית צפויה (Projected Pension)
-        
+
         total_pension_balance = 0.0
         # סכום קצבאות שכבר נקובות (למשל פנסיה תקציבית או ותיקה)
         existing_pension_sum = 0.0
-        
+
         pension_funds = []
         capital_assets = []
-        
+
         # בדיקה האם יש נכסים בבסיס הנתונים (לאחר המרה)
         # אם יש - נעדיף אותם על פני נתונים מוזרקים כדי למנוע כפילויות
-        db_pension_count = self.db.query(PensionFund).filter(PensionFund.client_id == self.client_id).count()
-        db_capital_count = self.db.query(CapitalAsset).filter(CapitalAsset.client_id == self.client_id).count()
+        db_pension_count = (
+            self.db.query(PensionFund)
+            .filter(PensionFund.client_id == self.client_id)
+            .count()
+        )
+        db_capital_count = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .count()
+        )
         has_db_assets = (db_pension_count + db_capital_count) > 0
-        
+
         if has_db_assets:
             logger.info(
                 "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Found %d pension funds and %d capital assets in DB for client %s - using DB records",
-                db_pension_count, db_capital_count, self.client_id
+                db_pension_count,
+                db_capital_count,
+                self.client_id,
             )
-        
+
         # אם יש נכסים ב-DB, נשתמש בהם. אחרת, נשתמש בנתונים המוזרקים
         if has_db_assets:
             # שימוש בנכסים מבסיס הנתונים (לאחר TRANSFORM_FUNDS_TO_ASSETS)
-            pension_funds = list(self.db.query(PensionFund).filter(PensionFund.client_id == self.client_id).all())
-            capital_assets = list(self.db.query(CapitalAsset).filter(CapitalAsset.client_id == self.client_id).all())
+            pension_funds = list(
+                self.db.query(PensionFund)
+                .filter(PensionFund.client_id == self.client_id)
+                .all()
+            )
+            capital_assets = list(
+                self.db.query(CapitalAsset)
+                .filter(CapitalAsset.client_id == self.client_id)
+                .all()
+            )
             logger.info(
                 "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Loaded %d pension funds and %d capital assets from DB",
-                len(pension_funds), len(capital_assets)
+                len(pension_funds),
+                len(capital_assets),
             )
         elif self.pension_portfolio_data and len(self.pension_portfolio_data) > 0:
             # שלב 1: שימוש בנתונים המוזרקים מה-Request (Pydantic models)
@@ -161,7 +187,9 @@ class RetirementCashflowToolsMixin:
                 # סייגי מוצר בעדיפות עליונה
                 is_study_fund = "קרן השתלמות" in product_type_raw
                 is_investment_gemel = "גמל להשקעה" in product_type_raw
-                is_gemel_fund = ("קופת גמל" in product_type_raw) and not is_investment_gemel
+                is_gemel_fund = (
+                    "קופת גמל" in product_type_raw
+                ) and not is_investment_gemel
 
                 classification: str | None = None  # "pension", "capital", "unspecified"
 
@@ -170,17 +198,35 @@ class RetirementCashflowToolsMixin:
                 else:
                     # קריאת טורי פיצויים ותגמולים אם קיימים
                     pitz_current = float(getattr(acc, "פיצויים_מעסיק_נוכחי", 0) or 0)
-                    pitz_after_settlement = float(getattr(acc, "פיצויים_לאחר_התחשבנות", 0) or 0)
-                    pitz_not_settled = float(getattr(acc, "פיצויים_שלא_עברו_התחשבנות", 0) or 0)
-                    pitz_prev_rights = float(getattr(acc, "פיצויים_ממעסיקים_קודמים_רצף_זכויות", 0) or 0)
-                    pitz_prev_pension = float(getattr(acc, "פיצויים_ממעסיקים_קודמים_רצף_קצבה", 0) or 0)
+                    pitz_after_settlement = float(
+                        getattr(acc, "פיצויים_לאחר_התחשבנות", 0) or 0
+                    )
+                    pitz_not_settled = float(
+                        getattr(acc, "פיצויים_שלא_עברו_התחשבנות", 0) or 0
+                    )
+                    pitz_prev_rights = float(
+                        getattr(acc, "פיצויים_ממעסיקים_קודמים_רצף_זכויות", 0) or 0
+                    )
+                    pitz_prev_pension = float(
+                        getattr(acc, "פיצויים_ממעסיקים_קודמים_רצף_קצבה", 0) or 0
+                    )
 
                     emp_before_2000 = float(getattr(acc, "תגמולי_עובד_עד_2000", 0) or 0)
-                    emp_after_2000 = float(getattr(acc, "תגמולי_עובד_אחרי_2000", 0) or 0)
-                    emp_after_2008_np = float(getattr(acc, "תגמולי_עובד_אחרי_2008_לא_משלמת", 0) or 0)
-                    empr_before_2000 = float(getattr(acc, "תגמולי_מעביד_עד_2000", 0) or 0)
-                    empr_after_2000 = float(getattr(acc, "תגמולי_מעביד_אחרי_2000", 0) or 0)
-                    empr_after_2008_np = float(getattr(acc, "תגמולי_מעביד_אחרי_2008_לא_משלמת", 0) or 0)
+                    emp_after_2000 = float(
+                        getattr(acc, "תגמולי_עובד_אחרי_2000", 0) or 0
+                    )
+                    emp_after_2008_np = float(
+                        getattr(acc, "תגמולי_עובד_אחרי_2008_לא_משלמת", 0) or 0
+                    )
+                    empr_before_2000 = float(
+                        getattr(acc, "תגמולי_מעביד_עד_2000", 0) or 0
+                    )
+                    empr_after_2000 = float(
+                        getattr(acc, "תגמולי_מעביד_אחרי_2000", 0) or 0
+                    )
+                    empr_after_2008_np = float(
+                        getattr(acc, "תגמולי_מעביד_אחרי_2008_לא_משלמת", 0) or 0
+                    )
 
                     capital_sum = 0.0
                     pension_sum = 0.0
@@ -252,7 +298,7 @@ class RetirementCashflowToolsMixin:
                         asset_type=acc.סוג_מוצר,
                         current_value=balance,
                         annual_return_rate=0,
-                        payment_frequency='monthly',
+                        payment_frequency="monthly",
                         start_date=date.today(),
                     )
                     capital_assets.append(ca)
@@ -272,28 +318,39 @@ class RetirementCashflowToolsMixin:
                 len(pension_funds),
                 len(capital_assets),
             )
-            
+
         else:
             # Fallback למקרה שהנתונים לא הוזרקו כלל - נסיון אחרון דרך ה-Client
-            logger.info("RUN_RETIREMENT_CASHFLOW_ANALYSIS: No injected pension portfolio data, falling back to client relationships.")
+            logger.info(
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS: No injected pension portfolio data, falling back to client relationships."
+            )
             pension_funds_raw = self.client.pension_funds if self.client else []
             capital_assets_raw = self.client.capital_assets if self.client else []
-            
-            pension_funds = [acc for acc in pension_funds_raw if isinstance(acc, PensionFund)]
-            capital_assets = [acc for acc in capital_assets_raw if isinstance(acc, CapitalAsset)]
-            
+
+            pension_funds = [
+                acc for acc in pension_funds_raw if isinstance(acc, PensionFund)
+            ]
+            capital_assets = [
+                acc for acc in capital_assets_raw if isinstance(acc, CapitalAsset)
+            ]
+
             logger.info(
                 "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Found %s pension funds (via client relationship fallback) for client %s",
-                len(pension_funds), getattr(self, "client_id", None),
+                len(pension_funds),
+                getattr(self, "client_id", None),
             )
             logger.info(
                 "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Found %s capital assets (via client relationship fallback) for client %s",
-                len(capital_assets), getattr(self, "client_id", None),
+                len(capital_assets),
+                getattr(self, "client_id", None),
             )
 
         # לוג מפורט על כל קרן פנסיה לפני החישוב
         if pension_funds:
-            logger.info("RUN_RETIREMENT_CASHFLOW_ANALYSIS: Pension fund details for client %s:", getattr(self, "client_id", None))
+            logger.info(
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Pension fund details for client %s:",
+                getattr(self, "client_id", None),
+            )
             for pf in pension_funds:
                 logger.info(
                     "  Fund id=%s, name=%s, type=%s, balance=%.2f, pension_amount=%.2f, input_mode=%s, start_date=%s",
@@ -308,7 +365,10 @@ class RetirementCashflowToolsMixin:
 
         # לוג מפורט על כל נכס הון לפני החישוב (כדי לאתר הון שמופיע רק כ-capital_asset)
         if capital_assets:
-            logger.info("RUN_RETIREMENT_CASHFLOW_ANALYSIS: Capital asset details for client %s:", getattr(self, "client_id", None))
+            logger.info(
+                "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Capital asset details for client %s:",
+                getattr(self, "client_id", None),
+            )
             for ca in capital_assets:
                 logger.info(
                     "  CapitalAsset id=%s, name=%s, type=%s, current_value=%.2f, monthly_income=%.2f, start_date=%s",
@@ -321,8 +381,8 @@ class RetirementCashflowToolsMixin:
                 )
 
         for pf in pension_funds:
-            total_pension_balance += (pf.balance or 0)
-            existing_pension_sum += (pf.pension_amount or 0)
+            total_pension_balance += pf.balance or 0
+            existing_pension_sum += pf.pension_amount or 0
 
         logger.info(
             "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Total pension balance after aggregation = %.2f, existing monthly pension sum = %.2f",
@@ -334,7 +394,8 @@ class RetirementCashflowToolsMixin:
         annuity_factor = float(PENSION_COEFFICIENT)
         logger.info(
             "🔍 [RUN 16 DEBUG] Starting annuity coefficient retrieval for age %s, date %s",
-            age_at_retirement, target_date
+            age_at_retirement,
+            target_date,
         )
         try:
             coeff_result = get_annuity_coefficient(
@@ -346,15 +407,12 @@ class RetirementCashflowToolsMixin:
                 birth_date=birth_date,
                 pension_start_date=target_date,
             )
-            logger.info(
-                "✅ [RUN 16 DEBUG] Coefficient result: %s",
-                coeff_result
-            )
+            logger.info("✅ [RUN 16 DEBUG] Coefficient result: %s", coeff_result)
             annuity_factor = float(coeff_result.get("factor_value") or annuity_factor)
             logger.info(
                 "📊 [RUN 16 DEBUG] Using annuity_factor: %.2f (source: %s)",
                 annuity_factor,
-                coeff_result.get("source_table", "unknown")
+                coeff_result.get("source_table", "unknown"),
             )
         except Exception as e:  # הגנה: אם השירות נכשל, נשתמש במקדם ברירת מחדל
             logger.warning(
@@ -365,22 +423,30 @@ class RetirementCashflowToolsMixin:
             )
 
         if annuity_factor <= 0:
-            logger.warning("⚠️ [RUN 16 DEBUG] Factor was <= 0, resetting to default: %s", PENSION_COEFFICIENT)
+            logger.warning(
+                "⚠️ [RUN 16 DEBUG] Factor was <= 0, resetting to default: %s",
+                PENSION_COEFFICIENT,
+            )
             annuity_factor = float(PENSION_COEFFICIENT)
 
         logger.info(
             "🧮 [RUN 16 DEBUG] Calculating projected pension: balance=%.2f / factor=%.2f",
-            total_pension_balance, annuity_factor
+            total_pension_balance,
+            annuity_factor,
         )
-        projected_new_pension = total_pension_balance / annuity_factor if total_pension_balance > 0 else 0.0
+        projected_new_pension = (
+            total_pension_balance / annuity_factor if total_pension_balance > 0 else 0.0
+        )
         logger.info(
             "💰 [RUN 16 DEBUG] Projected NEW pension from balance: %.2f ₪/month",
-            projected_new_pension
+            projected_new_pension,
         )
         total_pension_income = existing_pension_sum + projected_new_pension
         logger.info(
             "💵 [RUN 16 DEBUG] TOTAL pension income: existing=%.2f + new=%.2f = %.2f ₪/month",
-            existing_pension_sum, projected_new_pension, total_pension_income
+            existing_pension_sum,
+            projected_new_pension,
+            total_pension_income,
         )
 
         # 4. חישוב קצבת אזרח ותיק (ביטוח לאומי)
@@ -391,7 +457,7 @@ class RetirementCashflowToolsMixin:
         # (נניח תרחיש סביר של 2400 ש"ח אם לא ידוע אחרת)
         # לצורך דיבאג ננטרל את ברירת המחדל וניצור לוג מפורט על הערך בפועל
         social_security_amount = 0.0
-        
+
         # התאמה לפי גיל הזכאות (נשים 62-65, גברים 67)
         # אם פורש לפני הזמן - 0
         gender_norm = str(explicit_gender or "").strip().lower()
@@ -447,15 +513,26 @@ class RetirementCashflowToolsMixin:
             else:
                 monthly_amount = raw_amount
 
-            tax_treatment = str(getattr(ai, "tax_treatment", "taxable") or "taxable").strip().lower()
+            tax_treatment = (
+                str(getattr(ai, "tax_treatment", "taxable") or "taxable")
+                .strip()
+                .lower()
+            )
             if tax_treatment == "exempt":
                 additional_income_exempt_gross_monthly += monthly_amount
             else:
                 additional_income_taxable_gross_monthly += monthly_amount
 
-        additional_income_gross_monthly = additional_income_taxable_gross_monthly + additional_income_exempt_gross_monthly
+        additional_income_gross_monthly = (
+            additional_income_taxable_gross_monthly
+            + additional_income_exempt_gross_monthly
+        )
 
-        total_guaranteed_income_gross = total_pension_income + additional_income_gross_monthly + social_security_amount
+        total_guaranteed_income_gross = (
+            total_pension_income
+            + additional_income_gross_monthly
+            + social_security_amount
+        )
 
         # ===== חישוב מס על הקצבה (Tax Analysis) =====
         # יצירת פרטים אישיים לחישוב מס
@@ -490,7 +567,10 @@ class RetirementCashflowToolsMixin:
 
             logger.info(
                 "EXEMPTION ANALYSIS (Run 25): Year=%d, Monthly Cap=%.2f, Exemption %%=%.1f%%, Max Exempt=%.2f",
-                tax_year, monthly_cap, exemption_percentage * 100, exempt_pension_monthly
+                tax_year,
+                monthly_cap,
+                exemption_percentage * 100,
+                exempt_pension_monthly,
             )
 
             # שמירת קיבוע זכויות ל-DB כדי שיהיה זמין לדוחות ולממשק
@@ -499,7 +579,10 @@ class RetirementCashflowToolsMixin:
                     calculate_and_save_fixation_for_client,
                     update_fixation_exempt_pension_fields,
                 )
-                fixation_result = calculate_and_save_fixation_for_client(self.db, self.client_id)
+
+                fixation_result = calculate_and_save_fixation_for_client(
+                    self.db, self.client_id
+                )
                 if fixation_result:
                     try:
                         update_fixation_exempt_pension_fields(fixation_result)
@@ -514,13 +597,19 @@ class RetirementCashflowToolsMixin:
                     fixation_saved = True
                     logger.info(
                         "RIGHTS FIXATION: Auto-saved fixation for client %s (exempt_capital_remaining=%.2f)",
-                        self.client_id, fixation_result.exempt_capital_remaining or 0
+                        self.client_id,
+                        fixation_result.exempt_capital_remaining or 0,
                     )
                 else:
-                    logger.warning("RIGHTS FIXATION: Failed to auto-save fixation for client %s", self.client_id)
+                    logger.warning(
+                        "RIGHTS FIXATION: Failed to auto-save fixation for client %s",
+                        self.client_id,
+                    )
             except Exception as fix_err:
                 self.db.rollback()
-                logger.warning("RIGHTS FIXATION: Error auto-saving fixation: %s", fix_err)
+                logger.warning(
+                    "RIGHTS FIXATION: Error auto-saving fixation: %s", fix_err
+                )
 
         try:
             tax_calculator = TaxCalculator(tax_year=tax_year)
@@ -533,7 +622,9 @@ class RetirementCashflowToolsMixin:
                 exempt_pension_amount=exempt_pension_monthly,  # פטור חודשי מקיבוע זכויות
                 pension_months_in_year=12,
             )
-            tax_result_pension_only = tax_calculator.calculate_comprehensive_tax(tax_input_pension_only)
+            tax_result_pension_only = tax_calculator.calculate_comprehensive_tax(
+                tax_input_pension_only
+            )
 
             annual_net_pension_only = float(tax_result_pension_only.net_income)
             monthly_net_pension = annual_net_pension_only / 12
@@ -551,7 +642,9 @@ class RetirementCashflowToolsMixin:
                 exempt_pension_amount=exempt_pension_monthly,
                 pension_months_in_year=12,
             )
-            tax_result_total = tax_calculator.calculate_comprehensive_tax(tax_input_total)
+            tax_result_total = tax_calculator.calculate_comprehensive_tax(
+                tax_input_total
+            )
             annual_net_total_taxable = float(tax_result_total.net_income)
             monthly_net_total_taxable = annual_net_total_taxable / 12
             monthly_income_tax_total = float(tax_result_total.income_tax) / 12
@@ -604,8 +697,14 @@ class RetirementCashflowToolsMixin:
 
         # הכנסה מובטחת נטו (כולל ביטוח לאומי שהוא פטור ממס)
         # לצורך פער מול יעד, משתמשים בנטו משוקלל: קצבה + הכנסות נוספות חייבות
-        total_guaranteed_income_net = monthly_net_total_taxable + additional_income_exempt_gross_monthly + social_security_amount
-        total_guaranteed_income = total_guaranteed_income_gross  # לשמירה על תאימות לאחור
+        total_guaranteed_income_net = (
+            monthly_net_total_taxable
+            + additional_income_exempt_gross_monthly
+            + social_security_amount
+        )
+        total_guaranteed_income = (
+            total_guaranteed_income_gross  # לשמירה על תאימות לאחור
+        )
 
         # 5. ניתוח גירעון (Gap Analysis)
         # נחשב גם פער נטו וגם פער ברוטו. "gap" הוא הפער הפעיל בהתאם לבחירת המשתמש.
@@ -616,7 +715,7 @@ class RetirementCashflowToolsMixin:
         if desired_income_is_net is None:
             desired_income_is_net = True
         gap = gap_net if desired_income_is_net else gap_gross
-        
+
         # 6. חישוב הון זמין
         # שימוש ברשימה המסוננת שכבר יצרנו
         # capital_assets כבר חושב למעלה
@@ -634,15 +733,17 @@ class RetirementCashflowToolsMixin:
                     val = 0.0
             total_capital_available += val
         # נניח שגם קרנות השתלמות נזילות בפרישה
-        
+
         # 7. חישוב משך כיסוי (Sufficiency)
-        sufficiency_years: float | None = 999.0 # אינסוף
+        sufficiency_years: float | None = 999.0  # אינסוף
         is_sustainable = True
         required_capital_withdrawal = 0.0
 
         logger.info(
             "RUN_RETIREMENT_CASHFLOW_ANALYSIS: Final calculations - Projected Pension: %s, Total Liquid Capital: %s, Gap: %s",
-            total_pension_income, total_capital_available, gap
+            total_pension_income,
+            total_capital_available,
+            gap,
         )
 
         gap_epsilon = 0.01
@@ -657,23 +758,23 @@ class RetirementCashflowToolsMixin:
             if total_capital_available > 0:
                 months_covered = total_capital_available / gap
                 sufficiency_years = months_covered / 12
-                if sufficiency_years > (120 - age_at_retirement): # הנחת תוחלת חיים
-                     is_sustainable = True
+                if sufficiency_years > (120 - age_at_retirement):  # הנחת תוחלת חיים
+                    is_sustainable = True
             else:
                 sufficiency_years = 0.0
         else:
             # עודף תזרימי
             sufficiency_years = None
-            
+
         # 8. בניית התשובה
-        
+
         # יצירת הסבר
         deficit_status = "עודף" if gap <= 0 else "גירעון"
         gap_abs = abs(gap)
 
         target_mode_label = "נטו" if desired_income_is_net else "ברוטו"
         basis_label = "נטו" if desired_income_is_net else "ברוטו"
-        
+
         # בניית הסבר עם/בלי פטור קיבוע זכויות
         exemption_info = ""
         if apply_max_exemption and exempt_pension_monthly > 0:
@@ -689,25 +790,31 @@ class RetirementCashflowToolsMixin:
         if exemption_info:
             explanation_lines.append(exemption_info)
 
-        explanation_lines.extend([
-            f"",
-            f"📊 **ניתוח מס הכנסה:**",
-            f"   מס הכנסה חודשי (סה\"כ הכנסות חייבות): {monthly_income_tax_total:,.0f} ₪",
-            f"   (מתוך זה, מס על הקצבה בלבד: {monthly_income_tax:,.0f} ₪)",
-            f"",
-            f"✅ **הכנסה נטו חודשית:** {total_guaranteed_income_net:,.0f} ₪",
-            f"   (פנסיה נטו: {monthly_net_pension:,.0f} ₪ + הכנסות נוספות נטו (כלולות במס): {additional_income_taxable_gross_monthly:,.0f} ₪ + הכנסות פטורות: {additional_income_exempt_gross_monthly:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
-            f"",
-            f"🎯 **יעד הכנסה ({target_mode_label}):** {desired_monthly_income:,.0f} ₪",
-            f"📉 **{deficit_status} חודשי (לפי {basis_label}):** {gap_abs:,.0f} ₪",
-        ])
-        
+        explanation_lines.extend(
+            [
+                f"",
+                f"📊 **ניתוח מס הכנסה:**",
+                f'   מס הכנסה חודשי (סה"כ הכנסות חייבות): {monthly_income_tax_total:,.0f} ₪',
+                f"   (מתוך זה, מס על הקצבה בלבד: {monthly_income_tax:,.0f} ₪)",
+                f"",
+                f"✅ **הכנסה נטו חודשית:** {total_guaranteed_income_net:,.0f} ₪",
+                f"   (פנסיה נטו: {monthly_net_pension:,.0f} ₪ + הכנסות נוספות נטו (כלולות במס): {additional_income_taxable_gross_monthly:,.0f} ₪ + הכנסות פטורות: {additional_income_exempt_gross_monthly:,.0f} ₪ + ביטוח לאומי: {social_security_amount:,.0f} ₪)",
+                f"",
+                f"🎯 **יעד הכנסה ({target_mode_label}):** {desired_monthly_income:,.0f} ₪",
+                f"📉 **{deficit_status} חודשי (לפי {basis_label}):** {gap_abs:,.0f} ₪",
+            ]
+        )
+
         if gap > gap_epsilon:
             explanation_lines.append(f"")
             explanation_lines.append(f"🏦 **שימוש בהון פנוי:**")
-            explanation_lines.append(f"   סך הון זמין: {total_capital_available:,.0f} ₪")
+            explanation_lines.append(
+                f"   סך הון זמין: {total_capital_available:,.0f} ₪"
+            )
             if total_capital_available > 0:
-                explanation_lines.append(f"   ההון יספיק לכיסוי הגירעון למשך **{sufficiency_years:.1f} שנים** (עד גיל {age_at_retirement + sufficiency_years:.1f}).")
+                explanation_lines.append(
+                    f"   ההון יספיק לכיסוי הגירעון למשך **{sufficiency_years:.1f} שנים** (עד גיל {age_at_retirement + sufficiency_years:.1f})."
+                )
             else:
                 explanation_lines.append(f"   ⚠️ אין הון פנוי לכיסוי הגירעון!")
         elif gap <= gap_epsilon:
@@ -737,9 +844,15 @@ class RetirementCashflowToolsMixin:
                 # נטו
                 "projected_pension_net": round(monthly_net_pension, 2),
                 "total_guaranteed_income_net": round(total_guaranteed_income_net, 2),
-                "additional_income_gross_monthly": round(additional_income_gross_monthly, 2),
-                "additional_income_taxable_gross_monthly": round(additional_income_taxable_gross_monthly, 2),
-                "additional_income_exempt_gross_monthly": round(additional_income_exempt_gross_monthly, 2),
+                "additional_income_gross_monthly": round(
+                    additional_income_gross_monthly, 2
+                ),
+                "additional_income_taxable_gross_monthly": round(
+                    additional_income_taxable_gross_monthly, 2
+                ),
+                "additional_income_exempt_gross_monthly": round(
+                    additional_income_exempt_gross_monthly, 2
+                ),
                 # יעד וגירעון
                 "desired_monthly_income": desired_monthly_income,
                 "desired_income_is_net": bool(desired_income_is_net),
@@ -749,9 +862,11 @@ class RetirementCashflowToolsMixin:
                 "required_capital_withdrawal": round(required_capital_withdrawal, 2),
                 "total_liquid_capital": round(total_capital_available, 2),
                 "capital_sufficiency_years": (
-                    round(float(sufficiency_years), 1) if sufficiency_years is not None else None
+                    round(float(sufficiency_years), 1)
+                    if sufficiency_years is not None
+                    else None
                 ),
-                "is_sustainable": is_sustainable
+                "is_sustainable": is_sustainable,
             },
-            "explanation": "\n".join(explanation_lines)
+            "explanation": "\n".join(explanation_lines),
         }

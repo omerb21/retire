@@ -36,13 +36,19 @@ def test_stream_target_plan_injects_retirement_age_75(monkeypatch, _test_db) -> 
     monkeypatch.setattr(stream_gens, "_today", fake_today)
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic target plan routing")
+        raise AssertionError(
+            "LLM must not be called for deterministic target plan routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     seen_args: list[dict] = []
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
         seen_args.append(args)
         assert int(args.get("retirement_age")) == 75
@@ -66,7 +72,10 @@ def test_stream_target_plan_injects_retirement_age_75(monkeypatch, _test_db) -> 
         json={
             "client_id": client_id,
             "messages": [
-                {"role": "user", "content": "עוד 3 שנים, בנה תכנית משיכה לגיל 75. יעד נטו: 33000"}
+                {
+                    "role": "user",
+                    "content": "עוד 3 שנים, בנה תכנית משיכה לגיל 75. יעד נטו: 33000",
+                }
             ],
             "pension_portfolio": [],
         },

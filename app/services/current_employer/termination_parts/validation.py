@@ -18,7 +18,7 @@ def _parse_source_accounts(self, source_accounts: Optional[str]) -> List[str]:
 
 def _parse_plan_details(self, decision: TerminationDecisionCreate) -> List[Dict]:
     """פרסור פרטי תכניות"""
-    if not hasattr(decision, 'plan_details') or not decision.plan_details:
+    if not hasattr(decision, "plan_details") or not decision.plan_details:
         return []
     try:
         return json.loads(decision.plan_details)

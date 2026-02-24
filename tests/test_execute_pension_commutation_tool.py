@@ -9,7 +9,9 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
 from app.services.llm_chat.tool_execution import execute_tool_call
 
 
-def test_execute_pension_commutation_creates_asset_and_updates_fund(db_session, client) -> None:
+def test_execute_pension_commutation_creates_asset_and_updates_fund(
+    db_session, client
+) -> None:
     fund = PensionFund(
         client_id=client.id,
         fund_name="קצבה לדוגמה",
@@ -57,7 +59,10 @@ def test_execute_pension_commutation_creates_asset_and_updates_fund(db_session, 
 
     asset = (
         db_session.query(CapitalAsset)
-        .filter(CapitalAsset.client_id == client.id, CapitalAsset.id == parsed.get("commutation_asset_id"))
+        .filter(
+            CapitalAsset.client_id == client.id,
+            CapitalAsset.id == parsed.get("commutation_asset_id"),
+        )
         .first()
     )
     assert asset is not None
@@ -94,9 +99,13 @@ def test_execute_process_termination_requires_approved_preview_and_overrides_arg
     ):
         calls["n"] = int(calls["n"]) + 1
         calls["args"] = dict(args or {})
-        return json.dumps({"success": True, "tool_name": "PROCESS_TERMINATION"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": True, "tool_name": "PROCESS_TERMINATION"}, ensure_ascii=False
+        )
 
-    monkeypatch.setattr(tool_execution, "handle_process_termination", _fake_handle_process_termination)
+    monkeypatch.setattr(
+        tool_execution, "handle_process_termination", _fake_handle_process_termination
+    )
 
     res = execute_tool_call(
         "PROCESS_TERMINATION",
@@ -142,7 +151,9 @@ def test_execute_process_termination_requires_approved_preview_and_overrides_arg
     assert calls["args"] == approved_template
 
 
-def test_execute_pension_commutation_rejects_amount_over_balance(db_session, client) -> None:
+def test_execute_pension_commutation_rejects_amount_over_balance(
+    db_session, client
+) -> None:
     fund = PensionFund(
         client_id=client.id,
         fund_name="קצבה קטנה",

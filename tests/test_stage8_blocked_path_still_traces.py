@@ -7,7 +7,9 @@ from app.services.agent_execution import execute_agent_request as core_mod
 from app.services.agent_execution import tool_executor as tool_exec_mod
 
 
-def test_stage8_blocked_path_still_traces_validation_error_and_tool_result_and_final_response(monkeypatch, db_session):
+def test_stage8_blocked_path_still_traces_validation_error_and_tool_result_and_final_response(
+    monkeypatch, db_session
+):
     events: list[tuple[str, Any]] = []
 
     def fake_log_trace_event(*, event_type: str, payload=None, **kwargs):
@@ -30,4 +32,7 @@ def test_stage8_blocked_path_still_traces_validation_error_and_tool_result_and_f
 
     tool_result_payloads = [p for (t, p) in events if t == "tool_result"]
     assert tool_result_payloads
-    assert tool_result_payloads[0].get("status") in {"blocked_by_guard", "blocked_by_contract"}
+    assert tool_result_payloads[0].get("status") in {
+        "blocked_by_guard",
+        "blocked_by_contract",
+    }

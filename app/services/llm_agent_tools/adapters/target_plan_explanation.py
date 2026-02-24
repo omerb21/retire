@@ -61,9 +61,11 @@ def build_target_pension_plan_explanation(
 
         if blocked_for_execution_capital > 0:
             explanation_parts.append("")
-            explanation_parts.append("**🧩 מקורות שדורשים עזיבת עבודה כדי לכלול בפועל:**")
             explanation_parts.append(
-                f"  • הון חסום לביצוע (סה\"כ): {blocked_for_execution_capital:,.0f} ₪"
+                "**🧩 מקורות שדורשים עזיבת עבודה כדי לכלול בפועל:**"
+            )
+            explanation_parts.append(
+                f'  • הון חסום לביצוע (סה"כ): {blocked_for_execution_capital:,.0f} ₪'
             )
 
         # המלצות נוספות
@@ -78,7 +80,9 @@ def build_target_pension_plan_explanation(
                 f"  • {exempt_pension:,.0f} ₪ מהקצבה פטורים ממס - יתרון משמעותי."
             )
         if avg_factor > 190:
-            explanation_parts.append("  • שקול לדחות את הפרישה בשנה-שנתיים לשיפור המקדם.")
+            explanation_parts.append(
+                "  • שקול לדחות את הפרישה בשנה-שנתיים לשיפור המקדם."
+            )
     else:
         explanation_parts.append(
             (
@@ -98,7 +102,9 @@ def build_target_pension_plan_explanation(
             )
         explanation_parts.append(f"  • פער מהיעד: {gap:,.0f} ₪/חודש")
         base = required_gross_for_target if required_gross_for_target > 0 else 1
-        explanation_parts.append(f"  • אחוז מהיעד: {(accumulated_pension/base*100):.0f}%")
+        explanation_parts.append(
+            f"  • אחוז מהיעד: {(accumulated_pension/base*100):.0f}%"
+        )
 
         explanation_parts.append("")
         explanation_parts.append("**💡 אפשרויות לגישור הפער:**")

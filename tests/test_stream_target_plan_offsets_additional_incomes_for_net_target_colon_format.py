@@ -48,13 +48,19 @@ def test_stream_target_plan_offsets_additional_incomes_for_net_target_colon_form
         db.commit()
 
     def fake_chat_stream(*args, **kwargs):
-        raise AssertionError("LLM must not be called for deterministic target plan build")
+        raise AssertionError(
+            "LLM must not be called for deterministic target plan build"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
         payload = {

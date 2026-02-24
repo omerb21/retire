@@ -16,7 +16,10 @@ logger = logging.getLogger("app.llm_chat")
 def select_case(*, user_message: str | None, messages, client_id):
     from app.services.llm_chat.case_router import select_case as _select_case
 
-    return _select_case(user_message=user_message, messages=messages, client_id=client_id)
+    return _select_case(
+        user_message=user_message, messages=messages, client_id=client_id
+    )
+
 
 __all__ = [
     "run_pension_chat",

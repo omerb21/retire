@@ -8,7 +8,9 @@ def test_no_tools_stream_removes_questions_and_decision_phrases(monkeypatch) -> 
     def fake_chat_stream(messages, client_id=None):
         yield "קיבלתי. האם תרצה שאמשיך? בחר משהו."
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(

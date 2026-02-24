@@ -188,7 +188,11 @@ def _get_pension_sources_from_portfolio(
                 retirement_age=(
                     int(retirement_age)
                     if retirement_age is not None
-                    else int(get_retirement_age_simple(client.birth_date, client.gender or ""))
+                    else int(
+                        get_retirement_age_simple(
+                            client.birth_date, client.gender or ""
+                        )
+                    )
                 ),
                 company_name=acc.get("חברה_מנהלת"),
                 option_name=None,
@@ -291,9 +295,7 @@ def _get_pension_sources_from_portfolio(
                     f"נדרש לבצע עזיבת עבודה כדי להמיר {label} בסך {amount:,.0f} ₪ לקצבה"
                 )
             else:
-                action_description = (
-                    f"המרת {label} בסך {amount:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש"
-                )
+                action_description = f"המרת {label} בסך {amount:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש"
 
             pension_sources.append(
                 {
@@ -350,12 +352,16 @@ def _get_pension_sources_from_portfolio(
                 "coeff_source_table": coeff_source_table,
                 "fallback_used": bool(fallback_used),
                 "monthly_pension": potential_pension,
-                "tax_treatment": "exempt"
-                if ("השתלמות" in str(product_type) or "השתלמות" in str(plan_name))
-                else "taxable",
-                "priority_bucket": 5
-                if ("השתלמות" in str(product_type) or "השתלמות" in str(plan_name))
-                else 4,
+                "tax_treatment": (
+                    "exempt"
+                    if ("השתלמות" in str(product_type) or "השתלמות" in str(plan_name))
+                    else "taxable"
+                ),
+                "priority_bucket": (
+                    5
+                    if ("השתלמות" in str(product_type) or "השתלמות" in str(plan_name))
+                    else 4
+                ),
                 "action_needed": "convert_to_pension",
                 "action_description": f"המרת יתרה של {balance:,.0f} ₪ לקצבה של {potential_pension:,.0f} ₪/חודש",
             }

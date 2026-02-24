@@ -19,7 +19,13 @@ def compute_feature_flags(
 ) -> dict[FeatureFlagKey, bool]:
     msg = (user_text or "").strip().lower()
 
-    greeting_shortcut = bool(allow_greeting_shortcut) and msg in {"שלום", "היי", "הי", "hello", "hi"}
+    greeting_shortcut = bool(allow_greeting_shortcut) and msg in {
+        "שלום",
+        "היי",
+        "הי",
+        "hello",
+        "hi",
+    }
     if "PYTEST_CURRENT_TEST" in os.environ:
         greeting_shortcut = False
 
@@ -32,7 +38,9 @@ def compute_feature_flags(
     exec_only_path = False
     if bool(allow_exec_only_path):
         try:
-            exec_only_path = bool(is_execution_only(request) and intent != ChatIntent.REPORT)
+            exec_only_path = bool(
+                is_execution_only(request) and intent != ChatIntent.REPORT
+            )
         except Exception:
             exec_only_path = False
 

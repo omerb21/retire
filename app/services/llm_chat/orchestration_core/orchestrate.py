@@ -40,7 +40,6 @@ from .core_types import (
     TraceEventSpec,
 )
 
-
 _LAST_TOOL_RESULT_RESPOND_ONLY_TOOL_NAMES = frozenset(
     {
         "EXECUTION_ONLY",
@@ -68,7 +67,10 @@ def orchestrate(
             DecisionCode.NEED_USER_TARGET,
         }:
             return
-        if not isinstance(decision.final_text, str) or not (decision.final_text or "").strip():
+        if (
+            not isinstance(decision.final_text, str)
+            or not (decision.final_text or "").strip()
+        ):
             return
         trace_specs.append(
             TraceEventSpec(
@@ -89,7 +91,9 @@ def orchestrate(
             client_id=getattr(input, "client_id", None),
             trace_id=trace_id,
         )
-        _router_selected_spec = maybe_emit_router_selected_trace(trace_id=trace_id, decision=_router_decision)
+        _router_selected_spec = maybe_emit_router_selected_trace(
+            trace_id=trace_id, decision=_router_decision
+        )
     except Exception:
         _router_selected_spec = None
 
@@ -107,11 +111,17 @@ def orchestrate(
         except Exception:
             _raw = None
 
-        if isinstance(_raw, str) and ("###UI_ACTION###" in _raw) and ("approval_request" in _raw):
+        if (
+            isinstance(_raw, str)
+            and ("###UI_ACTION###" in _raw)
+            and ("approval_request" in _raw)
+        ):
             already_sent = False
             try:
                 if isinstance(input.state_snapshot, dict):
-                    already_sent = bool(input.state_snapshot.get("approval_request_already_sent", False))
+                    already_sent = bool(
+                        input.state_snapshot.get("approval_request_already_sent", False)
+                    )
             except Exception:
                 already_sent = False
 
@@ -154,7 +164,9 @@ def orchestrate(
                 "BUILD_TARGET_PENSION_PLAN",
                 "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
             }:
-                gross_for_tax_raw = input.state_snapshot.get("tax_autochain_gross_monthly_pension")
+                gross_for_tax_raw = input.state_snapshot.get(
+                    "tax_autochain_gross_monthly_pension"
+                )
                 gross_for_tax = None
                 try:
                     if gross_for_tax_raw is not None:
@@ -165,7 +177,11 @@ def orchestrate(
                 if gross_for_tax is not None and gross_for_tax > 0:
                     plan_kind = PlanKind.QA_ONLY
                     tool_name = "GET_TAX_PROJECTION"
-                    defaults = deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+                    defaults = (
+                        deps.tool_defaults(tool_name)
+                        if callable(deps.tool_defaults)
+                        else None
+                    )
                     tool_args = canonicalize_tool_args(
                         tool_name,
                         {"gross_monthly_pension": gross_for_tax},
@@ -213,7 +229,9 @@ def orchestrate(
             pass
 
     try:
-        if isinstance(input.state_snapshot, dict) and bool(input.state_snapshot.get("forced_document_reply_stop")):
+        if isinstance(input.state_snapshot, dict) and bool(
+            input.state_snapshot.get("forced_document_reply_stop")
+        ):
             forced_final = input.state_snapshot.get("forced_document_reply_final")
             if isinstance(forced_final, str) and forced_final.strip():
                 decision = OrchestrationDecision(
@@ -249,7 +267,9 @@ def orchestrate(
         final_text = ""
         try:
             raw_tool_result = getattr(input.last_tool_result, "tool_result", None)
-            if isinstance(raw_tool_result, dict) and isinstance(raw_tool_result.get("reply"), str):
+            if isinstance(raw_tool_result, dict) and isinstance(
+                raw_tool_result.get("reply"), str
+            ):
                 final_text = raw_tool_result.get("reply") or ""
             elif isinstance(raw_tool_result, dict):
                 final_text = json.dumps(raw_tool_result, ensure_ascii=False)
@@ -271,7 +291,10 @@ def orchestrate(
             tool_args=None,
             final_text=final_text,
             requires_user_approval=False,
-            debug_meta={"from_last_tool_result": True, "last_tool_name": last_tool_name},
+            debug_meta={
+                "from_last_tool_result": True,
+                "last_tool_name": last_tool_name,
+            },
         )
         trace_specs: list[TraceEventSpec] = []
         if _router_selected_spec is not None:
@@ -384,7 +407,9 @@ def orchestrate(
     ):
         plan_kind = PlanKind.QA_ONLY
         tool_name = "EXECUTION_ONLY"
-        defaults = deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+        defaults = (
+            deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+        )
         tool_args = canonicalize_tool_args(tool_name, {}, defaults=defaults)
         decision = OrchestrationDecision(
             decision_code=DecisionCode.TOOL_CALL,
@@ -395,7 +420,9 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
-        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+        if _router_selected_spec is not None and (
+            not trace_specs or trace_specs[0] is not _router_selected_spec
+        ):
             trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
@@ -421,7 +448,9 @@ def orchestrate(
         return decision, trace_specs
 
     if bool(feature_flags.get(FeatureFlagKey.GREETING_SHORTCUT, False)):
-        greeting = "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
+        greeting = (
+            "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
+        )
         plan_kind = PlanKind.QA_ONLY
         decision = OrchestrationDecision(
             decision_code=DecisionCode.RESPOND_ONLY,
@@ -459,7 +488,9 @@ def orchestrate(
         if is_process_termination_request(user_text):
             plan_kind = PlanKind.QA_ONLY
             tool_name = TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME
-            defaults = deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+            defaults = (
+                deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+            )
             tool_args = canonicalize_tool_args(tool_name, {}, defaults=defaults)
             decision = OrchestrationDecision(
                 decision_code=DecisionCode.TOOL_CALL,
@@ -470,7 +501,9 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
-            if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+            if _router_selected_spec is not None and (
+                not trace_specs or trace_specs[0] is not _router_selected_spec
+            ):
                 trace_specs.insert(0, _router_selected_spec)
             trace_specs.append(
                 TraceEventSpec(
@@ -494,7 +527,9 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
-        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+        if _router_selected_spec is not None and (
+            not trace_specs or trace_specs[0] is not _router_selected_spec
+        ):
             trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
@@ -515,15 +550,17 @@ def orchestrate(
         input.client_id is not None
         and (last_tool_name != MONTHLY_PENSION_SUMMARY_TOOL_NAME)
         and (
-        (MONTHLY_PENSION_SUMMARY_TOOL_NAME.lower() in lowered)
-        or ("monthly_pension" in lowered)
-        or ("קצבה חודשית" in normalized)
-        or ("קצבה נוכחית" in normalized)
+            (MONTHLY_PENSION_SUMMARY_TOOL_NAME.lower() in lowered)
+            or ("monthly_pension" in lowered)
+            or ("קצבה חודשית" in normalized)
+            or ("קצבה נוכחית" in normalized)
         )
     ):
         plan_kind = PlanKind.QA_ONLY
         tool_name = MONTHLY_PENSION_SUMMARY_TOOL_NAME
-        defaults = deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+        defaults = (
+            deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+        )
         tool_args = canonicalize_tool_args(tool_name, {}, defaults=defaults)
         decision = OrchestrationDecision(
             decision_code=DecisionCode.TOOL_CALL,
@@ -534,7 +571,9 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
-        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+        if _router_selected_spec is not None and (
+            not trace_specs or trace_specs[0] is not _router_selected_spec
+        ):
             trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
@@ -560,12 +599,13 @@ def orchestrate(
         return decision, trace_specs
 
     if (
-        (last_tool_name != CLIENT_SNAPSHOT_TOOL_NAME)
-        and is_client_snapshot_shortcut_request(user_text)
-    ):
+        last_tool_name != CLIENT_SNAPSHOT_TOOL_NAME
+    ) and is_client_snapshot_shortcut_request(user_text):
         plan_kind = PlanKind.SYSTEM_SNAPSHOT
         tool_name = CLIENT_SNAPSHOT_TOOL_NAME
-        defaults = deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+        defaults = (
+            deps.tool_defaults(tool_name) if callable(deps.tool_defaults) else None
+        )
         tool_args = canonicalize_tool_args(tool_name, {}, defaults=defaults)
         decision = OrchestrationDecision(
             decision_code=DecisionCode.TOOL_CALL,
@@ -576,7 +616,9 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
-        if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+        if _router_selected_spec is not None and (
+            not trace_specs or trace_specs[0] is not _router_selected_spec
+        ):
             trace_specs.insert(0, _router_selected_spec)
         trace_specs.append(
             TraceEventSpec(
@@ -601,7 +643,9 @@ def orchestrate(
         )
         return decision, trace_specs
 
-    if _router_selected_spec is not None and (not trace_specs or trace_specs[0] is not _router_selected_spec):
+    if _router_selected_spec is not None and (
+        not trace_specs or trace_specs[0] is not _router_selected_spec
+    ):
         trace_specs.insert(0, _router_selected_spec)
     trace_specs.append(
         TraceEventSpec(

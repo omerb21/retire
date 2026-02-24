@@ -40,7 +40,9 @@ def main() -> None:
         if not largest_ctx:
             print("  (none)")
         else:
-            print(f"  client_id={largest_ctx['client_id']}, scenario_id={largest_ctx['scenario_id']}")
+            print(
+                f"  client_id={largest_ctx['client_id']}, scenario_id={largest_ctx['scenario_id']}"
+            )
             acc = largest_ctx["account"]
             print(f"  account name={acc.get('שם_תכנית')}")
             print(f"  product_type (סוג_מוצר)={acc.get('סוג_מוצר')}")

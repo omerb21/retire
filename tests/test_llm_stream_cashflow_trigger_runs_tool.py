@@ -21,13 +21,17 @@ def test_cashflow_trigger_runs_tool(monkeypatch) -> None:
         user_approved: bool = True,
         request_id: str | None = None,
     ) -> str:
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be used for cashflow calc requests")
 
     monkeypatch.setattr(stream_loop, "_execute_tool_call", fake_execute_tool_call)
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -56,13 +60,17 @@ def test_cashflow_missing_age_gender_blocks_before_tool(monkeypatch) -> None:
     )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be used for deterministic cashflow gating")
 
     monkeypatch.setattr(stream_loop, "_execute_tool_call", fake_execute_tool_call)
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -85,19 +93,25 @@ def test_cashflow_missing_age_gender_blocks_before_tool(monkeypatch) -> None:
     assert "Tool Error" not in body
 
 
-def test_cashflow_missing_db_and_text_age_gender_blocks_with_short_prompt(monkeypatch) -> None:
+def test_cashflow_missing_db_and_text_age_gender_blocks_with_short_prompt(
+    monkeypatch,
+) -> None:
     from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts import (
         stream_loop,
     )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("Tool must not be executed when DB+text age/gender are missing")
+        raise AssertionError(
+            "Tool must not be executed when DB+text age/gender are missing"
+        )
 
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be used for deterministic cashflow gating")
 
     monkeypatch.setattr(stream_loop, "_execute_tool_call", fake_execute_tool_call)
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     from app.database import SessionLocal
     from app.models.client import Client

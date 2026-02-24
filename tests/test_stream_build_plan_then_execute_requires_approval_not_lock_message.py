@@ -7,7 +7,9 @@ from app.main import app
 from app.models.scenario import Scenario
 
 
-def test_stream_build_plan_then_execute_requires_approval_not_lock_message(monkeypatch, _test_db) -> None:
+def test_stream_build_plan_then_execute_requires_approval_not_lock_message(
+    monkeypatch, _test_db
+) -> None:
     """Regression: BUILD_TARGET_PENSION_PLAN must not trigger post-conversion lock messaging.
 
     We simulate a client that is "locked" only via snapshot _meta.operation_type,
@@ -27,15 +29,25 @@ def test_stream_build_plan_then_execute_requires_approval_not_lock_message(monke
             apply_tax_planning=False,
             apply_capitalization=False,
             apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": [], "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS"}}, ensure_ascii=False),
+            parameters=json.dumps(
+                {
+                    "pension_portfolio": [],
+                    "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS"},
+                },
+                ensure_ascii=False,
+            ),
         )
         db.add(snap)
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic execute-target-plan")
+        raise AssertionError(
+            "LLM must not be called for deterministic execute-target-plan"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     calls = {"n": 0}
 

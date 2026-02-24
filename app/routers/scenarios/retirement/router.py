@@ -1,6 +1,7 @@
 """
 Retirement scenarios router - handles retirement-specific endpoints
 """
+
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, status
@@ -15,7 +16,6 @@ from app.services.retirement_scenarios_api_service import (
 )
 from app.services.retirement_scenario_execution_service import (
     execute_retirement_scenario as execute_retirement_scenario_service,
-
     preview_retirement_scenario,
 )
 from app.services.retirement import RetirementScenariosBuilder
@@ -30,7 +30,7 @@ router = APIRouter()
 def generate_retirement_scenarios(
     request: RetirementScenariosRequest,
     client_id: int = Path(..., description="Client ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     מייצר 3 תרחישי פרישה אוטומטיים:
@@ -38,8 +38,10 @@ def generate_retirement_scenarios(
     2. מקסימום הון - מקסימום היוון עם שמירה על קצבת מינימום 5,500
     3. תרחיש מאוזן - 50% ערך כקצבה, 50% ערך כהון
     """
-    logger.info(f"🎯🎯 Retirement scenarios endpoint called for client {client_id}, age {request.retirement_age}")
-    
+    logger.info(
+        f"🎯🎯 Retirement scenarios endpoint called for client {client_id}, age {request.retirement_age}"
+    )
+
     retirement_age = request.retirement_age
     try:
         db_client = get_client_or_raise_for_retirement(db=db, client_id=client_id)
@@ -69,7 +71,7 @@ def generate_retirement_scenarios(
                 detail="לא ניתן להפיק תרחיש לגיל עבר. ניתן להפיק תרחישים רק לגיל נוכחי או עתידי.",
             )
         raise
-    
+
     try:
         # Build all scenarios
         builder = RetirementScenariosBuilder(
@@ -80,7 +82,7 @@ def generate_retirement_scenarios(
             request.include_current_employer_termination or False,
         )
         scenarios = builder.build_all_scenarios()
- 
+
         saved_scenarios = save_generated_retirement_scenarios(
             db=db,
             client_id=client_id,
@@ -91,25 +93,25 @@ def generate_retirement_scenarios(
             ),
             scenarios=scenarios,
         )
-         
+
         return {
             "success": True,
             "client_id": client_id,
             "retirement_age": retirement_age,
-            "scenarios": saved_scenarios
+            "scenarios": saved_scenarios,
         }
-    
+
     except ValueError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"שגיאה ביצירת תרחישים: {str(e)}"
+            detail=f"שגיאה ביצירת תרחישים: {str(e)}",
         )
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"שגיאה ביצירת תרחישים: {str(e)}"
+            detail=f"שגיאה ביצירת תרחישים: {str(e)}",
         )
 
 
@@ -117,13 +119,15 @@ def generate_retirement_scenarios(
 def get_saved_retirement_scenarios(
     client_id: int = Path(..., description="Client ID"),
     retirement_age: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     שולף תרחישי פרישה שמורים עבור לקוח.
     אם retirement_age מצוין, מחזיר רק תרחישים לגיל פרישה זה.
     """
-    logger.info(f"📥 Getting saved retirement scenarios for client {client_id}, age {retirement_age}")
+    logger.info(
+        f"📥 Getting saved retirement scenarios for client {client_id}, age {retirement_age}"
+    )
 
     try:
         get_client_or_raise_for_retirement(db=db, client_id=client_id)
@@ -152,7 +156,9 @@ def preview_retirement_scenario_route(
     Preview (read-only) של תרחיש פרישה. לא מבצע persist ולא משנה נתונים.
     """
     try:
-        return preview_retirement_scenario(db=db, client_id=client_id, scenario_id=scenario_id)
+        return preview_retirement_scenario(
+            db=db, client_id=client_id, scenario_id=scenario_id
+        )
     except ValueError as e:
         if str(e) == "client_not_found":
             raise HTTPException(
@@ -169,18 +175,21 @@ def preview_retirement_scenario_route(
             detail=f"שגיאה בהרצת Preview לתרחיש: {str(e)}",
         )
 
+
 @router.post("/{client_id}/retirement-scenarios/{scenario_id}/execute")
 def execute_retirement_scenario(
     client_id: int = Path(..., description="Client ID"),
     scenario_id: int = Path(..., description="Scenario ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     מבצע בפועל את כל ההמרות של תרחיש מסוים.
     זה ישנה את המצב בפועל במערכת - קצבאות, נכסי הון, והכנסות נוספות.
     """
     try:
-        return execute_retirement_scenario_service(db=db, client_id=client_id, scenario_id=scenario_id)
+        return execute_retirement_scenario_service(
+            db=db, client_id=client_id, scenario_id=scenario_id
+        )
     except ValueError as e:
         if str(e) == "client_not_found":
             raise HTTPException(

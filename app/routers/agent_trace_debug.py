@@ -53,7 +53,9 @@ def _check_enabled_and_auth(
     expected_token = (os.getenv("ADMIN_DEBUG_TOKEN") or "").strip()
     if expected_token:
         if not x_admin_token or x_admin_token.strip() != expected_token:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin token"
+            )
         return
 
     app_env = (os.getenv("APP_ENV") or "").strip().lower()
@@ -78,7 +80,9 @@ def _check_enabled_and_auth(
     if is_dev and is_loopback:
         return
 
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin token not configured")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED, detail="Admin token not configured"
+    )
 
 
 def _row_to_dict(row: AgentTraceEvent) -> dict[str, Any]:
@@ -127,12 +131,14 @@ def list_traces(
 
     results = []
     for row in q.all():
-        results.append({
-            "trace_id": row.trace_id,
-            "first_event": row.first_event.isoformat() if row.first_event else None,
-            "last_event": row.last_event.isoformat() if row.last_event else None,
-            "event_count": row.event_count,
-        })
+        results.append(
+            {
+                "trace_id": row.trace_id,
+                "first_event": row.first_event.isoformat() if row.first_event else None,
+                "last_event": row.last_event.isoformat() if row.last_event else None,
+                "event_count": row.event_count,
+            }
+        )
     return results
 
 
@@ -177,7 +183,9 @@ def get_trace_event_payload_raw(
         .first()
     )
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Event not found"
+        )
 
     payload = row.payload_json or ""
     raw = payload.encode("utf-8", errors="replace")
@@ -254,7 +262,9 @@ def run_trace_fixture(
             except Exception:
                 tool_call_id = None
 
-            evidence.setdefault("tool_calls", []).append({"tool_name": tool_name, "tool_call_id": tool_call_id})
+            evidence.setdefault("tool_calls", []).append(
+                {"tool_name": tool_name, "tool_call_id": tool_call_id}
+            )
             log_trace_event(
                 event_type="tool_call",
                 payload={
@@ -307,7 +317,9 @@ def run_trace_fixture(
                     db.query(AgentTraceEvent)
                     .filter(AgentTraceEvent.trace_id == trace_id)
                     .filter(AgentTraceEvent.event_type == "tool_result")
-                    .order_by(AgentTraceEvent.created_at.desc(), AgentTraceEvent.id.desc())
+                    .order_by(
+                        AgentTraceEvent.created_at.desc(), AgentTraceEvent.id.desc()
+                    )
                     .first()
                 )
                 if stored is not None and stored.payload_json:
@@ -355,7 +367,9 @@ def run_trace_fixture(
                 tool_call_id,
                 success=bool(isinstance(res, dict) and res.get("success")),
             )
-            notes.append("Executed RUN_RETIREMENT_CASHFLOW_ANALYSIS via AgentToolsService")
+            notes.append(
+                "Executed RUN_RETIREMENT_CASHFLOW_ANALYSIS via AgentToolsService"
+            )
 
         elif fixture == "target_plan":
             tool_name = "BUILD_TARGET_PENSION_PLAN"
@@ -398,7 +412,9 @@ def run_trace_fixture(
 
             tool_result = preview_text
             _log_tool_result(tool_name, tool_result, tool_call_id, success=True)
-            notes.append("Generated PROCESS_TERMINATION preview via blocked_balances_policy")
+            notes.append(
+                "Generated PROCESS_TERMINATION preview via blocked_balances_policy"
+            )
 
     except Exception as exc:
         notes.append(f"Tool execution raised: {type(exc).__name__}: {str(exc)[:500]}")

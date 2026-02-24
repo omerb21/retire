@@ -123,7 +123,9 @@ def _load_system_assets(*, db, client_id: int) -> dict:
     }
 
 
-def _format_system_assets_block(*, system_assets: dict, masleka_account_count: int) -> str:
+def _format_system_assets_block(
+    *, system_assets: dict, masleka_account_count: int
+) -> str:
     pensions = system_assets.get("system_pension_streams") or []
     capitals = system_assets.get("system_capital_assets") or []
     if (not pensions) and (not capitals):
@@ -150,17 +152,19 @@ def _format_system_assets_block(*, system_assets: dict, masleka_account_count: i
     lines.append(f"מקורות במסלקה: {int(masleka_account_count or 0)}")
     lines.append(f"קצבאות קיימות במערכת: {len(pensions)}")
     lines.append(f"נכסי הון קיימים במערכת: {len(capitals)}")
-    lines.append(f"סה\"כ מקורות זמינים לתכנון: {total_sources}")
+    lines.append(f'סה"כ מקורות זמינים לתכנון: {total_sources}')
 
     try:
-        lines.append(f"\nסה\"כ קצבאות קיימות במערכת (ברוטו חודשי): {pension_total:,.0f} ₪")
+        lines.append(
+            f'\nסה"כ קצבאות קיימות במערכת (ברוטו חודשי): {pension_total:,.0f} ₪'
+        )
     except Exception:
-        lines.append("\nסה\"כ קצבאות קיימות במערכת (ברוטו חודשי): לא זמין")
+        lines.append('\nסה"כ קצבאות קיימות במערכת (ברוטו חודשי): לא זמין')
 
     try:
-        lines.append(f"סה\"כ נכסי הון קיימים במערכת: {capital_total:,.0f} ₪")
+        lines.append(f'סה"כ נכסי הון קיימים במערכת: {capital_total:,.0f} ₪')
     except Exception:
-        lines.append("סה\"כ נכסי הון קיימים במערכת: לא זמין")
+        lines.append('סה"כ נכסי הון קיימים במערכת: לא זמין')
 
     if pensions:
         lines.append("\n### קצבאות במערכת")
@@ -193,7 +197,9 @@ def _format_system_assets_block(*, system_assets: dict, masleka_account_count: i
     return "\n".join(lines)
 
 
-def generate_breakdown(*, computed_data, portfolio, original_user_msg, effective_snapshot_at) -> str:
+def generate_breakdown(
+    *, computed_data, portfolio, original_user_msg, effective_snapshot_at
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -215,7 +221,9 @@ def generate_breakdown(*, computed_data, portfolio, original_user_msg, effective
     yield breakdown or "אין תיק פנסיוני לניתוח."
 
 
-def generate_portfolio_analysis(*, computed_data, request, db, portfolio, original_user_msg, effective_snapshot_at) -> str:
+def generate_portfolio_analysis(
+    *, computed_data, request, db, portfolio, original_user_msg, effective_snapshot_at
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -274,7 +282,9 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
         if additional_incomes:
             income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
             try:
-                client_for_tax = db.query(Client).filter(Client.id == request.client_id).first()
+                client_for_tax = (
+                    db.query(Client).filter(Client.id == request.client_id).first()
+                )
             except Exception:
                 client_for_tax = None
 
@@ -299,7 +309,9 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
                 return raw or "לא ידוע"
 
             def _fmt_tax(income: AdditionalIncome) -> str:
-                treatment = str(getattr(income, "tax_treatment", "") or "").strip().lower()
+                treatment = (
+                    str(getattr(income, "tax_treatment", "") or "").strip().lower()
+                )
                 if treatment == "exempt":
                     return "פטור"
                 if treatment == "fixed_rate":
@@ -315,7 +327,9 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
                 return treatment or "לא ידוע"
 
             def _fmt_indexation(income: AdditionalIncome) -> str:
-                method = str(getattr(income, "indexation_method", "") or "").strip().lower()
+                method = (
+                    str(getattr(income, "indexation_method", "") or "").strip().lower()
+                )
                 if method in {"", "none"}:
                     return "ללא"
                 if method == "cpi":
@@ -396,24 +410,32 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
                     except Exception:
                         any_unknown_tax = True
 
-                if str(getattr(inc, "tax_treatment", "") or "").strip().lower() == "fixed_rate" and getattr(
-                    inc, "tax_rate", None
-                ) is None:
+                if (
+                    str(getattr(inc, "tax_treatment", "") or "").strip().lower()
+                    == "fixed_rate"
+                    and getattr(inc, "tax_rate", None) is None
+                ):
                     any_unknown_tax = True
 
             if len(lines) > 1:
                 if any_unknown_tax:
                     try:
                         gross_float = float(gross_total)
-                        lines.append(f"\nסה\"כ הכנסות נוספות חודשי משוער (לפני מס): {gross_float:,.0f} ₪")
+                        lines.append(
+                            f'\nסה"כ הכנסות נוספות חודשי משוער (לפני מס): {gross_float:,.0f} ₪'
+                        )
                     except Exception:
-                        lines.append("\nסה\"כ הכנסות נוספות חודשי משוער (לפני מס): לא זמין")
+                        lines.append(
+                            '\nסה"כ הכנסות נוספות חודשי משוער (לפני מס): לא זמין'
+                        )
                 else:
                     try:
                         net_float = float(net_total)
-                        lines.append(f"\nסה\"כ הכנסות נוספות נטו חודשי משוער: {net_float:,.0f} ₪")
+                        lines.append(
+                            f'\nסה"כ הכנסות נוספות נטו חודשי משוער: {net_float:,.0f} ₪'
+                        )
                     except Exception:
-                        lines.append("\nסה\"כ הכנסות נוספות נטו חודשי משוער: לא זמין")
+                        lines.append('\nסה"כ הכנסות נוספות נטו חודשי משוער: לא זמין')
 
                 additional_incomes_block = "\n".join(lines)
 
@@ -468,9 +490,7 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
                 include_current_employer_termination=False,
             )
             if scenario_result.get("success"):
-                scenarios_text = str(
-                    scenario_result.get("explanation") or ""
-                ).strip()
+                scenarios_text = str(scenario_result.get("explanation") or "").strip()
             else:
                 scenarios_text = ""
         except Exception:
@@ -488,7 +508,9 @@ def generate_portfolio_analysis(*, computed_data, request, db, portfolio, origin
         else ""
     )
 
-    note = "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק."
+    note = (
+        "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק."
+    )
     if analysis:
         extra = ""
         if isinstance(scenarios_text, str) and scenarios_text.strip():

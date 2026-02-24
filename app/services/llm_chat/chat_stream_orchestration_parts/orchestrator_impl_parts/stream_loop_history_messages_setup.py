@@ -1,8 +1,13 @@
 from app.schemas.llm_chat import ChatMessage
-from app.services.llm_chat.intent_classifier import ChatIntent, get_stream_base_system_prompt, get_stream_system_prompt_for_intent
+from app.services.llm_chat.intent_classifier import (
+    ChatIntent,
+    get_stream_base_system_prompt,
+    get_stream_system_prompt_for_intent,
+)
 from app.services.llm_chat.execution_only_guard import get_execution_only_system_prompt
-from app.services.llm_chat.prompts_stream_retirement_kb import get_stream_professional_system_prompt
- 
+from app.services.llm_chat.prompts_stream_retirement_kb import (
+    get_stream_professional_system_prompt,
+)
 
 
 def _build_history_messages_for_stream(
@@ -18,7 +23,11 @@ def _build_history_messages_for_stream(
     history_messages: list[ChatMessage] = list(messages)
 
     insertion_idx = next(
-        (i for i, m in enumerate(history_messages) if getattr(m, "role", None) != "system"),
+        (
+            i
+            for i, m in enumerate(history_messages)
+            if getattr(m, "role", None) != "system"
+        ),
         len(history_messages),
     )
 
@@ -27,11 +36,14 @@ def _build_history_messages_for_stream(
             if not (
                 history_messages
                 and getattr(history_messages[0], "role", None) == "system"
-                and "מצב: EXECUTION_ONLY" in (getattr(history_messages[0], "content", "") or "")
+                and "מצב: EXECUTION_ONLY"
+                in (getattr(history_messages[0], "content", "") or "")
             ):
                 history_messages.insert(
                     0,
-                    ChatMessage(role="system", content=get_execution_only_system_prompt()),
+                    ChatMessage(
+                        role="system", content=get_execution_only_system_prompt()
+                    ),
                 )
         except Exception:
             pass

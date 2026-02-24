@@ -1,6 +1,7 @@
 """
 בדיקות אינטגרציה לשער זכאות בקיבוע זכויות
 """
+
 import unittest
 from datetime import date, timedelta
 
@@ -11,6 +12,7 @@ from app.database import SessionLocal
 from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from tests.utils import gen_valid_id
+
 
 class TestFixationGate(unittest.TestCase):
 
@@ -65,12 +67,10 @@ class TestFixationGate(unittest.TestCase):
 
     def test_ineligible_age_returns_409(self):
         """בדיקה שלקוח שלא הגיע לגיל זכאות מקבל 409"""
-        client_data = {
-            "client_id": self.ineligible_client_id
-        }
+        client_data = {"client_id": self.ineligible_client_id}
 
         response = self.api.post("/api/v1/rights-fixation/calculate", json=client_data)
-        
+
         self.assertEqual(response.status_code, 409)
         data = response.json()
         self.assertFalse(data["ok"])
@@ -79,19 +79,18 @@ class TestFixationGate(unittest.TestCase):
 
     def test_eligible_client_returns_200(self):
         """בדיקה שלקוח זכאי מקבל 200 ומשך לחישוב"""
-        client_data = {
-            "client_id": self.eligible_client_id
-        }
+        client_data = {"client_id": self.eligible_client_id}
 
         response = self.api.post("/api/v1/rights-fixation/calculate", json=client_data)
-        
+
         # אמור להצליח ולהמשיך לחישוב הקיבוע
         self.assertIn(response.status_code, [200, 500])  # 500 אם יש בעיה בחישוב עצמו
-        
+
         if response.status_code == 200:
             data = response.json()
             # אמור להכיל תוצאות חישוב קיבוע זכויות
             self.assertIn("grants", data)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

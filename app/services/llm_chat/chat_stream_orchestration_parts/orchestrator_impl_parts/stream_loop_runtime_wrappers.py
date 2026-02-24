@@ -13,7 +13,7 @@ def _build_runtime_wrappers(
     is_explain_in_words_request_impl,
     is_general_retirement_help_request_impl,
     is_general_retirement_intro_request_impl,
- ):
+):
     def _infer_pending_retirement_fields_for_marker(
         *, client_id: int | None
     ) -> tuple[int | None, str | None]:

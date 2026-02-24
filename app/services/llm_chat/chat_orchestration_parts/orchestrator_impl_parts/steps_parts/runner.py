@@ -1,4 +1,3 @@
-
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -6,7 +5,9 @@ from typing import Any
 from app.schemas.llm_chat import ChatMessage, ChatResponse
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 
-from app.services.llm_chat.orchestration_loop_core import run_orchestration_loop_core_sync
+from app.services.llm_chat.orchestration_loop_core import (
+    run_orchestration_loop_core_sync,
+)
 
 
 from ..steps.messages_prompt import _build_messages_and_prompt
@@ -14,6 +15,7 @@ from ..steps.types import _PreparedOrchestrationInputs
 
 from .types import _OrchestrationResult
 from .runner_step_handlers import _handle_no_tool_call_step, _handle_tool_call_step
+
 
 def _run_orchestration(
     *,
@@ -64,7 +66,9 @@ def _run_orchestration(
         is_user_approval_intent_text,
         was_tool_call_previously_approved,
     )
-    from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
+    from app.services.llm_chat.numeric_provenance import (
+        validate_reply_numeric_provenance,
+    )
     from app.services.llm_chat.orchestration_utils import (
         apply_max_exemption_if_requested,
         build_tax_result_system_message_for_chat,
@@ -94,7 +98,9 @@ def _run_orchestration(
         _get_llm_service,
         _load_latest_pension_portfolio_snapshot_models,
     )
-    from app.services.llm_chat.chat_orchestration_parts.tool_calling import _execute_tool_call
+    from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
+        _execute_tool_call,
+    )
     from app.services.llm_chat.orchestration_utils import (
         build_partial_pension_transform_accounts_from_portfolio,
         build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio,
@@ -159,7 +165,12 @@ def _run_orchestration(
         lowered = (raw_reply or "").lower()
         has_pass_fail = ("pass" in lowered) or ("fail" in lowered)
 
-        if is_qa_mode and no_tools_requested and (not has_pass_fail) and ("###TOOL_CALL###" not in raw_reply):
+        if (
+            is_qa_mode
+            and no_tools_requested
+            and (not has_pass_fail)
+            and ("###TOOL_CALL###" not in raw_reply)
+        ):
             messages.append(
                 ChatMessage(
                     role="system",
@@ -172,7 +183,11 @@ def _run_orchestration(
             step += 1
             return "continue", step
 
-        if qa_summary_required and (not has_pass_fail) and ("###TOOL_CALL###" not in raw_reply):
+        if (
+            qa_summary_required
+            and (not has_pass_fail)
+            and ("###TOOL_CALL###" not in raw_reply)
+        ):
             messages.append(
                 ChatMessage(
                     role="system",

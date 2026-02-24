@@ -14,7 +14,9 @@ def _is_uuid_str(value: str) -> bool:
         return False
 
 
-def test_stage12_golden_non_stream_monthly_summary_traces_correlate(monkeypatch) -> None:
+def test_stage12_golden_non_stream_monthly_summary_traces_correlate(
+    monkeypatch,
+) -> None:
     import app.services.agent_execution.execute_agent_request as entry_mod
     import app.services.agent_execution.tool_executor as tool_exec_mod
     import app.services.agent_trace_logger as trace_logger_mod
@@ -33,7 +35,9 @@ def test_stage12_golden_non_stream_monthly_summary_traces_correlate(monkeypatch)
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(entry_mod, "log_trace_event", fake_log_trace_event)
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
@@ -50,7 +54,11 @@ def test_stage12_golden_non_stream_monthly_summary_traces_correlate(monkeypatch)
 
     assert response.status_code == 200
 
-    core_events = [e for e in events if isinstance(e.get("event_type"), str) and e["event_type"].startswith("core_")]
+    core_events = [
+        e
+        for e in events
+        if isinstance(e.get("event_type"), str) and e["event_type"].startswith("core_")
+    ]
     assert {e.get("trace_id") for e in core_events if e.get("trace_id")}  # at least one
 
     trace_id = next(e["trace_id"] for e in core_events if e.get("trace_id"))
@@ -106,7 +114,9 @@ def test_stage12_golden_stream_monthly_summary_traces_correlate(monkeypatch) -> 
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(entry_mod, "log_trace_event", fake_log_trace_event)
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
@@ -124,7 +134,11 @@ def test_stage12_golden_stream_monthly_summary_traces_correlate(monkeypatch) -> 
     assert response.status_code == 200
     assert "###COMPUTED_DATA###" in response.text
 
-    core_events = [e for e in events if isinstance(e.get("event_type"), str) and e["event_type"].startswith("core_")]
+    core_events = [
+        e
+        for e in events
+        if isinstance(e.get("event_type"), str) and e["event_type"].startswith("core_")
+    ]
     trace_id = next(e["trace_id"] for e in core_events if e.get("trace_id"))
     assert isinstance(trace_id, str) and _is_uuid_str(trace_id)
 

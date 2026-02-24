@@ -42,7 +42,11 @@ def _execute_tool_call(
         effective_trace_id = None
     if not effective_trace_id:
         try:
-            if db is not None and hasattr(db, "info") and isinstance(getattr(db, "info", None), dict):
+            if (
+                db is not None
+                and hasattr(db, "info")
+                and isinstance(getattr(db, "info", None), dict)
+            ):
                 candidate = db.info.get("trace_id")
                 if isinstance(candidate, str) and candidate.strip():
                     effective_trace_id = candidate.strip()
@@ -60,14 +64,18 @@ def _execute_tool_call(
         fn = getattr(facade, "execute_tool_call", None)
         if callable(fn):
             return fn
-        from app.services.agent_execution.tool_executor import execute_tool_call as _local_execute_tool_call
+        from app.services.agent_execution.tool_executor import (
+            execute_tool_call as _local_execute_tool_call,
+        )
 
         return _local_execute_tool_call
 
     execute_tool_call_fn = _get_execute_tool_call()
 
     try:
-        from app.services.agent_execution.tool_executor import execute_tool_call as _ssot_execute_tool_call
+        from app.services.agent_execution.tool_executor import (
+            execute_tool_call as _ssot_execute_tool_call,
+        )
 
         is_ssot = execute_tool_call_fn is _ssot_execute_tool_call
     except Exception:
@@ -106,7 +114,7 @@ def _execute_tool_call(
     try:
         sig = inspect.signature(execute_tool_call_fn)
         params = sig.parameters
-        supports_tool_call_id = ("tool_call_id" in params)
+        supports_tool_call_id = "tool_call_id" in params
         if "agent_reply" in params or "user_approved" in params:
             _exec_kwargs = {
                 "tool_name": tool_name,
@@ -173,7 +181,11 @@ def _execute_tool_call(
                         "status": "ok",
                         "success": True,
                         "streaming": True,
-                        "result_preview": (res or "")[:200] if isinstance(res, str) else str(res)[:200],
+                        "result_preview": (
+                            (res or "")[:200]
+                            if isinstance(res, str)
+                            else str(res)[:200]
+                        ),
                     },
                     client_id=client_id,
                 )

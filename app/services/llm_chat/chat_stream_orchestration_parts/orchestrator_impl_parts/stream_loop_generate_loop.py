@@ -64,7 +64,7 @@ def _build_streaming_response_generate_loop(
     is_tool_error_text,
     log_llm_event,
     force_max_exemption: bool,
- ) -> StreamingResponse:
+) -> StreamingResponse:
     def generate(force_max_exemption_val: bool, req_id: str):
         (
             did_return,
@@ -113,15 +113,17 @@ def _build_streaming_response_generate_loop(
 
         def _get_llm_reply(step: int):
             step += 1
-            should_break, full_response = yield from stream_collect_llm_response_with_retry_or_yield_error(
-                collect_llm_response_with_retry=collect_llm_response_with_retry,
-                history_messages=history_messages,
-                client_id=request.client_id,
-                stream_request_id=stream_request_id,
-                current_step=step,
-                logger=logger,
-                get_llm_service=get_llm_service,
-                get_retry_settings=get_retry_settings,
+            should_break, full_response = (
+                yield from stream_collect_llm_response_with_retry_or_yield_error(
+                    collect_llm_response_with_retry=collect_llm_response_with_retry,
+                    history_messages=history_messages,
+                    client_id=request.client_id,
+                    stream_request_id=stream_request_id,
+                    current_step=step,
+                    logger=logger,
+                    get_llm_service=get_llm_service,
+                    get_retry_settings=get_retry_settings,
+                )
             )
             return should_break, full_response, step
 

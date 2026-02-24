@@ -10,7 +10,6 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     load_current_employer_termination_plan_preview,
 )
 
-
 _APPROVAL_EXECUTION_RECEIPT_SCENARIO = "approval_execution_receipt"
 _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS = 5 * 60
 
@@ -78,7 +77,9 @@ def store_approval_execution_receipt(
         tool_args = {}
 
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(seconds=int(ttl_seconds or _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS))
+    expires_at = now + timedelta(
+        seconds=int(ttl_seconds or _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS)
+    )
     args_hash = compute_args_hash(tool_args)
 
     try:
@@ -137,7 +138,9 @@ def _safe_float(value: object) -> float:
         return 0.0
 
 
-def _derive_execution_plan_accounts_from_sources_used(sources_used: object) -> list[dict]:
+def _derive_execution_plan_accounts_from_sources_used(
+    sources_used: object,
+) -> list[dict]:
     sources_list = sources_used if isinstance(sources_used, list) else []
     enriched: list[dict] = []
     for src in sources_list:
@@ -183,7 +186,9 @@ def _derive_execution_plan_accounts_from_plan_steps(
 
     snapshot_by_name: dict[str, str] = {}
     try:
-        from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
+        from app.services.pension_portfolio.snapshot_loader import (
+            load_latest_pension_portfolio_snapshot,
+        )
         from app.services.llm_chat.chat_orchestration_helpers_parts.target_plan_conversion import (
             _clean_account_name_for_transform,
         )
@@ -285,21 +290,27 @@ def _derive_execution_plan_accounts_from_plan_steps(
             }
             aggregated[key] = row
 
-        row["amount_to_convert"] = float(row.get("amount_to_convert") or 0) + float(amount_to_convert)
+        row["amount_to_convert"] = float(row.get("amount_to_convert") or 0) + float(
+            amount_to_convert
+        )
         if expected_monthly_pension > 0:
-            row["expected_monthly_pension"] = float(row.get("expected_monthly_pension") or 0) + float(
-                expected_monthly_pension
-            )
+            row["expected_monthly_pension"] = float(
+                row.get("expected_monthly_pension") or 0
+            ) + float(expected_monthly_pension)
 
     return list(aggregated.values())
 
 
-def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result: object) -> bool:
+def store_latest_target_pension_plan(
+    *, db: Session, client_id: int, tool_result: object
+) -> bool:
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:
         return False
     try:
-        plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else None
+        plan_res = (
+            payload.get("result") if isinstance(payload.get("result"), dict) else None
+        )
         if isinstance(plan_res, dict):
             plan_steps = plan_res.get("plan_steps")
             sources_used = plan_res.get("sources_used")
@@ -312,11 +323,17 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
                 if isinstance(plan_res.get("execution_plan"), dict)
                 else None
             )
-            raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
+            raw_accounts = (
+                execution_plan.get("accounts")
+                if isinstance(execution_plan, dict)
+                else None
+            )
             accounts = raw_accounts if isinstance(raw_accounts, list) else []
 
             if (has_steps or has_sources) and (not accounts):
-                enriched = _derive_execution_plan_accounts_from_sources_used(sources_used)
+                enriched = _derive_execution_plan_accounts_from_sources_used(
+                    sources_used
+                )
                 if not enriched:
                     enriched = _derive_execution_plan_accounts_from_plan_steps(
                         db=db,
@@ -325,14 +342,18 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
                     )
 
                 if enriched:
-                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan = (
+                        dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    )
                     execution_plan["accounts"] = enriched
                     plan_res = dict(plan_res)
                     plan_res["execution_plan"] = execution_plan
                     payload = dict(payload)
                     payload["result"] = plan_res
                 else:
-                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan = (
+                        dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    )
                     execution_plan["accounts"] = []
                     execution_plan.setdefault(
                         "non_executable_reason",
@@ -343,7 +364,9 @@ def store_latest_target_pension_plan(*, db: Session, client_id: int, tool_result
                     payload = dict(payload)
                     payload["result"] = plan_res
             elif (not has_steps) and (not has_sources):
-                execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                execution_plan = (
+                    dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                )
                 execution_plan["accounts"] = []
                 execution_plan.setdefault(
                     "non_executable_reason",
@@ -408,7 +431,11 @@ def store_pending_approval_request(
                 )
             except Exception:
                 preview_payload = None
-            preview_id = preview_payload.get("preview_id") if isinstance(preview_payload, dict) else None
+            preview_id = (
+                preview_payload.get("preview_id")
+                if isinstance(preview_payload, dict)
+                else None
+            )
             if isinstance(preview_id, str) and preview_id.strip():
                 tool_args["preview_id"] = preview_id.strip()
 
@@ -460,7 +487,9 @@ def store_pending_approval_request(
         return False
 
 
-def load_pending_approval_request(*, db: Session, client_id: int) -> tuple[str, dict] | None:
+def load_pending_approval_request(
+    *, db: Session, client_id: int
+) -> tuple[str, dict] | None:
     if client_id is None:
         return None
     try:
@@ -505,7 +534,9 @@ def clear_pending_approval_request(*, db: Session, client_id: int) -> bool:
         return False
 
 
-def store_undo_snapshot(*, db: Session, client_id: int, snapshot_payload: dict) -> int | None:
+def store_undo_snapshot(
+    *, db: Session, client_id: int, snapshot_payload: dict
+) -> int | None:
     if client_id is None:
         return None
     if not isinstance(snapshot_payload, dict):
@@ -524,7 +555,11 @@ def store_undo_snapshot(*, db: Session, client_id: int, snapshot_payload: dict) 
         return None
 
     try:
-        meta = snapshot_payload.get("_meta") if isinstance(snapshot_payload.get("_meta"), dict) else {}
+        meta = (
+            snapshot_payload.get("_meta")
+            if isinstance(snapshot_payload.get("_meta"), dict)
+            else {}
+        )
         meta = dict(meta)
         meta["stored_at_utc"] = datetime.now(timezone.utc).isoformat()
         snapshot_payload = dict(snapshot_payload)
@@ -661,7 +696,9 @@ def store_latest_retirement_cashflow_analysis(
         return False
 
 
-def load_latest_retirement_cashflow_analysis(*, db: Session, client_id: int) -> dict | None:
+def load_latest_retirement_cashflow_analysis(
+    *, db: Session, client_id: int
+) -> dict | None:
     try:
         row = (
             db.query(Scenario)
@@ -681,13 +718,17 @@ def load_latest_retirement_cashflow_analysis(*, db: Session, client_id: int) -> 
     return parsed if isinstance(parsed, dict) else None
 
 
-def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_result: object) -> bool:
+def store_latest_target_pension_plan_data(
+    *, db: Session, client_id: int, tool_result: object
+) -> bool:
     payload = _extract_target_plan_payload_from_tool_result(tool_result)
     if not payload:
         return False
 
     try:
-        plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else None
+        plan_res = (
+            payload.get("result") if isinstance(payload.get("result"), dict) else None
+        )
         if isinstance(plan_res, dict):
             plan_steps = plan_res.get("plan_steps")
             sources_used = plan_res.get("sources_used")
@@ -700,11 +741,17 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
                 if isinstance(plan_res.get("execution_plan"), dict)
                 else None
             )
-            raw_accounts = execution_plan.get("accounts") if isinstance(execution_plan, dict) else None
+            raw_accounts = (
+                execution_plan.get("accounts")
+                if isinstance(execution_plan, dict)
+                else None
+            )
             accounts = raw_accounts if isinstance(raw_accounts, list) else []
 
             if (has_steps or has_sources) and (not accounts):
-                enriched = _derive_execution_plan_accounts_from_sources_used(sources_used)
+                enriched = _derive_execution_plan_accounts_from_sources_used(
+                    sources_used
+                )
                 if not enriched:
                     enriched = _derive_execution_plan_accounts_from_plan_steps(
                         db=db,
@@ -713,14 +760,18 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
                     )
 
                 if enriched:
-                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan = (
+                        dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    )
                     execution_plan["accounts"] = enriched
                     plan_res = dict(plan_res)
                     plan_res["execution_plan"] = execution_plan
                     payload = dict(payload)
                     payload["result"] = plan_res
                 else:
-                    execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    execution_plan = (
+                        dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                    )
                     execution_plan["accounts"] = []
                     execution_plan.setdefault(
                         "non_executable_reason",
@@ -731,7 +782,9 @@ def store_latest_target_pension_plan_data(*, db: Session, client_id: int, tool_r
                     payload = dict(payload)
                     payload["result"] = plan_res
             elif (not has_steps) and (not has_sources):
-                execution_plan = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                execution_plan = (
+                    dict(execution_plan) if isinstance(execution_plan, dict) else {}
+                )
                 execution_plan["accounts"] = []
                 execution_plan.setdefault(
                     "non_executable_reason",
@@ -954,7 +1007,9 @@ def _extract_target_plan_payload_from_tool_result(tool_result: object) -> dict |
     if not isinstance(parsed, dict):
         return None
 
-    if isinstance(parsed.get("tool_name"), str) and isinstance(parsed.get("result"), dict):
+    if isinstance(parsed.get("tool_name"), str) and isinstance(
+        parsed.get("result"), dict
+    ):
         payload = dict(parsed)
         if not isinstance(payload.get("args"), dict):
             args = payload.get("arguments")

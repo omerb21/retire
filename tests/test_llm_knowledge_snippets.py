@@ -2,10 +2,14 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
-from app.services.agent_execution.tool_execution_context import set_tool_execution_context
+from app.services.agent_execution.tool_execution_context import (
+    set_tool_execution_context,
+)
 
 
-def test_prepare_messages_injects_knowledge_snippet_when_relevant(db_session, client) -> None:
+def test_prepare_messages_injects_knowledge_snippet_when_relevant(
+    db_session, client
+) -> None:
     req = ChatRequest(
         client_id=client.id,
         messages=[
@@ -36,7 +40,9 @@ def test_prepare_messages_injects_knowledge_snippet_when_relevant(db_session, cl
     assert any("TAX_SPREAD_LOGIC.md" in c for c in system_contents)
 
 
-def test_prepare_messages_does_not_inject_knowledge_when_irrelevant(db_session, client) -> None:
+def test_prepare_messages_does_not_inject_knowledge_when_irrelevant(
+    db_session, client
+) -> None:
     req = ChatRequest(
         client_id=client.id,
         messages=[ChatMessage(role="user", content="מה שלומך?")],

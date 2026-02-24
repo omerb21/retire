@@ -22,19 +22,19 @@ from app.calculation.cashflow import make_simple_cashflow
 class CalculationEngine:
     """
     Main calculation engine that orchestrates retirement planning calculations.
-    
+
     This engine combines seniority, grants, pensions, and cashflow calculations
     to produce complete retirement scenarios.
-    
+
     Attributes:
         db (Session): Database session for data access
         tax_provider (TaxParamsProvider): Provider for tax parameters
     """
-    
+
     def __init__(self, db: Session, tax_provider: TaxParamsProvider):
         """
         Initialize the calculation engine.
-        
+
         Args:
             db: SQLAlchemy database session
             tax_provider: Tax parameters provider instance
@@ -45,7 +45,7 @@ class CalculationEngine:
     def run(self, client_id: int, scenario: ScenarioIn) -> ScenarioOut:
         """
         Execute a complete retirement scenario calculation.
-        
+
         This method:
         1. Validates client and employment data
         2. Calculates seniority years
@@ -53,14 +53,14 @@ class CalculationEngine:
         4. Calculates tax components
         5. Determines pension amounts
         6. Generates cashflow projections
-        
+
         Args:
             client_id: ID of the client
             scenario: Scenario input parameters
-            
+
         Returns:
             ScenarioOut: Complete calculation results
-            
+
         Raises:
             ValueError: If client not found, inactive, or missing employment data
         """
@@ -72,17 +72,18 @@ class CalculationEngine:
             raise ValueError("לקוח לא פעיל")
 
         # Get current employment
-        employment = self.db.query(Employment).filter(
-            Employment.client_id == client_id,
-            Employment.is_current == True
-        ).first()
-        
+        employment = (
+            self.db.query(Employment)
+            .filter(Employment.client_id == client_id, Employment.is_current == True)
+            .first()
+        )
+
         if not employment:
             raise ValueError("לא נמצאה תעסוקה נוכחית")
 
         # Get tax parameters
         params = self.tax_provider.get_params()
-        
+
         # 1) Calculate seniority
         end_for_seniority = scenario.planned_termination_date or date.today()
         seniority = calc_seniority_years(employment.start_date, end_for_seniority)
@@ -94,12 +95,16 @@ class CalculationEngine:
         indexed_amount = index_amount(base_amount, f)
 
         # 3) Calculate grant components (exempt/taxable/tax)
-        exempt, taxable, tax = GrantEngine._calc_grant_components(indexed_amount, params)
+        exempt, taxable, tax = GrantEngine._calc_grant_components(
+            indexed_amount, params
+        )
         grant_net = round(indexed_amount - tax, 2)
 
         # 4) Calculate monthly pension
         # Assumption: Converting net grant to monthly pension
-        pension_monthly = PensionEngine._calc_monthly_pension_from_capital(grant_net, params)
+        pension_monthly = PensionEngine._calc_monthly_pension_from_capital(
+            grant_net, params
+        )
 
         # 5) Generate cashflow (simple: 12 months ahead)
         income = scenario.other_incomes_monthly or pension_monthly

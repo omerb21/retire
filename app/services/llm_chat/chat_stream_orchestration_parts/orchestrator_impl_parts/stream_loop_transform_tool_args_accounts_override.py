@@ -22,18 +22,22 @@ def _maybe_override_transform_tool_args_accounts(
         targeted_req = parse_targeted_component_conversion_request(original_user_msg)
         if targeted_req is not None:
             acc_num, fields, conv_type = targeted_req
-            targeted_accounts = build_targeted_component_transform_accounts_from_portfolio(
-                pension_portfolio=current_pension_portfolio,
-                account_number=acc_num,
-                fields=fields,
-                conversion_type=conv_type,
+            targeted_accounts = (
+                build_targeted_component_transform_accounts_from_portfolio(
+                    pension_portfolio=current_pension_portfolio,
+                    account_number=acc_num,
+                    fields=fields,
+                    conversion_type=conv_type,
+                )
             )
             if targeted_accounts:
                 tool_args["accounts"] = targeted_accounts
                 tool_args["use_provided_accounts_only"] = True
         else:
-            prev_sev_req = parse_portfolio_wide_prev_employers_severance_conversion_request(
-                original_user_msg
+            prev_sev_req = (
+                parse_portfolio_wide_prev_employers_severance_conversion_request(
+                    original_user_msg
+                )
             )
             if prev_sev_req is not None:
                 _fields, conv_type = prev_sev_req
@@ -46,8 +50,10 @@ def _maybe_override_transform_tool_args_accounts(
                         tool_args["accounts"] = portfolio_accounts
                         tool_args["use_provided_accounts_only"] = True
             else:
-                after_settle_req = parse_portfolio_wide_after_settlement_severance_conversion_request(
-                    original_user_msg
+                after_settle_req = (
+                    parse_portfolio_wide_after_settlement_severance_conversion_request(
+                        original_user_msg
+                    )
                 )
                 if after_settle_req is not None:
                     _fields, conv_type = after_settle_req
@@ -59,8 +65,10 @@ def _maybe_override_transform_tool_args_accounts(
                         tool_args["accounts"] = portfolio_accounts
                         tool_args["use_provided_accounts_only"] = True
                 else:
-                    portfolio_wide_req = parse_portfolio_wide_component_conversion_request(
-                        original_user_msg
+                    portfolio_wide_req = (
+                        parse_portfolio_wide_component_conversion_request(
+                            original_user_msg
+                        )
                     )
                     if portfolio_wide_req is not None:
                         fields, conv_type = portfolio_wide_req
@@ -73,8 +81,10 @@ def _maybe_override_transform_tool_args_accounts(
                             tool_args["accounts"] = portfolio_accounts
                             tool_args["use_provided_accounts_only"] = True
                     else:
-                        edu_req = parse_portfolio_wide_education_fund_conversion_request(
-                            original_user_msg
+                        edu_req = (
+                            parse_portfolio_wide_education_fund_conversion_request(
+                                original_user_msg
+                            )
                         )
                         if edu_req is not None:
                             _fields, conv_type = edu_req

@@ -17,7 +17,9 @@ from app.services.retirement.constants import PENSION_COEFFICIENT
 from app.services.llm_agent_tools.adapters.target_plan_explanation import (
     build_target_pension_plan_explanation,
 )
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot,
+)
 
 logger = logging.getLogger("app.llm_agent_tools")
 
@@ -72,7 +74,9 @@ def build_target_pension_plan(
     except Exception:
         legal_retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
     try:
-        legal_retirement_date = get_retirement_date(client.birth_date, client.gender or "")
+        legal_retirement_date = get_retirement_date(
+            client.birth_date, client.gender or ""
+        )
     except Exception:
         legal_retirement_date = None
 
@@ -204,7 +208,9 @@ def build_target_pension_plan(
 
         computed_gross, tax_result, gross_err = _gross_for_net_target(target)
         if computed_gross is None:
-            err = ((gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)").strip())
+            err = (
+                gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)"
+            ).strip()
             return {
                 "success": False,
                 "tool_name": "BUILD_TARGET_PENSION_PLAN",
@@ -263,21 +269,37 @@ def build_target_pension_plan(
             if acc_dict is None:
                 continue
 
-            if _safe_float(
-                acc_dict.get("יתרה")
-                or acc_dict.get("balance")
-                or acc_dict.get("current_balance")
-            ) > 0.01:
+            if (
+                _safe_float(
+                    acc_dict.get("יתרה")
+                    or acc_dict.get("balance")
+                    or acc_dict.get("current_balance")
+                )
+                > 0.01
+            ):
                 return True
-            if _safe_float(acc_dict.get("סך_רכיבים") or acc_dict.get("total_components")) > 0.01:
+            if (
+                _safe_float(
+                    acc_dict.get("סך_רכיבים") or acc_dict.get("total_components")
+                )
+                > 0.01
+            ):
                 return True
-            if _safe_float(
-                acc_dict.get("סך_תגמולים")
-                or acc_dict.get("תגמולים")
-                or acc_dict.get("total_contributions")
-            ) > 0.01:
+            if (
+                _safe_float(
+                    acc_dict.get("סך_תגמולים")
+                    or acc_dict.get("תגמולים")
+                    or acc_dict.get("total_contributions")
+                )
+                > 0.01
+            ):
                 return True
-            if _safe_float(acc_dict.get("קרן_השתלמות") or acc_dict.get("education_fund")) > 0.01:
+            if (
+                _safe_float(
+                    acc_dict.get("קרן_השתלמות") or acc_dict.get("education_fund")
+                )
+                > 0.01
+            ):
                 return True
             nested_components = acc_dict.get("components")
             if isinstance(nested_components, dict):
@@ -286,13 +308,16 @@ def build_target_pension_plan(
                         return True
 
             for k, v in acc_dict.items():
-                if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
+                if (
+                    isinstance(k, str)
+                    and k.startswith(component_prefixes)
+                    and _safe_float(v) > 0.01
+                ):
                     return True
         return False
 
-    if (
-        isinstance(getattr(self, "pension_portfolio_data", None), list)
-        and getattr(self, "pension_portfolio_data")
+    if isinstance(getattr(self, "pension_portfolio_data", None), list) and getattr(
+        self, "pension_portfolio_data"
     ):
         candidate = getattr(self, "pension_portfolio_data")
         if _portfolio_has_value(candidate):
@@ -360,15 +385,21 @@ def build_target_pension_plan(
     pension_sources = []
 
     # קרנות פנסיה עם יתרות (only active records)
-    pension_funds = self.db.query(PensionFund).filter(
-        PensionFund.client_id == self.client_id,
-        PensionFund.record_status == "active",
-    ).all()
+    pension_funds = (
+        self.db.query(PensionFund)
+        .filter(
+            PensionFund.client_id == self.client_id,
+            PensionFund.record_status == "active",
+        )
+        .all()
+    )
 
     # נכסי הון שניתן להמיר לקצבה
-    capital_assets = self.db.query(CapitalAsset).filter(
-        CapitalAsset.client_id == self.client_id
-    ).all()
+    capital_assets = (
+        self.db.query(CapitalAsset)
+        .filter(CapitalAsset.client_id == self.client_id)
+        .all()
+    )
 
     for pf in pension_funds:
         try:
@@ -380,7 +411,8 @@ def build_target_pension_plan(
         is_llm_transform_created = False
         try:
             is_llm_transform_created = bool(
-                raw_src_str and '"source": "llm_transform_funds_to_assets"' in raw_src_str
+                raw_src_str
+                and '"source": "llm_transform_funds_to_assets"' in raw_src_str
             )
         except Exception:
             is_llm_transform_created = False
@@ -395,10 +427,14 @@ def build_target_pension_plan(
         )
         # If snapshot sources exist, skip portfolio-imported PensionFund rows
         # to avoid de-duping away the per-component snapshot sources.
-        if has_snapshot_sources and raw_src_str and (
-            '"source": "pension_portfolio"' in raw_src_str
-            or '"type": "pension_portfolio"' in raw_src_str
-            or '"source": "pension_portfolio_convert"' in raw_src_str
+        if (
+            has_snapshot_sources
+            and raw_src_str
+            and (
+                '"source": "pension_portfolio"' in raw_src_str
+                or '"type": "pension_portfolio"' in raw_src_str
+                or '"source": "pension_portfolio_convert"' in raw_src_str
+            )
         ):
             continue
 
@@ -408,7 +444,11 @@ def build_target_pension_plan(
         # אם יש כבר קצבה מוגדרת - זה מקור קיים
         # NOTE: portfolio-imported PensionFund rows represent a raw balance source,
         # not an already-existing executed pension.
-        if (existing_pension > 0) and (not is_portfolio_imported) and (not is_llm_transform_created):
+        if (
+            (existing_pension > 0)
+            and (not is_portfolio_imported)
+            and (not is_llm_transform_created)
+        ):
             pension_sources.append(
                 {
                     "source_type": "existing_pension",
@@ -557,7 +597,8 @@ def build_target_pension_plan(
                     for s in (portfolio_sources or [])
                     if not (
                         isinstance(s, dict)
-                        and str(s.get("component_field") or "").strip() in blocked_fields
+                        and str(s.get("component_field") or "").strip()
+                        in blocked_fields
                     )
                 ]
             except Exception:
@@ -643,7 +684,8 @@ def build_target_pension_plan(
             if pf_id is not None and int(pf_id) in _zeroed_pf_ids:
                 logger.info(
                     "Skipping existing_pension source pf_id=%s (%s): DB pension_amount is 0",
-                    pf_id, src.get("source_name"),
+                    pf_id,
+                    src.get("source_name"),
                 )
                 continue
             existing_pension_sources.append(src)
@@ -711,12 +753,12 @@ def build_target_pension_plan(
     existing_pension_total_gross = float(existing_non_monthly_total_gross) + float(
         existing_monthly_pension_current_total_gross
     )
-    existing_pension_taxable_gross_total = float(existing_non_monthly_taxable_gross) + float(
-        existing_monthly_pension_current_taxable_gross
-    )
-    existing_pension_exempt_gross_total = float(existing_non_monthly_exempt_gross) + float(
-        existing_monthly_pension_current_exempt_gross
-    )
+    existing_pension_taxable_gross_total = float(
+        existing_non_monthly_taxable_gross
+    ) + float(existing_monthly_pension_current_taxable_gross)
+    existing_pension_exempt_gross_total = float(
+        existing_non_monthly_exempt_gross
+    ) + float(existing_monthly_pension_current_exempt_gross)
 
     existing_katzba_total_gross = float(existing_monthly_pension_current_total_gross)
     existing_katzba_total_gross_missing = 0.0
@@ -724,7 +766,9 @@ def build_target_pension_plan(
     required_gross_total_for_target = float(required_gross_for_target)
     required_taxable_gross_total_for_target = None
     if target_is_net:
-        target_net_remaining = max(0.0, float(target) - float(existing_pension_exempt_gross_total))
+        target_net_remaining = max(
+            0.0, float(target) - float(existing_pension_exempt_gross_total)
+        )
         if target_net_remaining <= 0:
             required_taxable_gross_total_for_target = 0.0
             required_gross_total_for_target = float(existing_pension_exempt_gross_total)
@@ -735,9 +779,8 @@ def build_target_pension_plan(
             )
             if computed_taxable_gross is None:
                 err = (
-                    (gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)")
-                    .strip()
-                )
+                    gross_err or "לא ניתן לחשב ברוטו נדרש ליעד נטו (כשל בהערכת מס)"
+                ).strip()
                 return {
                     "success": False,
                     "tool_name": "BUILD_TARGET_PENSION_PLAN",
@@ -750,9 +793,9 @@ def build_target_pension_plan(
                 }
             required_taxable_gross_total_for_target = float(computed_taxable_gross)
             required_gross_tax_projection = tax_result
-            required_gross_total_for_target = float(required_taxable_gross_total_for_target) + float(
-                existing_pension_exempt_gross_total
-            )
+            required_gross_total_for_target = float(
+                required_taxable_gross_total_for_target
+            ) + float(existing_pension_exempt_gross_total)
 
     if target_is_net:
         required_gross_additional_needed = max(
@@ -762,7 +805,9 @@ def build_target_pension_plan(
         )
     else:
         required_gross_additional_needed = max(
-            0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
+            0.0,
+            float(required_gross_total_for_target)
+            - float(existing_pension_total_gross),
         )
 
     if required_gross_additional_needed <= 0:
@@ -782,7 +827,8 @@ def build_target_pension_plan(
                 if estimated_tax is not None:
                     try:
                         estimated_net = float(existing_pension_exempt_gross_total) + (
-                            float(existing_pension_taxable_gross_total) - float(estimated_tax)
+                            float(existing_pension_taxable_gross_total)
+                            - float(estimated_tax)
                         )
                     except Exception:
                         estimated_net = None
@@ -816,7 +862,11 @@ def build_target_pension_plan(
             blocked_for_execution_capital=0.0,
             accumulated_pension=float(existing_pension_total_gross),
             estimated_net=estimated_net,
-            gap=max(0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)),
+            gap=max(
+                0.0,
+                float(required_gross_total_for_target)
+                - float(existing_pension_total_gross),
+            ),
             required_gross_for_target=float(required_gross_total_for_target),
             exempt_pension=float(exempt_existing),
             avg_factor=0.0,
@@ -836,7 +886,9 @@ def build_target_pension_plan(
                 "target_achieved_net": target_achieved_net,
                 "required_gross_for_target": float(required_gross_total_for_target),
                 "required_gross_tax_projection": required_gross_tax_projection,
-                "required_gross_additional_needed": float(required_gross_additional_needed),
+                "required_gross_additional_needed": float(
+                    required_gross_additional_needed
+                ),
                 "existing_pension_total_gross": float(existing_pension_total_gross),
                 "existing_monthly_pension_current_total_gross": float(
                     existing_monthly_pension_current_total_gross
@@ -848,7 +900,9 @@ def build_target_pension_plan(
                     existing_monthly_pension_current_exempt_gross
                 ),
                 "existing_katzba_total_gross": float(existing_katzba_total_gross),
-                "existing_katzba_total_gross_missing": float(existing_katzba_total_gross_missing),
+                "existing_katzba_total_gross_missing": float(
+                    existing_katzba_total_gross_missing
+                ),
                 "accumulated_pension": float(existing_pension_total_gross),
                 "new_gross_built_from_sources": 0.0,
                 "taxable_pension": float(taxable_existing),
@@ -863,13 +917,17 @@ def build_target_pension_plan(
                 "portfolio_sources_total_balance": portfolio_sources_total_balance,
                 "debug_inputs": {
                     "portfolio_sources_count": int(portfolio_accounts_count or 0),
-                    "portfolio_total_balance": float(portfolio_accounts_total_balance or 0.0),
+                    "portfolio_total_balance": float(
+                        portfolio_accounts_total_balance or 0.0
+                    ),
                     "blocked_total_detected": float(blocked_total_detected or 0.0),
                     "ignore_blocked_balances": bool(ignore_blocked_balances),
                     "sources_used": [],
                 },
                 "gap_to_target": max(
-                    0.0, float(required_gross_total_for_target) - float(existing_pension_total_gross)
+                    0.0,
+                    float(required_gross_total_for_target)
+                    - float(existing_pension_total_gross),
                 ),
                 "remaining_capital": 0.0,
                 "blocked_for_execution_capital": 0.0,
@@ -878,7 +936,8 @@ def build_target_pension_plan(
                 "sources_not_used": [],
                 "advantages": ["היעד כבר מתקיים מקצבאות קיימות"],
                 "disadvantages": [],
-                "total_sources_available": len(convertible_sources) + len(existing_pension_sources),
+                "total_sources_available": len(convertible_sources)
+                + len(existing_pension_sources),
                 "sources_used_count": 0,
                 "execution_plan": {
                     "target_net": 0,
@@ -919,15 +978,19 @@ def build_target_pension_plan(
         return (
             0
             if source.get("action_needed") == "none"
-            else 1
-            if ("pension_fund" in src_type or "from_portfolio" in src_type)
-            else 4
-            if "השתלמות" in fund_type or "השתלמות" in name
-            else 3
-            if "גמל" in fund_type or "קופת" in fund_type or "גמל" in name
-            else 2
-            if "capital_asset" in src_type
-            else 9
+            else (
+                1
+                if ("pension_fund" in src_type or "from_portfolio" in src_type)
+                else (
+                    4
+                    if "השתלמות" in fund_type or "השתלמות" in name
+                    else (
+                        3
+                        if "גמל" in fund_type or "קופת" in fund_type or "גמל" in name
+                        else 2 if "capital_asset" in src_type else 9
+                    )
+                )
+            )
         )
 
     def _is_pension_only_source(source: dict[str, Any]) -> bool:
@@ -948,7 +1011,9 @@ def build_target_pension_plan(
         if not field:
             return False
 
-        if "השתלמות" in product_type or "השתלמות" in str(source.get("source_name") or ""):
+        if "השתלמות" in product_type or "השתלמות" in str(
+            source.get("source_name") or ""
+        ):
             return False
 
         if field == "תגמולים":
@@ -1089,7 +1154,9 @@ def build_target_pension_plan(
         if pension_from_source <= needed:
             # משתמשים בכל המקור
             accumulated_pension_added += pension_from_source
-            accumulated_total = float(existing_pension_total_gross) + float(accumulated_pension_added)
+            accumulated_total = float(existing_pension_total_gross) + float(
+                accumulated_pension_added
+            )
             sources_used.append(
                 {
                     **source,
@@ -1114,7 +1181,9 @@ def build_target_pension_plan(
             # משתמשים רק בחלק מהמקור
             partial_balance = needed * source["annuity_factor"]
             accumulated_pension_added += needed
-            accumulated_total = float(existing_pension_total_gross) + float(accumulated_pension_added)
+            accumulated_total = float(existing_pension_total_gross) + float(
+                accumulated_pension_added
+            )
             remaining_from_source = source["balance"] - partial_balance
             remaining_capital += remaining_from_source
 
@@ -1141,11 +1210,15 @@ def build_target_pension_plan(
                 }
             )
 
-    accumulated_pension_total = float(existing_pension_total_gross) + float(accumulated_pension_added)
+    accumulated_pension_total = float(existing_pension_total_gross) + float(
+        accumulated_pension_added
+    )
 
     # חישוב סיכום
     target_achieved_gross = accumulated_pension_total >= required_gross_total_for_target
-    gap = max(0, float(required_gross_total_for_target) - float(accumulated_pension_total))
+    gap = max(
+        0, float(required_gross_total_for_target) - float(accumulated_pension_total)
+    )
 
     # בניית יתרונות וחסרונות
     advantages = []
@@ -1173,10 +1246,14 @@ def build_target_pension_plan(
 
     # בדיקת מס
     taxable_pension_from_sources_used = sum(
-        float(s["pension_used"]) for s in sources_used if s.get("tax_treatment") == "taxable"
+        float(s["pension_used"])
+        for s in sources_used
+        if s.get("tax_treatment") == "taxable"
     )
     exempt_pension_from_sources_used = sum(
-        float(s["pension_used"]) for s in sources_used if s.get("tax_treatment") == "exempt"
+        float(s["pension_used"])
+        for s in sources_used
+        if s.get("tax_treatment") == "exempt"
     )
     taxable_pension = float(taxable_pension_from_sources_used) + float(
         existing_pension_taxable_gross_total
@@ -1282,7 +1359,9 @@ def build_target_pension_plan(
 
             acc_id_str = str(acc_id).strip()
             if not acc_id_str:
-                non_executable_notes.append("נמצא מקור להמרה אך חסר account_number (deduction_file)")
+                non_executable_notes.append(
+                    "נמצא מקור להמרה אך חסר account_number (deduction_file)"
+                )
                 continue
             execution_plan_accounts.append(
                 {
@@ -1296,13 +1375,19 @@ def build_target_pension_plan(
         execution_plan_accounts = []
 
     try:
-        target_gross_val = float(required_gross_total_for_target) if target_is_net else float(
-            target_monthly_pension
+        target_gross_val = (
+            float(required_gross_total_for_target)
+            if target_is_net
+            else float(target_monthly_pension)
         )
     except Exception:
         target_gross_val = 0.0
     try:
-        target_net_val = float(target_monthly_pension) if target_is_net else float(estimated_net or 0)
+        target_net_val = (
+            float(target_monthly_pension)
+            if target_is_net
+            else float(estimated_net or 0)
+        )
     except Exception:
         target_net_val = 0.0
     expected_total_gross_val = 0.0
@@ -1333,7 +1418,8 @@ def build_target_pension_plan(
         has_capital_asset_sources = False
         try:
             has_capital_asset_sources = any(
-                isinstance(s, dict) and str(s.get("source_type") or "") == "capital_asset"
+                isinstance(s, dict)
+                and str(s.get("source_type") or "") == "capital_asset"
                 for s in (sources_used or [])
             )
         except Exception:
@@ -1343,10 +1429,14 @@ def build_target_pension_plan(
         if non_executable_notes:
             reason_parts.extend(non_executable_notes[:3])
         if has_capital_asset_sources:
-            reason_parts.append("התכנית נשענת על נכסי הון, שאינם ניתנים לביצוע דרך רכיבי תיק מסלקה")
+            reason_parts.append(
+                "התכנית נשענת על נכסי הון, שאינם ניתנים לביצוע דרך רכיבי תיק מסלקה"
+            )
         if not reason_parts:
             reason_parts.append("לא נמצאו מקורות תיק מסלקה שניתן להמיר בפועל")
-        execution_plan["non_executable_reason"] = "; ".join([p for p in reason_parts if p])
+        execution_plan["non_executable_reason"] = "; ".join(
+            [p for p in reason_parts if p]
+        )
 
     return {
         "success": True,
@@ -1374,7 +1464,9 @@ def build_target_pension_plan(
                 existing_monthly_pension_current_exempt_gross
             ),
             "existing_katzba_total_gross": float(existing_katzba_total_gross),
-            "existing_katzba_total_gross_missing": float(existing_katzba_total_gross_missing),
+            "existing_katzba_total_gross_missing": float(
+                existing_katzba_total_gross_missing
+            ),
             "accumulated_pension": float(accumulated_pension_total),
             "new_gross_built_from_sources": float(accumulated_pension_added),
             "taxable_pension": taxable_pension,
@@ -1389,23 +1481,53 @@ def build_target_pension_plan(
             "portfolio_sources_total_balance": portfolio_sources_total_balance,
             "debug_inputs": {
                 "portfolio_sources_count": int(portfolio_accounts_count or 0),
-                "portfolio_total_balance": float(portfolio_accounts_total_balance or 0.0),
+                "portfolio_total_balance": float(
+                    portfolio_accounts_total_balance or 0.0
+                ),
                 "blocked_total_detected": float(blocked_total_detected or 0.0),
                 "ignore_blocked_balances": bool(ignore_blocked_balances),
                 "sources_used": [
                     {
-                        "account_number": str(s.get("account_number") or "") if isinstance(s, dict) else "",
-                        "account_name": str(s.get("source_name") or "") if isinstance(s, dict) else "",
-                        "product_type": str(s.get("fund_type") or "") if isinstance(s, dict) else "",
+                        "account_number": (
+                            str(s.get("account_number") or "")
+                            if isinstance(s, dict)
+                            else ""
+                        ),
+                        "account_name": (
+                            str(s.get("source_name") or "")
+                            if isinstance(s, dict)
+                            else ""
+                        ),
+                        "product_type": (
+                            str(s.get("fund_type") or "") if isinstance(s, dict) else ""
+                        ),
                         "component_key": (
-                            str(s.get("component_field") or "") if isinstance(s, dict) and s.get("component_field") is not None else None
+                            str(s.get("component_field") or "")
+                            if isinstance(s, dict)
+                            and s.get("component_field") is not None
+                            else None
                         ),
-                        "amount_used": float((s or {}).get("balance_used") or 0) if isinstance(s, dict) else 0.0,
-                        "annuity_factor": float((s or {}).get("annuity_factor") or 0) if isinstance(s, dict) else 0.0,
+                        "amount_used": (
+                            float((s or {}).get("balance_used") or 0)
+                            if isinstance(s, dict)
+                            else 0.0
+                        ),
+                        "annuity_factor": (
+                            float((s or {}).get("annuity_factor") or 0)
+                            if isinstance(s, dict)
+                            else 0.0
+                        ),
                         "coeff_source_table": (
-                            str((s or {}).get("coeff_source_table") or "") if isinstance(s, dict) and (s or {}).get("coeff_source_table") is not None else None
+                            str((s or {}).get("coeff_source_table") or "")
+                            if isinstance(s, dict)
+                            and (s or {}).get("coeff_source_table") is not None
+                            else None
                         ),
-                        "fallback_used": bool((s or {}).get("fallback_used")) if isinstance(s, dict) else False,
+                        "fallback_used": (
+                            bool((s or {}).get("fallback_used"))
+                            if isinstance(s, dict)
+                            else False
+                        ),
                     }
                     for s in (sources_used or [])
                     if isinstance(s, dict)
@@ -1419,7 +1541,8 @@ def build_target_pension_plan(
             "sources_not_used": sources_not_used,
             "advantages": advantages,
             "disadvantages": disadvantages,
-            "total_sources_available": len(pension_sources) + len(existing_pension_sources),
+            "total_sources_available": len(pension_sources)
+            + len(existing_pension_sources),
             "sources_used_count": len(sources_used),
             "execution_plan": execution_plan,
         },

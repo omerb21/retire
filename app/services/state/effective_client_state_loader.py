@@ -12,7 +12,9 @@ from app.models.scenario import Scenario
 from app.services.state.effective_client_state import EffectiveClientState
 
 
-def _looks_like_conversion_asset(*, conversion_source_raw: str | None, remarks: str | None) -> tuple[bool, bool]:
+def _looks_like_conversion_asset(
+    *, conversion_source_raw: str | None, remarks: str | None
+) -> tuple[bool, bool]:
     has_conversion = False
     has_commutation = False
 
@@ -97,7 +99,9 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
         .first()
     )
 
-    latest_snapshot_id = getattr(latest_snapshot, "id", None) if latest_snapshot is not None else None
+    latest_snapshot_id = (
+        getattr(latest_snapshot, "id", None) if latest_snapshot is not None else None
+    )
     latest_snapshot_at_utc = None
     last_state_change_at_utc = None
     last_operation_type = None
@@ -112,7 +116,11 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
                 latest_snapshot_at_utc = created_at.astimezone(timezone.utc)
 
         try:
-            params = json.loads(latest_snapshot.parameters) if latest_snapshot.parameters else {}
+            params = (
+                json.loads(latest_snapshot.parameters)
+                if latest_snapshot.parameters
+                else {}
+            )
         except Exception:
             params = {}
 
@@ -128,8 +136,13 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
     has_any_capital_assets = False
     has_any_pension_funds = False
     try:
-        for asset in db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).all() or []:
-            if _is_portfolio_import_conversion_source(getattr(asset, "conversion_source", None)):
+        for asset in (
+            db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).all()
+            or []
+        ):
+            if _is_portfolio_import_conversion_source(
+                getattr(asset, "conversion_source", None)
+            ):
                 continue
             has_any_capital_assets = True
             break
@@ -137,8 +150,12 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
         has_any_capital_assets = bool(capital_assets_count > 0)
 
     try:
-        for pf in db.query(PensionFund).filter(PensionFund.client_id == client_id).all() or []:
-            if _is_portfolio_import_conversion_source(getattr(pf, "conversion_source", None)):
+        for pf in (
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).all() or []
+        ):
+            if _is_portfolio_import_conversion_source(
+                getattr(pf, "conversion_source", None)
+            ):
                 continue
             has_any_pension_funds = True
             break
@@ -175,7 +192,11 @@ def load_effective_client_state(db: Session, client_id: int) -> EffectiveClientS
     mode: Literal["PRE_CONVERSION", "POST_CONVERSION_LOCKED"]
     # SSOT: the effective mode is determined strictly by current DB state.
     # If the DB has no (user-visible) pension funds and no (user-visible) capital assets, the system is considered reset.
-    mode = "POST_CONVERSION_LOCKED" if (has_any_capital_assets or has_any_pension_funds) else "PRE_CONVERSION"
+    mode = (
+        "POST_CONVERSION_LOCKED"
+        if (has_any_capital_assets or has_any_pension_funds)
+        else "PRE_CONVERSION"
+    )
 
     return EffectiveClientState(
         client_id=int(client_id),

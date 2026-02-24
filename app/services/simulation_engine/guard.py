@@ -31,7 +31,9 @@ def read_only_session(db: Session) -> Generator[Session, None, None]:
 
     def _guarded_flush(*args, **kwargs):  # type: ignore[no-untyped-def]
         if db.new or db.dirty or db.deleted:
-            raise ReadOnlyViolation("flush with pending changes is blocked in read-only simulation")
+            raise ReadOnlyViolation(
+                "flush with pending changes is blocked in read-only simulation"
+            )
         return original_flush(*args, **kwargs)
 
     try:
@@ -43,7 +45,9 @@ def read_only_session(db: Session) -> Generator[Session, None, None]:
 
         db.rollback()
         if db.new or db.dirty or db.deleted:
-            raise ReadOnlyViolation("read-only simulation left pending changes in session")
+            raise ReadOnlyViolation(
+                "read-only simulation left pending changes in session"
+            )
 
     finally:
         try:

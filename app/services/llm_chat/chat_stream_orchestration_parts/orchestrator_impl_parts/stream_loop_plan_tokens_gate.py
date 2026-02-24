@@ -18,7 +18,7 @@ def _compute_plan_tokens_gate(
     is_transform_request,
     is_qa_request,
     is_max_capital_request,
- ):
+):
     target_net_for_plan = extract_target_net_ils(original_user_msg or "")
     lowered_user_msg = (original_user_msg or "").lower()
     plan_tokens = re.findall(r"[א-תA-Za-z]+", lowered_user_msg)
@@ -29,7 +29,11 @@ def _compute_plan_tokens_gate(
         or ("תכנן" in plan_tokens)
         or ("תכנון" in plan_tokens)
     )
-    has_plan_noun_token = ("תכנית" in plan_tokens) or ("תוכנית" in plan_tokens) or ("מתווה" in plan_tokens)
+    has_plan_noun_token = (
+        ("תכנית" in plan_tokens)
+        or ("תוכנית" in plan_tokens)
+        or ("מתווה" in plan_tokens)
+    )
     has_plan_pension_token = ("קצבה" in plan_tokens) or ("קצבת" in plan_tokens)
     has_plan_domain_token = ("פרישה" in plan_tokens) or ("משיכה" in plan_tokens)
     has_target_plan_phrase_tokens = (
@@ -60,13 +64,19 @@ def _compute_plan_tokens_gate(
     birth_date_for_plan_gate = None
     try:
         if request.client_id is not None:
-            client_obj_gate = db.query(ClientModel).filter(ClientModel.id == request.client_id).first()
+            client_obj_gate = (
+                db.query(ClientModel)
+                .filter(ClientModel.id == request.client_id)
+                .first()
+            )
         else:
             client_obj_gate = None
     except Exception:
         client_obj_gate = None
     try:
-        birth_date_for_plan_gate = getattr(client_obj_gate, "birth_date", None) if client_obj_gate else None
+        birth_date_for_plan_gate = (
+            getattr(client_obj_gate, "birth_date", None) if client_obj_gate else None
+        )
     except Exception:
         birth_date_for_plan_gate = None
     try:
@@ -105,11 +115,14 @@ def _compute_plan_tokens_gate(
         )
     )
 
-    wants_execute_target_plan_text = (
-        ("בצע" in lowered_user_msg)
-        and ("תכנית" in lowered_user_msg or "תוכנית" in lowered_user_msg or "מתווה" in lowered_user_msg)
+    wants_execute_target_plan_text = ("בצע" in lowered_user_msg) and (
+        "תכנית" in lowered_user_msg
+        or "תוכנית" in lowered_user_msg
+        or "מתווה" in lowered_user_msg
     )
-    no_tools_requested_local = (resolved_intent == ChatIntentClass.NO_TOOLS) or is_no_tools_request(original_user_msg)
+    no_tools_requested_local = (
+        resolved_intent == ChatIntentClass.NO_TOOLS
+    ) or is_no_tools_request(original_user_msg)
     commutation_intent_local = is_pension_commutation_request(original_user_msg)
     explicit_transform_local = is_transform_request(original_user_msg)
     is_qa_mode_local = is_qa_request(original_user_msg)

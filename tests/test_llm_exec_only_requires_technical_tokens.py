@@ -21,7 +21,9 @@ def test_llm_exec_only_requires_technical_tokens(monkeypatch) -> None:
             "סטטוס: SUCCESS"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(

@@ -6,7 +6,6 @@ from app.guards.advice_domain import AdviceDomain
 from app.guards.orchestration_plan import OrchestrationPlan
 from app.services.llm_chat.intent_classifier import ChatIntent
 
-
 _WORD_RE = re.compile(r"[A-Za-z0-9\u0590-\u05FF']+", flags=re.UNICODE)
 
 

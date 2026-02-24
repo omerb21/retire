@@ -22,7 +22,9 @@ from app.services.llm_chat.state_tools import get_agent_state_json
 from app.services.llm_chat.orchestration_utils import is_portfolio_analysis_request
 from app.services.additional_income_service import AdditionalIncomeService
 from app.providers.tax_params import InMemoryTaxParamsProvider
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot_models,
+)
 from app.services.retirement_age_service import calculate_retirement_age
 from app.services.tax_data import TaxBracketsService
 
@@ -31,7 +33,9 @@ logger = logging.getLogger("app.llm_chat")
 
 def _find_last_user_text(messages: list[ChatMessage]) -> str:
     for m in reversed(messages or []):
-        if getattr(m, "role", None) == "user" and isinstance(getattr(m, "content", None), str):
+        if getattr(m, "role", None) == "user" and isinstance(
+            getattr(m, "content", None), str
+        ):
             return m.content
     return ""
 
@@ -55,7 +59,18 @@ def _is_portfolio_summary_only_request(user_text: str) -> bool:
         "k",
     ]
     if any(k in lowered for k in planning_intent_keywords) and any(
-        k in lowered for k in ["צור", "בנה", "תכנן", "תכנון", "תכנית", "תוכנית", "מתווה", "אני צריך", "אני זקוק"]
+        k in lowered
+        for k in [
+            "צור",
+            "בנה",
+            "תכנן",
+            "תכנון",
+            "תכנית",
+            "תוכנית",
+            "מתווה",
+            "אני צריך",
+            "אני זקוק",
+        ]
     ):
         return False
 
@@ -82,7 +97,9 @@ def _is_portfolio_summary_only_request(user_text: str) -> bool:
     )
     if has_summary_intent and refers_to_portfolio:
         return True
-    if "תיק פנסיוני" in lowered and any(k in lowered for k in ["נתונים", "הצג", "תציג", "תפרט"]):
+    if "תיק פנסיוני" in lowered and any(
+        k in lowered for k in ["נתונים", "הצג", "תציג", "תפרט"]
+    ):
         return True
     return False
 
@@ -136,13 +153,19 @@ def build_llm_context_parts(
 
             legal_ret_age = None
             try:
-                if getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+                if getattr(client, "birth_date", None) and getattr(
+                    client, "gender", None
+                ):
+                    legal_ret_age = int(
+                        get_retirement_age_simple(client.birth_date, client.gender)
+                    )
             except Exception:
                 legal_ret_age = None
 
             if legal_ret_age is not None:
-                analysis_default_retirement_age = max(int(legal_ret_age), int(age or legal_ret_age))
+                analysis_default_retirement_age = max(
+                    int(legal_ret_age), int(age or legal_ret_age)
+                )
             else:
                 analysis_default_retirement_age = int(age) if age is not None else None
         except Exception:
@@ -161,9 +184,13 @@ def build_llm_context_parts(
         monthly_salary = client.annual_salary / 12
         client_parts.append(f"שכר חודשי: {monthly_salary:,.0f} ₪")
 
-    pension_funds = db.query(PensionFund).filter(PensionFund.client_id == request.client_id).all()
+    pension_funds = (
+        db.query(PensionFund).filter(PensionFund.client_id == request.client_id).all()
+    )
 
-    capital_assets = db.query(CapitalAsset).filter(CapitalAsset.client_id == request.client_id).all()
+    capital_assets = (
+        db.query(CapitalAsset).filter(CapitalAsset.client_id == request.client_id).all()
+    )
 
     total_pension_balance: float = 0.0
     total_existing_pension: float = 0.0
@@ -177,7 +204,9 @@ def build_llm_context_parts(
         total_existing_pension += existing_pension
 
         if balance > 0 or existing_pension > 0:
-            source_desc = f"• {pf.fund_name or 'קרן ללא שם'} ({pf.fund_type or 'לא ידוע'})"
+            source_desc = (
+                f"• {pf.fund_name or 'קרן ללא שם'} ({pf.fund_type or 'לא ידוע'})"
+            )
             if existing_pension > 0:
                 source_desc += f": קצבה קיימת {existing_pension:,.0f} ₪/חודש"
             elif balance > 0:
@@ -209,7 +238,9 @@ def build_llm_context_parts(
         .all()
     )
 
-    def _build_organized_scenarios(*, require_retirement_age: int | None) -> tuple[dict[str, dict], int | None, float, float, float]:
+    def _build_organized_scenarios(
+        *, require_retirement_age: int | None
+    ) -> tuple[dict[str, dict], int | None, float, float, float]:
         organized_local: dict[str, dict] = {}
         retirement_age_local: int | None = None
         best_pension_local: float = 0.0
@@ -221,7 +252,10 @@ def build_llm_context_parts(
                 params = json.loads(scenario.parameters) if scenario.parameters else {}
                 scenario_type = params.get("scenario_type", "unknown")
                 age_param = params.get("retirement_age")
-                if require_retirement_age is not None and age_param != require_retirement_age:
+                if (
+                    require_retirement_age is not None
+                    and age_param != require_retirement_age
+                ):
                     continue
                 if retirement_age_local is None and isinstance(age_param, int):
                     retirement_age_local = age_param
@@ -251,12 +285,14 @@ def build_llm_context_parts(
             best_npv_local,
         )
 
-    organized, retirement_age_for_summary, best_pension, best_capital, best_npv = _build_organized_scenarios(
-        require_retirement_age=analysis_default_retirement_age
+    organized, retirement_age_for_summary, best_pension, best_capital, best_npv = (
+        _build_organized_scenarios(
+            require_retirement_age=analysis_default_retirement_age
+        )
     )
     if (not organized) and analysis_default_retirement_age is not None:
-        organized, retirement_age_for_summary, best_pension, best_capital, best_npv = _build_organized_scenarios(
-            require_retirement_age=None
+        organized, retirement_age_for_summary, best_pension, best_capital, best_npv = (
+            _build_organized_scenarios(require_retirement_age=None)
         )
 
     if organized:
@@ -317,16 +353,21 @@ def build_llm_context_parts(
                 else json.loads(latest_fixation.raw_result)
             )
             fixation_info = {
-                "exempt_capital_remaining": latest_fixation.exempt_capital_remaining or 0,
+                "exempt_capital_remaining": latest_fixation.exempt_capital_remaining
+                or 0,
                 "used_commutation": latest_fixation.used_commutation or 0,
-                "exempt_pension_percentage": fixation_data.get("exemption_summary", {}).get(
-                    "exempt_pension_percentage", 0
-                ),
+                "exempt_pension_percentage": fixation_data.get(
+                    "exemption_summary", {}
+                ).get("exempt_pension_percentage", 0),
             }
         except Exception:
             pass
 
-    current_employers = db.query(CurrentEmployer).filter(CurrentEmployer.client_id == request.client_id).all()
+    current_employers = (
+        db.query(CurrentEmployer)
+        .filter(CurrentEmployer.client_id == request.client_id)
+        .all()
+    )
 
     employers_info: list[str] = []
     total_severance: float = 0.0
@@ -361,7 +402,11 @@ def build_llm_context_parts(
                 f"• היוון {amount:,.0f} ₪ (פגיעה בפטור: {comm.impact_on_exemption or 0:,.0f} ₪)"
             )
 
-    additional_incomes = db.query(AdditionalIncome).filter(AdditionalIncome.client_id == request.client_id).all()
+    additional_incomes = (
+        db.query(AdditionalIncome)
+        .filter(AdditionalIncome.client_id == request.client_id)
+        .all()
+    )
 
     additional_income_service = AdditionalIncomeService(InMemoryTaxParamsProvider())
 
@@ -377,7 +422,9 @@ def build_llm_context_parts(
             pass
 
         try:
-            monthly = float(additional_income_service.calculate_monthly_amount(inc) or 0)
+            monthly = float(
+                additional_income_service.calculate_monthly_amount(inc) or 0
+            )
         except Exception:
             try:
                 monthly = float(inc.amount or 0)
@@ -387,7 +434,11 @@ def build_llm_context_parts(
         total_additional_income += monthly
         if monthly > 0:
             tax_status = "פטור" if inc.tax_treatment == "exempt" else "חייב במס"
-            income_name = (inc.description or "").strip() or (inc.source_type or "").strip() or "הכנסה"
+            income_name = (
+                (inc.description or "").strip()
+                or (inc.source_type or "").strip()
+                or "הכנסה"
+            )
             additional_income_info.append(
                 f"• {income_name}: {monthly:,.0f} ₪/חודש ({tax_status})"
             )
@@ -408,7 +459,9 @@ def build_llm_context_parts(
     if total_severance > 0:
         financial_summary.append(f"פיצויים צבורים: {total_severance:,.0f} ₪")
     if total_additional_income > 0:
-        financial_summary.append(f"הכנסות נוספות: {total_additional_income:,.0f} ₪/חודש")
+        financial_summary.append(
+            f"הכנסות נוספות: {total_additional_income:,.0f} ₪/חודש"
+        )
 
     if financial_summary:
         context_parts.append("")
@@ -438,7 +491,7 @@ def build_llm_context_parts(
     if commutation_info:
         context_parts.append("")
         context_parts.append("💸 **היוונים**")
-        context_parts.append(f"סה\"כ היוונים: {total_commutation:,.0f} ₪")
+        context_parts.append(f'סה"כ היוונים: {total_commutation:,.0f} ₪')
 
     if additional_income_info:
         context_parts.append("")
@@ -452,10 +505,14 @@ def build_llm_context_parts(
         for source in pension_sources_list[:5]:
             context_parts.append(source)
         if len(pension_sources_list) > 5:
-            context_parts.append(f"  (ועוד {len(pension_sources_list) - 5} מקורות נוספים)")
+            context_parts.append(
+                f"  (ועוד {len(pension_sources_list) - 5} מקורות נוספים)"
+            )
 
     if scenarios_summary_parts:
-        age_text = f" לגיל {retirement_age_for_summary}" if retirement_age_for_summary else ""
+        age_text = (
+            f" לגיל {retirement_age_for_summary}" if retirement_age_for_summary else ""
+        )
         context_parts.append("")
         context_parts.append(f"🎯 **תרחישי פרישה{age_text}**")
         for scenario_line in scenarios_summary_parts:
@@ -487,7 +544,9 @@ def build_llm_context_parts(
                 )
     elif not pension_sources_list and not scenarios_summary_parts:
         context_parts.append("")
-        context_parts.append("⚠️ **שים לב**: לא נמצאו מקורות קצבה או תרחישים שמורים ללקוח זה.")
+        context_parts.append(
+            "⚠️ **שים לב**: לא נמצאו מקורות קצבה או תרחישים שמורים ללקוח זה."
+        )
         context_parts.append("ייתכן שצריך להעלות תיק פנסיוני ולהריץ תרחישי פרישה.")
 
     try:
@@ -525,9 +584,15 @@ def build_llm_context_parts(
         context_parts.append("")
         context_parts.append("⚖️ **השוואת תרחישים**")
 
-        best_for_pension = max(organized.items(), key=lambda x: x[1].get("total_pension_monthly", 0))
-        best_for_capital = max(organized.items(), key=lambda x: x[1].get("total_capital", 0))
-        best_for_npv = max(organized.items(), key=lambda x: x[1].get("estimated_npv", 0))
+        best_for_pension = max(
+            organized.items(), key=lambda x: x[1].get("total_pension_monthly", 0)
+        )
+        best_for_capital = max(
+            organized.items(), key=lambda x: x[1].get("total_capital", 0)
+        )
+        best_for_npv = max(
+            organized.items(), key=lambda x: x[1].get("estimated_npv", 0)
+        )
 
         context_parts.append(
             f"  • הכי טוב לקצבה: {best_for_pension[0]} ({best_for_pension[1].get('total_pension_monthly', 0):,.0f} ₪/חודש)"

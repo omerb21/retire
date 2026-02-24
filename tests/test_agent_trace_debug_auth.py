@@ -15,7 +15,6 @@ from app.database import Base, get_db
 from app.models.agent_trace_event import AgentTraceEvent
 from app.routers import agent_trace_debug
 
-
 TEST_DATABASE_URL = "sqlite:///:memory:"
 _engine = create_engine(
     TEST_DATABASE_URL,

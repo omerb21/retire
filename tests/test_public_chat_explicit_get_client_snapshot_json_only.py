@@ -26,7 +26,9 @@ from app.services.agent_eyes.event_collector import (
 )
 
 
-def test_public_chat_explicit_get_client_snapshot_json_only(monkeypatch, _test_db) -> None:
+def test_public_chat_explicit_get_client_snapshot_json_only(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     # Block LLM — if it's called, the test fails immediately.
@@ -69,9 +71,9 @@ def test_public_chat_explicit_get_client_snapshot_json_only(monkeypatch, _test_d
     )
 
     # ── 1. HTTP 200 ──
-    assert response.status_code == 200, (
-        f"Expected 200, got {response.status_code}: {response.text[:500]}"
-    )
+    assert (
+        response.status_code == 200
+    ), f"Expected 200, got {response.status_code}: {response.text[:500]}"
 
     body = response.text.strip()
 
@@ -80,14 +82,16 @@ def test_public_chat_explicit_get_client_snapshot_json_only(monkeypatch, _test_d
     assert isinstance(parsed, dict), f"Expected dict, got {type(parsed)}"
 
     # ── 3. tool_name ──
-    assert parsed.get("tool_name") == "GET_CLIENT_SNAPSHOT", (
-        f"Expected tool_name='GET_CLIENT_SNAPSHOT', got {parsed.get('tool_name')!r}"
-    )
+    assert (
+        parsed.get("tool_name") == "GET_CLIENT_SNAPSHOT"
+    ), f"Expected tool_name='GET_CLIENT_SNAPSHOT', got {parsed.get('tool_name')!r}"
 
     # ── 4. Required fields ──
     assert "total_items" in parsed, f"Missing 'total_items' in {list(parsed.keys())}"
     assert "breakdown" in parsed, f"Missing 'breakdown' in {list(parsed.keys())}"
-    assert parsed.get("success") is True, f"Expected success=True, got {parsed.get('success')}"
+    assert (
+        parsed.get("success") is True
+    ), f"Expected success=True, got {parsed.get('success')}"
 
     # ── 5. Trace events ──
     trace_id = response.headers.get("X-Trace-Id")
@@ -96,12 +100,12 @@ def test_public_chat_explicit_get_client_snapshot_json_only(monkeypatch, _test_d
     events = get_events_by_trace(trace_id)
     event_types = [e["event_type"] for e in events]
 
-    assert "tool_call" in event_types, (
-        f"Expected 'tool_call' in trace events, got {event_types}"
-    )
-    assert "tool_result" in event_types, (
-        f"Expected 'tool_result' in trace events, got {event_types}"
-    )
+    assert (
+        "tool_call" in event_types
+    ), f"Expected 'tool_call' in trace events, got {event_types}"
+    assert (
+        "tool_result" in event_types
+    ), f"Expected 'tool_result' in trace events, got {event_types}"
 
     # Verify the tool_call event references GET_CLIENT_SNAPSHOT
     tool_call_events = [e for e in events if e["event_type"] == "tool_call"]

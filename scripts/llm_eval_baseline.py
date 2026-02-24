@@ -37,7 +37,9 @@ def _normalize_results(data: dict[str, Any]) -> dict[str, Any]:
     return {"results": normalized}
 
 
-def _compare(*, baseline: dict[str, Any], current: dict[str, Any], allow_new: bool) -> list[str]:
+def _compare(
+    *, baseline: dict[str, Any], current: dict[str, Any], allow_new: bool
+) -> list[str]:
     issues: list[str] = []
 
     b_results = baseline.get("results") or []
@@ -122,7 +124,9 @@ def main() -> int:
         baseline_raw = _load_json(args.baseline)
         baseline = _normalize_results(baseline_raw)
 
-        issues = _compare(baseline=baseline, current=current, allow_new=bool(args.allow_new))
+        issues = _compare(
+            baseline=baseline, current=current, allow_new=bool(args.allow_new)
+        )
         if issues:
             print("Baseline check: FAIL")
             for issue in issues:

@@ -1,4 +1,18 @@
-from sqlalchemy import Column, Index, Integer, String, Date, Float, ForeignKey, Enum, CheckConstraint, DateTime, func, event, Text
+from sqlalchemy import (
+    Column,
+    Index,
+    Integer,
+    String,
+    Date,
+    Float,
+    ForeignKey,
+    Enum,
+    CheckConstraint,
+    DateTime,
+    func,
+    event,
+    Text,
+)
 from sqlalchemy.orm import relationship
 from app.database import Base
 import logging
@@ -11,50 +25,68 @@ IndexationMethod = Enum("none", "cpi", "fixed", name="pension_indexation_method"
 
 logger = logging.getLogger("app.models.pension_fund")
 
+
 class PensionFund(Base):
     __tablename__ = "pension_funds"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(
+        Integer, ForeignKey("client.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     fund_name = Column(Text, nullable=False)
     fund_type = Column(String(50), nullable=True)
 
-    input_mode = Column(InputMode, nullable=False)              # calculated / manual
-    balance = Column(Float, nullable=True)                      # נדרש ב-calculated
-    annuity_factor = Column(Float, nullable=True)               # נדרש ב-calculated
-    pension_amount = Column(Float, nullable=True)               # נשמר/מחושב
+    input_mode = Column(InputMode, nullable=False)  # calculated / manual
+    balance = Column(Float, nullable=True)  # נדרש ב-calculated
+    annuity_factor = Column(Float, nullable=True)  # נדרש ב-calculated
+    pension_amount = Column(Float, nullable=True)  # נשמר/מחושב
 
     pension_start_date = Column(Date, nullable=True)
 
-    indexation_method = Column(IndexationMethod, nullable=False, default="none")  # none/cpi/fixed
-    fixed_index_rate = Column(Float, nullable=True)            # שיעור שנתי לדוגמה 0.02
+    indexation_method = Column(
+        IndexationMethod, nullable=False, default="none"
+    )  # none/cpi/fixed
+    fixed_index_rate = Column(Float, nullable=True)  # שיעור שנתי לדוגמה 0.02
 
     indexed_pension_amount = Column(Float, nullable=True)
-    
+
     # Tax treatment - יחס למס (String for SQLite compatibility)
-    tax_treatment = Column(String(20), nullable=False, default="taxable")  # taxable/exempt/capital_gains
+    tax_treatment = Column(
+        String(20), nullable=False, default="taxable"
+    )  # taxable/exempt/capital_gains
 
     remarks = Column(Text, nullable=True)
     deduction_file = Column(String(200), nullable=True)  # תיק ניכויים
-    
+
     # Conversion tracking - מעקב אחר המרה מתיק פנסיוני
     conversion_source = Column(Text, nullable=True)  # JSON עם פרטי המקור
 
     # Record status: active (default) / draft / invalid
-    record_status = Column(String(20), nullable=False, default="active", server_default="active")
+    record_status = Column(
+        String(20), nullable=False, default="active", server_default="active"
+    )
 
     created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
-    
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
     # Relationship to Client
     client = relationship("Client", back_populates="pension_funds")
 
     __table_args__ = (
         CheckConstraint("(balance IS NULL OR balance >= 0)", name="pf_balance_nonneg"),
-        CheckConstraint("(annuity_factor IS NULL OR annuity_factor > 0)", name="pf_annuity_pos"),
-        CheckConstraint("(pension_amount IS NULL OR pension_amount >= 0)", name="pf_pension_nonneg"),
-        CheckConstraint("(fixed_index_rate IS NULL OR fixed_index_rate >= 0)", name="pf_fixed_rate_nonneg"),
+        CheckConstraint(
+            "(annuity_factor IS NULL OR annuity_factor > 0)", name="pf_annuity_pos"
+        ),
+        CheckConstraint(
+            "(pension_amount IS NULL OR pension_amount >= 0)", name="pf_pension_nonneg"
+        ),
+        CheckConstraint(
+            "(fixed_index_rate IS NULL OR fixed_index_rate >= 0)",
+            name="pf_fixed_rate_nonneg",
+        ),
         CheckConstraint(
             "record_status IN ('active', 'draft', 'invalid')",
             name="pf_record_status_valid",
@@ -98,6 +130,7 @@ def _check_monthly_pension_invariant(target):
     # Best-effort agent_eyes emission
     try:
         from app.services.agent_eyes.event_collector import emit_event
+
         emit_event(
             "data_integrity_violation",
             {
@@ -129,8 +162,8 @@ def check_integrity_on_update(mapper, connection, target):
 @event.listens_for(PensionFund, "before_update")
 def log_balance_change(mapper, connection, target):
     """Log when balance is being changed"""
-    if hasattr(target, '_sa_instance_state'):
-        history = target._sa_instance_state.get_history('balance', True)
+    if hasattr(target, "_sa_instance_state"):
+        history = target._sa_instance_state.get_history("balance", True)
         if history.has_changes():
             old_balance = history.deleted[0] if history.deleted else None
             new_balance = target.balance
@@ -141,7 +174,11 @@ def log_balance_change(mapper, connection, target):
                 new_balance,
                 getattr(target, "input_mode", None),
             )
-            logger.debug("Balance change stack trace:\n%s", "".join(traceback.format_stack()[-5:]))
+            logger.debug(
+                "Balance change stack trace:\n%s",
+                "".join(traceback.format_stack()[-5:]),
+            )
+
 
 @event.listens_for(PensionFund, "after_insert")
 @event.listens_for(PensionFund, "after_update")
@@ -162,7 +199,9 @@ def sync_client_pension_start_date(mapper, connection, target):
     from app.models.client import Client
 
     result = connection.execute(
-        select(func.min(PensionFund.pension_start_date)).where(PensionFund.client_id == client_id)
+        select(func.min(PensionFund.pension_start_date)).where(
+            PensionFund.client_id == client_id
+        )
     )
     min_start_date = result.scalar()
 

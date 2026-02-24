@@ -14,10 +14,14 @@ def test_stream_words_only_report_explainer_always_structured(monkeypatch) -> No
             "יעד מול עודף 12.\n"
         )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked for conceptual questions")
+        raise AssertionError(
+            "execute_tool_call must not be invoked for conceptual questions"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

@@ -37,7 +37,9 @@ def test_stream_post_conversion_lock_blocks_plan_build(monkeypatch, _test_db) ->
             start_date=date(2020, 1, 1),
             indexation_method="none",
             tax_treatment="taxable",
-            conversion_source=json.dumps({"source": "scenario_conversion"}, ensure_ascii=False),
+            conversion_source=json.dumps(
+                {"source": "scenario_conversion"}, ensure_ascii=False
+            ),
         )
         db.add(asset)
         db.commit()
@@ -45,7 +47,9 @@ def test_stream_post_conversion_lock_blocks_plan_build(monkeypatch, _test_db) ->
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     seen = {"called": 0}
 
@@ -58,7 +62,12 @@ def test_stream_post_conversion_lock_blocks_plan_build(monkeypatch, _test_db) ->
             tool_name = kwargs.get("tool_name")
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
         return json.dumps(
-            {"success": True, "tool_name": tool_name, "result": {"ok": True}, "explanation": "OK"},
+            {
+                "success": True,
+                "tool_name": tool_name,
+                "result": {"ok": True},
+                "explanation": "OK",
+            },
             ensure_ascii=False,
         )
 

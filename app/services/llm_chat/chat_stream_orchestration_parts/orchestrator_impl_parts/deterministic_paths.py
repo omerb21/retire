@@ -63,7 +63,9 @@ def maybe_handle_deterministic_paths(ctx: StreamCtx) -> StreamingResponse | None
     ctx.no_tools_requested = is_no_tools_request(ctx.original_user_msg)
     ctx.force_max_exemption = is_max_exemption_request(ctx.original_user_msg)
     ctx.commutation_intent = is_pension_commutation_request(ctx.original_user_msg)
-    ctx.explicit_transform = (not ctx.commutation_intent) and is_transform_request(ctx.original_user_msg)
+    ctx.explicit_transform = (not ctx.commutation_intent) and is_transform_request(
+        ctx.original_user_msg
+    )
     ctx.explicit_termination = is_process_termination_request(ctx.original_user_msg)
     ctx.termination_change = False
     ctx.is_cashflow_request = is_retirement_cashflow_request(ctx.original_user_msg)
@@ -73,28 +75,22 @@ def maybe_handle_deterministic_paths(ctx: StreamCtx) -> StreamingResponse | None
     ctx.lowered_user_msg = (ctx.original_user_msg or "").lower()
 
     ctx.wants_capital_transform = (
-        (
-            ("להון" in ctx.lowered_user_msg)
-            or ("to capital" in ctx.lowered_user_msg)
-            or ("הונית" in ctx.lowered_user_msg)
-            or ("הוני" in ctx.lowered_user_msg)
-            or ("מקסימום הון" in ctx.lowered_user_msg)
-        )
-        and (
-            "המר" in ctx.lowered_user_msg
-            or "המרה" in ctx.lowered_user_msg
-            or "convert" in ctx.lowered_user_msg
-            or "משיכה" in ctx.lowered_user_msg
-            or "משוך" in ctx.lowered_user_msg
-        )
+        ("להון" in ctx.lowered_user_msg)
+        or ("to capital" in ctx.lowered_user_msg)
+        or ("הונית" in ctx.lowered_user_msg)
+        or ("הוני" in ctx.lowered_user_msg)
+        or ("מקסימום הון" in ctx.lowered_user_msg)
+    ) and (
+        "המר" in ctx.lowered_user_msg
+        or "המרה" in ctx.lowered_user_msg
+        or "convert" in ctx.lowered_user_msg
+        or "משיכה" in ctx.lowered_user_msg
+        or "משוך" in ctx.lowered_user_msg
     )
-    ctx.wants_execute_target_plan = (
-        "בצע" in ctx.lowered_user_msg
-        and (
-            "תכנית" in ctx.lowered_user_msg
-            or "תוכנית" in ctx.lowered_user_msg
-            or "מתווה" in ctx.lowered_user_msg
-        )
+    ctx.wants_execute_target_plan = "בצע" in ctx.lowered_user_msg and (
+        "תכנית" in ctx.lowered_user_msg
+        or "תוכנית" in ctx.lowered_user_msg
+        or "מתווה" in ctx.lowered_user_msg
     )
     ctx.wants_fixation_execute = (
         "בצע" in ctx.lowered_user_msg
@@ -105,7 +101,8 @@ def maybe_handle_deterministic_paths(ctx: StreamCtx) -> StreamingResponse | None
     ctx.wants_fixation_documents = bool(
         ctx.is_tax_doc_request
         and any(
-            token in ctx.lowered_user_msg for token in ("קיבוע", "זכויות", "161ד", "161d")
+            token in ctx.lowered_user_msg
+            for token in ("קיבוע", "זכויות", "161ד", "161d")
         )
     )
 
@@ -113,10 +110,16 @@ def maybe_handle_deterministic_paths(ctx: StreamCtx) -> StreamingResponse | None
         "cashflow" in ctx.lowered_user_msg
     )
 
-    ctx.wants_cashflow_refresh = is_cashflow_missing_income_followup(ctx.original_user_msg)
+    ctx.wants_cashflow_refresh = is_cashflow_missing_income_followup(
+        ctx.original_user_msg
+    )
 
-    ctx.max_capital_request = (not ctx.explicit_termination) and is_max_capital_request(ctx.original_user_msg)
-    ctx.wants_execute_max_capital = ctx.max_capital_request and ("בצע" in ctx.lowered_user_msg)
+    ctx.max_capital_request = (not ctx.explicit_termination) and is_max_capital_request(
+        ctx.original_user_msg
+    )
+    ctx.wants_execute_max_capital = ctx.max_capital_request and (
+        "בצע" in ctx.lowered_user_msg
+    )
 
     # event log (same place as original, before streaming loop)
     log_llm_event(

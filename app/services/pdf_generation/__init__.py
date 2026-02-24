@@ -11,5 +11,5 @@
 from .generators.fixation_generator import generate_fixation_summary_pdf
 
 __all__ = [
-    'generate_fixation_summary_pdf',
+    "generate_fixation_summary_pdf",
 ]

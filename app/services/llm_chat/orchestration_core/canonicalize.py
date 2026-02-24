@@ -24,7 +24,9 @@ def _canonicalize_value(v: Any) -> Any:
         return None
 
 
-def canonicalize_tool_args(tool_name: str, args: dict, defaults: dict | None = None) -> dict:
+def canonicalize_tool_args(
+    tool_name: str, args: dict, defaults: dict | None = None
+) -> dict:
     base = args if isinstance(args, dict) else {}
     merged: dict[str, Any] = {}
     if isinstance(defaults, dict):

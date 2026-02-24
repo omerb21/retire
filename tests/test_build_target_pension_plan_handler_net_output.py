@@ -1,6 +1,8 @@
 import json
 
-from app.services.llm_chat.tool_handlers.build_target_pension_plan import handle_build_target_pension_plan
+from app.services.llm_chat.tool_handlers.build_target_pension_plan import (
+    handle_build_target_pension_plan,
+)
 
 
 class _FakeAgentTools:
@@ -17,7 +19,9 @@ class _FakeAgentTools:
         return self._result
 
 
-def test_build_target_pension_plan_handler_defaults_to_net_mode_when_missing_arg() -> None:
+def test_build_target_pension_plan_handler_defaults_to_net_mode_when_missing_arg() -> (
+    None
+):
     tool_res = {
         "success": True,
         "result": {
@@ -32,7 +36,9 @@ def test_build_target_pension_plan_handler_defaults_to_net_mode_when_missing_arg
         },
         "explanation": "demo",
     }
-    out = handle_build_target_pension_plan(args={"target_monthly_pension": 28000}, agent_tools=_FakeAgentTools(tool_res))
+    out = handle_build_target_pension_plan(
+        args={"target_monthly_pension": 28000}, agent_tools=_FakeAgentTools(tool_res)
+    )
     assert "יעד קצבה חודשי (נטו)" in out
     assert "ברוטו שנדרש" in out
     assert "קצבה נטו משוערת" in out
@@ -74,15 +80,21 @@ def test_build_target_pension_plan_handler_emits_target_plan_payload_block() -> 
         },
         "explanation": "demo",
     }
-    out = handle_build_target_pension_plan(args={"target_monthly_pension": 28000}, agent_tools=_FakeAgentTools(tool_res))
+    out = handle_build_target_pension_plan(
+        args={"target_monthly_pension": 28000}, agent_tools=_FakeAgentTools(tool_res)
+    )
     assert "###TARGET_PENSION_PLAN_DATA###" in out
-    payload_raw = out.split("###TARGET_PENSION_PLAN_DATA###", 1)[1].split("###END_TARGET_PENSION_PLAN_DATA###", 1)[0]
+    payload_raw = out.split("###TARGET_PENSION_PLAN_DATA###", 1)[1].split(
+        "###END_TARGET_PENSION_PLAN_DATA###", 1
+    )[0]
     payload = json.loads(payload_raw)
     assert payload["tool_name"] == "BUILD_TARGET_PENSION_PLAN"
     assert payload["result"]["target_is_net"] is True
 
 
-def test_build_target_pension_plan_handler_mentions_retirement_age_when_provided() -> None:
+def test_build_target_pension_plan_handler_mentions_retirement_age_when_provided() -> (
+    None
+):
     tool_res = {
         "success": True,
         "result": {

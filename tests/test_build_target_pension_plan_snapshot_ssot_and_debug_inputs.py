@@ -10,7 +10,9 @@ from app.models.scenario import Scenario
 from app.services.llm_agent_tools_service import AgentToolsService
 
 
-def test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transform_meta(db_session) -> None:
+def test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transform_meta(
+    db_session,
+) -> None:
     unique_id = f"ssot-{uuid4()}"
     client_obj = Client(
         id_number_raw=unique_id,
@@ -75,7 +77,9 @@ def test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transf
             apply_tax_planning=False,
             apply_capitalization=False,
             apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": undo_portfolio}, ensure_ascii=False),
+            parameters=json.dumps(
+                {"pension_portfolio": undo_portfolio}, ensure_ascii=False
+            ),
             created_at=datetime(2025, 3, 1, tzinfo=timezone.utc),
         )
     )
@@ -87,7 +91,9 @@ def test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transf
             apply_tax_planning=False,
             apply_capitalization=False,
             apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": non_transform_portfolio}, ensure_ascii=False),
+            parameters=json.dumps(
+                {"pension_portfolio": non_transform_portfolio}, ensure_ascii=False
+            ),
             created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
         )
     )
@@ -102,7 +108,10 @@ def test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transf
             parameters=json.dumps(
                 {
                     "pension_portfolio": transform_portfolio,
-                    "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS", "trace_id": "T"},
+                    "_meta": {
+                        "operation_type": "TRANSFORM_FUNDS_TO_ASSETS",
+                        "trace_id": "T",
+                    },
                 },
                 ensure_ascii=False,
             ),
@@ -122,15 +131,23 @@ def test_build_target_plan_uses_only_pension_portfolio_snapshot_and_skips_transf
     )
     assert res.get("success") is True, res
     plan_res = res.get("result") if isinstance(res.get("result"), dict) else {}
-    dbg = plan_res.get("debug_inputs") if isinstance(plan_res.get("debug_inputs"), dict) else {}
+    dbg = (
+        plan_res.get("debug_inputs")
+        if isinstance(plan_res.get("debug_inputs"), dict)
+        else {}
+    )
 
     assert int(dbg.get("portfolio_sources_count") or 0) == 2
     assert float(dbg.get("portfolio_total_balance") or 0) == pytest.approx(300000.0)
     assert float(dbg.get("blocked_total_detected") or 0) == pytest.approx(0.0)
 
 
-def test_build_target_plan_debug_inputs_blocked_total_detected_and_coeff_diagnostics(db_session, monkeypatch) -> None:
-    from app.services.llm_agent_tools.adapters import pension_sources as pension_sources_mod
+def test_build_target_plan_debug_inputs_blocked_total_detected_and_coeff_diagnostics(
+    db_session, monkeypatch
+) -> None:
+    from app.services.llm_agent_tools.adapters import (
+        pension_sources as pension_sources_mod,
+    )
 
     def _mock_coeff(*args, **kwargs):
         return {
@@ -195,7 +212,11 @@ def test_build_target_plan_debug_inputs_blocked_total_detected_and_coeff_diagnos
     )
     assert res.get("success") is True, res
     plan_res = res.get("result") if isinstance(res.get("result"), dict) else {}
-    dbg = plan_res.get("debug_inputs") if isinstance(plan_res.get("debug_inputs"), dict) else {}
+    dbg = (
+        plan_res.get("debug_inputs")
+        if isinstance(plan_res.get("debug_inputs"), dict)
+        else {}
+    )
 
     assert float(dbg.get("blocked_total_detected") or 0) == pytest.approx(50000.0)
 
@@ -208,8 +229,12 @@ def test_build_target_plan_debug_inputs_blocked_total_detected_and_coeff_diagnos
     assert row.get("fallback_used") is True
 
 
-def test_portfolio_source_fallback_used_false_when_non_default_coefficient(monkeypatch, client) -> None:
-    from app.services.llm_agent_tools.adapters import pension_sources as pension_sources_mod
+def test_portfolio_source_fallback_used_false_when_non_default_coefficient(
+    monkeypatch, client
+) -> None:
+    from app.services.llm_agent_tools.adapters import (
+        pension_sources as pension_sources_mod,
+    )
 
     def _mock_coeff(*args, **kwargs):
         return {
@@ -249,8 +274,12 @@ def test_portfolio_source_fallback_used_false_when_non_default_coefficient(monke
     assert first.get("fallback_used") is False
 
 
-def test_build_target_plan_merges_snapshot_and_db_sources(db_session, monkeypatch) -> None:
-    from app.services.llm_agent_tools.adapters import pension_sources as pension_sources_mod
+def test_build_target_plan_merges_snapshot_and_db_sources(
+    db_session, monkeypatch
+) -> None:
+    from app.services.llm_agent_tools.adapters import (
+        pension_sources as pension_sources_mod,
+    )
 
     def _mock_coeff(*args, **kwargs):
         return {
@@ -297,7 +326,9 @@ def test_build_target_plan_merges_snapshot_and_db_sources(db_session, monkeypatc
             apply_tax_planning=False,
             apply_capitalization=False,
             apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": snapshot_portfolio}, ensure_ascii=False),
+            parameters=json.dumps(
+                {"pension_portfolio": snapshot_portfolio}, ensure_ascii=False
+            ),
             created_at=datetime.now(timezone.utc),
         )
     )
@@ -334,13 +365,17 @@ def test_build_target_plan_merges_snapshot_and_db_sources(db_session, monkeypatc
 
     assert int(plan_res.get("portfolio_sources_added") or 0) > 0
 
-    all_sources = (plan_res.get("sources_used") or []) + (plan_res.get("sources_not_used") or [])
+    all_sources = (plan_res.get("sources_used") or []) + (
+        plan_res.get("sources_not_used") or []
+    )
     source_types = {s.get("source_type") for s in all_sources if isinstance(s, dict)}
     assert "pension_fund" in source_types
     assert "pension_fund_from_portfolio" in source_types
 
 
-def test_build_target_plan_offsets_existing_pensions_and_skips_when_target_met(db_session) -> None:
+def test_build_target_plan_offsets_existing_pensions_and_skips_when_target_met(
+    db_session,
+) -> None:
     unique_id = f"offset-{uuid4()}"
     client_obj = Client(
         id_number_raw=unique_id,
@@ -404,8 +439,12 @@ def test_build_target_plan_offsets_existing_pensions_and_skips_when_target_met(d
     assert res.get("success") is True, res
     plan_res = res.get("result") if isinstance(res.get("result"), dict) else {}
 
-    assert float(plan_res.get("existing_pension_total_gross") or 0) == pytest.approx(1000.0)
-    assert float(plan_res.get("required_gross_additional_needed") or 0) == pytest.approx(500.0)
+    assert float(plan_res.get("existing_pension_total_gross") or 0) == pytest.approx(
+        1000.0
+    )
+    assert float(
+        plan_res.get("required_gross_additional_needed") or 0
+    ) == pytest.approx(500.0)
     assert float(plan_res.get("accumulated_pension") or 0) == pytest.approx(1500.0)
     used = plan_res.get("sources_used") or []
     assert isinstance(used, list) and len(used) == 1
@@ -420,6 +459,8 @@ def test_build_target_plan_offsets_existing_pensions_and_skips_when_target_met(d
     )
     assert res2.get("success") is True, res2
     plan_res2 = res2.get("result") if isinstance(res2.get("result"), dict) else {}
-    assert float(plan_res2.get("required_gross_additional_needed") or 0) == pytest.approx(0.0)
+    assert float(
+        plan_res2.get("required_gross_additional_needed") or 0
+    ) == pytest.approx(0.0)
     assert plan_res2.get("plan_steps") == []
     assert plan_res2.get("sources_used") == []

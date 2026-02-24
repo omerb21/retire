@@ -42,7 +42,9 @@ def _maybe_handle_data_awareness(
                 return 0
 
         lines: list[str] = []
-        lines.append("כן — אני עובד על בסיס הנתונים שנמצאים כרגע במערכת עבור הלקוח הזה.")
+        lines.append(
+            "כן — אני עובד על בסיס הנתונים שנמצאים כרגע במערכת עבור הלקוח הזה."
+        )
         if isinstance(effective_portfolio, list):
             lines.append("")
             lines.append("תיק פנסיוני (מסלקה / טבלת מוצרים):")
@@ -54,7 +56,9 @@ def _maybe_handle_data_awareness(
         lines.append("מקורות/ישויות שנמצאו ב-DB:")
         lines.append(f"- קצבאות (PensionFund): {_count('pension_funds')}")
         lines.append(f"- נכסי הון (CapitalAsset): {_count('capital_assets')}")
-        lines.append(f"- הכנסות נוספות (AdditionalIncome): {_count('additional_incomes')}")
+        lines.append(
+            f"- הכנסות נוספות (AdditionalIncome): {_count('additional_incomes')}"
+        )
         lines.append(f"- מעסיק נוכחי (CurrentEmployer): {_count('current_employers')}")
         lines.append("")
         lines.append(

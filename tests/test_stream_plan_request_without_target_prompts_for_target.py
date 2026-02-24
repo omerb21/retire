@@ -8,7 +8,9 @@ def test_stream_plan_request_without_target_prompts_for_target(monkeypatch) -> N
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for plan request without target")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(
         *,
@@ -22,7 +24,9 @@ def test_stream_plan_request_without_target_prompts_for_target(monkeypatch) -> N
         user_approved: bool = False,
         request_id: str | None = None,
     ) -> str:
-        raise AssertionError("No tool should be executed for plan request without target")
+        raise AssertionError(
+            "No tool should be executed for plan request without target"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

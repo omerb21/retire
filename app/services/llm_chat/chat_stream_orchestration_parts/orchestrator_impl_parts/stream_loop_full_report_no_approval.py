@@ -22,7 +22,7 @@ def _maybe_handle_full_report_no_approval(
     force_max_exemption: bool,
     stream_request_id: str,
     is_portfolio_analysis: bool,
- ):
+):
     if not (
         request.client_id is not None
         and is_doc_request
@@ -38,7 +38,11 @@ def _maybe_handle_full_report_no_approval(
     latest_op = latest_snapshot_operation_type()
     if latest_op is not None and latest_op != "TRANSFORM_FUNDS_TO_ASSETS":
         return StreamingResponse(
-            iter(["כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב."]),
+            iter(
+                [
+                    "כדי להפיק דוח חייבים קודם לבצע המרה (TRANSFORM) כך שהנתונים יהיו במצב יציב."
+                ]
+            ),
             media_type="text/plain",
         )
 

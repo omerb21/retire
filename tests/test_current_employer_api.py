@@ -2,6 +2,7 @@
 API tests for CurrentEmployer endpoints - Sprint 3
 Tests for the three required API endpoints
 """
+
 import pytest
 from fastapi.testclient import TestClient
 from datetime import date
@@ -19,7 +20,7 @@ def setup_test_client(_test_db):
             id_number="123456782",
             full_name="Test Client Sprint 3",
             birth_date=date(1980, 1, 1),
-            is_active=True
+            is_active=True,
         )
         db.add(test_client)
         db.commit()
@@ -42,35 +43,44 @@ class TestCurrentEmployerAPI:
                 id_number="no_current_employer_test_123",
                 full_name="Test Client Without Current Employer",
                 birth_date=date(1990, 1, 1),
-                is_active=True
+                is_active=True,
             )
             db.add(test_client)
             db.commit()
             db.refresh(test_client)
-            
+
             # Double-check client was saved
             client_id = test_client.id
             print(f"\n[FIXTURE] Created test client with ID: {client_id}")
-            print(f"[FIXTURE] Name: {test_client.full_name}, ID Number: {test_client.id_number}")
-            
+            print(
+                f"[FIXTURE] Name: {test_client.full_name}, ID Number: {test_client.id_number}"
+            )
+
             # Ensure no current employer exists for this client
-            ce = db.scalar(select(CurrentEmployer).where(CurrentEmployer.client_id == client_id))
+            ce = db.scalar(
+                select(CurrentEmployer).where(CurrentEmployer.client_id == client_id)
+            )
             if ce:
                 db.delete(ce)
                 db.commit()
-                print(f"[FIXTURE] Deleted existing current employer for client {client_id}")
+                print(
+                    f"[FIXTURE] Deleted existing current employer for client {client_id}"
+                )
             else:
-                print(f"[FIXTURE] No current employer found for client {client_id} - good!")
-                
+                print(
+                    f"[FIXTURE] No current employer found for client {client_id} - good!"
+                )
+
             return client_id
         finally:
             db.close()
+
     """Test cases for CurrentEmployer API endpoints"""
-    
+
     def test_create_current_employer_201(self, _test_db):
         """Test creating a new current employer returns 201"""
         client = TestClient(fastapi_app)
-        
+
         employer_data = {
             "employer_name": "טכנולוגיות ABC",
             "employer_id_number": "123456789",
@@ -79,11 +89,11 @@ class TestCurrentEmployerAPI:
             "last_salary": 15000.0,
             "average_salary": 14000.0,
             "severance_accrued": 50000.0,
-            "active_continuity": "severance"
+            "active_continuity": "severance",
         }
-        
+
         response = client.post("/api/v1/clients/1/current-employer", json=employer_data)
-        
+
         assert response.status_code == 201
         data = response.json()
         assert data["employer_name"] == "טכנולוגיות ABC"
@@ -93,103 +103,109 @@ class TestCurrentEmployerAPI:
         assert "id" in data
         assert "created_at" in data
         assert "updated_at" in data
-    
+
     def test_create_current_employer_client_not_found_404(self, _test_db):
         """Test creating current employer for non-existent client returns 404"""
         client = TestClient(fastapi_app)
-        
-        employer_data = {
-            "employer_name": "טכנולוגיות XYZ",
-            "start_date": "2020-01-01"
-        }
-        
-        response = client.post("/api/v1/clients/999/current-employer", json=employer_data)
-        
+
+        employer_data = {"employer_name": "טכנולוגיות XYZ", "start_date": "2020-01-01"}
+
+        response = client.post(
+            "/api/v1/clients/999/current-employer", json=employer_data
+        )
+
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "לקוח לא נמצא"
-    
+
     def test_update_existing_current_employer_200(self, _test_db):
         """Test updating existing current employer returns 200"""
         client = TestClient(fastapi_app)
-        
+
         # First create an employer
         employer_data = {
             "employer_name": "חברת DEF",
             "start_date": "2021-01-01",
-            "last_salary": 12000.0
+            "last_salary": 12000.0,
         }
-        
-        create_response = client.post("/api/v1/clients/1/employment/current", json=employer_data)
+
+        create_response = client.post(
+            "/api/v1/clients/1/employment/current", json=employer_data
+        )
         assert create_response.status_code in [200, 201]
-        
+
         # Then update it
         update_data = {
             "employer_name": "חברת DEF מעודכנת",
             "start_date": "2021-01-01",
             "last_salary": 18000.0,
-            "end_date": "2024-12-31"
+            "end_date": "2024-12-31",
         }
-        
-        update_response = client.post("/api/v1/clients/1/current-employer", json=update_data)
-        
+
+        update_response = client.post(
+            "/api/v1/clients/1/current-employer", json=update_data
+        )
+
         # Should return 200 for update (or 201 if creating new)
         assert update_response.status_code in [200, 201]
         data = update_response.json()
         assert data["employer_name"] == "חברת DEF מעודכנת"
         assert data["last_salary"] == 18000.0
         assert data["end_date"] == "2024-12-31"
-    
+
     def test_get_current_employer_200(self, _test_db):
         """Test retrieving existing current employer returns 200"""
         client = TestClient(fastapi_app)
-        
+
         # First create an employer
         employer_data = {
             "employer_name": "חברת GHI",
             "start_date": "2022-01-01",
-            "last_salary": 20000.0
+            "last_salary": 20000.0,
         }
-        
-        create_response = client.post("/api/v1/clients/1/employment/current", json=employer_data)
+
+        create_response = client.post(
+            "/api/v1/clients/1/employment/current", json=employer_data
+        )
         assert create_response.status_code in [200, 201]
-        
+
         # Then retrieve it
         get_response = client.get("/api/v1/clients/1/current-employer")
-        
+
         assert get_response.status_code == 200
         data = get_response.json()
         assert data["employer_name"] == "חברת GHI"
         assert data["client_id"] == 1
         assert data["last_salary"] == 20000.0
-    
+
     def test_get_current_employer_client_not_found_404(self, _test_db):
         """Test retrieving current employer for non-existent client returns 404"""
         client = TestClient(fastapi_app)
-        
+
         response = client.get("/api/v1/clients/999/current-employer")
-        
+
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "לקוח לא נמצא"
-    
+
     def test_get_current_employer_no_employer_404(self, client, db_session):
         """Test retrieving current employer when none exists returns 404"""
         print("\n[TEST] Starting test_get_current_employer_no_employer_404")
         print(f"[TEST] DB session ID: {id(db_session)}")
-        
+
         try:
             # Generate a unique ID to avoid collisions
             import uuid, time
+
             unique_id = f"{str(uuid.uuid4())[:8]}_{int(time.time())}"
-            
+
             print(f"[TEST] Creating test client with unique ID: {unique_id}")
             test_client = Client(
                 id_number_raw=f"test_no_employer_{unique_id}",
                 id_number=f"test_no_employer_{unique_id}",
                 full_name=f"Test Client {unique_id}",
                 birth_date=date(1990, 5, 15),
-                is_active=True
+                is_active=True,
             )
-            
+
             print(f"[TEST] Adding client to database")
             db_session.add(test_client)
             print(f"[TEST] Committing client to database")
@@ -198,68 +214,80 @@ class TestCurrentEmployerAPI:
             db_session.refresh(test_client)
             client_id = test_client.id
             print(f"[TEST] Created client with ID: {client_id}")
-            
+
             # Force SQLAlchemy to execute a new query to verify client exists
             print(f"[TEST] Verifying client exists in database")
             db_session.expire_all()  # Clear session cache
-            check_client = db_session.query(Client).filter(Client.id == client_id).first()
+            check_client = (
+                db_session.query(Client).filter(Client.id == client_id).first()
+            )
             if check_client:
-                print(f"[TEST] Client verified: ID={check_client.id}, Name='{check_client.full_name}'")
+                print(
+                    f"[TEST] Client verified: ID={check_client.id}, Name='{check_client.full_name}'"
+                )
             else:
                 print(f"[TEST] WARNING: Could not verify client in database!")
-            
+
             # Make request to API
             endpoint = f"/api/v1/clients/{client_id}/current-employer"
             print(f"[TEST] Calling GET {endpoint}")
             response = client.get(endpoint)
             print(f"[TEST] Response status: {response.status_code}")
             print(f"[TEST] Response body: {response.text}")
-            
+
             # Assert response is correct
-            assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+            assert (
+                response.status_code == 404
+            ), f"Expected 404, got {response.status_code}"
             error_msg = response.json()["detail"]["error"]
             expected_error = "אין מעסיק נוכחי רשום ללקוח"
-            
+
             print(f"[TEST] Actual error: '{error_msg}'")
             print(f"[TEST] Expected error: '{expected_error}'")
-            assert error_msg == expected_error, f"Wrong error message: got '{error_msg}'"   
+            assert (
+                error_msg == expected_error
+            ), f"Wrong error message: got '{error_msg}'"
         finally:
             print(f"[TEST] Test completed")
             # Session will be closed by pytest fixture
-    
+
     def test_add_grant_to_current_employer_201(self, _test_db):
         """Test adding grant to current employer returns 201 with calculation"""
         client = TestClient(fastapi_app)
-        
+
         # First create an employer
         employer_data = {
             "employer_name": "חברת JKL",
             "start_date": "2020-01-01",
             "end_date": "2024-01-01",
-            "last_salary": 15000.0
+            "last_salary": 15000.0,
         }
-        
-        create_response = client.post("/api/v1/clients/1/employment/current", json=employer_data)
+
+        create_response = client.post(
+            "/api/v1/clients/1/employment/current", json=employer_data
+        )
         assert create_response.status_code in [200, 201]
-        
+
         # Then add a grant
         grant_data = {
             "grant_type": "severance",
             "grant_amount": 80000.0,
             "grant_date": "2024-01-01",
-            "tax_withheld": 5000.0
+            "tax_withheld": 5000.0,
         }
-        
-        grant_response = client.post("/api/v1/clients/1/current-employer/grants", json=grant_data)
-        
+
+        grant_response = client.post(
+            "/api/v1/clients/1/current-employer/grants", json=grant_data
+        )
+
         assert grant_response.status_code == 201
         data = grant_response.json()
-        
+
         # Verify grant data
         assert data["grant_type"] == "severance"
         assert data["grant_amount"] == 80000.0
         assert data["tax_withheld"] == 5000.0
-        
+
         # Verify calculation results are included
         assert "calculation" in data
         calc = data["calculation"]
@@ -269,7 +297,7 @@ class TestCurrentEmployerAPI:
         assert "indexed_amount" in calc
         assert "service_years" in calc
         assert "severance_exemption_cap" in calc
-        
+
         # Verify calculation logic
         assert calc["service_years"] == 4.0  # 2020-2024
         assert calc["indexed_amount"] == 80000.0  # Stub indexing
@@ -277,30 +305,33 @@ class TestCurrentEmployerAPI:
         assert calc["grant_taxable"] >= 0
         assert calc["tax_due"] >= 0
         assert calc["grant_exempt"] + calc["grant_taxable"] == calc["indexed_amount"]
-    
+
     def test_add_grant_client_not_found_404(self, _test_db):
         """Test adding grant for non-existent client returns 404"""
         client = TestClient(fastapi_app)
-        
+
         grant_data = {
             "grant_type": "severance",
             "grant_amount": 50000.0,
-            "grant_date": "2024-01-01"
+            "grant_date": "2024-01-01",
         }
-        
-        response = client.post("/api/v1/clients/999/current-employer/grants", json=grant_data)
-        
+
+        response = client.post(
+            "/api/v1/clients/999/current-employer/grants", json=grant_data
+        )
+
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "לקוח לא נמצא"
-    
+
     def test_add_grant_no_current_employer_404(self, _test_db, client):
         """Test adding grant when no current employer exists returns 404"""
         import uuid
+
         Session = _test_db["Session"]
-        
+
         # Generate a unique ID for this test run
         unique_id = f"test{uuid.uuid4().hex[:8]}"
-        
+
         # Create a new client without current employer
         with Session() as db:
             # First check if a client with this ID already exists
@@ -313,69 +344,81 @@ class TestCurrentEmployerAPI:
                     id_number=unique_id,
                     full_name="Client Without Current Employer",
                     birth_date=date(1990, 3, 10),
-                    is_active=True
+                    is_active=True,
                 )
                 db.add(test_client)
                 db.commit()
                 db.refresh(test_client)
                 client_id = test_client.id
-        
+
         grant_data = {
             "grant_type": "severance",
             "grant_amount": 50000.0,
-            "grant_date": "2024-01-01"
+            "grant_date": "2024-01-01",
         }
-        
-        response = client.post(f"/api/v1/clients/{client_id}/current-employer/grants", json=grant_data)
-        
+
+        response = client.post(
+            f"/api/v1/clients/{client_id}/current-employer/grants", json=grant_data
+        )
+
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "אין מעסיק נוכחי רשום ללקוח"
-    
+
     def test_add_multiple_grants_calculation(self, _test_db):
         """Test adding multiple grants and verify calculations"""
         client = TestClient(fastapi_app)
-        
+
         # Create employer with longer service period
         employer_data = {
             "employer_name": "חברת MNO",
             "start_date": "2015-01-01",
             "end_date": "2024-01-01",
             "last_salary": 25000.0,
-            "average_salary": 22000.0
+            "average_salary": 22000.0,
         }
-        
-        create_response = client.post("/api/v1/clients/1/employment/current", json=employer_data)
+
+        create_response = client.post(
+            "/api/v1/clients/1/employment/current", json=employer_data
+        )
         assert create_response.status_code in [200, 201]
-        
+
         # Add first grant
         grant1_data = {
             "grant_type": "severance",
             "grant_amount": 120000.0,
-            "grant_date": "2024-01-01"
+            "grant_date": "2024-01-01",
         }
-        
-        grant1_response = client.post("/api/v1/clients/1/current-employer/grants", json=grant1_data)
+
+        grant1_response = client.post(
+            "/api/v1/clients/1/current-employer/grants", json=grant1_data
+        )
         assert grant1_response.status_code == 201
-        
+
         calc1 = grant1_response.json()["calculation"]
         assert calc1["service_years"] == 9.0  # 2015-2024
-        
+
         # Add second grant
         grant2_data = {
             "grant_type": "adjustment",
             "grant_amount": 30000.0,
-            "grant_date": "2024-02-01"
+            "grant_date": "2024-02-01",
         }
-        
-        grant2_response = client.post("/api/v1/clients/1/current-employer/grants", json=grant2_data)
+
+        grant2_response = client.post(
+            "/api/v1/clients/1/current-employer/grants", json=grant2_data
+        )
         assert grant2_response.status_code == 201
-        
+
         calc2 = grant2_response.json()["calculation"]
         assert calc2["service_years"] == 9.0  # Same employer, same service years
 
-    def test_termination_minimal_body_completes_from_employer(self, client, db_session) -> None:
+    def test_termination_minimal_body_completes_from_employer(
+        self, client, db_session
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
 
         unique_id = f"term_min_{uuid.uuid4().hex[:8]}"
@@ -419,9 +462,13 @@ class TestCurrentEmployerAPI:
         assert data.get("exempt_amount") is not None
         assert data.get("taxable_amount") is not None
 
-    def test_termination_manual_mode_missing_required_fields_returns_422(self, client, db_session) -> None:
+    def test_termination_manual_mode_missing_required_fields_returns_422(
+        self, client, db_session
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
 
         unique_id = f"term_manual_{uuid.uuid4().hex[:8]}"
@@ -460,9 +507,13 @@ class TestCurrentEmployerAPI:
         )
         assert resp.status_code == 422, resp.text
 
-    def test_termination_manual_amounts_not_overridden_when_completion_enabled(self, client, db_session) -> None:
+    def test_termination_manual_amounts_not_overridden_when_completion_enabled(
+        self, client, db_session
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
 
         unique_id = f"term_preserve_{uuid.uuid4().hex[:8]}"
@@ -511,9 +562,13 @@ class TestCurrentEmployerAPI:
         assert data.get("exempt_amount") == 111.22
         assert data.get("taxable_amount") == 333.44
 
-    def test_termination_manual_severance_exempt_computes_taxable_and_blocks_ssot(self, client, db_session, monkeypatch) -> None:
+    def test_termination_manual_severance_exempt_computes_taxable_and_blocks_ssot(
+        self, client, db_session, monkeypatch
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
         import app.services.current_employer.termination as termination_module
         from app.services.current_employer.termination import TerminationService
@@ -522,9 +577,13 @@ class TestCurrentEmployerAPI:
             raise AssertionError("SSOT must not run when severance_amount is sent")
 
         def _fail_formula(*args, **kwargs):
-            raise AssertionError("calculate_severance must not run when severance_amount is sent")
+            raise AssertionError(
+                "calculate_severance must not run when severance_amount is sent"
+            )
 
-        monkeypatch.setattr(termination_module, "compute_termination_amounts_ssot", _fail_ssot)
+        monkeypatch.setattr(
+            termination_module, "compute_termination_amounts_ssot", _fail_ssot
+        )
         monkeypatch.setattr(TerminationService, "calculate_severance", _fail_formula)
 
         unique_id = f"term_manual_a_{uuid.uuid4().hex[:8]}"
@@ -571,9 +630,13 @@ class TestCurrentEmployerAPI:
         assert float(data.get("exempt_amount") or 0) == 2500.0
         assert float(data.get("taxable_amount") or 0) == 7500.0
 
-    def test_termination_manual_severance_taxable_computes_exempt_and_blocks_ssot(self, client, db_session, monkeypatch) -> None:
+    def test_termination_manual_severance_taxable_computes_exempt_and_blocks_ssot(
+        self, client, db_session, monkeypatch
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
         import app.services.current_employer.termination as termination_module
         from app.services.current_employer.termination import TerminationService
@@ -582,9 +645,13 @@ class TestCurrentEmployerAPI:
             raise AssertionError("SSOT must not run when severance_amount is sent")
 
         def _fail_formula(*args, **kwargs):
-            raise AssertionError("calculate_severance must not run when severance_amount is sent")
+            raise AssertionError(
+                "calculate_severance must not run when severance_amount is sent"
+            )
 
-        monkeypatch.setattr(termination_module, "compute_termination_amounts_ssot", _fail_ssot)
+        monkeypatch.setattr(
+            termination_module, "compute_termination_amounts_ssot", _fail_ssot
+        )
         monkeypatch.setattr(TerminationService, "calculate_severance", _fail_formula)
 
         unique_id = f"term_manual_b_{uuid.uuid4().hex[:8]}"
@@ -631,9 +698,13 @@ class TestCurrentEmployerAPI:
         assert float(data.get("taxable_amount") or 0) == 1800.0
         assert float(data.get("exempt_amount") or 0) == 8200.0
 
-    def test_termination_manual_severance_only_uses_calculate_exempt_and_taxable_and_blocks_ssot(self, client, db_session, monkeypatch) -> None:
+    def test_termination_manual_severance_only_uses_calculate_exempt_and_taxable_and_blocks_ssot(
+        self, client, db_session, monkeypatch
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
         import app.services.current_employer.termination as termination_module
         from app.services.current_employer.termination import TerminationService
@@ -643,7 +714,9 @@ class TestCurrentEmployerAPI:
             raise AssertionError("SSOT must not run when severance_amount is sent")
 
         def _fail_formula(*args, **kwargs):
-            raise AssertionError("calculate_severance must not run when severance_amount is sent")
+            raise AssertionError(
+                "calculate_severance must not run when severance_amount is sent"
+            )
 
         called = {"count": 0}
         original = SeveranceCalculator.calculate_exempt_and_taxable
@@ -652,9 +725,13 @@ class TestCurrentEmployerAPI:
             called["count"] += 1
             return {"exempt_amount": 4000.0, "taxable_amount": 6000.0}
 
-        monkeypatch.setattr(termination_module, "compute_termination_amounts_ssot", _fail_ssot)
+        monkeypatch.setattr(
+            termination_module, "compute_termination_amounts_ssot", _fail_ssot
+        )
         monkeypatch.setattr(TerminationService, "calculate_severance", _fail_formula)
-        monkeypatch.setattr(SeveranceCalculator, "calculate_exempt_and_taxable", _wrapped)
+        monkeypatch.setattr(
+            SeveranceCalculator, "calculate_exempt_and_taxable", _wrapped
+        )
 
         unique_id = f"term_manual_c_{uuid.uuid4().hex[:8]}"
         orm_client = ClientModel(
@@ -700,9 +777,13 @@ class TestCurrentEmployerAPI:
         assert float(data.get("exempt_amount") or 0) == 4000.0
         assert float(data.get("taxable_amount") or 0) == 6000.0
 
-    def test_snapshot_info_has_termination_true_after_current_employer_termination(self, client, db_session) -> None:
+    def test_snapshot_info_has_termination_true_after_current_employer_termination(
+        self, client, db_session
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
 
         unique_id = f"snap_term_{uuid.uuid4().hex[:8]}"
@@ -745,9 +826,13 @@ class TestCurrentEmployerAPI:
         breakdown = info.json().get("breakdown") or {}
         assert breakdown.get("has_termination") is True
 
-    def test_delete_termination_clears_marker_and_snapshot_flag(self, client, db_session) -> None:
+    def test_delete_termination_clears_marker_and_snapshot_flag(
+        self, client, db_session
+    ) -> None:
         from app.models.client import Client as ClientModel
-        from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
+        from app.models.current_employment import (
+            CurrentEmployer as CurrentEmployerModel,
+        )
         import uuid
 
         unique_id = f"del_term_{uuid.uuid4().hex[:8]}"
@@ -787,14 +872,20 @@ class TestCurrentEmployerAPI:
 
         info_before = client.get(f"/api/v1/clients/{orm_client.id}/snapshot/info")
         assert info_before.status_code == 200, info_before.text
-        assert (info_before.json().get("breakdown") or {}).get("has_termination") is True
+        assert (info_before.json().get("breakdown") or {}).get(
+            "has_termination"
+        ) is True
 
-        delete_resp = client.delete(f"/api/v1/clients/{orm_client.id}/delete-termination")
+        delete_resp = client.delete(
+            f"/api/v1/clients/{orm_client.id}/delete-termination"
+        )
         assert delete_resp.status_code == 200, delete_resp.text
 
         info_after = client.get(f"/api/v1/clients/{orm_client.id}/snapshot/info")
         assert info_after.status_code == 200, info_after.text
-        assert (info_after.json().get("breakdown") or {}).get("has_termination") is False
+        assert (info_after.json().get("breakdown") or {}).get(
+            "has_termination"
+        ) is False
 
         ce_resp = client.get(f"/api/v1/clients/{orm_client.id}/current-employer")
         assert ce_resp.status_code == 200, ce_resp.text

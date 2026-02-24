@@ -1,6 +1,7 @@
 """
 Router for employment and termination endpoints
 """
+
 import logging
 import time
 from datetime import date
@@ -10,8 +11,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.client import Client
 from app.schemas.employment import (
-    EmploymentCreate, EmploymentOut, 
-    TerminationPlanIn, TerminationConfirmIn, TerminationEventOut
+    EmploymentCreate,
+    EmploymentOut,
+    TerminationPlanIn,
+    TerminationConfirmIn,
+    TerminationEventOut,
 )
 from app.services.employment_service import EmploymentService, coerce_termination_reason
 
@@ -25,14 +29,14 @@ router = APIRouter(prefix="/api/v1/clients", tags=["employment"])
 def validate_client_exists_and_active(client_id: int, db: Session) -> Client:
     """
     Validate client exists and is active
-    
+
     Args:
         client_id: Client ID to validate
         db: Database session
-        
+
     Returns:
         Client object if valid
-        
+
     Raises:
         HTTPException: If client not found or inactive
     """
@@ -40,38 +44,40 @@ def validate_client_exists_and_active(client_id: int, db: Session) -> Client:
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳ ׳‘׳׳¢׳¨׳›׳×"}
+            detail={"error": "׳׳§׳•׳— ׳׳ ׳ ׳׳¦׳ ׳‘׳׳¢׳¨׳›׳×"},
         )
-    
+
     if not client.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳ ׳‘׳׳¢׳¨׳›׳×"}
+            detail={"error": "׳׳§׳•׳— ׳׳ ׳₪׳¢׳™׳ ׳‘׳׳¢׳¨׳›׳×"},
         )
-    
+
     return client
 
 
-@router.post("/{client_id}/employment/current", response_model=EmploymentOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{client_id}/employment/current",
+    response_model=EmploymentOut,
+    status_code=status.HTTP_201_CREATED,
+)
 def set_current_employer(
-    client_id: int, 
-    employment_data: EmploymentCreate, 
-    db: Session = Depends(get_db)
+    client_id: int, employment_data: EmploymentCreate, db: Session = Depends(get_db)
 ) -> EmploymentOut:
     """
     Set current employer for a client
-    
+
     Args:
         client_id: Client ID
         employment_data: Employment creation data
         db: Database session
-        
+
     Returns:
         Employment object with 201 status
     """
     # Validate client exists and is active
     client = validate_client_exists_and_active(client_id, db)
-    
+
     start = time.perf_counter()
     try:
         # Call employment service
@@ -82,139 +88,151 @@ def set_current_employer(
             reg_no=employment_data.employer_reg_no,
             start_date=employment_data.start_date,
             monthly_salary_nominal=employment_data.last_salary,
-            end_date=employment_data.end_date
+            end_date=employment_data.end_date,
         )
-        
-        logger.info({
-            "event": "employment.set_current",
-            "client_id": client_id,
-            "ok": True,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "employment_id": employment.id
-        })
+
+        logger.info(
+            {
+                "event": "employment.set_current",
+                "client_id": client_id,
+                "ok": True,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "employment_id": employment.id,
+            }
+        )
         return employment
-        
+
     except ValueError as e:
         # Handle business logic errors from service
-        logger.info({
-            "event": "employment.set_current",
-            "client_id": client_id,
-            "ok": False,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "error": str(e)
-        })
-        
+        logger.info(
+            {
+                "event": "employment.set_current",
+                "client_id": client_id,
+                "ok": False,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "error": str(e),
+            }
+        )
+
         # Map specific errors to appropriate status codes
         if "׳׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™" in str(e):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={"error": str(e)}
+                status_code=status.HTTP_409_CONFLICT, detail={"error": str(e)}
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": str(e)}
+                detail={"error": str(e)},
             )
     except Exception as e:
-        logger.info({
-            "event": "employment.set_current",
-            "client_id": client_id,
-            "ok": False,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "error": str(e)
-        })
+        logger.info(
+            {
+                "event": "employment.set_current",
+                "client_id": client_id,
+                "ok": False,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "error": str(e),
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳×׳¢׳¡׳•׳§׳” ׳ ׳•׳›׳—׳™׳×: {str(e)}"}
+            detail={
+                "error": f"׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳×׳¢׳¡׳•׳§׳” ׳ ׳•׳›׳—׳™׳×: {str(e)}"
+            },
         )
 
 
-@router.patch("/{client_id}/employment/termination/plan", response_model=TerminationEventOut)
+@router.patch(
+    "/{client_id}/employment/termination/plan", response_model=TerminationEventOut
+)
 def plan_termination(
-    client_id: int, 
-    termination_data: TerminationPlanIn, 
-    db: Session = Depends(get_db)
+    client_id: int, termination_data: TerminationPlanIn, db: Session = Depends(get_db)
 ) -> TerminationEventOut:
     """
     Plan termination for a client's current employment
-    
+
     Args:
         client_id: Client ID
         termination_data: Termination planning data
         db: Database session
-        
+
     Returns:
         TerminationEvent object
     """
     # Validate client exists and is active
     client = validate_client_exists_and_active(client_id, db)
-    
+
     start = time.perf_counter()
     try:
         # Parse termination reason first using helper
         reason_enum = coerce_termination_reason(termination_data.termination_reason)
-        
+
         # Call employment service (service handles date validation)
         termination_event = EmploymentService.plan_termination(
             db=db,
             client_id=client_id,
             planned_date=termination_data.planned_termination_date,
-            reason=reason_enum
+            reason=reason_enum,
         )
-        
-        logger.info({
-            "event": "employment.plan",
-            "client_id": client_id,
-            "ok": True,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "employment_id": termination_event.employment_id
-        })
+
+        logger.info(
+            {
+                "event": "employment.plan",
+                "client_id": client_id,
+                "ok": True,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "employment_id": termination_event.employment_id,
+            }
+        )
         return termination_event
-        
+
     except ValueError as e:
         # Handle business logic errors from service
-        logger.info({
-            "event": "employment.plan",
-            "client_id": client_id,
-            "ok": False,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "error": str(e)
-        })
-        
+        logger.info(
+            {
+                "event": "employment.plan",
+                "client_id": client_id,
+                "ok": False,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "error": str(e),
+            }
+        )
+
         # Map specific errors to appropriate status codes
         if "׳׳ ׳ ׳™׳×׳ ׳׳×׳›׳ ׳ ׳¢׳–׳™׳‘׳”" in str(e):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={"error": str(e)}
+                status_code=status.HTTP_409_CONFLICT, detail={"error": str(e)}
             )
         elif "invalid_termination_reason" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": "׳¡׳™׳‘׳× ׳¢׳–׳™׳‘׳” ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”"}
+                detail={"error": "׳¡׳™׳‘׳× ׳¢׳–׳™׳‘׳” ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”"},
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": str(e)}
+                detail={"error": str(e)},
             )
     except Exception as e:
-        logger.info({
-            "event": "employment.plan",
-            "client_id": client_id,
-            "ok": False,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "error": str(e)
-        })
+        logger.info(
+            {
+                "event": "employment.plan",
+                "client_id": client_id,
+                "ok": False,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "error": str(e),
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳×׳›׳ ׳•׳ ׳¢׳–׳™׳‘׳”: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳×׳›׳ ׳•׳ ׳¢׳–׳™׳‘׳”: {str(e)}"},
         )
 
 
 def generate_fixation_package_for_client_background(db: Session, client_id: int):
     """
     Generate fixation package for a client in the background
-    
+
     Args:
         db: Database session
         client_id: Client ID
@@ -226,83 +244,91 @@ def generate_fixation_package_for_client_background(db: Session, client_id: int)
     trigger_fixation_package_for_client_background(db=db, client_id=client_id)
 
 
-@router.post("/{client_id}/employment/termination/confirm", response_model=TerminationEventOut)
+@router.post(
+    "/{client_id}/employment/termination/confirm", response_model=TerminationEventOut
+)
 def confirm_termination(
-    client_id: int, 
-    termination_data: TerminationConfirmIn, 
-    db: Session = Depends(get_db)
+    client_id: int,
+    termination_data: TerminationConfirmIn,
+    db: Session = Depends(get_db),
 ) -> TerminationEventOut:
     """
     Confirm termination for a client's current employment
-    
+
     Args:
         client_id: Client ID
         termination_data: Termination confirmation data
         db: Database session
-        
+
     Returns:
         TerminationEvent object
     """
     # Validate client exists and is active
     client = validate_client_exists_and_active(client_id, db)
-    
+
     start = time.perf_counter()
     try:
         # Call employment service
         termination_event = EmploymentService.confirm_termination(
             db=db,
             client_id=client_id,
-            actual_date=termination_data.actual_termination_date
+            actual_date=termination_data.actual_termination_date,
         )
-        
-        logger.info({
-            "event": "employment.confirm",
-            "client_id": client_id,
-            "ok": True,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "employment_id": termination_event.employment_id
-        })
-        
+
+        logger.info(
+            {
+                "event": "employment.confirm",
+                "client_id": client_id,
+                "ok": True,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "employment_id": termination_event.employment_id,
+            }
+        )
+
         # Trigger background fixation package generation (non-blocking)
         try:
             generate_fixation_package_for_client_background(db, client_id)
         except Exception as e:
             # Don't fail the main response if background task fails
-            logger.warning(f"Background fixation package generation failed for client {client_id}: {e}")
-        
+            logger.warning(
+                f"Background fixation package generation failed for client {client_id}: {e}"
+            )
+
         return termination_event
-        
+
     except ValueError as e:
         # Handle business logic errors from service
-        logger.info({
-            "event": "employment.confirm",
-            "client_id": client_id,
-            "ok": False,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "error": str(e)
-        })
-        
+        logger.info(
+            {
+                "event": "employment.confirm",
+                "client_id": client_id,
+                "ok": False,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "error": str(e),
+            }
+        )
+
         # Map specific errors to appropriate status codes
         if "׳׳™׳ ׳׳¢׳¡׳™׳§ ׳ ׳•׳›׳—׳™" in str(e):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={"error": str(e)}
+                status_code=status.HTTP_409_CONFLICT, detail={"error": str(e)}
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"error": str(e)}
+                detail={"error": str(e)},
             )
     except Exception as e:
-        logger.info({
-            "event": "employment.confirm",
-            "client_id": client_id,
-            "ok": False,
-            "duration_ms": int((time.perf_counter() - start) * 1000),
-            "error": str(e)
-        })
+        logger.info(
+            {
+                "event": "employment.confirm",
+                "client_id": client_id,
+                "ok": False,
+                "duration_ms": int((time.perf_counter() - start) * 1000),
+                "error": str(e),
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳׳™׳©׳•׳¨ ׳¢׳–׳™׳‘׳”: {str(e)}"}
+            detail={"error": f"׳©׳’׳™׳׳” ׳‘׳׳™׳©׳•׳¨ ׳¢׳–׳™׳‘׳”: {str(e)}"},
         )
-

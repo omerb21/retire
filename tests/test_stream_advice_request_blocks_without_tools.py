@@ -8,10 +8,14 @@ def test_stream_advice_request_blocks_without_tools(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for advice/what-to-do requests")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("Tools must not be executed when advice request is missing cashflow inputs")
+        raise AssertionError(
+            "Tools must not be executed when advice request is missing cashflow inputs"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

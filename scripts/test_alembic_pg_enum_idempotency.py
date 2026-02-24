@@ -45,8 +45,7 @@ def _drop_schema(engine, schema: str) -> None:
 def _ensure_activecontinuitytype_in_schema(engine, schema: str) -> None:
     with engine.connect() as conn:
         conn.execute(
-            text(
-                """
+            text("""
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
@@ -59,8 +58,7 @@ def _ensure_activecontinuitytype_in_schema(engine, schema: str) -> None:
                         EXECUTE 'CREATE TYPE ' || quote_ident(:schema) || '.activecontinuitytype AS ENUM (''none'', ''severance'', ''pension'')';
                     END IF;
                 END $$;
-                """
-            ),
+                """),
             {"schema": schema},
         )
 

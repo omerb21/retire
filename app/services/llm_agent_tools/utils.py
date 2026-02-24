@@ -29,4 +29,3 @@ def _to_jsonable(value: Any) -> Any:
         return _to_jsonable(raw)
 
     return str(value)
-

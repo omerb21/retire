@@ -2,11 +2,15 @@ import json
 from datetime import datetime, timezone
 
 from app.models.scenario import Scenario
-from app.services.pension_portfolio.snapshot_loader import dedupe_pension_portfolio_snapshot
+from app.services.pension_portfolio.snapshot_loader import (
+    dedupe_pension_portfolio_snapshot,
+)
 from tests.warnings_guard import capture_identity_map_sawarnings
 
 
-def test_snapshot_loader_dedupe_has_no_identity_map_replacement_warning(db_session, client):
+def test_snapshot_loader_dedupe_has_no_identity_map_replacement_warning(
+    db_session, client
+):
     snapshot1 = Scenario(
         client_id=client.id,
         scenario_name="pension_portfolio_snapshot",

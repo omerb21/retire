@@ -105,6 +105,7 @@ def apply_income_offset_to_target(
 # Unified target breakdown – single source of truth for ALL paths
 # ---------------------------------------------------------------------------
 
+
 class TargetPlanBreakdown:
     """Immutable breakdown of the user's desired target into plan-level target.
 
@@ -185,13 +186,17 @@ def compute_effective_plan_target(
     other_income_offset_gross = 0.0
     try:
         other_income_offset_net = compute_existing_income_offset_monthly(
-            db=db, client_id=client_id, target_is_net=True,
+            db=db,
+            client_id=client_id,
+            target_is_net=True,
         )
     except Exception:
         other_income_offset_net = 0.0
     try:
         other_income_offset_gross = compute_existing_income_offset_monthly(
-            db=db, client_id=client_id, target_is_net=False,
+            db=db,
+            client_id=client_id,
+            target_is_net=False,
         )
     except Exception:
         other_income_offset_gross = 0.0

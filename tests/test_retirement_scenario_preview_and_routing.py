@@ -14,7 +14,9 @@ from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 
 
-def _ensure_client_employer_and_scenario(*, db_session, client_id: int, scenario_id: int) -> int:
+def _ensure_client_employer_and_scenario(
+    *, db_session, client_id: int, scenario_id: int
+) -> int:
     client = db_session.query(Client).filter(Client.id == client_id).first()
     if client is None:
         client = Client(
@@ -60,13 +62,11 @@ def _ensure_client_employer_and_scenario(*, db_session, client_id: int, scenario
         db_session.add(employer)
         db_session.flush()
 
-    scenario = (
-        db_session.query(Scenario)
-        .filter(Scenario.id == scenario_id)
-        .first()
-    )
+    scenario = db_session.query(Scenario).filter(Scenario.id == scenario_id).first()
 
-    if scenario is None or int(getattr(scenario, "client_id", 0) or 0) != int(client.id):
+    if scenario is None or int(getattr(scenario, "client_id", 0) or 0) != int(
+        client.id
+    ):
         scenario = Scenario(
             client_id=client.id,
             scenario_name="Scenario 1",
@@ -99,7 +99,9 @@ def _ensure_client_employer_and_scenario(*, db_session, client_id: int, scenario
     return int(scenario.id)
 
 
-def test_retirement_scenario_preview_does_not_modify_current_employer(db_session) -> None:
+def test_retirement_scenario_preview_does_not_modify_current_employer(
+    db_session,
+) -> None:
     client_id = 990000040
     scenario_id = 66
 
@@ -130,7 +132,9 @@ def test_retirement_scenario_preview_does_not_modify_current_employer(db_session
         db_session.query(PensionFund).filter(PensionFund.client_id == client_id).count()
     )
 
-    res = api.get(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview")
+    res = api.get(
+        f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview"
+    )
     assert res.status_code == 200, res.text
 
     db_session.expire_all()
@@ -178,7 +182,9 @@ def test_retirement_scenario_execute_modifies_current_employer(db_session) -> No
     end_date_before = employer_before.end_date
     sev_before = float(employer_before.severance_accrued or 0.0)
 
-    res = api.post(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute")
+    res = api.post(
+        f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute"
+    )
     assert res.status_code == 200, res.text
     payload = res.json()
     assert payload.get("success") is True
@@ -208,7 +214,9 @@ def test_retirement_scenario_execute_modifies_current_employer(db_session) -> No
     assert abs(grant_sum - sev_before) < 0.1
 
 
-def test_retirement_scenario_execute_logs_sources_and_skips_reset(db_session, caplog) -> None:
+def test_retirement_scenario_execute_logs_sources_and_skips_reset(
+    db_session, caplog
+) -> None:
     caplog.set_level(logging.INFO)
 
     client_id = 990000043
@@ -221,17 +229,23 @@ def test_retirement_scenario_execute_logs_sources_and_skips_reset(db_session, ca
     )
 
     api = TestClient(app)
-    res = api.post(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute")
+    res = api.post(
+        f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute"
+    )
     assert res.status_code == 200, res.text
 
     lines = [str(r.message) for r in caplog.records]
 
-    term_date_line = next((l for l in lines if "SCENARIO_TERMINATION_DATE_SOURCE" in l), None)
+    term_date_line = next(
+        (l for l in lines if "SCENARIO_TERMINATION_DATE_SOURCE" in l), None
+    )
     assert term_date_line is not None
     assert "source=employer_end_date" in term_date_line
     print(term_date_line)
 
-    sev_source_line = next((l for l in lines if "SCENARIO_SEVERANCE_AMOUNT_SOURCE" in l), None)
+    sev_source_line = next(
+        (l for l in lines if "SCENARIO_SEVERANCE_AMOUNT_SOURCE" in l), None
+    )
     assert sev_source_line is not None
     assert "severance_source=employer_severance_accrued" in sev_source_line
     print(sev_source_line)
@@ -242,7 +256,9 @@ def test_retirement_scenario_execute_logs_sources_and_skips_reset(db_session, ca
     print(reset_line)
 
 
-def test_retirement_scenario_uses_complete_current_employer_when_multiple_exist(db_session, caplog) -> None:
+def test_retirement_scenario_uses_complete_current_employer_when_multiple_exist(
+    db_session, caplog
+) -> None:
     caplog.set_level(logging.INFO)
 
     client_id = 990000044
@@ -280,10 +296,14 @@ def test_retirement_scenario_uses_complete_current_employer_when_multiple_exist(
     db_session.commit()
 
     api = TestClient(app)
-    preview = api.get(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview")
+    preview = api.get(
+        f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/preview"
+    )
     assert preview.status_code == 200, preview.text
 
-    execute = api.post(f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute")
+    execute = api.post(
+        f"/api/v1/clients/{client_id}/retirement-scenarios/{scenario_id}/execute"
+    )
     assert execute.status_code == 200, execute.text
 
     db_session.expire_all()
@@ -306,7 +326,14 @@ def test_retirement_scenario_uses_complete_current_employer_when_multiple_exist(
     assert abs(grant_sum - sev_complete) < 0.1
 
     lines = [str(r.message) for r in caplog.records]
-    selected_line = next((l for l in lines if "CURRENT_EMPLOYER_SELECTED" in l and f"client_id={client_id}" in l), None)
+    selected_line = next(
+        (
+            l
+            for l in lines
+            if "CURRENT_EMPLOYER_SELECTED" in l and f"client_id={client_id}" in l
+        ),
+        None,
+    )
     assert selected_line is not None
     assert "reason=fallback_complete_due_to_missing_latest_fields" in selected_line
 

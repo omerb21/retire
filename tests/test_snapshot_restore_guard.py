@@ -1,12 +1,16 @@
 import pytest
 
 
-def test_snapshot_restore_rejects_incomplete_payload_without_wiping_db(db_session, client):
+def test_snapshot_restore_rejects_incomplete_payload_without_wiping_db(
+    db_session, client
+):
     from app.models.pension_fund import PensionFund
 
     # Ensure there is at least one row so a destructive restore would be detectable,
     # but do not assume the shared test DB is empty.
-    before = db_session.query(PensionFund).filter(PensionFund.client_id == client.id).count()
+    before = (
+        db_session.query(PensionFund).filter(PensionFund.client_id == client.id).count()
+    )
     if before == 0:
         pf = PensionFund(
             client_id=client.id,
@@ -27,7 +31,11 @@ def test_snapshot_restore_rejects_incomplete_payload_without_wiping_db(db_sessio
         )
         db_session.add(pf)
         db_session.commit()
-        before = db_session.query(PensionFund).filter(PensionFund.client_id == client.id).count()
+        before = (
+            db_session.query(PensionFund)
+            .filter(PensionFund.client_id == client.id)
+            .count()
+        )
         assert before >= 1
 
     # Incomplete payload (missing data.* fields) should be rejected.
@@ -37,7 +45,9 @@ def test_snapshot_restore_rejects_incomplete_payload_without_wiping_db(db_sessio
     )
     assert resp.status_code == 422
 
-    after = db_session.query(PensionFund).filter(PensionFund.client_id == client.id).count()
+    after = (
+        db_session.query(PensionFund).filter(PensionFund.client_id == client.id).count()
+    )
     assert after == before
 
 
@@ -46,7 +56,9 @@ def test_snapshot_restore_accepts_wrapped_snapshot_payload(db_session, client):
     from app.models.scenario import Scenario
 
     # Start with empty DB.
-    db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(synchronize_session=False)
+    db_session.query(PensionFund).filter(PensionFund.client_id == client.id).delete(
+        synchronize_session=False
+    )
     db_session.commit()
 
     payload = {
@@ -93,7 +105,7 @@ def test_snapshot_restore_accepts_wrapped_snapshot_payload(db_session, client):
                 ],
                 "pension_portfolio_snapshot_at": "2026-01-01T00:00:00",
             },
-        }
+        },
     }
 
     resp = client.post(
@@ -102,7 +114,9 @@ def test_snapshot_restore_accepts_wrapped_snapshot_payload(db_session, client):
     )
     assert resp.status_code == 200
 
-    funds = db_session.query(PensionFund).filter(PensionFund.client_id == client.id).all()
+    funds = (
+        db_session.query(PensionFund).filter(PensionFund.client_id == client.id).all()
+    )
     assert len(funds) == 1
     assert funds[0].fund_name == "Restored Fund"
 

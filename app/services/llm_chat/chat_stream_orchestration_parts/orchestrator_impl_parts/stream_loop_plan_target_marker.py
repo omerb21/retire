@@ -41,7 +41,9 @@ def extract_target_net_ils(user_text: str) -> int | None:
         "יעד הכנסה",
         "יעד",
     ):
-        keyword_positions.extend([m.start() for m in re.finditer(re.escape(kw), lowered)])
+        keyword_positions.extend(
+            [m.start() for m in re.finditer(re.escape(kw), lowered)]
+        )
 
     if not keyword_positions:
         return None

@@ -16,7 +16,9 @@ def test_stream_generate_full_report_continues_with_summary(monkeypatch) -> None
             return
         yield "PASS - סיכום QA סופי לאחר יצירת הדוח"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 

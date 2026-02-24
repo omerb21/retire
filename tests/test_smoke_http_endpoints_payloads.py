@@ -44,7 +44,9 @@ def _post_json(test_client, url: str, payload: dict):
                     "indexation_method": "none",
                     "tax_treatment": "taxable",
                     "monthly_income": 100,
-                    "conversion_source": json.dumps({"type": "pension_portfolio", "account_name": "x"}),
+                    "conversion_source": json.dumps(
+                        {"type": "pension_portfolio", "account_name": "x"}
+                    ),
                     "purchase_value": 123,
                     "purchase_date": "2025-01-01",
                     "annual_return": 0,
@@ -108,7 +110,9 @@ def _post_json(test_client, url: str, payload: dict):
         ),
     ],
 )
-def test_smoke_post_payloads_against_schemas(test_client, client, url, payload_variants):
+def test_smoke_post_payloads_against_schemas(
+    test_client, client, url, payload_variants
+):
     url = url.format(client_id=client.id)
 
     for payload in payload_variants:
@@ -148,13 +152,19 @@ def test_openapi_contract_snapshot_for_request_bodies(test_client):
     expected = {
         "/api/v1/clients/{client_id}/capital-assets": {"post": "CapitalAssetCreate"},
         "/api/v1/clients/{client_id}/pension-funds": {"post": "PensionFundCreate"},
-        "/api/v1/clients/{client_id}/additional-incomes": {"post": "AdditionalIncomeCreate"},
+        "/api/v1/clients/{client_id}/additional-incomes": {
+            "post": "AdditionalIncomeCreate"
+        },
     }
 
     paths = op.get("paths", {})
     for path, methods in expected.items():
         assert path in paths, f"Missing path in OpenAPI: {path}"
         for method, expected_schema in methods.items():
-            assert method in paths[path], f"Missing method in OpenAPI: {method.upper()} {path}"
+            assert (
+                method in paths[path]
+            ), f"Missing method in OpenAPI: {method.upper()} {path}"
             actual = _extract_request_schema_name(op, path, method)
-            assert actual == expected_schema, f"Request schema changed for {method.upper()} {path}: {actual} != {expected_schema}"
+            assert (
+                actual == expected_schema
+            ), f"Request schema changed for {method.upper()} {path}: {actual} != {expected_schema}"

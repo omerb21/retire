@@ -37,7 +37,9 @@ def _delete_existing_tool_created_records(
                 PensionFund.client_id == client_id,
                 PensionFund.deduction_file == account_number,
                 PensionFund.conversion_source.isnot(None),
-                PensionFund.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'),
+                PensionFund.conversion_source.like(
+                    '%%"source": "llm_transform_funds_to_assets"%%'
+                ),
             )
             .all()
         )
@@ -50,8 +52,12 @@ def _delete_existing_tool_created_records(
             .filter(
                 CapitalAsset.client_id == client_id,
                 CapitalAsset.conversion_source.isnot(None),
-                CapitalAsset.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'),
-                CapitalAsset.conversion_source.like(f'%%"account_number": "{account_number}"%%'),
+                CapitalAsset.conversion_source.like(
+                    '%%"source": "llm_transform_funds_to_assets"%%'
+                ),
+                CapitalAsset.conversion_source.like(
+                    f'%%"account_number": "{account_number}"%%'
+                ),
             )
             .all()
         )
@@ -60,18 +66,25 @@ def _delete_existing_tool_created_records(
 
 
 def _preferred_conversion_type_for_component(*, field: str, product_type: str) -> str:
-    return preferred_conversion_type_for_component(field=field, product_type=product_type)
+    return preferred_conversion_type_for_component(
+        field=field, product_type=product_type
+    )
 
 
 def _validate_component_conversion(
     *, field: str, amount: float, conversion_type: str, product_type: str
 ) -> tuple[bool, str | None, str | None]:
     return validate_component_conversion(
-        field=field, amount=amount, conversion_type=conversion_type, product_type=product_type
+        field=field,
+        amount=amount,
+        conversion_type=conversion_type,
+        product_type=product_type,
     )
 
 
-def _derive_capital_tax_treatment_from_components(*, components: dict, product_type: str) -> Optional[str]:
+def _derive_capital_tax_treatment_from_components(
+    *, components: dict, product_type: str
+) -> Optional[str]:
     if not isinstance(components, dict) or not components:
         return None
 
@@ -124,11 +137,19 @@ def _zero_source_portfolio_pension_funds(
             PensionFund.deduction_file == account_number,
             PensionFund.conversion_source.isnot(None),
         )
-        .filter(~PensionFund.conversion_source.like('%%"source": "llm_transform_funds_to_assets"%%'))
+        .filter(
+            ~PensionFund.conversion_source.like(
+                '%%"source": "llm_transform_funds_to_assets"%%'
+            )
+        )
         .filter(
             (PensionFund.conversion_source.like('%"source": "pension_portfolio"%'))
             | (PensionFund.conversion_source.like('%"type": "pension_portfolio"%'))
-            | (PensionFund.conversion_source.like('%"source": "pension_portfolio_convert"%'))
+            | (
+                PensionFund.conversion_source.like(
+                    '%"source": "pension_portfolio_convert"%'
+                )
+            )
         )
         .all()
     )
@@ -166,7 +187,9 @@ def _coerce_float(value) -> float:
         return 0.0
 
 
-def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) -> list[dict]:
+def _apply_snapshot_deltas(
+    *, portfolio: list[dict], deltas: dict[str, dict]
+) -> list[dict]:
     updated: list[dict] = []
     zero_epsilon = 0.01
     for item in portfolio:
@@ -196,7 +219,13 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
             "פיצויים_ממעסיקים_קודמים_רצף_זכויות",
         }
         component_prefixes = ("תגמולי_", "פיצויים_")
-        component_exact = {"תגמולים", "סך_תגמולים", "סך_פיצויים", "סך_רכיבים", "קרן_השתלמות"}
+        component_exact = {
+            "תגמולים",
+            "סך_תגמולים",
+            "סך_פיצויים",
+            "סך_רכיבים",
+            "קרן_השתלמות",
+        }
 
         if fields and isinstance(fields, dict):
             for field, raw_delta in list(fields.items()):
@@ -212,7 +241,9 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
                 if specific_amounts is not None:
                     nested_current = _coerce_float(specific_amounts.get(field))
                     nested_remaining = max(0.0, nested_current - delta_val)
-                    specific_amounts[field] = 0.0 if nested_remaining <= zero_epsilon else nested_remaining
+                    specific_amounts[field] = (
+                        0.0 if nested_remaining <= zero_epsilon else nested_remaining
+                    )
 
             if specific_amounts is not None:
                 row["specific_amounts"] = specific_amounts
@@ -233,12 +264,17 @@ def _apply_snapshot_deltas(*, portfolio: list[dict], deltas: dict[str, dict]) ->
                 for key in list(row.keys()):
                     if key in protected_fields:
                         continue
-                    if key == "specific_amounts" and isinstance(row.get("specific_amounts"), dict):
+                    if key == "specific_amounts" and isinstance(
+                        row.get("specific_amounts"), dict
+                    ):
                         nested = row.get("specific_amounts")
                         for nested_key in list(nested.keys()):
                             if nested_key in protected_fields:
                                 continue
-                            if nested_key.startswith(component_prefixes) or nested_key in component_exact:
+                            if (
+                                nested_key.startswith(component_prefixes)
+                                or nested_key in component_exact
+                            ):
                                 nested[nested_key] = 0
                         row["specific_amounts"] = nested
                         continue
@@ -448,7 +484,9 @@ def _build_specific_amounts_from_account(account: dict) -> dict[str, float]:
     return _normalize_specific_amounts(specific_amounts)
 
 
-def _derive_conversion_type_from_components(*, specific_amounts: dict[str, float]) -> str | None:
+def _derive_conversion_type_from_components(
+    *, specific_amounts: dict[str, float]
+) -> str | None:
     if not specific_amounts:
         return None
 
@@ -478,7 +516,9 @@ def _derive_conversion_type_from_components(*, specific_amounts: dict[str, float
     return None
 
 
-def _is_allowed_capital_without_breakdown(*, product_type: str, account_name: str) -> bool:
+def _is_allowed_capital_without_breakdown(
+    *, product_type: str, account_name: str
+) -> bool:
     candidate = f"{product_type or ''} {account_name or ''}".lower()
     return any(
         token in candidate

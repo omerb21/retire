@@ -9,4 +9,4 @@ For new code, import directly from app.services.tax_data
 from .tax_data import TaxDataService
 
 # Re-export for backward compatibility
-__all__ = ['TaxDataService']
+__all__ = ["TaxDataService"]

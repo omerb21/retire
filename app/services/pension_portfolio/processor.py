@@ -129,7 +129,9 @@ class PensionPortfolioProcessor:
         self.logger = logger or logging.getLogger(__name__)
 
     def process_file(self, content: str, file_name: str) -> dict:
-        processor = _PensionFileProcessor(content=content, file_name=file_name, logger=self.logger)
+        processor = _PensionFileProcessor(
+            content=content, file_name=file_name, logger=self.logger
+        )
         return processor.process()
 
 
@@ -156,21 +158,32 @@ class _PensionFileProcessor:
             self.logger.warning("Empty content received for %s", self.file_name)
             return False
 
-        for attempt, payload in enumerate((cleaned, self._try_fix_xml(cleaned)), start=1):
+        for attempt, payload in enumerate(
+            (cleaned, self._try_fix_xml(cleaned)), start=1
+        ):
             if payload is None:
                 continue
             try:
                 self.tree = ET.ElementTree(ET.fromstring(payload))
                 self.root = self.tree.getroot()
-                self.parent_map = {child: parent for parent in self.root.iter() for child in parent}
+                self.parent_map = {
+                    child: parent for parent in self.root.iter() for child in parent
+                }
                 if attempt > 1:
                     self.logger.info("Successfully repaired XML for %s", self.file_name)
                 return True
             except ET.ParseError as exc:
-                self.logger.warning("XML parse attempt %s failed for %s: %s", attempt, self.file_name, exc)
+                self.logger.warning(
+                    "XML parse attempt %s failed for %s: %s",
+                    attempt,
+                    self.file_name,
+                    exc,
+                )
                 continue
             except Exception as exc:  # pragma: no cover - defensive
-                self.logger.exception("Unexpected error loading %s: %s", self.file_name, exc)
+                self.logger.exception(
+                    "Unexpected error loading %s: %s", self.file_name, exc
+                )
                 return False
         return False
 
@@ -242,46 +255,75 @@ class _PensionFileProcessor:
         return any(elem.find(f".//{tag}") is not None for tag in tag_candidates)
 
     def _extract_account(self, account_elem: ET.Element) -> Optional[Dict[str, Any]]:
-        account_number = self._get_first_text(account_elem, [
-            "MISPAR-POLISA-O-HESHBON",
-            "MISPAR-HESHBON",
-            "MISPAR-POLISA",
-        ]) or "לא ידוע"
+        account_number = (
+            self._get_first_text(
+                account_elem,
+                [
+                    "MISPAR-POLISA-O-HESHBON",
+                    "MISPAR-HESHBON",
+                    "MISPAR-POLISA",
+                ],
+            )
+            or "לא ידוע"
+        )
 
-        plan_name = self._get_first_text(account_elem, [
-            "SHEM-TOCHNIT",
-            "TOCHNIT",
-            "SHEM_TOCHNIT",
-        ]) or "לא ידוע"
+        plan_name = (
+            self._get_first_text(
+                account_elem,
+                [
+                    "SHEM-TOCHNIT",
+                    "TOCHNIT",
+                    "SHEM_TOCHNIT",
+                ],
+            )
+            or "לא ידוע"
+        )
 
         managing_company = self._resolve_managing_company(account_elem)
 
-        managing_code = self._get_first_text(account_elem, [
-            "KOD-MEZAHE-YATZRAN",
-            "KOD-YATZRAN",
-            "MEZAHE-YATZRAN",
-        ])
+        managing_code = self._get_first_text(
+            account_elem,
+            [
+                "KOD-MEZAHE-YATZRAN",
+                "KOD-YATZRAN",
+                "MEZAHE-YATZRAN",
+            ],
+        )
 
         balance = self._find_balance(account_elem)
-        balance_date = self._get_first_text(account_elem, [
-            "TAARICH-NECHONUT-YITROT",
-            "TAARICH-YITROT",
-            "TAARICH-NECHONUT",
-        ]) or "לא ידוע"
+        balance_date = (
+            self._get_first_text(
+                account_elem,
+                [
+                    "TAARICH-NECHONUT-YITROT",
+                    "TAARICH-YITROT",
+                    "TAARICH-NECHONUT",
+                ],
+            )
+            or "לא ידוע"
+        )
 
-        start_date = self._get_first_text(account_elem, [
-            "TAARICH-TCHILAT-HAFRASHA",
-            "TAARICH-TCHILA",
-            "TAARICH-HITZTARFUT-RISHON",
-            "TAARICH-HITZTARFUT",
-        ])
+        start_date = self._get_first_text(
+            account_elem,
+            [
+                "TAARICH-TCHILAT-HAFRASHA",
+                "TAARICH-TCHILA",
+                "TAARICH-HITZTARFUT-RISHON",
+                "TAARICH-HITZTARFUT",
+            ],
+        )
 
-        product_type_code = self._get_first_text(account_elem, [
-            "SUG-MUTZAR",
-            "SUG-TOCHNIT-O-CHESHBON",
-            "SUG-POLISA",
-        ])
-        product_type = self._resolve_product_type(account_elem, product_type_code, plan_name)
+        product_type_code = self._get_first_text(
+            account_elem,
+            [
+                "SUG-MUTZAR",
+                "SUG-TOCHNIT-O-CHESHBON",
+                "SUG-POLISA",
+            ],
+        )
+        product_type = self._resolve_product_type(
+            account_elem, product_type_code, plan_name
+        )
 
         employers = self._collect_employer_names(account_elem)
         balance_fields = self._collect_balance_related_fields(account_elem)
@@ -295,11 +337,7 @@ class _PensionFileProcessor:
         if abs(discrepancy) <= BALANCE_TOLERANCE:
             discrepancy = 0.0
 
-        if (
-            account_number == "לא ידוע"
-            and plan_name == "לא ידוע"
-            and balance == 0
-        ):
+        if account_number == "לא ידוע" and plan_name == "לא ידוע" and balance == 0:
             return None
 
         account = {
@@ -326,20 +364,34 @@ class _PensionFileProcessor:
         }
 
         # Flatten severance components into top-level keys. Use normalized field names
-        account.update({
-            "פיצויים_מעסיק_נוכחי": severance_components.get("פיצויים מעסקי נוכחי", 0.0),
-            "פיצויים_לאחר_התחשבנות": severance_components.get("פיצויים לאחר התחשבנות", 0.0),
-            "פיצויים_שלא_עברו_התחשבנות": severance_components.get("פיצויים שלא עברו התחשבנות", 0.0),
-            "פיצויים_ממעסיקים_קודמים_רצף_זכויות": severance_components.get("פיצויים ממעסיקים קודמים ברצף זכויות", 0.0),
-            "פיצויים_ממעסיקים_קודמים_רצף_קצבה": severance_components.get("פיצויים ממעסיקים קודמים ברצף קצבה", 0.0),
-        })
+        account.update(
+            {
+                "פיצויים_מעסיק_נוכחי": severance_components.get(
+                    "פיצויים מעסקי נוכחי", 0.0
+                ),
+                "פיצויים_לאחר_התחשבנות": severance_components.get(
+                    "פיצויים לאחר התחשבנות", 0.0
+                ),
+                "פיצויים_שלא_עברו_התחשבנות": severance_components.get(
+                    "פיצויים שלא עברו התחשבנות", 0.0
+                ),
+                "פיצויים_ממעסיקים_קודמים_רצף_זכויות": severance_components.get(
+                    "פיצויים ממעסיקים קודמים ברצף זכויות", 0.0
+                ),
+                "פיצויים_ממעסיקים_קודמים_רצף_קצבה": severance_components.get(
+                    "פיצויים ממעסיקים קודמים ברצף קצבה", 0.0
+                ),
+            }
+        )
 
         # Flatten tagmul periods into known columns
         for column_name, field_name in TAGMUL_FIELD_MAP.items():
             account[field_name] = tagmul_periods.get(column_name, 0.0)
 
         # Primary tagmul column (used elsewhere in the app)
-        account["תגמולים"] = self._extract_primary_tagmul(balance_fields, total_contributions, severance_components)
+        account["תגמולים"] = self._extract_primary_tagmul(
+            balance_fields, total_contributions, severance_components
+        )
 
         lowered_product_type = (product_type or "").lower()
         if (
@@ -417,7 +469,13 @@ class _PensionFileProcessor:
                 if numeric <= 0:
                     continue
                 tag_upper = elem.tag.upper()
-                weight = 2.0 if any(keyword in tag_upper for keyword in ["SCHUM", "YITRAT", "ERECH"]) else 1.0
+                weight = (
+                    2.0
+                    if any(
+                        keyword in tag_upper for keyword in ["SCHUM", "YITRAT", "ERECH"]
+                    )
+                    else 1.0
+                )
                 potential.append((weight, numeric, elem.tag))
         if potential:
             potential.sort(key=lambda item: (-item[0], -item[1]))
@@ -425,7 +483,9 @@ class _PensionFileProcessor:
 
         return 0.0
 
-    def _sum_fields(self, base_elem: ET.Element, xpath: str, field_candidates: List[str]) -> Tuple[float, int]:
+    def _sum_fields(
+        self, base_elem: ET.Element, xpath: str, field_candidates: List[str]
+    ) -> Tuple[float, int]:
         total = 0.0
         count = 0
         for node in base_elem.findall(xpath):
@@ -461,7 +521,9 @@ class _PensionFileProcessor:
         except ValueError:
             return None
 
-    def _collect_tag_values(self, start_elem: ET.Element, tag: str, include_parents: bool = True) -> List[str]:
+    def _collect_tag_values(
+        self, start_elem: ET.Element, tag: str, include_parents: bool = True
+    ) -> List[str]:
         values: List[str] = []
         current = start_elem
         visited: set[int] = set()
@@ -481,15 +543,21 @@ class _PensionFileProcessor:
                 unique_values.append(value)
         return unique_values
 
-    def _collect_specific_tags(self, start_elem: ET.Element, tags: List[str], include_parents: bool = True) -> Dict[str, str]:
+    def _collect_specific_tags(
+        self, start_elem: ET.Element, tags: List[str], include_parents: bool = True
+    ) -> Dict[str, str]:
         collected: Dict[str, str] = {}
         for tag in tags:
-            values = self._collect_tag_values(start_elem, tag, include_parents=include_parents)
+            values = self._collect_tag_values(
+                start_elem, tag, include_parents=include_parents
+            )
             if values:
                 collected[tag] = " | ".join(values)
         return collected
 
-    def _collect_balance_related_fields(self, account_elem: ET.Element) -> Dict[str, str]:
+    def _collect_balance_related_fields(
+        self, account_elem: ET.Element
+    ) -> Dict[str, str]:
         collected: Dict[str, List[str]] = {}
         explicit = set(BALANCE_EXPLICIT_TAGS)
         for node in account_elem.iter():
@@ -515,7 +583,9 @@ class _PensionFileProcessor:
         return result
 
     def _collect_tagmul_periods(self, account_elem: ET.Element) -> Dict[str, float]:
-        totals: Dict[Tuple[str, str], float] = {key: 0.0 for key in TAGMUL_PERIOD_COLUMNS}
+        totals: Dict[Tuple[str, str], float] = {
+            key: 0.0 for key in TAGMUL_PERIOD_COLUMNS
+        }
         has_period_data = {"employee": False, "employer": False}
 
         for period in account_elem.findall(".//BlockItrot//PerutYitraLeTkufa"):
@@ -561,7 +631,7 @@ class _PensionFileProcessor:
         for tag in EMPLOYER_NAME_TAGS:
             values = self._collect_tag_values(account_elem, tag, include_parents=True)
             for value in values:
-                clean = value.strip().strip("\"").strip("'").replace(" | ", " ").strip()
+                clean = value.strip().strip('"').strip("'").replace(" | ", " ").strip()
                 if clean and clean not in seen:
                     seen.add(clean)
                     names.append(clean)
@@ -569,7 +639,13 @@ class _PensionFileProcessor:
 
     def _resolve_managing_company(self, account_elem: ET.Element) -> str:
         # חיפוש קודם כל ברמת החשבון וההורים
-        for tag in ["SHEM-YATZRAN", "SHEM-METAFEL", "SHEM_HA_MOSAD", "Provider", "Company"]:
+        for tag in [
+            "SHEM-YATZRAN",
+            "SHEM-METAFEL",
+            "SHEM_HA_MOSAD",
+            "Provider",
+            "Company",
+        ]:
             values = self._collect_tag_values(account_elem, tag, include_parents=True)
             for value in values:
                 clean = value.strip()
@@ -577,14 +653,22 @@ class _PensionFileProcessor:
                     return clean
 
         # fallback גלובלי
-        for tag in ["SHEM-YATZRAN", "SHEM-METAFEL", "SHEM_HA_MOSAD", "Provider", "Company"]:
+        for tag in [
+            "SHEM-YATZRAN",
+            "SHEM-METAFEL",
+            "SHEM_HA_MOSAD",
+            "Provider",
+            "Company",
+        ]:
             global_value = self._get_global_text(tag)
             if global_value:
                 return global_value
 
         return "לא ידוע"
 
-    def _resolve_product_type(self, account_elem: ET.Element, product_type_code: Optional[str], plan_name: str) -> str:
+    def _resolve_product_type(
+        self, account_elem: ET.Element, product_type_code: Optional[str], plan_name: str
+    ) -> str:
         """Determine product type using the same rules as the mislaka PensionFileProcessor._get_product_type.
 
         The product_type_code argument is intentionally ignored to avoid overriding SUG-MUTZAR
@@ -620,7 +704,9 @@ class _PensionFileProcessor:
             if "גמל" in name:
                 name_type = "קופת גמל"
                 break
-            if "ביטוח" in name and ("חיים" in name or "מנהלים" in name or "מנהל" in name):
+            if "ביטוח" in name and (
+                "חיים" in name or "מנהלים" in name or "מנהל" in name
+            ):
                 if "מקפת" in name or "פנסיה" in name:
                     name_type = "קרן פנסיה"
                     break
@@ -631,7 +717,9 @@ class _PensionFileProcessor:
                 break
 
         # 2. Try to infer from SUG-MUTZAR codes only (no overrides from other type codes)
-        codes = self._collect_tag_values(account_elem, "SUG-MUTZAR", include_parents=True)
+        codes = self._collect_tag_values(
+            account_elem, "SUG-MUTZAR", include_parents=True
+        )
         if not codes:
             code = self._get_text(account_elem, "SUG-MUTZAR")
             codes = [code] if code else []
@@ -715,7 +803,9 @@ class _PensionFileProcessor:
             return "קרן השתלמות"
         return name.strip() if name.strip() else None
 
-    def _extract_severance_components(self, balance_fields: Dict[str, str]) -> Dict[str, float]:
+    def _extract_severance_components(
+        self, balance_fields: Dict[str, str]
+    ) -> Dict[str, float]:
         components: Dict[str, float] = {}
         for column, tags in SEVERANCE_COLUMN_TAGS.items():
             total = 0.0
@@ -767,12 +857,14 @@ class _PensionFileProcessor:
         try:
             sanitized = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", content)
             if not sanitized.strip().startswith("<?xml"):
-                sanitized = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + sanitized
+                sanitized = '<?xml version="1.0" encoding="UTF-8"?>\n' + sanitized
             sanitized = re.sub(r"<\s+", "<", sanitized)
             sanitized = re.sub(r"\s+>", ">", sanitized)
             open_tags = re.findall(r"<([A-Za-z0-9\-]+)[^>]*>", sanitized)
             close_tags = re.findall(r"</([A-Za-z0-9\-]+)>", sanitized)
-            if len(open_tags) > len(close_tags) and not re.search(r"<root", sanitized, re.IGNORECASE):
+            if len(open_tags) > len(close_tags) and not re.search(
+                r"<root", sanitized, re.IGNORECASE
+            ):
                 xml_decl_end = sanitized.find("?>") + 2 if "?>" in sanitized else 0
                 before = sanitized[:xml_decl_end]
                 after = sanitized[xml_decl_end:]
@@ -781,7 +873,6 @@ class _PensionFileProcessor:
         except Exception:  # pragma: no cover - defensive
             self.logger.exception("Failed to auto-repair XML for %s", self.file_name)
             return None
-
 
 
 __all__ = ["PensionPortfolioProcessor"]

@@ -9,23 +9,33 @@ from app.main import app
 from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
 from app.models.scenario import Scenario
-from app.services.llm_chat.chat_orchestration_helpers import store_pending_approval_request
+from app.services.llm_chat.chat_orchestration_helpers import (
+    store_pending_approval_request,
+)
 
 
 def _extract_ui_action_payload(body: str) -> dict:
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     return json.loads(payload_json)
 
 
-def test_stream_restore_unlocks_allows_transform_approval_again(monkeypatch, _test_db) -> None:
+def test_stream_restore_unlocks_allows_transform_approval_again(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     # Guardrail: LLM must not be called in this deterministic flow
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called in restore/unlock deterministic flow")
+        raise AssertionError(
+            "LLM must not be called in restore/unlock deterministic flow"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == 920200001).first()
@@ -53,7 +63,9 @@ def test_stream_restore_unlocks_allows_transform_approval_again(monkeypatch, _te
             start_date=date(2020, 1, 1),
             indexation_method="none",
             tax_treatment="taxable",
-            conversion_source=json.dumps({"source": "scenario_conversion"}, ensure_ascii=False),
+            conversion_source=json.dumps(
+                {"source": "scenario_conversion"}, ensure_ascii=False
+            ),
         )
         db.add(asset)
 
@@ -108,7 +120,10 @@ def test_stream_restore_unlocks_allows_transform_approval_again(monkeypatch, _te
         db.add(target_plan)
 
         # Create pending approval for restore so USER_APPROVED is accepted
-        restore_args = {"snapshot_scenario_id": source_snapshot_id, "safety_mode": "strict"}
+        restore_args = {
+            "snapshot_scenario_id": source_snapshot_id,
+            "safety_mode": "strict",
+        }
         assert (
             store_pending_approval_request(
                 db=db,

@@ -29,7 +29,11 @@ def handle_execute_work_termination(*, args: dict, client_id: int, db: Session) 
 
         termination_date = datetime.strptime(termination_date_str, "%Y-%m-%d").date()
 
-        employer = db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).first()
+        employer = (
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .first()
+        )
 
         if not employer:
             return "Error: לא נמצא מעסיק נוכחי. יש להגדיר מעסיק תחילה באמצעות SET_CURRENT_EMPLOYER_DETAILS."
@@ -54,12 +58,16 @@ def handle_execute_work_termination(*, args: dict, client_id: int, db: Session) 
         severance_info = None
         if calculate_severance and employer.last_salary and employer.start_date:
             termination_service = TerminationService(db)
-            salary = float(final_salary) if final_salary else float(employer.last_salary)
+            salary = (
+                float(final_salary) if final_salary else float(employer.last_salary)
+            )
             calc = termination_service.calculate_severance(
                 start_date=employer.start_date,
                 end_date=termination_date,
                 last_salary=salary,
-                continuity_years=float(getattr(employer, "continuity_years", 0.0) or 0.0),
+                continuity_years=float(
+                    getattr(employer, "continuity_years", 0.0) or 0.0
+                ),
             )
 
             try:

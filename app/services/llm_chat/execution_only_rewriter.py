@@ -21,7 +21,7 @@ def build_exec_only_rewrite_prompt(bad_text: str, user_request_text: str) -> lis
         "- חובה לכלול בתוך סעיף ההנחיות את כל הבלוקים הבאים (לא להחסיר אף סעיף):\n"
         "  [ ] פקודת בדיקות אמיתית: python -m pytest -q\n"
         "  [ ] שלוש פקודות Git נפרדות: git add ... ואז git commit ... ואז git push\n"
-        "  [ ] שורת curl.exe שמכילה כותרת X-Trace-Id (לדוגמה: -H \"X-Trace-Id: TRACE_ID\")\n"
+        '  [ ] שורת curl.exe שמכילה כותרת X-Trace-Id (לדוגמה: -H "X-Trace-Id: TRACE_ID")\n'
         "  [ ] לפחות נתיב קובץ אחד שמתחיל ב app/ (או tests/ או Dockerfile)\n"
         "- כל אחד מהסעיפים צריך להיות ניתן להדבקה והרצה (פקודות PowerShell/pytest/git) או נתיב קובץ.\n"
     )

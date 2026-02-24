@@ -86,7 +86,9 @@ def build_client_snapshot(db: Session, client_id: int) -> dict:
     snapshot = ClientSnapshot(
         client={
             "id": int(client.id),
-            "birth_date": client.birth_date if isinstance(client.birth_date, date) else None,
+            "birth_date": (
+                client.birth_date if isinstance(client.birth_date, date) else None
+            ),
             "is_active": bool(client.is_active),
             "current_employer_exists": bool(client.current_employer_exists),
         },

@@ -53,7 +53,9 @@ def _estimate_nonzero_balance_rows(portfolio: Any) -> int:
     return count
 
 
-def handle_get_pension_portfolio_snapshot_history(*, args: dict, client_id: int, db: Session) -> str:
+def handle_get_pension_portfolio_snapshot_history(
+    *, args: dict, client_id: int, db: Session
+) -> str:
     rows = (
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
@@ -76,12 +78,18 @@ def handle_get_pension_portfolio_snapshot_history(*, args: dict, client_id: int,
         if isinstance(meta, dict):
             op_type = meta.get("operation_type")
 
-        portfolio = params.get("pension_portfolio") if isinstance(params, dict) else None
+        portfolio = (
+            params.get("pension_portfolio") if isinstance(params, dict) else None
+        )
         est_nonzero = _estimate_nonzero_balance_rows(portfolio)
 
         created_at = None
         try:
-            created_at = row.created_at.isoformat() if isinstance(row.created_at, datetime) else None
+            created_at = (
+                row.created_at.isoformat()
+                if isinstance(row.created_at, datetime)
+                else None
+            )
         except Exception:
             created_at = None
 

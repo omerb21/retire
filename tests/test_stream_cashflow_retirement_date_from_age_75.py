@@ -9,7 +9,9 @@ from app.main import app
 from app.models.client import Client
 
 
-def test_stream_cashflow_retirement_date_derived_from_age_75(monkeypatch, _test_db) -> None:
+def test_stream_cashflow_retirement_date_derived_from_age_75(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -29,12 +31,18 @@ def test_stream_cashflow_retirement_date_derived_from_age_75(monkeypatch, _test_
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for target-net cashflow deterministic routing")
+        raise AssertionError(
+            "LLM must not be called for target-net cashflow deterministic routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

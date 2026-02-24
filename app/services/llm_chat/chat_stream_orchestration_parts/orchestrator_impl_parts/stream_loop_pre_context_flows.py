@@ -2,7 +2,9 @@
 
 from fastapi.responses import StreamingResponse
 
-from app.services.llm_chat.chat_orchestration_helpers import clear_pending_plan_target_marker
+from app.services.llm_chat.chat_orchestration_helpers import (
+    clear_pending_plan_target_marker,
+)
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     load_current_employer_termination_plan_preview,
     load_current_termination_preview_id,
@@ -13,6 +15,7 @@ from app.services.llm_chat.orchestration_utils_parts.tool_call_helpers import (
 )
 
 logger = logging.getLogger("app.llm_chat")
+
 
 def _run_pre_context_flows(
     *,
@@ -59,7 +62,7 @@ def _run_pre_context_flows(
     prepare_messages_with_context,
     maybe_route_to_reports_page,
     maybe_handle_user_approved_json_exec,
- ):
+):
     general_retirement_response = maybe_handle_general_retirement_responses(
         original_user_msg=original_user_msg,
         request=request,
@@ -167,7 +170,9 @@ def _run_pre_context_flows(
 
             preview_declined = bool(preview_payload.get("declined")) is True
             preview_approved = bool(preview_payload.get("approved")) is True
-            preview_awaiting = bool(preview_payload.get("awaiting_user_confirmation")) is True
+            preview_awaiting = (
+                bool(preview_payload.get("awaiting_user_confirmation")) is True
+            )
             preview_used = bool(preview_payload.get("used")) is True
             declined_at = preview_payload.get("declined_at")
             preview_id = preview_payload.get("preview_id")
@@ -181,7 +186,12 @@ def _run_pre_context_flows(
             except Exception:
                 active_preview_id = None
 
-            if (not preview_declined) or preview_approved or preview_awaiting or preview_used:
+            if (
+                (not preview_declined)
+                or preview_approved
+                or preview_awaiting
+                or preview_used
+            ):
                 return None
 
             if not (
@@ -249,7 +259,13 @@ def _run_pre_context_flows(
                 )
 
             new_template = dict(template_base)
-            new_template.update({k: v for k, v in overrides.items() if k in {"exempt_choice", "taxable_choice"}})
+            new_template.update(
+                {
+                    k: v
+                    for k, v in overrides.items()
+                    if k in {"exempt_choice", "taxable_choice"}
+                }
+            )
             new_template["confirmed"] = True
 
             exempt_choice = str(new_template.get("exempt_choice") or "").strip()
@@ -302,7 +318,9 @@ def _run_pre_context_flows(
                 media_type="text/plain",
             )
 
-        termination_alternative_response = _maybe_handle_termination_alternative_choice()
+        termination_alternative_response = (
+            _maybe_handle_termination_alternative_choice()
+        )
         if termination_alternative_response is not None:
             return termination_alternative_response, plan_phrase_detected, None, None
 
@@ -354,6 +372,11 @@ def _run_pre_context_flows(
         original_user_msg=original_user_msg,
     )
     if approved_json_exec_response is not None:
-        return approved_json_exec_response, plan_phrase_detected, messages, computed_data
+        return (
+            approved_json_exec_response,
+            plan_phrase_detected,
+            messages,
+            computed_data,
+        )
 
     return None, plan_phrase_detected, messages, computed_data

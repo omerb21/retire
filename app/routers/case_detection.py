@@ -1,12 +1,18 @@
 """
 Case detection router for determining client workflow path
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.database import get_db
-from app.schemas.case import CaseDetectionResponse, CaseDetectionResult, CaseDetectResponse, ClientCase
+from app.schemas.case import (
+    CaseDetectionResponse,
+    CaseDetectionResult,
+    CaseDetectResponse,
+    ClientCase,
+)
 from app.utils.contract_adapter import CaseDetectionAdapter
 
 router = APIRouter(
@@ -19,7 +25,7 @@ router = APIRouter(
     "/{client_id}/case/detect",
     response_model=CaseDetectionResponse,
     summary="Detect client case (workflow type)",
-    response_description="Client case detection result with reasoning"
+    response_description="Client case detection result with reasoning",
 )
 def detect_client_case_get(
     client_id: int = Path(..., description="Client ID"),
@@ -27,16 +33,16 @@ def detect_client_case_get(
 ):
     """
     Detect the appropriate case (workflow type) for a client based on their data.
-    
+
     The system evaluates client data according to the following rules:
     - Case 1: Client with no current employer
     - Case 2: Client with no current employer but has business income (self-employed)
     - Case 3: Client is past retirement age
     - Case 4: Client has current employer with no planned leave
     - Case 5: Client has current employer with planned leave/termination (default workflow)
-    
+
     The API returns the case ID, name, and reasoning behind the classification.
-    
+
     Example response:
     ```json
     {
@@ -57,31 +63,25 @@ def detect_client_case_get(
         # Client not found or missing required data
         if "not found" in str(e).lower():
             raise HTTPException(
-                status_code=404,
-                detail=f"Client with ID {client_id} not found"
+                status_code=404, detail=f"Client with ID {client_id} not found"
             )
         else:
             # Other validation errors (like missing birth date)
-            raise HTTPException(
-                status_code=422,
-                detail=str(e)
-            )
+            raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         # Unexpected errors
         raise HTTPException(
-            status_code=500,
-            detail=f"Error detecting client case: {str(e)}"
+            status_code=500, detail=f"Error detecting client case: {str(e)}"
         )
 
 
 @router.post(
     "/{client_id}/case/detect",
     response_model=CaseDetectResponse,
-    summary="Detect case via POST (Sprint 11 compatibility)"
+    summary="Detect case via POST (Sprint 11 compatibility)",
 )
 def detect_case_post(
-    client_id: int = Path(..., description="Client ID"),
-    db: Session = Depends(get_db)
+    client_id: int = Path(..., description="Client ID"), db: Session = Depends(get_db)
 ) -> CaseDetectResponse:
     """
     POST version of case detection for Sprint 11 verification compatibility.

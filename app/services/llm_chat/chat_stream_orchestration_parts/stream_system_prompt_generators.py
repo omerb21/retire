@@ -31,14 +31,21 @@ from app.services.llm_chat.orchestration_utils_parts.existing_income_offset impo
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     evaluate_blocked_balances_policy_for_build_target_plan,
 )
-from app.services.pension_portfolio.snapshot_loader import load_latest_pension_portfolio_snapshot_models
+from app.services.pension_portfolio.snapshot_loader import (
+    load_latest_pension_portfolio_snapshot_models,
+)
 
 from .chat_helpers import _infer_target_is_net_explicit
-from .stream_formatters import _format_data_awareness_snapshot, _format_list_all_entities
+from .stream_formatters import (
+    _format_data_awareness_snapshot,
+    _format_list_all_entities,
+)
 from .stream_more_nested_helpers import _format_system_inventory_snapshot
 from .stream_tool_execution import _execute_tool_call
 
-_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = "pending_pre_retirement_plan_resolution"
+_PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = (
+    "pending_pre_retirement_plan_resolution"
+)
 _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO = "ignore_blocked_balances_decision"
 
 
@@ -47,7 +54,9 @@ def _load_ignore_blocked_balances_decision(*, db, client_id: int) -> bool:
         row = (
             db.query(Scenario)
             .filter(Scenario.client_id == client_id)
-            .filter(Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO)
+            .filter(
+                Scenario.scenario_name == _IGNORE_BLOCKED_BALANCES_DECISION_SCENARIO
+            )
             .order_by(Scenario.created_at.desc())
             .first()
         )
@@ -121,7 +130,9 @@ def _detect_blocked_balances_in_snapshot(*, portfolio: object) -> bool:
     return False
 
 
-def _store_pending_pre_retirement_plan_resolution(*, db, client_id: int, payload: dict) -> None:
+def _store_pending_pre_retirement_plan_resolution(
+    *, db, client_id: int, payload: dict
+) -> None:
     try:
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
             Scenario.scenario_name == _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO
@@ -151,7 +162,16 @@ def _store_pending_pre_retirement_plan_resolution(*, db, client_id: int, payload
             pass
 
 
-def generate_adjust_reply(*, computed_data, payload, original_user_msg, request, db, effective_portfolio, stream_request_id) -> str:
+def generate_adjust_reply(
+    *,
+    computed_data,
+    payload,
+    original_user_msg,
+    request,
+    db,
+    effective_portfolio,
+    stream_request_id,
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -175,7 +195,11 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
 
     explicit_is_net = _infer_target_is_net_explicit(original_user_msg)
     if explicit_is_net is None:
-        prev_is_net = payload.get("args", {}).get("target_is_net") if isinstance(payload.get("args"), dict) else None
+        prev_is_net = (
+            payload.get("args", {}).get("target_is_net")
+            if isinstance(payload.get("args"), dict)
+            else None
+        )
         prev_mode = "נטו" if prev_is_net is True else "ברוטו"
         yield (
             "כדי לתקן את התכנית צריך להבהיר: היעד שביקשת הוא **ברוטו** או **נטו**?\n\n"
@@ -194,9 +218,13 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         return
 
     portfolio_for_plan = effective_portfolio
-    if (not isinstance(portfolio_for_plan, list) or not portfolio_for_plan) and request.client_id is not None:
+    if (
+        not isinstance(portfolio_for_plan, list) or not portfolio_for_plan
+    ) and request.client_id is not None:
         try:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 portfolio_for_plan, _snapshot_at = loaded
         except Exception:
@@ -242,11 +270,13 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
         except Exception:
             pass
 
-    policy_status, plan_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
-        db=db,
-        client_id=int(request.client_id),
-        portfolio=portfolio_for_plan,
-        plan_args=plan_args,
+    policy_status, plan_args, policy_text = (
+        evaluate_blocked_balances_policy_for_build_target_plan(
+            db=db,
+            client_id=int(request.client_id),
+            portfolio=portfolio_for_plan,
+            plan_args=plan_args,
+        )
     )
     if isinstance(policy_text, str) and policy_text.strip():
         yield policy_text.strip() + "\n\n"
@@ -284,17 +314,22 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
     )
 
     try:
-        store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+        store_latest_target_pension_plan(
+            db=db, client_id=request.client_id, tool_result=plan_result
+        )
     except Exception:
         pass
     try:
-        store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
+        store_latest_target_pension_plan_data(
+            db=db, client_id=request.client_id, tool_result=plan_result
+        )
     except Exception:
         pass
 
     mode_label = "נטו" if explicit_is_net else "ברוטו"
     offset_val = (
-        breakdown.other_income_offset_net if explicit_is_net
+        breakdown.other_income_offset_net
+        if explicit_is_net
         else breakdown.other_income_offset_gross
     )
     breakdown_lines: list[str] = []
@@ -314,11 +349,21 @@ def generate_adjust_reply(*, computed_data, payload, original_user_msg, request,
     yield (
         sanitize_user_visible_text("\n".join(breakdown_lines))
         + "\n\n🔧 **פלט כלי (בניית תכנית קצבה - תיקון):**\n"
-        + sanitize_user_visible_text(format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result))
+        + sanitize_user_visible_text(
+            format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+        )
     )
 
 
-def generate_system_results(*, computed_data, original_user_msg, request, db, effective_portfolio, stream_request_id) -> str:
+def generate_system_results(
+    *,
+    computed_data,
+    original_user_msg,
+    request,
+    db,
+    effective_portfolio,
+    stream_request_id,
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -337,7 +382,9 @@ def generate_system_results(*, computed_data, original_user_msg, request, db, ef
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+        "tool error"
+    ):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -346,7 +393,9 @@ def generate_system_results(*, computed_data, original_user_msg, request, db, ef
     )
 
 
-def generate_system_inventory(*, computed_data, request, db, effective_portfolio, stream_request_id) -> str:
+def generate_system_inventory(
+    *, computed_data, request, db, effective_portfolio, stream_request_id
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -365,14 +414,24 @@ def generate_system_inventory(*, computed_data, request, db, effective_portfolio
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+        "tool error"
+    ):
         yield sanitize_user_visible_text(tool_result)
         return
 
     yield sanitize_user_visible_text(_format_system_inventory_snapshot(tool_result))
 
 
-def generate_data_awareness(*, computed_data, request, db, effective_portfolio, effective_snapshot_at, stream_request_id) -> str:
+def generate_data_awareness(
+    *,
+    computed_data,
+    request,
+    db,
+    effective_portfolio,
+    effective_snapshot_at,
+    stream_request_id,
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -391,7 +450,9 @@ def generate_data_awareness(*, computed_data, request, db, effective_portfolio, 
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+        "tool error"
+    ):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -404,7 +465,15 @@ def generate_data_awareness(*, computed_data, request, db, effective_portfolio, 
     )
 
 
-def generate_list_all_entities(*, computed_data, request, db, effective_portfolio, effective_snapshot_at, stream_request_id) -> str:
+def generate_list_all_entities(
+    *,
+    computed_data,
+    request,
+    db,
+    effective_portfolio,
+    effective_snapshot_at,
+    stream_request_id,
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -423,7 +492,9 @@ def generate_list_all_entities(*, computed_data, request, db, effective_portfoli
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith("tool error"):
+    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+        "tool error"
+    ):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -436,7 +507,15 @@ def generate_list_all_entities(*, computed_data, request, db, effective_portfoli
     )
 
 
-def generate_target_plan(*, computed_data, original_user_msg, request, db, effective_portfolio, stream_request_id) -> str:
+def generate_target_plan(
+    *,
+    computed_data,
+    original_user_msg,
+    request,
+    db,
+    effective_portfolio,
+    stream_request_id,
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -471,9 +550,13 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
         return
 
     portfolio_for_plan = effective_portfolio
-    if (not isinstance(portfolio_for_plan, list) or not portfolio_for_plan) and request.client_id is not None:
+    if (
+        not isinstance(portfolio_for_plan, list) or not portfolio_for_plan
+    ) and request.client_id is not None:
         try:
-            loaded = load_latest_pension_portfolio_snapshot_models(db, request.client_id)
+            loaded = load_latest_pension_portfolio_snapshot_models(
+                db, request.client_id
+            )
             if loaded is not None:
                 portfolio_for_plan, _snapshot_at = loaded
         except Exception:
@@ -506,17 +589,22 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
     )
 
     try:
-        store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+        store_latest_target_pension_plan(
+            db=db, client_id=request.client_id, tool_result=plan_result
+        )
     except Exception:
         pass
     try:
-        store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
+        store_latest_target_pension_plan_data(
+            db=db, client_id=request.client_id, tool_result=plan_result
+        )
     except Exception:
         pass
 
     mode_label = "נטו" if explicit_is_net else "ברוטו"
     offset_val = (
-        breakdown.other_income_offset_net if explicit_is_net
+        breakdown.other_income_offset_net
+        if explicit_is_net
         else breakdown.other_income_offset_gross
     )
     breakdown_lines: list[str] = []
@@ -540,7 +628,16 @@ def generate_target_plan(*, computed_data, original_user_msg, request, db, effec
     )
 
 
-def generate_cashflow(*, computed_data, original_user_msg, request, db, effective_portfolio, force_max_exemption, stream_request_id) -> str:
+def generate_cashflow(
+    *,
+    computed_data,
+    original_user_msg,
+    request,
+    db,
+    effective_portfolio,
+    force_max_exemption,
+    stream_request_id,
+) -> str:
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -555,12 +652,16 @@ def generate_cashflow(*, computed_data, original_user_msg, request, db, effectiv
         plan_payload = None
     if plan_payload is None and request.client_id is not None:
         try:
-            plan_payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+            plan_payload = load_latest_target_pension_plan_data(
+                db=db, client_id=request.client_id
+            )
         except Exception:
             plan_payload = None
     if plan_payload is None and request.client_id is not None:
         try:
-            plan_payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+            plan_payload = load_latest_target_pension_plan(
+                db=db, client_id=request.client_id
+            )
         except Exception:
             plan_payload = None
 
@@ -585,7 +686,11 @@ def generate_cashflow(*, computed_data, original_user_msg, request, db, effectiv
     except Exception:
         pass
 
-    plan_res = plan_payload.get("result") if isinstance(plan_payload.get("result"), dict) else {}
+    plan_res = (
+        plan_payload.get("result")
+        if isinstance(plan_payload.get("result"), dict)
+        else {}
+    )
 
     pension_gross = plan_res.get("accumulated_pension")
     pension_net = plan_res.get("estimated_monthly_net")

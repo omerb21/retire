@@ -1,6 +1,7 @@
 """
 Client case detection service for workflow determination
 """
+
 from datetime import date
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -13,26 +14,31 @@ from app.schemas.case import ClientCase, CaseDetectionResult
 from app.utils.calculation_log import log_calc
 
 try:
-    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+    from app.services.retirement_age_service import (
+        DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK,
+    )
 except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
-def detect_case(db: Session, client_id: int, *, retirement_age: int | None = None) -> CaseDetectionResult:
+
+def detect_case(
+    db: Session, client_id: int, *, retirement_age: int | None = None
+) -> CaseDetectionResult:
     """
     Detect client case based on specified rules
-    
+
     Rules:
     1. If client age >= retirement_age => Case 3 (PAST_RETIREMENT_AGE)
     2. If no current employer and has business income => Case 2 (SELF_EMPLOYED_ONLY)
     3. If no current employer and no business income => Case 1 (NO_CURRENT_EMPLOYER)
     4. If has current employer and no planned leave => Case 4 (ACTIVE_NO_LEAVE)
     5. If has current employer and planned leave => Case 5 (REGULAR_WITH_LEAVE)
-    
+
     Args:
         db: Database session
         client_id: Client ID
         retirement_age: Retirement age threshold (default: 67)
-        
+
     Returns:
         CaseDetectionResult with client_id, case_id, case_name, and reasons
     """
@@ -40,17 +46,21 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise ValueError(f"Client with ID {client_id} not found")
-    
+
     # Check if client's birth date is available
     if not client.birth_date:
         raise ValueError(f"Client {client_id} has no birth date - cannot determine age")
-    
+
     # Calculate current age
     today = date.today()
-    age = today.year - client.birth_date.year - ((today.month, today.day) < (client.birth_date.month, client.birth_date.day))
-    
+    age = (
+        today.year
+        - client.birth_date.year
+        - ((today.month, today.day) < (client.birth_date.month, client.birth_date.day))
+    )
+
     reasons: List[str] = []
-    
+
     if retirement_age is None:
         try:
             from app.services.retirement_age_service import (
@@ -59,8 +69,13 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
             )
 
             retirement_age = int(DEFAULT_MALE_RETIREMENT_AGE)
-            if getattr(client, "birth_date", None) and getattr(client, "gender", None) is not None:
-                retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+            if (
+                getattr(client, "birth_date", None)
+                and getattr(client, "gender", None) is not None
+            ):
+                retirement_age = int(
+                    get_retirement_age_simple(client.birth_date, client.gender)
+                )
         except Exception:
             retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
 
@@ -71,15 +86,23 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
         reasons.append(f"client_age_{age}_exceeds_retirement_age_{retirement_age}")
     else:
         # Check for current employer
-        current_employer = db.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).first()
-        
+        current_employer = (
+            db.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .first()
+        )
+
         if not current_employer:
             # No current employer - check for business income (Case 2 vs Case 1)
-            business_income = db.query(AdditionalIncome).filter(
-                AdditionalIncome.client_id == client_id,
-                AdditionalIncome.source_type == "business"
-            ).first()
-            
+            business_income = (
+                db.query(AdditionalIncome)
+                .filter(
+                    AdditionalIncome.client_id == client_id,
+                    AdditionalIncome.source_type == "business",
+                )
+                .first()
+            )
+
             if business_income:
                 case_id = ClientCase.SELF_EMPLOYED_ONLY
                 case_name = ClientCase.SELF_EMPLOYED_ONLY.value
@@ -93,10 +116,9 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
         else:
             # Has current employer - check for planned leave (Case 4 vs Case 5)
             has_planned_leave = bool(
-                current_employer.end_date or 
-                client.planned_termination_date
+                current_employer.end_date or client.planned_termination_date
             )
-            
+
             if not has_planned_leave:
                 case_id = ClientCase.ACTIVE_NO_LEAVE
                 case_name = ClientCase.ACTIVE_NO_LEAVE.value
@@ -109,18 +131,17 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
                 if current_employer.end_date:
                     reasons.append(f"employer_end_date_set_{current_employer.end_date}")
                 elif client.planned_termination_date:
-                    reasons.append(f"planned_termination_date_set_{client.planned_termination_date}")
+                    reasons.append(
+                        f"planned_termination_date_set_{client.planned_termination_date}"
+                    )
                 else:
                     reasons.append("planned_leave_detected_or_default")
-    
+
     # Create result
     result = CaseDetectionResult(
-        client_id=client_id,
-        case_id=case_id,
-        case_name=case_name,
-        reasons=reasons
+        client_id=client_id, case_id=case_id, case_name=case_name, reasons=reasons
     )
-    
+
     # Log the case detection
     log_calc(
         event="case_detected",
@@ -129,10 +150,11 @@ def detect_case(db: Session, client_id: int, *, retirement_age: int | None = Non
         debug_info={
             "client_age": age,
             "birth_date": str(client.birth_date),
-        }
+        },
     )
-    
+
     return result
+
 
 def detect_case_with_session(db_session, client_id):
     """
@@ -162,8 +184,13 @@ def detect_case_with_session(db_session, client_id):
     try:
         from app.services.retirement_age_service import get_retirement_age_simple
 
-        if getattr(client, "birth_date", None) and getattr(client, "gender", None) is not None:
-            retirement_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+        if (
+            getattr(client, "birth_date", None)
+            and getattr(client, "gender", None) is not None
+        ):
+            retirement_age = int(
+                get_retirement_age_simple(client.birth_date, client.gender)
+            )
     except Exception:
         try:
             from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
@@ -178,15 +205,23 @@ def detect_case_with_session(db_session, client_id):
         detected = ClientCase.PAST_RETIREMENT_AGE
     else:
         # Check for current employer
-        current_employer = db_session.query(CurrentEmployer).filter(CurrentEmployer.client_id == client_id).first()
-        
+        current_employer = (
+            db_session.query(CurrentEmployer)
+            .filter(CurrentEmployer.client_id == client_id)
+            .first()
+        )
+
         if not current_employer:
             # No current employer - check for business income
-            business_income = db_session.query(AdditionalIncome).filter(
-                AdditionalIncome.client_id == client_id,
-                AdditionalIncome.source_type == "business"
-            ).first()
-            
+            business_income = (
+                db_session.query(AdditionalIncome)
+                .filter(
+                    AdditionalIncome.client_id == client_id,
+                    AdditionalIncome.source_type == "business",
+                )
+                .first()
+            )
+
             if business_income:
                 detected = ClientCase.SELF_EMPLOYED_ONLY
             else:
@@ -194,10 +229,10 @@ def detect_case_with_session(db_session, client_id):
         else:
             # Has current employer - check for planned leave
             has_planned_leave = bool(
-                current_employer.end_date or 
-                getattr(client, 'planned_termination_date', None)
+                current_employer.end_date
+                or getattr(client, "planned_termination_date", None)
             )
-            
+
             if not has_planned_leave:
                 detected = ClientCase.ACTIVE_NO_LEAVE
             else:
@@ -206,6 +241,8 @@ def detect_case_with_session(db_session, client_id):
     # Ensure returned object has attribute case_id of type ClientCase
     result = SimpleNamespace(case_id=detected)
     return result
+
+
 def calculate_age(birth_date, as_of_date=None):
     """
     Temporary calculate_age stub.
@@ -213,6 +250,7 @@ def calculate_age(birth_date, as_of_date=None):
     Replace with domain-accurate implementation later.
     """
     from datetime import datetime, date
+
     # parse string input
     if isinstance(birth_date, str):
         try:
@@ -229,5 +267,9 @@ def calculate_age(birth_date, as_of_date=None):
         as_of_date = date.today()
     if isinstance(as_of_date, datetime):
         as_of_date = as_of_date.date()
-    years = as_of_date.year - birth_date.year - ((as_of_date.month, as_of_date.day) < (birth_date.month, birth_date.day))
+    years = (
+        as_of_date.year
+        - birth_date.year
+        - ((as_of_date.month, as_of_date.day) < (birth_date.month, birth_date.day))
+    )
     return years

@@ -27,8 +27,12 @@ def _get_snapshot_portfolio_count(client_id: int, db: Session) -> int:
 
 
 def get_agent_state_json(client_id: int, db: Session) -> str:
-    pension_count = db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
-    capital_count = db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+    pension_count = (
+        db.query(PensionFund).filter(PensionFund.client_id == client_id).count()
+    )
+    capital_count = (
+        db.query(CapitalAsset).filter(CapitalAsset.client_id == client_id).count()
+    )
     snapshot_count = _get_snapshot_portfolio_count(client_id=client_id, db=db)
     has_portfolio = (pension_count + capital_count) > 0 or snapshot_count > 0
 
@@ -92,8 +96,7 @@ def get_tools_definitions_json() -> str:
                     "target_monthly_pension": {
                         "type": "integer",
                         "description": "יעד הקצבה החודשי המבוקש בשקלים (למשל: 20000)",
-                    }
-                    ,
+                    },
                     "target_is_net": {
                         "type": "boolean",
                         "description": "האם היעד שניתן הוא נטו (אחרי מס הכנסה). true=נטו, false=ברוטו. אם המשתמש כתב במפורש 'נטו' חובה לשלוח true.",
@@ -101,7 +104,7 @@ def get_tools_definitions_json() -> str:
                     "retirement_age": {
                         "type": "integer",
                         "description": "אופציונלי: גיל פרישה לחישוב (50-80). אם לא סופק, הכלי ישתמש בגיל חוקי/נוכחי לפי הלקוח.",
-                    }
+                    },
                 },
                 "required": ["target_monthly_pension"],
             },
@@ -168,7 +171,7 @@ def get_tools_definitions_json() -> str:
         },
         {
             "name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-            "description": "כלי מרכזי לניתוח תזרים פרישה. מחשב קצבה ברוטו, מס הכנסה, קצבה נטו, ופטור מקיבוע זכויות. השתמש בכלי זה כאשר הלקוח שואל 'כמה אקבל נטו', 'אחרי מס', 'פטור מקסימלי' או 'קיבוע זכויות'. דוגמה: ###TOOL_CALL### {\"name\": \"RUN_RETIREMENT_CASHFLOW_ANALYSIS\", \"arguments\": {\"retirement_date\": \"2028-01-01\", \"apply_max_exemption\": true}}",
+            "description": 'כלי מרכזי לניתוח תזרים פרישה. מחשב קצבה ברוטו, מס הכנסה, קצבה נטו, ופטור מקיבוע זכויות. השתמש בכלי זה כאשר הלקוח שואל \'כמה אקבל נטו\', \'אחרי מס\', \'פטור מקסימלי\' או \'קיבוע זכויות\'. דוגמה: ###TOOL_CALL### {"name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS", "arguments": {"retirement_date": "2028-01-01", "apply_max_exemption": true}}',
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -262,7 +265,7 @@ def get_tools_definitions_json() -> str:
         },
         {
             "name": "CALCULATE_PENSION_COMMUTATION",
-            "description": "כלי לחישוב היוון קצבה - המרת חלק מהקצבה החודשית לסכום חד-פעמי (Lump Sum). השתמש בכלי זה כאשר הלקוח שואל 'כמה כסף אקבל אם אוותר על X שקל מהקצבה', 'היוון קצבה', 'לקבל סכום חד-פעמי במקום קצבה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_PENSION_COMMUTATION\", \"arguments\": {\"target_monthly_pension_reduction\": 2000, \"retirement_date\": \"2028-01-01\"}}",
+            "description": 'כלי לחישוב היוון קצבה - המרת חלק מהקצבה החודשית לסכום חד-פעמי (Lump Sum). השתמש בכלי זה כאשר הלקוח שואל \'כמה כסף אקבל אם אוותר על X שקל מהקצבה\', \'היוון קצבה\', \'לקבל סכום חד-פעמי במקום קצבה\'. דוגמה: ###TOOL_CALL### {"name": "CALCULATE_PENSION_COMMUTATION", "arguments": {"target_monthly_pension_reduction": 2000, "retirement_date": "2028-01-01"}}',
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -280,7 +283,7 @@ def get_tools_definitions_json() -> str:
         },
         {
             "name": "EXECUTE_PENSION_COMMUTATION",
-            "description": "🔴 כלי ביצוע (Execution Tool) - ביצוע היוון קצבה בפועל: יצירת נכס הון מסוג 'היוון' (asset_type=deposits) עם הערת COMMUTATION, והפחתת היתרה/קצבה במקור הקצבה (PensionFund). השתמש בכלי זה רק כאשר המשתמש מאשר לבצע היוון קיים במערכת, כולל בחירת קצבה ספציפית, סכום ותאריך. דוגמה: ###TOOL_CALL### {\"name\": \"EXECUTE_PENSION_COMMUTATION\", \"arguments\": {\"pension_fund_id\": 12, \"commutation_amount\": 50000, \"commutation_date\": \"2025-01-01\", \"commutation_type\": \"exempt\", \"confirmed\": true}}",
+            "description": '🔴 כלי ביצוע (Execution Tool) - ביצוע היוון קצבה בפועל: יצירת נכס הון מסוג \'היוון\' (asset_type=deposits) עם הערת COMMUTATION, והפחתת היתרה/קצבה במקור הקצבה (PensionFund). השתמש בכלי זה רק כאשר המשתמש מאשר לבצע היוון קיים במערכת, כולל בחירת קצבה ספציפית, סכום ותאריך. דוגמה: ###TOOL_CALL### {"name": "EXECUTE_PENSION_COMMUTATION", "arguments": {"pension_fund_id": 12, "commutation_amount": 50000, "commutation_date": "2025-01-01", "commutation_type": "exempt", "confirmed": true}}',
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -317,7 +320,7 @@ def get_tools_definitions_json() -> str:
         },
         {
             "name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
-            "description": "כלי לחישוב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים). השתמש בכלי זה כאשר הלקוח שואל 'כמה מס אשלם אם אמשוך X שקל מהקופה', 'משיכה מקופת גמל', 'משיכה מקרן השתלמות', 'כמה נשאר לי נטו אחרי משיכה'. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_CAPITAL_WITHDRAWAL_TAX\", \"arguments\": {\"withdrawal_amount_gross\": 100000, \"withdrawal_year\": 2025}}",
+            "description": 'כלי לחישוב מס על משיכת כספי הון (קופת גמל, קרן השתלמות, תגמולים נזילים). השתמש בכלי זה כאשר הלקוח שואל \'כמה מס אשלם אם אמשוך X שקל מהקופה\', \'משיכה מקופת גמל\', \'משיכה מקרן השתלמות\', \'כמה נשאר לי נטו אחרי משיכה\'. דוגמה: ###TOOL_CALL### {"name": "CALCULATE_CAPITAL_WITHDRAWAL_TAX", "arguments": {"withdrawal_amount_gross": 100000, "withdrawal_year": 2025}}',
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -335,7 +338,7 @@ def get_tools_definitions_json() -> str:
         },
         {
             "name": "CALCULATE_TAX_SPREAD_BENEFIT",
-            "description": "כלי לחישוב הטבת המס בפריסה על מספר שנים. משווה בין משיכה מיידית (מס מלא) לבין פריסת מס. השתמש בכלי זה לאחר CALCULATE_CAPITAL_WITHDRAWAL_TAX כדי להציג ללקוח את האפשרות לחסוך במס באמצעות פריסה. דוגמה: ###TOOL_CALL### {\"name\": \"CALCULATE_TAX_SPREAD_BENEFIT\", \"arguments\": {\"gross_amount\": 735000, \"spread_years\": 6}}",
+            "description": 'כלי לחישוב הטבת המס בפריסה על מספר שנים. משווה בין משיכה מיידית (מס מלא) לבין פריסת מס. השתמש בכלי זה לאחר CALCULATE_CAPITAL_WITHDRAWAL_TAX כדי להציג ללקוח את האפשרות לחסוך במס באמצעות פריסה. דוגמה: ###TOOL_CALL### {"name": "CALCULATE_TAX_SPREAD_BENEFIT", "arguments": {"gross_amount": 735000, "spread_years": 6}}',
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -363,7 +366,11 @@ def get_tools_definitions_json() -> str:
                     },
                     "exempt_choice": {
                         "type": "string",
-                        "enum": ["redeem_with_exemption", "redeem_no_exemption", "annuity"],
+                        "enum": [
+                            "redeem_with_exemption",
+                            "redeem_no_exemption",
+                            "annuity",
+                        ],
                         "description": "בחירה לחלק הפטור: redeem_with_exemption (משיכה עם פטור), redeem_no_exemption (משיכה ללא פטור), annuity (רצף קצבה).",
                     },
                     "taxable_choice": {
@@ -443,7 +450,12 @@ def get_tools_definitions_json() -> str:
                     },
                     "commutation_type": {
                         "type": "string",
-                        "enum": ["היוון קצבה", "פטור על פיצויים", "פריסת מס", "קיבוע זכויות"],
+                        "enum": [
+                            "היוון קצבה",
+                            "פטור על פיצויים",
+                            "פריסת מס",
+                            "קיבוע זכויות",
+                        ],
                         "description": "סוג הקיבוע/אישור המס המבוצע.",
                     },
                     "tax_projection_id": {
@@ -463,12 +475,17 @@ def get_tools_definitions_json() -> str:
                         "description": "האם הלקוח אישר את הפעולה. חובה להיות true לביצוע.",
                     },
                 },
-                "required": ["commutation_type", "tax_projection_id", "final_net_amount", "confirmed"],
+                "required": [
+                    "commutation_type",
+                    "tax_projection_id",
+                    "final_net_amount",
+                    "confirmed",
+                ],
             },
         },
         {
             "name": "GENERATE_FULL_REPORT",
-            "description": "📄 כלי להצגת דוח פרישה מלא בממשק. ברירת מחדל: פתיחת עמוד התוצאות (HTML) בדיוק כמו משתמש אנושי (/clients/:id/reports) והפעלת דוח ה-HTML. אופציונלי: ניתן לבקש גם הפקת PDF ע\"י output_format=pdf.",
+            "description": '📄 כלי להצגת דוח פרישה מלא בממשק. ברירת מחדל: פתיחת עמוד התוצאות (HTML) בדיוק כמו משתמש אנושי (/clients/:id/reports) והפעלת דוח ה-HTML. אופציונלי: ניתן לבקש גם הפקת PDF ע"י output_format=pdf.',
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -506,7 +523,12 @@ def get_tools_definitions_json() -> str:
                 "properties": {
                     "document_type": {
                         "type": "string",
-                        "enum": ["kibua_zechuyot", "ptor_pitzuim", "form_161", "tax_spread"],
+                        "enum": [
+                            "kibua_zechuyot",
+                            "ptor_pitzuim",
+                            "form_161",
+                            "tax_spread",
+                        ],
                         "description": "סוג המסמך: kibua_zechuyot (קיבוע זכויות), ptor_pitzuim (פטור פיצויים), form_161 (טופס 161), tax_spread (פריסת מס).",
                     },
                 },
@@ -622,7 +644,12 @@ def get_tools_definitions_json() -> str:
                         "description": "תאריך קבלת המענק (YYYY-MM-DD). אם לא צוין, ישמש תאריך סיום העבודה.",
                     },
                 },
-                "required": ["employer_name", "grant_amount", "work_start_date", "work_end_date"],
+                "required": [
+                    "employer_name",
+                    "grant_amount",
+                    "work_start_date",
+                    "work_end_date",
+                ],
             },
         },
         {
@@ -633,8 +660,15 @@ def get_tools_definitions_json() -> str:
                 "properties": {
                     "source_type": {
                         "type": "string",
-                        "enum": ["rental", "dividends", "interest", "foreign_pension", "social_security", "other"],
-                        "description": "סוג מקור ההכנסה: rental (שכירות), dividends (דיבידנדים), interest (ריבית), foreign_pension (פנסיה מחו\"ל), social_security (ביטוח לאומי), other (אחר).",
+                        "enum": [
+                            "rental",
+                            "dividends",
+                            "interest",
+                            "foreign_pension",
+                            "social_security",
+                            "other",
+                        ],
+                        "description": 'סוג מקור ההכנסה: rental (שכירות), dividends (דיבידנדים), interest (ריבית), foreign_pension (פנסיה מחו"ל), social_security (ביטוח לאומי), other (אחר).',
                     },
                     "amount": {
                         "type": "number",

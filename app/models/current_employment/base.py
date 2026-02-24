@@ -1,6 +1,7 @@
 """
 Base utilities for employment models
 """
+
 from datetime import datetime, timezone
 
 

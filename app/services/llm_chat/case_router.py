@@ -61,8 +61,14 @@ def _is_explicit_write_request(text: str | None) -> bool:
     return False
 
 
-def select_case(*, user_message: str | None, messages: Any, client_id: Any) -> CaseDecision:
-    case_id = "interactive_write" if _is_explicit_write_request(user_message) else "interactive_readonly"
+def select_case(
+    *, user_message: str | None, messages: Any, client_id: Any
+) -> CaseDecision:
+    case_id = (
+        "interactive_write"
+        if _is_explicit_write_request(user_message)
+        else "interactive_readonly"
+    )
     return CaseDecision(
         case_id=case_id,
         policy=CasePolicy(allow_llm=True, allowed_tools=None),

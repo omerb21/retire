@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class _OrchestrationResult:
     final_reply: str
@@ -8,5 +9,3 @@ class _OrchestrationResult:
     report_open_path: str | None
     current_step: int
     max_steps: int
-
-

@@ -22,9 +22,13 @@ def _parse_ils_amount(text: str) -> int:
 
 def test_portfolio_analysis_totals_consistent(monkeypatch, db_session, client) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic portfolio analysis")
+        raise AssertionError(
+            "LLM must not be called for deterministic portfolio analysis"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
 

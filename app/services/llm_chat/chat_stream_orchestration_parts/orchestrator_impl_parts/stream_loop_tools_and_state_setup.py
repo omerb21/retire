@@ -18,7 +18,7 @@ def _setup_tools_and_state(
     wrap_with_restore_banner_helper,
     build_recent_state_banner_helper,
     ChatIntentClass,
- ):
+):
     tools_enabled_reason: str | None = None
     tools_disabled_reason: str | None = None
 
@@ -31,7 +31,10 @@ def _setup_tools_and_state(
         tools_disabled_reason = tools_enabled_reason
         resolved_intent = ChatIntentClass.NO_TOOLS
 
-    ui_action_short_circuit_allowed = tools_disabled_reason not in {"conceptual", "conceptual_form"}
+    ui_action_short_circuit_allowed = tools_disabled_reason not in {
+        "conceptual",
+        "conceptual_form",
+    }
 
     try:
         log_llm_event(
@@ -69,12 +72,17 @@ def _setup_tools_and_state(
 
     try:
         from app.services.agent_trace_logger import log_trace_event
+
         log_trace_event(
             event_type="state_source",
             payload={
                 "portfolio_source": _portfolio_source,
-                "portfolio_count": len(effective_portfolio) if effective_portfolio else 0,
-                "snapshot_at": str(effective_snapshot_at) if effective_snapshot_at else None,
+                "portfolio_count": (
+                    len(effective_portfolio) if effective_portfolio else 0
+                ),
+                "snapshot_at": (
+                    str(effective_snapshot_at) if effective_snapshot_at else None
+                ),
                 "has_effective_state": effective_state is not None,
             },
             client_id=request.client_id,

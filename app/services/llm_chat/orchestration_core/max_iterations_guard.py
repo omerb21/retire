@@ -47,7 +47,9 @@ def maybe_apply_max_iterations_guard(
     if getattr(decision, "decision_code", None) != DecisionCode.TOOL_CALL:
         return decision, trace_specs, False
 
-    if not should_trigger_max_iterations_guard(iter_idx=iter_idx, max_iterations=max_iterations):
+    if not should_trigger_max_iterations_guard(
+        iter_idx=iter_idx, max_iterations=max_iterations
+    ):
         return decision, trace_specs, False
 
     guard_decision, guard_traces = build_max_iterations_guard_decision_and_traces(

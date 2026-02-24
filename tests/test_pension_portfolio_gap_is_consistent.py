@@ -3,7 +3,9 @@ import json
 from app.models.scenario import Scenario
 
 
-def test_pension_portfolio_gap_is_consistent_when_row_is_zeroed(db_session, client) -> None:
+def test_pension_portfolio_gap_is_consistent_when_row_is_zeroed(
+    db_session, client
+) -> None:
     account_number = "ACC-GAP-0"
 
     db_session.query(Scenario).filter(
@@ -42,7 +44,11 @@ def test_pension_portfolio_gap_is_consistent_when_row_is_zeroed(db_session, clie
     assert isinstance(returned, list)
 
     row = next(
-        (r for r in returned if isinstance(r, dict) and r.get("מספר_חשבון") == account_number),
+        (
+            r
+            for r in returned
+            if isinstance(r, dict) and r.get("מספר_חשבון") == account_number
+        ),
         None,
     )
     assert row is not None

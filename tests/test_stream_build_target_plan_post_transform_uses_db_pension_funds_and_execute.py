@@ -10,14 +10,20 @@ from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 
 
-def test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execute(monkeypatch, _test_db) -> None:
+def test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execute(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
     client_id = 996000002
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic post-transform regression test")
+        raise AssertionError(
+            "LLM must not be called for deterministic post-transform regression test"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     with Session() as db:
         client = db.query(Client).filter(Client.id == client_id).first()
@@ -35,11 +41,13 @@ def test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execu
             db.flush()
 
         db.query(Scenario).filter(Scenario.client_id == client_id).filter(
-            Scenario.scenario_name.in_([
-                "target_pension_plan",
-                "target_pension_plan_data",
-                "pension_portfolio_snapshot",
-            ])
+            Scenario.scenario_name.in_(
+                [
+                    "target_pension_plan",
+                    "target_pension_plan_data",
+                    "pension_portfolio_snapshot",
+                ]
+            )
         ).delete(synchronize_session=False)
 
         # Mark last snapshot as post-transform (can be empty; we rely on DB funds).
@@ -51,7 +59,10 @@ def test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execu
                 apply_capitalization=False,
                 apply_exemption_shield=False,
                 parameters=json.dumps(
-                    {"pension_portfolio": [], "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS"}},
+                    {
+                        "pension_portfolio": [],
+                        "_meta": {"operation_type": "TRANSFORM_FUNDS_TO_ASSETS"},
+                    },
                     ensure_ascii=False,
                 ),
                 created_at=datetime.now(timezone.utc),
@@ -114,7 +125,9 @@ def test_stream_build_target_plan_post_transform_uses_db_pension_funds_and_execu
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )

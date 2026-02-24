@@ -28,8 +28,12 @@ def _maybe_handle_system_info_requests(
     is_system_results_request,
     generate_system_results,
     original_user_msg: str,
- ):
-    if tools_enabled and request.client_id is not None and is_data_awareness_request(original_user_msg):
+):
+    if (
+        tools_enabled
+        and request.client_id is not None
+        and is_data_awareness_request(original_user_msg)
+    ):
         return StreamingResponse(
             wrap_with_restore_banner(
                 generate_data_awareness(
@@ -44,7 +48,11 @@ def _maybe_handle_system_info_requests(
             media_type="text/plain",
         )
 
-    if tools_enabled and request.client_id is not None and is_list_all_financial_entities_request(original_user_msg):
+    if (
+        tools_enabled
+        and request.client_id is not None
+        and is_list_all_financial_entities_request(original_user_msg)
+    ):
         return StreamingResponse(
             wrap_with_restore_banner(
                 generate_list_all_entities(
@@ -131,7 +139,11 @@ def _maybe_handle_system_info_requests(
                 media_type="text/plain",
             )
 
-    if tools_enabled and request.client_id is not None and is_system_inventory_request(original_user_msg):
+    if (
+        tools_enabled
+        and request.client_id is not None
+        and is_system_inventory_request(original_user_msg)
+    ):
         return StreamingResponse(
             wrap_with_restore_banner(
                 generate_system_inventory(
@@ -145,7 +157,11 @@ def _maybe_handle_system_info_requests(
             media_type="text/plain",
         )
 
-    if tools_enabled and request.client_id is not None and is_system_results_request(original_user_msg):
+    if (
+        tools_enabled
+        and request.client_id is not None
+        and is_system_results_request(original_user_msg)
+    ):
         return StreamingResponse(
             wrap_with_restore_banner(
                 generate_system_results(

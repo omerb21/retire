@@ -10,7 +10,9 @@ def test_stream_conceptual_form_161d_topic(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         yield "קיבוע זכויות הוא תהליך תכנוני בפרישה שמסדיר בחירות מול רשות המסים."
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -45,7 +47,9 @@ def test_stream_report_still_returns_ui_action(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for report summary navigation")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("No tool must be executed for report summary navigation")

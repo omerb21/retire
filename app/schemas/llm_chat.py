@@ -3,7 +3,6 @@ from typing import List, Literal, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-
 RoleType = Literal["user", "assistant", "system"]
 
 
@@ -14,6 +13,7 @@ class ChatMessage(BaseModel):
 
 class PensionPortfolioAccount(BaseModel):
     """חשבון פנסיוני מהתיק הפנסיוני (מה-UI)."""
+
     מספר_חשבון: Optional[str] = None
     שם_תכנית: Optional[str] = None
     חברה_מנהלת: Optional[str] = None
@@ -47,7 +47,9 @@ class PensionPortfolioAccount(BaseModel):
             return raw if raw else None
         if isinstance(v, (date, datetime)):
             try:
-                return v.date().isoformat() if isinstance(v, datetime) else v.isoformat()
+                return (
+                    v.date().isoformat() if isinstance(v, datetime) else v.isoformat()
+                )
             except Exception:
                 return None
         try:
@@ -109,6 +111,7 @@ class ChatRequest(BaseModel):
 
 class ComputedPensionSource(BaseModel):
     """מקור פנסיוני מחושב מהמערכת."""
+
     source_name: str
     source_type: str  # "pension" or "capital"
     balance: float
@@ -119,6 +122,7 @@ class ComputedPensionSource(BaseModel):
 
 class ComputedPensionData(BaseModel):
     """נתוני פנסיה מחושבים מהמערכת - לא מה-LLM."""
+
     sources: List[ComputedPensionSource] = []
     target_monthly_pension: float = 0
     accumulated_pension: float = 0

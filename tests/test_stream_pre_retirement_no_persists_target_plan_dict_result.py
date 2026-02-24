@@ -10,7 +10,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, _test_db) -> None:
+def test_stream_pre_retirement_no_persists_target_plan_dict_result(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -61,7 +63,9 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"tool_name": "X", "arguments": {}}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"tool_name": "X", "arguments": {}}, ensure_ascii=False
+                ),
             )
         )
 
@@ -93,13 +97,19 @@ def test_stream_pre_retirement_no_persists_target_plan_dict_result(monkeypatch, 
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic stream regression test")
+        raise AssertionError(
+            "LLM must not be called for deterministic stream regression test"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs):
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, **kwargs
+    ):
         tool_calls.append((tool_name, args))
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"
         return {

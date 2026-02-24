@@ -1,7 +1,9 @@
 import importlib
 from typing import Any
 
-from app.services.llm_chat.chat_orchestration_helpers import build_transform_accounts_from_target_plan_payload
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_transform_accounts_from_target_plan_payload,
+)
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
 )
@@ -19,7 +21,9 @@ def _get_stream_orchestration_facade():
 
 
 def _store_pending_approval_request(*args: Any, **kwargs: Any) -> Any:
-    return _get_stream_orchestration_facade().store_pending_approval_request(*args, **kwargs)
+    return _get_stream_orchestration_facade().store_pending_approval_request(
+        *args, **kwargs
+    )
 
 
 def _get_llm_service():
@@ -33,7 +37,9 @@ def _get_retry_settings() -> tuple[int, float, tuple[float, ...]]:
     except Exception:
         retries = int(PC_LLM_MAX_RETRIES or 1)
     try:
-        timeout = float(getattr(facade, "PC_LLM_TIMEOUT_SECONDS", PC_LLM_TIMEOUT_SECONDS) or 0)
+        timeout = float(
+            getattr(facade, "PC_LLM_TIMEOUT_SECONDS", PC_LLM_TIMEOUT_SECONDS) or 0
+        )
     except Exception:
         timeout = float(PC_LLM_TIMEOUT_SECONDS or 0)
     try:

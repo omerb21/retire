@@ -12,15 +12,16 @@ router = APIRouter(
 )
 
 
-@router.post("/clients/{client_id}/scenarios/compare", summary="Compare scenarios cashflow (monthly + yearly)")
+@router.post(
+    "/clients/{client_id}/scenarios/compare",
+    summary="Compare scenarios cashflow (monthly + yearly)",
+)
 def compare_scenarios_endpoint(
-    client_id: int,
-    body: ScenarioCompareRequest,
-    db: Session = Depends(get_db)
+    client_id: int, body: ScenarioCompareRequest, db: Session = Depends(get_db)
 ):
     """
     משווה מספר תרחישים עבור לקוח נתון ומחזיר תזרים חודשי וטוטלים שנתיים.
-    
+
     **Request Body Example:**
     ```json
     {
@@ -30,7 +31,7 @@ def compare_scenarios_endpoint(
         "frequency": "monthly"
     }
     ```
-    
+
     **Response Example:**
     ```json
     {
@@ -69,11 +70,11 @@ def compare_scenarios_endpoint(
         }
     }
     ```
-    
+
     מחזיר עבור כל תרחיש:
     - **monthly**: רשימת שורות תזרים חודשי עם שדות: date, inflow, outflow, additional_income_net, capital_return_net, net
     - **yearly**: טוטלים שנתיים מצוברים לפי שנה
-    
+
     **Validation:**
     - scenarios: רשימה לא ריקה של מזהי תרחיש חיוביים
     - from/to: פורמט YYYY-MM
@@ -87,11 +88,14 @@ def compare_scenarios_endpoint(
             scenario_ids=body.scenarios,
             from_yyyymm=body.from_,
             to_yyyymm=body.to,
-            frequency=body.frequency
+            frequency=body.frequency,
         )
         # Return as JSONResponse to ensure direct return without any wrapping
         return JSONResponse(content=result)
     except ValueError as ve:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to compare scenarios: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to compare scenarios: {str(e)}",
+        )

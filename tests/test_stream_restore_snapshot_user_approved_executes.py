@@ -11,7 +11,9 @@ from app.models.scenario import Scenario
 
 def _extract_ui_action_payload(body: str) -> dict:
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     return json.loads(payload_json)
 
 
@@ -37,16 +39,23 @@ def test_stream_restore_snapshot_user_approved_executes(monkeypatch, _test_db) -
             apply_tax_planning=False,
             apply_capitalization=False,
             apply_exemption_shield=False,
-            parameters=json.dumps({"pension_portfolio": [{"account_number": "A", "balance": 1.0}]}, ensure_ascii=False),
+            parameters=json.dumps(
+                {"pension_portfolio": [{"account_number": "A", "balance": 1.0}]},
+                ensure_ascii=False,
+            ),
         )
         db.add(snapshot)
         db.commit()
         snapshot_id = int(getattr(snapshot, "id", 0) or 0)
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic restore snapshot flow")
+        raise AssertionError(
+            "LLM must not be called for deterministic restore snapshot flow"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
@@ -92,7 +101,10 @@ def test_stream_restore_snapshot_user_approved_executes(monkeypatch, _test_db) -
     assert first.status_code == 200
     body1 = first.text
     payload = _extract_ui_action_payload(body1)
-    assert payload.get("actions")[0].get("tool_name") == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT"
+    assert (
+        payload.get("actions")[0].get("tool_name")
+        == "RESTORE_PENSION_PORTFOLIO_SNAPSHOT"
+    )
 
     second = api.post(
         "/api/v1/llm/pension-chat-stream",

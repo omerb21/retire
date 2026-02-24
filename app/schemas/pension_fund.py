@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional, Literal
 from datetime import date
 
+
 class PensionFundBase(BaseModel):
     fund_name: str
     fund_type: Optional[str] = None
@@ -12,18 +13,23 @@ class PensionFundBase(BaseModel):
     pension_start_date: Optional[date] = None
     indexation_method: Literal["none", "cpi", "fixed"]
     fixed_index_rate: Optional[float] = None
-    tax_treatment: Optional[Literal["taxable", "exempt", "capital_gains"]] = "taxable"  # יחס למס
+    tax_treatment: Optional[Literal["taxable", "exempt", "capital_gains"]] = (
+        "taxable"  # יחס למס
+    )
     remarks: Optional[str] = None
     deduction_file: Optional[str] = None
     conversion_source: Optional[str] = None  # JSON עם פרטי מקור ההמרה
     record_status: Optional[Literal["active", "draft", "invalid"]] = "active"
 
+
 class PensionFundCreate(PensionFundBase):
     client_id: int
     model_config = ConfigDict(extra="ignore")
 
+
 class PensionFundUpdate(PensionFundBase):
     pass
+
 
 class PensionFundOut(PensionFundBase):
     id: int

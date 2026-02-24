@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.current_employment.employer import CurrentEmployer
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.utils.llm_chat_log import get_current_case_id, get_current_request_id, log_llm_event
+from app.utils.llm_chat_log import (
+    get_current_case_id,
+    get_current_request_id,
+    log_llm_event,
+)
 from app.services.llm_chat.tool_handlers.create_additional_income import (
     handle_create_additional_income,
 )
@@ -23,21 +27,33 @@ from app.services.llm_chat.tool_handlers.create_tax_exempt_grant import (
 from app.services.llm_chat.tool_handlers.execute_work_termination import (
     handle_execute_work_termination,
 )
-from app.services.llm_chat.tool_handlers.generate_full_report import handle_generate_full_report
+from app.services.llm_chat.tool_handlers.generate_full_report import (
+    handle_generate_full_report,
+)
 from app.services.llm_chat.tool_handlers.generate_tax_deduction_documents import (
     handle_generate_tax_deduction_documents,
 )
-from app.services.llm_chat.tool_handlers.get_account_details import handle_get_account_details
-from app.services.llm_chat.tool_handlers.get_tax_projection import handle_get_tax_projection
-from app.services.llm_chat.tool_handlers.process_termination import handle_process_termination
-from app.services.llm_chat.tool_handlers.project_total_annuity import handle_project_total_annuity
+from app.services.llm_chat.tool_handlers.get_account_details import (
+    handle_get_account_details,
+)
+from app.services.llm_chat.tool_handlers.get_tax_projection import (
+    handle_get_tax_projection,
+)
+from app.services.llm_chat.tool_handlers.process_termination import (
+    handle_process_termination,
+)
+from app.services.llm_chat.tool_handlers.project_total_annuity import (
+    handle_project_total_annuity,
+)
 from app.services.llm_chat.tool_handlers.run_retirement_cashflow_analysis import (
     handle_run_retirement_cashflow_analysis,
 )
 from app.services.llm_chat.tool_handlers.set_current_employer_details import (
     handle_set_current_employer_details,
 )
-from app.services.llm_chat.tool_handlers.submit_tax_commutation import handle_submit_tax_commutation
+from app.services.llm_chat.tool_handlers.submit_tax_commutation import (
+    handle_submit_tax_commutation,
+)
 from app.services.llm_chat.tool_handlers.transform_funds_to_assets import (
     handle_transform_funds_to_assets,
 )
@@ -47,7 +63,9 @@ from app.services.llm_chat.tool_handlers.calculate_pension_commutation import (
 from app.services.llm_chat.tool_handlers.build_target_pension_plan import (
     handle_build_target_pension_plan,
 )
-from app.services.llm_chat.tool_handlers.get_pension_products import handle_get_pension_products
+from app.services.llm_chat.tool_handlers.get_pension_products import (
+    handle_get_pension_products,
+)
 from app.services.llm_chat.tool_handlers.calculate_tax_exempt_pension import (
     handle_calculate_tax_exempt_pension,
 )
@@ -117,7 +135,9 @@ from app.services.llm_chat.orchestration_utils import (
 )
 from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
 from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
-from app.services.llm_chat.orchestration_utils_parts.protocol import _extract_single_line_json_after_marker
+from app.services.llm_chat.orchestration_utils_parts.protocol import (
+    _extract_single_line_json_after_marker,
+)
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     build_default_termination_plan_preview,
     compute_blocked_balances_summary_from_portfolio,
@@ -137,7 +157,11 @@ _turn_dedup = _threading.local()
 def _dedup_cache_key(tool_name: str, args: dict) -> str:
     """Build a stable cache key from tool_name + sorted args JSON."""
     try:
-        args_str = json.dumps(args, sort_keys=True, ensure_ascii=False) if isinstance(args, dict) else "{}"
+        args_str = (
+            json.dumps(args, sort_keys=True, ensure_ascii=False)
+            if isinstance(args, dict)
+            else "{}"
+        )
     except Exception:
         args_str = "{}"
     return f"{tool_name}::{args_str}"
@@ -186,7 +210,9 @@ def _is_placeholder_date_str(value: str) -> bool:
     return False
 
 
-def _maybe_fill_default_retirement_date(*, tool_name: str, args: dict, client_obj: Client | None) -> None:
+def _maybe_fill_default_retirement_date(
+    *, tool_name: str, args: dict, client_obj: Client | None
+) -> None:
     if not isinstance(args, dict):
         return
 
@@ -327,7 +353,11 @@ def execute_tool_call(
             return preview_text
 
     case_id = get_current_case_id()
-    if case_id == "interactive_readonly" and (not user_approved) and tool_name in WRITE_TOOLS:
+    if (
+        case_id == "interactive_readonly"
+        and (not user_approved)
+        and tool_name in WRITE_TOOLS
+    ):
         req_id = get_current_request_id() or "unknown"
         payload = {
             "request_id": req_id,
@@ -354,7 +384,10 @@ def execute_tool_call(
             ensure_ascii=False,
         )
 
-    if tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"} and not user_approved:
+    if (
+        tool_name in {"EXECUTE_PENSION_COMMUTATION", "SUBMIT_TAX_COMMUTATION"}
+        and not user_approved
+    ):
         try:
             store_pending_approval_request(
                 db=db,
@@ -379,7 +412,9 @@ def execute_tool_call(
             rag_sources=None,
         )
 
-    def enforce_blocked_balances_policy_for_build(*, plan_args_in: dict) -> tuple[str, dict, str | None]:
+    def enforce_blocked_balances_policy_for_build(
+        *, plan_args_in: dict
+    ) -> tuple[str, dict, str | None]:
         plan_args_local = plan_args_in if isinstance(plan_args_in, dict) else {}
         portfolio = pension_portfolio or []
 
@@ -393,27 +428,37 @@ def execute_tool_call(
         decision = None
         term_executed = None
         try:
-            notice_shown = load_blocked_balances_notice_shown(db=db, client_id=int(client_id))
+            notice_shown = load_blocked_balances_notice_shown(
+                db=db, client_id=int(client_id)
+            )
         except Exception:
             notice_shown = None
         try:
-            decision = load_current_employer_severance_execution_decision(db=db, client_id=int(client_id))
+            decision = load_current_employer_severance_execution_decision(
+                db=db, client_id=int(client_id)
+            )
         except Exception:
             decision = None
         try:
-            term_executed = termination_already_executed_for_client(db=db, client_id=int(client_id))
+            term_executed = termination_already_executed_for_client(
+                db=db, client_id=int(client_id)
+            )
         except Exception:
             term_executed = None
 
         status = "proceed"
-        updated_args = dict(plan_args_local) if isinstance(plan_args_local, dict) else {}
+        updated_args = (
+            dict(plan_args_local) if isinstance(plan_args_local, dict) else {}
+        )
         policy_text = None
         try:
-            status, updated_args, policy_text = evaluate_blocked_balances_policy_for_build_target_plan(
-                db=db,
-                client_id=int(client_id),
-                portfolio=portfolio,
-                plan_args=plan_args_local,
+            status, updated_args, policy_text = (
+                evaluate_blocked_balances_policy_for_build_target_plan(
+                    db=db,
+                    client_id=int(client_id),
+                    portfolio=portfolio,
+                    plan_args=plan_args_local,
+                )
             )
         except Exception:
             status = "proceed"
@@ -428,24 +473,43 @@ def execute_tool_call(
                 "current_employer_decision": decision,
                 "termination_already_executed": term_executed,
                 "amounts": {
-                    "non_settled": float(getattr(summary, "non_settled_severance_amount", 0) or 0)
-                    if summary is not None
-                    else None,
-                    "continuity_rights": float(
-                        getattr(summary, "prior_employers_continuity_rights_amount", 0) or 0
-                    )
-                    if summary is not None
-                    else None,
-                    "current_employer": float(getattr(summary, "current_employer_severance_amount", 0) or 0)
-                    if summary is not None
-                    else None,
+                    "non_settled": (
+                        float(getattr(summary, "non_settled_severance_amount", 0) or 0)
+                        if summary is not None
+                        else None
+                    ),
+                    "continuity_rights": (
+                        float(
+                            getattr(
+                                summary, "prior_employers_continuity_rights_amount", 0
+                            )
+                            or 0
+                        )
+                        if summary is not None
+                        else None
+                    ),
+                    "current_employer": (
+                        float(
+                            getattr(summary, "current_employer_severance_amount", 0)
+                            or 0
+                        )
+                        if summary is not None
+                        else None
+                    ),
                 },
             }
-            logger.info("BLOCKED_BALANCES_POLICY_APPLIED %s", json.dumps(payload, ensure_ascii=False))
+            logger.info(
+                "BLOCKED_BALANCES_POLICY_APPLIED %s",
+                json.dumps(payload, ensure_ascii=False),
+            )
         except Exception:
             pass
 
-        return status, updated_args if isinstance(updated_args, dict) else plan_args_local, policy_text
+        return (
+            status,
+            updated_args if isinstance(updated_args, dict) else plan_args_local,
+            policy_text,
+        )
 
     if tool_name == "BUILD_TARGET_PENSION_PLAN" and isinstance(args, dict):
         # ── Unified income offset: subtract AdditionalIncome (other income) ──
@@ -456,13 +520,16 @@ def execute_tool_call(
             from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
                 compute_effective_plan_target,
             )
+
             _raw_target = float(args.get("target_monthly_pension") or 0)
             _is_net = args.get("target_is_net")
             _is_net_val = True if _is_net is None else bool(_is_net)
             if _raw_target > 0:
                 _bd = compute_effective_plan_target(
-                    db=db, client_id=int(client_id),
-                    desired_total=_raw_target, target_is_net=_is_net_val,
+                    db=db,
+                    client_id=int(client_id),
+                    desired_total=_raw_target,
+                    target_is_net=_is_net_val,
                 )
                 _offset_breakdown = _bd
                 args = dict(args)
@@ -476,16 +543,24 @@ def execute_tool_call(
         except Exception:
             _effective_target = 0.0
         if _offset_breakdown is not None and _effective_target <= 0:
-            mode_label = "נטו" if bool(getattr(_offset_breakdown, "target_is_net", True)) else "ברוטו"
+            mode_label = (
+                "נטו"
+                if bool(getattr(_offset_breakdown, "target_is_net", True))
+                else "ברוטו"
+            )
             lines: list[str] = []
             lines.append("✅ חישוב דטרמיניסטי:")
             lines.append(f"- יעד חודשי מבוקש ({mode_label}): התקבל")
             lines.append(f"- קיזוז הכנסות נוספות ({mode_label}): בוצע")
-            lines.append("היעד כבר מושג מהכנסות קיימות – אין צורך בבניית קצבה נוספת בתכנית.")
+            lines.append(
+                "היעד כבר מושג מהכנסות קיימות – אין צורך בבניית קצבה נוספת בתכנית."
+            )
             return "\n".join(lines).strip()
 
         policy_text = None
-        policy_status, updated_args, policy_text = enforce_blocked_balances_policy_for_build(plan_args_in=args)
+        policy_status, updated_args, policy_text = (
+            enforce_blocked_balances_policy_for_build(plan_args_in=args)
+        )
         args = updated_args if isinstance(updated_args, dict) else args
 
         if policy_status in {
@@ -556,10 +631,15 @@ def execute_tool_call(
             rag_sources=None,
         )
 
-    if tool_name in WRITE_TOOLS and user_approved and tool_name not in {
-        "RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
-        "RESTORE_SYSTEM_SNAPSHOT",
-    }:
+    if (
+        tool_name in WRITE_TOOLS
+        and user_approved
+        and tool_name
+        not in {
+            "RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+            "RESTORE_SYSTEM_SNAPSHOT",
+        }
+    ):
         try:
             snap = SnapshotService(db).save_snapshot(
                 client_id,
@@ -568,7 +648,9 @@ def execute_tool_call(
             if isinstance(snap, dict):
                 snap_payload = dict(snap)
                 snap_payload["force_restore"] = True
-                store_undo_snapshot(db=db, client_id=client_id, snapshot_payload=snap_payload)
+                store_undo_snapshot(
+                    db=db, client_id=client_id, snapshot_payload=snap_payload
+                )
         except Exception:
             pass
 
@@ -591,7 +673,11 @@ def execute_tool_call(
                     .first()
                 )
 
-                if employer and employer.end_date and employer.end_date == termination_date:
+                if (
+                    employer
+                    and employer.end_date
+                    and employer.end_date == termination_date
+                ):
                     grants_count = (
                         db.query(EmployerGrant)
                         .filter(
@@ -605,8 +691,11 @@ def execute_tool_call(
                     try:
                         other_grants = employer.other_grants or {}
                         if isinstance(other_grants, dict):
-                            confirmed = bool(other_grants.get("termination_confirmed")) and (
-                                other_grants.get("termination_date") == termination_date.isoformat()
+                            confirmed = bool(
+                                other_grants.get("termination_confirmed")
+                            ) and (
+                                other_grants.get("termination_date")
+                                == termination_date.isoformat()
                             )
                     except Exception:
                         confirmed = False
@@ -706,7 +795,9 @@ def execute_tool_call(
             return handle_check_data_completeness(agent_tools=agent_tools)
 
         if tool_name == "CALCULATE_TAX_EXEMPT_PENSION":
-            return handle_calculate_tax_exempt_pension(args=args, agent_tools=agent_tools)
+            return handle_calculate_tax_exempt_pension(
+                args=args, agent_tools=agent_tools
+            )
 
         if tool_name == "RUN_RETIREMENT_CASHFLOW_ANALYSIS":
             return handle_run_retirement_cashflow_analysis(
@@ -720,18 +811,27 @@ def execute_tool_call(
             try:
                 raw_preview = args.get("preview") if isinstance(args, dict) else None
                 if isinstance(raw_preview, str):
-                    preview_flag = raw_preview.strip().lower() in {"true", "1", "yes", "y"}
+                    preview_flag = raw_preview.strip().lower() in {
+                        "true",
+                        "1",
+                        "yes",
+                        "y",
+                    }
                 else:
                     preview_flag = bool(raw_preview)
             except Exception:
                 preview_flag = False
 
             if preview_flag:
-                return handle_run_retirement_scenarios_preview(args=args, agent_tools=agent_tools)
+                return handle_run_retirement_scenarios_preview(
+                    args=args, agent_tools=agent_tools
+                )
             return handle_run_retirement_scenarios(args=args, agent_tools=agent_tools)
 
         if tool_name == "SELECT_TARGET_PENSION_SCENARIO":
-            return handle_select_target_pension_scenario(args=args, agent_tools=agent_tools)
+            return handle_select_target_pension_scenario(
+                args=args, agent_tools=agent_tools
+            )
 
         if tool_name == "FIND_OPTIMAL_SCENARIO":
             return handle_find_optimal_scenario(args=args, agent_tools=agent_tools)
@@ -750,10 +850,14 @@ def execute_tool_call(
             )
 
         if tool_name == "CALCULATE_CAPITAL_WITHDRAWAL_TAX":
-            return handle_calculate_capital_withdrawal_tax(args=args, agent_tools=agent_tools)
+            return handle_calculate_capital_withdrawal_tax(
+                args=args, agent_tools=agent_tools
+            )
 
         if tool_name == "CALCULATE_TAX_SPREAD_BENEFIT":
-            return handle_calculate_tax_spread_benefit(args=args, agent_tools=agent_tools)
+            return handle_calculate_tax_spread_benefit(
+                args=args, agent_tools=agent_tools
+            )
 
         if tool_name == "PROCESS_TERMINATION":
             return handle_process_termination(
@@ -811,7 +915,9 @@ def execute_tool_call(
             )
 
         if tool_name == "GET_SYSTEM_STATE_SNAPSHOT":
-            return handle_get_system_state_snapshot(args=args, client_id=client_id, db=db)
+            return handle_get_system_state_snapshot(
+                args=args, client_id=client_id, db=db
+            )
 
         if tool_name == "GET_CLIENT_SNAPSHOT":
             return handle_get_client_snapshot(args=args, client_id=client_id, db=db)
@@ -824,7 +930,9 @@ def execute_tool_call(
             )
 
         if tool_name == "GET_FIXATION_STATUS_SNAPSHOT":
-            return handle_get_fixation_status_snapshot(args=args, client_id=client_id, db=db)
+            return handle_get_fixation_status_snapshot(
+                args=args, client_id=client_id, db=db
+            )
 
         # ===== OPERATION TOOLS - Data Input & Transformation =====
 
@@ -854,7 +962,9 @@ def execute_tool_call(
             return handle_create_tax_exempt_grant(args=args, client_id=client_id, db=db)
 
         if tool_name == "CREATE_ADDITIONAL_INCOME":
-            return handle_create_additional_income(args=args, client_id=client_id, db=db)
+            return handle_create_additional_income(
+                args=args, client_id=client_id, db=db
+            )
 
         if tool_name == "CREATE_INDIVIDUAL_ASSET":
             return handle_create_individual_asset(args=args, client_id=client_id, db=db)
@@ -862,10 +972,14 @@ def execute_tool_call(
         # ===== OPERATION TOOLS - Process Tools =====
 
         if tool_name == "SET_CURRENT_EMPLOYER_DETAILS":
-            return handle_set_current_employer_details(args=args, client_id=client_id, db=db)
+            return handle_set_current_employer_details(
+                args=args, client_id=client_id, db=db
+            )
 
         if tool_name == "EXECUTE_WORK_TERMINATION":
-            return handle_execute_work_termination(args=args, client_id=client_id, db=db)
+            return handle_execute_work_termination(
+                args=args, client_id=client_id, db=db
+            )
 
         if tool_name == "PROCESS_TERMINATION":
             return handle_process_termination(
@@ -884,29 +998,49 @@ def execute_tool_call(
             )
 
         _known_tools = [
-            "GET_SYSTEM_STATE_SNAPSHOT", "GET_CLIENT_SNAPSHOT",
-            "GET_FIXATION_STATUS_SNAPSHOT", "GET_SYSTEM_NUMERIC_CONSTANTS",
-            "BUILD_TARGET_PENSION_PLAN", "GET_TAX_PROJECTION", "GET_TAX_PARAMS",
-            "GET_PENSION_PRODUCTS", "CHECK_DATA_COMPLETENESS",
-            "CALCULATE_TAX_EXEMPT_PENSION", "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-            "RUN_RETIREMENT_SCENARIOS", "SELECT_TARGET_PENSION_SCENARIO",
-            "FIND_OPTIMAL_SCENARIO", "EXECUTE_RETIREMENT_SCENARIO",
-            "CALCULATE_PENSION_COMMUTATION", "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
-            "CALCULATE_TAX_SPREAD_BENEFIT", "PROCESS_TERMINATION",
-            "PROJECT_TOTAL_ANNUITY", "GET_ACCOUNT_DETAILS",
-            "SUBMIT_TAX_COMMUTATION", "EXECUTE_PENSION_COMMUTATION",
-            "GENERATE_FULL_REPORT", "GENERATE_TAX_DEDUCTION_DOCUMENTS",
-            "TRANSFORM_FUNDS_TO_ASSETS", "CREATE_TAX_EXEMPT_GRANT",
-            "CREATE_ADDITIONAL_INCOME", "CREATE_INDIVIDUAL_ASSET",
-            "SET_CURRENT_EMPLOYER_DETAILS", "EXECUTE_WORK_TERMINATION",
+            "GET_SYSTEM_STATE_SNAPSHOT",
+            "GET_CLIENT_SNAPSHOT",
+            "GET_FIXATION_STATUS_SNAPSHOT",
+            "GET_SYSTEM_NUMERIC_CONSTANTS",
+            "BUILD_TARGET_PENSION_PLAN",
+            "GET_TAX_PROJECTION",
+            "GET_TAX_PARAMS",
+            "GET_PENSION_PRODUCTS",
+            "CHECK_DATA_COMPLETENESS",
+            "CALCULATE_TAX_EXEMPT_PENSION",
+            "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
+            "RUN_RETIREMENT_SCENARIOS",
+            "SELECT_TARGET_PENSION_SCENARIO",
+            "FIND_OPTIMAL_SCENARIO",
+            "EXECUTE_RETIREMENT_SCENARIO",
+            "CALCULATE_PENSION_COMMUTATION",
+            "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
+            "CALCULATE_TAX_SPREAD_BENEFIT",
+            "PROCESS_TERMINATION",
+            "PROJECT_TOTAL_ANNUITY",
+            "GET_ACCOUNT_DETAILS",
+            "SUBMIT_TAX_COMMUTATION",
+            "EXECUTE_PENSION_COMMUTATION",
+            "GENERATE_FULL_REPORT",
+            "GENERATE_TAX_DEDUCTION_DOCUMENTS",
+            "TRANSFORM_FUNDS_TO_ASSETS",
+            "CREATE_TAX_EXEMPT_GRANT",
+            "CREATE_ADDITIONAL_INCOME",
+            "CREATE_INDIVIDUAL_ASSET",
+            "SET_CURRENT_EMPLOYER_DETAILS",
+            "EXECUTE_WORK_TERMINATION",
             "CALCULATE_FIXATION_OF_RIGHTS",
             "GET_PENSION_PORTFOLIO_SNAPSHOT_HISTORY",
-            "RESTORE_PENSION_PORTFOLIO_SNAPSHOT", "RESTORE_SYSTEM_SNAPSHOT",
+            "RESTORE_PENSION_PORTFOLIO_SNAPSHOT",
+            "RESTORE_SYSTEM_SNAPSHOT",
         ]
-        return json.dumps({
-            "error": f"Tool '{tool_name}' not found.",
-            "available_tools": _known_tools,
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "error": f"Tool '{tool_name}' not found.",
+                "available_tools": _known_tools,
+            },
+            ensure_ascii=False,
+        )
 
     # --- execute dispatch, log tool_result, return ---
     try:
@@ -916,6 +1050,7 @@ def execute_tool_call(
         logger.error("Tool execution failed: %s", e, exc_info=True)
         try:
             import traceback as _tb_mod
+
             _err_payload = {
                 "tool_name": tool_name,
                 "error_type": type(e).__name__,
@@ -934,7 +1069,10 @@ def execute_tool_call(
             pass
         try:
             from app.services.agent_trace_logger import emit_trace_error
-            emit_trace_error(exc=e, where="tool_execution:execute_tool_call", client_id=client_id)
+
+            emit_trace_error(
+                exc=e, where="tool_execution:execute_tool_call", client_id=client_id
+            )
         except Exception:
             pass
         return f"System Error while executing tool: {str(e)}"
@@ -950,7 +1088,7 @@ def execute_tool_call(
                 _result_length = len(_as_json)
             else:
                 _s = result or ""
-                _result_preview = (_s[:2000] if isinstance(_s, str) else str(_s)[:2000])
+                _result_preview = _s[:2000] if isinstance(_s, str) else str(_s)[:2000]
                 _result_length = len(_s) if isinstance(_s, str) else len(str(_s))
         except Exception:
             _result_preview = ""

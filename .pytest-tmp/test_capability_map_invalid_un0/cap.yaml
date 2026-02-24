@@ -1,0 +1,15 @@
+capability_map_version: "x"
+published_at: "2026-02-24"
+router_normalization_version: "1.0"
+hash_version: "sha256/v1"
+capabilities:
+  - capability_id: "default_qa_v1"
+    mode: "QA"
+    triggers:
+      trigger_terms: []
+      trigger_regex: [".*"]
+      negative_triggers: []
+    priority: 0
+    tool_chain: []
+    output_schema_id: "qa_answer_v1"
+    unknown_field: "boom"

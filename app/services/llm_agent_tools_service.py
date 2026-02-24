@@ -10,6 +10,7 @@ LLM Agent Tools Service
     "explanation": str,  # הסבר קצר לסוכן
 }
 """
+
 from datetime import date
 import logging
 from typing import Dict, List, Optional, Any
@@ -33,10 +34,27 @@ from app.services.llm_agent_tools.utils import _to_jsonable
 logger = logging.getLogger("app.llm_agent_tools")
 
 
-class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin, FixationToolsMixin, RetirementCashflowToolsMixin, CommutationToolsMixin, DataCompletenessToolsMixin, TaxProjectionToolsMixin, GrossWithdrawalToolsMixin, TaxParamsToolsMixin):
+class AgentToolsService(
+    TaxToolsMixin,
+    PortfolioToolsMixin,
+    ScenariosToolsMixin,
+    FixationToolsMixin,
+    RetirementCashflowToolsMixin,
+    CommutationToolsMixin,
+    DataCompletenessToolsMixin,
+    TaxProjectionToolsMixin,
+    GrossWithdrawalToolsMixin,
+    TaxParamsToolsMixin,
+):
     """שירות כלים לסוכן ה-LLM"""
 
-    def __init__(self, db: Session, client_id: int, client_object: Optional[Client] = None, pension_portfolio_data: Optional[List[Any]] = None):
+    def __init__(
+        self,
+        db: Session,
+        client_id: int,
+        client_object: Optional[Client] = None,
+        pension_portfolio_data: Optional[List[Any]] = None,
+    ):
         self.db = db
         self.client_id = client_id
         self._client: Optional[Client] = client_object
@@ -45,9 +63,9 @@ class AgentToolsService(TaxToolsMixin, PortfolioToolsMixin, ScenariosToolsMixin,
     @property
     def client(self) -> Optional[Client]:
         if self._client is None:
-            self._client = self.db.query(Client).filter(
-                Client.id == self.client_id
-            ).first()
+            self._client = (
+                self.db.query(Client).filter(Client.id == self.client_id).first()
+            )
         return self._client
 
     def find_optimal_scenario_for_target(

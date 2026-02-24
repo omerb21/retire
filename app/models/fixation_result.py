@@ -9,19 +9,21 @@ class FixationResult(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("client.id"), nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
     # Main calculation results
     exempt_capital_remaining = Column(Float, nullable=False, default=0.0)
     used_commutation = Column(Float, nullable=False, default=0.0)
-    
+
     # Raw data storage
     raw_payload = Column(JSON, nullable=True)  # Input parameters
-    raw_result = Column(JSON, nullable=True)   # Detailed calculation output
-    
+    raw_result = Column(JSON, nullable=True)  # Detailed calculation output
+
     # Additional notes
     notes = Column(String(500), nullable=True)
-    
+
     # Relationship to client
     client = relationship("Client", back_populates="fixation_results")
 

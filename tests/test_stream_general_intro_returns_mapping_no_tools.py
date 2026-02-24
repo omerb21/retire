@@ -29,10 +29,14 @@ def test_stream_general_intro_returns_mapping_no_tools(monkeypatch, _test_db) ->
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for general intro mapping")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call must not be invoked for general intro mapping")
+        raise AssertionError(
+            "execute_tool_call must not be invoked for general intro mapping"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -41,7 +45,9 @@ def test_stream_general_intro_returns_mapping_no_tools(monkeypatch, _test_db) ->
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "אני בן 72. סיימתי לעבוד לפני חודש."}],
+            "messages": [
+                {"role": "user", "content": "אני בן 72. סיימתי לעבוד לפני חודש."}
+            ],
             "pension_portfolio": [],
         },
     )

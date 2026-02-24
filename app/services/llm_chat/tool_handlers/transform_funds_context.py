@@ -37,9 +37,15 @@ def prepare_transform_funds_context(
         retirement_age = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
     retirement_date: Optional[date] = None
     retirement_year = datetime.now().year
-    if client_obj and getattr(client_obj, "birth_date", None) and getattr(client_obj, "gender", None):
+    if (
+        client_obj
+        and getattr(client_obj, "birth_date", None)
+        and getattr(client_obj, "gender", None)
+    ):
         try:
-            retirement_info = calculate_retirement_age(client_obj.birth_date, client_obj.gender)
+            retirement_info = calculate_retirement_age(
+                client_obj.birth_date, client_obj.gender
+            )
             retirement_date = retirement_info.get("retirement_date")
             age_years = int(retirement_info.get("age_years") or retirement_age)
             age_months = int(retirement_info.get("age_months") or 0)
@@ -83,7 +89,9 @@ def prepare_transform_funds_context(
         else:
             specific_amounts = _build_specific_amounts_from_account(account)
 
-        raw_emp_current = specific_amounts.get("פיצויים_מעסיק_נוכחי", account.get("פיצויים_מעסיק_נוכחי"))
+        raw_emp_current = specific_amounts.get(
+            "פיצויים_מעסיק_נוכחי", account.get("פיצויים_מעסיק_נוכחי")
+        )
         try:
             emp_current_val = float(raw_emp_current or 0)
         except (TypeError, ValueError):
@@ -115,7 +123,9 @@ def prepare_transform_funds_context(
             else:
                 rights_sequence_total += val
 
-    if (unresolved_severance_total > 0 or rights_sequence_total > 0) and (not ignore_blocked_balances):
+    if (unresolved_severance_total > 0 or rights_sequence_total > 0) and (
+        not ignore_blocked_balances
+    ):
         ignore_blocked_balances = True
 
     return {

@@ -1,6 +1,7 @@
 """
 Reports API router - PDF report generation
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -21,17 +22,17 @@ from app.services.report_request_service import (
 
 router = APIRouter()
 
+
 class ReportRequest(BaseModel):
     scenario_ids: List[int]
     report_type: str = "comprehensive"  # comprehensive, summary, cashflow, comparison
     include_charts: bool = True
     include_cashflow: bool = True
 
+
 @router.post("/clients/{client_id}/reports/generate")
 def generate_report(
-    client_id: int,
-    request: ReportRequest,
-    db: Session = Depends(get_db)
+    client_id: int, request: ReportRequest, db: Session = Depends(get_db)
 ):
     """
     Generate PDF report for selected scenarios
@@ -62,32 +63,30 @@ def generate_report(
             scenarios=scenarios,
             report_type=request.report_type,
             include_charts=request.include_charts,
-            include_cashflow=request.include_cashflow
+            include_cashflow=request.include_cashflow,
         )
-        
+
         # Return PDF as response
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"retirement_report_{client_id}_{timestamp}.pdf"
-        
+
         return Response(
             content=pdf_buffer.getvalue(),
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}"
-            }
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail={"error": f"שגיאה ביצירת דוח: {str(e)}"}
+            status_code=500, detail={"error": f"שגיאה ביצירת דוח: {str(e)}"}
         )
+
 
 @router.get("/clients/{client_id}/reports/preview")
 def preview_report_data(
     client_id: int,
     scenario_ids: str,  # comma-separated scenario IDs
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Preview report data without generating PDF
@@ -103,7 +102,9 @@ def preview_report_data(
         scenario_id_list = parse_scenario_ids_csv(scenario_ids)
     except ValueError as e:
         if str(e) == "invalid_scenario_ids":
-            raise HTTPException(status_code=400, detail={"error": "מזהי תרחישים לא תקינים"})
+            raise HTTPException(
+                status_code=400, detail={"error": "מזהי תרחישים לא תקינים"}
+            )
         raise
 
     try:
@@ -117,13 +118,13 @@ def preview_report_data(
                 detail={"error": "חלק מהתרחישים לא נמצאו או לא שייכים ללקוח"},
             )
         raise
-    
+
     # Return preview data
     return {
         "client": {
             "id": client.id,
             "name": client.full_name,
-            "id_number": client.id_number
+            "id_number": client.id_number,
         },
         "scenarios": [
             {
@@ -131,18 +132,17 @@ def preview_report_data(
                 "name": scenario.scenario_name,
                 "created_at": scenario.created_at,
                 "parameters": scenario.parameters,
-                "summary_results": scenario.summary_results
+                "summary_results": scenario.summary_results,
             }
             for scenario in scenarios
         ],
-        "report_ready": True
+        "report_ready": True,
     }
+
 
 @router.post("/clients/{client_id}/reports/pdf")
 def generate_simple_pdf_report(
-    client_id: int,
-    request: dict,
-    db: Session = Depends(get_db)
+    client_id: int, request: dict, db: Session = Depends(get_db)
 ):
     """
     Simple PDF report generation endpoint for frontend compatibility
@@ -155,35 +155,34 @@ def generate_simple_pdf_report(
         raise
 
     # Get scenario ID from request
-    scenario_id = request.get('scenario_id', 1)
-    scenario = get_or_create_default_scenario(db=db, client_id=client_id, scenario_id=scenario_id)
-    
+    scenario_id = request.get("scenario_id", 1)
+    scenario = get_or_create_default_scenario(
+        db=db, client_id=client_id, scenario_id=scenario_id
+    )
+
     try:
         # Generate PDF report using the existing service
         pdf_buffer = ReportService.generate_pdf_report(
             client=client,
             scenarios=[scenario],
-            report_type=request.get('report_type', 'comprehensive'),
-            include_charts=request.get('include_charts', True),
-            include_cashflow=request.get('include_cashflow', True)
+            report_type=request.get("report_type", "comprehensive"),
+            include_charts=request.get("include_charts", True),
+            include_cashflow=request.get("include_cashflow", True),
         )
-        
+
         # Return PDF as response
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"retirement_report_{client_id}_{timestamp}.pdf"
-        
+
         return Response(
             content=pdf_buffer.getvalue(),
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}"
-            }
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail={"error": f"שגיאה ביצירת דוח: {str(e)}"}
+            status_code=500, detail={"error": f"שגיאה ביצירת דוח: {str(e)}"}
         )
 
 
@@ -195,7 +194,7 @@ def download_report_by_id(report_id: str):
     """
     import os
     from fastapi.responses import FileResponse
-    
+
     project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     app_dir = os.path.dirname(os.path.dirname(__file__))
 
@@ -217,7 +216,10 @@ def download_report_by_id(report_id: str):
     if not pdf_path:
         raise HTTPException(
             status_code=404,
-            detail={"error": f"דוח {report_id} לא נמצא", "searched_paths": searched_paths},
+            detail={
+                "error": f"דוח {report_id} לא נמצא",
+                "searched_paths": searched_paths,
+            },
         )
 
     return FileResponse(
@@ -236,7 +238,7 @@ def download_document_by_id(doc_id: str):
     """
     import os
     from fastapi.responses import FileResponse
-    
+
     project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     app_dir = os.path.dirname(os.path.dirname(__file__))
 
@@ -258,7 +260,10 @@ def download_document_by_id(doc_id: str):
     if not pdf_path:
         raise HTTPException(
             status_code=404,
-            detail={"error": f"מסמך {doc_id} לא נמצא", "searched_paths": searched_paths},
+            detail={
+                "error": f"מסמך {doc_id} לא נמצא",
+                "searched_paths": searched_paths,
+            },
         )
 
     return FileResponse(

@@ -14,7 +14,9 @@ def test_general_retirement_help_does_not_run_tools(monkeypatch) -> None:
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tools should be executed for general retirement help")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
     api = TestClient(app)
@@ -41,14 +43,22 @@ def test_general_retirement_help_does_not_run_tools(monkeypatch) -> None:
     assert re.search(r"\d", body) is None
 
 
-def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch) -> None:
+def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic cashflow/explain paths")
+        raise AssertionError(
+            "LLM must not be called for deterministic cashflow/explain paths"
+        )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
     api = TestClient(app)
@@ -92,14 +102,18 @@ def test_explain_in_words_after_cashflow_has_no_numbers_and_no_tools(monkeypatch
     assert "כדי שאוכל להסביר" in body
 
 
-def test_explain_in_words_without_prior_tool_is_general_and_no_numbers(monkeypatch) -> None:
+def test_explain_in_words_without_prior_tool_is_general_and_no_numbers(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for explain-in-words")
 
     def fake_execute_tool_call(*args, **kwargs):
         raise AssertionError("No tools should be executed for explain-in-words")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
     api = TestClient(app)

@@ -1,7 +1,6 @@
 import re
 from dataclasses import dataclass
 
-
 _NUM_TOKEN_RE = re.compile(
     r"(?<![A-Za-z_])[-+]?\d[\d,]*(?:\.\d+)?%?",
     flags=re.UNICODE,
@@ -207,7 +206,7 @@ def sanitize_transparency_and_risk_blocks(text: str | None) -> str | None:
 
     for line in lines:
         is_header = any(line.startswith(h) for h in _TR_BLOCK_HEADERS)
-        is_other_block = (line.startswith("###") and not is_header)
+        is_other_block = line.startswith("###") and not is_header
 
         if is_header:
             in_block = True
@@ -259,7 +258,7 @@ def _is_simple_list_index(*, text: str, start: int, end: int) -> bool:
     if n < 1 or n > 20:
         return False
 
-    next_ch = text[end:end + 1]
+    next_ch = text[end : end + 1]
     if next_ch not in {")", "."}:
         return False
 
@@ -313,7 +312,9 @@ def validate_reply_numeric_provenance(
     if not reply_tokens:
         return None
 
-    allowed_text = "\n".join([t for t in allowed_source_texts if isinstance(t, str) and t])
+    allowed_text = "\n".join(
+        [t for t in allowed_source_texts if isinstance(t, str) and t]
+    )
     allowed_tokens = extract_numeric_tokens(allowed_text)
 
     violations: list[str] = []

@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_serializer
 from pydantic.config import ConfigDict
 
+
 class EmploymentBase(BaseModel):
     employer_name: str = Field(..., min_length=2, max_length=255)
     employer_reg_no: Optional[str] = Field(None, max_length=50)
@@ -11,10 +12,12 @@ class EmploymentBase(BaseModel):
     address_street: Optional[str] = Field(None, max_length=255)
     start_date: date
 
+
 class EmploymentCreate(EmploymentBase):
     # current employment only (׳ ׳•׳›׳—׳™)
     last_salary: Optional[float] = None
     end_date: Optional[date] = None
+
 
 class EmploymentOut(BaseModel):
     id: int
@@ -28,12 +31,15 @@ class EmploymentOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class TerminationPlanIn(BaseModel):
     planned_termination_date: date
     termination_reason: str  # use values of TerminationReason enum
 
+
 class TerminationConfirmIn(BaseModel):
     actual_termination_date: date
+
 
 class TerminationEventOut(BaseModel):
     id: int
@@ -54,4 +60,3 @@ class TerminationEventOut(BaseModel):
         if v is None:
             return None
         return getattr(v, "value", v)
-

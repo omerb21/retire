@@ -8,10 +8,15 @@ from app.schemas.llm_chat import ChatRequest
 from app.services.agent_execution.policy import PolicyDecision
 from app.services.intent_classifier import IntentType
 
-
-_current_request: ContextVar[ChatRequest | None] = ContextVar("tool_exec_request", default=None)
-_current_policy_decision: ContextVar[PolicyDecision | None] = ContextVar("tool_exec_policy_decision", default=None)
-_current_intent_type: ContextVar[IntentType | None] = ContextVar("tool_exec_intent_type", default=None)
+_current_request: ContextVar[ChatRequest | None] = ContextVar(
+    "tool_exec_request", default=None
+)
+_current_policy_decision: ContextVar[PolicyDecision | None] = ContextVar(
+    "tool_exec_policy_decision", default=None
+)
+_current_intent_type: ContextVar[IntentType | None] = ContextVar(
+    "tool_exec_intent_type", default=None
+)
 _current_streaming: ContextVar[bool] = ContextVar("tool_exec_streaming", default=False)
 _tool_ok_seen: ContextVar[bool] = ContextVar("tool_ok_seen", default=False)
 

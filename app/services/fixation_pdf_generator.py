@@ -13,6 +13,7 @@
 לשימוש חדש, ייבא ישירות מהמודול החדש:
     from app.services.pdf_generation import generate_fixation_summary_pdf
 """
+
 from pathlib import Path
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -23,6 +24,6 @@ from app.services.pdf_generation.converters import html_to_pdf
 
 # ייצוא לצורך backward compatibility
 __all__ = [
-    'generate_fixation_summary_pdf',
-    'html_to_pdf',
+    "generate_fixation_summary_pdf",
+    "html_to_pdf",
 ]

@@ -32,7 +32,7 @@ def _run_post_conversion_entry_flow(
     compute_existing_income_offset_monthly,
     store_latest_target_pension_plan_data,
     store_latest_target_pension_plan,
- ):
+):
     effective_client_state = None
     if request.client_id is not None:
         try:
@@ -41,10 +41,14 @@ def _run_post_conversion_entry_flow(
             effective_client_state = None
 
     def _is_post_conversion_locked() -> bool:
-        return is_post_conversion_locked_helper(effective_client_state=effective_client_state)
+        return is_post_conversion_locked_helper(
+            effective_client_state=effective_client_state
+        )
 
     def _should_show_post_conversion_messages() -> bool:
-        return should_show_post_conversion_messages_helper(effective_client_state=effective_client_state)
+        return should_show_post_conversion_messages_helper(
+            effective_client_state=effective_client_state
+        )
 
     def _build_post_conversion_lock_message() -> str:
         return build_post_conversion_lock_message_helper()

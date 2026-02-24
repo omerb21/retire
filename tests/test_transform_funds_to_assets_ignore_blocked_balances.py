@@ -8,7 +8,9 @@ from app.services.llm_chat.tool_handlers.transform_funds_to_assets import (
 )
 
 
-def test_transform_ignores_blocked_and_skips_employer_current_severance(db_session, client) -> None:
+def test_transform_ignores_blocked_and_skips_employer_current_severance(
+    db_session, client
+) -> None:
     account_number = "ACC-BLOCK-1"
 
     # Clean prior conversions for this account
@@ -24,7 +26,9 @@ def test_transform_ignores_blocked_and_skips_employer_current_severance(db_sessi
     ).delete(synchronize_session=False)
     db_session.commit()
 
-    agent_tools = AgentToolsService(db=db_session, client_id=client.id, client_object=client)
+    agent_tools = AgentToolsService(
+        db=db_session, client_id=client.id, client_object=client
+    )
 
     blocked_unresolved = 1111.0
     blocked_rights = 2222.0
@@ -64,14 +68,21 @@ def test_transform_ignores_blocked_and_skips_employer_current_severance(db_sessi
     assert payload["success"] is True
 
     # Blocked fields should be ignored and reported.
-    assert float(payload.get("ignored_blocked_amount") or 0) == blocked_unresolved + blocked_rights
+    assert (
+        float(payload.get("ignored_blocked_amount") or 0)
+        == blocked_unresolved + blocked_rights
+    )
 
     # Current employer severance should be skipped and reported.
-    assert float(payload.get("employer_current_severance_not_converted") or 0) == employer_current
+    assert (
+        float(payload.get("employer_current_severance_not_converted") or 0)
+        == employer_current
+    )
 
     skipped_items = payload.get("skipped_items") or []
     assert any(
-        item.get("field") == "פיצויים_מעסיק_נוכחי" and float(item.get("amount") or 0) == employer_current
+        item.get("field") == "פיצויים_מעסיק_נוכחי"
+        and float(item.get("amount") or 0) == employer_current
         for item in skipped_items
     )
 
@@ -84,7 +95,9 @@ def test_transform_ignores_blocked_and_skips_employer_current_severance(db_sessi
             PensionFund.client_id == client.id,
             PensionFund.deduction_file == account_number,
             PensionFund.conversion_source.isnot(None),
-            PensionFund.conversion_source.like('%"source": "llm_transform_funds_to_assets"%'),
+            PensionFund.conversion_source.like(
+                '%"source": "llm_transform_funds_to_assets"%'
+            ),
         )
         .first()
     )
@@ -94,8 +107,12 @@ def test_transform_ignores_blocked_and_skips_employer_current_severance(db_sessi
         .filter(
             CapitalAsset.client_id == client.id,
             CapitalAsset.conversion_source.isnot(None),
-            CapitalAsset.conversion_source.like('%"source": "llm_transform_funds_to_assets"%'),
-            CapitalAsset.conversion_source.like(f'%"account_number": "{account_number}"%'),
+            CapitalAsset.conversion_source.like(
+                '%"source": "llm_transform_funds_to_assets"%'
+            ),
+            CapitalAsset.conversion_source.like(
+                f'%"account_number": "{account_number}"%'
+            ),
         )
         .first()
     )

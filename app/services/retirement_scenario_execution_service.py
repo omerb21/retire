@@ -15,7 +15,9 @@ from app.routers.rights_fixation import (
     calculate_and_save_fixation_for_client,
     update_fixation_exempt_pension_fields,
 )
-from app.services.current_employer import EmploymentService as CurrentEmployerEmploymentService
+from app.services.current_employer import (
+    EmploymentService as CurrentEmployerEmploymentService,
+)
 from app.services.employment_service import EmploymentService as LegacyEmploymentService
 from app.services.retirement import RetirementScenariosBuilder
 from app.services.retirement.services.commutation_exemption_service import (
@@ -26,7 +28,9 @@ from app.utils.trace_context import get_current_trace_id
 logger = logging.getLogger(__name__)
 
 
-def _log_current_employer_diagnostics(*, db: Session, client_id: int, context_tag: str) -> None:
+def _log_current_employer_diagnostics(
+    *, db: Session, client_id: int, context_tag: str
+) -> None:
     try:
         from app.models.current_employment import CurrentEmployer
 
@@ -36,7 +40,11 @@ def _log_current_employer_diagnostics(*, db: Session, client_id: int, context_ta
             .order_by(CurrentEmployer.updated_at.desc(), CurrentEmployer.id.desc())
             .all()
         )
-        candidate_ids = [int(getattr(c, "id", 0) or 0) for c in candidates if getattr(c, "id", None) is not None]
+        candidate_ids = [
+            int(getattr(c, "id", 0) or 0)
+            for c in candidates
+            if getattr(c, "id", None) is not None
+        ]
         if len(candidates) > 1:
             logger.warning(
                 "SCENARIO_CURRENT_EMPLOYER_MULTIPLE_CANDIDATES client_id=%s context=%s count=%s candidate_ids=%s",
@@ -97,16 +105,19 @@ def _compute_snapshot_deltas_from_portfolio_pension_funds(
             continue
 
         account_number = (
-            (source_data.get("account_number") or source_data.get("account") or source_data.get("accountNo"))
-            or getattr(pf, "deduction_file", None)
-        )
+            source_data.get("account_number")
+            or source_data.get("account")
+            or source_data.get("accountNo")
+        ) or getattr(pf, "deduction_file", None)
         if not account_number:
             continue
         account_number = str(account_number).strip()
         if not account_number:
             continue
 
-        original_balance = source_data.get("original_balance") or source_data.get("amount")
+        original_balance = source_data.get("original_balance") or source_data.get(
+            "amount"
+        )
         try:
             original_total = float(original_balance or 0)
         except (TypeError, ValueError):
@@ -169,7 +180,9 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
     if not scenario:
         raise ValueError("scenario_not_found")
 
-    _log_current_employer_diagnostics(db=db, client_id=client_id, context_tag="execute_retirement_scenario")
+    _log_current_employer_diagnostics(
+        db=db, client_id=client_id, context_tag="execute_retirement_scenario"
+    )
 
     try:
         params = json.loads(scenario.parameters) if scenario.parameters else {}
@@ -228,9 +241,9 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                     if pf.balance is None and pf.conversion_source:
                         source_data = json.loads(pf.conversion_source)
                         if isinstance(source_data, dict):
-                            original_balance = source_data.get("original_balance") or source_data.get(
-                                "amount"
-                            )
+                            original_balance = source_data.get(
+                                "original_balance"
+                            ) or source_data.get("amount")
                             if original_balance is not None:
                                 pf.balance = float(original_balance)
                                 logger.info(
@@ -343,7 +356,9 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                     try:
                         ce_service = CurrentEmployerEmploymentService(db)
                         current_employer = ce_service.get_employer(client_id)
-                        current_employer_end_date = getattr(current_employer, "end_date", None)
+                        current_employer_end_date = getattr(
+                            current_employer, "end_date", None
+                        )
                         if current_employer_end_date:
                             actual_termination_date = current_employer_end_date
                         logger.info(
@@ -353,7 +368,11 @@ def execute_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
                             current_employer_end_date,
                             scenario_fallback_date,
                             actual_termination_date,
-                            "employer_end_date" if current_employer_end_date else "scenario_fallback",
+                            (
+                                "employer_end_date"
+                                if current_employer_end_date
+                                else "scenario_fallback"
+                            ),
                         )
                     except Exception as e:
                         logger.info(
@@ -489,6 +508,7 @@ def preview_retirement_scenario(db: Session, client_id: int, scenario_id: int) -
     preview_db = PreviewSession()
 
     try:
+
         def _commit_override():
             preview_db.flush()
 

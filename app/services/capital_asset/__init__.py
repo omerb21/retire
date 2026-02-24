@@ -12,4 +12,4 @@ Capital Asset Service Package - מנועי חישוב מודולריים לנכ�
 
 from app.services.capital_asset.service import CapitalAssetService
 
-__all__ = ['CapitalAssetService']
+__all__ = ["CapitalAssetService"]

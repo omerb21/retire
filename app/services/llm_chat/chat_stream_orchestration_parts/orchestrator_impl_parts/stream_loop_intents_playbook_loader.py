@@ -6,7 +6,13 @@ from pathlib import Path
 def _load_stream_intents_playbook_text() -> str | None:
     try:
         repo_root = Path(__file__).resolve().parents[5]
-        p = repo_root / "MD" / "docs" / "agent_playbooks" / "pension_chat_stream_playbook_intents.md"
+        p = (
+            repo_root
+            / "MD"
+            / "docs"
+            / "agent_playbooks"
+            / "pension_chat_stream_playbook_intents.md"
+        )
         if not p.exists():
             return None
         txt = p.read_text(encoding="utf-8")

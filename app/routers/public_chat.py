@@ -23,12 +23,13 @@ from app.services.public_chat_service import (
 )
 from app.services.llm_pension_agent_service import pension_llm_service
 
-
 router = APIRouter(prefix="/api/v1/public-chat", tags=["public-chat"])
 
 
 @router.post("/start", response_model=PublicChatStartResponse)
-def start_public_chat(payload: PublicChatStartRequest, db: Session = Depends(get_db)) -> PublicChatStartResponse:
+def start_public_chat(
+    payload: PublicChatStartRequest, db: Session = Depends(get_db)
+) -> PublicChatStartResponse:
     try:
         session = start_or_get_session(db, payload.id_number, payload.initial_tokens)
         client_name = session.client.full_name if session.client else None
@@ -54,10 +55,14 @@ def start_public_chat(payload: PublicChatStartRequest, db: Session = Depends(get
 def clear_public_chat_history(
     session_key: str,
     db: Session = Depends(get_db),
-    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+    x_public_chat_password: str | None = Header(
+        default=None, alias="X-Public-Chat-Password"
+    ),
 ) -> dict:
     try:
-        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
+        session = get_session_by_key_with_password(
+            db, session_key, x_public_chat_password
+        )
         deleted = clear_history(db, session)
         return {"success": True, "deleted": int(deleted)}
     except ValueError as e:
@@ -73,10 +78,14 @@ def clear_public_chat_history(
 def get_public_chat_status(
     session_key: str,
     db: Session = Depends(get_db),
-    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+    x_public_chat_password: str | None = Header(
+        default=None, alias="X-Public-Chat-Password"
+    ),
 ) -> PublicChatStatusResponse:
     try:
-        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
+        session = get_session_by_key_with_password(
+            db, session_key, x_public_chat_password
+        )
         client_name = session.client.full_name if session.client else None
         llm_status = pension_llm_service.get_status()
         return PublicChatStatusResponse(
@@ -102,12 +111,18 @@ def get_public_chat_status(
 def get_public_chat_history(
     session_key: str,
     db: Session = Depends(get_db),
-    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+    x_public_chat_password: str | None = Header(
+        default=None, alias="X-Public-Chat-Password"
+    ),
 ) -> PublicChatHistoryResponse:
     try:
-        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
+        session = get_session_by_key_with_password(
+            db, session_key, x_public_chat_password
+        )
         messages = get_history(db, session)
-        return PublicChatHistoryResponse(session_key=session.session_key, messages=messages)
+        return PublicChatHistoryResponse(
+            session_key=session.session_key, messages=messages
+        )
     except ValueError as e:
         if str(e) == "session_not_found":
             raise HTTPException(status_code=404, detail="Session not found")
@@ -116,15 +131,21 @@ def get_public_chat_history(
         raise
 
 
-@router.post("/sessions/{session_key}/messages", response_model=PublicChatSendMessageResponse)
+@router.post(
+    "/sessions/{session_key}/messages", response_model=PublicChatSendMessageResponse
+)
 async def send_public_chat_message(
     session_key: str,
     payload: PublicChatSendMessageRequest,
     db: Session = Depends(get_db),
-    x_public_chat_password: str | None = Header(default=None, alias="X-Public-Chat-Password"),
+    x_public_chat_password: str | None = Header(
+        default=None, alias="X-Public-Chat-Password"
+    ),
 ) -> PublicChatSendMessageResponse:
     try:
-        session = get_session_by_key_with_password(db, session_key, x_public_chat_password)
+        session = get_session_by_key_with_password(
+            db, session_key, x_public_chat_password
+        )
         reply, tokens_used = await send_message(db, session, payload.content)
         refreshed = get_session_by_key(db, session_key)
         return PublicChatSendMessageResponse(
@@ -150,7 +171,9 @@ async def send_public_chat_message(
 
 
 @router.post("/topup", response_model=PublicChatTopUpResponse)
-def topup_public_chat(payload: PublicChatTopUpRequest, db: Session = Depends(get_db)) -> PublicChatTopUpResponse:
+def topup_public_chat(
+    payload: PublicChatTopUpRequest, db: Session = Depends(get_db)
+) -> PublicChatTopUpResponse:
     try:
         session = top_up(db, payload.session_key, payload.tokens)
         return PublicChatTopUpResponse(

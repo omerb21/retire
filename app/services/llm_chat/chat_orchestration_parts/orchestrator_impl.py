@@ -133,8 +133,15 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     def _sanitize_if_words_only(resp: ChatResponse) -> ChatResponse:
         try:
             if bool(getattr(request, "tools_enabled", True)) is False:
-                if isinstance(resp.reply, str) and "###UI_ACTION###" not in resp.reply and "###END_UI_ACTION###" not in resp.reply:
-                    return ChatResponse(reply=sanitize_words_only_output(resp.reply), computed_data=resp.computed_data)
+                if (
+                    isinstance(resp.reply, str)
+                    and "###UI_ACTION###" not in resp.reply
+                    and "###END_UI_ACTION###" not in resp.reply
+                ):
+                    return ChatResponse(
+                        reply=sanitize_words_only_output(resp.reply),
+                        computed_data=resp.computed_data,
+                    )
         except Exception:
             return resp
         return resp
@@ -142,6 +149,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     try:
         try:
             from app.services.agent_trace_logger import log_trace_event
+
             log_trace_event(
                 event_type="execution_path",
                 payload={
@@ -225,14 +233,25 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
             import traceback
             from app.services.agent_trace_logger import log_trace_event
             from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+
             _err_payload = {
                 "error_type": type(exc).__name__,
                 "error_message": str(exc)[:2000],
                 "stack_trace": traceback.format_exc()[:4000],
                 "endpoint": "/api/v1/llm/pension-chat",
             }
-            log_trace_event(event_type="error", payload=_err_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat")
-            _eyes_emit("error", _err_payload, client_id=request.client_id, endpoint="/api/v1/llm/pension-chat")
+            log_trace_event(
+                event_type="error",
+                payload=_err_payload,
+                client_id=request.client_id,
+                endpoint="/api/v1/llm/pension-chat",
+            )
+            _eyes_emit(
+                "error",
+                _err_payload,
+                client_id=request.client_id,
+                endpoint="/api/v1/llm/pension-chat",
+            )
         except Exception:
             pass
         raise

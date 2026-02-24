@@ -86,10 +86,11 @@ def test_restore_snapshot_creates_new_scenario_with_meta(db_session) -> None:
     assert restored is not None
 
     restored_params = json.loads(restored.parameters)
-    assert restored_params.get("pension_portfolio") == full_params.get("pension_portfolio")
+    assert restored_params.get("pension_portfolio") == full_params.get(
+        "pension_portfolio"
+    )
 
     meta = restored_params.get("_meta")
     assert isinstance(meta, dict)
     assert meta.get("operation_type") == "restore_snapshot"
     assert int(meta.get("source_snapshot_id") or 0) == int(full.id)
-

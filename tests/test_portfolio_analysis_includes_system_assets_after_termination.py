@@ -12,7 +12,9 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 
 
-def test_portfolio_analysis_includes_system_assets_after_termination(monkeypatch, _test_db) -> None:
+def test_portfolio_analysis_includes_system_assets_after_termination(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -73,9 +75,13 @@ def test_portfolio_analysis_includes_system_assets_after_termination(monkeypatch
         db.commit()
 
     def fake_chat_stream(*args, **kwargs):
-        raise AssertionError("LLM must not be called for deterministic portfolio analysis")
+        raise AssertionError(
+            "LLM must not be called for deterministic portfolio analysis"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_run_retirement_scenarios(self, *args, **kwargs):
         return {"success": False}
@@ -101,6 +107,6 @@ def test_portfolio_analysis_includes_system_assets_after_termination(monkeypatch
     body = resp.text
 
     assert "## נכסים שנוצרו במערכת (לא מהמסלקה)" in body
-    assert "סה\"כ קצבאות קיימות במערכת (ברוטו חודשי): 1,518 ₪" in body
-    assert "סה\"כ נכסי הון קיימים במערכת: 35,475 ₪" in body
+    assert 'סה"כ קצבאות קיימות במערכת (ברוטו חודשי): 1,518 ₪' in body
+    assert 'סה"כ נכסי הון קיימים במערכת: 35,475 ₪' in body
     assert "מענק פטור שנמשך" in body

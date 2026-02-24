@@ -34,7 +34,9 @@ def build_conversion_tasks_from_accounts(
             validation_errors.append(f"חשבון {idx + 1}: פורמט חשבון לא תקין")
             continue
 
-        account_name = account.get("account_name") or account.get("שם_תכנית", f"חשבון {idx + 1}")
+        account_name = account.get("account_name") or account.get(
+            "שם_תכנית", f"חשבון {idx + 1}"
+        )
         product_type = account.get("product_type") or account.get("סוג_מוצר", "")
         rules_product_type = f"{product_type or ''} {account_name or ''}".strip()
         account_number = (
@@ -120,7 +122,10 @@ def build_conversion_tasks_from_accounts(
                 specific_amounts.pop("תגמולים", None)
 
         if not specific_amounts and (
-            (isinstance(account.get("specific_amounts"), dict) and bool(account.get("specific_amounts")))
+            (
+                isinstance(account.get("specific_amounts"), dict)
+                and bool(account.get("specific_amounts"))
+            )
             or any(
                 k in account
                 for k in (
@@ -162,7 +167,11 @@ def build_conversion_tasks_from_accounts(
                     continue
 
                 override_raw = component_overrides.get(field)
-                override = str(override_raw).strip().lower() if override_raw is not None else ""
+                override = (
+                    str(override_raw).strip().lower()
+                    if override_raw is not None
+                    else ""
+                )
                 if override in {"pension", "capital_asset"}:
                     preferred = override
                 else:
@@ -193,7 +202,10 @@ def build_conversion_tasks_from_accounts(
                         msg = err_msg2 or err_msg or f"לא ניתן להמיר רכיב {field}"
                         if skip_non_convertible_accounts:
                             skipped_non_convertible.append(
-                                {"account_name": account_name, "reason": f"{msg} ({field})"}
+                                {
+                                    "account_name": account_name,
+                                    "reason": f"{msg} ({field})",
+                                }
                             )
                             skipped_items.append(
                                 {
@@ -242,7 +254,8 @@ def build_conversion_tasks_from_accounts(
                         "account": account,
                         "account_name": account_name,
                         "product_type": product_type,
-                        "company": account.get("company") or account.get("חברה_מנהלת", ""),
+                        "company": account.get("company")
+                        or account.get("חברה_מנהלת", ""),
                         "account_number": str(account_number).strip(),
                         "amount": pension_sum,
                         "components": pension_components,
@@ -256,7 +269,8 @@ def build_conversion_tasks_from_accounts(
                         "account": account,
                         "account_name": account_name,
                         "product_type": product_type,
-                        "company": account.get("company") or account.get("חברה_מנהלת", ""),
+                        "company": account.get("company")
+                        or account.get("חברה_מנהלת", ""),
                         "account_number": str(account_number).strip(),
                         "amount": commutation_sum,
                         "components": commutation_components,
@@ -275,7 +289,8 @@ def build_conversion_tasks_from_accounts(
                             "account": account,
                             "account_name": account_name,
                             "product_type": product_type,
-                            "company": account.get("company") or account.get("חברה_מנהלת", ""),
+                            "company": account.get("company")
+                            or account.get("חברה_מנהלת", ""),
                             "account_number": str(account_number).strip(),
                             "amount": part_sum,
                             "components": parts,
@@ -301,11 +316,11 @@ def build_conversion_tasks_from_accounts(
             continue
 
         if conversion_type == "pension":
-            msg = (
-                f"{account_name}: אין פירוט רכיבים ולכן אסור להמיר מוצר קצבתי (ולהפריד פיצויים חסומים/הוניים) באופן בטוח"
-            )
+            msg = f"{account_name}: אין פירוט רכיבים ולכן אסור להמיר מוצר קצבתי (ולהפריד פיצויים חסומים/הוניים) באופן בטוח"
             if skip_non_convertible_accounts:
-                skipped_non_convertible.append({"account_name": account_name, "reason": msg})
+                skipped_non_convertible.append(
+                    {"account_name": account_name, "reason": msg}
+                )
                 skipped_items.append(
                     {
                         "account_name": account_name,
@@ -324,9 +339,7 @@ def build_conversion_tasks_from_accounts(
                 product_type=product_type,
                 account_name=account_name,
             ):
-                msg = (
-                    f"{account_name}: אין פירוט רכיבים ולכן אסור להמיר להון עבור סוג מוצר זה ({product_type})"
-                )
+                msg = f"{account_name}: אין פירוט רכיבים ולכן אסור להמיר להון עבור סוג מוצר זה ({product_type})"
                 if skip_non_convertible_accounts:
                     skipped_non_convertible.append(
                         {"account_name": account_name, "reason": msg}

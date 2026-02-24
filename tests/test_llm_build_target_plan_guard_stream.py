@@ -14,10 +14,14 @@ def test_stream_blocks_build_target_plan_without_numeric_target(monkeypatch) -> 
             return
         yield "final answer"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
-        raise AssertionError("execute_tool_call should not be invoked for invalid BUILD_TARGET_PENSION_PLAN calls")
+        raise AssertionError(
+            "execute_tool_call should not be invoked for invalid BUILD_TARGET_PENSION_PLAN calls"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 

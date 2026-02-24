@@ -3,7 +3,9 @@ import json
 from app.services.llm_agent_tools_service import AgentToolsService
 
 
-def handle_calculate_tax_spread_benefit(*, args: dict, agent_tools: AgentToolsService) -> str:
+def handle_calculate_tax_spread_benefit(
+    *, args: dict, agent_tools: AgentToolsService
+) -> str:
     gross_amount = args.get("gross_amount")
     spread_years = args.get("spread_years")
 

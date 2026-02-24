@@ -11,17 +11,25 @@ from app.models.scenario import Scenario
 
 def _extract_ui_action_payload(body: str) -> dict:
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     return json.loads(payload_json)
 
 
-def test_transform_approval_reason_stronger_after_restore_and_replay_is_stable(monkeypatch, _test_db) -> None:
+def test_transform_approval_reason_stronger_after_restore_and_replay_is_stable(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic execute-target-plan")
+        raise AssertionError(
+            "LLM must not be called for deterministic execute-target-plan"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     calls = {"n": 0}
 

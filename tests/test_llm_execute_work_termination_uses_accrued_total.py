@@ -79,7 +79,7 @@ def test_execute_work_termination_uses_accrued_total_when_greater(db_session) ->
     )
 
     parsed = json.loads(out)
-    sev = (parsed.get("severance_calculated") or {})
+    sev = parsed.get("severance_calculated") or {}
 
     severance_amount = float(sev.get("severance_amount") or 0)
 

@@ -6,7 +6,9 @@ from app.models.pension_fund import PensionFund
 from app.services.llm_chat.tool_execution import execute_tool_call
 
 
-def test_transform_strict_plan_with_db_source_does_not_require_zeroing(_test_db) -> None:
+def test_transform_strict_plan_with_db_source_does_not_require_zeroing(
+    _test_db,
+) -> None:
     """Regression: strict plan execution should not fail-fast when there is no portfolio-source row to zero.
 
     This models the real case:

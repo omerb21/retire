@@ -28,7 +28,8 @@ def run_simulation(db: Session, request: SimulationRequest) -> SimulationResult:
         computed = compute_from_snapshot(snapshot, request)
 
         monthly_cashflow = [
-            MonthlyCashflowItem(**item) for item in (computed.get("monthly_cashflow") or [])
+            MonthlyCashflowItem(**item)
+            for item in (computed.get("monthly_cashflow") or [])
         ]
         monthly_cashflow.sort(key=lambda x: x.month)
 
@@ -38,7 +39,9 @@ def run_simulation(db: Session, request: SimulationRequest) -> SimulationResult:
         converted_targets.sort(key=lambda x: x.target_id)
 
         tax_breakdown = TaxBreakdown(**(computed.get("tax_breakdown") or {}))
-        sustainability_metrics = SustainabilityMetrics(**(computed.get("sustainability_metrics") or {}))
+        sustainability_metrics = SustainabilityMetrics(
+            **(computed.get("sustainability_metrics") or {})
+        )
         exempt_pension_component = computed.get("exempt_pension_component") or {}
         raw_calculation_map = computed.get("raw_calculation_map") or {}
 

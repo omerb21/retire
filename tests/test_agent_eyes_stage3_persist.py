@@ -76,33 +76,55 @@ class TestStage3Persistence(unittest.TestCase):
         trace_id = "stage3-five-events"
         set_current_trace_id(trace_id)
 
-        emit_event("user_input", {
-            "user_message": "מה הקבועים?",
-            "client_id": 1,
-        }, client_id=1, endpoint="/api/v1/llm/pension-chat")
+        emit_event(
+            "user_input",
+            {
+                "user_message": "מה הקבועים?",
+                "client_id": 1,
+            },
+            client_id=1,
+            endpoint="/api/v1/llm/pension-chat",
+        )
 
-        emit_event("llm_request_prepared", {
-            "provider": "openai",
-            "model": "gpt-4",
-            "messages_count": 3,
-        }, client_id=1)
+        emit_event(
+            "llm_request_prepared",
+            {
+                "provider": "openai",
+                "model": "gpt-4",
+                "messages_count": 3,
+            },
+            client_id=1,
+        )
 
-        emit_event("tool_call", {
-            "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
-            "args": {},
-        }, client_id=1)
+        emit_event(
+            "tool_call",
+            {
+                "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
+                "args": {},
+            },
+            client_id=1,
+        )
 
-        emit_event("tool_result", {
-            "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
-            "success": True,
-            "elapsed_ms": 12,
-        }, client_id=1)
+        emit_event(
+            "tool_result",
+            {
+                "tool_name": "GET_SYSTEM_NUMERIC_CONSTANTS",
+                "success": True,
+                "elapsed_ms": 12,
+            },
+            client_id=1,
+        )
 
-        emit_event("assistant_output", {
-            "reply_length": 31,
-            "reply_preview": "הנה הקבועים.",
-            "streaming": False,
-        }, client_id=1, endpoint="/api/v1/llm/pension-chat")
+        emit_event(
+            "assistant_output",
+            {
+                "reply_length": 31,
+                "reply_preview": "הנה הקבועים.",
+                "streaming": False,
+            },
+            client_id=1,
+            endpoint="/api/v1/llm/pension-chat",
+        )
 
         # Query DB
         db = _TestSession()
@@ -119,10 +141,16 @@ class TestStage3Persistence(unittest.TestCase):
         self.assertEqual(len(rows), 5, f"Expected 5 rows, got {len(rows)}")
 
         db_types = [r.event_type for r in rows]
-        mandatory = {"user_input", "llm_request_prepared", "tool_call",
-                     "tool_result", "assistant_output"}
-        self.assertEqual(mandatory - set(db_types), set(),
-                         f"Missing: {mandatory - set(db_types)}")
+        mandatory = {
+            "user_input",
+            "llm_request_prepared",
+            "tool_call",
+            "tool_result",
+            "assistant_output",
+        }
+        self.assertEqual(
+            mandatory - set(db_types), set(), f"Missing: {mandatory - set(db_types)}"
+        )
 
         # All rows share the same trace_id
         for r in rows:
@@ -158,8 +186,9 @@ class TestStage3Persistence(unittest.TestCase):
         self.assertEqual(len(rows), 5)
 
         timestamps = [r.created_at for r in rows]
-        self.assertEqual(timestamps, sorted(timestamps),
-                         "DB rows are not in chronological order")
+        self.assertEqual(
+            timestamps, sorted(timestamps), "DB rows are not in chronological order"
+        )
 
         # Verify event_type order matches emission order
         types = [r.event_type for r in rows]
@@ -258,8 +287,9 @@ class TestStage3Persistence(unittest.TestCase):
         trace_id = "stage3-fields"
         set_current_trace_id(trace_id)
 
-        emit_event("field_test", {"x": 1}, client_id=42,
-                   endpoint="/api/v1/llm/pension-chat")
+        emit_event(
+            "field_test", {"x": 1}, client_id=42, endpoint="/api/v1/llm/pension-chat"
+        )
 
         db = _TestSession()
         try:

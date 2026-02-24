@@ -33,7 +33,10 @@ def upsert_snapshot(
             apply_capitalization=False,
             apply_exemption_shield=False,
             parameters=json.dumps(
-                {"pension_portfolio": pension_portfolio or [], "_meta": dict(meta or {})},
+                {
+                    "pension_portfolio": pension_portfolio or [],
+                    "_meta": dict(meta or {}),
+                },
                 ensure_ascii=False,
             ),
         )
@@ -52,7 +55,9 @@ def upsert_snapshot(
 
     if meta is not None:
         existing_meta = params.get("_meta")
-        merged_meta: dict[str, Any] = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        merged_meta: dict[str, Any] = (
+            dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        )
         for k, v in dict(meta).items():
             merged_meta[str(k)] = v
         params["_meta"] = merged_meta
@@ -63,7 +68,9 @@ def upsert_snapshot(
     return keep
 
 
-def dedupe_pension_portfolio_snapshot(db: Session, client_id: int) -> tuple[int | None, list[int]]:
+def dedupe_pension_portfolio_snapshot(
+    db: Session, client_id: int
+) -> tuple[int | None, list[int]]:
     snapshots = (
         db.query(Scenario)
         .filter(Scenario.client_id == client_id)
@@ -81,7 +88,9 @@ def dedupe_pension_portfolio_snapshot(db: Session, client_id: int) -> tuple[int 
     deleted_ids: list[int] = []
     if len(snapshots) > 1:
         deleted_ids = [int(getattr(s, "id", 0) or 0) for s in snapshots[1:]]
-        deleted_ids = [sid for sid in deleted_ids if sid and (keep_id is None or sid != keep_id)]
+        deleted_ids = [
+            sid for sid in deleted_ids if sid and (keep_id is None or sid != keep_id)
+        ]
         if deleted_ids:
             db.query(Scenario).filter(Scenario.id.in_(deleted_ids)).delete(
                 synchronize_session=False
@@ -119,16 +128,32 @@ def load_latest_pension_portfolio_snapshot(
         for acc in portfolio:
             if not isinstance(acc, dict):
                 continue
-            if _safe_float(acc.get("יתרה") or acc.get("balance") or acc.get("current_balance")) > 0.01:
+            if (
+                _safe_float(
+                    acc.get("יתרה") or acc.get("balance") or acc.get("current_balance")
+                )
+                > 0.01
+            ):
                 return True
             if _safe_float(acc.get("סך_רכיבים") or acc.get("total_components")) > 0.01:
                 return True
-            if _safe_float(acc.get("סך_תגמולים") or acc.get("תגמולים") or acc.get("total_contributions")) > 0.01:
+            if (
+                _safe_float(
+                    acc.get("סך_תגמולים")
+                    or acc.get("תגמולים")
+                    or acc.get("total_contributions")
+                )
+                > 0.01
+            ):
                 return True
             if _safe_float(acc.get("קרן_השתלמות") or acc.get("education_fund")) > 0.01:
                 return True
             for k, v in acc.items():
-                if isinstance(k, str) and k.startswith(component_prefixes) and _safe_float(v) > 0.01:
+                if (
+                    isinstance(k, str)
+                    and k.startswith(component_prefixes)
+                    and _safe_float(v) > 0.01
+                ):
                     return True
         return False
 
@@ -256,7 +281,9 @@ def load_latest_pension_portfolio_snapshot_models(
         for row in items:
             if not isinstance(row, dict):
                 continue
-            bal = _safe_float(row.get("balance") or row.get("יתרה") or row.get("current_balance"))
+            bal = _safe_float(
+                row.get("balance") or row.get("יתרה") or row.get("current_balance")
+            )
             if bal > 0:
                 total_balance += bal
 

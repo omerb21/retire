@@ -14,7 +14,9 @@ def test_flowB_stream_undo_no_snapshot_message(monkeypatch, _test_db) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for undo deterministic flow")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     client_id = 950500002
     with Session() as db:

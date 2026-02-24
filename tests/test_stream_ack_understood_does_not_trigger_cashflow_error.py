@@ -8,7 +8,9 @@ def test_stream_ack_understood_does_not_trigger_cashflow_error(monkeypatch) -> N
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for ack")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("execute_tool_call must not be invoked for ack")

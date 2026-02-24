@@ -46,9 +46,13 @@ def test_user_approved_transform_appends_next_step_hint_only_on_success(
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when user approval marker is present")
+        raise AssertionError(
+            "LLM must not be called when user approval marker is present"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call_success(
         *,
@@ -66,7 +70,9 @@ def test_user_approved_transform_appends_next_step_hint_only_on_success(
         assert user_approved is True
         return json.dumps({"success": True}, ensure_ascii=False)
 
-    monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call_success)
+    monkeypatch.setattr(
+        stream_orch, "execute_tool_call", fake_execute_tool_call_success
+    )
 
     api = TestClient(app)
     response_ok = api.post(

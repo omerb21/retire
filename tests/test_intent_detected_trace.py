@@ -10,7 +10,9 @@ def _build_req(msg: str) -> ChatRequest:
     return ChatRequest(messages=[ChatMessage(role="user", content=msg)], client_id=1)
 
 
-def test_non_stream_emits_intent_detected_before_policy_decision(monkeypatch, db_session):
+def test_non_stream_emits_intent_detected_before_policy_decision(
+    monkeypatch, db_session
+):
     events: list[tuple[str, Any]] = []
 
     def fake_log_trace_event(*, event_type: str, payload=None, **kwargs):

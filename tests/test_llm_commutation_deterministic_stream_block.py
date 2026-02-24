@@ -6,7 +6,9 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 
 
-def test_stream_commutation_request_does_not_trigger_deterministic_transform(monkeypatch, db_session) -> None:
+def test_stream_commutation_request_does_not_trigger_deterministic_transform(
+    monkeypatch, db_session
+) -> None:
     # Even if the LLM would later suggest transforms, the stream orchestration must
     # intercept commutation intent early and never run TRANSFORM_FUNDS_TO_ASSETS.
 
@@ -41,7 +43,9 @@ def test_stream_commutation_request_does_not_trigger_deterministic_transform(mon
     def fake_chat_stream(messages, client_id=None):
         yield "final"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(

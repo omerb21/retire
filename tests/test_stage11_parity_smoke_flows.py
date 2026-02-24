@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 
-
 # NOTE: We intentionally do NOT include a GREETING_SHORTCUT parity flow here.
 # compute_feature_flags disables greeting under PYTEST_CURRENT_TEST, and we must not
 # change product behavior (or “leak env”) to the core just to make greeting testable.
@@ -46,7 +45,9 @@ def _capture_core_run(
     }
 
 
-def _post_non_stream(*, api: TestClient, client_id: int, user_text: str, executor_only: bool = False):
+def _post_non_stream(
+    *, api: TestClient, client_id: int, user_text: str, executor_only: bool = False
+):
     payload = {
         "client_id": client_id,
         "executor_only": bool(executor_only),
@@ -56,7 +57,9 @@ def _post_non_stream(*, api: TestClient, client_id: int, user_text: str, executo
     return api.post("/api/v1/llm/pension-chat", json=payload)
 
 
-def _post_stream(*, api: TestClient, client_id: int, user_text: str, executor_only: bool = False):
+def _post_stream(
+    *, api: TestClient, client_id: int, user_text: str, executor_only: bool = False
+):
     payload = {
         "client_id": client_id,
         "executor_only": bool(executor_only),
@@ -73,7 +76,9 @@ def _assert_wrapper_derived_parity(
     assert_plan_kind: bool,
     allowed_plan_kinds: set | None = None,
 ) -> None:
-    from app.services.llm_chat.orchestration_core.canonicalize import canonicalize_tool_args
+    from app.services.llm_chat.orchestration_core.canonicalize import (
+        canonicalize_tool_args,
+    )
 
     d1 = non_stream["first_core_decision"]
     d2 = stream["first_core_decision"]
@@ -94,9 +99,9 @@ def _assert_wrapper_derived_parity(
         tool_name = str(getattr(d1, "tool_name", "") or "")
         args1 = getattr(d1, "tool_args", None) or {}
         args2 = getattr(d2, "tool_args", None) or {}
-        assert canonicalize_tool_args(tool_name, args1, defaults=None) == canonicalize_tool_args(
-            tool_name, args2, defaults=None
-        )
+        assert canonicalize_tool_args(
+            tool_name, args1, defaults=None
+        ) == canonicalize_tool_args(tool_name, args2, defaults=None)
 
     assert non_stream["core_event_types"] == stream["core_event_types"]
 
@@ -107,11 +112,15 @@ def test_parity_snapshot_stream_vs_nonstream(monkeypatch, client) -> None:
 
     non_stream = _capture_core_run(
         monkeypatch=monkeypatch,
-        run_fn=lambda: _post_non_stream(api=api, client_id=int(client.id), user_text="GET_CLIENT_SNAPSHOT"),
+        run_fn=lambda: _post_non_stream(
+            api=api, client_id=int(client.id), user_text="GET_CLIENT_SNAPSHOT"
+        ),
     )
     stream = _capture_core_run(
         monkeypatch=monkeypatch,
-        run_fn=lambda: _post_stream(api=api, client_id=int(client.id), user_text="GET_CLIENT_SNAPSHOT"),
+        run_fn=lambda: _post_stream(
+            api=api, client_id=int(client.id), user_text="GET_CLIENT_SNAPSHOT"
+        ),
     )
 
     _assert_wrapper_derived_parity(
@@ -120,7 +129,10 @@ def test_parity_snapshot_stream_vs_nonstream(monkeypatch, client) -> None:
         assert_plan_kind=True,
     )
 
-    assert getattr(non_stream["first_core_decision"], "plan_kind", None) == PlanKind.SYSTEM_SNAPSHOT
+    assert (
+        getattr(non_stream["first_core_decision"], "plan_kind", None)
+        == PlanKind.SYSTEM_SNAPSHOT
+    )
 
 
 def test_parity_termination_conceptual_stream_vs_nonstream(monkeypatch, client) -> None:
@@ -130,11 +142,15 @@ def test_parity_termination_conceptual_stream_vs_nonstream(monkeypatch, client) 
 
     non_stream = _capture_core_run(
         monkeypatch=monkeypatch,
-        run_fn=lambda: _post_non_stream(api=api, client_id=int(client.id), user_text=user_text),
+        run_fn=lambda: _post_non_stream(
+            api=api, client_id=int(client.id), user_text=user_text
+        ),
     )
     stream = _capture_core_run(
         monkeypatch=monkeypatch,
-        run_fn=lambda: _post_stream(api=api, client_id=int(client.id), user_text=user_text),
+        run_fn=lambda: _post_stream(
+            api=api, client_id=int(client.id), user_text=user_text
+        ),
     )
 
     _assert_wrapper_derived_parity(
@@ -145,17 +161,23 @@ def test_parity_termination_conceptual_stream_vs_nonstream(monkeypatch, client) 
     )
 
 
-def test_parity_monthly_pension_summary_stream_vs_nonstream(monkeypatch, client) -> None:
+def test_parity_monthly_pension_summary_stream_vs_nonstream(
+    monkeypatch, client
+) -> None:
     api = TestClient(app)
     from app.services.llm_chat.orchestration_core.core_types import PlanKind
 
     non_stream = _capture_core_run(
         monkeypatch=monkeypatch,
-        run_fn=lambda: _post_non_stream(api=api, client_id=int(client.id), user_text="monthly_pension"),
+        run_fn=lambda: _post_non_stream(
+            api=api, client_id=int(client.id), user_text="monthly_pension"
+        ),
     )
     stream = _capture_core_run(
         monkeypatch=monkeypatch,
-        run_fn=lambda: _post_stream(api=api, client_id=int(client.id), user_text="monthly_pension"),
+        run_fn=lambda: _post_stream(
+            api=api, client_id=int(client.id), user_text="monthly_pension"
+        ),
     )
 
     _assert_wrapper_derived_parity(

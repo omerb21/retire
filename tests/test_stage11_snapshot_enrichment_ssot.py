@@ -1,5 +1,7 @@
 from app.services.llm_chat.orchestration_core.core_types import ToolResultEnvelope
-from app.services.llm_chat.orchestration_core.snapshot_enrichment import enrich_state_snapshot
+from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
+    enrich_state_snapshot,
+)
 
 
 def test_enrich_state_snapshot_tax_autochain_gross_monthly_pension_written_for_net_build_target_plan():
@@ -8,7 +10,7 @@ def test_enrich_state_snapshot_tax_autochain_gross_monthly_pension_written_for_n
     env = ToolResultEnvelope(
         tool_name="BUILD_TARGET_PENSION_PLAN",
         tool_args={},
-        tool_result="{\"accumulated_pension\": 12345}",
+        tool_result='{"accumulated_pension": 12345}',
         status="ok",
         error_message=None,
         trace_id=None,

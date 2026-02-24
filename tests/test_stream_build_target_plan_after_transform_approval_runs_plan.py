@@ -11,7 +11,9 @@ from app.models.scenario import Scenario
 from app.services.llm_agent_tools_service import AgentToolsService
 
 
-def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch, _test_db) -> None:
+def test_stream_build_target_plan_after_transform_approval_runs_plan(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 950000002
@@ -49,7 +51,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
                 apply_tax_planning=False,
                 apply_capitalization=False,
                 apply_exemption_shield=False,
-                parameters=json.dumps({"pension_portfolio": snapshot_accounts}, ensure_ascii=False),
+                parameters=json.dumps(
+                    {"pension_portfolio": snapshot_accounts}, ensure_ascii=False
+                ),
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -58,10 +62,16 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for tools-first plan request")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_build_target_pension_plan(
-        self, target_monthly_pension, target_is_net, retirement_age=None, ignore_blocked_balances=True
+        self,
+        target_monthly_pension,
+        target_is_net,
+        retirement_age=None,
+        ignore_blocked_balances=True,
     ):
         return {
             "success": True,
@@ -98,7 +108,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
             "explanation": "OK",
         }
 
-    monkeypatch.setattr(AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan)
+    monkeypatch.setattr(
+        AgentToolsService, "build_target_pension_plan", fake_build_target_pension_plan
+    )
 
     original_execute_tool_call = stream_orch.execute_tool_call
 
@@ -119,7 +131,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
         tool_calls.append(tool_name)
         if tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
             assert user_approved is True
-            assert isinstance(args.get("accounts"), list) and len(args.get("accounts")) > 0
+            assert (
+                isinstance(args.get("accounts"), list) and len(args.get("accounts")) > 0
+            )
             assert args.get("use_provided_accounts_only") is True
             assert args.get("ignore_blocked_balances") is True
             assert args.get("skip_non_convertible_accounts") is True
@@ -156,7 +170,9 @@ def test_stream_build_target_plan_after_transform_approval_runs_plan(monkeypatch
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": client_id,
-            "messages": [{"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}],
+            "messages": [
+                {"role": "user", "content": "בנה תכנית יעד קצבה יעד נטו 30000"}
+            ],
             "pension_portfolio": [],
         },
     )

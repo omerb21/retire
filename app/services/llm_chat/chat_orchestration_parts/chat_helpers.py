@@ -26,7 +26,9 @@ def _is_target_plan_adjust_request(text: str | None) -> bool:
         return False
     if "קצבה" not in lowered:
         return False
-    if not any(token in lowered for token in ("גבוה", "גבוהה", "יותר", "מדי", "תקן", "לתקן")):
+    if not any(
+        token in lowered for token in ("גבוה", "גבוהה", "יותר", "מדי", "תקן", "לתקן")
+    ):
         return False
     return True
 
@@ -40,11 +42,18 @@ def _infer_target_is_net_explicit(text: str | None) -> bool | None:
     return None
 
 
-def _is_target_plan_adjust_followup(user_text: str | None, history: list[ChatMessage]) -> bool:
+def _is_target_plan_adjust_followup(
+    user_text: str | None, history: list[ChatMessage]
+) -> bool:
     lowered = (user_text or "").lower()
     if not lowered.strip():
         return False
-    if ("נטו" not in lowered) and ("ברוטו" not in lowered) and ("net" not in lowered) and ("gross" not in lowered):
+    if (
+        ("נטו" not in lowered)
+        and ("ברוטו" not in lowered)
+        and ("net" not in lowered)
+        and ("gross" not in lowered)
+    ):
         return False
     if not any(ch.isdigit() for ch in lowered):
         return False
@@ -56,7 +65,7 @@ def _is_target_plan_adjust_followup(user_text: str | None, history: list[ChatMes
     if not last_assistant:
         return False
     probe = last_assistant
-    return ("ברוטו" in probe and "נטו" in probe and "כדי לתקן" in probe)
+    return "ברוטו" in probe and "נטו" in probe and "כדי לתקן" in probe
 
 
 def _fmt_money(v: object) -> str:
@@ -126,9 +135,11 @@ def _user_requested_target_pension_plan(text: str) -> bool:
     ]
     if not any(k in lowered for k in planning_keywords):
         return False
-    has_numeric = bool(re.search(r"\b\d{2,3}\s*[kK]\b", lowered)) or bool(
-        re.search(r"\b\d{4,6}\b", lowered)
-    ) or ("אלף" in lowered)
+    has_numeric = (
+        bool(re.search(r"\b\d{2,3}\s*[kK]\b", lowered))
+        or bool(re.search(r"\b\d{4,6}\b", lowered))
+        or ("אלף" in lowered)
+    )
     return has_numeric
 
 

@@ -32,7 +32,9 @@ def test_stream_transform_emits_pension_portfolio_update_marker(monkeypatch) -> 
             return
         yield "PASS - done"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -151,7 +153,10 @@ def test_stream_transform_portfolio_wide_after2000_is_filtered(monkeypatch) -> N
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_אחרי_2000", "תגמולי_מעביד_אחרי_2000"}
@@ -161,14 +166,22 @@ def test_stream_execute_target_plan_requests_approval(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic execute-target-plan")
+        raise AssertionError(
+            "LLM must not be called for deterministic execute-target-plan"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_store_pending_approval_request(*args, **kwargs):
         return None
 
-    monkeypatch.setattr(stream_orch, "store_pending_approval_request", fake_store_pending_approval_request)
+    monkeypatch.setattr(
+        stream_orch,
+        "store_pending_approval_request",
+        fake_store_pending_approval_request,
+    )
 
     def fake_build_transform_accounts_from_target_plan_payload(payload: dict):
         return [
@@ -196,7 +209,10 @@ def test_stream_execute_target_plan_requests_approval(monkeypatch) -> None:
                     + json.dumps(
                         {
                             "tool_name": "BUILD_TARGET_PENSION_PLAN",
-                            "args": {"target_monthly_pension": 28000, "target_is_net": True},
+                            "args": {
+                                "target_monthly_pension": 28000,
+                                "target_is_net": True,
+                            },
                             "result": {"sources_used": []},
                         },
                         ensure_ascii=False,
@@ -219,7 +235,9 @@ def test_stream_full_report_routes_without_llm(monkeypatch) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM must not be called for deterministic full report")
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     captured: dict = {}
 
@@ -261,7 +279,9 @@ def test_stream_full_report_routes_without_llm(monkeypatch) -> None:
     assert captured.get("tool_name") == "GENERATE_FULL_REPORT"
 
 
-def test_pension_chat_stream_does_not_500_with_additional_incomes(db_session, client, monkeypatch) -> None:
+def test_pension_chat_stream_does_not_500_with_additional_incomes(
+    db_session, client, monkeypatch
+) -> None:
     from app.models.additional_income import AdditionalIncome
     from datetime import date
     from decimal import Decimal
@@ -284,7 +304,9 @@ def test_pension_chat_stream_does_not_500_with_additional_incomes(db_session, cl
     def fake_chat_stream(messages, client_id=None):
         yield "PASS - done"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     api = TestClient(app)
     response = api.post(
@@ -300,13 +322,19 @@ def test_pension_chat_stream_does_not_500_with_additional_incomes(db_session, cl
     assert "PASS - done" in response.text
 
 
-def test_stream_full_capital_withdrawal_routes_to_max_capital_scenario(monkeypatch) -> None:
+def test_stream_full_capital_withdrawal_routes_to_max_capital_scenario(
+    monkeypatch,
+) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic max-capital routing")
+        raise AssertionError(
+            "LLM must not be called for deterministic max-capital routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -375,12 +403,18 @@ def test_stream_cashflow_request_runs_cashflow_tool(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic cashflow routing")
+        raise AssertionError(
+            "LLM must not be called for deterministic cashflow routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -407,12 +441,18 @@ def test_stream_cashflow_request_parses_hebrew_thousands(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for deterministic cashflow routing")
+        raise AssertionError(
+            "LLM must not be called for deterministic cashflow routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -464,7 +504,9 @@ def test_cashflow_includes_additional_income_in_gap_calculation(
     db_session.add(ai)
     db_session.commit()
 
-    agent = AgentToolsService(db_session, client_id=client.id, pension_portfolio_data=[])
+    agent = AgentToolsService(
+        db_session, client_id=client.id, pension_portfolio_data=[]
+    )
 
     # Run analysis with the same desired income. We don't assert numeric values,
     # only structural expectations: additional income should be reflected.
@@ -480,20 +522,30 @@ def test_cashflow_includes_additional_income_in_gap_calculation(
     result = res.get("result") or {}
     assert result.get("additional_income_gross_monthly") == 12000.0
     assert result.get("additional_income_taxable_gross_monthly") == 12000.0
-    assert (result.get("monthly_income_tax_total") or 0) >= (result.get("monthly_income_tax") or 0)
-    assert (result.get("total_guaranteed_income_net") or 0) >= (result.get("projected_pension_net") or 0)
+    assert (result.get("monthly_income_tax_total") or 0) >= (
+        result.get("monthly_income_tax") or 0
+    )
+    assert (result.get("total_guaranteed_income_net") or 0) >= (
+        result.get("projected_pension_net") or 0
+    )
 
 
 def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None:
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM should not be called for deterministic cashflow clarification")
+        raise AssertionError(
+            "LLM should not be called for deterministic cashflow clarification"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs):
-        raise AssertionError("No tools should be executed for cashflow without an existing plan")
+        raise AssertionError(
+            "No tools should be executed for cashflow without an existing plan"
+        )
 
     monkeypatch.setattr(stream_orch, "execute_tool_call", fake_execute_tool_call)
 
@@ -502,7 +554,12 @@ def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח מכל המקורות ביחד. אנא בנה לי תזרים"}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "פרשתי לפני יומיים. אני זקוק להכנסה של 40 אלף שח מכל המקורות ביחד. אנא בנה לי תזרים",
+                }
+            ],
             "pension_portfolio": [],
         },
     )
@@ -510,7 +567,9 @@ def test_stream_cashflow_ambiguous_target_prompts_gross_net(monkeypatch) -> None
     assert response.text.strip() == "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
 
 
-def test_cashflow_tool_handler_returns_full_payload_with_explanation(monkeypatch) -> None:
+def test_cashflow_tool_handler_returns_full_payload_with_explanation(
+    monkeypatch,
+) -> None:
     from app.services.llm_chat.tool_handlers.run_retirement_cashflow_analysis import (
         handle_run_retirement_cashflow_analysis,
     )
@@ -523,12 +582,19 @@ def test_cashflow_tool_handler_returns_full_payload_with_explanation(monkeypatch
             return {
                 "success": True,
                 "tool_name": "RUN_RETIREMENT_CASHFLOW_ANALYSIS",
-                "result": {"total_guaranteed_income_net": 1.0, "additional_income_gross_monthly": 2.0},
+                "result": {
+                    "total_guaranteed_income_net": 1.0,
+                    "additional_income_gross_monthly": 2.0,
+                },
                 "explanation": "EXPLANATION_WITH_ADDITIONAL_INCOME",
             }
 
     raw = handle_run_retirement_cashflow_analysis(
-        args={"retirement_date": "2026-01-02", "desired_monthly_income": 40000, "desired_income_is_net": True},
+        args={
+            "retirement_date": "2026-01-02",
+            "desired_monthly_income": 40000,
+            "desired_income_is_net": True,
+        },
         agent_tools=DummyAgentTools(),
         force_max_exemption=False,
     )
@@ -540,7 +606,9 @@ def test_cashflow_tool_handler_returns_full_payload_with_explanation(monkeypatch
 
 
 def test_cashflow_formatter_prefers_explanation_when_present() -> None:
-    from app.services.llm_chat.orchestration_utils import format_tool_output_for_user_stream
+    from app.services.llm_chat.orchestration_utils import (
+        format_tool_output_for_user_stream,
+    )
 
     payload = {
         "success": True,
@@ -548,7 +616,9 @@ def test_cashflow_formatter_prefers_explanation_when_present() -> None:
         "result": {"total_guaranteed_income_net": 1.0},
         "explanation": "EXPLAIN_ME",
     }
-    out = format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", json.dumps(payload))
+    out = format_tool_output_for_user_stream(
+        "RUN_RETIREMENT_CASHFLOW_ANALYSIS", json.dumps(payload)
+    )
     assert out == "EXPLAIN_ME"
 
 
@@ -556,9 +626,13 @@ def test_stream_commutation_without_account_asks_for_account(monkeypatch) -> Non
     import app.services.llm_chat.chat_stream_orchestration as stream_orch
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called when commutation is missing account")
+        raise AssertionError(
+            "LLM must not be called when commutation is missing account"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[str] = []
 
@@ -599,7 +673,9 @@ def test_stream_commutation_without_account_asks_for_account(monkeypatch) -> Non
     assert "מספר חשבון" in response.text
 
 
-def test_stream_transform_portfolio_wide_severance_after_settlement_is_filtered(monkeypatch) -> None:
+def test_stream_transform_portfolio_wide_severance_after_settlement_is_filtered(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -668,7 +744,10 @@ def test_stream_transform_portfolio_wide_severance_after_settlement_is_filtered(
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"פיצויים_לאחר_התחשבנות"}
@@ -745,7 +824,9 @@ def test_stream_transform_targeted_account_to2000_is_filtered(monkeypatch) -> No
     assert set(specific.keys()) == {"תגמולי_עובד_עד_2000", "תגמולי_מעביד_עד_2000"}
 
 
-def test_stream_transform_prev_employers_severance_katzba_is_filtered(monkeypatch) -> None:
+def test_stream_transform_prev_employers_severance_katzba_is_filtered(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "494930",
@@ -816,7 +897,9 @@ def test_stream_transform_prev_employers_severance_katzba_is_filtered(monkeypatc
     assert set(specific.keys()) == {"פיצויים_ממעסיקים_קודמים_רצף_קצבה"}
 
 
-def test_stream_transform_prev_employers_severance_baatsa_merah_does_not_trigger_termination(monkeypatch) -> None:
+def test_stream_transform_prev_employers_severance_baatsa_merah_does_not_trigger_termination(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "A-111",
@@ -854,7 +937,9 @@ def test_stream_transform_prev_employers_severance_baatsa_merah_does_not_trigger
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "בצע המרה של פיצויים מעסיקים קודמים (קצבה)"}],
+            "messages": [
+                {"role": "user", "content": "בצע המרה של פיצויים מעסיקים קודמים (קצבה)"}
+            ],
             "pension_portfolio": portfolio_accounts,
         },
     )
@@ -872,7 +957,9 @@ def test_stream_transform_prev_employers_severance_baatsa_merah_does_not_trigger
     assert set(specific.keys()) == {"פיצויים_ממעסיקים_קודמים_רצף_קצבה"}
 
 
-def test_stream_transform_after_settlement_baatsa_merah_does_not_trigger_termination(monkeypatch) -> None:
+def test_stream_transform_after_settlement_baatsa_merah_does_not_trigger_termination(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "PEN-001",
@@ -910,7 +997,9 @@ def test_stream_transform_after_settlement_baatsa_merah_does_not_trigger_termina
         "/api/v1/llm/pension-chat-stream",
         json={
             "client_id": 1,
-            "messages": [{"role": "user", "content": "בצע המרה של פיצויים לאחר התחשבנות"}],
+            "messages": [
+                {"role": "user", "content": "בצע המרה של פיצויים לאחר התחשבנות"}
+            ],
             "pension_portfolio": portfolio_accounts,
         },
     )
@@ -1001,7 +1090,10 @@ def test_stream_transform_portfolio_wide_to2000_is_filtered(monkeypatch) -> None
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-TO-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-TO-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_עד_2000", "תגמולי_מעביד_עד_2000"}
@@ -1011,7 +1103,9 @@ def test_stream_transform_portfolio_wide_to2000_is_filtered(monkeypatch) -> None
     assert set(str(v) for v in overrides.values()) == {"capital_asset"}
 
 
-def test_stream_transform_portfolio_wide_education_fund_is_filtered(monkeypatch) -> None:
+def test_stream_transform_portfolio_wide_education_fund_is_filtered(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -1078,7 +1172,10 @@ def test_stream_transform_portfolio_wide_education_fund_is_filtered(monkeypatch)
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "EDU-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "EDU-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"קרן_השתלמות"}
@@ -1088,7 +1185,9 @@ def test_stream_transform_portfolio_wide_education_fund_is_filtered(monkeypatch)
     assert set(str(v) for v in overrides.values()) == {"capital_asset"}
 
 
-def test_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(monkeypatch) -> None:
+def test_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "EDU-001",
@@ -1158,7 +1257,10 @@ def test_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(monkeyp
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "PEN-TO-001"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "PEN-TO-001"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_עד_2000", "תגמולי_מעביד_עד_2000"}
@@ -1168,7 +1270,9 @@ def test_stream_transform_portfolio_wide_to2000_baatsa_merah_is_filtered(monkeyp
     assert set(str(v) for v in overrides.values()) == {"capital_asset"}
 
 
-def test_stream_transform_prev_employers_severance_pension_is_filtered(monkeypatch) -> None:
+def test_stream_transform_prev_employers_severance_pension_is_filtered(
+    monkeypatch,
+) -> None:
     portfolio_accounts = [
         {
             "מספר_חשבון": "A-111",
@@ -1328,7 +1432,10 @@ def test_stream_transform_targeted_account_after2000_is_filtered(monkeypatch) ->
     accounts = args.get("accounts")
     assert isinstance(accounts, list)
     assert len(accounts) == 1
-    assert str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון")) == "494930"
+    assert (
+        str(accounts[0].get("account_number") or accounts[0].get("מספר_חשבון"))
+        == "494930"
+    )
     specific = accounts[0].get("specific_amounts")
     assert isinstance(specific, dict)
     assert set(specific.keys()) == {"תגמולי_עובד_אחרי_2000", "תגמולי_מעביד_אחרי_2000"}

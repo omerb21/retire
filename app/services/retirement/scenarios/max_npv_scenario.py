@@ -2,6 +2,7 @@
 Maximum NPV Scenario (Balanced 50/50)
 תרחיש מאוזן - מקסימום NPV
 """
+
 import logging
 from typing import Dict
 from datetime import date
@@ -18,18 +19,18 @@ logger = logging.getLogger("app.scenarios.max_npv")
 
 class MaxNPVScenario(BaseScenarioBuilder):
     """תרחיש 3: מאוזן - 50% ערך כקצבה, 50% ערך כהון"""
-    
+
     def build_scenario(self) -> Dict:
         """בניית תרחיש מאוזן"""
         logger.info("📊 Building Scenario 3: Balanced (50/50 Split)")
         self._log_scenario_start("מאוזן (50% קצבה, 50% הון)")
-        
+
         # Step 0: Import pension portfolio if provided
         self._import_pension_portfolio_if_needed()
-        
+
         # Step 0.1: Apply 4% compound projection up to retirement date (if > ~6 months away)
         self._apply_retirement_projection_if_needed()
-        
+
         # Step 0.5: Handle termination event - convert to capital first
         if self.use_current_employer_termination:
             # תרחיש 3: מאוזן – חלק פטור כהון, חלק חייב כקצבה
@@ -37,28 +38,36 @@ class MaxNPVScenario(BaseScenarioBuilder):
                 exempt_choice="redeem_with_exemption",
                 taxable_choice="annuity",
             )
-        
+
         # Step 1: Convert education funds to capital (keep as exempt capital)
         self.conversion_service.convert_education_funds_to_capital()
-        
+
         # Step 2: Convert pension funds to pensions (excluding education funds)
         self._convert_pension_funds_to_pension()
-        
+
         # Step 3: Keep existing capital assets as is
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id
-        ).all()
-        total_capital_monthly = sum(float(ca.monthly_income or 0) for ca in capital_assets)
-        logger.info(f"  ✅ Keeping {len(capital_assets)} capital assets ({total_capital_monthly:,.0f} ₪/month) as is")
-        
+        capital_assets = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .all()
+        )
+        total_capital_monthly = sum(
+            float(ca.monthly_income or 0) for ca in capital_assets
+        )
+        logger.info(
+            f"  ✅ Keeping {len(capital_assets)} capital assets ({total_capital_monthly:,.0f} ₪/month) as is"
+        )
+
         # Step 4: Capitalize half (50%) of the PENSION FUNDS value only
         self._capitalize_half_of_pensions()
-        
+
         # Step 5: Verify
         self.conversion_service.verify_fixation_and_exempt_pension()
-        
+
         # Step 6: Calculate and return (עם חישוב הון מותאם כמו במקסימום הון)
-        results = self._calculate_scenario_results_with_capital("מאוזן (50% קצבה, 50% הון)")
+        results = self._calculate_scenario_results_with_capital(
+            "מאוזן (50% קצבה, 50% הון)"
+        )
         self._log_scenario_complete("מאוזן (50% קצבה, 50% הון)")
         return results
 
@@ -71,9 +80,11 @@ class MaxNPVScenario(BaseScenarioBuilder):
         """
         results = self._calculate_scenario_results(scenario_name)
 
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id
-        ).all()
+        capital_assets = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .all()
+        )
 
         total_capital = 0.0
         for ca in capital_assets:
@@ -105,17 +116,23 @@ class MaxNPVScenario(BaseScenarioBuilder):
 
     def _convert_pension_funds_to_pension(self):
         """המרת קרנות פנסיה לקצבה"""
-        pension_funds = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id,
-            ~PensionFund.fund_type.like('%השתלמות%')
-        ).all()
-        
+        pension_funds = (
+            self.db.query(PensionFund)
+            .filter(
+                PensionFund.client_id == self.client_id,
+                ~PensionFund.fund_type.like("%השתלמות%"),
+            )
+            .all()
+        )
+
         for pf in pension_funds:
             if pf.balance and pf.annuity_factor:
-                convert_balance_to_pension(pf, self._get_retirement_year(), self._add_action)
-        
+                convert_balance_to_pension(
+                    pf, self._get_retirement_year(), self._add_action
+                )
+
         self.db.flush()
-    
+
     def _get_max_capitalizable_pension(self, pf: PensionFund) -> float:
         """חישוב חלק הקצבה המקסימלי שניתן להוון להון לפי רכיבים מתיק פנסיוני"""
         pension_amount = float(pf.pension_amount or 0)
@@ -176,7 +193,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
             ratio = 1.0
 
         return pension_amount * ratio
-    
+
     def _get_pension_value_for_balancing(self, pf: PensionFund) -> float:
         """ערך הוני של קצבה לצורך איזון 50/50 בין קצבה להון."""
         try:
@@ -198,7 +215,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
 
         # נפילה לברירת מחדל – שימוש במקדם כללי כאשר אין נתוני מקדם/יתרה
         return pension_amount * PENSION_COEFFICIENT
-    
+
     def _get_capital_value_for_balancing(self, ca: CapitalAsset) -> float:
         """ערך הוני של נכס הון לצורך איזון 50/50 (רק נכסים שמייצרים תזרים חודשי)."""
         try:
@@ -208,24 +225,34 @@ class MaxNPVScenario(BaseScenarioBuilder):
         if income > 0:
             return income
         return 0.0
-    
+
     def _capitalize_half_of_pensions(self):
         """איזון בין קצבאות לנכסי הון כך שהערך ההוני של כל צד יתקרב ככל האפשר ל-50/50."""
-        all_pensions = self.db.query(PensionFund).filter(
-            PensionFund.client_id == self.client_id
-        ).all()
+        all_pensions = (
+            self.db.query(PensionFund)
+            .filter(PensionFund.client_id == self.client_id)
+            .all()
+        )
 
-        capital_assets = self.db.query(CapitalAsset).filter(
-            CapitalAsset.client_id == self.client_id
-        ).all()
+        capital_assets = (
+            self.db.query(CapitalAsset)
+            .filter(CapitalAsset.client_id == self.client_id)
+            .all()
+        )
 
         if not all_pensions:
             logger.info("  ℹ️ No pensions found for 50/50 balancing")
             return
 
-        total_pension_monthly = sum(float(pf.pension_amount or 0) for pf in all_pensions)
-        pension_value = sum(self._get_pension_value_for_balancing(pf) for pf in all_pensions)
-        capital_value = sum(self._get_capital_value_for_balancing(ca) for ca in capital_assets)
+        total_pension_monthly = sum(
+            float(pf.pension_amount or 0) for pf in all_pensions
+        )
+        pension_value = sum(
+            self._get_pension_value_for_balancing(pf) for pf in all_pensions
+        )
+        capital_value = sum(
+            self._get_capital_value_for_balancing(ca) for ca in capital_assets
+        )
 
         logger.info(
             f"  50/50 balancing (lump-sum values): pension={pension_value:,.0f}, capital={capital_value:,.0f}"
@@ -237,7 +264,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
 
         # אם כבר יש שווי כמעט שווה – אין צורך בשינוי
         if abs(pension_value - capital_value) < 1:
-            logger.info("  ℹ️ Pension and capital values already balanced – skipping rebalancing")
+            logger.info(
+                "  ℹ️ Pension and capital values already balanced – skipping rebalancing"
+            )
             return
 
         # ענף 1: קצבאות גבוהות מהון – מבצעים היוון כמו במקסימום הון, עד לאיזון / קצבת מינימום
@@ -267,10 +296,14 @@ class MaxNPVScenario(BaseScenarioBuilder):
             )
 
             if target_capitalize_value <= 0:
-                logger.info("  ℹ️ No room to capitalize without breaching minimum pension")
+                logger.info(
+                    "  ℹ️ No room to capitalize without breaching minimum pension"
+                )
                 return
 
-            self._perform_capitalization(all_pensions, target_capitalize_value, total_pension_monthly)
+            self._perform_capitalization(
+                all_pensions, target_capitalize_value, total_pension_monthly
+            )
             self.db.flush()
             return
 
@@ -281,22 +314,29 @@ class MaxNPVScenario(BaseScenarioBuilder):
             capital_value,
         )
         self.db.flush()
-    
-    def _perform_capitalization(self, all_pensions, target_capitalize_value, total_pension_monthly):
+
+    def _perform_capitalization(
+        self, all_pensions, target_capitalize_value, total_pension_monthly
+    ):
         """ביצוע היוון בפועל כאשר הקצבאות גבוהות מההון."""
         # Sort by annuity factor (worst quality first)
         sorted_pensions = sorted(
             [pf for pf in all_pensions if pf.pension_amount and pf.annuity_factor],
             key=lambda p: p.annuity_factor,
-            reverse=True  # Highest annuity factor first (worst quality)
+            reverse=True,  # Highest annuity factor first (worst quality)
         )
 
         capitalized_value = 0.0
         remaining_pension = float(total_pension_monthly or 0.0)
 
         for pf in sorted_pensions:
-            if capitalized_value >= target_capitalize_value or remaining_pension <= MINIMUM_PENSION:
-                logger.info(f"  ✅ Keeping pension: {pf.fund_name} ({pf.pension_amount} ₪)")
+            if (
+                capitalized_value >= target_capitalize_value
+                or remaining_pension <= MINIMUM_PENSION
+            ):
+                logger.info(
+                    f"  ✅ Keeping pension: {pf.fund_name} ({pf.pension_amount} ₪)"
+                )
                 continue
 
             pf_value = float(pf.pension_amount or 0) * float(pf.annuity_factor or 0)
@@ -306,11 +346,16 @@ class MaxNPVScenario(BaseScenarioBuilder):
                 continue
 
             # בדיקה האם ניתן להוון מבלי לרדת מתחת לקצבת המינימום
-            can_capitalize_amount = max(0.0, min(float(pf.pension_amount or 0), remaining_pension - MINIMUM_PENSION))
+            can_capitalize_amount = max(
+                0.0,
+                min(float(pf.pension_amount or 0), remaining_pension - MINIMUM_PENSION),
+            )
 
             # מגבלה נוספת: רק החלק שניתן להוון לפי רכיבים (תגמולים עד 2000, פיצויים לאחר התחשבנות וכו')
             max_by_components_monthly = self._get_max_capitalizable_pension(pf)
-            max_by_components_value = max_by_components_monthly * float(pf.annuity_factor or 0)
+            max_by_components_value = max_by_components_monthly * float(
+                pf.annuity_factor or 0
+            )
 
             allowed_value_for_fund = min(
                 need_to_capitalize,
@@ -335,7 +380,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
                 self._capitalize_partial_fund(pf, allowed_value_for_fund)
                 capitalized_value += allowed_value_for_fund
 
-        logger.info(f"  ✅ Capitalized {capitalized_value:,.0f} ₪ (target: {target_capitalize_value:,.0f})")
+        logger.info(
+            f"  ✅ Capitalized {capitalized_value:,.0f} ₪ (target: {target_capitalize_value:,.0f})"
+        )
 
     def _rebalance_capital_to_pension_for_50_50(
         self,
@@ -345,7 +392,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
     ) -> None:
         """המרת נכסי הון לקצבאות עד שאיזון 50/50 בין קצבה להון מושג ככל האפשר."""
         if capital_value <= pension_value:
-            logger.info("  ℹ️ No need to convert capital to pension (capital ≤ pension)")
+            logger.info(
+                "  ℹ️ No need to convert capital to pension (capital ≤ pension)"
+            )
             return
 
         total_value = pension_value + capital_value
@@ -358,8 +407,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
 
         # נכלול רק נכסי הון שמייצרים תזרים חודשי
         eligible_assets = [
-            ca for ca in capital_assets
-            if self._get_capital_value_for_balancing(ca) > 0
+            ca for ca in capital_assets if self._get_capital_value_for_balancing(ca) > 0
         ]
 
         if not eligible_assets or required_conversion_value <= 0:
@@ -391,7 +439,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
             f"unconverted={max(0.0, remaining_to_convert):,.0f}"
         )
 
-    def _convert_capital_asset_partial_to_pension(self, ca: CapitalAsset, convert_value: float) -> None:
+    def _convert_capital_asset_partial_to_pension(
+        self, ca: CapitalAsset, convert_value: float
+    ) -> None:
         """המרה חלקית/מלאה של נכס הון לקצבה לצורך איזון 50/50."""
         try:
             full_value = float(ca.monthly_income or 0)
@@ -404,7 +454,9 @@ class MaxNPVScenario(BaseScenarioBuilder):
         convert_value = min(convert_value, full_value)
         remaining_value = full_value - convert_value
 
-        tax_treatment = ca.tax_treatment if getattr(ca, "tax_treatment", None) else "taxable"
+        tax_treatment = (
+            ca.tax_treatment if getattr(ca, "tax_treatment", None) else "taxable"
+        )
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
 
         pension_amount = convert_value / PENSION_COEFFICIENT
@@ -418,14 +470,16 @@ class MaxNPVScenario(BaseScenarioBuilder):
             pension_start_date=date(self._get_retirement_year(), 1, 1),
             indexation_method="none",
             tax_treatment=tax_treatment,
-            conversion_source=json.dumps({
-                "source_type": "capital_asset",
-                "source_id": getattr(ca, "id", None),
-                "source_name": ca.asset_name,
-                "original_value": convert_value,
-                "tax_treatment": tax_treatment,
-                "partial": convert_value < full_value,
-            }),
+            conversion_source=json.dumps(
+                {
+                    "source_type": "capital_asset",
+                    "source_id": getattr(ca, "id", None),
+                    "source_name": ca.asset_name,
+                    "original_value": convert_value,
+                    "tax_treatment": tax_treatment,
+                    "partial": convert_value < full_value,
+                }
+            ),
         )
         self.db.add(pf)
 
@@ -449,12 +503,12 @@ class MaxNPVScenario(BaseScenarioBuilder):
             to_asset=f"קצבה: {pension_amount:,.0f} ₪/חודש ({tax_status})",
             amount=convert_value,
         )
-    
+
     def _capitalize_full_fund(self, pf, pf_value):
         """היוון מלא של קרן"""
         tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
-        
+
         remarks = None
         if getattr(pf, "id", None) is not None:
             remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={pf_value}"
@@ -464,12 +518,34 @@ class MaxNPVScenario(BaseScenarioBuilder):
             "id": getattr(pf, "id", None),
             "fund_name": getattr(pf, "fund_name", None),
             "fund_type": getattr(pf, "fund_type", None),
-            "input_mode": str(getattr(pf, "input_mode", None)) if getattr(pf, "input_mode", None) is not None else None,
-            "balance": float(pf.balance) if getattr(pf, "balance", None) is not None else None,
-            "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
-            "pension_amount": float(pf.pension_amount) if getattr(pf, "pension_amount", None) is not None else None,
-            "pension_start_date": pf.pension_start_date.isoformat() if getattr(pf, "pension_start_date", None) else None,
-            "indexation_method": str(getattr(pf, "indexation_method", None)) if getattr(pf, "indexation_method", None) is not None else None,
+            "input_mode": (
+                str(getattr(pf, "input_mode", None))
+                if getattr(pf, "input_mode", None) is not None
+                else None
+            ),
+            "balance": (
+                float(pf.balance) if getattr(pf, "balance", None) is not None else None
+            ),
+            "annuity_factor": (
+                float(pf.annuity_factor)
+                if getattr(pf, "annuity_factor", None) is not None
+                else None
+            ),
+            "pension_amount": (
+                float(pf.pension_amount)
+                if getattr(pf, "pension_amount", None) is not None
+                else None
+            ),
+            "pension_start_date": (
+                pf.pension_start_date.isoformat()
+                if getattr(pf, "pension_start_date", None)
+                else None
+            ),
+            "indexation_method": (
+                str(getattr(pf, "indexation_method", None))
+                if getattr(pf, "indexation_method", None) is not None
+                else None
+            ),
             "tax_treatment": getattr(pf, "tax_treatment", None),
             "deduction_file": getattr(pf, "deduction_file", None),
             "remarks": getattr(pf, "remarks", None),
@@ -487,25 +563,30 @@ class MaxNPVScenario(BaseScenarioBuilder):
             indexation_method="none",
             tax_treatment=tax_treatment,
             remarks=remarks,
-            conversion_source=json.dumps({
-                "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
-                "scenario_type": "retirement",
-                "source_type": "pension_fund",
-                "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
-                "pension_fund_id": getattr(pf, "id", None),
-                "tax_treatment": tax_treatment,
-                "original_pension": original_pension_snapshot,
-            }, ensure_ascii=False)
+            conversion_source=json.dumps(
+                {
+                    "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
+                    "scenario_type": "retirement",
+                    "source_type": "pension_fund",
+                    "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
+                    "pension_fund_id": getattr(pf, "id", None),
+                    "tax_treatment": tax_treatment,
+                    "original_pension": original_pension_snapshot,
+                },
+                ensure_ascii=False,
+            ),
         )
         self.db.add(ca)
-        
-        logger.info(f"  Full capitalization: {pf.fund_name} → {pf_value} ₪ capital ({tax_status})")
+
+        logger.info(
+            f"  Full capitalization: {pf.fund_name} → {pf_value} ₪ capital ({tax_status})"
+        )
         self._add_action(
             "capitalization",
             f"היוון מלא (50%): {pf.fund_name} ({tax_status})",
             from_asset=f"קצבה: {pf.fund_name} ({pf.pension_amount:,.0f} ₪/חודש)",
             to_asset=f"הון: {pf_value:,.0f} ₪ ({tax_status})",
-            amount=pf_value
+            amount=pf_value,
         )
 
         # בתרחיש מאוזן – כמו במסך הקצבאות: הקצבה נשארת אך היתרה והקצבה החודשית מאופסות
@@ -514,14 +595,16 @@ class MaxNPVScenario(BaseScenarioBuilder):
         pf.pension_amount = 0.0
         if getattr(pf, "fund_type", None) == "monthly_pension":
             pf.record_status = "draft"
-    
+
     def _capitalize_partial_fund(self, pf, need_to_capitalize):
         """היוון חלקי של קרן"""
-        remaining_pension_value = (pf.pension_amount * pf.annuity_factor) - need_to_capitalize
+        remaining_pension_value = (
+            pf.pension_amount * pf.annuity_factor
+        ) - need_to_capitalize
         new_pension_amount = remaining_pension_value / pf.annuity_factor
         tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
         tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
-        
+
         remarks = None
         if getattr(pf, "id", None) is not None:
             remarks = f"COMMUTATION:pension_fund_id={pf.id}&amount={need_to_capitalize}"
@@ -531,12 +614,34 @@ class MaxNPVScenario(BaseScenarioBuilder):
             "id": getattr(pf, "id", None),
             "fund_name": getattr(pf, "fund_name", None),
             "fund_type": getattr(pf, "fund_type", None),
-            "input_mode": str(getattr(pf, "input_mode", None)) if getattr(pf, "input_mode", None) is not None else None,
-            "balance": float(pf.balance) if getattr(pf, "balance", None) is not None else None,
-            "annuity_factor": float(pf.annuity_factor) if getattr(pf, "annuity_factor", None) is not None else None,
-            "pension_amount": float(pf.pension_amount) if getattr(pf, "pension_amount", None) is not None else None,
-            "pension_start_date": pf.pension_start_date.isoformat() if getattr(pf, "pension_start_date", None) else None,
-            "indexation_method": str(getattr(pf, "indexation_method", None)) if getattr(pf, "indexation_method", None) is not None else None,
+            "input_mode": (
+                str(getattr(pf, "input_mode", None))
+                if getattr(pf, "input_mode", None) is not None
+                else None
+            ),
+            "balance": (
+                float(pf.balance) if getattr(pf, "balance", None) is not None else None
+            ),
+            "annuity_factor": (
+                float(pf.annuity_factor)
+                if getattr(pf, "annuity_factor", None) is not None
+                else None
+            ),
+            "pension_amount": (
+                float(pf.pension_amount)
+                if getattr(pf, "pension_amount", None) is not None
+                else None
+            ),
+            "pension_start_date": (
+                pf.pension_start_date.isoformat()
+                if getattr(pf, "pension_start_date", None)
+                else None
+            ),
+            "indexation_method": (
+                str(getattr(pf, "indexation_method", None))
+                if getattr(pf, "indexation_method", None) is not None
+                else None
+            ),
             "tax_treatment": getattr(pf, "tax_treatment", None),
             "deduction_file": getattr(pf, "deduction_file", None),
             "remarks": getattr(pf, "remarks", None),
@@ -554,30 +659,35 @@ class MaxNPVScenario(BaseScenarioBuilder):
             indexation_method="none",
             tax_treatment=tax_treatment,
             remarks=remarks,
-            conversion_source=json.dumps({
-                "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
-                "scenario_type": "retirement",
-                "source_type": "pension_fund",
-                "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
-                "pension_fund_id": getattr(pf, "id", None),
-                "partial": True,
-                "tax_treatment": tax_treatment,
-                "original_pension": original_pension_snapshot,
-            }, ensure_ascii=False)
+            conversion_source=json.dumps(
+                {
+                    "source": "scenario_conversion",  # זיהוי כתוצאה של תרחיש
+                    "scenario_type": "retirement",
+                    "source_type": "pension_fund",
+                    "type": "pension_commutation",  # מאפשר שחזור כמו במסך הקצבאות
+                    "pension_fund_id": getattr(pf, "id", None),
+                    "partial": True,
+                    "tax_treatment": tax_treatment,
+                    "original_pension": original_pension_snapshot,
+                },
+                ensure_ascii=False,
+            ),
         )
         self.db.add(ca)
-        
+
         if pf.balance is not None:
             pf.balance = max(0.0, remaining_pension_value)
-        
+
         original_pension_amount = pf.pension_amount
         pf.pension_amount = new_pension_amount
-        
-        logger.info(f"  ⚖️ Partial capitalization: {pf.fund_name} - {need_to_capitalize} ₪ → capital ({tax_status}), {new_pension_amount} ₪ remains pension")
+
+        logger.info(
+            f"  ⚖️ Partial capitalization: {pf.fund_name} - {need_to_capitalize} ₪ → capital ({tax_status}), {new_pension_amount} ₪ remains pension"
+        )
         self._add_action(
             "capitalization",
             f"היוון חלקי (50%): {pf.fund_name} ({tax_status})",
             from_asset=f"קצבה: {pf.fund_name} ({original_pension_amount:,.0f} ₪/חודש)",
             to_asset=f"הון: {need_to_capitalize:,.0f} ₪ ({tax_status}) + קצבה: {new_pension_amount:,.0f} ₪/חודש",
-            amount=need_to_capitalize
+            amount=need_to_capitalize,
         )

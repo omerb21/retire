@@ -51,7 +51,9 @@ def test_stream_fixation_documents_request_is_deterministic(monkeypatch) -> None
     assert response.status_code == 200
     body = response.text
     assert "###UI_ACTION###" in body
-    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[0]
+    payload_json = body.split("###UI_ACTION###", 1)[1].split("###END_UI_ACTION###", 1)[
+        0
+    ]
     payload = json.loads(payload_json)
     assert payload.get("type") == "ui_actions"
     actions = payload.get("actions") or []

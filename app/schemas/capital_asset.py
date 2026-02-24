@@ -5,30 +5,62 @@ from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from app.models.capital_asset import AssetType, PaymentFrequency, IndexationMethod, TaxTreatment
+from app.models.capital_asset import (
+    AssetType,
+    PaymentFrequency,
+    IndexationMethod,
+    TaxTreatment,
+)
 
 
 class CapitalAssetBase(BaseModel):
     """Base schema for Capital Asset."""
+
     asset_name: Optional[str] = Field(None, max_length=255, description="Asset name")
     asset_type: AssetType = Field(..., description="Type of capital asset")
-    description: Optional[str] = Field(None, max_length=255, description="Description of the asset")
-    current_value: Decimal = Field(..., ge=0, description="Current asset value (can be 0 for commutations)")
-    monthly_income: Optional[Decimal] = Field(None, ge=0, description="Monthly income from asset")
-    rental_income: Optional[Decimal] = Field(None, ge=0, description="Rental income (legacy)")
-    monthly_rental_income: Optional[Decimal] = Field(None, ge=0, description="Monthly rental income (legacy)")
+    description: Optional[str] = Field(
+        None, max_length=255, description="Description of the asset"
+    )
+    current_value: Decimal = Field(
+        ..., ge=0, description="Current asset value (can be 0 for commutations)"
+    )
+    monthly_income: Optional[Decimal] = Field(
+        None, ge=0, description="Monthly income from asset"
+    )
+    rental_income: Optional[Decimal] = Field(
+        None, ge=0, description="Rental income (legacy)"
+    )
+    monthly_rental_income: Optional[Decimal] = Field(
+        None, ge=0, description="Monthly rental income (legacy)"
+    )
     annual_return_rate: Decimal = Field(..., ge=0, description="Annual return rate")
     payment_frequency: PaymentFrequency = Field(..., description="Payment frequency")
     start_date: date = Field(..., description="Asset start date")
     end_date: Optional[date] = Field(None, description="Asset end date")
-    indexation_method: IndexationMethod = Field(IndexationMethod.NONE, description="Indexation method")
-    fixed_rate: Optional[Decimal] = Field(None, ge=0, description="Fixed indexation rate")
-    tax_treatment: TaxTreatment = Field(TaxTreatment.TAXABLE, description="Tax treatment")
-    tax_rate: Optional[Decimal] = Field(None, ge=0, le=1, description="Tax rate for fixed rate tax")
-    spread_years: Optional[int] = Field(None, ge=1, description="Number of years for tax spread")
-    original_principal: Optional[Decimal] = Field(None, ge=0, description="Original principal for capital gains tax")
-    remarks: Optional[str] = Field(None, max_length=500, description="Additional remarks")
-    conversion_source: Optional[str] = Field(None, max_length=1000, description="JSON with conversion source details")
+    indexation_method: IndexationMethod = Field(
+        IndexationMethod.NONE, description="Indexation method"
+    )
+    fixed_rate: Optional[Decimal] = Field(
+        None, ge=0, description="Fixed indexation rate"
+    )
+    tax_treatment: TaxTreatment = Field(
+        TaxTreatment.TAXABLE, description="Tax treatment"
+    )
+    tax_rate: Optional[Decimal] = Field(
+        None, ge=0, le=1, description="Tax rate for fixed rate tax"
+    )
+    spread_years: Optional[int] = Field(
+        None, ge=1, description="Number of years for tax spread"
+    )
+    original_principal: Optional[Decimal] = Field(
+        None, ge=0, description="Original principal for capital gains tax"
+    )
+    remarks: Optional[str] = Field(
+        None, max_length=500, description="Additional remarks"
+    )
+    conversion_source: Optional[str] = Field(
+        None, max_length=1000, description="JSON with conversion source details"
+    )
 
     @field_validator("end_date")
     @classmethod
@@ -36,7 +68,7 @@ class CapitalAssetBase(BaseModel):
         """Validate that end_date is after start_date."""
         values = info.data if info is not None else {}
         if v is not None and "start_date" in values and v < values["start_date"]:
-            raise ValueError('end_date must be after start_date')
+            raise ValueError("end_date must be after start_date")
         return v
 
     @field_validator("fixed_rate")
@@ -44,9 +76,14 @@ class CapitalAssetBase(BaseModel):
     def validate_fixed_rate(cls, v, info: ValidationInfo):
         """Validate fixed_rate is provided when indexation_method is fixed."""
         values = info.data if info is not None else {}
-        if "indexation_method" in values and values["indexation_method"] == IndexationMethod.FIXED:
+        if (
+            "indexation_method" in values
+            and values["indexation_method"] == IndexationMethod.FIXED
+        ):
             if v is None:
-                raise ValueError('fixed_rate is required when indexation_method is fixed')
+                raise ValueError(
+                    "fixed_rate is required when indexation_method is fixed"
+                )
         return v
 
     @field_validator("tax_rate")
@@ -54,19 +91,26 @@ class CapitalAssetBase(BaseModel):
     def validate_tax_rate(cls, v, info: ValidationInfo):
         """Validate tax_rate is provided when tax_treatment is fixed_rate."""
         values = info.data if info is not None else {}
-        if "tax_treatment" in values and values["tax_treatment"] == TaxTreatment.FIXED_RATE:
+        if (
+            "tax_treatment" in values
+            and values["tax_treatment"] == TaxTreatment.FIXED_RATE
+        ):
             if v is None:
-                raise ValueError('tax_rate is required when tax_treatment is fixed_rate')
+                raise ValueError(
+                    "tax_rate is required when tax_treatment is fixed_rate"
+                )
         return v
 
 
 class CapitalAssetCreate(CapitalAssetBase):
     """Schema for creating Capital Asset."""
+
     model_config = ConfigDict(extra="ignore")
 
 
 class CapitalAssetUpdate(BaseModel):
     """Schema for updating Capital Asset."""
+
     asset_type: Optional[AssetType] = None
     description: Optional[str] = Field(None, max_length=255)
     current_value: Optional[Decimal] = Field(None, ge=0)
@@ -86,6 +130,7 @@ class CapitalAssetUpdate(BaseModel):
 
 class CapitalAssetResponse(CapitalAssetBase):
     """Schema for Capital Asset response."""
+
     id: int
     client_id: int
 
@@ -95,6 +140,7 @@ class CapitalAssetResponse(CapitalAssetBase):
 
 class CapitalAssetCashflowItem(BaseModel):
     """Schema for cashflow item from capital asset."""
+
     date: date
     gross_return: Decimal
     tax_amount: Decimal

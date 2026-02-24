@@ -10,7 +10,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 
-def test_stream_pending_plan_target_marker_blocks_cashflow(monkeypatch, _test_db) -> None:
+def test_stream_pending_plan_target_marker_blocks_cashflow(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     with Session() as db:
@@ -52,13 +54,19 @@ def test_stream_pending_plan_target_marker_blocks_cashflow(monkeypatch, _test_db
         db.commit()
 
     def fake_chat_stream(messages, client_id=None):
-        raise AssertionError("LLM must not be called for pending_plan_target deterministic routing")
+        raise AssertionError(
+            "LLM must not be called for pending_plan_target deterministic routing"
+        )
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     tool_calls: list[tuple[str, dict]] = []
 
-    def fake_execute_tool_call(tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         tool_calls.append((tool_name, args))
         assert tool_name != "RUN_RETIREMENT_CASHFLOW_ANALYSIS"
         assert tool_name == "BUILD_TARGET_PENSION_PLAN"

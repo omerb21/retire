@@ -13,7 +13,10 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.schemas.llm_chat import ChatRequest
-from app.services.agent_execution.guard import build_blocked_tool_result, run_pre_tool_guard
+from app.services.agent_execution.guard import (
+    build_blocked_tool_result,
+    run_pre_tool_guard,
+)
 from app.services.agent_execution.policy import PolicyDecision
 from app.services.agent_execution.tool_contracts import (
     get_tool_contract,
@@ -62,7 +65,11 @@ def execute_with_guard(
 
     if not effective_trace_id:
         try:
-            if db is not None and hasattr(db, "info") and isinstance(getattr(db, "info", None), dict):
+            if (
+                db is not None
+                and hasattr(db, "info")
+                and isinstance(getattr(db, "info", None), dict)
+            ):
                 candidate = db.info.get("trace_id")
                 if isinstance(candidate, str) and candidate.strip():
                     effective_trace_id = candidate.strip()
@@ -87,14 +94,20 @@ def execute_with_guard(
 
     _cap_router_policy_gate_enabled = False
     try:
-        _cap_router_policy_gate_enabled = (os.getenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED") or "").strip() == "1"
+        _cap_router_policy_gate_enabled = (
+            os.getenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED") or ""
+        ).strip() == "1"
     except Exception:
         _cap_router_policy_gate_enabled = False
 
     if _cap_router_policy_gate_enabled:
         try:
-            from app.services.llm_chat.capability_router.runtime_context import get_router_decision
-            from app.services.llm_chat.capability_router.tool_id_mapping import normalize_requested_tool_id
+            from app.services.llm_chat.capability_router.runtime_context import (
+                get_router_decision,
+            )
+            from app.services.llm_chat.capability_router.tool_id_mapping import (
+                normalize_requested_tool_id,
+            )
 
             router_decision = get_router_decision(trace_id=effective_trace_id)
             if router_decision is not None:
@@ -102,7 +115,9 @@ def execute_with_guard(
                 allowlist = set(router_decision.tool_chain or [])
 
                 policy_reasons: list[str] = []
-                if policy_decision is not None and (not bool(getattr(policy_decision, "tools_allowed", True))):
+                if policy_decision is not None and (
+                    not bool(getattr(policy_decision, "tools_allowed", True))
+                ):
                     policy_reasons.append("qa_mode_no_tools")
                 elif router_decision.mode == "QA":
                     policy_reasons.append("qa_mode_no_tools")
@@ -118,7 +133,9 @@ def execute_with_guard(
                             separators=(",", ":"),
                             ensure_ascii=False,
                         )
-                        args_hash = hashlib.sha256(args_json.encode("utf-8")).hexdigest()
+                        args_hash = hashlib.sha256(
+                            args_json.encode("utf-8")
+                        ).hexdigest()
                     except Exception:
                         args_hash_fallback = True
                         args_hash = hashlib.sha256(b"").hexdigest()
@@ -173,11 +190,15 @@ def execute_with_guard(
         detected_capability_id = "budget_guard_unenforceable"
         mode = "ACTION"
         try:
-            from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+            from app.services.llm_chat.capability_router.runtime_context import (
+                get_router_decision,
+            )
 
             router_decision = get_router_decision(trace_id=effective_trace_id)
             if router_decision is not None:
-                detected_capability_id = str(router_decision.capability_id or detected_capability_id)
+                detected_capability_id = str(
+                    router_decision.capability_id or detected_capability_id
+                )
                 mode = str(router_decision.mode or mode)
         except Exception:
             pass
@@ -198,7 +219,9 @@ def execute_with_guard(
         payload: dict[str, object] = {"status": str(status)}
         if detected_capability_id:
             payload["detected_capability_id"] = str(detected_capability_id)
-        _log_event(event_type="partial_returned", payload=payload, client_id=request.client_id)
+        _log_event(
+            event_type="partial_returned", payload=payload, client_id=request.client_id
+        )
 
     try:
         max_tool_calls_env = os.getenv("CAP_ROUTER_MAX_TOOL_CALLS")
@@ -214,7 +237,9 @@ def execute_with_guard(
         blocked_json = _build_partial_result(status="budget_config_invalid")
         _emit_partial_returned(
             status=str(blocked_json.get("status") or "budget_config_invalid"),
-            detected_capability_id=str(blocked_json.get("detected_capability_id") or ""),
+            detected_capability_id=str(
+                blocked_json.get("detected_capability_id") or ""
+            ),
         )
         return blocked_json
 
@@ -232,14 +257,18 @@ def execute_with_guard(
         blocked_json = _build_partial_result(status="budget_config_invalid")
         _emit_partial_returned(
             status=str(blocked_json.get("status") or "budget_config_invalid"),
-            detected_capability_id=str(blocked_json.get("detected_capability_id") or ""),
+            detected_capability_id=str(
+                blocked_json.get("detected_capability_id") or ""
+            ),
         )
         return blocked_json
 
     def _safe_args_preview(args_obj: object) -> str:
         try:
             if isinstance(args_obj, dict):
-                return json.dumps(args_obj, sort_keys=True, ensure_ascii=False, default=str)[:200]
+                return json.dumps(
+                    args_obj, sort_keys=True, ensure_ascii=False, default=str
+                )[:200]
             return str(args_obj)[:200]
         except Exception:
             return "<unavailable>"
@@ -251,7 +280,9 @@ def execute_with_guard(
             if isinstance(res_obj, str):
                 return res_obj[:200]
             if isinstance(res_obj, dict):
-                return json.dumps(res_obj, sort_keys=True, ensure_ascii=False, default=str)[:200]
+                return json.dumps(
+                    res_obj, sort_keys=True, ensure_ascii=False, default=str
+                )[:200]
             return str(res_obj)[:200]
         except Exception:
             return "<unavailable>"
@@ -260,13 +291,17 @@ def execute_with_guard(
     call_payload = {
         "tool_name": tool_name,
         "tool_call_id": tool_call_id,
-        "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+        "intent_type": (
+            getattr(intent_type, "value", None) if intent_type is not None else None
+        ),
         "args_preview": _safe_args_preview(tool_args),
         "streaming": bool(streaming),
     }
     if request_id is not None:
         call_payload["request_id"] = request_id
-    _log_event(event_type="tool_call", payload=call_payload, client_id=request.client_id)
+    _log_event(
+        event_type="tool_call", payload=call_payload, client_id=request.client_id
+    )
 
     guard_res = run_pre_tool_guard(
         request=request,
@@ -285,9 +320,13 @@ def execute_with_guard(
             "message": guard_res.message,
             "details": guard_res.details or {},
             "streaming": bool(streaming),
-            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "intent_type": (
+                getattr(intent_type, "value", None) if intent_type is not None else None
+            ),
         }
-        _log_event(event_type="validation_error", payload=payload, client_id=request.client_id)
+        _log_event(
+            event_type="validation_error", payload=payload, client_id=request.client_id
+        )
 
         blocked_json = build_blocked_tool_result(
             tool_name=tool_name,
@@ -301,13 +340,19 @@ def execute_with_guard(
             "tool_call_id": tool_call_id,
             "status": "blocked_by_guard",
             "success": False,
-            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "intent_type": (
+                getattr(intent_type, "value", None) if intent_type is not None else None
+            ),
             "result_preview": _safe_result_preview(blocked_json),
             "streaming": bool(streaming),
         }
         if request_id is not None:
             result_payload["request_id"] = request_id
-        _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+        _log_event(
+            event_type="tool_result",
+            payload=result_payload,
+            client_id=request.client_id,
+        )
         tool_result_emitted = True
 
         return blocked_json
@@ -324,7 +369,11 @@ def execute_with_guard(
             payload={
                 "tool_name": tool_name,
                 "streaming": bool(streaming),
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "intent_type": (
+                    getattr(intent_type, "value", None)
+                    if intent_type is not None
+                    else None
+                ),
             },
             client_id=request.client_id,
         )
@@ -345,7 +394,11 @@ def execute_with_guard(
                         "reason": args_error,
                         "args_preview": args_preview,
                         "streaming": bool(streaming),
-                        "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                        "intent_type": (
+                            getattr(intent_type, "value", None)
+                            if intent_type is not None
+                            else None
+                        ),
                     },
                     client_id=request.client_id,
                 )
@@ -355,11 +408,15 @@ def execute_with_guard(
             detected_capability_id = "unknown"
             try:
                 if _cap_router_policy_gate_enabled:
-                    from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+                    from app.services.llm_chat.capability_router.runtime_context import (
+                        get_router_decision,
+                    )
 
                     router_decision = get_router_decision(trace_id=effective_trace_id)
                     if router_decision is not None:
-                        detected_capability_id = str(router_decision.capability_id or detected_capability_id)
+                        detected_capability_id = str(
+                            router_decision.capability_id or detected_capability_id
+                        )
             except Exception:
                 detected_capability_id = detected_capability_id
 
@@ -377,13 +434,21 @@ def execute_with_guard(
                 "tool_call_id": tool_call_id,
                 "status": "blocked_by_contract",
                 "success": False,
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "intent_type": (
+                    getattr(intent_type, "value", None)
+                    if intent_type is not None
+                    else None
+                ),
                 "result_preview": _safe_result_preview(blocked_json),
                 "streaming": bool(streaming),
             }
             if request_id is not None:
                 result_payload["request_id"] = request_id
-            _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+            _log_event(
+                event_type="tool_result",
+                payload=result_payload,
+                client_id=request.client_id,
+            )
             tool_result_emitted = True
 
             return blocked_json
@@ -394,21 +459,31 @@ def execute_with_guard(
                 "tool_name": tool_name,
                 "checked": True,
                 "streaming": bool(streaming),
-                "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                "intent_type": (
+                    getattr(intent_type, "value", None)
+                    if intent_type is not None
+                    else None
+                ),
             },
             client_id=request.client_id,
         )
 
-    from app.services.llm_chat.tool_execution import execute_tool_call as _execute_tool_call_impl
+    from app.services.llm_chat.tool_execution import (
+        execute_tool_call as _execute_tool_call_impl,
+    )
 
     _supports_tool_call_id = False
     try:
-        _supports_tool_call_id = ("tool_call_id" in inspect.signature(_execute_tool_call_impl).parameters)
+        _supports_tool_call_id = (
+            "tool_call_id" in inspect.signature(_execute_tool_call_impl).parameters
+        )
     except Exception:
         _supports_tool_call_id = False
 
     try:
-        from app.services.llm_chat.capability_router.tool_id_mapping import normalize_requested_tool_id
+        from app.services.llm_chat.capability_router.tool_id_mapping import (
+            normalize_requested_tool_id,
+        )
 
         _tool_id = str(normalize_requested_tool_id(tool_name) or tool_name or "")
         _args_hash: str
@@ -483,13 +558,19 @@ def execute_with_guard(
             "tool_call_id": tool_call_id,
             "status": "error_safe",
             "success": False,
-            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "intent_type": (
+                getattr(intent_type, "value", None) if intent_type is not None else None
+            ),
             "result_preview": _safe_result_preview(f"{type(exc).__name__}: {exc}"),
             "streaming": bool(streaming),
         }
         if request_id is not None:
             result_payload["request_id"] = request_id
-        _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+        _log_event(
+            event_type="tool_result",
+            payload=result_payload,
+            client_id=request.client_id,
+        )
         tool_result_emitted = True
         raise
 
@@ -498,7 +579,11 @@ def execute_with_guard(
         if not ok_res:
             try:
                 try:
-                    res_preview = (tool_result or "")[:500] if isinstance(tool_result, str) else str(tool_result)[:500]
+                    res_preview = (
+                        (tool_result or "")[:500]
+                        if isinstance(tool_result, str)
+                        else str(tool_result)[:500]
+                    )
                 except Exception:
                     res_preview = "<unavailable>"
 
@@ -510,7 +595,11 @@ def execute_with_guard(
                         "reason": res_error,
                         "result_preview": res_preview,
                         "streaming": bool(streaming),
-                        "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                        "intent_type": (
+                            getattr(intent_type, "value", None)
+                            if intent_type is not None
+                            else None
+                        ),
                     },
                     client_id=request.client_id,
                 )
@@ -520,11 +609,15 @@ def execute_with_guard(
             detected_capability_id = "unknown"
             try:
                 if _cap_router_policy_gate_enabled:
-                    from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+                    from app.services.llm_chat.capability_router.runtime_context import (
+                        get_router_decision,
+                    )
 
                     router_decision = get_router_decision(trace_id=effective_trace_id)
                     if router_decision is not None:
-                        detected_capability_id = str(router_decision.capability_id or detected_capability_id)
+                        detected_capability_id = str(
+                            router_decision.capability_id or detected_capability_id
+                        )
             except Exception:
                 detected_capability_id = detected_capability_id
 
@@ -543,13 +636,21 @@ def execute_with_guard(
                     "tool_call_id": tool_call_id,
                     "status": "blocked_by_contract",
                     "success": False,
-                    "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+                    "intent_type": (
+                        getattr(intent_type, "value", None)
+                        if intent_type is not None
+                        else None
+                    ),
                     "result_preview": _safe_result_preview(blocked_json),
                     "streaming": bool(streaming),
                 }
                 if request_id is not None:
                     result_payload["request_id"] = request_id
-                _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+                _log_event(
+                    event_type="tool_result",
+                    payload=result_payload,
+                    client_id=request.client_id,
+                )
                 tool_result_emitted = True
             except Exception:
                 pass
@@ -567,13 +668,19 @@ def execute_with_guard(
             "status": "ok",
             "success": True,
             "contract_missing": bool(contract is None),
-            "intent_type": getattr(intent_type, "value", None) if intent_type is not None else None,
+            "intent_type": (
+                getattr(intent_type, "value", None) if intent_type is not None else None
+            ),
             "result_preview": _safe_result_preview(tool_result),
             "streaming": bool(streaming),
         }
         if request_id is not None:
             result_payload["request_id"] = request_id
-        _log_event(event_type="tool_result", payload=result_payload, client_id=request.client_id)
+        _log_event(
+            event_type="tool_result",
+            payload=result_payload,
+            client_id=request.client_id,
+        )
         tool_result_emitted = True
 
     return tool_result
@@ -601,9 +708,14 @@ def execute_tool_call(
     else:
         if getattr(req, "client_id", None) is None:
             try:
-                req_for_exec = req.model_copy(update={"client_id": client_id}, deep=True)
+                req_for_exec = req.model_copy(
+                    update={"client_id": client_id}, deep=True
+                )
             except Exception:
-                req_for_exec = ChatRequest(messages=list(getattr(req, "messages", []) or []), client_id=client_id)
+                req_for_exec = ChatRequest(
+                    messages=list(getattr(req, "messages", []) or []),
+                    client_id=client_id,
+                )
         else:
             req_for_exec = req
 

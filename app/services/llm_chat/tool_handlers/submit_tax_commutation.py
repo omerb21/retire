@@ -33,7 +33,12 @@ def handle_submit_tax_commutation(
             args["tax_projection_id"] = f"AUTO-{client_id}"
 
         # Validate required parameters
-        required_params = ["commutation_type", "tax_projection_id", "final_net_amount", "confirmed"]
+        required_params = [
+            "commutation_type",
+            "tax_projection_id",
+            "final_net_amount",
+            "confirmed",
+        ]
         missing = [p for p in required_params if args.get(p) is None]
         if missing:
             return f"Error: Missing required parameters: {', '.join(missing)}"
@@ -93,7 +98,9 @@ def handle_submit_tax_commutation(
         # Add distribution schedule if provided (for tax spread)
         if distribution_schedule:
             response["distribution_schedule"] = distribution_schedule
-            response["next_steps"].append(f"פריסת המס תתבצע על פני {distribution_schedule}")
+            response["next_steps"].append(
+                f"פריסת המס תתבצע על פני {distribution_schedule}"
+            )
 
         # Add type-specific information
         if commutation_type == "היוון קצבה":

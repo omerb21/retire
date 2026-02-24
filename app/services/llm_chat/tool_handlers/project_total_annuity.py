@@ -11,7 +11,9 @@ from app.utils.date_serializer import parse_date_flexible
 logger = logging.getLogger("app.llm_chat.tools")
 
 try:
-    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+    from app.services.retirement_age_service import (
+        DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK,
+    )
 except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
@@ -49,42 +51,65 @@ def handle_project_total_annuity(
                 from app.services.retirement_age_service import get_retirement_date
 
                 if retirement_age_val is not None:
-                    retirement_date = client_obj.birth_date + relativedelta(years=retirement_age_val)
+                    retirement_date = client_obj.birth_date + relativedelta(
+                        years=retirement_age_val
+                    )
                 else:
-                    retirement_date = get_retirement_date(client_obj.birth_date, client_obj.gender)
-                    retirement_age_val = relativedelta(retirement_date, client_obj.birth_date).years
+                    retirement_date = get_retirement_date(
+                        client_obj.birth_date, client_obj.gender
+                    )
+                    retirement_age_val = relativedelta(
+                        retirement_date, client_obj.birth_date
+                    ).years
             except Exception:
                 if retirement_age_val is None:
                     try:
-                        from app.services.retirement_age_service import get_retirement_age_simple
+                        from app.services.retirement_age_service import (
+                            get_retirement_age_simple,
+                        )
 
                         retirement_age_val = int(
-                            get_retirement_age_simple(client_obj.birth_date, client_obj.gender)
+                            get_retirement_age_simple(
+                                client_obj.birth_date, client_obj.gender
+                            )
                         )
                     except Exception:
                         try:
-                            from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+                            from app.services.retirement_age_service import (
+                                DEFAULT_MALE_RETIREMENT_AGE,
+                            )
 
                             retirement_age_val = int(DEFAULT_MALE_RETIREMENT_AGE)
                         except Exception:
                             retirement_age_val = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
-                retirement_date = client_obj.birth_date + relativedelta(years=retirement_age_val)
+                retirement_date = client_obj.birth_date + relativedelta(
+                    years=retirement_age_val
+                )
         elif client_obj.birth_date:
             if retirement_age_val is None:
                 try:
-                    from app.services.retirement_age_service import get_retirement_age_simple
+                    from app.services.retirement_age_service import (
+                        get_retirement_age_simple,
+                    )
 
                     retirement_age_val = int(
-                        get_retirement_age_simple(client_obj.birth_date, getattr(client_obj, "gender", None) or "")
+                        get_retirement_age_simple(
+                            client_obj.birth_date,
+                            getattr(client_obj, "gender", None) or "",
+                        )
                     )
                 except Exception:
                     try:
-                        from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE
+                        from app.services.retirement_age_service import (
+                            DEFAULT_MALE_RETIREMENT_AGE,
+                        )
 
                         retirement_age_val = int(DEFAULT_MALE_RETIREMENT_AGE)
                     except Exception:
                         retirement_age_val = int(_DEFAULT_RETIREMENT_AGE_FALLBACK)
-            retirement_date = client_obj.birth_date + relativedelta(years=retirement_age_val)
+            retirement_date = client_obj.birth_date + relativedelta(
+                years=retirement_age_val
+            )
         else:
             retirement_date = datetime.now().date() + relativedelta(years=10)
 
@@ -114,7 +139,9 @@ def handle_project_total_annuity(
                     logger.warning("D10.2: Unknown account type: %s", type(account))
                     continue
 
-                balance = float(acc_dict.get("יתרה", 0) or acc_dict.get("balance", 0) or 0)
+                balance = float(
+                    acc_dict.get("יתרה", 0) or acc_dict.get("balance", 0) or 0
+                )
                 if balance <= 0:
                     continue
 
@@ -175,7 +202,9 @@ def handle_project_total_annuity(
                     }
                 )
 
-        pension_funds = db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        pension_funds = (
+            db.query(PensionFund).filter(PensionFund.client_id == client_id).all()
+        )
         logger.info("📊 D10.2: Found %s PensionFund records in DB", len(pension_funds))
 
         for fund in pension_funds:
@@ -207,7 +236,9 @@ def handle_project_total_annuity(
                         pension_start_date=retirement_date,
                     )
                     annuity_factor = coefficient_result["factor_value"]
-                    source = f"db_{coefficient_result.get('source_table', 'calculated')}"
+                    source = (
+                        f"db_{coefficient_result.get('source_table', 'calculated')}"
+                    )
                 except Exception as e:
                     logger.warning(
                         "D10.2: Coefficient error for %s: %s, using default 200",

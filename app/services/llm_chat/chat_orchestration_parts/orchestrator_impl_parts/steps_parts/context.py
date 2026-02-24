@@ -1,4 +1,3 @@
-
 import json
 from dataclasses import dataclass
 from datetime import date
@@ -11,6 +10,7 @@ from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from ..steps.messages_prompt import _build_messages_and_prompt
 from ..steps.types import _PreparedOrchestrationInputs
 from .context_post_deterministics import _handle_post_deterministics_and_finalize
+
 
 def _prepare_orchestration_inputs(
     *,
@@ -36,7 +36,9 @@ def _prepare_orchestration_inputs(
         _user_requested_target_pension_plan,
         _user_wants_full_balance,
     )
-    from app.services.llm_chat.chat_orchestration_parts.tool_calling import _execute_tool_call
+    from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
+        _execute_tool_call,
+    )
     from app.services.llm_chat.chat_orchestration_helpers import (
         build_approval_request_ui_action,
         build_forced_document_reply,
@@ -151,7 +153,9 @@ def _prepare_orchestration_inputs(
             portfolio_update_marker = build_pension_portfolio_update_after_transform(
                 tool_name=approved_tool_name,
                 tool_result=tool_result,
-                tool_args=approved_tool_args if isinstance(approved_tool_args, dict) else {},
+                tool_args=(
+                    approved_tool_args if isinstance(approved_tool_args, dict) else {}
+                ),
                 current_pension_portfolio=effective_portfolio,
             )
             forced_document_reply = build_forced_document_reply(
@@ -163,8 +167,13 @@ def _prepare_orchestration_inputs(
             if approved_tool_name == "TRANSFORM_FUNDS_TO_ASSETS":
                 reply_text = format_transform_result_for_user(tool_result=tool_result)
             else:
-                reply_text = format_tool_output_for_user_stream(approved_tool_name, reply_text)
-            if isinstance(portfolio_update_marker, str) and portfolio_update_marker.strip():
+                reply_text = format_tool_output_for_user_stream(
+                    approved_tool_name, reply_text
+                )
+            if (
+                isinstance(portfolio_update_marker, str)
+                and portfolio_update_marker.strip()
+            ):
                 reply_text = f"{portfolio_update_marker}{reply_text}"
             return ChatResponse(
                 reply=sanitize_user_visible_text(reply_text),
@@ -292,7 +301,9 @@ def _prepare_orchestration_inputs(
                 reply=(
                     "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
                     + sanitize_user_visible_text(
-                        format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                        format_tool_output_for_user_stream(
+                            "BUILD_TARGET_PENSION_PLAN", plan_result
+                        )
                     )
                 ),
                 computed_data=computed_data,
@@ -304,9 +315,20 @@ def _prepare_orchestration_inputs(
                 db=db,
                 client_id=request.client_id,
                 ttl_seconds=300,
-                source=str((pending_plan_target.get("_meta") or {}).get("source") or "pending_plan_target"),
-                pending_retirement_age=(pending_plan_target.get("pending_retirement_age") if isinstance(pending_plan_target, dict) else None),
-                pending_retirement_date=(pending_plan_target.get("pending_retirement_date") if isinstance(pending_plan_target, dict) else None),
+                source=str(
+                    (pending_plan_target.get("_meta") or {}).get("source")
+                    or "pending_plan_target"
+                ),
+                pending_retirement_age=(
+                    pending_plan_target.get("pending_retirement_age")
+                    if isinstance(pending_plan_target, dict)
+                    else None
+                ),
+                pending_retirement_date=(
+                    pending_plan_target.get("pending_retirement_date")
+                    if isinstance(pending_plan_target, dict)
+                    else None
+                ),
             )
         except Exception:
             pass
@@ -318,13 +340,19 @@ def _prepare_orchestration_inputs(
             computed_data=computed_data,
         )
 
-    if tools_enabled and request.client_id is not None and (
-        _is_target_plan_adjust_request(original_user_msg)
-        or _is_target_plan_adjust_followup(original_user_msg, request.messages)
+    if (
+        tools_enabled
+        and request.client_id is not None
+        and (
+            _is_target_plan_adjust_request(original_user_msg)
+            or _is_target_plan_adjust_followup(original_user_msg, request.messages)
+        )
     ):
         payload = extract_latest_target_pension_plan_payload(request.messages)
         if payload is None:
-            payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+            payload = load_latest_target_pension_plan(
+                db=db, client_id=request.client_id
+            )
         if not isinstance(payload, dict):
             return ChatResponse(
                 reply=(
@@ -334,7 +362,9 @@ def _prepare_orchestration_inputs(
                 computed_data=computed_data,
             )
 
-        plan_res = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        plan_res = (
+            payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        )
         raw_target = plan_res.get("target_monthly_pension")
         try:
             target_val = float(raw_target or 0)
@@ -343,7 +373,11 @@ def _prepare_orchestration_inputs(
 
         explicit_is_net = _infer_target_is_net_explicit(original_user_msg)
         if explicit_is_net is None:
-            prev_is_net = payload.get("args", {}).get("target_is_net") if isinstance(payload.get("args"), dict) else None
+            prev_is_net = (
+                payload.get("args", {}).get("target_is_net")
+                if isinstance(payload.get("args"), dict)
+                else None
+            )
             prev_mode = "נטו" if prev_is_net is True else "ברוטו"
             return ChatResponse(
                 reply=(
@@ -392,24 +426,32 @@ def _prepare_orchestration_inputs(
             request_id=request_id,
         )
         try:
-            store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+            store_latest_target_pension_plan(
+                db=db, client_id=request.client_id, tool_result=plan_result
+            )
         except Exception:
             pass
         try:
-            store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
+            store_latest_target_pension_plan_data(
+                db=db, client_id=request.client_id, tool_result=plan_result
+            )
         except Exception:
             pass
         return ChatResponse(
             reply=(
                 "🔧 **פלט כלי (בניית תכנית קצבה - תיקון):**\n"
                 + sanitize_user_visible_text(
-                    format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                    format_tool_output_for_user_stream(
+                        "BUILD_TARGET_PENSION_PLAN", plan_result
+                    )
                 )
             ),
             computed_data=computed_data,
         )
 
-    from ..steps.prepare_inputs_parts.portfolio_breakdown import _maybe_handle_portfolio_breakdown
+    from ..steps.prepare_inputs_parts.portfolio_breakdown import (
+        _maybe_handle_portfolio_breakdown,
+    )
 
     if tools_enabled:
         handled_breakdown = _maybe_handle_portfolio_breakdown(
@@ -437,7 +479,9 @@ def _prepare_orchestration_inputs(
         if handled_data_awareness is not None:
             return handled_data_awareness
 
-    from ..steps.prepare_inputs_parts.system_results_report import _maybe_handle_system_results_report
+    from ..steps.prepare_inputs_parts.system_results_report import (
+        _maybe_handle_system_results_report,
+    )
 
     if tools_enabled:
         handled_system_results_report = _maybe_handle_system_results_report(
@@ -459,9 +503,8 @@ def _prepare_orchestration_inputs(
     wants_execute_target_plan_early = False
     try:
         lowered_tmp = (original_user_msg or "").lower()
-        wants_execute_target_plan_early = (
-            "בצע" in lowered_tmp
-            and ("תכנית" in lowered_tmp or "תוכנית" in lowered_tmp or "מתווה" in lowered_tmp)
+        wants_execute_target_plan_early = "בצע" in lowered_tmp and (
+            "תכנית" in lowered_tmp or "תוכנית" in lowered_tmp or "מתווה" in lowered_tmp
         )
         if ("תזרים" not in lowered_tmp) and ("cashflow" not in lowered_tmp):
             planning_keywords = (
@@ -476,7 +519,9 @@ def _prepare_orchestration_inputs(
                 "build_target_pension_plan",
             )
             if any(k in lowered_tmp for k in planning_keywords):
-                extracted_target = float(extract_target_pension_from_message(original_user_msg) or 0)
+                extracted_target = float(
+                    extract_target_pension_from_message(original_user_msg) or 0
+                )
                 explicit_target_plan_request = extracted_target > 0
     except Exception:
         explicit_target_plan_request = False
@@ -492,7 +537,9 @@ def _prepare_orchestration_inputs(
 
         target_val = 0.0
         try:
-            target_val = float(extract_target_pension_from_message(original_user_msg) or 0)
+            target_val = float(
+                extract_target_pension_from_message(original_user_msg) or 0
+            )
         except Exception:
             target_val = 0.0
         if target_val <= 0:
@@ -519,7 +566,10 @@ def _prepare_orchestration_inputs(
                 computed_data=computed_data,
             )
 
-        plan_args = {"target_monthly_pension": float(target_val), "target_is_net": bool(explicit_is_net)}
+        plan_args = {
+            "target_monthly_pension": float(target_val),
+            "target_is_net": bool(explicit_is_net),
+        }
 
         resolved_ret_age, _src = resolve_target_retirement_age(
             original_user_msg,
@@ -543,18 +593,24 @@ def _prepare_orchestration_inputs(
             request_id=request_id,
         )
         try:
-            store_latest_target_pension_plan(db=db, client_id=request.client_id, tool_result=plan_result)
+            store_latest_target_pension_plan(
+                db=db, client_id=request.client_id, tool_result=plan_result
+            )
         except Exception:
             pass
         try:
-            store_latest_target_pension_plan_data(db=db, client_id=request.client_id, tool_result=plan_result)
+            store_latest_target_pension_plan_data(
+                db=db, client_id=request.client_id, tool_result=plan_result
+            )
         except Exception:
             pass
         return ChatResponse(
             reply=(
                 "🔧 **פלט כלי (בניית תכנית קצבה):**\n"
                 + sanitize_user_visible_text(
-                    format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+                    format_tool_output_for_user_stream(
+                        "BUILD_TARGET_PENSION_PLAN", plan_result
+                    )
                 )
             ),
             computed_data=computed_data,
@@ -586,25 +642,31 @@ def _prepare_orchestration_inputs(
     is_cashflow_request = is_retirement_cashflow_request(original_user_msg)
     is_comparison_request = is_retirement_comparison_request(original_user_msg)
     commutation_intent = is_pension_commutation_request(original_user_msg)
-    explicit_transform = (not commutation_intent) and is_transform_request(original_user_msg)
+    explicit_transform = (not commutation_intent) and is_transform_request(
+        original_user_msg
+    )
     explicit_termination = is_process_termination_request(original_user_msg)
     termination_change = is_termination_change_request(original_user_msg)
     is_portfolio_analysis = is_portfolio_analysis_request(original_user_msg)
 
     lowered_user_msg = (original_user_msg or "").lower()
     wants_capital_transform = (
-        (
-            ("להון" in lowered_user_msg)
-            or ("to capital" in lowered_user_msg)
-            or ("הונית" in lowered_user_msg)
-            or ("הוני" in lowered_user_msg)
-            or ("מקסימום הון" in lowered_user_msg)
-        )
-        and ("המר" in lowered_user_msg or "המרה" in lowered_user_msg or "convert" in lowered_user_msg or "משיכה" in lowered_user_msg or "משוך" in lowered_user_msg)
+        ("להון" in lowered_user_msg)
+        or ("to capital" in lowered_user_msg)
+        or ("הונית" in lowered_user_msg)
+        or ("הוני" in lowered_user_msg)
+        or ("מקסימום הון" in lowered_user_msg)
+    ) and (
+        "המר" in lowered_user_msg
+        or "המרה" in lowered_user_msg
+        or "convert" in lowered_user_msg
+        or "משיכה" in lowered_user_msg
+        or "משוך" in lowered_user_msg
     )
-    wants_execute_target_plan = (
-        "בצע" in lowered_user_msg
-        and ("תכנית" in lowered_user_msg or "תוכנית" in lowered_user_msg or "מתווה" in lowered_user_msg)
+    wants_execute_target_plan = "בצע" in lowered_user_msg and (
+        "תכנית" in lowered_user_msg
+        or "תוכנית" in lowered_user_msg
+        or "מתווה" in lowered_user_msg
     )
     wants_fixation_execute = (
         "בצע" in lowered_user_msg
@@ -615,7 +677,9 @@ def _prepare_orchestration_inputs(
     max_capital_request = is_max_capital_request(original_user_msg)
     wants_execute_max_capital = max_capital_request and ("בצע" in lowered_user_msg)
 
-    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or ("cashflow" in lowered_user_msg)
+    explicit_cashflow_request = ("תזרים" in lowered_user_msg) or (
+        "cashflow" in lowered_user_msg
+    )
     wants_cashflow_refresh = is_cashflow_missing_income_followup(original_user_msg)
 
     if commutation_intent and request.client_id is not None:
@@ -642,12 +706,16 @@ def _prepare_orchestration_inputs(
     ):
         plan_payload = None
         try:
-            plan_payload = load_latest_target_pension_plan(db=db, client_id=request.client_id)
+            plan_payload = load_latest_target_pension_plan(
+                db=db, client_id=request.client_id
+            )
         except Exception:
             plan_payload = None
         if plan_payload is None:
             try:
-                plan_payload = load_latest_target_pension_plan_data(db=db, client_id=request.client_id)
+                plan_payload = load_latest_target_pension_plan_data(
+                    db=db, client_id=request.client_id
+                )
             except Exception:
                 plan_payload = None
         if not isinstance(plan_payload, dict):
@@ -683,7 +751,9 @@ def _prepare_orchestration_inputs(
                 computed_data=computed_data,
             )
 
-        explicit_gender, explicit_age = extract_explicit_gender_and_age_from_text(original_user_msg)
+        explicit_gender, explicit_age = extract_explicit_gender_and_age_from_text(
+            original_user_msg
+        )
 
         client = None
         try:
@@ -701,7 +771,9 @@ def _prepare_orchestration_inputs(
             birth_date = None
         db_gender = getattr(client, "gender", None) if client else None
 
-        gender_final = explicit_gender or (str(db_gender).strip() if db_gender is not None else None)
+        gender_final = explicit_gender or (
+            str(db_gender).strip() if db_gender is not None else None
+        )
 
         retirement_date = extract_explicit_retirement_date_from_text(original_user_msg)
         resolved_ret_age, _src = resolve_target_retirement_age(
@@ -719,14 +791,19 @@ def _prepare_orchestration_inputs(
             except Exception:
                 retirement_date = retirement_date
 
-        age_final = int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
+        age_final = (
+            int(resolved_ret_age) if resolved_ret_age is not None else explicit_age
+        )
         if age_final is None and birth_date and retirement_date:
             try:
                 from datetime import datetime
 
                 target_date = datetime.strptime(retirement_date, "%Y-%m-%d").date()
                 age_years = target_date.year - birth_date.year
-                if (target_date.month, target_date.day) < (birth_date.month, birth_date.day):
+                if (target_date.month, target_date.day) < (
+                    birth_date.month,
+                    birth_date.day,
+                ):
                     age_years -= 1
                 age_final = int(age_years)
             except Exception:
@@ -766,7 +843,9 @@ def _prepare_orchestration_inputs(
             reply=sanitize_user_visible_text(
                 explanation.strip()
                 if isinstance(explanation, str) and explanation.strip()
-                else format_tool_output_for_user_stream("RUN_RETIREMENT_CASHFLOW_ANALYSIS", tool_result)
+                else format_tool_output_for_user_stream(
+                    "RUN_RETIREMENT_CASHFLOW_ANALYSIS", tool_result
+                )
             ),
             computed_data=computed_data,
         )
@@ -781,7 +860,9 @@ def _prepare_orchestration_inputs(
         retirement_age = None
         try:
             client = db.query(Client).filter(Client.id == request.client_id).first()
-            client_age = client.get_age() if client and hasattr(client, "get_age") else None
+            client_age = (
+                client.get_age() if client and hasattr(client, "get_age") else None
+            )
             from app.services.retirement_age_service import (
                 DEFAULT_MALE_RETIREMENT_AGE,
                 get_retirement_age_simple,
@@ -789,8 +870,14 @@ def _prepare_orchestration_inputs(
 
             legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
             try:
-                if client and getattr(client, "birth_date", None) and getattr(client, "gender", None):
-                    legal_ret_age = int(get_retirement_age_simple(client.birth_date, client.gender))
+                if (
+                    client
+                    and getattr(client, "birth_date", None)
+                    and getattr(client, "gender", None)
+                ):
+                    legal_ret_age = int(
+                        get_retirement_age_simple(client.birth_date, client.gender)
+                    )
             except Exception:
                 legal_ret_age = int(DEFAULT_MALE_RETIREMENT_AGE)
 
@@ -815,7 +902,10 @@ def _prepare_orchestration_inputs(
 
         scenario_id = None
         for row in (parsed.get("scenarios") if isinstance(parsed, dict) else []) or []:
-            if isinstance(row, dict) and row.get("scenario_key") == "scenario_2_max_capital":
+            if (
+                isinstance(row, dict)
+                and row.get("scenario_key") == "scenario_2_max_capital"
+            ):
                 scenario_id = row.get("scenario_id")
                 break
 
@@ -861,7 +951,12 @@ def _prepare_orchestration_inputs(
     # Early deterministic handling for pension commutation requests.
     # Only run this path when the user provided a specific account identifier.
     # If the request is vague (no account number), fall back to the LLM flow.
-    if commutation_intent and request.client_id is not None and (not is_doc_request) and (not is_qa_mode):
+    if (
+        commutation_intent
+        and request.client_id is not None
+        and (not is_doc_request)
+        and (not is_qa_mode)
+    ):
         account_number = _extract_commutation_account_number(original_user_msg)
         if account_number:
             # NOTE: We deliberately do not handle vague commutation requests deterministically.
@@ -883,12 +978,10 @@ def _prepare_orchestration_inputs(
             if fund is None:
                 target_digits = _digits_only(account_number)
                 matched: dict | None = None
-                for acc in (effective_portfolio or []):
+                for acc in effective_portfolio or []:
                     data = _item_to_dict(acc)
                     acc_num = str(
-                        data.get("מספר_חשבון")
-                        or data.get("account_number")
-                        or ""
+                        data.get("מספר_חשבון") or data.get("account_number") or ""
                     ).strip()
                     if not acc_num:
                         continue
@@ -989,5 +1082,3 @@ def _prepare_orchestration_inputs(
         explicit_cashflow_request=explicit_cashflow_request,
         wants_cashflow_refresh=wants_cashflow_refresh,
     )
-
-

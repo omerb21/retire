@@ -14,7 +14,9 @@ def test_stream_qa_no_tools_blocks_tool_call(monkeypatch) -> None:
             return
         yield "PASS - הסבר QA ללא כלים\nסיכום קצר"
 
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", fake_chat_stream)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
+    )
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("execute_tool_call should not be invoked in no-tools mode")

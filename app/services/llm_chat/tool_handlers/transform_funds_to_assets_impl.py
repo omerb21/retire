@@ -10,7 +10,9 @@ from app.models import PensionFund, Scenario
 from app.models.capital_asset import CapitalAsset
 from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.llm_chat.orchestration_utils import build_transform_accounts_from_portfolio
+from app.services.llm_chat.orchestration_utils import (
+    build_transform_accounts_from_portfolio,
+)
 from app.services.pension_portfolio.conversion_rules import (
     is_education_fund,
     is_investment_provident_fund,
@@ -43,7 +45,9 @@ from .transform_funds_validation import build_conversion_tasks_from_accounts
 logger = logging.getLogger("app.llm_chat.tools")
 
 try:
-    from app.services.retirement_age_service import DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK
+    from app.services.retirement_age_service import (
+        DEFAULT_MALE_RETIREMENT_AGE as _DEFAULT_RETIREMENT_AGE_FALLBACK,
+    )
 except Exception:
     _DEFAULT_RETIREMENT_AGE_FALLBACK = 67
 
@@ -67,10 +71,16 @@ def handle_transform_funds_to_assets(
         pension_start_date_raw = args.get("pension_start_date")
         default_conversion_type = args.get("default_conversion_type", "pension")
         commute_pension_components_raw = args.get("commute_pension_components")
-        commute_pension_components = bool(commute_pension_components_raw) if commute_pension_components_raw is not None else False
+        commute_pension_components = (
+            bool(commute_pension_components_raw)
+            if commute_pension_components_raw is not None
+            else False
+        )
         ignore_blocked_balances_raw = args.get("ignore_blocked_balances")
         ignore_blocked_balances = (
-            True if ignore_blocked_balances_raw is None else bool(ignore_blocked_balances_raw)
+            True
+            if ignore_blocked_balances_raw is None
+            else bool(ignore_blocked_balances_raw)
         )
         skip_non_convertible_accounts_raw = args.get("skip_non_convertible_accounts")
         skip_non_convertible_accounts = (
@@ -81,7 +91,8 @@ def handle_transform_funds_to_assets(
         use_provided_accounts_only = bool(args.get("use_provided_accounts_only"))
         try:
             if isinstance(accounts, list) and any(
-                isinstance(a, dict) and bool(a.get("_partial_conversion")) for a in accounts
+                isinstance(a, dict) and bool(a.get("_partial_conversion"))
+                for a in accounts
             ):
                 use_provided_accounts_only = True
         except Exception:
@@ -153,7 +164,11 @@ def handle_transform_funds_to_assets(
             derived_numbers.discard("")
 
             should_replace = (not accounts) or (len(derived_accounts) > len(accounts))
-            if derived_numbers and provided_numbers and not derived_numbers.issubset(provided_numbers):
+            if (
+                derived_numbers
+                and provided_numbers
+                and not derived_numbers.issubset(provided_numbers)
+            ):
                 should_replace = True
 
             if should_replace:
@@ -171,12 +186,20 @@ def handle_transform_funds_to_assets(
                     logger.info(
                         "🔁 Replacing aggregate accounts with derived portfolio accounts (client_id=%s, aggregates=%s, derived=%s)",
                         client_id,
-                        len([a for a in accounts if isinstance(a, dict) and _is_aggregate_account(a)]),
+                        len(
+                            [
+                                a
+                                for a in accounts
+                                if isinstance(a, dict) and _is_aggregate_account(a)
+                            ]
+                        ),
                         len(derived_accounts),
                     )
                     accounts = derived_accounts
 
-        if (execution_plan is None) and (not accounts or not isinstance(accounts, list)):
+        if (execution_plan is None) and (
+            not accounts or not isinstance(accounts, list)
+        ):
             return json.dumps(
                 {
                     "success": False,

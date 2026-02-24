@@ -8,7 +8,9 @@ from app.models.pension_fund import PensionFund
 def main() -> None:
     db = next(get_db())
     try:
-        query = db.query(PensionFund).filter(PensionFund.conversion_source != None)  # noqa: E711
+        query = db.query(PensionFund).filter(
+            PensionFund.conversion_source != None
+        )  # noqa: E711
         largest = None
         largest_data = None
 

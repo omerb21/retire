@@ -8,7 +8,9 @@ def _get_llm_service():
     svc = getattr(facade, "pension_llm_service", None)
     if svc is not None:
         return svc
-    from app.services.llm_pension_agent_service import pension_llm_service as _local_llm_service
+    from app.services.llm_pension_agent_service import (
+        pension_llm_service as _local_llm_service,
+    )
 
     return _local_llm_service
 

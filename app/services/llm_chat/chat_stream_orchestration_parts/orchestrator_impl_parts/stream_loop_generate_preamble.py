@@ -23,7 +23,7 @@ def _stream_generate_preamble(
     build_restore_snapshot_banner,
     stream_handle_explicit_transform,
     chat_intent_report,
- ):
+):
     if computed_data is not None:
         computed_json = json.dumps(
             {"type": "computed_data", "data": computed_data.model_dump()},
@@ -33,7 +33,11 @@ def _stream_generate_preamble(
 
     now = datetime.now(timezone.utc)
     banner = build_restore_snapshot_banner(now_utc=now)
-    if isinstance(banner, str) and banner.strip() and (resolved_intent != chat_intent_report):
+    if (
+        isinstance(banner, str)
+        and banner.strip()
+        and (resolved_intent != chat_intent_report)
+    ):
         yield banner.strip() + "\n\n"
 
     current_pension_portfolio = effective_portfolio
@@ -52,10 +56,17 @@ def _stream_generate_preamble(
             }
         ]
         ui_payload: dict[str, Any] = {"type": "ui_actions", "actions": actions}
-        yield "###UI_ACTION###" + json.dumps(ui_payload, ensure_ascii=False) + "###END_UI_ACTION###\n"
+        yield "###UI_ACTION###" + json.dumps(
+            ui_payload, ensure_ascii=False
+        ) + "###END_UI_ACTION###\n"
         return (True, None, None, None, None, None, None, None, None, None, None)
 
-    if explicit_transform and (not no_tools_requested) and (not is_doc_request) and (not is_qa_mode):
+    if (
+        explicit_transform
+        and (not no_tools_requested)
+        and (not is_doc_request)
+        and (not is_qa_mode)
+    ):
         yield from stream_handle_explicit_transform(
             lowered_user_msg=lowered_user_msg,
             original_user_msg=original_user_msg,

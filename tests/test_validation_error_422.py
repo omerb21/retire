@@ -2,6 +2,7 @@
 Tests that RequestValidationError returns 422 with a valid JSON body,
 not 500 caused by non-serializable objects (e.g. ValueError in ctx).
 """
+
 import unittest
 
 from fastapi.testclient import TestClient
@@ -11,7 +12,6 @@ from sqlalchemy.pool import StaticPool
 
 from app.main import app
 from app.database import get_db, Base
-
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(
@@ -60,7 +60,9 @@ class TestValidationError422(unittest.TestCase):
                 "birth_date": "1980-01-01",
             },
         )
-        self.assertEqual(resp.status_code, 422, f"Expected 422, got {resp.status_code}: {resp.text}")
+        self.assertEqual(
+            resp.status_code, 422, f"Expected 422, got {resp.status_code}: {resp.text}"
+        )
         body = resp.json()  # must not raise
         self.assertIn("detail", body)
         self.assertIn("path", body)

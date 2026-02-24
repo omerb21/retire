@@ -1,7 +1,9 @@
+import logging
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
-import logging
+
 from app.database import get_db
 from app.models.client import Client
 from app.models.fixation_result import FixationResult
@@ -171,11 +173,12 @@ def package(client_id: int, db: Session = Depends(get_db)):
         )
 
     # יצירת קובץ ZIP והחזרתו
-    import zipfile
     import os
-    from pathlib import Path
-    from fastapi.responses import FileResponse
     import tempfile
+    import zipfile
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
 
     folder_path = result.get("folder")
     files = result.get("files", [])
