@@ -134,6 +134,18 @@ def package(client_id: int, db: Session = Depends(get_db)):
         logger.error("Client %s is not active", client_id)
         raise HTTPException(status_code=400, detail={"error": "לקוח אינו פעיל"})
     
+    # Check if fixation data exists
+    fixation = db.query(FixationResult).filter(
+        FixationResult.client_id == client_id
+    ).order_by(FixationResult.created_at.desc()).first()
+    
+    if not fixation:
+        logger.error("No fixation data found for client %s", client_id)
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "Fixation not calculated for this client"}
+        )
+    
     logger.info("Client %s found", client_id)
     
     # ייצור החבילה

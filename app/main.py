@@ -1,6 +1,7 @@
 """
 FastAPI application entrypoint
 """
+
 import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
@@ -16,16 +17,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-env_path = Path(__file__).parent.parent / '.env'
+env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path, encoding="utf-8-sig")
 
 # הגדרת לוגר בסיסית (קונסול)
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
 
@@ -34,13 +33,18 @@ BUILT_AT_UTC = datetime.utcnow().isoformat() + "Z"
 # הפעלת לוגינג מתקדם לקבצים (app.log, app.json, fixation.log)
 try:
     from app.logging_config import setup_logging
+
     setup_logging()
 except Exception as e:
     logger.warning("Could not initialize advanced logging: %s", e)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
 from app.database import engine, Base
-from app.config import cors_allow_origins, cors_allow_origin_regex, cors_allow_credentials
+from app.config import (
+    cors_allow_origins,
+    cors_allow_origin_regex,
+    cors_allow_credentials,
+)
 from app.routers import (
     fixation,
     files,
@@ -80,6 +84,7 @@ from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize database tables on application startup"""
@@ -94,10 +99,11 @@ async def lifespan(app: FastAPI):
     ensure_client_public_chat_credit_schema(engine)
     ensure_agent_trace_event_schema(engine)
     ensure_pension_funds_record_status_schema(engine)
-    
+
     # Quick DB connectivity check
     try:
         from app.database import SessionLocal
+
         _test_db = SessionLocal()
         _test_db.execute(__import__("sqlalchemy").text("SELECT 1"))
         _test_db.close()
@@ -109,15 +115,16 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("🚀 Starting Retirement Planning System")
     logger.info("=" * 60)
-    
+
     from app.core.system_validator import run_system_validation_background
 
     asyncio.create_task(asyncio.to_thread(run_system_validation_background))
-    
+
     logger.info("=" * 60)
-    
+
     yield
     # Cleanup code can go here (if needed)
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -128,6 +135,7 @@ app = FastAPI(
 )
 
 from app.core.system_access import SystemAccessMiddleware
+
 app.add_middleware(SystemAccessMiddleware)
 
 # Configure CORS
@@ -176,6 +184,7 @@ async def _global_exception_handler(request: Request, exc: Exception):
     """Catch-all: ensure every unhandled error returns a JSON body so
     production debugging is possible (bare 500 with no body is invisible)."""
     import traceback
+
     tb = traceback.format_exc()
     logger.error(
         "Unhandled exception on %s %s: %s\n%s",
@@ -201,52 +210,29 @@ if os.getenv("STREAM_TRACE_LOGGER_ENABLED") == "1":
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 from app.middleware.access_log import AccessLogMiddleware
+
 app.add_middleware(AccessLogMiddleware)
 
 
-class JsonCharsetMiddleware:
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope.get("type") != "http":
-            await self.app(scope, receive, send)
-            return
-
-        async def _send_with_charset(message):
-            if message.get("type") == "http.response.start":
-                hdrs = list(message.get("headers") or [])
-                for i, (name, value) in enumerate(hdrs):
-                    try:
-                        if name.lower() != b"content-type":
-                            continue
-                        raw = value.decode("latin-1")
-                        raw_lower = raw.lower()
-                        if raw_lower.startswith("application/json") and "charset=" not in raw_lower:
-                            hdrs[i] = (b"content-type", b"application/json; charset=utf-8")
-                            message["headers"] = hdrs
-                    except Exception:
-                        continue
-            await send(message)
-
-        await self.app(scope, receive, _send_with_charset)
-
-
-app.add_middleware(JsonCharsetMiddleware)
-
 # Include routers
 app.include_router(clients.router)  # clients router already has /api/v1/clients prefix
-app.include_router(employment.router)  # employment router already has /api/v1/clients prefix
+app.include_router(
+    employment.router
+)  # employment router already has /api/v1/clients prefix
 app.include_router(employment_router, prefix="/api/v1", tags=["current_employer"])
-app.include_router(employment_api_router)  # legacy Employment API (/api/v1/clients/.../employment/...)
-app.include_router(fixation.router,   prefix="/api/v1", tags=["fixation"])
+app.include_router(
+    employment_api_router
+)  # legacy Employment API (/api/v1/clients/.../employment/...)
+app.include_router(fixation.router, prefix="/api/v1", tags=["fixation"])
 app.include_router(pension_fund.router)
 app.include_router(additional_income.router, prefix="/api/v1")
 app.include_router(capital_asset.router, prefix="/api/v1")
 app.include_router(income_integration.router, prefix="/api/v1")
 app.include_router(cashflow_generation.router)
 app.include_router(report_generation.router)
-app.include_router(scenarios_router)  # scenarios router already has /api/v1/clients prefix
+app.include_router(
+    scenarios_router
+)  # scenarios router already has /api/v1/clients prefix
 app.include_router(scenario_compare.router)
 app.include_router(case_detection.router, prefix="/api/v1")
 app.include_router(grant.router, prefix="/api/v1")  # Grant router
@@ -254,10 +240,18 @@ app.include_router(tax_data.router, prefix="/api/v1/tax-data", tags=["tax-data"]
 app.include_router(indexation.router, prefix="/api/v1/indexation", tags=["indexation"])
 app.include_router(rights_fixation.router, tags=["rights-fixation"])
 app.include_router(tax_calculation.router, tags=["tax-calculation"])
-app.include_router(pension_portfolio.router, prefix="/api/v1", tags=["pension-portfolio"])
-app.include_router(snapshot.router)  # snapshot router already has /api/v1/clients prefix
+app.include_router(
+    pension_portfolio.router, prefix="/api/v1", tags=["pension-portfolio"]
+)
+app.include_router(
+    snapshot.router
+)  # snapshot router already has /api/v1/clients prefix
 app.include_router(retirement_age.router, prefix="/api/v1", tags=["retirement-age"])
-app.include_router(annuity_coefficient.router, prefix="/api/v1/annuity-coefficient", tags=["annuity-coefficient"])
+app.include_router(
+    annuity_coefficient.router,
+    prefix="/api/v1/annuity-coefficient",
+    tags=["annuity-coefficient"],
+)
 app.include_router(system_health.router, tags=["system-health"])
 app.include_router(calculation.router)
 if llm_chat is not None:
@@ -277,7 +271,11 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 frontend_dist_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 frontend_assets_dir = frontend_dist_dir / "assets"
 if frontend_assets_dir.exists():
-    app.mount("/assets", StaticFiles(directory=str(frontend_assets_dir)), name="frontend-assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(frontend_assets_dir)),
+        name="frontend-assets",
+    )
 
 
 @app.get("/")
@@ -293,6 +291,7 @@ def read_root():
 def ui_redirect():
     """Permanent UI for operations"""
     from fastapi.responses import HTMLResponse
+
     with open("app/static/index.html", "r", encoding="utf-8") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content)
@@ -304,6 +303,7 @@ def agent_trace_ui():
     if os.getenv("AGENT_TRACE_DEBUG_ENABLED", "0") != "1":
         raise HTTPException(status_code=404)
     from fastapi.responses import HTMLResponse
+
     trace_html = Path(__file__).parent / "static" / "agent_trace.html"
     if not trace_html.exists():
         raise HTTPException(status_code=404)
@@ -316,9 +316,12 @@ def health_check():
     return {
         "status": "ok",
         "version": "1.0.9",
-        "git_sha": os.getenv("GIT_SHA") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "unknown",
+        "git_sha": os.getenv("GIT_SHA")
+        or os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or "unknown",
         "build_time": os.getenv("BUILD_TIME") or "unknown",
     }
+
 
 @app.get("/api/v1/health")
 def health_check_v1():
@@ -337,6 +340,7 @@ def edge_probe():
     """Absolute-minimum probe: if this returns 500 with no body and no
     REQ_IN log line, the request never reached the Python process."""
     import time as _t
+
     return {
         "edge": True,
         "ts": _t.time(),
@@ -374,7 +378,3 @@ def spa_fallback(full_path: str):
     if candidate.is_file():
         return FileResponse(str(candidate))
     return FileResponse(str(index_html), media_type="text/html")
-
-
-
-
