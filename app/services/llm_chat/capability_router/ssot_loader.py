@@ -21,7 +21,9 @@ def _canary_capability_map_path() -> Path:
 
 def _get_core_version_source() -> Optional[str]:
     try:
-        raw_version = os.environ.get("APP_VERSION") or os.environ.get("SERVICE_VERSION")
+        raw_version = os.environ.get("APP_VERSION") or os.environ.get(
+            "SERVICE_VERSION"
+        )
         if isinstance(raw_version, str) and raw_version.strip():
             return raw_version.strip()
     except Exception:
@@ -53,12 +55,16 @@ def get_capability_map_path() -> Path:
         core_version_str = _get_core_version_source()
         if not core_version_str:
             logger.warning(
-                "core version source missing - core_and_map disabled until version SSOT exists"
+                "core version source missing - core_and_map disabled "
+                "until version "
+                "SSOT exists"
             )
             return _default_capability_map_path()
         if _parse_version(core_version_str) is None:
             logger.warning(
-                "core version parser missing - core_and_map disabled until version SSOT exists"
+                "core version parser missing - core_and_map disabled "
+                "until version "
+                "SSOT exists"
             )
             return _default_capability_map_path()
 
@@ -86,7 +92,9 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 @lru_cache(maxsize=4)
 def load_capability_map() -> dict[str, Any]:
     env_path = os.getenv("CAPABILITY_MAP_PATH")
-    capability_map_path_set = bool(isinstance(env_path, str) and env_path.strip())
+    capability_map_path_set = bool(
+        isinstance(env_path, str) and env_path.strip()
+    )
 
     mode = os.getenv("CAPABILITY_ROUTER_CANARY_MODE")
     mode = mode.strip() if isinstance(mode, str) else ""
@@ -101,16 +109,24 @@ def load_capability_map() -> dict[str, Any]:
     ):
         core_version_str = _get_core_version_source()
         core_version = (
-            _parse_version(core_version_str or "") if core_version_str else None
+            _parse_version(core_version_str or "")
+            if core_version_str
+            else None
         )
 
         if core_version is None:
             logger.warning(
-                "core version source missing - core_and_map disabled until version SSOT exists"
+                "core version source missing - core_and_map disabled "
+                "until version "
+                "SSOT exists"
             )
             data = _load_yaml(_default_capability_map_path())
         else:
-            raw_caps = data.get("capabilities") if isinstance(data, dict) else None
+            raw_caps = (
+                data.get("capabilities")
+                if isinstance(data, dict)
+                else None
+            )
             caps = raw_caps if isinstance(raw_caps, list) else []
 
             filtered: list[dict[str, Any]] = []
@@ -141,11 +157,14 @@ def load_capability_map() -> dict[str, Any]:
     try:
         if os.getenv("SSOT_DEBUG") == "1":
             capability_map_version = (
-                data.get("capability_map_version") if isinstance(data, dict) else None
+                data.get("capability_map_version")
+                if isinstance(data, dict)
+                else None
             )
             capability_map_loaded = bool(isinstance(data, dict) and data)
             logger.info(
-                "capability_map_loaded=%s capability_map_version=%s capability_map_path_set=%s",
+                "capability_map_loaded=%s capability_map_version=%s "
+                "capability_map_path_set=%s",
                 capability_map_loaded,
                 capability_map_version,
                 capability_map_path_set,
