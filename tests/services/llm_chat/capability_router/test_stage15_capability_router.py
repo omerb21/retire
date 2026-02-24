@@ -12,7 +12,9 @@ def test_stage15_router_selected_emitted_once_and_no_raw_text(monkeypatch) -> No
     from app.services.llm_chat.orchestration_core.core_types import (
         OrchestrationDeps, OrchestrationInput)
 
-    monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/capability_map_minimal.yaml")
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/capability_map_minimal.yaml"
+    )
     load_capability_map.cache_clear()
 
     trace_id = "trace_stage15_router_selected_1"
@@ -66,7 +68,9 @@ def test_stage15_router_selected_emitted_once_and_no_raw_text(monkeypatch) -> No
     assert len(router_events2) == 0
 
 
-def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_session, monkeypatch) -> None:
+def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(
+    db_session, monkeypatch
+) -> None:
     import app.services.agent_execution.tool_executor as tool_exec_mod
     import app.services.llm_chat.tool_execution as tool_execution_mod
     from app.schemas.llm_chat import ChatMessage, ChatRequest
@@ -74,7 +78,9 @@ def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_s
         RouterDecision, set_router_decision)
     from app.utils.trace_context import set_current_trace_id
 
-    gate_enabled = (os.getenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED") or "").strip() == "1"
+    gate_enabled = (
+        os.getenv("CAPABILITY_ROUTER_POLICY_GATE_ENABLED") or ""
+    ).strip() == "1"
 
     trace_id = "trace_stage15_policy_gate_1"
     set_current_trace_id(trace_id)
@@ -98,11 +104,15 @@ def test_stage15_policy_gate_blocked_emits_trace_and_returns_partial_result(db_s
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         _ = (args, client_id, db, kwargs)
         return json.dumps({"success": True, "tool_name": tool_name}, ensure_ascii=False)
 
@@ -162,12 +172,17 @@ def test_stage15_qa_claims_guard_blocks_and_passes(monkeypatch) -> None:
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(trace_logger_mod, "log_trace_event", fake_log_trace_event)
 
     blocked = guard_qa_answer_payload(
-        qa_answer_payload={"mode": "QA", "answer_blocks": [{"type": "explanation", "text": "it is 12"}]},
+        qa_answer_payload={
+            "mode": "QA",
+            "answer_blocks": [{"type": "explanation", "text": "it is 12"}],
+        },
         trace_id="tqa1",
         client_id=1,
         detected_capability_id="default_qa_v1",

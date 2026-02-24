@@ -21,7 +21,9 @@ def _capture_all_trace_events(monkeypatch):
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(entry_mod, "log_trace_event", fake_log_trace_event)
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
@@ -31,7 +33,9 @@ def _capture_all_trace_events(monkeypatch):
     return events
 
 
-def _assert_no_duplicate_tool_calls(events: list[dict[str, Any]], trace_id: str) -> None:
+def _assert_no_duplicate_tool_calls(
+    events: list[dict[str, Any]], trace_id: str
+) -> None:
     tool_calls = []
     for e in events:
         if e.get("trace_id") != trace_id:
@@ -66,7 +70,9 @@ def _assert_no_duplicate_tool_calls(events: list[dict[str, Any]], trace_id: str)
                 )
 
 
-def _find_router_selected_payload(events: list[dict[str, Any]], trace_id: str) -> dict[str, Any]:
+def _find_router_selected_payload(
+    events: list[dict[str, Any]], trace_id: str
+) -> dict[str, Any]:
     for e in events:
         if e.get("trace_id") != trace_id:
             continue
@@ -91,7 +97,9 @@ def test_stage16_golden_action_e2e(db_session, client, monkeypatch) -> None:
         orchestrate
     from app.utils.trace_context import set_current_trace_id
 
-    monkeypatch.setenv("CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml")
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
     load_capability_map.cache_clear()
 
     fixture = _load_yaml("tests/fixtures/stage16/golden_action_cases.yaml")
@@ -105,7 +113,11 @@ def test_stage16_golden_action_e2e(db_session, client, monkeypatch) -> None:
         expected_capability_id = expected.get("capability_id")
         expected_tool_chain = expected.get("tool_chain")
         expected_schema_id = expected.get("output_schema_id")
-        expected_cd_keys = expected.get("computed_data_keys") if isinstance(expected.get("computed_data_keys"), list) else []
+        expected_cd_keys = (
+            expected.get("computed_data_keys")
+            if isinstance(expected.get("computed_data_keys"), list)
+            else []
+        )
 
         for run_idx in range(5):
             trace_id = f"trace_stage16_action_{case_id}_{run_idx}"
@@ -135,11 +147,19 @@ def test_stage16_golden_action_e2e(db_session, client, monkeypatch) -> None:
                 )
                 _d, specs = orchestrate(oin, deps)
                 for s in specs:
-                    events.append({"trace_id": s.trace_id, "event_type": s.event_type, "payload": s.payload})
+                    events.append(
+                        {
+                            "trace_id": s.trace_id,
+                            "event_type": s.event_type,
+                            "payload": s.payload,
+                        }
+                    )
 
                 te = c.get("tool_execution")
                 tool_name = str(te.get("tool_name") or "")
-                tool_args = te.get("tool_args") if isinstance(te.get("tool_args"), dict) else {}
+                tool_args = (
+                    te.get("tool_args") if isinstance(te.get("tool_args"), dict) else {}
+                )
 
                 req = ChatRequest(
                     messages=[ChatMessage(role="user", content=user_text)],
@@ -178,7 +198,9 @@ def test_stage16_golden_action_e2e(db_session, client, monkeypatch) -> None:
             assert router_payload.get("tool_chain") == expected_tool_chain
             assert router_payload.get("output_schema_id") == expected_schema_id
 
-            cd_keys = set(computed_data.keys()) if isinstance(computed_data, dict) else set()
+            cd_keys = (
+                set(computed_data.keys()) if isinstance(computed_data, dict) else set()
+            )
             assert cd_keys == set(str(x) for x in expected_cd_keys)
 
             _assert_no_duplicate_tool_calls(events, trace_id)

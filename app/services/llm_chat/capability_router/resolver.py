@@ -30,13 +30,22 @@ def _params_hash(params: dict[str, Any] | None) -> str:
     if not params:
         return _sha256_hex_utf8("")
     try:
-        stable = json.dumps(params, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        stable = json.dumps(
+            params, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
         return _sha256_hex_utf8(stable)
     except Exception:
         return _sha256_hex_utf8("")
 
 
-def _emit_predicate_eval(*, trace_id: str | None, client_id: int | None, rule_id: str, outcome: bool, params_hash: str) -> None:
+def _emit_predicate_eval(
+    *,
+    trace_id: str | None,
+    client_id: int | None,
+    rule_id: str,
+    outcome: bool,
+    params_hash: str,
+) -> None:
     try:
         from app.services.agent_trace_logger import log_trace_event
 
@@ -62,9 +71,21 @@ def _match_capability(
     client_id: int | None,
 ) -> bool:
     triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
-    trigger_terms = triggers.get("trigger_terms") if isinstance(triggers.get("trigger_terms"), list) else []
-    trigger_regex = triggers.get("trigger_regex") if isinstance(triggers.get("trigger_regex"), list) else []
-    negative_triggers = triggers.get("negative_triggers") if isinstance(triggers.get("negative_triggers"), list) else []
+    trigger_terms = (
+        triggers.get("trigger_terms")
+        if isinstance(triggers.get("trigger_terms"), list)
+        else []
+    )
+    trigger_regex = (
+        triggers.get("trigger_regex")
+        if isinstance(triggers.get("trigger_regex"), list)
+        else []
+    )
+    negative_triggers = (
+        triggers.get("negative_triggers")
+        if isinstance(triggers.get("negative_triggers"), list)
+        else []
+    )
 
     cap_id = str(cap.get("capability_id") or "")
 
@@ -119,22 +140,33 @@ def _match_capability(
     return False
 
 
-def resolve(*, user_text: str, client_id: int | None, trace_id: str | None) -> RouterDecision:
+def resolve(
+    *, user_text: str, client_id: int | None, trace_id: str | None
+) -> RouterDecision:
     _ = client_id
 
     cap_map = load_capability_map()
-    capabilities = cap_map.get("capabilities") if isinstance(cap_map.get("capabilities"), list) else []
+    capabilities = (
+        cap_map.get("capabilities")
+        if isinstance(cap_map.get("capabilities"), list)
+        else []
+    )
 
     normalized_text = normalize_user_text_v1(user_text)
     norm_hash = sha256_hex(normalized_text)
 
     selected: dict[str, Any] | None = None
-    selected_prio = -10**9
+    selected_prio = -(10**9)
 
     for cap in capabilities:
         if not isinstance(cap, dict):
             continue
-        if not _match_capability(cap=cap, normalized_text=normalized_text, trace_id=trace_id, client_id=client_id):
+        if not _match_capability(
+            cap=cap,
+            normalized_text=normalized_text,
+            trace_id=trace_id,
+            client_id=client_id,
+        ):
             continue
 
         prio = cap.get("priority")
@@ -167,7 +199,9 @@ def resolve(*, user_text: str, client_id: int | None, trace_id: str | None) -> R
         tool_chain=tool_chain,
         output_schema_id=output_schema_id,
         capability_map_version=str(cap_map.get("capability_map_version") or ""),
-        router_normalization_version=str(cap_map.get("router_normalization_version") or ""),
+        router_normalization_version=str(
+            cap_map.get("router_normalization_version") or ""
+        ),
         normalized_text_hash=norm_hash,
     )
 

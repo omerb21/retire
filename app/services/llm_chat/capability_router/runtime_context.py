@@ -17,8 +17,8 @@ class RouterDecision:
     normalized_text_hash: str
 
 
-_current_router_decision: ContextVar[tuple[str | None, RouterDecision] | None] = ContextVar(
-    "cap_router_decision", default=None
+_current_router_decision: ContextVar[tuple[str | None, RouterDecision] | None] = (
+    ContextVar("cap_router_decision", default=None)
 )
 
 _ROUTER_DECISION_TTL_SEC = 3600.0
@@ -99,7 +99,11 @@ def mark_router_selected_emitted(*, trace_id: str | None) -> None:
             _router_selected_emitted_by_trace[tid] = now
             if len(_router_selected_emitted_by_trace) > 1000:
                 cutoff = now - _ROUTER_DECISION_TTL_SEC
-                stale = [k for k, ts in _router_selected_emitted_by_trace.items() if ts < cutoff]
+                stale = [
+                    k
+                    for k, ts in _router_selected_emitted_by_trace.items()
+                    if ts < cutoff
+                ]
                 for k in stale:
                     _router_selected_emitted_by_trace.pop(k, None)
     except Exception:

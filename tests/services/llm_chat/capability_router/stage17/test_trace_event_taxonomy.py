@@ -2,7 +2,9 @@ import json
 import re
 
 
-def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_session, monkeypatch) -> None:
+def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(
+    db_session, monkeypatch
+) -> None:
     import app.services.agent_execution.tool_executor as tool_exec_mod
     import app.services.agent_trace_logger as trace_logger_mod
     from app.schemas.llm_chat import ChatMessage, ChatRequest
@@ -25,14 +27,22 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_se
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
     monkeypatch.setattr(trace_logger_mod, "log_trace_event", fake_log_trace_event)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="x")], client_id=1, pension_portfolio=None)
+    req = ChatRequest(
+        messages=[ChatMessage(role="user", content="x")],
+        client_id=1,
+        pension_portfolio=None,
+    )
 
-    _ = ensure_router_decision(user_text="x", client_id=req.client_id, trace_id=trace_id)
+    _ = ensure_router_decision(
+        user_text="x", client_id=req.client_id, trace_id=trace_id
+    )
 
     res = tool_exec_mod.execute_with_guard(
         request=req,
@@ -72,7 +82,10 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_se
     )
 
     _ = guard_qa_answer_payload(
-        qa_answer_payload={"mode": "QA", "answer_blocks": [{"type": "explanation", "text": "it is 12"}]},
+        qa_answer_payload={
+            "mode": "QA",
+            "answer_blocks": [{"type": "explanation", "text": "it is 12"}],
+        },
         trace_id=trace_id,
         client_id=req.client_id,
         detected_capability_id="default_qa_v1",
@@ -102,7 +115,10 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_se
         assert forbidden_key not in router_payload
 
     assert isinstance(router_payload.get("normalized_text_hash"), str)
-    assert re.fullmatch(r"[0-9a-f]{64}", router_payload["normalized_text_hash"]) is not None
+    assert (
+        re.fullmatch(r"[0-9a-f]{64}", router_payload["normalized_text_hash"])
+        is not None
+    )
 
     assert "predicate_eval" in event_types
 
@@ -118,7 +134,13 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_se
         assert isinstance(pp.get("params_hash"), str)
         assert re.fullmatch(r"[0-9a-f]{64}", pp["params_hash"]) is not None
 
-        for forbidden_key in ("user_text", "raw_text", "normalized_text", "messages", "params"):
+        for forbidden_key in (
+            "user_text",
+            "raw_text",
+            "normalized_text",
+            "messages",
+            "params",
+        ):
             assert forbidden_key not in pp
 
     assert "tool_started" in event_types
@@ -139,7 +161,10 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_se
     for fe in finished_events:
         fp = fe.get("payload")
         assert isinstance(fp, dict)
-        assert set(fp.keys()) in ({"tool_id", "success", "duration_ms"}, {"tool_id", "success", "duration_ms", "error_type"})
+        assert set(fp.keys()) in (
+            {"tool_id", "success", "duration_ms"},
+            {"tool_id", "success", "duration_ms", "error_type"},
+        )
         assert isinstance(fp.get("tool_id"), str) and fp.get("tool_id")
         assert fp.get("success") in {True, False}
         assert isinstance(fp.get("duration_ms"), int)
@@ -154,7 +179,9 @@ def test_stage17_trace_taxonomy_is_not_closed_list_for_policy_gate_blocked(db_se
         sp = se.get("payload")
         assert isinstance(sp, dict)
         assert set(sp.keys()) == {"output_schema_id", "result_keys"}
-        assert isinstance(sp.get("output_schema_id"), str) and sp.get("output_schema_id")
+        assert isinstance(sp.get("output_schema_id"), str) and sp.get(
+            "output_schema_id"
+        )
         assert isinstance(sp.get("result_keys"), list)
         for k in sp.get("result_keys"):
             assert isinstance(k, str)

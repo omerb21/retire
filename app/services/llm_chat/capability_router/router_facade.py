@@ -8,7 +8,9 @@ from app.services.llm_chat.capability_router.trace_specs import \
     build_router_selected_trace_spec
 
 
-def ensure_router_decision(*, user_text: str, client_id: int | None, trace_id: str | None) -> RouterDecision:
+def ensure_router_decision(
+    *, user_text: str, client_id: int | None, trace_id: str | None
+) -> RouterDecision:
     existing = get_router_decision(trace_id=trace_id)
     if existing is not None:
         return existing

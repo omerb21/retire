@@ -49,17 +49,25 @@ def test_stage17_policy_gate_blocked_args_hash_is_deterministic_and_payload_mini
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
 
-    def fake_execute_tool_call(*, tool_name: str, args: dict, client_id: int, db, **kwargs) -> str:
+    def fake_execute_tool_call(
+        *, tool_name: str, args: dict, client_id: int, db, **kwargs
+    ) -> str:
         _ = (tool_name, args, client_id, db, kwargs)
         return json.dumps({"success": True, "tool_name": tool_name}, ensure_ascii=False)
 
     monkeypatch.setattr(tool_execution_mod, "execute_tool_call", fake_execute_tool_call)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="x")], client_id=1, pension_portfolio=None)
+    req = ChatRequest(
+        messages=[ChatMessage(role="user", content="x")],
+        client_id=1,
+        pension_portfolio=None,
+    )
 
     res = tool_exec_mod.execute_with_guard(
         request=req,
@@ -93,5 +101,7 @@ def test_stage17_policy_gate_blocked_args_hash_is_deterministic_and_payload_mini
     if expect_fallback:
         assert payload.get("args_hash") == hashlib.sha256(b"").hexdigest()
     else:
-        expected_json = json.dumps(tool_args, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        expected_json = json.dumps(
+            tool_args, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
         assert payload.get("args_hash") == _sha256_hex_utf8(expected_json)

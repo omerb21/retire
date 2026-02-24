@@ -11,7 +11,9 @@ def _sha256_hex(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
 
 
-def fingerprint_fields(*, capability_id: str, tool_chain: list[str], output_schema_id: str) -> str:
+def fingerprint_fields(
+    *, capability_id: str, tool_chain: list[str], output_schema_id: str
+) -> str:
     payload = {
         "capability_id": str(capability_id or ""),
         "tool_chain": [str(x) for x in (tool_chain or [])],
@@ -21,7 +23,9 @@ def fingerprint_fields(*, capability_id: str, tool_chain: list[str], output_sche
     return _sha256_hex(stable)
 
 
-def run_determinism_report(*, cases: list[dict[str, Any]], runs: int = 3) -> dict[str, Any]:
+def run_determinism_report(
+    *, cases: list[dict[str, Any]], runs: int = 3
+) -> dict[str, Any]:
     per_case: dict[str, dict[str, Any]] = {}
     mismatches: list[dict[str, Any]] = []
 
@@ -32,7 +36,9 @@ def run_determinism_report(*, cases: list[dict[str, Any]], runs: int = 3) -> dic
         observed: list[dict[str, Any]] = []
 
         for i in range(int(runs)):
-            d = resolve(user_text=user_text, client_id=None, trace_id=f"det_{case_id}_{i}")
+            d = resolve(
+                user_text=user_text, client_id=None, trace_id=f"det_{case_id}_{i}"
+            )
             fp = fingerprint_fields(
                 capability_id=d.capability_id,
                 tool_chain=list(d.tool_chain or []),

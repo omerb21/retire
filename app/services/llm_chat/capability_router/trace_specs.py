@@ -5,7 +5,9 @@ from app.services.llm_chat.capability_router.runtime_context import \
 from app.services.llm_chat.orchestration_core.core_types import TraceEventSpec
 
 
-def build_router_selected_trace_spec(*, trace_id: str | None, decision: RouterDecision) -> TraceEventSpec:
+def build_router_selected_trace_spec(
+    *, trace_id: str | None, decision: RouterDecision
+) -> TraceEventSpec:
     return TraceEventSpec(
         event_type="router_selected",
         trace_id=trace_id,

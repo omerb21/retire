@@ -18,9 +18,21 @@ def test_trace_retention_cleanup_dry_run_and_delete(db_session, monkeypatch) -> 
     tid_border = "stage17_retention_border"
     tid_new = "stage17_retention_new"
 
-    old = AgentTraceEvent(trace_id=tid_old, event_type="e", payload_json="{}", created_at=cutoff - timedelta(seconds=1))
-    border = AgentTraceEvent(trace_id=tid_border, event_type="e", payload_json="{}", created_at=cutoff)
-    new = AgentTraceEvent(trace_id=tid_new, event_type="e", payload_json="{}", created_at=cutoff + timedelta(seconds=1))
+    old = AgentTraceEvent(
+        trace_id=tid_old,
+        event_type="e",
+        payload_json="{}",
+        created_at=cutoff - timedelta(seconds=1),
+    )
+    border = AgentTraceEvent(
+        trace_id=tid_border, event_type="e", payload_json="{}", created_at=cutoff
+    )
+    new = AgentTraceEvent(
+        trace_id=tid_new,
+        event_type="e",
+        payload_json="{}",
+        created_at=cutoff + timedelta(seconds=1),
+    )
 
     db_session.add_all([old, border, new])
     db_session.commit()

@@ -18,7 +18,9 @@ def test_stage17_output_schema_allows_budget_config_invalid_status() -> None:
     assert "budget_config_invalid" in list(enum)
 
 
-def test_stage17_budget_guard_unenforceable_partial_result_shape_is_valid_against_enum_subset() -> None:
+def test_stage17_budget_guard_unenforceable_partial_result_shape_is_valid_against_enum_subset() -> (
+    None
+):
     from app.services.llm_chat.capability_router.ssot_loader import \
         load_output_schemas
 
@@ -37,11 +39,20 @@ def test_stage17_budget_guard_unenforceable_partial_result_shape_is_valid_agains
     }
 
     assert payload["status"] in enum
-    for key in ("mode", "status", "detected_capability_id", "what_ran", "missing_fields", "next_step"):
+    for key in (
+        "mode",
+        "status",
+        "detected_capability_id",
+        "what_ran",
+        "missing_fields",
+        "next_step",
+    ):
         assert key in payload
 
 
-def test_stage17_budget_guard_unenforceable_emits_events_and_returns_partial(db_session, monkeypatch) -> None:
+def test_stage17_budget_guard_unenforceable_emits_events_and_returns_partial(
+    db_session, monkeypatch
+) -> None:
     import app.services.agent_execution.tool_executor as tool_exec_mod
     import app.services.agent_trace_logger as trace_logger_mod
     from app.schemas.llm_chat import ChatMessage, ChatRequest
@@ -57,7 +68,11 @@ def test_stage17_budget_guard_unenforceable_emits_events_and_returns_partial(db_
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", fake_log_trace_event)
     monkeypatch.setattr(trace_logger_mod, "log_trace_event", fake_log_trace_event)
 
-    req = ChatRequest(messages=[ChatMessage(role="user", content="x")], client_id=1, pension_portfolio=None)
+    req = ChatRequest(
+        messages=[ChatMessage(role="user", content="x")],
+        client_id=1,
+        pension_portfolio=None,
+    )
 
     res = tool_exec_mod.execute_with_guard(
         request=req,

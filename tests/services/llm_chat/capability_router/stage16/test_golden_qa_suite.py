@@ -17,20 +17,28 @@ def test_stage16_golden_qa_suite(monkeypatch) -> None:
         guard_qa_answer_payload
 
     fixture = _load_yaml("tests/fixtures/stage16/golden_qa_questions.yaml")
-    questions = fixture.get("questions") if isinstance(fixture.get("questions"), list) else []
+    questions = (
+        fixture.get("questions") if isinstance(fixture.get("questions"), list) else []
+    )
     assert questions
 
     events: list[dict[str, Any]] = []
 
     def fake_log_trace_event(*, trace_id=None, event_type: str, payload=None, **kwargs):
         _ = kwargs
-        events.append({"trace_id": trace_id, "event_type": event_type, "payload": payload})
+        events.append(
+            {"trace_id": trace_id, "event_type": event_type, "payload": payload}
+        )
 
     monkeypatch.setattr(trace_logger_mod, "log_trace_event", fake_log_trace_event)
 
     for q in questions:
         question_id = str(q.get("question_id") or "")
-        qa_payload = q.get("qa_answer_payload") if isinstance(q.get("qa_answer_payload"), dict) else {}
+        qa_payload = (
+            q.get("qa_answer_payload")
+            if isinstance(q.get("qa_answer_payload"), dict)
+            else {}
+        )
         expected = q.get("expected") if isinstance(q.get("expected"), dict) else {}
 
         events.clear()
