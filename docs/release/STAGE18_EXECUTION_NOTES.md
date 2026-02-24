@@ -21,6 +21,7 @@ Constraints: no assertion changes, no expected-output changes, no behavior chang
 - `release_gates` יהיה job נפרד ב-CI.
 - רק אם מבנה ה-workflow הקיים לא מאפשר זאת technically, מותר fallback ל-step פנימי.
 - מטרה: לאפשר Required Check בעתיד.
+- אין לכתוב "מאושר פורמלית" עבור Stage 18.1 בלי ראיה של ריצת CI. במקום זאת: "Implementation נראה תואם לקריטריונים לפי דיווח, נדרש אימות ב CI".
 
 ## Stage 18.2 Canary Strategy
 
@@ -51,6 +52,29 @@ Constraints: no assertion changes, no expected-output changes, no behavior chang
 - השוואה לקסיקוגרפית אסורה.
 - אין מימוש custom.
 
+#### 2.4 Version source guard (קשיח, ללא יצירת SSOT חדש)
+
+1. לחפש מקור גרסה קיים לפי סדר עדיפויות:
+
+   - מקור גרסה קיים באפליקציה (module/version constant)
+   - package metadata אם כבר בשימוש בריפו
+   - כל מקור גרסה שכבר קיים בפועל ומשמש את המערכת (לא ליצור חדש)
+
+2. אם נמצא מקור גרסה ברור:
+
+   - להשתמש בו ל CORE_VERSION במצב core_and_map
+   - להשוות מול min_core_version באמצעות parser קיים, ואם אין אז packaging.version
+
+3. אם לא נמצא מקור גרסה ברור (מצב “missing version SSOT”):
+
+   - לא ליצור `app/version.py`
+   - לא ליצור CORE_VERSION זמני
+   - ההתנהגות במצב `CAPABILITY_ROUTER_CANARY_MODE=core_and_map` תהיה דטרמיניסטית:
+
+     - לבצע fallback ל stable map מיד
+     - ולוג ברור: “core version source missing - core_and_map disabled until version SSOT exists”
+   - במצב זה, אין min_core_version check כי core_and_map מושבת.
+
 ## Stage 18.2 Rollback Procedure
 
 - לבצע rollback לפי ה-runbook הרלוונטי.
@@ -58,12 +82,30 @@ Constraints: no assertion changes, no expected-output changes, no behavior chang
 
 ## Stage 18.3 Runbooks
 
-### Taxonomy Selection Rule (קשיח)
+### 4.1 Locate incident SSOT (taxonomy or equivalent) - קשיח, עם fallback
 
-- "הסט הראשון" = קבוצת incidents הראשונה לפי סדר הופעה בקובץ taxonomy הראשי.
-- אין לבחור subset ואין לשנות סדר.
-- מקור אמת יחיד: taxonomy הראשי הקיים בריפו.
-- אין בחירה ידנית של incidents.
+סדר discovery מחייב:
+
+1. לנסות לאתר path לקובץ taxonomy דרך `test_trace_event_taxonomy.py`:
+
+   - אם הטסט מפנה לקובץ YAML/JSON וכו, זה ה SSOT.
+
+2. אם אין path לקובץ, לבדוק האם הטסט:
+
+   - מגדיר incident list inline (למשל list/dict של ids)
+   - או מייבא incident list / taxonomy object ממודול אחר
+
+במקרה כזה:
+
+- ה SSOT ל incident list הוא אותו מקור (הטסט עצמו או המודול שממנו הוא מייבא).
+- “הסט הראשון” מוגדר כקבוצה הראשונה לפי סדר הופעה באותו מקור.
+- יוצרים runbooks לפי הרשימה הזו, בלי לכתוב taxonomy file חדש.
+
+3. לעצור רק אם:
+
+- אין קובץ,
+- ואין incident list inline,
+- ואין מודול מיובא שמכיל incident ids בצורה שניתנת לשליפה דטרמיניסטית.
 
 ## Scope Guard
 
