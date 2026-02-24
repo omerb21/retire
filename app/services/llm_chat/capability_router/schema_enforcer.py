@@ -9,6 +9,8 @@ _PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_\-\.]+)\s*\}\}")
 
 
 def _contains_disallowed_placeholders(value: str, allowlist: set[str]) -> bool:
+    if not allowlist:
+        return False
     if not isinstance(value, str) or "{{" not in value or "}}" not in value:
         return False
     for m in _PLACEHOLDER_RE.finditer(value):

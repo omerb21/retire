@@ -98,18 +98,6 @@ def guard_qa_answer_payload(
     client_id: int | None,
     detected_capability_id: str,
 ) -> dict[str, Any]:
-    qa_answer_payload = enforce_output_schema(
-        output_schema_id="qa_answer_v1",
-        payload=qa_answer_payload,
-        detected_capability_id=detected_capability_id,
-        placeholder_allowlist=set(),
-    )
-    if (
-        isinstance(qa_answer_payload, dict)
-        and qa_answer_payload.get("status") == "schema_error"
-    ):
-        return qa_answer_payload
-
     answer_blocks = []
     try:
         raw = qa_answer_payload.get("answer_blocks")
@@ -120,7 +108,12 @@ def guard_qa_answer_payload(
 
     res = evaluate_qa_claims_guard(answer_blocks=answer_blocks)
     if not res.blocked:
-        return qa_answer_payload
+        return enforce_output_schema(
+            output_schema_id="qa_answer_v1",
+            payload=qa_answer_payload,
+            detected_capability_id=detected_capability_id,
+            placeholder_allowlist=set(),
+        )
 
     try:
         from app.services.agent_trace_logger import log_trace_event

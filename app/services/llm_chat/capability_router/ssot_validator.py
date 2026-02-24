@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from functools import lru_cache
 from typing import Any
 
@@ -55,30 +54,15 @@ class OutputSchemasModel(BaseModel):
 
 @lru_cache(maxsize=1)
 def get_known_tool_ids() -> set[str]:
-    """Best-effort known tool ids registry.
+    """Deterministic known tool ids registry.
 
     Hardening target: validate SSOT tool_chain entries refer to known tools.
-    This intentionally does NOT import or modify the tool execution pipeline.
+    Source of truth: app.services.agent_execution.tool_contracts._CONTRACTS keys.
     """
 
     known: set[str] = set()
 
-    # Primary source: tools definitions JSON (used by the agent).
-    try:
-        from app.services.llm_chat.state_tools import get_tools_definitions_json
-
-        raw = get_tools_definitions_json()
-        data = json.loads(raw) if isinstance(raw, str) else None
-        if isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict):
-                    name = item.get("name")
-                    if isinstance(name, str) and name.strip():
-                        known.add(name.strip())
-    except Exception:
-        pass
-
-    # Secondary: tool contracts registry keys.
+    # Source of truth: tool contracts registry keys.
     try:
         from app.services.agent_execution import tool_contracts as tool_contracts_mod
 
