@@ -5,6 +5,9 @@
 Release gates commands and determinism artifact spec are defined in docs/release/RELEASE_GATES.md
 Artifact path: artifacts/determinism-report/determinism-report.json
 
+Exception approved (single test file only): allow a minimal refactor in `tests/services/llm_chat/capability_router/stage16/test_determinism_report.py` to expose `build_cases()` for determinism artifact generation.
+Constraints: no assertion changes, no expected-output changes, no behavior changes. This exception is limited to this file only.
+
 ### Determinism Report Guard (קשיח)
 
 - אין ליצור generator חדש לדוח determinism.

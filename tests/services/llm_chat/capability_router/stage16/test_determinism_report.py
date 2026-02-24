@@ -11,17 +11,7 @@ def _load_yaml(path: str) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def test_stage16_determinism_report(monkeypatch) -> None:
-    from app.services.llm_chat.capability_router.determinism_report import (
-        run_determinism_report,
-    )
-    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
-
-    monkeypatch.setenv(
-        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
-    )
-    load_capability_map.cache_clear()
-
+def build_cases() -> list[dict[str, Any]]:
     action = _load_yaml("tests/fixtures/stage16/golden_action_cases.yaml")
     overlap = _load_yaml("tests/fixtures/stage16/overlap_inputs.yaml")
     qa = _load_yaml("tests/fixtures/stage16/golden_qa_questions.yaml")
@@ -54,6 +44,22 @@ def test_stage16_determinism_report(monkeypatch) -> None:
                     "user_text": str(q.get("question_text") or ""),
                 }
             )
+
+    return cases
+
+
+def test_stage16_determinism_report(monkeypatch) -> None:
+    from app.services.llm_chat.capability_router.determinism_report import (
+        run_determinism_report,
+    )
+    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
+    load_capability_map.cache_clear()
+
+    cases = build_cases()
 
     report = run_determinism_report(cases=cases, runs=3)
     assert report.get("mismatches") == []
