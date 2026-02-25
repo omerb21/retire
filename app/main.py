@@ -3,18 +3,19 @@ FastAPI application entrypoint
 """
 
 import asyncio
+import logging
+import os
+import sys
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-import logging
-import os
-import sys
-from datetime import datetime
-from pathlib import Path
-from dotenv import load_dotenv
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent / ".env"
@@ -39,47 +40,45 @@ except Exception as e:
     logger.warning("Could not initialize advanced logging: %s", e)
 
 import app.models  # noqa: F401  # מבטיח שכל המודלים נטענים, ל־metadata.create_all
-from app.database import engine, Base
 from app.config import (
-    cors_allow_origins,
-    cors_allow_origin_regex,
     cors_allow_credentials,
+    cors_allow_origin_regex,
+    cors_allow_origins,
 )
+from app.database import Base, engine
 from app.routers import (
-    fixation,
-    files,
-    employment,
-    pension_fund,
     additional_income,
-    capital_asset,
-    income_integration,
-    cashflow_generation,
-    report_generation,
-    scenario_compare,
-    case_detection,
-    clients,
-    grant,
-    tax_data,
-    indexation,
-    rights_fixation,
-    tax_calculation,
-    pension_portfolio,
-    snapshot,
-    retirement_age,
     annuity_coefficient,
-    system_health,
     calculation,
+    capital_asset,
+    case_detection,
+    cashflow_generation,
+    clients,
+    employment,
+    files,
+    fixation,
+    grant,
+    income_integration,
+    indexation,
+    pension_fund,
+    pension_portfolio,
     public_chat,
+    report_generation,
     reports,
+    retirement_age,
+    rights_fixation,
+    scenario_compare,
+    snapshot,
+    system_health,
+    tax_calculation,
+    tax_data,
 )
 
 try:
     from app.routers import llm_chat
 except Exception:
     llm_chat = None
-from app.routers import agent_trace_debug
-from app.routers import agent_eyes_debug
-from app.routers import debug_current_employer
+from app.routers import agent_eyes_debug, agent_trace_debug, debug_current_employer
 from app.routers.employment import router as employment_router
 from app.routers.employment_api import router as employment_api_router
 from app.routers.scenarios import router as scenarios_router
@@ -91,8 +90,8 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     from app.database import (
-        ensure_client_public_chat_credit_schema,
         ensure_agent_trace_event_schema,
+        ensure_client_public_chat_credit_schema,
         ensure_pension_funds_record_status_schema,
     )
 
@@ -148,11 +147,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import os
+
 # Add ProxyHeadersMiddleware to trust headers from Railway load balancer
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.middleware.trace_id import TraceIdMiddleware
-import os
 
 app.add_middleware(TraceIdMiddleware)
 
