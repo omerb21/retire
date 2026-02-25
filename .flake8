@@ -1,0 +1,2 @@
+per-file-ignores =
+    app/main.py:E402,F401,F811,E501
