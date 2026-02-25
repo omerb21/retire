@@ -87,3 +87,7 @@ retire-nuc.db
 artifacts/
 
 _debug_pytest_hang.py
+
+.pytest-tmp/
+.pytest_cache/
+
