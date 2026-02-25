@@ -1,0 +1,54 @@
+ssot_version: "v1"
+allowed_modes: ["QA", "ACTION"]
+report_policy: "UI_ACTION_ONLY"
+allowed_failure_modes:
+  - "BLOCKED"
+  - "PENDING_APPROVAL"
+  - "MISSING_FIELDS"
+  - "TOOL_ERROR"
+  - "SCHEMA_VALIDATION_ERROR"
+
+allowed_intent_tier: ["NO_TOOLS", "REPORT", "ANALYSIS"]
+allowed_intent_type: ["QA", "PLAN", "EXECUTE", "APPROVE"]
+allowed_side_effect_class: ["READ_ONLY", "STATE_CHANGE", "IRREVERSIBLE"]
+
+intent_type_precedence: ["APPROVE", "EXECUTE", "PLAN", "QA"]
+multi_intent_policy: "PRECEDENCE"
+tier_allowed_intent_types:
+  NO_TOOLS: ["QA"]
+  REPORT: ["QA"]
+  ANALYSIS: ["QA", "PLAN", "EXECUTE", "APPROVE"]
+
+# Stage A = CLOSED
+# Enforced Rules:
+# - allowed_modes is enforced
+# - report_policy = UI_ACTION_ONLY is enforced via ACTION with empty tool_chain
+# - single catch-all with trigger_regex == [".*"] and it is last after parse
+# - allowed_failure_modes exists and is non-empty at SSOT level only
+#
+# Not Enforced in Stage A:
+# - No enforcement of capability-level failure_modes
+# - No resolver or orchestration changes
+#
+# Stage B.1: SSOT Contract Expansion for intent_tier, intent_type, side_effect_class + deterministic validation
+# Not included in Stage B.1:
+# - No change to the decision procedure
+# - No resolver filtering by intent_type
+# - No changes to intent_classifier
+# Reason: constraints forbid resolver changes; Tier-vs-Type runtime procedure will be implemented only when allowed.
+#
+# Fixtures policy (Stage B.1):
+# - Forbidden: changes to tests/**/*.py
+# - Allowed: changes to tests/fixtures/**/*.yaml only
+# - Expected: adding required fields will cause validation failures on old fixtures until updated
+#
+# Clarifications (Stage B.1):
+# - intent_tier is declarative (permission/flow classification only in this stage)
+# - side_effect_class is a classification only
+# - None of this affects resolver behavior until a future stage
+
+# Stage B.2:
+# - Single catch-all remains exactly one capability per map, identified only by trigger_regex == [".*"], and must be last.
+# - The single catch-all remains intent_type == "QA" (default_qa_v1). No catch-all capabilities are added for PLAN/EXECUTE/APPROVE.
+# - After intent_type filtering, if no capability matches, resolver uses a hard fallback to default_qa_v1.
+# - ACTION capabilities are REPORT tier and therefore intent_type must be "QA"; attempts to configure ACTION with PLAN/EXECUTE/APPROVE are blocked by SSOT.
