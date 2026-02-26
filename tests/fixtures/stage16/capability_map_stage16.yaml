@@ -4,30 +4,12 @@ router_normalization_version: "1.0"
 hash_version: "sha256/v1"
 
 capabilities:
-  - capability_id: "default_qa_v1"
+  - capability_id: "client_snapshot_action_v1"
     mode: "QA"
 
-    triggers:
-      trigger_terms: []
-      trigger_regex:
-        - ".*"
-      negative_triggers: []
-
-    priority: 0
-    tool_chain: []
-
-    required_inputs: []
-    missing_fields: []
-    missing_prompt_template: ""
-
-    data_presence_rule_id: "always_true"
-    data_presence_rule_params: {}
-
-    output_schema_id: "qa_answer_v1"
-    min_core_version: "0.0.0"
-
-  - capability_id: "client_snapshot_action_v1"
-    mode: "ACTION"
+    intent_tier: "ANALYSIS"
+    intent_type: "EXECUTE"
+    side_effect_class: "READ_ONLY"
 
     triggers:
       trigger_terms:
@@ -53,7 +35,11 @@ capabilities:
     min_core_version: "0.0.0"
 
   - capability_id: "monthly_pension_summary_action_v1"
-    mode: "ACTION"
+    mode: "QA"
+
+    intent_tier: "ANALYSIS"
+    intent_type: "EXECUTE"
+    side_effect_class: "READ_ONLY"
 
     triggers:
       trigger_terms:
@@ -79,7 +65,11 @@ capabilities:
     min_core_version: "0.0.0"
 
   - capability_id: "system_numeric_constants_action_v1"
-    mode: "ACTION"
+    mode: "QA"
+
+    intent_tier: "ANALYSIS"
+    intent_type: "EXECUTE"
+    side_effect_class: "READ_ONLY"
 
     triggers:
       trigger_terms:
@@ -104,7 +94,11 @@ capabilities:
     min_core_version: "0.0.0"
 
   - capability_id: "pension_products_action_v1"
-    mode: "ACTION"
+    mode: "QA"
+
+    intent_tier: "ANALYSIS"
+    intent_type: "EXECUTE"
+    side_effect_class: "READ_ONLY"
 
     triggers:
       trigger_terms:
@@ -127,4 +121,30 @@ capabilities:
     data_presence_rule_params: {}
 
     output_schema_id: "action_ok_v1"
+    min_core_version: "0.0.0"
+
+  - capability_id: "default_qa_v1"
+    mode: "QA"
+
+    intent_tier: "NO_TOOLS"
+    intent_type: "QA"
+    side_effect_class: "READ_ONLY"
+
+    triggers:
+      trigger_terms: []
+      trigger_regex:
+        - ".*"
+      negative_triggers: []
+
+    priority: 0
+    tool_chain: []
+
+    required_inputs: []
+    missing_fields: []
+    missing_prompt_template: ""
+
+    data_presence_rule_id: "always_true"
+    data_presence_rule_params: {}
+
+    output_schema_id: "qa_answer_v1"
     min_core_version: "0.0.0"

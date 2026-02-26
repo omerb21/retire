@@ -76,11 +76,26 @@ def _default_output_schemas_path() -> Path:
     return Path(__file__).with_name("output_schemas.yaml")
 
 
+def _default_ssot_v1_path() -> Path:
+    return Path(__file__).with_name("ssot") / "ssot_v1.yaml"
+
+
 def get_output_schemas_path() -> Path:
     env = os.getenv("OUTPUT_SCHEMAS_PATH")
     if isinstance(env, str) and env.strip():
         return Path(env.strip())
     return _default_output_schemas_path()
+
+
+@lru_cache(maxsize=2)
+def load_ssot_v1() -> dict[str, Any]:
+    ssot = _load_yaml(_default_ssot_v1_path())
+    from app.services.llm_chat.capability_router.ssot_validator import (
+        validate_ssot_policy,
+    )
+
+    validate_ssot_policy(ssot)
+    return ssot
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -91,6 +106,8 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 @lru_cache(maxsize=4)
 def load_capability_map() -> dict[str, Any]:
+    ssot = load_ssot_v1()
+
     env_path = os.getenv("CAPABILITY_MAP_PATH")
     capability_map_path_set = bool(
         isinstance(env_path, str) and env_path.strip()
@@ -142,15 +159,12 @@ def load_capability_map() -> dict[str, Any]:
                 data = dict(data)
                 data["capabilities"] = filtered
 
-    try:
-        from app.services.llm_chat.capability_router.ssot_validator import (
-            validate_capability_map,
-        )
+    from app.services.llm_chat.capability_router.ssot_validator import (
+        validate_capability_map,
+    )
 
-        _schemas = load_output_schemas()
-        _ = validate_capability_map(raw=data, output_schemas=_schemas)
-    except Exception:
-        raise
+    _schemas = load_output_schemas()
+    _ = validate_capability_map(raw=data, output_schemas=_schemas, ssot=ssot)
 
     try:
         if os.getenv("SSOT_DEBUG") == "1":
@@ -176,12 +190,9 @@ def load_capability_map() -> dict[str, Any]:
 @lru_cache(maxsize=4)
 def load_output_schemas() -> dict[str, Any]:
     data = _load_yaml(get_output_schemas_path())
-    try:
-        from app.services.llm_chat.capability_router.ssot_validator import (
-            validate_output_schemas,
-        )
+    from app.services.llm_chat.capability_router.ssot_validator import (
+        validate_output_schemas,
+    )
 
-        _ = validate_output_schemas(data)
-    except Exception:
-        raise
+    _ = validate_output_schemas(data)
     return data

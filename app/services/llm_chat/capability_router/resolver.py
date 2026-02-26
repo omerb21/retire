@@ -9,8 +9,12 @@ from app.services.llm_chat.capability_router.normalization import (
     normalize_user_text_v1,
     sha256_hex,
 )
-from app.services.llm_chat.capability_router.runtime_context import RouterDecision
-from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+from app.services.llm_chat.capability_router.runtime_context import (
+    RouterDecision,
+)
+from app.services.llm_chat.capability_router.ssot_loader import (
+    load_capability_map,
+)
 
 
 def _compile_regex(pattern: str) -> re.Pattern[str] | None:
@@ -70,7 +74,8 @@ def _match_capability(
     trace_id: str | None,
     client_id: int | None,
 ) -> bool:
-    triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
+    raw_triggers = cap.get("triggers")
+    triggers = raw_triggers if isinstance(raw_triggers, dict) else {}
     trigger_terms = (
         triggers.get("trigger_terms")
         if isinstance(triggers.get("trigger_terms"), list)
@@ -90,26 +95,30 @@ def _match_capability(
     cap_id = str(cap.get("capability_id") or "")
 
     for neg in negative_triggers:
-        hit = bool(isinstance(neg, str) and neg and (neg.lower() in normalized_text))
+        neg_str = neg if isinstance(neg, str) else ""
+        hit = bool(neg_str and (neg_str.lower() in normalized_text))
+        neg_params = {"neg": neg} if isinstance(neg, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
             client_id=client_id,
             rule_id=f"{cap_id}.negative_trigger",
             outcome=not hit,
-            params_hash=_params_hash({"neg": neg} if isinstance(neg, str) else {}),
+            params_hash=_params_hash(neg_params),
         )
         if hit:
             return False
 
     term_hit = False
     for term in trigger_terms:
-        hit = bool(isinstance(term, str) and term and (term.lower() in normalized_text))
+        term_str = term if isinstance(term, str) else ""
+        hit = bool(term_str and (term_str.lower() in normalized_text))
+        term_params = {"term": term} if isinstance(term, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
             client_id=client_id,
             rule_id=f"{cap_id}.trigger_term",
             outcome=hit,
-            params_hash=_params_hash({"term": term} if isinstance(term, str) else {}),
+            params_hash=_params_hash(term_params),
         )
         if hit:
             term_hit = True
@@ -118,13 +127,15 @@ def _match_capability(
     regex_hit = False
     for pat in trigger_regex:
         rx = _compile_regex(pat)
-        hit = bool(rx is not None and rx.search(normalized_text or "") is not None)
+        search_text = normalized_text or ""
+        hit = bool(rx is not None and rx.search(search_text) is not None)
+        pattern_params = {"pattern": pat} if isinstance(pat, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
             client_id=client_id,
             rule_id=f"{cap_id}.trigger_regex",
             outcome=hit,
-            params_hash=_params_hash({"pattern": pat} if isinstance(pat, str) else {}),
+            params_hash=_params_hash(pattern_params),
         )
         if hit:
             regex_hit = True
@@ -141,7 +152,11 @@ def _match_capability(
 
 
 def resolve(
-    *, user_text: str, client_id: int | None, trace_id: str | None
+    *,
+    user_text: str,
+    client_id: int | None,
+    trace_id: str | None,
+    intent_type: str | None = None,
 ) -> RouterDecision:
     _ = client_id
 
@@ -152,13 +167,57 @@ def resolve(
         else []
     )
 
+    default_cap: dict[str, Any] | None = None
+    try:
+        last = capabilities[-1] if capabilities else None
+        if isinstance(last, dict):
+            last_triggers_raw = last.get("triggers")
+            triggers: dict[str, Any] = {}
+            if isinstance(last_triggers_raw, dict):
+                triggers = last_triggers_raw
+            trigger_regex_raw = triggers.get("trigger_regex")
+            rx: list[Any] = []
+            if isinstance(trigger_regex_raw, list):
+                rx = trigger_regex_raw
+            if rx == [".*"]:
+                default_cap = last
+    except Exception:
+        default_cap = None
+
+    if default_cap is None:
+        for cap in capabilities:
+            if not isinstance(cap, dict):
+                continue
+            cap_triggers_raw = cap.get("triggers")
+            triggers: dict[str, Any] = {}
+            if isinstance(cap_triggers_raw, dict):
+                triggers = cap_triggers_raw
+            trigger_regex_raw = triggers.get("trigger_regex")
+            rx: list[Any] = []
+            if isinstance(trigger_regex_raw, list):
+                rx = trigger_regex_raw
+            if rx == [".*"]:
+                default_cap = cap
+                break
+
     normalized_text = normalize_user_text_v1(user_text)
     norm_hash = sha256_hex(normalized_text)
 
     selected: dict[str, Any] | None = None
     selected_prio = -(10**9)
 
-    for cap in capabilities:
+    caps_to_scan = capabilities
+    if isinstance(intent_type, str) and intent_type.strip():
+        it = intent_type.strip()
+        caps_to_scan = []
+        for c in capabilities:
+            if not isinstance(c, dict):
+                continue
+            c_intent_type = str(c.get("intent_type") or "").strip()
+            if c_intent_type == it:
+                caps_to_scan.append(c)
+
+    for cap in caps_to_scan:
         if not isinstance(cap, dict):
             continue
         if not _match_capability(
@@ -175,9 +234,16 @@ def resolve(
             selected = cap
             selected_prio = prio_val
 
-    if selected is None and capabilities:
-        first = capabilities[0]
-        selected = first if isinstance(first, dict) else None
+    if selected is None:
+        if (
+            isinstance(intent_type, str)
+            and intent_type.strip()
+            and default_cap is not None
+        ):
+            selected = default_cap
+        elif capabilities:
+            first = capabilities[0]
+            selected = first if isinstance(first, dict) else None
 
     capability_id = "unknown"
     mode = "QA"
@@ -187,26 +253,35 @@ def resolve(
     if isinstance(selected, dict):
         capability_id = str(selected.get("capability_id") or capability_id)
         mode = str(selected.get("mode") or mode)
-        output_schema_id = str(selected.get("output_schema_id") or output_schema_id)
+        selected_output_schema_id = selected.get("output_schema_id")
+        output_schema_id = str(selected_output_schema_id or output_schema_id)
 
         raw_chain = selected.get("tool_chain")
         if isinstance(raw_chain, list):
-            tool_chain = [str(x) for x in raw_chain if isinstance(x, str) and x]
+            tool_chain = []
+            for x in raw_chain:
+                if isinstance(x, str) and x:
+                    tool_chain.append(str(x))
+
+    capability_map_version = str(cap_map.get("capability_map_version") or "")
+    router_normalization_version = str(
+        cap_map.get("router_normalization_version") or ""
+    )
 
     decision = RouterDecision(
         capability_id=capability_id,
         mode=mode,
         tool_chain=tool_chain,
         output_schema_id=output_schema_id,
-        capability_map_version=str(cap_map.get("capability_map_version") or ""),
-        router_normalization_version=str(
-            cap_map.get("router_normalization_version") or ""
-        ),
+        capability_map_version=capability_map_version,
+        router_normalization_version=router_normalization_version,
         normalized_text_hash=norm_hash,
     )
 
     try:
         from app.services.agent_trace_logger import log_trace_event
+
+        router_norm_ver = decision.router_normalization_version
 
         log_trace_event(
             trace_id=trace_id,
@@ -216,7 +291,7 @@ def resolve(
                 "tool_chain": list(decision.tool_chain),
                 "output_schema_id": decision.output_schema_id,
                 "capability_map_version": decision.capability_map_version,
-                "router_normalization_version": decision.router_normalization_version,
+                "router_normalization_version": router_norm_ver,
                 "normalized_text_hash": decision.normalized_text_hash,
             },
             client_id=client_id,

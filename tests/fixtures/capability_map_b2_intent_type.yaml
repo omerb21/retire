@@ -1,0 +1,57 @@
+capability_map_version: "b2-test-1"
+published_at: "2026-02-25"
+router_normalization_version: "1.0"
+hash_version: "sha256/v1"
+
+capabilities:
+  - capability_id: "approve_intent_test_v1"
+    mode: "QA"
+    intent_tier: "ANALYSIS"
+    intent_type: "APPROVE"
+    side_effect_class: "READ_ONLY"
+    priority: 30
+    triggers:
+      trigger_terms: ["אשר"]
+      trigger_regex: []
+      negative_triggers: []
+    tool_chain: []
+    output_schema_id: "qa_answer_v1"
+
+  - capability_id: "execute_intent_test_v1"
+    mode: "QA"
+    intent_tier: "ANALYSIS"
+    intent_type: "EXECUTE"
+    side_effect_class: "READ_ONLY"
+    priority: 20
+    triggers:
+      trigger_terms: ["בצע"]
+      trigger_regex: ["doit"]
+      negative_triggers: []
+    tool_chain: []
+    output_schema_id: "qa_answer_v1"
+
+  - capability_id: "plan_intent_test_v1"
+    mode: "QA"
+    intent_tier: "ANALYSIS"
+    intent_type: "PLAN"
+    side_effect_class: "READ_ONLY"
+    priority: 10
+    triggers:
+      trigger_terms: ["תכנן"]
+      trigger_regex: []
+      negative_triggers: []
+    tool_chain: []
+    output_schema_id: "qa_answer_v1"
+
+  - capability_id: "default_qa_v1"
+    mode: "QA"
+    intent_tier: "NO_TOOLS"
+    intent_type: "QA"
+    side_effect_class: "READ_ONLY"
+    priority: 0
+    triggers:
+      trigger_terms: []
+      trigger_regex: [".*"]
+      negative_triggers: []
+    tool_chain: []
+    output_schema_id: "qa_answer_v1"
