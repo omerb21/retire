@@ -141,7 +141,11 @@ def _match_capability(
 
 
 def resolve(
-    *, user_text: str, client_id: int | None, trace_id: str | None
+    *,
+    user_text: str,
+    client_id: int | None,
+    trace_id: str | None,
+    intent_type: str | None = None,
 ) -> RouterDecision:
     _ = client_id
 
@@ -152,13 +156,47 @@ def resolve(
         else []
     )
 
+    default_cap: dict[str, Any] | None = None
+    try:
+        last = capabilities[-1] if capabilities else None
+        if isinstance(last, dict):
+            triggers = last.get("triggers") if isinstance(last.get("triggers"), dict) else {}
+            rx = triggers.get("trigger_regex") if isinstance(triggers.get("trigger_regex"), list) else []
+            if rx == [".*"]:
+                default_cap = last
+    except Exception:
+        default_cap = None
+
+    if default_cap is None:
+        for cap in capabilities:
+            if not isinstance(cap, dict):
+                continue
+            triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
+            rx = (
+                triggers.get("trigger_regex")
+                if isinstance(triggers.get("trigger_regex"), list)
+                else []
+            )
+            if rx == [".*"]:
+                default_cap = cap
+                break
+
     normalized_text = normalize_user_text_v1(user_text)
     norm_hash = sha256_hex(normalized_text)
 
     selected: dict[str, Any] | None = None
     selected_prio = -(10**9)
 
-    for cap in capabilities:
+    caps_to_scan = capabilities
+    if isinstance(intent_type, str) and intent_type.strip():
+        it = intent_type.strip()
+        caps_to_scan = [
+            c
+            for c in capabilities
+            if isinstance(c, dict) and str(c.get("intent_type") or "").strip() == it
+        ]
+
+    for cap in caps_to_scan:
         if not isinstance(cap, dict):
             continue
         if not _match_capability(
@@ -175,9 +213,12 @@ def resolve(
             selected = cap
             selected_prio = prio_val
 
-    if selected is None and capabilities:
-        first = capabilities[0]
-        selected = first if isinstance(first, dict) else None
+    if selected is None:
+        if isinstance(intent_type, str) and intent_type.strip() and default_cap is not None:
+            selected = default_cap
+        elif capabilities:
+            first = capabilities[0]
+            selected = first if isinstance(first, dict) else None
 
     capability_id = "unknown"
     mode = "QA"

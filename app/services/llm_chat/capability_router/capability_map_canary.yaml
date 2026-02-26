@@ -7,6 +7,10 @@ capabilities:
   - capability_id: "default_qa_v1"
     mode: "QA"
 
+    intent_tier: "NO_TOOLS"
+    intent_type: "QA"
+    side_effect_class: "READ_ONLY"
+
     triggers:
       trigger_terms: []
       trigger_regex:
