@@ -74,7 +74,11 @@ def _match_capability(
     trace_id: str | None,
     client_id: int | None,
 ) -> bool:
-    triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
+    triggers = (
+        cap.get("triggers")
+        if isinstance(cap.get("triggers"), dict)
+        else {}
+    )
     trigger_terms = (
         triggers.get("trigger_terms")
         if isinstance(triggers.get("trigger_terms"), list)
@@ -94,7 +98,11 @@ def _match_capability(
     cap_id = str(cap.get("capability_id") or "")
 
     for neg in negative_triggers:
-        hit = bool(isinstance(neg, str) and neg and (neg.lower() in normalized_text))
+        hit = bool(
+            isinstance(neg, str)
+            and neg
+            and (neg.lower() in normalized_text)
+        )
         neg_params = {"neg": neg} if isinstance(neg, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
@@ -108,7 +116,11 @@ def _match_capability(
 
     term_hit = False
     for term in trigger_terms:
-        hit = bool(isinstance(term, str) and term and (term.lower() in normalized_text))
+        hit = bool(
+            isinstance(term, str)
+            and term
+            and (term.lower() in normalized_text)
+        )
         term_params = {"term": term} if isinstance(term, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
@@ -124,7 +136,10 @@ def _match_capability(
     regex_hit = False
     for pat in trigger_regex:
         rx = _compile_regex(pat)
-        hit = bool(rx is not None and rx.search(normalized_text or "") is not None)
+        hit = bool(
+            rx is not None
+            and rx.search(normalized_text or "") is not None
+        )
         pattern_params = {"pattern": pat} if isinstance(pat, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
@@ -168,7 +183,9 @@ def resolve(
         last = capabilities[-1] if capabilities else None
         if isinstance(last, dict):
             triggers = (
-                last.get("triggers") if isinstance(last.get("triggers"), dict) else {}
+                last.get("triggers")
+                if isinstance(last.get("triggers"), dict)
+                else {}
             )
             rx = (
                 triggers.get("trigger_regex")
@@ -185,7 +202,9 @@ def resolve(
             if not isinstance(cap, dict):
                 continue
             triggers = (
-                cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
+                cap.get("triggers")
+                if isinstance(cap.get("triggers"), dict)
+                else {}
             )
             rx = (
                 triggers.get("trigger_regex")
@@ -208,7 +227,10 @@ def resolve(
         caps_to_scan = [
             c
             for c in capabilities
-            if (isinstance(c, dict) and str(c.get("intent_type") or "").strip() == it)
+            if (
+                isinstance(c, dict)
+                and str(c.get("intent_type") or "").strip() == it
+            )
         ]
 
     for cap in caps_to_scan:
@@ -247,18 +269,25 @@ def resolve(
     if isinstance(selected, dict):
         capability_id = str(selected.get("capability_id") or capability_id)
         mode = str(selected.get("mode") or mode)
-        output_schema_id = str(selected.get("output_schema_id") or output_schema_id)
+        output_schema_id = str(
+            selected.get("output_schema_id") or output_schema_id
+        )
 
         raw_chain = selected.get("tool_chain")
         if isinstance(raw_chain, list):
-            tool_chain = [str(x) for x in raw_chain if isinstance(x, str) and x]
+            tool_chain = [
+                str(x) for x in raw_chain
+                if isinstance(x, str) and x
+            ]
 
     decision = RouterDecision(
         capability_id=capability_id,
         mode=mode,
         tool_chain=tool_chain,
         output_schema_id=output_schema_id,
-        capability_map_version=str(cap_map.get("capability_map_version") or ""),
+        capability_map_version=str(
+            cap_map.get("capability_map_version") or ""
+        ),
         router_normalization_version=str(
             cap_map.get("router_normalization_version") or ""
         ),
@@ -276,7 +305,9 @@ def resolve(
                 "tool_chain": list(decision.tool_chain),
                 "output_schema_id": decision.output_schema_id,
                 "capability_map_version": decision.capability_map_version,
-                "router_normalization_version": (decision.router_normalization_version),
+                "router_normalization_version": (
+                    decision.router_normalization_version
+                ),
                 "normalized_text_hash": decision.normalized_text_hash,
             },
             client_id=client_id,
