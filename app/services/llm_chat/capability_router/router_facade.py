@@ -35,11 +35,14 @@ def ensure_router_decision(
 
 
 def maybe_emit_router_selected_trace(
-    *, trace_id: str | None, decision: RouterDecision
-):  # noqa: E501
+    *,
+    trace_id: str | None,
+    decision: RouterDecision,
+):
     if was_router_selected_emitted(trace_id=trace_id):
         return None
     mark_router_selected_emitted(trace_id=trace_id)
     return build_router_selected_trace_spec(
-        trace_id=trace_id, decision=decision
-    )  # noqa: E501
+        trace_id=trace_id,
+        decision=decision,
+    )

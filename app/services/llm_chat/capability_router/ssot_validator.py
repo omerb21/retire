@@ -70,9 +70,9 @@ def get_known_tool_ids() -> set[str]:
 
     # Source of truth: tool contracts registry keys.
     try:
-        from app.services.agent_execution import (
-            tool_contracts as tool_contracts_mod,
-        )  # noqa: E501
+        from app.services.agent_execution import tool_contracts
+
+        tool_contracts_mod = tool_contracts
 
         contracts = getattr(tool_contracts_mod, "_CONTRACTS", None)
         if isinstance(contracts, dict):
@@ -107,36 +107,26 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
         raise ValueError("INVALID_SSOT_DECISION_POLICY:SSOT:ssot_not_dict")
 
     allowed_intent_type_raw = ssot.get("allowed_intent_type")
-    allowed_intent_type = (
-        [
-            str(x).strip()
-            for x in allowed_intent_type_raw
-            if isinstance(x, str) and x
-        ]  # noqa: E501
-        if isinstance(allowed_intent_type_raw, list)
-        else []
-    )
+    allowed_intent_type: list[str] = []
+    if isinstance(allowed_intent_type_raw, list):
+        for x in allowed_intent_type_raw:
+            if isinstance(x, str) and x:
+                allowed_intent_type.append(str(x).strip())
 
     precedence_raw = ssot.get("intent_type_precedence")
-    precedence = (
-        [
-            str(x).strip()
-            for x in precedence_raw
-            if isinstance(x, str) and x
-        ]  # noqa: E501
-        if isinstance(precedence_raw, list)
-        else []
-    )
+    precedence: list[str] = []
+    if isinstance(precedence_raw, list):
+        for x in precedence_raw:
+            if isinstance(x, str) and x:
+                precedence.append(str(x).strip())
 
     if len(set(precedence)) != len(precedence):
-        raise ValueError(
-            "INVALID_SSOT_DECISION_POLICY:SSOT:precedence_has_duplicates"
-        )  # noqa: E501
+        msg = "INVALID_SSOT_DECISION_POLICY:SSOT:precedence_has_duplicates"
+        raise ValueError(msg)
 
-    if (
-        set(precedence) != set(allowed_intent_type)
-        or len(precedence) != len(allowed_intent_type)
-    ):  # noqa: E501
+    if set(precedence) != set(allowed_intent_type) or len(precedence) != len(
+        allowed_intent_type
+    ):
         raise ValueError(
             "INVALID_SSOT_DECISION_POLICY:SSOT:"
             "precedence_not_permutation_of_allowed_intent_type"
@@ -144,28 +134,30 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
 
     multi_intent_policy = ssot.get("multi_intent_policy")
     if multi_intent_policy != "PRECEDENCE":
-        raise ValueError(
-            "INVALID_SSOT_DECISION_POLICY:SSOT:"
-            "multi_intent_policy_not_precedence"
-        )  # noqa: E501
+        msg = "".join(
+            [
+                "INVALID_SSOT_DECISION_POLICY:SSOT:",
+                "multi_intent_policy_not_precedence",
+            ]
+        )
+        raise ValueError(msg)
 
     allowed_intent_tier_raw = ssot.get("allowed_intent_tier")
-    allowed_intent_tier = (
-        [
-            str(x).strip()
-            for x in allowed_intent_tier_raw
-            if isinstance(x, str) and x
-        ]  # noqa: E501
-        if isinstance(allowed_intent_tier_raw, list)
-        else []
-    )
+    allowed_intent_tier: list[str] = []
+    if isinstance(allowed_intent_tier_raw, list):
+        for x in allowed_intent_tier_raw:
+            if isinstance(x, str) and x:
+                allowed_intent_tier.append(str(x).strip())
 
     tier_allowed = ssot.get("tier_allowed_intent_types")
     if not isinstance(tier_allowed, dict):
-        raise ValueError(
-            "INVALID_SSOT_DECISION_POLICY:SSOT:"
-            "tier_allowed_intent_types_not_dict"
-        )  # noqa: E501
+        msg = "".join(
+            [
+                "INVALID_SSOT_DECISION_POLICY:SSOT:",
+                "tier_allowed_intent_types_not_dict",
+            ]
+        )
+        raise ValueError(msg)
 
     allowed_set = set(allowed_intent_type)
     for tier in allowed_intent_tier:
@@ -176,16 +168,16 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
                 "tier_allowed_missing_or_not_list:" + str(tier)
             )
             raise ValueError(msg)
-        tier_set = {
-            str(x).strip()
-            for x in raw_allowed
-            if isinstance(x, str) and x.strip()
-        }  # noqa: E501
+        tier_set: set[str] = set()
+        for x in raw_allowed:
+            if isinstance(x, str) and x.strip():
+                tier_set.add(str(x).strip())
         if not tier_set.issubset(allowed_set):
             msg = (
                 "INVALID_SSOT_DECISION_POLICY:SSOT:"
-                "tier_allowed_not_subset:" + str(tier)
-            )  # noqa: E501
+                + "tier_allowed_not_subset:"
+                + str(tier)
+            )
             raise ValueError(msg)
 
 
@@ -207,37 +199,30 @@ def validate_capability_map(
     if not allowed_failure_modes:
         raise ValueError("SSOT_ALLOWED_FAILURE_MODES_EMPTY")
 
-    allowed_modes_raw = (
-        ssot.get("allowed_modes")
-        if isinstance(ssot, dict)
-        else None
-    )  # noqa: E501
+    allowed_modes_raw = None
+    if isinstance(ssot, dict):
+        allowed_modes_raw = ssot.get("allowed_modes")
     if not isinstance(allowed_modes_raw, list) or not allowed_modes_raw:
         raise ValueError("SSOT_ALLOWED_MODES_EMPTY")
 
-    allowed_modes = {
-        str(x).strip()
-        for x in allowed_modes_raw
-        if isinstance(x, str) and x.strip()
-    }  # noqa: E501
+    allowed_modes: set[str] = set()
+    for x in allowed_modes_raw:
+        if isinstance(x, str) and x.strip():
+            allowed_modes.add(str(x).strip())
     if not allowed_modes:
         raise ValueError("SSOT_ALLOWED_MODES_EMPTY")
 
-    report_policy = (
-        ssot.get("report_policy")
-        if isinstance(ssot, dict)
-        else None
-    )  # noqa: E501
+    report_policy = None
+    if isinstance(ssot, dict):
+        report_policy = ssot.get("report_policy")
     if report_policy != "UI_ACTION_ONLY":
         raise ValueError("SSOT_REPORT_POLICY_INVALID")
 
     validate_ssot_policy(ssot)
 
     allowed_intent_tier_raw = (
-        ssot.get("allowed_intent_tier")
-        if isinstance(ssot, dict)
-        else None
-    )  # noqa: E501
+        ssot.get("allowed_intent_tier") if isinstance(ssot, dict) else None
+    )
     allowed_intent_tier = (
         {
             str(x).strip()
@@ -249,25 +234,17 @@ def validate_capability_map(
     )
 
     allowed_intent_type_raw = (
-        ssot.get("allowed_intent_type")
-        if isinstance(ssot, dict)
-        else None
-    )  # noqa: E501
-    allowed_intent_type = (
-        {[
-            str(x).strip()
-            for x in allowed_intent_type_raw
-            if isinstance(x, str) and x
-        ]}
-        if isinstance(allowed_intent_type_raw, list)
-        else set()
+        ssot.get("allowed_intent_type") if isinstance(ssot, dict) else None
     )
+    allowed_intent_type: set[str] = set()
+    if isinstance(allowed_intent_type_raw, list):
+        for x in allowed_intent_type_raw:
+            if isinstance(x, str) and x:
+                allowed_intent_type.add(str(x).strip())
 
-    allowed_side_effect_class_raw = (
-        ssot.get("allowed_side_effect_class")
-        if isinstance(ssot, dict)
-        else None
-    )  # noqa: E501
+    allowed_side_effect_class_raw = None
+    if isinstance(ssot, dict):
+        allowed_side_effect_class_raw = ssot.get("allowed_side_effect_class")
     allowed_side_effect_class = (
         {
             str(x).strip()
@@ -292,11 +269,9 @@ def validate_capability_map(
 
     known_tools = get_known_tool_ids()
 
-    tier_allowed_intent_types_raw = (
-        ssot.get("tier_allowed_intent_types")
-        if isinstance(ssot, dict)
-        else None
-    )  # noqa: E501
+    tier_allowed_intent_types_raw = None
+    if isinstance(ssot, dict):
+        tier_allowed_intent_types_raw = ssot.get("tier_allowed_intent_types")
     tier_allowed_intent_types: dict[str, set[str]] = {}
     if isinstance(tier_allowed_intent_types_raw, dict):
         for k, v in tier_allowed_intent_types_raw.items():
@@ -304,9 +279,11 @@ def validate_capability_map(
                 continue
             if not isinstance(v, list):
                 continue
-            tier_allowed_intent_types[k.strip()] = {
-                str(x).strip() for x in v if isinstance(x, str) and x.strip()
-            }
+            allowed_for_tier: set[str] = set()
+            for x in v:
+                if isinstance(x, str) and x.strip():
+                    allowed_for_tier.add(str(x).strip())
+            tier_allowed_intent_types[k.strip()] = allowed_for_tier
 
     catch_all_caps: list[str] = []
 
@@ -320,9 +297,8 @@ def validate_capability_map(
         if not intent_tier:
             raise ValueError(f"MISSING_INTENT_TIER:{cap.capability_id}")
         if intent_tier not in allowed_intent_tier:
-            raise ValueError(
-                f"INVALID_INTENT_TIER:{cap.capability_id}:{intent_tier}"
-            )  # noqa: E501
+            msg = f"INVALID_INTENT_TIER:{cap.capability_id}:{intent_tier}"
+            raise ValueError(msg)
 
         intent_type = (
             str(cap.intent_type).strip() if cap.intent_type is not None else ""
@@ -330,9 +306,8 @@ def validate_capability_map(
         if not intent_type:
             raise ValueError(f"MISSING_INTENT_TYPE:{cap.capability_id}")
         if intent_type not in allowed_intent_type:
-            raise ValueError(
-                f"INVALID_INTENT_TYPE:{cap.capability_id}:{intent_type}"
-            )  # noqa: E501
+            msg = f"INVALID_INTENT_TYPE:{cap.capability_id}:{intent_type}"
+            raise ValueError(msg)
 
         side_effect_class = (
             str(cap.side_effect_class).strip()
@@ -351,12 +326,11 @@ def validate_capability_map(
             raise ValueError(msg)
 
         allowed_types_for_tier = tier_allowed_intent_types.get(
-            intent_tier, set()
-        )  # noqa: E501
-        if (
-            allowed_types_for_tier
-            and intent_type not in allowed_types_for_tier
-        ):  # noqa: E501
+            intent_tier,
+            set(),
+        )
+        type_allowed = intent_type in allowed_types_for_tier
+        if allowed_types_for_tier and (not type_allowed):
             msg = (
                 "TYPE_TIER_MISMATCH:"
                 + str(cap.capability_id)
@@ -376,22 +350,19 @@ def validate_capability_map(
             "EXECUTE",
             "APPROVE",
         }:
-            raise ValueError(
-                f"SIDE_EFFECT_INTENT_MISMATCH:{cap.capability_id}"
-            )  # noqa: E501
+            msg = f"SIDE_EFFECT_INTENT_MISMATCH:{cap.capability_id}"
+            raise ValueError(msg)
         if side_effect_class == "STATE_CHANGE" and intent_type not in {
             "PLAN",
             "EXECUTE",
             "APPROVE",
         }:
-            raise ValueError(
-                f"SIDE_EFFECT_INTENT_MISMATCH:{cap.capability_id}"
-            )  # noqa: E501
+            msg = f"SIDE_EFFECT_INTENT_MISMATCH:{cap.capability_id}"
+            raise ValueError(msg)
 
         if cap.mode == "ACTION" and cap.tool_chain:
-            raise ValueError(
-                f"REPORT_POLICY_VIOLATION:{cap.capability_id}"
-            )  # noqa: E501
+            msg = f"REPORT_POLICY_VIOLATION:{cap.capability_id}"
+            raise ValueError(msg)
 
         if cap.triggers.trigger_regex == [".*"]:
             catch_all_caps.append(str(cap.capability_id))
@@ -407,9 +378,8 @@ def validate_capability_map(
 
         for tool_id in cap.tool_chain:
             if tool_id not in known_tools:
-                raise ValueError(
-                    f"unknown_tool_in_chain:{cap.capability_id}:{tool_id}"
-                )  # noqa: E501
+                msg = f"unknown_tool_in_chain:{cap.capability_id}:{tool_id}"
+                raise ValueError(msg)
 
     if not catch_all_caps:
         raise ValueError("CATCH_ALL_MISSING")
