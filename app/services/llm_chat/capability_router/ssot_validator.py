@@ -129,7 +129,9 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
 
     multi_intent_policy = ssot.get("multi_intent_policy")
     if multi_intent_policy != "PRECEDENCE":
-        raise ValueError("INVALID_SSOT_DECISION_POLICY:SSOT:multi_intent_policy_not_precedence")
+        raise ValueError(
+            "INVALID_SSOT_DECISION_POLICY:SSOT:multi_intent_policy_not_precedence"
+        )
 
     allowed_intent_tier_raw = ssot.get("allowed_intent_tier")
     allowed_intent_tier = (
@@ -140,7 +142,9 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
 
     tier_allowed = ssot.get("tier_allowed_intent_types")
     if not isinstance(tier_allowed, dict):
-        raise ValueError("INVALID_SSOT_DECISION_POLICY:SSOT:tier_allowed_intent_types_not_dict")
+        raise ValueError(
+            "INVALID_SSOT_DECISION_POLICY:SSOT:tier_allowed_intent_types_not_dict"
+        )
 
     allowed_set = set(allowed_intent_type)
     for tier in allowed_intent_tier:
@@ -150,9 +154,7 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
                 f"INVALID_SSOT_DECISION_POLICY:SSOT:tier_allowed_missing_or_not_list:{tier}"
             )
         tier_set = {
-            str(x).strip()
-            for x in raw_allowed
-            if isinstance(x, str) and x.strip()
+            str(x).strip() for x in raw_allowed if isinstance(x, str) and x.strip()
         }
         if not tier_set.issubset(allowed_set):
             raise ValueError(
@@ -169,9 +171,7 @@ def validate_capability_map(
     """
 
     allowed_failure_modes = (
-        ssot.get("allowed_failure_modes")
-        if isinstance(ssot, dict)
-        else None
+        ssot.get("allowed_failure_modes") if isinstance(ssot, dict) else None
     )
     if not isinstance(allowed_failure_modes, list) or not any(
         isinstance(x, str) and x.strip() for x in allowed_failure_modes
@@ -183,9 +183,7 @@ def validate_capability_map(
         raise ValueError("SSOT_ALLOWED_MODES_EMPTY")
 
     allowed_modes = {
-        str(x).strip()
-        for x in allowed_modes_raw
-        if isinstance(x, str) and x.strip()
+        str(x).strip() for x in allowed_modes_raw if isinstance(x, str) and x.strip()
     }
     if not allowed_modes:
         raise ValueError("SSOT_ALLOWED_MODES_EMPTY")
@@ -260,9 +258,7 @@ def validate_capability_map(
             if not isinstance(v, list):
                 continue
             tier_allowed_intent_types[k.strip()] = {
-                str(x).strip()
-                for x in v
-                if isinstance(x, str) and x.strip()
+                str(x).strip() for x in v if isinstance(x, str) and x.strip()
             }
 
     catch_all_caps: list[str] = []
@@ -271,24 +267,26 @@ def validate_capability_map(
         if cap.mode not in allowed_modes:
             raise ValueError(f"invalid_mode:{cap.capability_id}:{cap.mode}")
 
-        intent_tier = str(cap.intent_tier).strip() if cap.intent_tier is not None else ""
+        intent_tier = (
+            str(cap.intent_tier).strip() if cap.intent_tier is not None else ""
+        )
         if not intent_tier:
             raise ValueError(f"MISSING_INTENT_TIER:{cap.capability_id}")
         if intent_tier not in allowed_intent_tier:
-            raise ValueError(
-                f"INVALID_INTENT_TIER:{cap.capability_id}:{intent_tier}"
-            )
+            raise ValueError(f"INVALID_INTENT_TIER:{cap.capability_id}:{intent_tier}")
 
-        intent_type = str(cap.intent_type).strip() if cap.intent_type is not None else ""
+        intent_type = (
+            str(cap.intent_type).strip() if cap.intent_type is not None else ""
+        )
         if not intent_type:
             raise ValueError(f"MISSING_INTENT_TYPE:{cap.capability_id}")
         if intent_type not in allowed_intent_type:
-            raise ValueError(
-                f"INVALID_INTENT_TYPE:{cap.capability_id}:{intent_type}"
-            )
+            raise ValueError(f"INVALID_INTENT_TYPE:{cap.capability_id}:{intent_type}")
 
         side_effect_class = (
-            str(cap.side_effect_class).strip() if cap.side_effect_class is not None else ""
+            str(cap.side_effect_class).strip()
+            if cap.side_effect_class is not None
+            else ""
         )
         if not side_effect_class:
             raise ValueError(f"MISSING_SIDE_EFFECT_CLASS:{cap.capability_id}")

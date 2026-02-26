@@ -160,8 +160,14 @@ def resolve(
     try:
         last = capabilities[-1] if capabilities else None
         if isinstance(last, dict):
-            triggers = last.get("triggers") if isinstance(last.get("triggers"), dict) else {}
-            rx = triggers.get("trigger_regex") if isinstance(triggers.get("trigger_regex"), list) else []
+            triggers = (
+                last.get("triggers") if isinstance(last.get("triggers"), dict) else {}
+            )
+            rx = (
+                triggers.get("trigger_regex")
+                if isinstance(triggers.get("trigger_regex"), list)
+                else []
+            )
             if rx == [".*"]:
                 default_cap = last
     except Exception:
@@ -171,7 +177,9 @@ def resolve(
         for cap in capabilities:
             if not isinstance(cap, dict):
                 continue
-            triggers = cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
+            triggers = (
+                cap.get("triggers") if isinstance(cap.get("triggers"), dict) else {}
+            )
             rx = (
                 triggers.get("trigger_regex")
                 if isinstance(triggers.get("trigger_regex"), list)
@@ -214,7 +222,11 @@ def resolve(
             selected_prio = prio_val
 
     if selected is None:
-        if isinstance(intent_type, str) and intent_type.strip() and default_cap is not None:
+        if (
+            isinstance(intent_type, str)
+            and intent_type.strip()
+            and default_cap is not None
+        ):
             selected = default_cap
         elif capabilities:
             first = capabilities[0]
