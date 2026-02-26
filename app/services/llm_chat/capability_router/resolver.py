@@ -9,8 +9,12 @@ from app.services.llm_chat.capability_router.normalization import (
     normalize_user_text_v1,
     sha256_hex,
 )
-from app.services.llm_chat.capability_router.runtime_context import RouterDecision
-from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+from app.services.llm_chat.capability_router.runtime_context import (
+    RouterDecision,
+)
+from app.services.llm_chat.capability_router.ssot_loader import (
+    load_capability_map,
+)
 
 
 def _compile_regex(pattern: str) -> re.Pattern[str] | None:
@@ -91,12 +95,13 @@ def _match_capability(
 
     for neg in negative_triggers:
         hit = bool(isinstance(neg, str) and neg and (neg.lower() in normalized_text))
+        neg_params = {"neg": neg} if isinstance(neg, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
             client_id=client_id,
             rule_id=f"{cap_id}.negative_trigger",
             outcome=not hit,
-            params_hash=_params_hash({"neg": neg} if isinstance(neg, str) else {}),
+            params_hash=_params_hash(neg_params),
         )
         if hit:
             return False
@@ -104,12 +109,13 @@ def _match_capability(
     term_hit = False
     for term in trigger_terms:
         hit = bool(isinstance(term, str) and term and (term.lower() in normalized_text))
+        term_params = {"term": term} if isinstance(term, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
             client_id=client_id,
             rule_id=f"{cap_id}.trigger_term",
             outcome=hit,
-            params_hash=_params_hash({"term": term} if isinstance(term, str) else {}),
+            params_hash=_params_hash(term_params),
         )
         if hit:
             term_hit = True
@@ -119,12 +125,13 @@ def _match_capability(
     for pat in trigger_regex:
         rx = _compile_regex(pat)
         hit = bool(rx is not None and rx.search(normalized_text or "") is not None)
+        pattern_params = {"pattern": pat} if isinstance(pat, str) else {}
         _emit_predicate_eval(
             trace_id=trace_id,
             client_id=client_id,
             rule_id=f"{cap_id}.trigger_regex",
             outcome=hit,
-            params_hash=_params_hash({"pattern": pat} if isinstance(pat, str) else {}),
+            params_hash=_params_hash(pattern_params),
         )
         if hit:
             regex_hit = True
@@ -201,7 +208,7 @@ def resolve(
         caps_to_scan = [
             c
             for c in capabilities
-            if isinstance(c, dict) and str(c.get("intent_type") or "").strip() == it
+            if (isinstance(c, dict) and str(c.get("intent_type") or "").strip() == it)
         ]
 
     for cap in caps_to_scan:
@@ -269,7 +276,7 @@ def resolve(
                 "tool_chain": list(decision.tool_chain),
                 "output_schema_id": decision.output_schema_id,
                 "capability_map_version": decision.capability_map_version,
-                "router_normalization_version": decision.router_normalization_version,
+                "router_normalization_version": (decision.router_normalization_version),
                 "normalized_text_hash": decision.normalized_text_hash,
             },
             client_id=client_id,

@@ -62,14 +62,17 @@ def get_known_tool_ids() -> set[str]:
     """Deterministic known tool ids registry.
 
     Hardening target: validate SSOT tool_chain entries refer to known tools.
-    Source of truth: app.services.agent_execution.tool_contracts._CONTRACTS keys.
+    Source of truth: app.services.agent_execution.tool_contracts._CONTRACTS
+    keys.
     """
 
     known: set[str] = set()
 
     # Source of truth: tool contracts registry keys.
     try:
-        from app.services.agent_execution import tool_contracts as tool_contracts_mod
+        from app.services.agent_execution import (
+            tool_contracts as tool_contracts_mod,
+        )
 
         contracts = getattr(tool_contracts_mod, "_CONTRACTS", None)
         if isinstance(contracts, dict):
@@ -124,13 +127,14 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
         allowed_intent_type
     ):
         raise ValueError(
-            "INVALID_SSOT_DECISION_POLICY:SSOT:precedence_not_permutation_of_allowed_intent_type"
+            "INVALID_SSOT_DECISION_POLICY:SSOT:"
+            "precedence_not_permutation_of_allowed_intent_type"
         )
 
     multi_intent_policy = ssot.get("multi_intent_policy")
     if multi_intent_policy != "PRECEDENCE":
         raise ValueError(
-            "INVALID_SSOT_DECISION_POLICY:SSOT:multi_intent_policy_not_precedence"
+            "INVALID_SSOT_DECISION_POLICY:SSOT:" "multi_intent_policy_not_precedence"
         )
 
     allowed_intent_tier_raw = ssot.get("allowed_intent_tier")
@@ -143,31 +147,38 @@ def validate_ssot_policy(ssot: dict[str, Any]) -> None:
     tier_allowed = ssot.get("tier_allowed_intent_types")
     if not isinstance(tier_allowed, dict):
         raise ValueError(
-            "INVALID_SSOT_DECISION_POLICY:SSOT:tier_allowed_intent_types_not_dict"
+            "INVALID_SSOT_DECISION_POLICY:SSOT:" "tier_allowed_intent_types_not_dict"
         )
 
     allowed_set = set(allowed_intent_type)
     for tier in allowed_intent_tier:
         raw_allowed = tier_allowed.get(tier)
         if not isinstance(raw_allowed, list):
-            raise ValueError(
-                f"INVALID_SSOT_DECISION_POLICY:SSOT:tier_allowed_missing_or_not_list:{tier}"
+            msg = (
+                "INVALID_SSOT_DECISION_POLICY:SSOT:"
+                "tier_allowed_missing_or_not_list:" + str(tier)
             )
+            raise ValueError(msg)
         tier_set = {
             str(x).strip() for x in raw_allowed if isinstance(x, str) and x.strip()
         }
         if not tier_set.issubset(allowed_set):
-            raise ValueError(
-                f"INVALID_SSOT_DECISION_POLICY:SSOT:tier_allowed_not_subset:{tier}"
+            msg = "INVALID_SSOT_DECISION_POLICY:SSOT:" "tier_allowed_not_subset:" + str(
+                tier
             )
+            raise ValueError(msg)
 
 
 def validate_capability_map(
-    *, raw: dict[str, Any], output_schemas: dict[str, Any], ssot: dict[str, Any]
+    *,
+    raw: dict[str, Any],
+    output_schemas: dict[str, Any],
+    ssot: dict[str, Any],
 ) -> CapabilityMapModel:
     """Strict validation + cross references.
 
-    Raises pydantic.ValidationError for shape issues, ValueError for cross-ref issues.
+    Raises pydantic.ValidationError for shape issues, ValueError for
+    cross-ref issues.
     """
 
     allowed_failure_modes = (
@@ -291,15 +302,25 @@ def validate_capability_map(
         if not side_effect_class:
             raise ValueError(f"MISSING_SIDE_EFFECT_CLASS:{cap.capability_id}")
         if side_effect_class not in allowed_side_effect_class:
-            raise ValueError(
-                f"INVALID_SIDE_EFFECT_CLASS:{cap.capability_id}:{side_effect_class}"
+            msg = (
+                "INVALID_SIDE_EFFECT_CLASS:"
+                + str(cap.capability_id)
+                + ":"
+                + str(side_effect_class)
             )
+            raise ValueError(msg)
 
         allowed_types_for_tier = tier_allowed_intent_types.get(intent_tier, set())
         if allowed_types_for_tier and intent_type not in allowed_types_for_tier:
-            raise ValueError(
-                f"TYPE_TIER_MISMATCH:{cap.capability_id}:{intent_tier}:{intent_type}"
+            msg = (
+                "TYPE_TIER_MISMATCH:"
+                + str(cap.capability_id)
+                + ":"
+                + str(intent_tier)
+                + ":"
+                + str(intent_type)
             )
+            raise ValueError(msg)
 
         if cap.mode == "ACTION" and intent_tier != "REPORT":
             raise ValueError(f"MODE_TIER_MISMATCH:{cap.capability_id}")
@@ -325,9 +346,13 @@ def validate_capability_map(
             catch_all_caps.append(str(cap.capability_id))
 
         if cap.output_schema_id not in schema_ids:
-            raise ValueError(
-                f"unknown_output_schema_id:{cap.capability_id}:{cap.output_schema_id}"
+            msg = (
+                "unknown_output_schema_id:"
+                + str(cap.capability_id)
+                + ":"
+                + str(cap.output_schema_id)
             )
+            raise ValueError(msg)
 
         for tool_id in cap.tool_chain:
             if tool_id not in known_tools:

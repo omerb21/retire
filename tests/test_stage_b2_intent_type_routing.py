@@ -1,6 +1,3 @@
-import os
-
-
 def _clear_router_caches() -> None:
     from app.services.llm_chat.capability_router.ssot_loader import (
         load_capability_map,
@@ -13,7 +10,8 @@ def _clear_router_caches() -> None:
 
 def test_intent_classifier_precedence_approve_over_execute(monkeypatch):
     monkeypatch.setenv(
-        "CAPABILITY_MAP_PATH", "tests/fixtures/capability_map_b2_intent_type.yaml"
+        "CAPABILITY_MAP_PATH",
+        "tests/fixtures/capability_map_b2_intent_type.yaml",
     )
     _clear_router_caches()
 
@@ -28,9 +26,12 @@ def test_intent_classifier_precedence_approve_over_execute(monkeypatch):
     assert decision.capability_id == "approve_intent_test_v1"
 
 
-def test_resolver_filters_by_intent_type_and_falls_back_to_default(monkeypatch):
+def test_resolver_filters_by_intent_type_and_falls_back_to_default(
+    monkeypatch,
+):
     monkeypatch.setenv(
-        "CAPABILITY_MAP_PATH", "tests/fixtures/capability_map_b2_intent_type.yaml"
+        "CAPABILITY_MAP_PATH",
+        "tests/fixtures/capability_map_b2_intent_type.yaml",
     )
     _clear_router_caches()
 
