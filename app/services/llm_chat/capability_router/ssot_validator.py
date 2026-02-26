@@ -70,9 +70,7 @@ def get_known_tool_ids() -> set[str]:
 
     # Source of truth: tool contracts registry keys.
     try:
-        from app.services.agent_execution import (
-            tool_contracts as tool_contracts_mod,
-        )
+        from app.services.agent_execution import tool_contracts as tool_contracts_mod
 
         contracts = getattr(tool_contracts_mod, "_CONTRACTS", None)
         if isinstance(contracts, dict):
