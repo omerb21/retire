@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 
 from fastapi.responses import StreamingResponse
 
-from app.services.llm_chat.guards.tool_execution_guard import can_execute_tool
+from app.services.llm_chat.guards.tool_execution_guard import (
+    GuardOutcome,
+    evaluate_tool_execution_guard_v2,
+)
+
+from app.services.llm_chat.mcp.engine import MCPEngine
+from app.services.llm_chat.mcp.types import MCPDecision, MCPExecutionMode, MCPOutcomeFinal
 
 from app.services.llm_chat.chat_orchestration_helpers import (
     clear_pending_approval_request,
@@ -62,6 +68,36 @@ def _maybe_handle_user_approved_json_exec(
             "טיפ: לחץ על אשר מתוך חלון האישור, או בקש שוב אישור כדי לקבל JSON עדכני.",
         ]
 
+    def _pending_approval_lines() -> list[str]:
+        return [
+            "נדרש אישור כדי לבצע. שלח בקשה חדשה אחרי אישור.",
+        ]
+
+    def _no_tools_lines() -> list[str]:
+        return [
+            "לא ניתן לבצע פעולה באמצעות כלי בבקשה הזו.",
+        ]
+
+    def _get_mcp_decision_for_user_approved_exec(
+        *, capability_id_in: str | None, guard_outcome_in: GuardOutcome
+    ) -> MCPDecision:
+        guard_outcome_s: str | None = None
+        try:
+            guard_outcome_s = guard_outcome_in.value
+        except Exception:
+            guard_outcome_s = str(guard_outcome_in or "").strip() or None
+
+        decision = MCPDecision(
+            execution_mode=MCPExecutionMode.TOOL_ALLOWED,
+            reason_code="user_approved_json_exec",
+            capability_id=capability_id_in,
+            intent_tier="ANALYSIS",
+            intent_type=None,
+            guard_present=True,
+            guard_outcome=guard_outcome_s,
+        )
+        return MCPEngine._finalize_outcome_final(decision)
+
     def _parse_user_approved_payload(user_msg: str) -> tuple[str, dict] | None:
         marker = "###USER_APPROVED###"
         if not isinstance(user_msg, str) or marker not in user_msg:
@@ -83,6 +119,23 @@ def _maybe_handle_user_approved_json_exec(
         )
 
     approved_tool, approved_args = approved
+
+    capability_id: str | None = None
+    try:
+        from app.services.llm_chat.capability_router.runtime_context import (
+            get_router_decision,
+        )
+
+        rd = get_router_decision(trace_id=stream_request_id)
+        capability_id = (
+            str(getattr(rd, "capability_id", "") or "").strip()
+            if rd is not None
+            else None
+        )
+        if not (isinstance(capability_id, str) and capability_id.strip()):
+            capability_id = None
+    except Exception:
+        capability_id = None
 
     # HARD GATE: PROCESS_TERMINATION approvals may not bypass the termination-plan preview.
     # If there is no approved preview in DB, return the preview text and stop (no tool execution).
@@ -447,12 +500,38 @@ def _maybe_handle_user_approved_json_exec(
                 tmp_args["preview_id"] = str(merged_args.get("preview_id")).strip()
             merged_args = tmp_args
 
-    if not can_execute_tool(
+    guard_res = evaluate_tool_execution_guard_v2(
         tool_name=approved_tool,
         request_kind=request_kind,
         has_pending_approval=bool(has_valid_pending_match),
         user_intent="approve",
-    ):
+    )
+
+    decision = _get_mcp_decision_for_user_approved_exec(
+        capability_id_in=capability_id,
+        guard_outcome_in=guard_res.outcome,
+    )
+    outcome_final = decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED
+
+    if outcome_final == MCPOutcomeFinal.TOOL_BLOCKED:
+        return StreamingResponse(
+            iter(_approval_refusal_lines()),
+            media_type="text/plain",
+        )
+
+    if outcome_final == MCPOutcomeFinal.PENDING_APPROVAL:
+        return StreamingResponse(
+            iter(_pending_approval_lines()),
+            media_type="text/plain",
+        )
+
+    if outcome_final == MCPOutcomeFinal.NO_TOOLS:
+        return StreamingResponse(
+            iter(_no_tools_lines()),
+            media_type="text/plain",
+        )
+
+    if outcome_final != MCPOutcomeFinal.TOOL_ALLOWED:
         return StreamingResponse(
             iter(_approval_refusal_lines()),
             media_type="text/plain",
@@ -486,7 +565,7 @@ def _maybe_handle_user_approved_json_exec(
             except Exception:
                 pass
 
-            tool_result = _execute_tool_call(
+            tool_result = _execute_tool_call(  # STAGE_E_TOOL_EXEC_CALLSITE
                 approved_tool,
                 merged_args,
                 request.client_id,
@@ -568,7 +647,7 @@ def _maybe_handle_user_approved_json_exec(
                                 )
                         except Exception:
                             refreshed_portfolio = effective_portfolio
-                        plan_result = _execute_tool_call(
+                        plan_result = _execute_tool_call(  # STAGE_E_TOOL_EXEC_CALLSITE
                             "BUILD_TARGET_PENSION_PLAN",
                             plan_args,
                             request.client_id,
