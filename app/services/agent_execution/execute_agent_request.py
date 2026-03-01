@@ -45,6 +45,7 @@ from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrit
 from app.services.llm_chat.explicit_tool_shortcuts import (
     CLIENT_SNAPSHOT_TOOL_NAME,
     extract_first_json,
+    is_client_snapshot_shortcut_request,
     wants_json_only,
 )
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
@@ -75,7 +76,10 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
 )
 from app.services.llm_chat.orchestration_core.feature_flags import compute_feature_flags
 from app.services.llm_chat.capability_router.router_facade import ensure_router_decision
-from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+from app.services.llm_chat.capability_router.runtime_context import (
+    RouterDecision,
+    get_router_decision,
+)
 from app.services.llm_chat.mcp.engine import MCPEngine, mcp_decision_to_payload
 from app.services.llm_chat.mcp.decision import MCPDecision, MCPExecutionMode
 from app.services.llm_chat.mcp.types import MCPOutcomeFinal
@@ -931,6 +935,49 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         except Exception:
             _rd = None
 
+        _is_snapshot_shortcut = False
+        try:
+            _is_snapshot_shortcut = bool(
+                is_client_snapshot_shortcut_request(last_user_msg or "")
+            )
+        except Exception:
+            _is_snapshot_shortcut = False
+
+        if _is_snapshot_shortcut:
+            try:
+                tc = getattr(_rd, "tool_chain", None) if _rd is not None else None
+                if not (isinstance(tc, list) and len(tc) > 0):
+                    if _rd is None:
+                        _rd = RouterDecision(
+                            capability_id="default_qa_v1",
+                            mode="QA",
+                            tool_chain=[CLIENT_SNAPSHOT_TOOL_NAME],
+                            output_schema_id="snapshot_shortcut_v1",
+                            capability_map_version="",
+                            router_normalization_version="",
+                            normalized_text_hash="",
+                        )
+                    else:
+                        _rd = RouterDecision(
+                            capability_id=str(getattr(_rd, "capability_id", "") or ""),
+                            mode=str(getattr(_rd, "mode", "") or "QA"),
+                            tool_chain=[CLIENT_SNAPSHOT_TOOL_NAME],
+                            output_schema_id=str(
+                                getattr(_rd, "output_schema_id", "") or ""
+                            ),
+                            capability_map_version=str(
+                                getattr(_rd, "capability_map_version", "") or ""
+                            ),
+                            router_normalization_version=str(
+                                getattr(_rd, "router_normalization_version", "") or ""
+                            ),
+                            normalized_text_hash=str(
+                                getattr(_rd, "normalized_text_hash", "") or ""
+                            ),
+                        )
+            except Exception:
+                pass
+
         _tools_enabled = getattr(effective_request, "tools_enabled", None)
         _tools_disabled_reason = getattr(effective_request, "tools_disabled_reason", None)
         try:
@@ -1325,60 +1372,62 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     if (
         _core_decision is not None
         and getattr(_core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY
-        and isinstance(getattr(_core_decision, "final_text", None), str)
-        and (getattr(_core_decision, "final_text", "") or "").strip()
-        and (mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED)
-        == MCPOutcomeFinal.NO_TOOLS
     ):
-        reply = str(getattr(_core_decision, "final_text", ""))
-        try:
-            if wants_json_only(last_user_msg) and isinstance(
-                _core_final_computed_data, dict
-            ):
-                reply = json.dumps(_core_final_computed_data, ensure_ascii=False)
-            elif (
-                isinstance(_core_final_reply_override, str)
-                and _core_final_reply_override.strip()
-            ):
-                reply = _core_final_reply_override
-        except Exception:
-            if (
-                isinstance(_core_final_reply_override, str)
-                and _core_final_reply_override.strip()
-            ):
-                reply = _core_final_reply_override
-        res = ChatResponse(reply=reply, computed_data=_core_final_computed_data)
-        res.reply = _stage10_guard_reply_text(
-            reply=getattr(res, "reply", None),
-            endpoint=endpoint,
-            client_id=effective_request.client_id,
-            executor_only=executor_only_flag,
-        )
-        _emit_final_response(
-            reply=res.reply,
-            computed_data=res.computed_data,
-            streaming=False,
-            client_id=effective_request.client_id,
-            endpoint=endpoint,
-        )
+        _final_text = getattr(_core_decision, "final_text", None)
+        _final_text_s = _final_text if isinstance(_final_text, str) else ""
+        _final_text_s = _final_text_s if _final_text_s.strip() else ""
 
-        try:
-            _ep_payload = {"execution_path": "new_core"}
-            log_trace_event(
-                event_type="execution_path_selected",
-                payload=_ep_payload,
+        reply = ""
+        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+            reply = _core_final_reply_override
+        else:
+            reply = _final_text_s
+
+        if (reply or "").strip() or _core_final_computed_data is not None:
+            try:
+                if wants_json_only(last_user_msg) and isinstance(
+                    _core_final_computed_data, dict
+                ):
+                    reply = json.dumps(_core_final_computed_data, ensure_ascii=False)
+            except Exception:
+                pass
+
+            res = ChatResponse(reply=reply, computed_data=_core_final_computed_data)
+            res.reply = _stage10_guard_reply_text(
+                reply=getattr(res, "reply", None),
+                endpoint=endpoint,
+                client_id=effective_request.client_id,
+                executor_only=executor_only_flag,
+            )
+            _emit_final_response(
+                reply=res.reply,
+                computed_data=res.computed_data,
+                streaming=False,
                 client_id=effective_request.client_id,
                 endpoint=endpoint,
             )
-            _eyes_emit(
-                "execution_path_selected",
-                _ep_payload,
-                client_id=effective_request.client_id,
-                endpoint=endpoint,
-            )
-        except Exception:
-            pass
-        return res
+
+            try:
+                _ep_payload = {"execution_path": "new_core"}
+                log_trace_event(
+                    event_type="execution_path_selected",
+                    payload=_ep_payload,
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "execution_path_selected",
+                    _ep_payload,
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+            except Exception:
+                pass
+            return res
+
+        # If we got RESPOND_ONLY but no usable reply/computed_data, allow legacy fallback.
+
+
 
     try:
         _dc = getattr(_core_decision, "decision_code", None)
@@ -1854,6 +1903,49 @@ def execute_agent_request_stream(
         except Exception:
             _rd = None
 
+        _is_snapshot_shortcut = False
+        try:
+            _is_snapshot_shortcut = bool(
+                is_client_snapshot_shortcut_request(last_user_msg or "")
+            )
+        except Exception:
+            _is_snapshot_shortcut = False
+
+        if _is_snapshot_shortcut:
+            try:
+                tc = getattr(_rd, "tool_chain", None) if _rd is not None else None
+                if not (isinstance(tc, list) and len(tc) > 0):
+                    if _rd is None:
+                        _rd = RouterDecision(
+                            capability_id="default_qa_v1",
+                            mode="QA",
+                            tool_chain=[CLIENT_SNAPSHOT_TOOL_NAME],
+                            output_schema_id="snapshot_shortcut_v1",
+                            capability_map_version="",
+                            router_normalization_version="",
+                            normalized_text_hash="",
+                        )
+                    else:
+                        _rd = RouterDecision(
+                            capability_id=str(getattr(_rd, "capability_id", "") or ""),
+                            mode=str(getattr(_rd, "mode", "") or "QA"),
+                            tool_chain=[CLIENT_SNAPSHOT_TOOL_NAME],
+                            output_schema_id=str(
+                                getattr(_rd, "output_schema_id", "") or ""
+                            ),
+                            capability_map_version=str(
+                                getattr(_rd, "capability_map_version", "") or ""
+                            ),
+                            router_normalization_version=str(
+                                getattr(_rd, "router_normalization_version", "") or ""
+                            ),
+                            normalized_text_hash=str(
+                                getattr(_rd, "normalized_text_hash", "") or ""
+                            ),
+                        )
+            except Exception:
+                pass
+
         _tools_enabled = getattr(effective_request, "tools_enabled", None)
         _tools_disabled_reason = getattr(effective_request, "tools_disabled_reason", None)
         try:
@@ -2306,24 +2398,47 @@ def execute_agent_request_stream(
     if (
         _core_decision is not None
         and getattr(_core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY
-        and isinstance(getattr(_core_decision, "final_text", None), str)
-        and (getattr(_core_decision, "final_text", "") or "").strip()
-        and (mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED)
-        == MCPOutcomeFinal.NO_TOOLS
     ):
-        reply = str(getattr(_core_decision, "final_text", ""))
-        if (
-            isinstance(_core_final_reply_override, str)
-            and _core_final_reply_override.strip()
-        ):
+        _final_text = getattr(_core_decision, "final_text", None)
+        _final_text_s = _final_text if isinstance(_final_text, str) else ""
+        _final_text_s = _final_text_s if _final_text_s.strip() else ""
+
+        reply = ""
+        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
             reply = _core_final_reply_override
+        else:
+            reply = _final_text_s
 
-        if _core_final_computed_data is not None:
+        if (reply or "").strip() or _core_final_computed_data is not None:
+            if _core_final_computed_data is not None:
 
-            def _gen() -> Iterator[str]:
-                marker = _core_final_computed_data_marker
-                if isinstance(marker, str) and marker:
-                    yield marker
+                def _gen() -> Iterator[str]:
+                    marker = _core_final_computed_data_marker
+                    if isinstance(marker, str) and marker:
+                        yield marker
+                    yield reply
+
+                try:
+                    _ep_payload = {"execution_path": "new_core"}
+                    log_trace_event(
+                        event_type="execution_path_selected",
+                        payload=_ep_payload,
+                        client_id=effective_request.client_id,
+                        endpoint=endpoint,
+                    )
+                    _eyes_emit(
+                        "execution_path_selected",
+                        _ep_payload,
+                        client_id=effective_request.client_id,
+                        endpoint=endpoint,
+                    )
+                except Exception:
+                    pass
+                return StreamingResponse(
+                    _wrap_iter_with_final_response(_gen()), media_type="text/plain"
+                )
+
+            def _core_reply_gen() -> Iterator[str]:
                 yield reply
 
             try:
@@ -2343,31 +2458,10 @@ def execute_agent_request_stream(
             except Exception:
                 pass
             return StreamingResponse(
-                _wrap_iter_with_final_response(_gen()), media_type="text/plain"
+                _wrap_iter_with_final_response(_core_reply_gen()), media_type="text/plain"
             )
 
-        def _core_reply_gen() -> Iterator[str]:
-            yield reply
-
-        try:
-            _ep_payload = {"execution_path": "new_core"}
-            log_trace_event(
-                event_type="execution_path_selected",
-                payload=_ep_payload,
-                client_id=effective_request.client_id,
-                endpoint=endpoint,
-            )
-            _eyes_emit(
-                "execution_path_selected",
-                _ep_payload,
-                client_id=effective_request.client_id,
-                endpoint=endpoint,
-            )
-        except Exception:
-            pass
-        return StreamingResponse(
-            _wrap_iter_with_final_response(_core_reply_gen()), media_type="text/plain"
-        )
+        # If we got RESPOND_ONLY but no usable reply/computed_data, allow legacy fallback.
 
     try:
         _dc = getattr(_core_decision, "decision_code", None)

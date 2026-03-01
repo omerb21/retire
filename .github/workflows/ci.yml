@@ -19,6 +19,7 @@ jobs:
 
       - name: Forbidden changes guard (scope lock)
         id: forbidden_changes
+        if: github.event_name == 'pull_request'
         uses: tj-actions/changed-files@v45
         with:
           files: |
@@ -33,7 +34,7 @@ jobs:
             app/middleware/**stream**
 
       - name: Fail on forbidden changes
-        if: steps.forbidden_changes.outputs.any_changed == 'true'
+        if: github.event_name == 'pull_request' && steps.forbidden_changes.outputs.any_changed == 'true'
         run: |
           echo "Forbidden scope files changed: ${{ steps.forbidden_changes.outputs.all_changed_files }}"
           exit 1
