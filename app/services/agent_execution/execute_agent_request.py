@@ -74,6 +74,11 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
 from app.services.llm_chat.orchestration_core.feature_flags import compute_feature_flags
+from app.services.llm_chat.capability_router.router_facade import ensure_router_decision
+from app.services.llm_chat.capability_router.runtime_context import get_router_decision
+from app.services.llm_chat.mcp.engine import MCPEngine, mcp_decision_to_payload
+from app.services.llm_chat.mcp.decision import MCPDecision, MCPExecutionMode
+from app.services.llm_chat.mcp.types import MCPOutcomeFinal
 from app.services.intent_classifier import IntentType, classify_intent
 from app.services.llm_pension_agent_service import pension_llm_service
 from app.services.agent_execution.tool_execution_context import (
@@ -87,6 +92,22 @@ logger = logging.getLogger("app.llm_chat")
 
 
 MAX_BUFFER_CHARS = 20_000
+
+
+_LEGACY_REASON_CODES = {
+    "CORE_DECISION_REQUESTED_LEGACY",
+    "CORE_LOOP_DISABLED_BY_CONFIG",
+    "UNHANDLED_CORE_ERROR",
+    "UNKNOWN",
+}
+
+
+_ROUTER_DECISION_MISSING_REASON_CODES = {
+    "ROUTER_DECISION_NOT_REQUESTED",
+    "MISSING_CLIENT_ID",
+    "RESOLVER_ERROR",
+    "UNKNOWN",
+}
 
 
 _UI_ACTION_RE = re.compile(r"###UI_ACTION###.*?###END_UI_ACTION###", flags=re.DOTALL)
@@ -285,11 +306,7 @@ def _stage10_enforce_behavioral_limits(
 
 
 def _stage10_guard_reply_text(
-    *,
-    reply: str | None,
-    endpoint: str,
-    client_id: int | None,
-    executor_only: bool,
+    *, reply: str | None, endpoint: str, client_id: int | None, executor_only: bool
 ) -> str | None:
     if not isinstance(reply, str) or not reply.strip():
         return reply
@@ -417,12 +434,7 @@ def _log_policy_decision(
 
 
 def _emit_final_response(
-    *,
-    reply: str | None,
-    computed_data,
-    streaming: bool,
-    client_id: int | None,
-    endpoint: str,
+    *, reply: str | None, computed_data, streaming: bool, client_id: int | None, endpoint: str
 ) -> None:
     try:
         text = reply if isinstance(reply, str) else ""
@@ -508,10 +520,7 @@ def _apply_execution_only_prompt_copy(
 
 
 def _enforce_execution_only_non_stream(
-    *,
-    request: ChatRequest,
-    last_user_msg: str,
-    response: ChatResponse,
+    *, request: ChatRequest, last_user_msg: str, response: ChatResponse
 ) -> ChatResponse:
     if not is_execution_only(request):
         return response
@@ -647,6 +656,31 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     last_user_msg = _find_last_user_message_text(request)
     intent = detect_intent(last_user_msg)
 
+    try:
+        _tier_payload = {
+            "intent_tier": str(
+                getattr(intent, "name", None)
+                or getattr(intent, "value", None)
+                or str(intent)
+            ),
+            "source": "llm_chat.intent_classifier.detect_intent",
+            "streaming": False,
+        }
+        log_trace_event(
+            event_type="intent_tier_detected",
+            payload=_tier_payload,
+            client_id=request.client_id,
+            endpoint=endpoint,
+        )
+        _eyes_emit(
+            "intent_tier_detected",
+            _tier_payload,
+            client_id=request.client_id,
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
+
     _core_state_snapshot = {
         "executor_only": getattr(request, "executor_only", None),
     }
@@ -712,6 +746,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         request=request, intent=intent, decision=decision, endpoint=endpoint
     )
 
+    # STAGE_G_DISCOVERY: Additional decision-like trace events emitted per request.
+    # - execution_mode contains a coarse tools_allowed / mode summary.
+    # - capability_resolved / router_decision_missing contain capability_id and resolver health.
     try:
         _mode_payload = {
             "execution_mode": (
@@ -762,12 +799,196 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     except Exception:
         pass
 
+    # Preamble is best effort telemetry only. Must not affect routing, fallback selection, state, or raise.
+    _router_decision_guardrails_preamble_attempted = False
+
+    def _router_decision_guardrails_preamble() -> None:
+        nonlocal _router_decision_guardrails_preamble_attempted
+        _router_decision_guardrails_preamble_attempted = True
+        try:
+            if getattr(request, "client_id", None) is None:
+                _preamble_payload = {
+                    "reason": "router_decision_guardrails_preamble",
+                    "execution_path": "preamble",
+                    "router_decision_missing_reason_code": "MISSING_CLIENT_ID",
+                    "detail": "client_id_missing",
+                }
+                log_trace_event(
+                    event_type="router_decision_missing",
+                    payload=_preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "router_decision_missing",
+                    _preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                return
+
+            try:
+                _decision = ensure_router_decision(
+                    user_text=last_user_msg or "",
+                    client_id=getattr(request, "client_id", None),
+                    trace_id=getattr(request, "trace_id", None),
+                )
+            except Exception as e:
+                _detail = "resolver_error"
+                try:
+                    _detail = f"{type(e).__name__}:{str(e)[:120]}".strip(":")
+                except Exception:
+                    _detail = "resolver_error"
+                _preamble_payload = {
+                    "reason": "router_decision_guardrails_preamble",
+                    "execution_path": "preamble",
+                    "router_decision_missing_reason_code": "RESOLVER_ERROR",
+                    "detail": _detail,
+                }
+                log_trace_event(
+                    event_type="router_decision_missing",
+                    payload=_preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "router_decision_missing",
+                    _preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                return
+
+            _cap_id = ""
+            try:
+                _cap_id = str(getattr(_decision, "capability_id", "") or "")
+            except Exception:
+                _cap_id = ""
+
+            if not _cap_id.strip():
+                _preamble_payload = {
+                    "reason": "router_decision_guardrails_preamble",
+                    "execution_path": "preamble",
+                    "router_decision_missing_reason_code": "UNKNOWN",
+                    "detail": "empty_capability_id",
+                }
+                log_trace_event(
+                    event_type="router_decision_missing",
+                    payload=_preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "router_decision_missing",
+                    _preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+            else:
+                try:
+                    _cr_payload = {
+                        "capability_id": _cap_id.strip(),
+                        "decision_source": "ssot_runtime_router",
+                    }
+                    log_trace_event(
+                        trace_id=getattr(request, "trace_id", None),
+                        event_type="capability_resolved",
+                        payload=_cr_payload,
+                        client_id=getattr(request, "client_id", None),
+                        endpoint=endpoint,
+                    )
+                    _eyes_emit(
+                        "capability_resolved",
+                        _cr_payload,
+                        client_id=getattr(request, "client_id", None),
+                        endpoint=endpoint,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            return
+
+    _router_decision_guardrails_preamble()
+
+    _MCP_NON_QA_FALLBACK_REASON = "BEHAVIOR_NOT_ACTIVATED"
+
+    mcp_decision: MCPDecision
+    # STAGE_G_DISCOVERY: MCPDecision is evaluated once here via MCPEngine().evaluate(...)
+    # and later used to gate tool execution.
+    try:
+        _tier = str(
+            getattr(intent, "name", None) or getattr(intent, "value", None) or str(intent)
+        )
+        _it = None
+        try:
+            _it = getattr(intent_type, "value", None) or str(intent_type)
+        except Exception:
+            _it = None
+
+        _rd = None
+        try:
+            _rd = get_router_decision(trace_id=getattr(request, "trace_id", None))
+        except Exception:
+            _rd = None
+
+        _tools_enabled = getattr(effective_request, "tools_enabled", None)
+        _tools_disabled_reason = getattr(effective_request, "tools_disabled_reason", None)
+        try:
+            if _rd is not None:
+                _cap_id = str(getattr(_rd, "capability_id", "") or "")
+                if not _cap_id.strip():
+                    _tools_enabled = False
+                    _tools_disabled_reason = "SSOT_INVALID_NO_DEFAULT_QA"
+        except Exception:
+            pass
+
+        _guard_result = {
+            "tools_enabled": _tools_enabled,
+            "tools_disabled_reason": _tools_disabled_reason,
+        }
+
+        mcp_decision = MCPEngine().evaluate(
+            intent_tier=_tier,
+            intent_type=str(_it) if _it is not None else None,
+            router_decision=_rd,
+            guard_result=_guard_result,
+            had_new_core_entered=False,
+            legacy_requested=False,
+        )
+    except Exception:
+        mcp_decision = MCPDecision(
+            execution_mode=MCPExecutionMode.TOOL_BLOCKED,
+            reason_code="mcp_error",
+            capability_id=None,
+            intent_tier="UNKNOWN",
+            intent_type=None,
+        )
+
+    # STAGE_G_DISCOVERY: MCPDecision trace emission callsite (event_type='mcp_decision').
+    # NOTE: log_trace_event(...) already calls agent_eyes.emit_event internally.
+    # The explicit _eyes_emit('mcp_decision', ...) below is a second emit for the same request.
+    # Stage G will lock a single canonical MCPDecision emit; legacy duplicates are tagged.
+    try:
+        _payload = mcp_decision_to_payload(mcp_decision)
+        log_trace_event(
+            trace_id=getattr(request, "trace_id", None),
+            event_type="mcp_decision",
+            payload=_payload,
+            client_id=getattr(request, "client_id", None),
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
+
+    _new_core_entered_emitted = False
+
     _MAX_CORE_TOOL_ITERATIONS = 4
     _core_last_tool_result: ToolResultEnvelope | None = None
     _core_final_computed_data = None
     _core_final_computed_data_marker: str | None = None
     _core_final_reply_override: str | None = None
     _core_decision = None
+    _core_iterations_completed = 0
 
     for _iter_idx in range(_MAX_CORE_TOOL_ITERATIONS):
         _core_input = OrchestrationInput(
@@ -782,6 +1003,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             last_tool_result=_core_last_tool_result,
         )
         _core_decision, _core_trace_specs = orchestrate(_core_input, _core_deps)
+        _core_iterations_completed = _iter_idx + 1
 
         _core_decision, _core_trace_specs, _max_iter_triggered = (
             maybe_apply_max_iterations_guard(
@@ -793,6 +1015,104 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 trace_specs=_core_trace_specs,
             )
         )
+
+        _is_legacy_fallback_decision = False
+        try:
+            _dm = getattr(_core_decision, "debug_meta", None)
+            if isinstance(_dm, dict):
+                _is_legacy_fallback_decision = bool(_dm.get("legacy_fallback", False))
+        except Exception:
+            _is_legacy_fallback_decision = False
+
+        if (not _is_legacy_fallback_decision) and (not _new_core_entered_emitted):
+            try:
+                _nce_payload = {
+                    "execution_path": "new_core",
+                    "streaming": False,
+                    "source": "agent_execution.execute_agent_request",
+                }
+                log_trace_event(
+                    event_type="new_core_entered",
+                    payload=_nce_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "new_core_entered",
+                    _nce_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _new_core_entered_emitted = True
+            except Exception:
+                pass
+
+        if (
+            _iter_idx == 0
+            and _new_core_entered_emitted
+            and (not _is_legacy_fallback_decision)
+        ):
+            try:
+                _rd = get_router_decision(trace_id=getattr(request, "trace_id", None))
+                _cap_id = str(getattr(_rd, "capability_id", "") or "") if _rd else ""
+                if not _cap_id.strip():
+                    _missing_reason_code = "UNKNOWN"
+                    try:
+                        if getattr(request, "client_id", None) is None:
+                            _missing_reason_code = "MISSING_CLIENT_ID"
+                        elif _rd is None or getattr(request, "trace_id", None) is None:
+                            if _router_decision_preamble_attempted:
+                                _missing_reason_code = "RESOLVER_ERROR"
+                            else:
+                                _missing_reason_code = "ROUTER_DECISION_NOT_REQUESTED"
+                        else:
+                            _missing_reason_code = "RESOLVER_ERROR"
+                    except Exception:
+                        _missing_reason_code = "UNKNOWN"
+
+                    _missing_payload = {
+                        "reason": "missing_router_decision_in_new_core",
+                        "execution_path": "new_core",
+                        "router_decision_missing_reason_code": _missing_reason_code,
+                    }
+                    log_trace_event(
+                        event_type="router_decision_missing",
+                        payload=_missing_payload,
+                        client_id=request.client_id,
+                        endpoint=endpoint,
+                    )
+                    _eyes_emit(
+                        "router_decision_missing",
+                        _missing_payload,
+                        client_id=request.client_id,
+                        endpoint=endpoint,
+                    )
+            except Exception:
+                pass
+
+        if not _is_legacy_fallback_decision:
+            try:
+                _dc = getattr(_core_decision, "decision_code", None)
+                _dc_s = str(getattr(_dc, "value", None) or _dc or "")
+                _lp_payload = {
+                    "decision_code": _dc_s,
+                    "tool_call_requested": _dc == DecisionCode.TOOL_CALL,
+                    "tools_requested_count": 1 if _dc == DecisionCode.TOOL_CALL else 0,
+                }
+                log_trace_event(
+                    event_type="loop_policy_evaluated",
+                    payload=_lp_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "loop_policy_evaluated",
+                    _lp_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+            except Exception:
+                pass
         for spec in _core_trace_specs:
             try:
                 log_trace_event(
@@ -816,6 +1136,45 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 
         if getattr(_core_decision, "decision_code", None) != DecisionCode.TOOL_CALL:
             break
+
+        outcome_final = mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED
+        if outcome_final != MCPOutcomeFinal.TOOL_ALLOWED:
+            if outcome_final == MCPOutcomeFinal.NO_TOOLS:
+                raw = pension_llm_service.chat(
+                    list(effective_request.messages or []), effective_request.client_id
+                )
+                res = ChatResponse(reply=raw, computed_data=None)
+            elif outcome_final == MCPOutcomeFinal.PENDING_APPROVAL:
+                res = ChatResponse(
+                    reply=(
+                        "נדרש אישור כדי לבצע. שלח בקשה חדשה אחרי אישור. "
+                        f"reason_code={mcp_decision.reason_code}"
+                    ),
+                    computed_data=None,
+                )
+            else:
+                res = ChatResponse(
+                    reply=(
+                        "הבקשה נחסמה לפי מדיניות. "
+                        f"reason_code={mcp_decision.reason_code}"
+                    ),
+                    computed_data=None,
+                )
+
+            res.reply = _stage10_guard_reply_text(
+                reply=getattr(res, "reply", None),
+                endpoint=endpoint,
+                client_id=effective_request.client_id,
+                executor_only=executor_only_flag,
+            )
+            _emit_final_response(
+                reply=getattr(res, "reply", None),
+                computed_data=getattr(res, "computed_data", None),
+                streaming=False,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+            return res
 
         tool_name = getattr(_core_decision, "tool_name", None)
         _core_args = getattr(_core_decision, "tool_args", None)
@@ -968,6 +1327,8 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         and getattr(_core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY
         and isinstance(getattr(_core_decision, "final_text", None), str)
         and (getattr(_core_decision, "final_text", "") or "").strip()
+        and (mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED)
+        == MCPOutcomeFinal.NO_TOOLS
     ):
         reply = str(getattr(_core_decision, "final_text", ""))
         try:
@@ -1000,11 +1361,107 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             client_id=effective_request.client_id,
             endpoint=endpoint,
         )
+
+        try:
+            _ep_payload = {"execution_path": "new_core"}
+            log_trace_event(
+                event_type="execution_path_selected",
+                payload=_ep_payload,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+            _eyes_emit(
+                "execution_path_selected",
+                _ep_payload,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+        except Exception:
+            pass
         return res
+
+    try:
+        _dc = getattr(_core_decision, "decision_code", None)
+        _dc_s = str(getattr(_dc, "value", None) or _dc or "")
+        _router_decision_guardrails_preamble()
+        _legacy_reason_code = "UNKNOWN"
+        try:
+            _dm = getattr(_core_decision, "debug_meta", None)
+            if isinstance(_dm, dict) and bool(_dm.get("legacy_fallback", False)):
+                _legacy_reason_code = "CORE_DECISION_REQUESTED_LEGACY"
+            elif _MAX_CORE_TOOL_ITERATIONS <= 0:
+                _legacy_reason_code = "CORE_LOOP_DISABLED_BY_CONFIG"
+        except Exception:
+            _legacy_reason_code = "UNKNOWN"
+        if _legacy_reason_code not in _LEGACY_REASON_CODES:
+            _legacy_reason_code = "UNKNOWN"
+
+        _legacy_payload = {
+            "execution_path": "legacy_fallback",
+            "legacy_entrypoint": "run_pension_chat",
+            "reason": "core_decision_code:" + (_dc_s or "none"),
+            "legacy_reason_code": _legacy_reason_code,
+            "had_new_core_entered": bool(_new_core_entered_emitted),
+            "core_iterations_completed": _core_iterations_completed,
+        }
+        log_trace_event(
+            event_type="legacy_fallback_entered",
+            payload=_legacy_payload,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        _eyes_emit(
+            "legacy_fallback_entered",
+            _legacy_payload,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
 
     from app.services.llm_chat.chat_orchestration import (
         run_pension_chat as run_pension_chat_service,
     )
+
+    outcome_final = mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED
+    if outcome_final == MCPOutcomeFinal.PENDING_APPROVAL:
+        reply = (
+            "נדרש אישור כדי לבצע. שלח בקשה חדשה אחרי אישור. "
+            f"reason_code={mcp_decision.reason_code}"
+        )
+        res = ChatResponse(reply=reply, computed_data=None)
+        res.reply = _stage10_guard_reply_text(
+            reply=getattr(res, "reply", None),
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        _emit_final_response(
+            reply=getattr(res, "reply", None),
+            computed_data=getattr(res, "computed_data", None),
+            streaming=False,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        return res
+
+    if outcome_final == MCPOutcomeFinal.TOOL_BLOCKED:
+        reply = f"הבקשה נחסמה לפי מדיניות. reason_code={mcp_decision.reason_code}"
+        res = ChatResponse(reply=reply, computed_data=None)
+        res.reply = _stage10_guard_reply_text(
+            reply=getattr(res, "reply", None),
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        _emit_final_response(
+            reply=getattr(res, "reply", None),
+            computed_data=getattr(res, "computed_data", None),
+            streaming=False,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        return res
 
     res = run_pension_chat_service(effective_request, db)
 
@@ -1088,6 +1545,7 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 def execute_agent_request_stream(
     request: ChatRequest, db: Session
 ) -> StreamingResponse:
+    # STREAM_LOOP_FN: execute_agent_request_stream
     endpoint = "/api/v1/llm/pension-chat-stream"
 
     try:
@@ -1123,6 +1581,31 @@ def execute_agent_request_stream(
 
     last_user_msg = _find_last_user_message_text(request)
     intent = detect_intent(last_user_msg)
+
+    try:
+        _tier_payload = {
+            "intent_tier": str(
+                getattr(intent, "name", None)
+                or getattr(intent, "value", None)
+                or str(intent)
+            ),
+            "source": "llm_chat.intent_classifier.detect_intent",
+            "streaming": True,
+        }
+        log_trace_event(
+            event_type="intent_tier_detected",
+            payload=_tier_payload,
+            client_id=request.client_id,
+            endpoint=endpoint,
+        )
+        _eyes_emit(
+            "intent_tier_detected",
+            _tier_payload,
+            client_id=request.client_id,
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
 
     _core_state_snapshot = {
         "executor_only": getattr(request, "executor_only", None),
@@ -1189,6 +1672,8 @@ def execute_agent_request_stream(
         request=request, intent=intent, decision=decision, endpoint=endpoint
     )
 
+    # STAGE_G_DISCOVERY: Additional decision-like trace events emitted per request.
+    # - execution_mode contains a coarse tools_allowed / mode summary.
     try:
         _mode_payload = {
             "execution_mode": (
@@ -1236,6 +1721,189 @@ def execute_agent_request_stream(
         )
     except Exception:
         pass
+
+    # Preamble is best effort telemetry only. Must not affect routing, fallback selection, state, or raise.
+    _router_decision_preamble_attempted = False
+
+    def _router_decision_guardrails_preamble() -> None:
+        nonlocal _router_decision_preamble_attempted
+        _router_decision_preamble_attempted = True
+        try:
+            if getattr(request, "client_id", None) is None:
+                _preamble_payload = {
+                    "reason": "router_decision_guardrails_preamble",
+                    "execution_path": "preamble",
+                    "router_decision_missing_reason_code": "MISSING_CLIENT_ID",
+                    "detail": "client_id_missing",
+                }
+                log_trace_event(
+                    event_type="router_decision_missing",
+                    payload=_preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "router_decision_missing",
+                    _preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                return
+
+            try:
+                _decision = ensure_router_decision(
+                    user_text=last_user_msg or "",
+                    client_id=getattr(request, "client_id", None),
+                    trace_id=getattr(request, "trace_id", None),
+                )
+            except Exception as e:
+                _detail = "resolver_error"
+                try:
+                    _detail = f"{type(e).__name__}:{str(e)[:120]}".strip(":")
+                except Exception:
+                    _detail = "resolver_error"
+                _preamble_payload = {
+                    "reason": "router_decision_guardrails_preamble",
+                    "execution_path": "preamble",
+                    "router_decision_missing_reason_code": "RESOLVER_ERROR",
+                    "detail": _detail,
+                }
+                log_trace_event(
+                    event_type="router_decision_missing",
+                    payload=_preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "router_decision_missing",
+                    _preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                return
+
+            _cap_id = ""
+            try:
+                _cap_id = str(getattr(_decision, "capability_id", "") or "")
+            except Exception:
+                _cap_id = ""
+
+            if not _cap_id.strip():
+                _preamble_payload = {
+                    "reason": "router_decision_guardrails_preamble",
+                    "execution_path": "preamble",
+                    "router_decision_missing_reason_code": "UNKNOWN",
+                    "detail": "empty_capability_id",
+                }
+                log_trace_event(
+                    event_type="router_decision_missing",
+                    payload=_preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "router_decision_missing",
+                    _preamble_payload,
+                    client_id=getattr(request, "client_id", None),
+                    endpoint=endpoint,
+                )
+            else:
+                try:
+                    _cr_payload = {
+                        "capability_id": _cap_id.strip(),
+                        "decision_source": "ssot_runtime_router",
+                    }
+                    log_trace_event(
+                        trace_id=getattr(request, "trace_id", None),
+                        event_type="capability_resolved",
+                        payload=_cr_payload,
+                        client_id=getattr(request, "client_id", None),
+                        endpoint=endpoint,
+                    )
+                    _eyes_emit(
+                        "capability_resolved",
+                        _cr_payload,
+                        client_id=getattr(request, "client_id", None),
+                        endpoint=endpoint,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            return
+
+    _router_decision_guardrails_preamble()
+
+    _MCP_NON_QA_FALLBACK_REASON = "BEHAVIOR_NOT_ACTIVATED"
+
+    mcp_decision: MCPDecision
+    # STAGE_G_DISCOVERY: MCPDecision is evaluated once here via MCPEngine().evaluate(...)
+    # and later used to gate tool execution.
+    try:
+        _tier = str(
+            getattr(intent, "name", None) or getattr(intent, "value", None) or str(intent)
+        )
+        _it = None
+        try:
+            _it = getattr(intent_type, "value", None) or str(intent_type)
+        except Exception:
+            _it = None
+
+        _rd = None
+        try:
+            _rd = get_router_decision(trace_id=getattr(request, "trace_id", None))
+        except Exception:
+            _rd = None
+
+        _tools_enabled = getattr(effective_request, "tools_enabled", None)
+        _tools_disabled_reason = getattr(effective_request, "tools_disabled_reason", None)
+        try:
+            if _rd is not None:
+                _cap_id = str(getattr(_rd, "capability_id", "") or "")
+                if not _cap_id.strip():
+                    _tools_enabled = False
+                    _tools_disabled_reason = "SSOT_INVALID_NO_DEFAULT_QA"
+        except Exception:
+            pass
+
+        _guard_result = {
+            "tools_enabled": _tools_enabled,
+            "tools_disabled_reason": _tools_disabled_reason,
+        }
+
+        mcp_decision = MCPEngine().evaluate(
+            intent_tier=_tier,
+            intent_type=str(_it) if _it is not None else None,
+            router_decision=_rd,
+            guard_result=_guard_result,
+            had_new_core_entered=False,
+            legacy_requested=False,
+        )
+    except Exception:
+        mcp_decision = MCPDecision(
+            execution_mode=MCPExecutionMode.TOOL_BLOCKED,
+            reason_code="mcp_error",
+            capability_id=None,
+            intent_tier="UNKNOWN",
+            intent_type=None,
+        )
+
+    # STAGE_G_DISCOVERY: MCPDecision trace emission callsite (event_type='mcp_decision').
+    # NOTE: log_trace_event(...) already calls agent_eyes.emit_event internally.
+    # The explicit _eyes_emit('mcp_decision', ...) below is a second emit for the same request.
+    # Stage G will lock a single canonical MCPDecision emit; legacy duplicates are tagged.
+    try:
+        _payload = mcp_decision_to_payload(mcp_decision)
+        log_trace_event(
+            trace_id=getattr(request, "trace_id", None),
+            event_type="mcp_decision",
+            payload=_payload,
+            client_id=getattr(request, "client_id", None),
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
+
+    _new_core_entered_emitted = False
 
     executor_only_flag = bool(getattr(request, "executor_only", None))
 
@@ -1318,6 +1986,7 @@ def execute_agent_request_stream(
     _core_final_computed_data_marker: str | None = None
     _core_final_reply_override: str | None = None
     _core_decision = None
+    _core_iterations_completed = 0
 
     for _iter_idx in range(_MAX_CORE_TOOL_ITERATIONS):
         _core_input = OrchestrationInput(
@@ -1332,6 +2001,7 @@ def execute_agent_request_stream(
             last_tool_result=_core_last_tool_result,
         )
         _core_decision, _core_trace_specs = orchestrate(_core_input, _core_deps)
+        _core_iterations_completed = _iter_idx + 1
 
         _core_decision, _core_trace_specs, _max_iter_triggered = (
             maybe_apply_max_iterations_guard(
@@ -1343,6 +2013,104 @@ def execute_agent_request_stream(
                 trace_specs=_core_trace_specs,
             )
         )
+
+        _is_legacy_fallback_decision = False
+        try:
+            _dm = getattr(_core_decision, "debug_meta", None)
+            if isinstance(_dm, dict):
+                _is_legacy_fallback_decision = bool(_dm.get("legacy_fallback", False))
+        except Exception:
+            _is_legacy_fallback_decision = False
+
+        if (not _is_legacy_fallback_decision) and (not _new_core_entered_emitted):
+            try:
+                _nce_payload = {
+                    "execution_path": "new_core",
+                    "streaming": True,
+                    "source": "agent_execution.execute_agent_request",
+                }
+                log_trace_event(
+                    event_type="new_core_entered",
+                    payload=_nce_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "new_core_entered",
+                    _nce_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _new_core_entered_emitted = True
+            except Exception:
+                pass
+
+        if (
+            _iter_idx == 0
+            and _new_core_entered_emitted
+            and (not _is_legacy_fallback_decision)
+        ):
+            try:
+                _rd = get_router_decision(trace_id=getattr(request, "trace_id", None))
+                _cap_id = str(getattr(_rd, "capability_id", "") or "") if _rd else ""
+                if not _cap_id.strip():
+                    _missing_reason_code = "UNKNOWN"
+                    try:
+                        if getattr(request, "client_id", None) is None:
+                            _missing_reason_code = "MISSING_CLIENT_ID"
+                        elif _rd is None or getattr(request, "trace_id", None) is None:
+                            if _router_decision_preamble_attempted:
+                                _missing_reason_code = "RESOLVER_ERROR"
+                            else:
+                                _missing_reason_code = "ROUTER_DECISION_NOT_REQUESTED"
+                        else:
+                            _missing_reason_code = "RESOLVER_ERROR"
+                    except Exception:
+                        _missing_reason_code = "UNKNOWN"
+
+                    _missing_payload = {
+                        "reason": "missing_router_decision_in_new_core",
+                        "execution_path": "new_core",
+                        "router_decision_missing_reason_code": _missing_reason_code,
+                    }
+                    log_trace_event(
+                        event_type="router_decision_missing",
+                        payload=_missing_payload,
+                        client_id=request.client_id,
+                        endpoint=endpoint,
+                    )
+                    _eyes_emit(
+                        "router_decision_missing",
+                        _missing_payload,
+                        client_id=request.client_id,
+                        endpoint=endpoint,
+                    )
+            except Exception:
+                pass
+
+        if not _is_legacy_fallback_decision:
+            try:
+                _dc = getattr(_core_decision, "decision_code", None)
+                _dc_s = str(getattr(_dc, "value", None) or _dc or "")
+                _lp_payload = {
+                    "decision_code": _dc_s,
+                    "tool_call_requested": _dc == DecisionCode.TOOL_CALL,
+                    "tools_requested_count": 1 if _dc == DecisionCode.TOOL_CALL else 0,
+                }
+                log_trace_event(
+                    event_type="loop_policy_evaluated",
+                    payload=_lp_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "loop_policy_evaluated",
+                    _lp_payload,
+                    client_id=request.client_id,
+                    endpoint=endpoint,
+                )
+            except Exception:
+                pass
         for spec in _core_trace_specs:
             try:
                 log_trace_event(
@@ -1378,10 +2146,52 @@ def execute_agent_request_stream(
             tool_call_id = None
 
         tool_result_payload = None
+
+        outcome_final = mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED
+        if outcome_final != MCPOutcomeFinal.TOOL_ALLOWED:
+            if outcome_final == MCPOutcomeFinal.NO_TOOLS:
+                raw = pension_llm_service.chat(
+                    list(effective_request.messages or []), effective_request.client_id
+                )
+                raw = raw if isinstance(raw, str) else ""
+                final_text = _stage10_guard_reply_text(
+                    reply=raw,
+                    endpoint=endpoint,
+                    client_id=effective_request.client_id,
+                    executor_only=executor_only_flag,
+                )
+                final_text = final_text if isinstance(final_text, str) else ""
+                return StreamingResponse(iter([final_text]), media_type="text/plain")
+
+            if outcome_final == MCPOutcomeFinal.PENDING_APPROVAL:
+                reply = (
+                    "נדרש אישור כדי לבצע. שלח בקשה חדשה אחרי אישור. "
+                    f"reason_code={mcp_decision.reason_code}"
+                )
+                final_text = _stage10_guard_reply_text(
+                    reply=reply,
+                    endpoint=endpoint,
+                    client_id=effective_request.client_id,
+                    executor_only=executor_only_flag,
+                )
+                final_text = final_text if isinstance(final_text, str) else ""
+                return StreamingResponse(iter([final_text]), media_type="text/plain")
+
+            reply = f"הבקשה נחסמה לפי מדיניות. reason_code={mcp_decision.reason_code}"
+            final_text = _stage10_guard_reply_text(
+                reply=reply,
+                endpoint=endpoint,
+                client_id=effective_request.client_id,
+                executor_only=executor_only_flag,
+            )
+            final_text = final_text if isinstance(final_text, str) else ""
+            return StreamingResponse(iter([final_text]), media_type="text/plain")
+
         if (
             tool_name == MONTHLY_PENSION_SUMMARY_TOOL_NAME
             and effective_request.client_id is not None
         ):
+            # TOOL_EXEC_CALLSITE: execute_with_guard
             raw_tool_result = execute_with_guard(
                 request=effective_request,
                 db=db,
@@ -1421,6 +2231,7 @@ def execute_agent_request_stream(
             else:
                 tool_result_payload = raw_tool_result
         elif tool_name == CLIENT_SNAPSHOT_TOOL_NAME:
+            # TOOL_EXEC_CALLSITE: execute_with_guard
             raw_tool_result = execute_with_guard(
                 request=effective_request,
                 db=db,
@@ -1497,6 +2308,8 @@ def execute_agent_request_stream(
         and getattr(_core_decision, "decision_code", None) == DecisionCode.RESPOND_ONLY
         and isinstance(getattr(_core_decision, "final_text", None), str)
         and (getattr(_core_decision, "final_text", "") or "").strip()
+        and (mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED)
+        == MCPOutcomeFinal.NO_TOOLS
     ):
         reply = str(getattr(_core_decision, "final_text", ""))
         if (
@@ -1513,6 +2326,22 @@ def execute_agent_request_stream(
                     yield marker
                 yield reply
 
+            try:
+                _ep_payload = {"execution_path": "new_core"}
+                log_trace_event(
+                    event_type="execution_path_selected",
+                    payload=_ep_payload,
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+                _eyes_emit(
+                    "execution_path_selected",
+                    _ep_payload,
+                    client_id=effective_request.client_id,
+                    endpoint=endpoint,
+                )
+            except Exception:
+                pass
             return StreamingResponse(
                 _wrap_iter_with_final_response(_gen()), media_type="text/plain"
             )
@@ -1520,13 +2349,100 @@ def execute_agent_request_stream(
         def _core_reply_gen() -> Iterator[str]:
             yield reply
 
+        try:
+            _ep_payload = {"execution_path": "new_core"}
+            log_trace_event(
+                event_type="execution_path_selected",
+                payload=_ep_payload,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+            _eyes_emit(
+                "execution_path_selected",
+                _ep_payload,
+                client_id=effective_request.client_id,
+                endpoint=endpoint,
+            )
+        except Exception:
+            pass
         return StreamingResponse(
             _wrap_iter_with_final_response(_core_reply_gen()), media_type="text/plain"
         )
 
+    try:
+        _dc = getattr(_core_decision, "decision_code", None)
+        _dc_s = str(getattr(_dc, "value", None) or _dc or "")
+        _router_decision_guardrails_preamble()
+        _legacy_reason_code = "UNKNOWN"
+        try:
+            _dm = getattr(_core_decision, "debug_meta", None)
+            if isinstance(_dm, dict) and bool(_dm.get("legacy_fallback", False)):
+                _legacy_reason_code = "CORE_DECISION_REQUESTED_LEGACY"
+            elif _MAX_CORE_TOOL_ITERATIONS <= 0:
+                _legacy_reason_code = "CORE_LOOP_DISABLED_BY_CONFIG"
+        except Exception:
+            _legacy_reason_code = "UNKNOWN"
+        if _legacy_reason_code not in _LEGACY_REASON_CODES:
+            _legacy_reason_code = "UNKNOWN"
+
+        _legacy_payload = {
+            "execution_path": "legacy_fallback",
+            "legacy_entrypoint": "run_pension_chat_stream",
+            "reason": "core_decision_code:" + (_dc_s or "none"),
+            "legacy_reason_code": _legacy_reason_code,
+            "had_new_core_entered": bool(_new_core_entered_emitted),
+            "core_iterations_completed": _core_iterations_completed,
+        }
+        log_trace_event(
+            event_type="legacy_fallback_entered",
+            payload=_legacy_payload,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+        _eyes_emit(
+            "legacy_fallback_entered",
+            _legacy_payload,
+            client_id=effective_request.client_id,
+            endpoint=endpoint,
+        )
+    except Exception:
+        pass
+
     from app.services.llm_chat.chat_orchestration import (
         run_pension_chat_stream as run_pension_chat_stream_service,
     )
+
+    outcome_final = mcp_decision.outcome_final or MCPOutcomeFinal.TOOL_BLOCKED
+    if outcome_final == MCPOutcomeFinal.NO_TOOLS:
+        raw = pension_llm_service.chat(
+            list(effective_request.messages or []), effective_request.client_id
+        )
+        raw = raw if isinstance(raw, str) else ""
+        final_text = _stage10_guard_reply_text(
+            reply=raw,
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        final_text = final_text if isinstance(final_text, str) else ""
+        return StreamingResponse(iter([final_text]), media_type="text/plain")
+
+    if outcome_final in {MCPOutcomeFinal.TOOL_BLOCKED, MCPOutcomeFinal.PENDING_APPROVAL}:
+        if outcome_final == MCPOutcomeFinal.PENDING_APPROVAL:
+            reply = (
+                "נדרש אישור משתמש לפני ביצוע פעולה. "
+                f"reason_code={mcp_decision.reason_code}"
+            )
+        else:
+            reply = f"הבקשה נחסמה לפי מדיניות. reason_code={mcp_decision.reason_code}"
+        final_text = _stage10_guard_reply_text(
+            reply=reply,
+            endpoint=endpoint,
+            client_id=effective_request.client_id,
+            executor_only=executor_only_flag,
+        )
+        final_text = final_text if isinstance(final_text, str) else ""
+        return StreamingResponse(iter([final_text]), media_type="text/plain")
 
     raw_response = run_pension_chat_stream_service(effective_request, db)
 
