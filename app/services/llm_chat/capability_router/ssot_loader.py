@@ -11,6 +11,9 @@ import yaml
 logger = logging.getLogger("app.capability_router.ssot")
 
 
+_ALLOWED_SIDE_EFFECT_CLASS: set[str] = {"READ_ONLY", "STATE_CHANGE", "IRREVERSIBLE"}
+
+
 def _default_capability_map_path() -> Path:
     return Path(__file__).with_name("capability_map.yaml")
 
@@ -164,7 +167,18 @@ def load_capability_map() -> dict[str, Any]:
     )
 
     _schemas = load_output_schemas()
-    _ = validate_capability_map(raw=data, output_schemas=_schemas, ssot=ssot)
+
+    # Stage A: allow additional SSOT sections at root level (e.g. mcp_policy_matrix)
+    # without breaking strict validation of the capabilities payload.
+    data_for_validation = data
+    try:
+        if isinstance(data, dict) and "mcp_policy_matrix" in data:
+            data_for_validation = dict(data)
+            data_for_validation.pop("mcp_policy_matrix", None)
+    except Exception:
+        data_for_validation = data
+
+    _ = validate_capability_map(raw=data_for_validation, output_schemas=_schemas, ssot=ssot)
 
     try:
         if os.getenv("SSOT_DEBUG") == "1":
@@ -185,6 +199,94 @@ def load_capability_map() -> dict[str, Any]:
         pass
 
     return data
+
+
+def load_mcp_policy_matrix() -> dict[str, Any] | None:
+    """Load Stage A MCP policy matrix (SSOT contract only).
+
+    Runtime tolerance requirements:
+    - If section is missing: return None.
+    - If invalid: return None + log warning.
+
+    CI strictness is enforced by tests that require this to be present and valid.
+    """
+
+    try:
+        cap_map = load_capability_map()
+    except Exception as e:
+        logger.warning("load_mcp_policy_matrix failed to load capability map: %s", e)
+        return None
+
+    raw = cap_map.get("mcp_policy_matrix") if isinstance(cap_map, dict) else None
+    if raw is None:
+        return None
+
+    if not isinstance(raw, list):
+        logger.warning("mcp_policy_matrix invalid: expected list")
+        return None
+
+    caps_raw = cap_map.get("capabilities") if isinstance(cap_map, dict) else None
+    caps_list = caps_raw if isinstance(caps_raw, list) else []
+    known_capability_ids: set[str] = set()
+    for c in caps_list:
+        if isinstance(c, dict):
+            cid = c.get("capability_id")
+            if isinstance(cid, str) and cid.strip():
+                known_capability_ids.add(cid.strip())
+
+    from app.services.llm_chat.mcp.types import MCPExecutionMode
+
+    allowed_execution_modes: set[str] = {m.value for m in MCPExecutionMode}
+
+    validated_entries: list[dict[str, Any]] = []
+    try:
+        for idx, entry in enumerate(raw):
+            if not isinstance(entry, dict):
+                raise ValueError(f"entry_not_dict:{idx}")
+
+            capability_id = entry.get("capability_id")
+            if not (isinstance(capability_id, str) and capability_id.strip()):
+                raise ValueError(f"missing_capability_id:{idx}")
+            capability_id = capability_id.strip()
+            if known_capability_ids and capability_id not in known_capability_ids:
+                raise ValueError(f"unknown_capability_id:{capability_id}")
+
+            side_effect_class = entry.get("side_effect_class")
+            if not (isinstance(side_effect_class, str) and side_effect_class.strip()):
+                raise ValueError(f"missing_side_effect_class:{idx}")
+            side_effect_class = side_effect_class.strip()
+            if side_effect_class not in _ALLOWED_SIDE_EFFECT_CLASS:
+                raise ValueError(
+                    f"invalid_side_effect_class:{capability_id}:{side_effect_class}"
+                )
+
+            modes_raw = entry.get("allowed_execution_modes")
+            if not isinstance(modes_raw, list) or not modes_raw:
+                raise ValueError(f"missing_allowed_execution_modes:{idx}")
+            for m in modes_raw:
+                if not (isinstance(m, str) and m.strip()):
+                    raise ValueError(f"invalid_execution_mode:{capability_id}")
+                if m.strip() not in allowed_execution_modes:
+                    raise ValueError(
+                        f"invalid_execution_mode:{capability_id}:{m.strip()}"
+                    )
+
+            validated_entries.append(dict(entry))
+    except Exception as e:
+        logger.warning("mcp_policy_matrix invalid - disabled: %s", e)
+        return None
+
+    version: str | None = None
+    try:
+        v = cap_map.get("capability_map_version") if isinstance(cap_map, dict) else None
+        version = str(v).strip() if isinstance(v, str) and v.strip() else None
+    except Exception:
+        version = None
+
+    return {
+        "policy_matrix_version": version,
+        "entries": validated_entries,
+    }
 
 
 @lru_cache(maxsize=4)
