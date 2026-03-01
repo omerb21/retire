@@ -29,3 +29,64 @@ capabilities:
 
     output_schema_id: "qa_answer_v1"
     min_core_version: "0.0.0"
+
+mcp_policy_matrix:
+  - intent_tier: "NO_TOOLS"
+    intent_type: "QA"
+    side_effect_class: "READ_ONLY"
+    capability_id: "default_qa_v1"
+    allowed_execution_modes: ["NO_TOOLS"]
+
+  - intent_tier: "REPORT"
+    intent_type: "QA"
+    side_effect_class: "READ_ONLY"
+    capability_id: "default_qa_v1"
+    allowed_execution_modes: ["NO_TOOLS"]
+
+  - intent_tier: "ANALYSIS"
+    intent_type: "QA"
+    side_effect_class: "READ_ONLY"
+    capability_id: "default_qa_v1"
+    allowed_execution_modes:
+      - "NEW_CORE"
+      - "NO_TOOLS"
+      - "TOOL_ALLOWED"
+      - "TOOL_BLOCKED"
+      - "PENDING_APPROVAL"
+      - "LEGACY_BLOCKED"
+
+  - intent_tier: "ANALYSIS"
+    intent_type: "PLAN"
+    side_effect_class: "READ_ONLY"
+    capability_id: "default_qa_v1"
+    allowed_execution_modes:
+      - "NEW_CORE"
+      - "NO_TOOLS"
+      - "TOOL_ALLOWED"
+      - "TOOL_BLOCKED"
+      - "PENDING_APPROVAL"
+      - "LEGACY_BLOCKED"
+
+  - intent_tier: "ANALYSIS"
+    intent_type: "EXECUTE"
+    side_effect_class: "READ_ONLY"
+    capability_id: "default_qa_v1"
+    allowed_execution_modes:
+      - "NEW_CORE"
+      - "NO_TOOLS"
+      - "TOOL_ALLOWED"
+      - "TOOL_BLOCKED"
+      - "PENDING_APPROVAL"
+      - "LEGACY_BLOCKED"
+
+  - intent_tier: "ANALYSIS"
+    intent_type: "APPROVE"
+    side_effect_class: "READ_ONLY"
+    capability_id: "default_qa_v1"
+    allowed_execution_modes:
+      - "NEW_CORE"
+      - "NO_TOOLS"
+      - "TOOL_ALLOWED"
+      - "TOOL_BLOCKED"
+      - "PENDING_APPROVAL"
+      - "LEGACY_BLOCKED"
