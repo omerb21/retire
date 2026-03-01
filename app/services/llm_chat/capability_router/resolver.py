@@ -17,6 +17,19 @@ from app.services.llm_chat.capability_router.ssot_loader import (
 )
 
 
+_STAGE_C_ROUTER_HARDENING_MAP: dict[str, Any] = {
+    "MATCH_PATH": (
+        "resolve(): iterates caps_to_scan; uses _match_capability(); selects highest priority"
+    ),
+    "NO_MATCH_PATH": "resolve(): if selected is None: fallback selection",
+    "FALLBACK_HOOKS": [
+        "default_cap detection via trigger_regex == ['.*']",
+        "fallback based on intent_type + default_cap",
+        "fallback to first capability in capability_map",
+    ],
+}
+
+
 def _compile_regex(pattern: str) -> re.Pattern[str] | None:
     if not isinstance(pattern, str) or not pattern:
         return None
@@ -203,6 +216,14 @@ def resolve(
     normalized_text = normalize_user_text_v1(user_text)
     norm_hash = sha256_hex(normalized_text)
 
+    deterministic_default_cap: dict[str, Any] | None = None
+    for cap in capabilities:
+        if not isinstance(cap, dict):
+            continue
+        if cap.get("capability_id") == "default_qa_v1":
+            deterministic_default_cap = cap
+            break
+
     selected: dict[str, Any] | None = None
     selected_prio = -(10**9)
 
@@ -235,15 +256,16 @@ def resolve(
             selected_prio = prio_val
 
     if selected is None:
-        if (
+        if deterministic_default_cap is not None:
+            selected = deterministic_default_cap
+        elif (
             isinstance(intent_type, str)
             and intent_type.strip()
             and default_cap is not None
         ):
             selected = default_cap
-        elif capabilities:
-            first = capabilities[0]
-            selected = first if isinstance(first, dict) else None
+        else:
+            selected = None
 
     capability_id = "unknown"
     mode = "QA"
@@ -262,6 +284,11 @@ def resolve(
             for x in raw_chain:
                 if isinstance(x, str) and x:
                     tool_chain.append(str(x))
+    else:
+        capability_id = ""
+        mode = "QA"
+        tool_chain = []
+        output_schema_id = "SSOT_INVALID_NO_DEFAULT_QA"
 
     capability_map_version = str(cap_map.get("capability_map_version") or "")
     router_normalization_version = str(

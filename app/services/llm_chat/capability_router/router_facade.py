@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.services.agent_trace_logger import log_trace_event
 from app.services.llm_chat.capability_router.resolver import resolve
 from app.services.llm_chat.capability_router.runtime_context import (
     RouterDecision,
@@ -31,6 +32,19 @@ def ensure_router_decision(
         intent_type=intent_type,
     )
     set_router_decision(trace_id=trace_id, decision=decision)
+
+    try:
+        log_trace_event(
+            trace_id=trace_id,
+            event_type="capability_resolved",
+            payload={
+                "capability_id": str(getattr(decision, "capability_id", "") or ""),
+                "decision_source": "ssot_runtime_router",
+            },
+            client_id=client_id,
+        )
+    except Exception:
+        pass
     return decision
 
 
