@@ -3,7 +3,7 @@ from typing import Tuple, Optional
 import logging
 from sqlalchemy.orm import Session
 from app.models.pension_fund import PensionFund
-from app.calculation.indexation import index_factor, index_amount
+from app.calculation.indexation import index_factor
 from app.providers.tax_params import TaxParamsProvider
 
 logger = logging.getLogger("app.pension_fund_service")

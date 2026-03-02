@@ -296,9 +296,6 @@ class MaxCapitalScenario(BaseScenarioBuilder):
 
     def _capitalize_full_pension(self, pf):
         """היוון מלא של קצבה"""
-        tax_treatment = pf.tax_treatment if pf.tax_treatment else "taxable"
-        tax_status = "פטור ממס" if tax_treatment == "exempt" else "חייב במס"
-
         ca = create_capital_asset_from_pension(
             pf,
             self.client_id,
