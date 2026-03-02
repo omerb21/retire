@@ -2,10 +2,11 @@
 API endpoints for retirement age settings and calculations
 """
 
+from datetime import date
+from typing import Dict, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Optional
-from datetime import date
 
 from app.services.retirement_age_service import (
     calculate_retirement_age,

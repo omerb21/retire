@@ -4,12 +4,13 @@ Load testing script for Sprint 10
 Performs 100 graduated API calls to test system performance
 """
 
-import requests
-import time
-import statistics
-from typing import List, Dict, Any
-from concurrent.futures import ThreadPoolExecutor
 import json
+import statistics
+import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List
+
+import requests
 
 
 class LoadTester:

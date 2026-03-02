@@ -3,30 +3,31 @@ System Snapshot Service
 שירות לשמירה ושחזור מצב מערכת מלא
 """
 
-import logging
-from typing import Dict, Optional
-from sqlalchemy.orm import Session
-from datetime import datetime, date
 import json
+import logging
+from datetime import date, datetime
+from typing import Dict, Optional
 
-from app.models.client import Client
-from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
+from sqlalchemy.orm import Session
+
 from app.models.additional_income import AdditionalIncome
-from app.models.grant import Grant
+from app.models.capital_asset import CapitalAsset
+from app.models.client import Client
 from app.models.current_employment import CurrentEmployer, EmployerGrant
-from app.models.termination_event import TerminationEvent
 from app.models.fixation_result import FixationResult
-from app.services.retirement.utils.pension_utils import (
-    compute_pension_start_date_from_funds,
+from app.models.grant import Grant
+from app.models.pension_fund import PensionFund
+from app.models.termination_event import TerminationEvent
+from app.services.current_employer import (
+    EmploymentService as CurrentEmployerEmploymentService,
 )
 from app.services.pension_portfolio.snapshot_loader import (
     dedupe_pension_portfolio_snapshot,
     load_latest_pension_portfolio_snapshot,
     upsert_snapshot,
 )
-from app.services.current_employer import (
-    EmploymentService as CurrentEmployerEmploymentService,
+from app.services.retirement.utils.pension_utils import (
+    compute_pension_start_date_from_funds,
 )
 
 logger = logging.getLogger("app.snapshot")

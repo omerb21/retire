@@ -3,8 +3,8 @@ National insurance rates for Israel.
 שיעורי ביטוח לאומי לישראל.
 """
 
-from typing import Dict
 from datetime import datetime
+from typing import Dict
 
 # ביטוח לאומי 2024
 NATIONAL_INSURANCE_2024: Dict[str, float] = {

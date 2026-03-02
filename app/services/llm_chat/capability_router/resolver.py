@@ -9,13 +9,8 @@ from app.services.llm_chat.capability_router.normalization import (
     normalize_user_text_v1,
     sha256_hex,
 )
-from app.services.llm_chat.capability_router.runtime_context import (
-    RouterDecision,
-)
-from app.services.llm_chat.capability_router.ssot_loader import (
-    load_capability_map,
-)
-
+from app.services.llm_chat.capability_router.runtime_context import RouterDecision
+from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 
 _STAGE_C_ROUTER_HARDENING_MAP: dict[str, Any] = {
     "MATCH_PATH": (

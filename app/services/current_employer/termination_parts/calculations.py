@@ -1,7 +1,7 @@
 import logging
-from typing import Dict, Any
 from datetime import date
 from decimal import Decimal
+from typing import Any, Dict
 
 logger = logging.getLogger("app.current_employer.termination")
 

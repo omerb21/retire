@@ -7,10 +7,10 @@ Capital Withdrawal Service - שירות משיכת כספי הון
 הערה: שירות זה מחשב מס הכנסה בלבד (ללא ביטוח לאומי/בריאות).
 """
 
-from decimal import Decimal
-from typing import Dict, Any, Optional
 import logging
 from datetime import datetime
+from decimal import Decimal
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

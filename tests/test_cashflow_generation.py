@@ -1,13 +1,14 @@
 """Tests for cashflow generation functionality."""
 
-import pytest
 from datetime import date
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.main import app
 from app.services.cashflow_service import generate_cashflow
-from tests.conftest import test_client, db_session, test_client_data
+from tests.conftest import db_session, test_client, test_client_data
 
 
 class TestCashflowGeneration:
@@ -118,8 +119,9 @@ class TestCashflowAPI:
         client creation endpoint, instead of relying on ORM fixtures that
         run in separate transactions.
         """
-        from datetime import date, timedelta
         import random
+        from datetime import date, timedelta
+
         from tests.utils import gen_valid_id
 
         unique_id = gen_valid_id()

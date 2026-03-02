@@ -4,6 +4,7 @@ Combines all employment-related routers into a single router
 """
 
 from fastapi import APIRouter
+
 from . import employer, grants, severance, termination
 
 # Create main router

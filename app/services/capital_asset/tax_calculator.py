@@ -2,7 +2,7 @@
 
 import logging
 from decimal import Decimal
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.capital_asset import TaxTreatment
 from app.services.capital_asset.base_calculator import BaseCalculator

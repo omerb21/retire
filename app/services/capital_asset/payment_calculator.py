@@ -4,6 +4,7 @@ import logging
 from datetime import date
 from decimal import Decimal
 from typing import List, Tuple
+
 from dateutil.relativedelta import relativedelta
 
 from app.models.capital_asset import PaymentFrequency

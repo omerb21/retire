@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import os
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-import os
 
 from sqlalchemy.orm import Session
 
 # Import the actual function from the calculation module
 from app.calculation.income_integration import integrate_all_incomes_with_scenario
-from app.utils.calculation_log import log_calc
 from app.services.case_service import detect_case
+from app.utils.calculation_log import log_calc
 
 
 def _parse_year_month(ym: str) -> Tuple[int, int]:

@@ -2,9 +2,10 @@
 פעולות מסד נתונים לשירות מקדמי קצבה
 """
 
+import logging
 from datetime import date
 from typing import Optional
-import logging
+
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -12,13 +13,15 @@ logger = logging.getLogger(__name__)
 
 def get_generation_code(db, start_date: date) -> Optional[str]:
     """מוצא את קוד הדור לפי תאריך התחלה"""
-    query = text("""
+    query = text(
+        """
         SELECT generation_code
         FROM product_to_generation_map
         WHERE product_type = 'ביטוח מנהלים'
           AND :start_date BETWEEN rule_from_date AND rule_to_date
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(query, {"start_date": start_date.isoformat()}).fetchone()
     return result[0] if result else None
@@ -28,7 +31,8 @@ def get_company_specific_coefficient(
     db, company_name: str, option_name: str, sex: str, age: int, target_year: int
 ) -> Optional[dict]:
     """מחפש מקדם ספציפי לחברה"""
-    query = text("""
+    query = text(
+        """
         SELECT 
             base_coefficient,
             annual_increment_rate,
@@ -40,7 +44,8 @@ def get_company_specific_coefficient(
           AND sex = :sex
           AND age = :age
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(
         query,
@@ -90,7 +95,8 @@ def get_generation_coefficient(db, generation_code: str, age: int, sex: str) -> 
     # בחירת עמודת המקדם לפי מין (sex כבר מנורמל ל-זכר/נקבה)
     coef_column = "male_coefficient" if sex == "זכר" else "female_coefficient"
 
-    query = text(f"""
+    query = text(
+        f"""
         SELECT 
             {coef_column},
             guarantee_months,
@@ -100,7 +106,8 @@ def get_generation_coefficient(db, generation_code: str, age: int, sex: str) -> 
         WHERE generation_code = :generation_code
           AND age = :age
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(
         query, {"generation_code": generation_code, "age": age}
@@ -140,7 +147,8 @@ def get_pension_fund_coefficient_from_db(
     db, sex: str, retirement_age: int, survivors_option: str, spouse_age_diff: int
 ) -> Optional[dict]:
     """שולף מקדם קצבה לקרן פנסיה מהמסד נתונים"""
-    query = text("""
+    query = text(
+        """
         SELECT 
             base_coefficient,
             adjust_percent,
@@ -153,7 +161,8 @@ def get_pension_fund_coefficient_from_db(
           AND spouse_age_diff = :spouse_age_diff
         ORDER BY id DESC
         LIMIT 1
-    """)
+    """
+    )
 
     result = db.execute(
         query,

@@ -13,10 +13,13 @@ Usage:
 """
 
 from datetime import date
+
 from sqlalchemy.orm import Session
+
 from app.models import Client, Employment
 from app.providers.tax_params import TaxParamsProvider
 from app.schemas.scenario import ScenarioIn, ScenarioOut
+
 from .engine_factory import EngineFactory
 
 

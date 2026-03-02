@@ -1,32 +1,30 @@
 from __future__ import annotations
 
 import json
-
 from typing import Any
 
-from app.services.agent_execution.policy import decide
-from app.services.llm_chat.explicit_tool_shortcuts import (
-    CLIENT_SNAPSHOT_TOOL_NAME,
-    is_client_snapshot_shortcut_request,
-    is_explicit_client_snapshot_request,
-)
 from app.guards.tool_intent_guard import (
     get_tools_disabled_reason,
     is_conceptual_no_execute_request,
     sanitize_words_only_conceptual,
 )
-from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
-    is_process_termination_request,
-)
-from app.services.llm_chat.intent_classifier import detect_intent
-from app.services.llm_chat.orchestration_utils_parts.tool_names import (
-    MONTHLY_PENSION_SUMMARY_TOOL_NAME,
-    TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
-)
-
+from app.services.agent_execution.policy import decide
 from app.services.llm_chat.capability_router.router_facade import (
     ensure_router_decision,
     maybe_emit_router_selected_trace,
+)
+from app.services.llm_chat.explicit_tool_shortcuts import (
+    CLIENT_SNAPSHOT_TOOL_NAME,
+    is_client_snapshot_shortcut_request,
+    is_explicit_client_snapshot_request,
+)
+from app.services.llm_chat.intent_classifier import detect_intent
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    is_process_termination_request,
+)
+from app.services.llm_chat.orchestration_utils_parts.tool_names import (
+    MONTHLY_PENSION_SUMMARY_TOOL_NAME,
+    TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
 
 from .canonicalize import canonicalize_tool_args

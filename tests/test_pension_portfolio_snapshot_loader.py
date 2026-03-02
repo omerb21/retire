@@ -1,7 +1,5 @@
 import json
-from datetime import datetime, timedelta, timezone
-
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from app.models.client import Client
 from app.models.scenario import Scenario

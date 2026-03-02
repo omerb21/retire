@@ -6,12 +6,14 @@ Handles calculation of severance grants including indexation and tax components.
 """
 
 from datetime import date
-from typing import Dict, Any
 from decimal import Decimal
-from .base_engine import BaseEngine
+from typing import Any, Dict
+
+from app.calculation.indexation import index_amount, index_factor
 from app.providers.tax_params import TaxParamsProvider
-from app.calculation.indexation import index_factor, index_amount
 from app.schemas.tax import TaxParameters
+
+from .base_engine import BaseEngine
 
 
 class GrantEngine(BaseEngine):

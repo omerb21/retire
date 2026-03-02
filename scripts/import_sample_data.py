@@ -3,24 +3,24 @@ Import sample data for testing the retirement planning system
 Creates clients, employers, grants, pension funds, additional income, capital assets, and scenarios
 """
 
-import sys
+import json
 import os
+import random
+import sys
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-import json
-import random
 
 # Add the project root to the path so we can import the app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal, engine
+from app.models.additional_income import AdditionalIncome, IncomeType
+from app.models.capital_asset import AssetType, CapitalAsset
 from app.models.client import Client
-from app.models.current_employer import CurrentEmployer, ActiveContinuityType
+from app.models.current_employer import ActiveContinuityType, CurrentEmployer
 from app.models.employer_grant import EmployerGrant
 from app.models.grant import Grant
-from app.models.pension_fund import PensionFund, InputMode, IndexationMethod
-from app.models.additional_income import AdditionalIncome, IncomeType
-from app.models.capital_asset import CapitalAsset, AssetType
+from app.models.pension_fund import IndexationMethod, InputMode, PensionFund
 from app.models.scenario import Scenario
 
 

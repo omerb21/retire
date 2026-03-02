@@ -2,9 +2,11 @@
 Commutation entity model for SQLAlchemy ORM - compatible with rights fixation system
 """
 
-from sqlalchemy import Column, Integer, ForeignKey, Float, Date, DateTime, func
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, func
+from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 

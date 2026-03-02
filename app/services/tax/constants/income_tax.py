@@ -3,8 +3,9 @@ Income tax brackets for Israel.
 מדרגות מס הכנסה לישראל.
 """
 
-from typing import List
 from datetime import datetime
+from typing import List
+
 from .base_models import TaxBracket
 
 # מדרגות מס הכנסה לשנת 2024 - מעודכן לנתונים הנכונים

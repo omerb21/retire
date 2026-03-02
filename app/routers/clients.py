@@ -2,42 +2,44 @@
 Clients router with CRUD operations for Client and CurrentEmployer
 """
 
-from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
-from sqlalchemy.orm import Session
 import logging
-from sqlalchemy.exc import IntegrityError
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
-from app.services.retirement.utils.pension_utils import (
-    compute_pension_start_date_from_funds,
-)
+
+# ייבוא סכמות הלקוח
+from app.schemas.client import ClientCreate, ClientList, ClientResponse, ClientUpdate
+from app.services.client_crud_service import ClientCrudService
 from app.services.client_service import normalize_id_number
 from app.services.current_employer import (
     EmploymentService as CurrentEmployerEmploymentService,
 )
 from app.services.current_employer_service import CurrentEmployerService
-from app.services.client_crud_service import ClientCrudService
 from app.services.fixation_result_service import get_client_fixation_response
-
-# ייבוא סכמות הלקוח
-from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientList
+from app.services.retirement.utils.pension_utils import (
+    compute_pension_start_date_from_funds,
+)
 
 # ייבוא סכמות המעסיק הנוכחי
 try:
     from app.schemas.current_employer import (
         CurrentEmployerCreate,
-        CurrentEmployerUpdate,
         CurrentEmployerOut,
+        CurrentEmployerUpdate,
     )
 except ImportError:
     # יצירת סכמות זמניות אם הקובץ לא קיים
-    from pydantic import BaseModel
-    from typing import Optional
     from datetime import date
+    from typing import Optional
+
+    from pydantic import BaseModel
 
     class CurrentEmployerBase(BaseModel):
         employer_name: str

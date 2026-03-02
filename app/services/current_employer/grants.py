@@ -4,10 +4,13 @@ Grants Service Module
 """
 
 from typing import Tuple
+
 from sqlalchemy.orm import Session
+
 from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.schemas.current_employer import EmployerGrantCreate, GrantCalculationResult
-from .calculations import ServiceYearsCalculator, GrantCalculator
+
+from .calculations import GrantCalculator, ServiceYearsCalculator
 
 
 class GrantService:

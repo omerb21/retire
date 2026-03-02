@@ -3,12 +3,14 @@ Maximum Capital Scenario
 תרחיש מקסימום הון
 """
 
-import logging
 import json
-from typing import Dict
+import logging
 from datetime import date
-from app.models.pension_fund import PensionFund
+from typing import Dict
+
 from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
+
 from ..base_scenario_builder import BaseScenarioBuilder
 from ..constants import MINIMUM_PENSION
 from ..utils.capital_utils import create_capital_asset_from_pension
@@ -323,8 +325,8 @@ class MaxCapitalScenario(BaseScenarioBuilder):
         capital_value = capitalize_amount * pf.annuity_factor
 
         # Create capital asset for capitalized part – מסומן כהיוון (COMMUTATION)
-        from decimal import Decimal
         import json
+        from decimal import Decimal
 
         remarks = None
         if getattr(pf, "id", None) is not None:

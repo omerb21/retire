@@ -10,8 +10,8 @@ Test 2: Fetching /agent-eyes/traces/{trace_id} returns the same number of
         order.
 """
 
-import os
 import json
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,7 +24,7 @@ _ADMIN_TOKEN = "test-guardrail-token-xyz"
 
 @pytest.fixture(scope="module")
 def _test_db():
-    from app.database import SessionLocal, Base
+    from app.database import Base, SessionLocal
 
     tmp = SessionLocal()
     try:

@@ -3,34 +3,30 @@ from datetime import date
 
 from app.models.client import Client
 from app.models.scenario import Scenario
-
 from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
     load_latest_target_pension_plan,
     load_latest_target_pension_plan_data,
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
+    store_pending_approval_request,
 )
 from app.services.llm_chat.message_utils import (
     extract_latest_target_pension_plan_payload,
     extract_target_pension_from_message,
 )
-
 from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
-from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
-from app.services.llm_chat.chat_orchestration_helpers import (
-    build_approval_request_ui_action,
-    store_pending_approval_request,
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    evaluate_blocked_balances_policy_for_build_target_plan,
 )
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     compute_effective_plan_target,
     compute_existing_income_offset_monthly,
 )
-from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
-    evaluate_blocked_balances_policy_for_build_target_plan,
-)
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
 )

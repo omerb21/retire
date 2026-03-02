@@ -178,7 +178,9 @@ def load_capability_map() -> dict[str, Any]:
     except Exception:
         data_for_validation = data
 
-    _ = validate_capability_map(raw=data_for_validation, output_schemas=_schemas, ssot=ssot)
+    _ = validate_capability_map(
+        raw=data_for_validation, output_schemas=_schemas, ssot=ssot
+    )
 
     try:
         if os.getenv("SSOT_DEBUG") == "1":

@@ -2,10 +2,11 @@
 מודול הצמדה למדד - חישובי הצמדה באמצעות API של הלמ"ס
 """
 
-import requests
-from datetime import datetime, date
-from typing import Optional, Union
 import logging
+from datetime import date, datetime
+from typing import Optional, Union
+
+import requests
 
 logger = logging.getLogger(__name__)
 

@@ -16,25 +16,26 @@
 """
 
 from pathlib import Path
-from sqlalchemy.orm import Session
 from typing import Optional
+
+from sqlalchemy.orm import Session
 
 # ייבוא מהמודול המודולרי החדש
 from app.services.documents import (
-    generate_document_package,
     fill_161d_form,
-    generate_grants_appendix,
-    generate_commutations_appendix,
     generate_actual_commutations_appendix,
+    generate_commutations_appendix,
+    generate_document_package,
+    generate_grants_appendix,
     generate_summary_table,
 )
-from app.services.documents.utils import (
-    get_client_package_dir,
-    TEMPLATE_DIR,
-    TEMPLATE_161D,
-    PACKAGES_DIR,
-)
 from app.services.documents.converters import html_to_pdf
+from app.services.documents.utils import (
+    PACKAGES_DIR,
+    TEMPLATE_161D,
+    TEMPLATE_DIR,
+    get_client_package_dir,
+)
 
 # ייצוא לצורך backward compatibility
 __all__ = [

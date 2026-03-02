@@ -2,15 +2,16 @@
 API endpoints לחישוב מס הכנסה
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
-from typing import List, Optional
 import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..schemas.tax_schemas import (
+    AnnualTaxProjection,
+    ComprehensiveTaxAnalysis,
     TaxCalculationInput,
     TaxCalculationResult,
-    ComprehensiveTaxAnalysis,
-    AnnualTaxProjection,
     TaxOptimizationSuggestion,
 )
 from ..services.tax_calculator import TaxCalculator

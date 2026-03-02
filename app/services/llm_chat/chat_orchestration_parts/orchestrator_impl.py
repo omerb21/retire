@@ -1,43 +1,46 @@
+import importlib
+import inspect
 import json
 import logging
-import inspect
 import re
 import uuid
-import importlib
 from datetime import date
 from typing import Any, Optional
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.guards.tool_intent_guard import sanitize_words_only_output
+from app.models import CurrentEmployer, EmployerGrant, GrantType
+from app.models.client import Client
 from app.schemas.llm_chat import ChatMessage, ChatRequest, ChatResponse
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     build_forced_document_reply,
     build_pension_portfolio_update_after_transform,
     build_transform_accounts_from_target_plan_payload,
+    clear_pending_approval_request,
     format_transform_result_for_user,
     get_gross_for_tax_chaining,
-    store_pending_approval_request,
-    load_pending_approval_request,
-    clear_pending_approval_request,
     load_latest_target_pension_plan,
+    load_pending_approval_request,
     maybe_clear_pension_portfolio_after_transform,
     run_tax_projection_autochain,
     store_latest_target_pension_plan,
+    store_pending_approval_request,
 )
 from app.services.llm_chat.message_preparation import prepare_messages_with_context
 from app.services.llm_chat.message_utils import (
     extract_latest_approval_request,
-    extract_user_approval_for_tool_call,
-    extract_user_cancel_for_tool_call,
     extract_latest_target_pension_plan_payload,
     extract_target_pension_from_message,
-    was_tool_call_previously_approved,
+    extract_user_approval_for_tool_call,
+    extract_user_cancel_for_tool_call,
     find_last_user_message,
     is_user_approval_intent_text,
+    was_tool_call_previously_approved,
 )
-from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
+from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
     build_partial_pension_transform_accounts_from_portfolio,
@@ -46,48 +49,54 @@ from app.services.llm_chat.orchestration_utils import (
     build_portfolio_wide_education_fund_transform_accounts_from_portfolio,
     build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio,
     build_targeted_component_transform_accounts_from_portfolio,
-    build_transform_accounts_from_portfolio,
     build_tax_result_system_message_for_chat,
     build_tool_call_message_content,
     build_tool_result_system_message_for_chat,
+    build_transform_accounts_from_portfolio,
     compute_default_retirement_date_for_tool_call,
-    normalize_retirement_date_if_jan1_placeholder,
-    format_tool_output_for_user_stream,
-    sanitize_user_visible_text,
+    extract_desired_monthly_income_from_text,
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,
-    is_no_termination_request,
-    is_tax_documents_request,
+    format_tool_output_for_user_stream,
+    infer_desired_income_is_net_explicit,
+    is_cashflow_missing_income_followup,
+    is_data_awareness_request,
     is_document_request,
+    is_list_all_financial_entities_request,
+    is_max_capital_request,
+    is_max_exemption_request,
+    is_net_pension_request,
+    is_no_termination_request,
     is_no_tools_request,
+    is_pension_commutation_request,
+    is_portfolio_analysis_request,
+    is_portfolio_breakdown_request,
+    is_process_termination_request,
     is_qa_request,
+    is_retirement_cashflow_request,
+    is_retirement_comparison_request,
+    is_tax_documents_request,
+    is_termination_change_request,
     is_transform_request,
+    normalize_retirement_date_if_jan1_placeholder,
     parse_partial_pension_conversion_request,
     parse_portfolio_wide_after_settlement_severance_conversion_request,
     parse_portfolio_wide_component_conversion_request,
     parse_portfolio_wide_education_fund_conversion_request,
     parse_portfolio_wide_prev_employers_severance_conversion_request,
     parse_targeted_component_conversion_request,
-    is_process_termination_request,
-    is_pension_commutation_request,
-    is_termination_change_request,
-    is_max_exemption_request,
-    is_net_pension_request,
-    is_retirement_cashflow_request,
-    is_retirement_comparison_request,
-    is_portfolio_breakdown_request,
-    is_portfolio_analysis_request,
-    is_max_capital_request,
-    extract_desired_monthly_income_from_text,
-    is_data_awareness_request,
-    is_list_all_financial_entities_request,
-    infer_desired_income_is_net_explicit,
-    is_cashflow_missing_income_followup,
     parse_tool_call_from_reply,
+    sanitize_user_visible_text,
     validate_tool_call_protocol_for_execution,
 )
-from app.models.client import Client
-from app.models import CurrentEmployer, EmployerGrant, GrantType
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
+from app.utils.llm_chat_log import (
+    generate_request_id,
+    log_llm_event,
+    set_current_case_id,
+    set_current_request_id,
+)
+
 from .chat_helpers import (
     _digits_only,
     _extract_commutation_account_number,
@@ -103,25 +112,17 @@ from .chat_helpers import (
     _user_requested_target_pension_plan,
     _user_wants_full_balance,
 )
-from .tool_calling import _execute_tool_call, _get_chat_orchestration_facade
 from .chat_top_level_helpers import (
     _get_llm_service,
     _load_latest_pension_portfolio_snapshot_models,
 )
-from app.utils.llm_chat_log import (
-    generate_request_id,
-    log_llm_event,
-    set_current_case_id,
-    set_current_request_id,
-)
-from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
-from app.guards.tool_intent_guard import sanitize_words_only_output
 from .non_stream_stream_entrypoint import run_pension_chat_stream
 from .orchestrator_impl_parts.steps import (
     _build_chat_response,
     _prepare_orchestration_inputs,
     _run_orchestration,
 )
+from .tool_calling import _execute_tool_call, _get_chat_orchestration_facade
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -231,8 +232,9 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
     except Exception as exc:
         try:
             import traceback
-            from app.services.agent_trace_logger import log_trace_event
+
             from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+            from app.services.agent_trace_logger import log_trace_event
 
             _err_payload = {
                 "error_type": type(exc).__name__,

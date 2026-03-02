@@ -5,14 +5,16 @@ High-level report generation functions
 import logging
 from datetime import datetime
 from typing import Dict, List
+
 from sqlalchemy.orm import Session
 
 from app.models import Client, Scenario
 from app.schemas.report import ReportPdfRequest
-from app.services.cashflow_service import generate_cashflow
 from app.services.case_service import detect_case
-from ..services.pdf_service import PDFService
+from app.services.cashflow_service import generate_cashflow
+
 from ..charts import create_net_cashflow_chart
+from ..services.pdf_service import PDFService
 
 _logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, Literal
 from datetime import date
+from typing import Literal, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 class PensionFundBase(BaseModel):

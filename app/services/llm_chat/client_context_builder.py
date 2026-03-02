@@ -14,14 +14,14 @@ from app.models import (
     PensionFund,
     Scenario,
 )
+from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.schemas.llm_chat import ChatMessage, ChatRequest
+from app.services.additional_income_service import AdditionalIncomeService
 from app.services.documents.data_fetchers.client_data import fetch_client_data
 from app.services.llm_chat.message_utils import extract_executed_tools_from_history
+from app.services.llm_chat.orchestration_utils import is_portfolio_analysis_request
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.state_tools import get_agent_state_json
-from app.services.llm_chat.orchestration_utils import is_portfolio_analysis_request
-from app.services.additional_income_service import AdditionalIncomeService
-from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
 )

@@ -2,16 +2,18 @@
 מחולל טופס 161ד
 """
 
-from pathlib import Path
-from datetime import date, datetime
-from sqlalchemy.orm import Session
-from typing import Optional
 import logging
-import pdf_filler
+from datetime import date, datetime
+from pathlib import Path
+from typing import Optional
 
-from ..utils import TEMPLATE_161D
-from ..data_fetchers import fetch_fixation_data, fetch_client_data
+from sqlalchemy.orm import Session
+
+import pdf_filler
 from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
+
+from ..data_fetchers import fetch_client_data, fetch_fixation_data
+from ..utils import TEMPLATE_161D
 
 logger = logging.getLogger(__name__)
 

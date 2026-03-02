@@ -1,29 +1,27 @@
+import hmac
+import json
+import logging
 import math
 import os
-import secrets
-import json
-import hmac
 import re
-import logging
-
+import secrets
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
-from app.models.public_chat import PublicChatSession, PublicChatMessage
+from app.models.public_chat import PublicChatMessage, PublicChatSession
 from app.models.scenario import Scenario
-from app.schemas.llm_chat import ChatMessage
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.schemas.public_chat import PublicChatMessageDto
 from app.services.client_service import normalize_id_number
 from app.services.llm_chat.chat_orchestration import run_pension_chat_stream
-from app.schemas.llm_chat import ChatRequest
+from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.services.pension_portfolio.snapshot_loader import (
-    load_latest_pension_portfolio_snapshot_models,
     dedupe_pension_portfolio_snapshot,
+    load_latest_pension_portfolio_snapshot_models,
     upsert_snapshot,
 )
-from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from app.utils.llm_chat_log import get_current_request_id
 
 logger = logging.getLogger(__name__)

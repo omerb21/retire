@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.client import Client
 from app.schemas.employment import (
-    TerminationPlanIn,
     TerminationConfirmIn,
     TerminationEventOut,
+    TerminationPlanIn,
 )
 from app.services.employment_service import EmploymentService, coerce_termination_reason
 

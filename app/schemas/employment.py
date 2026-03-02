@@ -1,6 +1,7 @@
 # app/schemas/employment.py
 from datetime import date, datetime
 from typing import Optional
+
 from pydantic import BaseModel, Field, field_serializer
 from pydantic.config import ConfigDict
 

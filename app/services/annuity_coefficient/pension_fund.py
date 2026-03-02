@@ -3,8 +3,10 @@
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
 from app.database import get_db
+
 from .database import get_pension_fund_coefficient_from_db
 
 logger = logging.getLogger(__name__)

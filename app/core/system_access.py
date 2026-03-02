@@ -1,8 +1,8 @@
+import hmac
 import logging
 import os
-import hmac
 import traceback
-from typing import Callable, Awaitable
+from typing import Awaitable, Callable
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware

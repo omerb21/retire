@@ -2,8 +2,9 @@
 CPI (Consumer Price Index) data service
 """
 
-from typing import Dict, List
 import logging
+from typing import Dict, List
+
 from .base_service import BaseTaxDataService
 
 logger = logging.getLogger(__name__)

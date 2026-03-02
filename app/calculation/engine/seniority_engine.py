@@ -7,8 +7,10 @@ Handles calculation of years of service/seniority.
 
 from datetime import date
 from typing import Optional
-from .base_engine import BaseEngine
+
 from app.calculation.seniority import calc_seniority_years
+
+from .base_engine import BaseEngine
 
 
 class SeniorityEngine(BaseEngine):

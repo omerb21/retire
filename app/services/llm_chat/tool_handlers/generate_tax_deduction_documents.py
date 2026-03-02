@@ -3,7 +3,6 @@ import logging
 import os
 from datetime import datetime
 from typing import Optional
-
 from urllib.parse import quote
 
 from sqlalchemy.orm import Session
@@ -172,19 +171,20 @@ def handle_generate_tax_deduction_documents(
         }
 
         # ===== ACTUAL PDF GENERATION =====
+        import io as io_module
+
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
         from reportlab.platypus import (
-            SimpleDocTemplate,
             Paragraph,
+            SimpleDocTemplate,
             Spacer,
             Table,
             TableStyle,
         )
-        from reportlab.lib import colors
-        from reportlab.lib.units import inch
-        import io as io_module
 
         pdf_buffer = io_module.BytesIO()
         doc = SimpleDocTemplate(

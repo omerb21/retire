@@ -1,9 +1,9 @@
+import json
 import logging
 import traceback as _tb
-import json
 
-from app.utils.trace_context import generate_trace_id, set_current_trace_id
 from app.services.agent_execution.tool_execution_context import reset_tool_ok_seen
+from app.utils.trace_context import generate_trace_id, set_current_trace_id
 
 _logger = logging.getLogger("app.middleware.trace_id")
 

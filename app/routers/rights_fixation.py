@@ -2,36 +2,35 @@
 נקודות קצה API לקיבוע זכויות
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Response
-from typing import Dict, List, Any, Optional
-from datetime import date, datetime
 import logging
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
-from app.models.grant import Grant
 from app.models.fixation_result import FixationResult
-from app.services.rights_fixation import (
-    calculate_full_fixation,
-    compute_grant_effect,
-    compute_client_exemption,
-    calculate_eligibility_age,
-    get_monthly_cap,
-    get_exemption_percentage,
-    calc_exempt_capital,
-    compute_idf_fixation_impact,
-)
-from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
-from app.services.retirement_age_service import calc_eligibility_date
-from app.services.retirement.services.commutation_exemption_service import (
-    CommutationExemptionService,
-)
-
+from app.models.grant import Grant
 from app.routers.rights_fixation_parts.common import (
     calculate_and_save_fixation_for_client,
     update_fixation_exempt_pension_fields,
+)
+from app.services.retirement.services.commutation_exemption_service import (
+    CommutationExemptionService,
+)
+from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
+from app.services.retirement_age_service import calc_eligibility_date
+from app.services.rights_fixation import (
+    calc_exempt_capital,
+    calculate_eligibility_age,
+    calculate_full_fixation,
+    compute_client_exemption,
+    compute_grant_effect,
+    compute_idf_fixation_impact,
+    get_exemption_percentage,
+    get_monthly_cap,
 )
 
 logger = logging.getLogger(__name__)

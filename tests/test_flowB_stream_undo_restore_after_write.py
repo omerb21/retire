@@ -3,12 +3,11 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
+import app.services.llm_chat.chat_stream_orchestration as stream_orch
+import app.services.llm_chat.tool_execution as tool_exec
 from app.main import app
 from app.models.client import Client
 from app.models.scenario import Scenario
-
-import app.services.llm_chat.chat_stream_orchestration as stream_orch
-import app.services.llm_chat.tool_execution as tool_exec
 
 
 def _extract_ui_action_payload(body: str) -> dict:

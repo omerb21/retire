@@ -2,9 +2,10 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from app.models.scenario import Scenario
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
+from app.models.scenario import Scenario
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     build_forced_document_reply,
@@ -28,22 +29,19 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     clear_pending_build_target_plan_after_termination,
     load_pending_build_target_plan_after_termination,
 )
-from app.guards.tool_intent_guard import is_conceptual_no_execute_request
-
 from app.services.llm_chat.pending_approvals import (
     load_pending_approval_ui_action_if_match,
     store_pending_approval_ui_action,
 )
-
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
 )
 
+from .stream_tool_execution import _execute_tool_call
 from .stream_top_level_helpers import (
     _build_transform_accounts_from_target_plan_payload,
     _store_pending_approval_request,
 )
-from .stream_tool_execution import _execute_tool_call
 
 _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = (
     "pending_pre_retirement_plan_resolution"

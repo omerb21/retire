@@ -2,8 +2,9 @@
 תבנית HTML לטבלת סיכום קיבוע זכויות
 """
 
-from typing import Dict, Any, List
 from datetime import date
+from typing import Any, Dict, List
+
 from .styles import get_summary_styles
 
 

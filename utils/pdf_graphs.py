@@ -2,14 +2,15 @@
 PDF Graph generation utilities using matplotlib
 """
 
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-import io
 import base64
-from typing import List, Dict, Any
+import io
+from datetime import date, datetime
+from typing import Any, Dict, List
+
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import numpy as np
-from datetime import datetime, date
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 # Set matplotlib to use non-interactive backend
 plt.switch_backend("Agg")

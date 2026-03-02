@@ -2,13 +2,14 @@
 Tax data cache management service
 """
 
-from typing import Dict
+import logging
 from datetime import datetime
 from decimal import Decimal
-import logging
+from typing import Dict
+
 from .base_service import BaseTaxDataService
-from .severance_caps import SeveranceCapsService
 from .cpi_service import CPIService
+from .severance_caps import SeveranceCapsService
 from .tax_brackets import TaxBracketsService
 
 logger = logging.getLogger(__name__)

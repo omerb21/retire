@@ -12,7 +12,7 @@ import os
 import time
 import unittest
 from datetime import date
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -23,15 +23,15 @@ from sqlalchemy.pool import StaticPool
 os.environ.setdefault("SYSTEM_ACCESS_DISABLED", "1")
 os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 
+from app.database import Base, get_db
 from app.main import app
-from app.database import get_db, Base
 from app.services.agent_eyes.event_collector import (
     clear_buffer,
     emit_event,
     get_events_by_trace,
     get_recent_events,
 )
-from app.utils.trace_context import set_current_trace_id, get_current_trace_id
+from app.utils.trace_context import get_current_trace_id, set_current_trace_id
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(

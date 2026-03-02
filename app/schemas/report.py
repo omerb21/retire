@@ -1,5 +1,6 @@
+from typing import Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, validator
-from typing import Dict, Literal, Optional, List
 
 
 class ReportPdfRequest(BaseModel):

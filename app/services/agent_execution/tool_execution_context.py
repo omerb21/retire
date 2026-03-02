@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from contextvars import ContextVar
 import threading
 import time
+from contextvars import ContextVar
 
 from app.schemas.llm_chat import ChatRequest
 from app.services.agent_execution.policy import PolicyDecision

@@ -13,7 +13,11 @@ def test_v2_returns_guardresult_shape() -> None:
         has_pending_approval=False,
         user_intent=None,
     )
-    assert allowed.outcome in {GuardOutcome.ALLOW, GuardOutcome.BLOCK, GuardOutcome.PENDING}
+    assert allowed.outcome in {
+        GuardOutcome.ALLOW,
+        GuardOutcome.BLOCK,
+        GuardOutcome.PENDING,
+    }
 
     if allowed.outcome == GuardOutcome.ALLOW:
         assert allowed.error_code is None
@@ -25,7 +29,9 @@ def test_v2_returns_guardresult_shape() -> None:
 
     if allowed.outcome == GuardOutcome.PENDING:
         assert allowed.error_code is None
-        assert isinstance(allowed.approval_request_id, str) and allowed.approval_request_id
+        assert (
+            isinstance(allowed.approval_request_id, str) and allowed.approval_request_id
+        )
 
 
 def test_v2_mapping_matches_legacy_entrypoint(monkeypatch) -> None:

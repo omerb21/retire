@@ -3,18 +3,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.schemas.llm_chat import ChatMessage, ChatResponse
-from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
-
 from app.services.llm_chat.orchestration_loop_core import (
     run_orchestration_loop_core_sync,
 )
-
+from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 
 from ..steps.messages_prompt import _build_messages_and_prompt
 from ..steps.types import _PreparedOrchestrationInputs
-
-from .types import _OrchestrationResult
 from .runner_step_handlers import _handle_no_tool_call_step, _handle_tool_call_step
+from .types import _OrchestrationResult
 
 
 def _run_orchestration(
@@ -44,6 +41,7 @@ def _run_orchestration(
     computed_data,
     log_llm_event_fn,
 ) -> ChatResponse | _OrchestrationResult:
+    from app.models import CurrentEmployer, EmployerGrant, GrantType
     from app.models.client import Client
     from app.services.llm_chat.chat_orchestration_helpers import (
         build_approval_request_ui_action,
@@ -52,36 +50,10 @@ def _run_orchestration(
         format_transform_result_for_user,
         get_gross_for_tax_chaining,
         load_pending_approval_request,
+        maybe_clear_pension_portfolio_after_transform,
         run_tax_projection_autochain,
         store_latest_target_pension_plan,
         store_pending_approval_request,
-        maybe_clear_pension_portfolio_after_transform,
-    )
-    from app.services.llm_chat.message_utils import (
-        extract_latest_approval_request,
-        extract_user_approval_for_tool_call,
-        extract_user_cancel_for_tool_call,
-        extract_target_pension_from_message,
-        find_last_user_message,
-        is_user_approval_intent_text,
-        was_tool_call_previously_approved,
-    )
-    from app.services.llm_chat.numeric_provenance import (
-        validate_reply_numeric_provenance,
-    )
-    from app.services.llm_chat.orchestration_utils import (
-        apply_max_exemption_if_requested,
-        build_tax_result_system_message_for_chat,
-        build_tool_call_message_content,
-        build_tool_result_system_message_for_chat,
-        compute_default_retirement_date_for_tool_call,
-        format_tool_output_for_user_stream,
-        is_cashflow_missing_income_followup,
-        is_tax_documents_request,
-        normalize_retirement_date_if_jan1_placeholder,
-        parse_tool_call_from_reply,
-        sanitize_user_visible_text,
-        validate_tool_call_protocol_for_execution,
     )
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _digits_only,
@@ -101,18 +73,37 @@ def _run_orchestration(
     from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
         _execute_tool_call,
     )
+    from app.services.llm_chat.message_utils import (
+        extract_latest_approval_request,
+        extract_target_pension_from_message,
+        extract_user_approval_for_tool_call,
+        extract_user_cancel_for_tool_call,
+        find_last_user_message,
+        is_user_approval_intent_text,
+        was_tool_call_previously_approved,
+    )
+    from app.services.llm_chat.numeric_provenance import (
+        validate_reply_numeric_provenance,
+    )
     from app.services.llm_chat.orchestration_utils import (
+        apply_max_exemption_if_requested,
         build_partial_pension_transform_accounts_from_portfolio,
         build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio,
         build_portfolio_wide_component_transform_accounts_from_portfolio,
         build_portfolio_wide_education_fund_transform_accounts_from_portfolio,
         build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio,
         build_targeted_component_transform_accounts_from_portfolio,
+        build_tax_result_system_message_for_chat,
+        build_tool_call_message_content,
+        build_tool_result_system_message_for_chat,
         build_transform_accounts_from_portfolio,
+        compute_default_retirement_date_for_tool_call,
         extract_desired_monthly_income_from_text,
         extract_process_termination_choice_overrides,
         extract_process_termination_date_override,
+        format_tool_output_for_user_stream,
         infer_desired_income_is_net_explicit,
+        is_cashflow_missing_income_followup,
         is_data_awareness_request,
         is_document_request,
         is_list_all_financial_entities_request,
@@ -128,16 +119,20 @@ def _run_orchestration(
         is_qa_request,
         is_retirement_cashflow_request,
         is_retirement_comparison_request,
+        is_tax_documents_request,
         is_termination_change_request,
         is_transform_request,
+        normalize_retirement_date_if_jan1_placeholder,
         parse_partial_pension_conversion_request,
         parse_portfolio_wide_after_settlement_severance_conversion_request,
         parse_portfolio_wide_component_conversion_request,
         parse_portfolio_wide_education_fund_conversion_request,
         parse_portfolio_wide_prev_employers_severance_conversion_request,
         parse_targeted_component_conversion_request,
+        parse_tool_call_from_reply,
+        sanitize_user_visible_text,
+        validate_tool_call_protocol_for_execution,
     )
-    from app.models import CurrentEmployer, EmployerGrant, GrantType
 
     max_steps = 5
     current_step = 0

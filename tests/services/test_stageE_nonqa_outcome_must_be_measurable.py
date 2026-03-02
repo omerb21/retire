@@ -1,15 +1,9 @@
+import asyncio
 import json
 from datetime import date
 
-import asyncio
-
-from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.client import Client
-from app.services.llm_chat.guards.tool_execution_guard import (
-    GuardOutcome,
-    GuardResult,
-)
-from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.capability_router.runtime_context import (
     RouterDecision,
     set_router_decision,
@@ -17,6 +11,8 @@ from app.services.llm_chat.capability_router.runtime_context import (
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts import (
     stream_loop_user_approved_json_exec as user_approved_exec,
 )
+from app.services.llm_chat.guards.tool_execution_guard import GuardOutcome, GuardResult
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 
 def test_stageE_nonqa_block_is_measurable_includes_behavior_not_activated(
@@ -57,7 +53,9 @@ def test_stageE_nonqa_block_is_measurable_includes_behavior_not_activated(
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed when guard blocks")
 
-    monkeypatch.setattr(user_approved_exec, "_execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(
+        user_approved_exec, "_execute_tool_call", fake_execute_tool_call
+    )
 
     def fake_guard_v2(
         *,
@@ -68,7 +66,9 @@ def test_stageE_nonqa_block_is_measurable_includes_behavior_not_activated(
     ) -> GuardResult:
         return GuardResult(outcome=GuardOutcome.BLOCK, error_code="TEST_BLOCK")
 
-    monkeypatch.setattr(user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2)
+    monkeypatch.setattr(
+        user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2
+    )
 
     stream_request_id = "trace_stageE_nonqa"
     set_router_decision(

@@ -44,9 +44,10 @@ def test_build_target_pension_plan_net_does_not_silently_treat_net_as_gross(
 
 
 def test_get_tax_projection_includes_db_additional_incomes(db_session, client):
-    from app.models.additional_income import AdditionalIncome
     from datetime import date
     from decimal import Decimal
+
+    from app.models.additional_income import AdditionalIncome
 
     svc = AgentToolsService(db_session, client.id, client_object=client)
 

@@ -1,18 +1,14 @@
+import asyncio
 import json
 from datetime import date
 
-import asyncio
-
-from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.client import Client
-from app.services.llm_chat.guards.tool_execution_guard import (
-    GuardOutcome,
-    GuardResult,
-)
-from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts import (
     stream_loop_user_approved_json_exec as user_approved_exec,
 )
+from app.services.llm_chat.guards.tool_execution_guard import GuardOutcome, GuardResult
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 
 def test_stageE_guard_v2_blocks_prevents_tool_execution(monkeypatch, _test_db) -> None:
@@ -51,7 +47,9 @@ def test_stageE_guard_v2_blocks_prevents_tool_execution(monkeypatch, _test_db) -
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed when guard blocks")
 
-    monkeypatch.setattr(user_approved_exec, "_execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(
+        user_approved_exec, "_execute_tool_call", fake_execute_tool_call
+    )
 
     guard_calls: list[dict] = []
 
@@ -72,7 +70,9 @@ def test_stageE_guard_v2_blocks_prevents_tool_execution(monkeypatch, _test_db) -
         )
         return GuardResult(outcome=GuardOutcome.BLOCK, error_code="TEST_BLOCK")
 
-    monkeypatch.setattr(user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2)
+    monkeypatch.setattr(
+        user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2
+    )
 
     payload = f"###USER_APPROVED### {json.dumps({'tool_name': 'TRANSFORM_FUNDS_TO_ASSETS', 'arguments': stored_args}, ensure_ascii=False)}"
     request = ChatRequest(

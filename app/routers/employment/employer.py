@@ -5,14 +5,12 @@ Endpoints for managing current employer CRUD operations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.database import get_db
+from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerOut
+from app.schemas.employment import EmploymentCreate, EmploymentOut
 from app.services.current_employer import EmploymentService as CurrentEmployerService
 from app.services.employment_service import EmploymentService as LegacyEmploymentService
-from app.schemas.current_employer import (
-    CurrentEmployerCreate,
-    CurrentEmployerOut,
-)
-from app.schemas.employment import EmploymentCreate, EmploymentOut
 
 router = APIRouter()
 

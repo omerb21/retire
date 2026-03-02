@@ -50,25 +50,33 @@ def get_base_styles() -> str:
 
 def get_grants_styles() -> str:
     """סגנונות ספציפיים לנספח מענקים"""
-    return get_base_styles() + """
+    return (
+        get_base_styles()
+        + """
         th {
             background-color: #3498db;
         }
     """
+    )
 
 
 def get_commutations_styles() -> str:
     """סגנונות ספציפיים לנספח היוונים"""
-    return get_base_styles() + """
+    return (
+        get_base_styles()
+        + """
         th {
             background-color: #e74c3c;
         }
     """
+    )
 
 
 def get_summary_styles() -> str:
     """סגנונות ספציפיים לטבלת סיכום"""
-    return get_base_styles() + """
+    return (
+        get_base_styles()
+        + """
         th {
             background-color: #27ae60;
             font-weight: bold;
@@ -80,3 +88,4 @@ def get_summary_styles() -> str:
             text-align: center;
         }
     """
+    )

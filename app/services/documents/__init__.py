@@ -9,13 +9,13 @@
 - generators: יצירת מסמכים ספציפיים
 """
 
-from .generators.package_generator import generate_document_package
+from .generators.commutations_generator import (
+    generate_actual_commutations_appendix,
+    generate_commutations_appendix,
+)
 from .generators.form_161d_generator import fill_161d_form
 from .generators.grants_generator import generate_grants_appendix
-from .generators.commutations_generator import (
-    generate_commutations_appendix,
-    generate_actual_commutations_appendix,
-)
+from .generators.package_generator import generate_document_package
 from .generators.summary_generator import generate_summary_table
 
 __all__ = [

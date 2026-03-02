@@ -1,14 +1,15 @@
 import unittest
 from datetime import date, datetime, timedelta
+
 from app.services.client_service import (
     normalize_id_number,
-    validate_id_number,
-    validate_birth_date,
-    validate_employment_flags,
-    normalize_text,
     normalize_phone,
-    validate_email,
+    normalize_text,
     prepare_client_payload,
+    validate_birth_date,
+    validate_email,
+    validate_employment_flags,
+    validate_id_number,
 )
 
 

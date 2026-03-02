@@ -1,27 +1,28 @@
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
-from typing import Any, List, Optional
-from sqlalchemy.orm import Session
-import logging
 import json
-from datetime import datetime, date
-from decimal import Decimal
+import logging
 import subprocess
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any, List, Optional
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.capital_asset import CapitalAsset
+from app.models.client import Client
+from app.models.pension_fund import PensionFund
+from app.models.scenario import Scenario
+from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.pension_portfolio import PensionPortfolioProcessor
+from app.services.pension_portfolio.conversion_rules import (
+    validate_component_conversion,
+)
 from app.services.pension_portfolio.snapshot_loader import (
     dedupe_pension_portfolio_snapshot,
     load_latest_pension_portfolio_snapshot,
     upsert_snapshot,
-)
-from app.models.capital_asset import CapitalAsset
-from app.models.pension_fund import PensionFund
-from app.models.scenario import Scenario
-from app.models.client import Client
-from app.services.annuity_coefficient import get_annuity_coefficient
-from app.services.pension_portfolio.conversion_rules import (
-    validate_component_conversion,
 )
 from app.services.retirement_age_service import (
     calculate_retirement_age,

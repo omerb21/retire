@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from app.schemas.llm_chat import ChatResponse
 
-from .types import _PreparedOrchestrationInputs
 from .legacy_loader import load_legacy_steps_module
+from .types import _PreparedOrchestrationInputs
 
 
 def _prepare_orchestration_inputs(

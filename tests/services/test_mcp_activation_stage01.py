@@ -1,18 +1,20 @@
 def _build_req(*, text: str, client_id: int | None = 1):
     from app.schemas.llm_chat import ChatMessage, ChatRequest
 
-    return ChatRequest(messages=[ChatMessage(role="user", content=text)], client_id=client_id)
+    return ChatRequest(
+        messages=[ChatMessage(role="user", content=text)], client_id=client_id
+    )
 
 
 def test_stream_no_tools_never_executes_tool(monkeypatch, db_session) -> None:
     from app.services.agent_execution import execute_agent_request as core_mod
+    from app.services.llm_chat.explicit_tool_shortcuts import CLIENT_SNAPSHOT_TOOL_NAME
     from app.services.llm_chat.mcp.types import MCPDecision, MCPExecutionMode
     from app.services.llm_chat.orchestration_core.core_types import (
         DecisionCode,
         OrchestrationDecision,
         PlanKind,
     )
-    from app.services.llm_chat.explicit_tool_shortcuts import CLIENT_SNAPSHOT_TOOL_NAME
 
     calls: dict[str, int] = {"tool_exec": 0, "mcp_eval": 0}
 
@@ -49,7 +51,9 @@ def test_stream_no_tools_never_executes_tool(monkeypatch, db_session) -> None:
     monkeypatch.setattr(core_mod, "orchestrate", fake_orchestrate)
     monkeypatch.setattr(core_mod.pension_llm_service, "chat", lambda *a, **k: "ok")
 
-    resp = core_mod.execute_agent_request_stream(_build_req(text="x", client_id=1), db_session)
+    resp = core_mod.execute_agent_request_stream(
+        _build_req(text="x", client_id=1), db_session
+    )
 
     assert calls["mcp_eval"] == 1
     assert calls["tool_exec"] == 0
@@ -74,6 +78,7 @@ def test_nonqa_capability_cannot_legacy_fallback(monkeypatch, db_session) -> Non
     def fake_mcp_eval(self, **kwargs):
         calls["mcp_eval"] += 1
         from app.services.llm_chat.mcp.types import MCPOutcomeFinal
+
         return MCPDecision(
             execution_mode=MCPExecutionMode.TOOL_ALLOWED,
             reason_code="ok",
@@ -120,13 +125,13 @@ def test_nonqa_capability_cannot_legacy_fallback(monkeypatch, db_session) -> Non
 
 def test_stream_tool_call_blocked_by_mcp(monkeypatch, db_session) -> None:
     from app.services.agent_execution import execute_agent_request as core_mod
+    from app.services.llm_chat.explicit_tool_shortcuts import CLIENT_SNAPSHOT_TOOL_NAME
     from app.services.llm_chat.mcp.types import MCPDecision, MCPExecutionMode
     from app.services.llm_chat.orchestration_core.core_types import (
         DecisionCode,
         OrchestrationDecision,
         PlanKind,
     )
-    from app.services.llm_chat.explicit_tool_shortcuts import CLIENT_SNAPSHOT_TOOL_NAME
 
     calls: dict[str, int] = {"tool_exec": 0, "mcp_eval": 0}
 
@@ -162,7 +167,9 @@ def test_stream_tool_call_blocked_by_mcp(monkeypatch, db_session) -> None:
     monkeypatch.setattr(core_mod.MCPEngine, "evaluate", fake_mcp_eval)
     monkeypatch.setattr(core_mod, "orchestrate", fake_orchestrate)
 
-    resp = core_mod.execute_agent_request_stream(_build_req(text="x", client_id=1), db_session)
+    resp = core_mod.execute_agent_request_stream(
+        _build_req(text="x", client_id=1), db_session
+    )
 
     assert calls["mcp_eval"] == 1
     assert calls["tool_exec"] == 0

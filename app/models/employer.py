@@ -2,8 +2,9 @@
 Employer entity model for SQLAlchemy ORM
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, func
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, Integer, String, func
 
 
 def utcnow():

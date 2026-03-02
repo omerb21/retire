@@ -1,27 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas.public_chat import (
-    PublicChatStartRequest,
-    PublicChatStartResponse,
-    PublicChatStatusResponse,
     PublicChatHistoryResponse,
     PublicChatSendMessageRequest,
     PublicChatSendMessageResponse,
+    PublicChatStartRequest,
+    PublicChatStartResponse,
+    PublicChatStatusResponse,
     PublicChatTopUpRequest,
     PublicChatTopUpResponse,
 )
+from app.services.llm_pension_agent_service import pension_llm_service
 from app.services.public_chat_service import (
-    start_or_get_session,
+    clear_history,
+    get_history,
     get_session_by_key,
     get_session_by_key_with_password,
-    get_history,
     send_message,
+    start_or_get_session,
     top_up,
-    clear_history,
 )
-from app.services.llm_pension_agent_service import pension_llm_service
 
 router = APIRouter(prefix="/api/v1/public-chat", tags=["public-chat"])
 

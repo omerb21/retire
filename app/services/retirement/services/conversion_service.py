@@ -4,17 +4,20 @@ Conversion service for retirement scenarios
 """
 
 import logging
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 from sqlalchemy.orm import Session
-from app.models.pension_fund import PensionFund
+
+from app.models.additional_income import AdditionalIncome
 from app.models.capital_asset import CapitalAsset
 from app.models.fixation_result import FixationResult
-from app.models.additional_income import AdditionalIncome
+from app.models.pension_fund import PensionFund
+
 from ..utils.pension_utils import (
     convert_balance_to_pension,
     convert_capital_to_pension,
-    convert_education_fund_to_pension,
     convert_education_fund_to_capital,
+    convert_education_fund_to_pension,
 )
 
 logger = logging.getLogger("app.scenarios.conversion")

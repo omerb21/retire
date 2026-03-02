@@ -8,8 +8,9 @@ Create Date: 2025-08-20 20:20:00.000000
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "fix_foreign_key_constraints"

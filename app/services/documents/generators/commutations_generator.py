@@ -2,18 +2,19 @@
 מחולל נספח היוונים
 """
 
-from pathlib import Path
-from sqlalchemy.orm import Session
-from typing import Optional
 import logging
+from pathlib import Path
+from typing import Optional
 
+from sqlalchemy.orm import Session
+
+from ..converters import html_to_pdf
 from ..data_fetchers import (
     fetch_client_data,
-    fetch_pension_data,
     fetch_commutations_data,
+    fetch_pension_data,
 )
 from ..templates import CommutationsHTMLTemplate
-from ..converters import html_to_pdf
 
 logger = logging.getLogger(__name__)
 

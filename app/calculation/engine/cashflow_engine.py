@@ -6,9 +6,11 @@ Handles generation of cashflow projections for retirement planning.
 """
 
 from datetime import date
-from typing import List, Dict, Any
-from .base_engine import BaseEngine
+from typing import Any, Dict, List
+
 from app.calculation.cashflow import make_simple_cashflow
+
+from .base_engine import BaseEngine
 
 
 class CashflowEngine(BaseEngine):

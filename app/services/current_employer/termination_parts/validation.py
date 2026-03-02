@@ -1,7 +1,7 @@
 import json
 import re
-from typing import Dict, List, Optional
 from datetime import date, datetime
+from typing import Dict, List, Optional
 
 from app.schemas.current_employer import TerminationDecisionCreate
 

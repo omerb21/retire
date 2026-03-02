@@ -11,12 +11,13 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     store_pending_approval_request,
 )
 from app.services.llm_chat.intent_classifier import ChatIntent
-from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
-    compute_effective_plan_target,
-)
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     evaluate_blocked_balances_policy_for_build_target_plan,
 )
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_effective_plan_target,
+)
+
 from .stream_loop_pending_plan_target_store import (
     _clear_pending_plan_target,
     _load_pending_plan_target,

@@ -3,12 +3,13 @@
 Updated: 2025-11-04
 """
 
-from datetime import date, datetime
-from typing import Optional, Dict, Any
 import logging
-from .utils import normalize_gender, is_pension_fund
-from .pension_fund import get_pension_fund_coefficient
+from datetime import date, datetime
+from typing import Any, Dict, Optional
+
 from .insurance import get_insurance_coefficient
+from .pension_fund import get_pension_fund_coefficient
+from .utils import is_pension_fund, normalize_gender
 
 logger = logging.getLogger(__name__)
 # Force reload: 2025-11-04 15:35

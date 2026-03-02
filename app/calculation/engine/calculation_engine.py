@@ -7,16 +7,18 @@ all calculation components for retirement planning scenarios.
 """
 
 from datetime import date
-from sqlalchemy.orm import Session
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.calculation.cashflow import make_simple_cashflow
+from app.calculation.engine.grant_engine import GrantEngine
+from app.calculation.engine.pension_engine import PensionEngine
+from app.calculation.indexation import index_amount, index_factor
+from app.calculation.seniority import calc_seniority_years
 from app.models import Client, Employment
 from app.providers.tax_params import TaxParamsProvider
 from app.schemas.scenario import ScenarioIn, ScenarioOut
-from app.calculation.seniority import calc_seniority_years
-from app.calculation.indexation import index_factor, index_amount
-from app.calculation.engine.grant_engine import GrantEngine
-from app.calculation.engine.pension_engine import PensionEngine
-from app.calculation.cashflow import make_simple_cashflow
 
 
 class CalculationEngine:

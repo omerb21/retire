@@ -282,9 +282,10 @@ def test_stream_full_report_routes_without_llm(monkeypatch) -> None:
 def test_pension_chat_stream_does_not_500_with_additional_incomes(
     db_session, client, monkeypatch
 ) -> None:
-    from app.models.additional_income import AdditionalIncome
     from datetime import date
     from decimal import Decimal
+
+    from app.models.additional_income import AdditionalIncome
 
     inc = AdditionalIncome(
         client_id=client.id,
@@ -479,6 +480,7 @@ def test_cashflow_includes_additional_income_in_gap_calculation(
     monkeypatch, db_session, client
 ) -> None:
     from datetime import date
+
     from app.models.additional_income import AdditionalIncome
     from app.services.llm_agent_tools_service import AgentToolsService
 

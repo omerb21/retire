@@ -22,8 +22,10 @@ def handle_calculate_fixation_of_rights(
         include_current_employer = args.get("include_current_employer", False)
         save_result = args.get("save_result", True)
 
-        from app.routers.rights_fixation import calculate_and_save_fixation_for_client
-        from app.routers.rights_fixation import update_fixation_exempt_pension_fields
+        from app.routers.rights_fixation import (
+            calculate_and_save_fixation_for_client,
+            update_fixation_exempt_pension_fields,
+        )
 
         if save_result:
             fixation_result = calculate_and_save_fixation_for_client(db, client_id)
@@ -125,8 +127,8 @@ def handle_calculate_fixation_of_rights(
                 "saved": True,
             }
         else:
-            from app.services.rights_fixation import calculate_full_fixation
             from app.models.grant import Grant
+            from app.services.rights_fixation import calculate_full_fixation
 
             grants = db.query(Grant).filter(Grant.client_id == client_id).all()
 

@@ -4,9 +4,10 @@ Serialization utilities for retirement scenarios
 """
 
 from typing import Dict
-from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
+
 from app.models.additional_income import AdditionalIncome
+from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
 from app.models.termination_event import TerminationEvent
 
 

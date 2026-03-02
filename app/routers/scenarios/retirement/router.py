@@ -4,21 +4,29 @@ Retirement scenarios router - handles retirement-specific endpoints
 
 import logging
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services.retirement_scenarios_api_service import (
-    get_client_or_raise as get_client_or_raise_for_retirement,
-    validate_retirement_age as validate_retirement_age_for_retirement,
-    save_generated_retirement_scenarios,
-    load_saved_retirement_scenarios,
-)
+from app.services.retirement import RetirementScenariosBuilder
 from app.services.retirement_scenario_execution_service import (
     execute_retirement_scenario as execute_retirement_scenario_service,
+)
+from app.services.retirement_scenario_execution_service import (
     preview_retirement_scenario,
 )
-from app.services.retirement import RetirementScenariosBuilder
+from app.services.retirement_scenarios_api_service import (
+    get_client_or_raise as get_client_or_raise_for_retirement,
+)
+from app.services.retirement_scenarios_api_service import (
+    load_saved_retirement_scenarios,
+    save_generated_retirement_scenarios,
+)
+from app.services.retirement_scenarios_api_service import (
+    validate_retirement_age as validate_retirement_age_for_retirement,
+)
+
 from ..schemas import RetirementScenariosRequest
 
 logger = logging.getLogger(__name__)

@@ -7,9 +7,9 @@ Security:
   - Returns 404 when disabled, 401 on bad/missing token
 """
 
+import ipaddress
 import json
 import os
-import ipaddress
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -215,8 +215,9 @@ def run_trace_fixture(
         fixture: one of cashflow | target_plan | termination
     """
     import uuid
-    from app.utils.trace_context import set_current_trace_id
+
     from app.services.agent_trace_logger import log_trace_event
+    from app.utils.trace_context import set_current_trace_id
 
     client_id = body.get("client_id")
     fixture = body.get("fixture", "").strip().lower()

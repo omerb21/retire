@@ -1,19 +1,20 @@
 """API router for Capital Asset management."""
 
-from typing import List
-import logging
 import json
+import logging
 from datetime import date
 from decimal import Decimal
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.capital_asset import CapitalAsset, AssetType, PaymentFrequency
+from app.models.capital_asset import AssetType, CapitalAsset, PaymentFrequency
 from app.schemas.capital_asset import (
     CapitalAssetCreate,
-    CapitalAssetUpdate,
     CapitalAssetResponse,
+    CapitalAssetUpdate,
 )
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 

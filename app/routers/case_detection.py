@@ -2,9 +2,10 @@
 Case detection router for determining client workflow path
 """
 
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
-from typing import Dict, Any
 
 from app.database import get_db
 from app.schemas.case import (

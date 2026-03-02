@@ -5,6 +5,7 @@ Router for employment and termination endpoints
 import logging
 import time
 from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -13,9 +14,9 @@ from app.models.client import Client
 from app.schemas.employment import (
     EmploymentCreate,
     EmploymentOut,
-    TerminationPlanIn,
     TerminationConfirmIn,
     TerminationEventOut,
+    TerminationPlanIn,
 )
 from app.services.employment_service import EmploymentService, coerce_termination_reason
 

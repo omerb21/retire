@@ -3,8 +3,9 @@ Tax credits for Israel.
 נקודות זיכוי במס לישראל.
 """
 
-from typing import List, Dict
 from datetime import datetime
+from typing import Dict, List
+
 from .base_models import TaxCredit
 
 # נקודות זיכוי במס לשנת 2024

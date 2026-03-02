@@ -2,23 +2,24 @@
 Reports API router - PDF report generation
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from pydantic import BaseModel
 import io
 from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.client import Client
 from app.models.scenario import Scenario
-from app.services.report_service import ReportService
 from app.services.report_request_service import (
     get_client_or_raise,
+    get_or_create_default_scenario,
     get_scenarios_for_client_or_raise,
     parse_scenario_ids_csv,
-    get_or_create_default_scenario,
 )
+from app.services.report_service import ReportService
 
 router = APIRouter()
 
@@ -193,6 +194,7 @@ def download_report_by_id(report_id: str):
     Reports are stored in artifacts/reports/{report_id}.pdf
     """
     import os
+
     from fastapi.responses import FileResponse
 
     project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -237,6 +239,7 @@ def download_document_by_id(doc_id: str):
     Documents are stored in artifacts/documents/{doc_id}.pdf
     """
     import os
+
     from fastapi.responses import FileResponse
 
     project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))

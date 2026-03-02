@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.services.simulation_engine.guard import read_only_session
-from app.services.simulation_engine.snapshot import build_client_snapshot
 from app.services.simulation_engine.adapter import compute_from_snapshot
+from app.services.simulation_engine.guard import read_only_session
 from app.services.simulation_engine.models import (
     ComparisonMode,
     ConvertedTarget,
@@ -14,6 +13,7 @@ from app.services.simulation_engine.models import (
     SustainabilityMetrics,
     TaxBreakdown,
 )
+from app.services.simulation_engine.snapshot import build_client_snapshot
 
 
 def run_simulation(db: Session, request: SimulationRequest) -> SimulationResult:

@@ -2,9 +2,10 @@
 שליפת נתוני מענקים מה-DB
 """
 
-from sqlalchemy.orm import Session
-from typing import List, Dict
 import logging
+from typing import Dict, List
+
+from sqlalchemy.orm import Session
 
 from app.models.grant import Grant
 

@@ -2,8 +2,7 @@
 import logging
 from datetime import date
 
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.additional_income import AdditionalIncome
 from app.models.capital_asset import CapitalAsset

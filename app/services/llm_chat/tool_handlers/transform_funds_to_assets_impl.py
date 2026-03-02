@@ -1,10 +1,10 @@
 import json
 import logging
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 from app.models import PensionFund, Scenario
 from app.models.capital_asset import CapitalAsset
@@ -13,13 +13,13 @@ from app.services.llm_agent_tools_service import AgentToolsService
 from app.services.llm_chat.orchestration_utils import (
     build_transform_accounts_from_portfolio,
 )
+from app.services.llm_chat.portfolio_context import _is_education_fund
 from app.services.pension_portfolio.conversion_rules import (
     is_education_fund,
     is_investment_provident_fund,
     preferred_conversion_type_for_component,
     validate_component_conversion,
 )
-from app.services.llm_chat.portfolio_context import _is_education_fund
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 from app.services.retirement_age_service import calculate_retirement_age
 

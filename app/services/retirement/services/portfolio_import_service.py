@@ -3,13 +3,15 @@ Portfolio import service for retirement scenarios
 שירות ייבוא תיק פנסיוני
 """
 
-import logging
 import json
+import logging
 from datetime import date, datetime
-from typing import Any, List, Dict, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
+
 from sqlalchemy.orm import Session
-from app.models.pension_fund import PensionFund
+
 from app.models.client import Client
+from app.models.pension_fund import PensionFund
 from app.services.annuity_coefficient import get_annuity_coefficient
 
 logger = logging.getLogger(__name__)

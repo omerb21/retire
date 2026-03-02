@@ -9,11 +9,51 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.current_employment.employer import CurrentEmployer
+from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.utils.llm_chat_log import (
-    get_current_case_id,
-    get_current_request_id,
-    log_llm_event,
+from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
+    store_pending_approval_request,
+    store_undo_snapshot,
+)
+from app.services.llm_chat.orchestration_utils import (
+    normalize_tool_name,
+    validate_tool_call_protocol_for_execution,
+)
+from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
+    build_default_termination_plan_preview,
+    compute_blocked_balances_summary_from_portfolio,
+    evaluate_blocked_balances_policy_for_build_target_plan,
+    load_blocked_balances_notice_shown,
+    load_current_employer_severance_execution_decision,
+    load_current_employer_termination_plan_preview,
+    store_current_employer_termination_plan_preview,
+    termination_already_executed_for_client,
+)
+from app.services.llm_chat.orchestration_utils_parts.protocol import (
+    _extract_single_line_json_after_marker,
+)
+from app.services.llm_chat.tool_handlers.build_target_pension_plan import (
+    handle_build_target_pension_plan,
+)
+from app.services.llm_chat.tool_handlers.calculate_capital_withdrawal_tax import (
+    handle_calculate_capital_withdrawal_tax,
+)
+from app.services.llm_chat.tool_handlers.calculate_fixation_of_rights import (
+    handle_calculate_fixation_of_rights,
+)
+from app.services.llm_chat.tool_handlers.calculate_pension_commutation import (
+    handle_calculate_pension_commutation,
+)
+from app.services.llm_chat.tool_handlers.calculate_tax_exempt_pension import (
+    handle_calculate_tax_exempt_pension,
+)
+from app.services.llm_chat.tool_handlers.calculate_tax_spread_benefit import (
+    handle_calculate_tax_spread_benefit,
+)
+from app.services.llm_chat.tool_handlers.check_data_completeness import (
+    handle_check_data_completeness,
 )
 from app.services.llm_chat.tool_handlers.create_additional_income import (
     handle_create_additional_income,
@@ -24,8 +64,17 @@ from app.services.llm_chat.tool_handlers.create_individual_asset import (
 from app.services.llm_chat.tool_handlers.create_tax_exempt_grant import (
     handle_create_tax_exempt_grant,
 )
+from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
+    handle_execute_pension_commutation,
+)
+from app.services.llm_chat.tool_handlers.execute_retirement_scenario import (
+    handle_execute_retirement_scenario,
+)
 from app.services.llm_chat.tool_handlers.execute_work_termination import (
     handle_execute_work_termination,
+)
+from app.services.llm_chat.tool_handlers.find_optimal_scenario import (
+    handle_find_optimal_scenario,
 )
 from app.services.llm_chat.tool_handlers.generate_full_report import (
     handle_generate_full_report,
@@ -36,8 +85,26 @@ from app.services.llm_chat.tool_handlers.generate_tax_deduction_documents import
 from app.services.llm_chat.tool_handlers.get_account_details import (
     handle_get_account_details,
 )
+from app.services.llm_chat.tool_handlers.get_client_snapshot import (
+    handle_get_client_snapshot,
+)
+from app.services.llm_chat.tool_handlers.get_pension_portfolio_snapshot_history import (
+    handle_get_pension_portfolio_snapshot_history,
+)
+from app.services.llm_chat.tool_handlers.get_pension_products import (
+    handle_get_pension_products,
+)
+from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
+    handle_get_system_numeric_constants,
+)
+from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
+    handle_get_system_state_snapshot,
+)
 from app.services.llm_chat.tool_handlers.get_tax_projection import (
     handle_get_tax_projection,
+)
+from app.services.llm_chat.tool_handlers.monthly_pension_summary import (
+    handle_monthly_pension_summary,
 )
 from app.services.llm_chat.tool_handlers.process_termination import (
     handle_process_termination,
@@ -45,41 +112,14 @@ from app.services.llm_chat.tool_handlers.process_termination import (
 from app.services.llm_chat.tool_handlers.project_total_annuity import (
     handle_project_total_annuity,
 )
+from app.services.llm_chat.tool_handlers.restore_pension_portfolio_snapshot import (
+    handle_restore_pension_portfolio_snapshot,
+)
+from app.services.llm_chat.tool_handlers.restore_system_snapshot import (
+    handle_restore_system_snapshot,
+)
 from app.services.llm_chat.tool_handlers.run_retirement_cashflow_analysis import (
     handle_run_retirement_cashflow_analysis,
-)
-from app.services.llm_chat.tool_handlers.set_current_employer_details import (
-    handle_set_current_employer_details,
-)
-from app.services.llm_chat.tool_handlers.submit_tax_commutation import (
-    handle_submit_tax_commutation,
-)
-from app.services.llm_chat.tool_handlers.transform_funds_to_assets import (
-    handle_transform_funds_to_assets,
-)
-from app.services.llm_chat.tool_handlers.calculate_pension_commutation import (
-    handle_calculate_pension_commutation,
-)
-from app.services.llm_chat.tool_handlers.build_target_pension_plan import (
-    handle_build_target_pension_plan,
-)
-from app.services.llm_chat.tool_handlers.get_pension_products import (
-    handle_get_pension_products,
-)
-from app.services.llm_chat.tool_handlers.calculate_tax_exempt_pension import (
-    handle_calculate_tax_exempt_pension,
-)
-from app.services.llm_chat.tool_handlers.calculate_capital_withdrawal_tax import (
-    handle_calculate_capital_withdrawal_tax,
-)
-from app.services.llm_chat.tool_handlers.calculate_tax_spread_benefit import (
-    handle_calculate_tax_spread_benefit,
-)
-from app.services.llm_chat.tool_handlers.calculate_fixation_of_rights import (
-    handle_calculate_fixation_of_rights,
-)
-from app.services.llm_chat.tool_handlers.check_data_completeness import (
-    handle_check_data_completeness,
 )
 from app.services.llm_chat.tool_handlers.run_retirement_scenarios import (
     handle_run_retirement_scenarios,
@@ -90,63 +130,23 @@ from app.services.llm_chat.tool_handlers.run_retirement_scenarios_preview import
 from app.services.llm_chat.tool_handlers.select_target_pension_scenario import (
     handle_select_target_pension_scenario,
 )
-from app.services.llm_chat.tool_handlers.find_optimal_scenario import (
-    handle_find_optimal_scenario,
+from app.services.llm_chat.tool_handlers.set_current_employer_details import (
+    handle_set_current_employer_details,
 )
-from app.services.llm_chat.tool_handlers.execute_retirement_scenario import (
-    handle_execute_retirement_scenario,
+from app.services.llm_chat.tool_handlers.submit_tax_commutation import (
+    handle_submit_tax_commutation,
 )
-from app.services.llm_chat.tool_handlers.execute_pension_commutation import (
-    handle_execute_pension_commutation,
-)
-from app.services.llm_chat.tool_handlers.get_system_state_snapshot import (
-    handle_get_system_state_snapshot,
-)
-from app.services.llm_chat.tool_handlers.get_client_snapshot import (
-    handle_get_client_snapshot,
-)
-from app.services.llm_chat.tool_handlers.get_system_numeric_constants import (
-    handle_get_system_numeric_constants,
-)
-from app.services.llm_chat.tool_handlers.get_pension_portfolio_snapshot_history import (
-    handle_get_pension_portfolio_snapshot_history,
-)
-from app.services.llm_chat.tool_handlers.monthly_pension_summary import (
-    handle_monthly_pension_summary,
+from app.services.llm_chat.tool_handlers.transform_funds_to_assets import (
+    handle_transform_funds_to_assets,
 )
 from app.services.llm_chat.tools.get_fixation_status_snapshot import (
     handle_get_fixation_status_snapshot,
 )
-from app.services.llm_chat.tool_handlers.restore_pension_portfolio_snapshot import (
-    handle_restore_pension_portfolio_snapshot,
-)
-from app.services.llm_chat.tool_handlers.restore_system_snapshot import (
-    handle_restore_system_snapshot,
-)
-from app.services.llm_chat.chat_orchestration_helpers import (
-    build_approval_request_ui_action,
-    store_pending_approval_request,
-    store_undo_snapshot,
-)
 from app.services.snapshot_service import SnapshotService
-from app.services.llm_chat.orchestration_utils import (
-    normalize_tool_name,
-    validate_tool_call_protocol_for_execution,
-)
-from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
-from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
-from app.services.llm_chat.orchestration_utils_parts.protocol import (
-    _extract_single_line_json_after_marker,
-)
-from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
-    build_default_termination_plan_preview,
-    compute_blocked_balances_summary_from_portfolio,
-    evaluate_blocked_balances_policy_for_build_target_plan,
-    load_blocked_balances_notice_shown,
-    load_current_employer_termination_plan_preview,
-    load_current_employer_severance_execution_decision,
-    store_current_employer_termination_plan_preview,
-    termination_already_executed_for_client,
+from app.utils.llm_chat_log import (
+    get_current_case_id,
+    get_current_request_id,
+    log_llm_event,
 )
 
 logger = logging.getLogger("app.llm_chat.tools")
@@ -656,8 +656,8 @@ def execute_tool_call(
 
     if tool_name == "PROCESS_TERMINATION" and isinstance(args, dict):
         try:
-            from app.utils.date_serializer import parse_date_flexible
             from app.models.current_employment import EmployerGrant, GrantType
+            from app.utils.date_serializer import parse_date_flexible
 
             termination_date = None
             raw_date = args.get("termination_date")

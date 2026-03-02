@@ -2,8 +2,8 @@ import argparse
 import codecs
 import json
 import os
-import sqlite3
 import socket
+import sqlite3
 import sys
 import urllib.request
 from collections import Counter

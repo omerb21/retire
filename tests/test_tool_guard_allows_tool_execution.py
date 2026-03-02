@@ -1,5 +1,5 @@
-from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.models.client import Client
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
 from app.services.agent_execution.tool_execution_context import (
     set_tool_execution_context,
@@ -25,7 +25,7 @@ def test_tool_guard_allows_tool_execution_no_validation_error(
         pension_portfolio=None,
         force_max_exemption=False,
         agent_reply=None,
-        user_approved=False
+        user_approved=False,
     ):
         calls["n"] += 1
         return '{"success": true, "tool_name": "GET_CLIENT_SNAPSHOT", "total_items": 0, "breakdown": {}}'

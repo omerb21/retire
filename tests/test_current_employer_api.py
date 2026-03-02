@@ -3,9 +3,11 @@ API tests for CurrentEmployer endpoints - Sprint 3
 Tests for the three required API endpoints
 """
 
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
-from datetime import date
+
 from app.main import app as fastapi_app
 from app.models import Client, CurrentEmployer, EmployerGrant
 
@@ -193,7 +195,8 @@ class TestCurrentEmployerAPI:
 
         try:
             # Generate a unique ID to avoid collisions
-            import uuid, time
+            import time
+            import uuid
 
             unique_id = f"{str(uuid.uuid4())[:8]}_{int(time.time())}"
 
@@ -415,11 +418,12 @@ class TestCurrentEmployerAPI:
     def test_termination_minimal_body_completes_from_employer(
         self, client, db_session
     ) -> None:
+        import uuid
+
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
 
         unique_id = f"term_min_{uuid.uuid4().hex[:8]}"
         orm_client = ClientModel(
@@ -465,11 +469,12 @@ class TestCurrentEmployerAPI:
     def test_termination_manual_mode_missing_required_fields_returns_422(
         self, client, db_session
     ) -> None:
+        import uuid
+
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
 
         unique_id = f"term_manual_{uuid.uuid4().hex[:8]}"
         orm_client = ClientModel(
@@ -510,11 +515,12 @@ class TestCurrentEmployerAPI:
     def test_termination_manual_amounts_not_overridden_when_completion_enabled(
         self, client, db_session
     ) -> None:
+        import uuid
+
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
 
         unique_id = f"term_preserve_{uuid.uuid4().hex[:8]}"
         orm_client = ClientModel(
@@ -565,12 +571,13 @@ class TestCurrentEmployerAPI:
     def test_termination_manual_severance_exempt_computes_taxable_and_blocks_ssot(
         self, client, db_session, monkeypatch
     ) -> None:
+        import uuid
+
+        import app.services.current_employer.termination as termination_module
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
-        import app.services.current_employer.termination as termination_module
         from app.services.current_employer.termination import TerminationService
 
         def _fail_ssot(*args, **kwargs):
@@ -633,12 +640,13 @@ class TestCurrentEmployerAPI:
     def test_termination_manual_severance_taxable_computes_exempt_and_blocks_ssot(
         self, client, db_session, monkeypatch
     ) -> None:
+        import uuid
+
+        import app.services.current_employer.termination as termination_module
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
-        import app.services.current_employer.termination as termination_module
         from app.services.current_employer.termination import TerminationService
 
         def _fail_ssot(*args, **kwargs):
@@ -701,14 +709,15 @@ class TestCurrentEmployerAPI:
     def test_termination_manual_severance_only_uses_calculate_exempt_and_taxable_and_blocks_ssot(
         self, client, db_session, monkeypatch
     ) -> None:
+        import uuid
+
+        import app.services.current_employer.termination as termination_module
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
-        import app.services.current_employer.termination as termination_module
-        from app.services.current_employer.termination import TerminationService
         from app.services.current_employer.calculations import SeveranceCalculator
+        from app.services.current_employer.termination import TerminationService
 
         def _fail_ssot(*args, **kwargs):
             raise AssertionError("SSOT must not run when severance_amount is sent")
@@ -780,11 +789,12 @@ class TestCurrentEmployerAPI:
     def test_snapshot_info_has_termination_true_after_current_employer_termination(
         self, client, db_session
     ) -> None:
+        import uuid
+
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
 
         unique_id = f"snap_term_{uuid.uuid4().hex[:8]}"
         orm_client = ClientModel(
@@ -829,11 +839,12 @@ class TestCurrentEmployerAPI:
     def test_delete_termination_clears_marker_and_snapshot_flag(
         self, client, db_session
     ) -> None:
+        import uuid
+
         from app.models.client import Client as ClientModel
         from app.models.current_employment import (
             CurrentEmployer as CurrentEmployerModel,
         )
-        import uuid
 
         unique_id = f"del_term_{uuid.uuid4().hex[:8]}"
         orm_client = ClientModel(

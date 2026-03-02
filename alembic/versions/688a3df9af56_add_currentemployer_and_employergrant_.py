@@ -8,8 +8,9 @@ Create Date: 2025-08-11 23:29:03.776436
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "688a3df9af56"
@@ -21,7 +22,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     # ensure enum exists (safe if already exists)
-    op.execute("""
+    op.execute(
+        """
     DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'activecontinuitytype') THEN
@@ -29,7 +31,8 @@ def upgrade() -> None:
         END IF;
     END;
     END $$;
-    """)
+    """
+    )
 
     # Create current_employer table
     op.create_table(

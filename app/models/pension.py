@@ -2,9 +2,11 @@
 Pension entity model for SQLAlchemy ORM - compatible with rights fixation system
 """
 
-from sqlalchemy import Column, Integer, ForeignKey, String, Date, DateTime, func
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 

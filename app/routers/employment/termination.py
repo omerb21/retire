@@ -5,13 +5,14 @@ Endpoints for processing employee termination decisions
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.models.client import Client
-from app.services.current_employer import EmploymentService, TerminationService
 from app.schemas.current_employer import (
     TerminationDecisionCreate,
     TerminationDecisionOut,
 )
+from app.services.current_employer import EmploymentService, TerminationService
 
 router = APIRouter()
 

@@ -1,15 +1,13 @@
 from app.database import SessionLocal
 from app.schemas.llm_chat import ChatMessage, ChatRequest
-from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
-from app.services.llm_chat.message_utils import (
-    extract_latest_approval_request,
-    get_tool_call_approval_signature,
-)
 from app.services.llm_chat.chat_orchestration_helpers import (
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
 )
-from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
+from app.services.llm_chat.message_utils import (
+    extract_latest_approval_request,
+    get_tool_call_approval_signature,
+)
 from app.services.llm_chat.orchestration_core.core_types import (
     DecisionCode,
     OrchestrationDeps,
@@ -20,6 +18,8 @@ from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
 from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
     enrich_state_snapshot,
 )
+from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 from app.utils.llm_chat_log import log_llm_event
 
 from ..stream_tool_execution import _execute_tool_call

@@ -1,7 +1,8 @@
-from enum import Enum
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClientCase(str, Enum):

@@ -2,7 +2,6 @@ from app.models.client import Client
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.message_utils import find_last_user_message
 
-
 from ..chat_helpers import _user_requested_target_pension_plan
 
 

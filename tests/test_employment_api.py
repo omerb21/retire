@@ -4,17 +4,18 @@ Integration tests for employment API endpoints
 
 import unittest
 from datetime import date, timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.main import app as fastapi_app
 from app.database import get_db
+from app.main import app as fastapi_app
 from app.models.client import Client
 from app.models.employer import Employer
 from app.models.employment import Employment
 from app.models.termination_event import TerminationEvent, TerminationReason
-from tests.utils import gen_valid_id, gen_reg_no
 from app.services.client_service import normalise_and_validate_id_number
+from tests.utils import gen_reg_no, gen_valid_id
 
 
 class TestEmploymentAPI(unittest.TestCase):
@@ -36,8 +37,9 @@ class TestEmploymentAPI(unittest.TestCase):
         finally:
             db.close()
 
-        from tests.utils import gen_valid_id
         import random
+
+        from tests.utils import gen_valid_id
 
         raw_id = gen_valid_id()
         self.test_client_data = {

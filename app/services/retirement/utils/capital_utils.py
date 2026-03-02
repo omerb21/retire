@@ -3,11 +3,12 @@ Capital utilities for retirement scenarios
 פונקציות עזר לטיפול בנכסי הון
 """
 
+import json
 import logging
 from datetime import date
 from decimal import Decimal
 from typing import Optional
-import json
+
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 

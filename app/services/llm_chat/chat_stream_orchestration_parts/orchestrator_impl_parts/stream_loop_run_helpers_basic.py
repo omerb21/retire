@@ -2,11 +2,11 @@ import re
 from datetime import date
 
 from app.models.client import Client
-from app.services.llm_chat.orchestration_utils import resolve_target_retirement_age
 from app.services.llm_chat.orchestration_utils import (
     compute_retirement_date_from_birth_date,
     extract_explicit_retirement_age_from_text,
     extract_explicit_retirement_date_from_text,
+    resolve_target_retirement_age,
 )
 
 

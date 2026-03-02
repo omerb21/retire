@@ -2,16 +2,16 @@
 
 from fastapi.responses import StreamingResponse
 
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.schemas.llm_chat import ChatRequest
 from app.services.llm_chat.orchestration_utils import (
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,
 )
-from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
-from ..stream_streaming_helpers import _stream_execute_tool_no_approval
 from ..stream_approval_generators import generate_forced_approval
+from ..stream_streaming_helpers import _stream_execute_tool_no_approval
 
 
 def _maybe_handle_termination_deterministic(

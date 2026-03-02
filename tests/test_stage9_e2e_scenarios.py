@@ -14,12 +14,12 @@ from app.main import app
 from app.models.client import Client
 from app.models.current_employment.employer import CurrentEmployer
 from app.models.scenario import Scenario
+from app.services.agent_execution import execute_agent_request as exec_entry_mod
+from app.services.agent_execution import tool_executor as tool_exec_mod
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     store_current_employer_termination_plan_preview,
 )
 from app.services.snapshot_service import SnapshotService
-from app.services.agent_execution import execute_agent_request as exec_entry_mod
-from app.services.agent_execution import tool_executor as tool_exec_mod
 
 
 def _install_trace_capture(monkeypatch) -> list[tuple[str, Any]]:

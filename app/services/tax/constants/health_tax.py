@@ -3,8 +3,8 @@ Health tax rates for Israel.
 שיעורי מס בריאות לישראל.
 """
 
-from typing import Dict
 from datetime import datetime
+from typing import Dict
 
 # מס בריאות 2024
 HEALTH_TAX_2024: Dict[str, float] = {

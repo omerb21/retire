@@ -6,8 +6,8 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.utils.llm_chat_log import log_llm_event
 from app.services.agent_trace_logger import log_trace_event as _log_agent_trace
+from app.utils.llm_chat_log import log_llm_event
 
 logger = logging.getLogger("app.llm_chat")
 

@@ -2,9 +2,10 @@
 שליפת נתוני היוונים מה-DB
 """
 
-from sqlalchemy.orm import Session
-from typing import List
 import logging
+from typing import List
+
+from sqlalchemy.orm import Session
 
 from app.models.capital_asset import CapitalAsset
 

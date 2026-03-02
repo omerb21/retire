@@ -1,16 +1,28 @@
 import re
 
-from ...schemas.llm_chat import PensionPortfolioAccount
-
 from app.services.pension_portfolio.conversion_rules import (
     COMPONENT_RULES as _SHARED_COMPONENT_RULES,
+)
+from app.services.pension_portfolio.conversion_rules import (
     FIELD_DISPLAY as _SHARED_FIELD_DISPLAY,
+)
+from app.services.pension_portfolio.conversion_rules import (
     is_education_fund as _shared_is_education_fund,
+)
+from app.services.pension_portfolio.conversion_rules import (
     is_investment_provident_fund as _shared_is_investment_provident_fund,
+)
+from app.services.pension_portfolio.conversion_rules import (
     is_pension_or_insurance as _shared_is_pension_or_insurance,
+)
+from app.services.pension_portfolio.conversion_rules import (
     is_regular_provident_fund as _shared_is_regular_provident_fund,
+)
+from app.services.pension_portfolio.conversion_rules import (
     rule_for_tagmulim_by_product_type as _shared_rule_for_tagmulim_by_product_type,
 )
+
+from ...schemas.llm_chat import PensionPortfolioAccount
 
 
 def _as_float(value) -> float:

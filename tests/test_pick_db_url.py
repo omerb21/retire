@@ -9,10 +9,11 @@ Covers:
 """
 
 import os
-import pytest
 from unittest.mock import patch
 
-from app.core.db_url import pick_db_url, _is_valid_pg_url
+import pytest
+
+from app.core.db_url import _is_valid_pg_url, pick_db_url
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -3,28 +3,22 @@ from datetime import datetime, timezone
 
 from fastapi.responses import StreamingResponse
 
-from app.services.llm_chat.guards.tool_execution_guard import (
-    GuardOutcome,
-    evaluate_tool_execution_guard_v2,
-)
-
-from app.services.llm_chat.mcp.engine import MCPEngine
-from app.services.llm_chat.mcp.types import MCPDecision, MCPExecutionMode, MCPOutcomeFinal
-
 from app.services.llm_chat.chat_orchestration_helpers import (
     clear_pending_approval_request,
     load_pending_approval_request,
     store_approval_execution_receipt,
     was_approval_execution_recently_recorded,
 )
-from app.services.llm_chat.pending_approvals import (
-    compute_args_hash,
-    load_pending_approval_payload_if_match,
-    load_pending_approval_payload_if_match_and_args_hash,
+from app.services.llm_chat.guards.tool_execution_guard import (
+    GuardOutcome,
+    evaluate_tool_execution_guard_v2,
 )
-from app.services.state.effective_client_state_loader import load_effective_client_state
-from app.services.pension_portfolio.snapshot_loader import load_current_effective_state
-
+from app.services.llm_chat.mcp.engine import MCPEngine
+from app.services.llm_chat.mcp.types import (
+    MCPDecision,
+    MCPExecutionMode,
+    MCPOutcomeFinal,
+)
 from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     get_tool_display_name_hebrew,
@@ -36,16 +30,22 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     clear_pending_build_target_plan_after_termination,
     clear_pending_current_employer_severance_termination_question,
     get_current_employer_severance_amount_ssot,
-    load_pending_build_target_plan_after_termination,
     load_current_employer_termination_plan_preview,
+    load_pending_build_target_plan_after_termination,
     load_pending_current_employer_severance_termination_question,
     store_current_employer_severance_execution_decision,
     store_current_employer_termination_plan_preview,
 )
+from app.services.llm_chat.pending_approvals import (
+    compute_args_hash,
+    load_pending_approval_payload_if_match,
+    load_pending_approval_payload_if_match_and_args_hash,
+)
+from app.services.pension_portfolio.snapshot_loader import load_current_effective_state
+from app.services.state.effective_client_state_loader import load_effective_client_state
 
 from ..stream_tool_execution import _execute_tool_call
 from ..stream_top_level_helpers import _load_latest_pension_portfolio_snapshot_models
-
 from .stream_loop_transform_next_step_hint import (
     _append_transform_next_step_hint,
     _extract_first_json_object,

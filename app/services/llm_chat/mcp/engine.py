@@ -68,7 +68,10 @@ class MCPEngine:
             }
         ):
             policy_violation = True
-            if not (isinstance(policy_violation_reason, str) and policy_violation_reason.strip()):
+            if not (
+                isinstance(policy_violation_reason, str)
+                and policy_violation_reason.strip()
+            ):
                 policy_violation_reason = "OUTCOME_FINAL_FALLBACK"
 
         # Step F.0: capability gap closure (metadata only)
@@ -214,7 +217,9 @@ class MCPEngine:
         error_code = guard_result.get("error_code")
         approval_request_id = guard_result.get("approval_request_id")
 
-        outcome_s = outcome.strip() if isinstance(outcome, str) and outcome.strip() else None
+        outcome_s = (
+            outcome.strip() if isinstance(outcome, str) and outcome.strip() else None
+        )
         error_s = (
             error_code.strip()
             if isinstance(error_code, str) and error_code.strip()
@@ -257,7 +262,10 @@ class MCPEngine:
 
         allowed = decision.policy_allowed_execution_modes
 
-        if allowed is None and decision.policy_violation_reason == POLICY_MAPPING_MISSING:
+        if (
+            allowed is None
+            and decision.policy_violation_reason == POLICY_MAPPING_MISSING
+        ):
             # Transitional rule: when enforcement is enabled and the policy mapping
             # is missing, we signal violation but do not change runtime behavior.
             return MCPDecision(
@@ -286,7 +294,12 @@ class MCPEngine:
             "PENDING_APPROVAL": 2,
             "TOOL_ALLOWED": 3,
         }
-        downgrade_order = ["NO_TOOLS", "TOOL_BLOCKED", "PENDING_APPROVAL", "TOOL_ALLOWED"]
+        downgrade_order = [
+            "NO_TOOLS",
+            "TOOL_BLOCKED",
+            "PENDING_APPROVAL",
+            "TOOL_ALLOWED",
+        ]
 
         base_rank = restrictiveness_rank.get(base_mode)
         if base_rank is None:

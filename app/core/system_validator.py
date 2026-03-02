@@ -3,12 +3,13 @@ System Validator - מנגנון אימות מרכזי למערכת
 מוודא שכל הטבלאות והנתונים הקריטיים קיימים ותקינים
 """
 
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-from typing import Dict, List, Tuple, Any, Optional
 import logging
 import threading
 import time
+from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +238,7 @@ class SystemValidator:
     def _load_from_csv(self, table_name: str, csv_file: str):
         """טוען נתונים מקובץ CSV"""
         import pandas as pd
+
         from app.database import engine
 
         df = pd.read_csv(csv_file)

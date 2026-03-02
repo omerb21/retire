@@ -3,18 +3,19 @@ Client entity model for SQLAlchemy ORM
 """
 
 from datetime import date, datetime, timezone
+
 from sqlalchemy import (
-    Column,
     BigInteger,
-    Integer,
-    String,
+    Boolean,
+    Column,
     Date,
     DateTime,
-    Boolean,
-    Text,
-    Index,
-    event,
     Float,
+    Index,
+    Integer,
+    String,
+    Text,
+    event,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

@@ -2,19 +2,21 @@
 Employment entity model for SQLAlchemy ORM
 """
 
+from datetime import datetime, timezone
+
 from sqlalchemy import (
-    Column,
-    Integer,
-    ForeignKey,
-    Date,
     Boolean,
-    Numeric,
+    Column,
+    Date,
     DateTime,
-    func,
+    ForeignKey,
     Index,
+    Integer,
+    Numeric,
+    func,
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
 from app.database import Base
 
 

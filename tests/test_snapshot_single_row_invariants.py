@@ -1,10 +1,10 @@
 import json
 
 from app.models.scenario import Scenario
-from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
 from app.services.llm_chat.tool_handlers.transform_funds_conversion import (
     _create_updated_snapshot_scenario,
 )
+from app.services.pension_portfolio.snapshot_loader import upsert_snapshot
 
 
 def test_snapshot_two_writes_keep_single_row(db_session, client) -> None:

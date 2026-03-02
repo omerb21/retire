@@ -1,9 +1,9 @@
 import json
 from typing import Any
 
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 from app.schemas.llm_chat import ChatMessage, ChatResponse
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
-from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 
 from ..steps.types import _PreparedOrchestrationInputs
 
@@ -39,8 +39,23 @@ def _handle_post_deterministics_and_finalize(
     explicit_cashflow_request: bool,
     wants_cashflow_refresh: bool,
 ) -> _PreparedOrchestrationInputs | ChatResponse:
-    from app.models.client import Client
     from app.models import CurrentEmployer, EmployerGrant, GrantType
+    from app.models.capital_asset import CapitalAsset
+    from app.models.client import Client
+    from app.models.pension_fund import PensionFund
+    from app.services.llm_chat.chat_orchestration_helpers import (
+        build_approval_request_ui_action,
+        build_forced_document_reply,
+        build_pension_portfolio_update_after_transform,
+        build_transform_accounts_from_target_plan_payload,
+        clear_pending_approval_request,
+        format_transform_result_for_user,
+        load_latest_target_pension_plan,
+        load_latest_target_pension_plan_data,
+        load_pending_approval_request,
+        store_pending_approval_request,
+        store_pending_plan_target_marker,
+    )
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _digits_only,
         _extract_commutation_account_number,
@@ -50,19 +65,6 @@ def _handle_post_deterministics_and_finalize(
     )
     from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
         _execute_tool_call,
-    )
-    from app.services.llm_chat.chat_orchestration_helpers import (
-        build_approval_request_ui_action,
-        build_forced_document_reply,
-        build_pension_portfolio_update_after_transform,
-        format_transform_result_for_user,
-        build_transform_accounts_from_target_plan_payload,
-        clear_pending_approval_request,
-        load_latest_target_pension_plan,
-        load_latest_target_pension_plan_data,
-        load_pending_approval_request,
-        store_pending_approval_request,
-        store_pending_plan_target_marker,
     )
     from app.services.llm_chat.message_utils import (
         extract_latest_approval_request,
@@ -82,8 +84,6 @@ def _handle_post_deterministics_and_finalize(
         is_cashflow_missing_income_followup,
         is_no_termination_request,
     )
-    from app.models.capital_asset import CapitalAsset
-    from app.models.pension_fund import PensionFund
 
     forced_termination_result: str | None = None
 

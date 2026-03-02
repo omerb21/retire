@@ -1,14 +1,14 @@
+import importlib
+import inspect
 import json
 import logging
-import inspect
-import importlib
-import re
-import uuid
-import time
-import threading
 import queue
+import re
+import threading
+import time
+import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta, date
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
@@ -17,44 +17,49 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.guards.advice_domain import AdviceDomain
+from app.guards.advice_domain_resolver import resolve_advice_domain
+from app.guards.advisor_behavior_guard import enforce_behavioral_limits
+from app.guards.orchestration_plan import OrchestrationPlan
+from app.guards.orchestration_plan_resolver import resolve_orchestration_plan
+from app.guards.tool_intent_guard import (
+    is_conceptual_no_execute_request,
+    sanitize_words_only_conceptual,
+    sanitize_words_only_output,
+)
+from app.models import CurrentEmployer, EmployerGrant, GrantType
+from app.models.client import Client
+from app.models.scenario import Scenario
 from app.schemas.llm_chat import ChatMessage, ChatRequest
+from app.services.llm_agent_tools_service import AgentToolsService
 from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
     build_forced_document_reply,
     build_pension_portfolio_update_after_commutation,
     build_pension_portfolio_update_after_transform,
     build_transform_accounts_from_target_plan_payload,
+    clear_pending_approval_request,
     format_transform_result_for_user,
     get_gross_for_tax_chaining,
-    build_approval_request_ui_action,
-    load_pending_approval_request,
-    load_undo_snapshot,
-    clear_pending_approval_request,
-    store_pending_approval_request,
-    store_pending_plan_target_marker,
+    load_latest_retirement_cashflow_analysis,
     load_latest_target_pension_plan,
     load_latest_target_pension_plan_data,
+    load_pending_approval_request,
+    load_undo_snapshot,
+    store_latest_retirement_cashflow_analysis,
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
-    store_latest_retirement_cashflow_analysis,
-    load_latest_retirement_cashflow_analysis,
+    store_pending_approval_request,
+    store_pending_plan_target_marker,
 )
-from app.services.llm_chat.pending_approvals import (
-    compute_args_hash,
-    load_pending_approval_payload_if_match_and_args_hash,
-    load_pending_approval_ui_action_if_match,
+from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
+from app.services.llm_chat.execution_only_guard import (
+    execution_only_blocked,
+    get_execution_only_system_prompt,
+    is_execution_only,
+    validate_execution_only_output,
 )
-from app.services.llm_chat.message_preparation import prepare_messages_with_context
-from app.services.llm_chat.message_utils import (
-    extract_user_approval_for_tool_call,
-    extract_user_cancel_for_tool_call,
-    extract_latest_approval_request,
-    get_tool_call_approval_signature,
-    extract_latest_target_pension_plan_payload,
-    extract_target_pension_from_message,
-    find_last_user_message,
-    is_user_approval_intent_text,
-    is_undo_intent_text,
-)
+from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.services.llm_chat.intent_classifier import (
     ChatIntent,
     detect_intent,
@@ -62,92 +67,89 @@ from app.services.llm_chat.intent_classifier import (
     get_stream_system_prompt_for_intent,
     report_requires_qa_line,
 )
-from app.guards.advisor_behavior_guard import enforce_behavioral_limits
-from app.guards.tool_intent_guard import (
-    is_conceptual_no_execute_request,
-    sanitize_words_only_conceptual,
-    sanitize_words_only_output,
+from app.services.llm_chat.message_preparation import prepare_messages_with_context
+from app.services.llm_chat.message_utils import (
+    extract_latest_approval_request,
+    extract_latest_target_pension_plan_payload,
+    extract_target_pension_from_message,
+    extract_user_approval_for_tool_call,
+    extract_user_cancel_for_tool_call,
+    find_last_user_message,
+    get_tool_call_approval_signature,
+    is_undo_intent_text,
+    is_user_approval_intent_text,
 )
-from app.guards.advice_domain import AdviceDomain
-from app.guards.advice_domain_resolver import resolve_advice_domain
-from app.guards.orchestration_plan import OrchestrationPlan
-from app.guards.orchestration_plan_resolver import resolve_orchestration_plan
-from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
+from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
 from app.services.llm_chat.orchestration_utils import (
     apply_max_exemption_if_requested,
-    build_tool_call_message_content,
-    build_transform_accounts_from_portfolio,
+    build_partial_pension_transform_accounts_from_portfolio,
     build_portfolio_wide_component_transform_accounts_from_portfolio,
     build_portfolio_wide_education_fund_transform_accounts_from_portfolio,
     build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio,
     build_targeted_component_transform_accounts_from_portfolio,
-    build_partial_pension_transform_accounts_from_portfolio,
-    build_transform_accounts_from_portfolio,
     build_tax_result_system_message_for_stream,
     build_tool_call_message_content,
     build_tool_result_system_message_for_stream,
+    build_transform_accounts_from_portfolio,
+    compute_default_retirement_date_for_tool_call,
+    compute_retirement_date_from_birth_date,
+    extract_desired_monthly_income_from_text,
     extract_explicit_gender_and_age_from_text,
+    extract_explicit_retirement_age_from_text,
     extract_explicit_retirement_date_from_text,
     extract_process_termination_choice_overrides,
     extract_process_termination_date_override,
+    extract_relative_retirement_years_from_text,
     format_tool_output_for_user_stream,
     get_tool_display_name_hebrew,
+    infer_desired_income_is_net_explicit,
+    is_cashflow_missing_income_followup,
+    is_data_awareness_request,
     is_document_request,
-    is_portfolio_breakdown_request,
-    is_tax_documents_request,
+    is_list_all_financial_entities_request,
+    is_max_capital_request,
     is_max_exemption_request,
     is_net_pension_request,
     is_no_termination_request,
     is_no_tools_request,
-    is_portfolio_analysis_request,
-    is_process_termination_request,
     is_pension_commutation_request,
+    is_portfolio_analysis_request,
+    is_portfolio_breakdown_request,
+    is_process_termination_request,
     is_qa_request,
     is_retirement_cashflow_request,
     is_retirement_comparison_request,
+    is_tax_documents_request,
     is_termination_change_request,
     is_transform_request,
-    is_max_capital_request,
-    extract_desired_monthly_income_from_text,
-    is_data_awareness_request,
-    is_list_all_financial_entities_request,
-    infer_desired_income_is_net_explicit,
-    is_cashflow_missing_income_followup,
-    parse_partial_pension_conversion_request,
-    parse_portfolio_wide_prev_employers_severance_conversion_request,
-    parse_portfolio_wide_education_fund_conversion_request,
-    parse_portfolio_wide_component_conversion_request,
-    parse_portfolio_wide_after_settlement_severance_conversion_request,
-    parse_targeted_component_conversion_request,
-    resolve_target_retirement_age,
     normalize_retirement_date_if_jan1_placeholder,
+    parse_partial_pension_conversion_request,
+    parse_portfolio_wide_after_settlement_severance_conversion_request,
+    parse_portfolio_wide_component_conversion_request,
+    parse_portfolio_wide_education_fund_conversion_request,
+    parse_portfolio_wide_prev_employers_severance_conversion_request,
+    parse_targeted_component_conversion_request,
     parse_tool_call_from_reply,
+    resolve_target_retirement_age,
     sanitize_user_visible_text,
-    compute_default_retirement_date_for_tool_call,
-    compute_retirement_date_from_birth_date,
-    extract_explicit_retirement_age_from_text,
-    extract_relative_retirement_years_from_text,
 )
-from app.services.llm_chat.numeric_provenance import validate_reply_numeric_provenance
+from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
+    compute_existing_income_offset_monthly,
+)
+from app.services.llm_chat.pending_approvals import (
+    compute_args_hash,
+    load_pending_approval_payload_if_match_and_args_hash,
+    load_pending_approval_ui_action_if_match,
+)
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
+from app.services.llm_chat.prompts_stream_retirement_kb import (
+    get_stream_professional_system_prompt,
+)
 from app.services.pension_portfolio.snapshot_loader import (
     load_current_effective_state,
     load_latest_pension_portfolio_snapshot_models,
 )
 from app.services.state.effective_client_state_loader import load_effective_client_state
-from app.services.llm_chat.execution_only_guard import (
-    is_execution_only,
-    get_execution_only_system_prompt,
-    validate_execution_only_output,
-    execution_only_blocked,
-)
-from app.services.llm_chat.prompts_stream_retirement_kb import (
-    get_stream_professional_system_prompt,
-)
-from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
-from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
-from app.models.client import Client
-from app.models.scenario import Scenario
-from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.utils.knowledge_loader import get_retirement_kb_for_stream
 from app.utils.llm_chat_log import (
     generate_request_id,
@@ -155,10 +157,7 @@ from app.utils.llm_chat_log import (
     set_current_case_id,
     set_current_request_id,
 )
-from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
-    compute_existing_income_offset_monthly,
-)
+
 from ..chat_helpers import (
     _digits_only,
     _extract_commutation_account_number,
@@ -178,6 +177,41 @@ from ..chat_helpers import (
     _user_requested_target_pension_plan,
     _user_wants_full_balance,
 )
+from ..stream_approval_generators import (
+    generate_approval_exec,
+    generate_execute_target_after_termination,
+    generate_forced_approval,
+)
+from ..stream_commutation_generators import (
+    generate_commutation_missing,
+    generate_commutation_need_account,
+    generate_commutation_need_amount,
+    generate_commutation_need_amount_existing,
+)
+from ..stream_formatters import (
+    _format_data_awareness_snapshot,
+    _format_list_all_entities,
+)
+from ..stream_llm_collectors import _collect_llm_response_with_retry
+from ..stream_more_nested_helpers import _format_system_inventory_snapshot
+from ..stream_portfolio_analysis_generators import (
+    generate_breakdown,
+    generate_portfolio_analysis,
+)
+from ..stream_streaming_helpers import (
+    _stream_execute_tool_no_approval,
+    _stream_request_approval,
+)
+from ..stream_system_prompt_generators import (
+    generate_adjust_reply,
+    generate_cashflow,
+    generate_data_awareness,
+    generate_list_all_entities,
+    generate_system_inventory,
+    generate_system_results,
+    generate_target_plan,
+)
+from ..stream_tool_execution import _execute_tool_call
 from ..stream_top_level_helpers import (
     _build_transform_accounts_from_target_plan_payload,
     _get_llm_service,
@@ -186,117 +220,105 @@ from ..stream_top_level_helpers import (
     _load_latest_pension_portfolio_snapshot_models,
     _store_pending_approval_request,
 )
-from ..stream_tool_execution import _execute_tool_call
-from ..stream_more_nested_helpers import _format_system_inventory_snapshot
-from ..stream_formatters import (
-    _format_data_awareness_snapshot,
-    _format_list_all_entities,
+from .stream_loop_advice_mode import _maybe_handle_advice_mode
+from .stream_loop_analysis_default_retirement_age import (
+    _compute_analysis_default_retirement_age,
 )
-from ..stream_streaming_helpers import (
-    _stream_execute_tool_no_approval,
-    _stream_request_approval,
+from .stream_loop_approval_cancel_handling import _maybe_handle_approval_or_cancel_flow
+from .stream_loop_build_target_pension_plan_guardrail import (
+    _maybe_apply_build_target_pension_plan_guardrail,
 )
-from ..stream_llm_collectors import _collect_llm_response_with_retry
-from ..stream_commutation_generators import (
-    generate_commutation_need_account,
-    generate_commutation_need_amount_existing,
-    generate_commutation_need_amount,
-    generate_commutation_missing,
-)
-from ..stream_system_prompt_generators import (
-    generate_adjust_reply,
-    generate_system_results,
-    generate_system_inventory,
-    generate_data_awareness,
-    generate_list_all_entities,
-    generate_target_plan,
-    generate_cashflow,
-)
-from ..stream_portfolio_analysis_generators import (
-    generate_breakdown,
-    generate_portfolio_analysis,
-)
-from ..stream_approval_generators import (
-    generate_forced_approval,
-    generate_execute_target_after_termination,
-    generate_approval_exec,
-)
-from .stream_loop_explicit_transform import _stream_handle_explicit_transform
-from .stream_loop_commutation_deterministic import (
-    _maybe_handle_commutation_deterministic,
-)
-from .stream_loop_commutation_approval import _stream_maybe_request_commutation_approval
+from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_deterministic
 from .stream_loop_cashflow_retirement_date_normalization import (
     _maybe_normalize_cashflow_retirement_date,
 )
-from .stream_loop_retirement_scenarios_portfolio_analysis import (
-    _maybe_prepare_retirement_scenarios_args_for_portfolio_analysis,
+from .stream_loop_commutation_approval import _stream_maybe_request_commutation_approval
+from .stream_loop_commutation_deterministic import (
+    _maybe_handle_commutation_deterministic,
 )
+from .stream_loop_conceptual_no_execute import (
+    _maybe_handle_conceptual_no_execute_hard_stop,
+)
+from .stream_loop_deterministic_routing_block import _run_deterministic_routing_block
+from .stream_loop_document_request_allowed_tools_guardrail import (
+    _maybe_guardrail_document_request_allowed_tools,
+)
+from .stream_loop_early_cutoffs import _maybe_handle_early_cutoffs
+from .stream_loop_explicit_transform import _stream_handle_explicit_transform
+from .stream_loop_fixation_documents_deterministic import (
+    _maybe_handle_fixation_documents_deterministic,
+)
+from .stream_loop_forced_document_reply import _stream_maybe_emit_forced_document_reply
 from .stream_loop_forced_fixation_chain import (
     _stream_run_forced_fixation_chain_if_needed,
 )
-from .stream_loop_transform_tool_args_accounts_override import (
-    _maybe_override_transform_tool_args_accounts,
+from .stream_loop_full_report_no_approval import _maybe_handle_full_report_no_approval
+from .stream_loop_general_retirement_responses import (
+    _maybe_handle_general_retirement_responses,
 )
-from .stream_loop_missing_required_tools_guardrail import (
-    _maybe_append_missing_required_tools_guardrail,
-)
-from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
-from .stream_loop_forced_document_reply import _stream_maybe_emit_forced_document_reply
-from .stream_loop_numeric_provenance_guardrail import (
-    _compute_final_out_with_numeric_provenance_guardrail,
-)
-from .stream_loop_numeric_provenance_allowed_sources import (
-    _build_allowed_sources_for_numeric_provenance,
-)
-from .stream_loop_build_target_pension_plan_guardrail import (
-    _maybe_apply_build_target_pension_plan_guardrail,
+from .stream_loop_generate_loop import _build_streaming_response_generate_loop
+from .stream_loop_generate_preamble import _stream_generate_preamble
+from .stream_loop_history_messages_setup import _build_history_messages_for_stream
+from .stream_loop_intents_playbook_loader import _load_stream_intents_playbook_text
+from .stream_loop_llm_response_with_retry import (
+    _stream_collect_llm_response_with_retry_or_yield_error,
 )
 from .stream_loop_mandatory_fixation_chain import (
     _stream_maybe_run_mandatory_fixation_chain,
 )
-from .stream_loop_document_request_allowed_tools_guardrail import (
-    _maybe_guardrail_document_request_allowed_tools,
+from .stream_loop_max_capital_deterministic import _maybe_handle_max_capital_request
+from .stream_loop_missing_required_tools_guardrail import (
+    _maybe_append_missing_required_tools_guardrail,
 )
-from .stream_loop_transform_funds_to_assets_guardrails import (
-    _maybe_guardrail_transform_funds_to_assets,
+from .stream_loop_non_tool_finalization import _stream_finalize_non_tool_response
+from .stream_loop_non_tool_response_guardrails import (
+    _maybe_apply_non_tool_response_guardrails,
 )
-from .stream_loop_pre_tool_execution_guardrails import (
-    _maybe_apply_pre_tool_execution_guardrails,
+from .stream_loop_numeric_provenance_allowed_sources import (
+    _build_allowed_sources_for_numeric_provenance,
+)
+from .stream_loop_numeric_provenance_guardrail import (
+    _compute_final_out_with_numeric_provenance_guardrail,
+)
+from .stream_loop_orchestration_plan_shortcuts import (
+    _maybe_handle_orchestration_plan_shortcuts,
+)
+from .stream_loop_pending_plan_marker_flow import (
+    _maybe_handle_pending_plan_target_marker_flow,
+)
+from .stream_loop_pending_plan_target_flow import _maybe_handle_pending_plan_target_flow
+from .stream_loop_plan_phrase_flow import _maybe_handle_plan_phrase_flow
+from .stream_loop_plan_target_marker import (
+    PendingPlanTargetMarker,
+    delete_marker,
+    extract_target_net_ils,
+    load_pending_plan_target_marker_direct,
+)
+from .stream_loop_plan_tokens_gate import _compute_plan_tokens_gate
+from .stream_loop_post_conversion_entry_flow import _run_post_conversion_entry_flow
+from .stream_loop_post_conversion_lock import (
+    _build_post_conversion_lock_message as _build_post_conversion_lock_message_helper,
+)
+from .stream_loop_post_conversion_lock import (
+    _build_post_conversion_plan_message as _build_post_conversion_plan_message_helper,
+)
+from .stream_loop_post_conversion_lock import (
+    _is_post_conversion_locked as _is_post_conversion_locked_helper,
+)
+from .stream_loop_post_conversion_lock import (
+    _maybe_handle_post_conversion_lock_early_cutoff,
+)
+from .stream_loop_post_conversion_lock import (
+    _should_show_post_conversion_messages as _should_show_post_conversion_messages_helper,
+)
+from .stream_loop_post_conversion_lock_blocks import (
+    _maybe_handle_post_conversion_lock_early_block,
+    _maybe_handle_post_conversion_lock_late_block,
 )
 from .stream_loop_post_tool_execution_processing import (
     _stream_handle_post_tool_execution_processing,
 )
-from .stream_loop_non_tool_response_guardrails import (
-    _maybe_apply_non_tool_response_guardrails,
-)
-from .stream_loop_tool_call_preparation import (
-    _stream_prepare_tool_call_and_maybe_request_commutation_approval,
-)
-from .stream_loop_llm_response_with_retry import (
-    _stream_collect_llm_response_with_retry_or_yield_error,
-)
-from .stream_loop_tool_execution_and_processing import (
-    _stream_execute_tool_and_process_result,
-)
-from .stream_loop_approval_cancel_handling import _maybe_handle_approval_or_cancel_flow
-from .stream_loop_max_capital_deterministic import _maybe_handle_max_capital_request
-from .stream_loop_system_message_injection import (
-    _apply_wants_ignore_blocked_and_portfolio_analysis_messages,
-)
-from .stream_loop_termination_deterministic import (
-    _maybe_handle_termination_deterministic,
-)
-from .stream_loop_analysis_default_retirement_age import (
-    _compute_analysis_default_retirement_age,
-)
-from .stream_loop_fixation_documents_deterministic import (
-    _maybe_handle_fixation_documents_deterministic,
-)
-from .stream_loop_target_plan_deterministic import (
-    _maybe_handle_target_plan_deterministic,
-)
-from .stream_loop_cashflow_deterministic import _maybe_handle_cashflow_deterministic
+from .stream_loop_pre_context_flows import _run_pre_context_flows
 from .stream_loop_pre_retirement_plan_resolution import (
     _clear_pending_pre_retirement_plan_resolution,
     _coerce_float_safe,
@@ -307,93 +329,100 @@ from .stream_loop_pre_retirement_plan_resolution import (
     _store_pending_pre_retirement_plan_resolution,
     _today,
 )
-from .stream_loop_plan_target_marker import (
-    PendingPlanTargetMarker,
-    delete_marker,
-    extract_target_net_ils,
-    load_pending_plan_target_marker_direct,
-)
-from .stream_loop_pending_plan_target_flow import _maybe_handle_pending_plan_target_flow
-from .stream_loop_restore_snapshot_banner import (
-    _build_recent_state_banner as _build_recent_state_banner_helper,
-    _build_restore_snapshot_banner as _build_restore_snapshot_banner_helper,
-    _latest_snapshot_operation_type as _latest_snapshot_operation_type_helper,
-    _wrap_with_restore_banner as _wrap_with_restore_banner_helper,
-)
-from .stream_loop_post_conversion_lock import (
-    _build_post_conversion_lock_message as _build_post_conversion_lock_message_helper,
-    _build_post_conversion_plan_message as _build_post_conversion_plan_message_helper,
-    _is_post_conversion_locked as _is_post_conversion_locked_helper,
-    _maybe_handle_post_conversion_lock_early_cutoff,
-    _should_show_post_conversion_messages as _should_show_post_conversion_messages_helper,
-)
-from .stream_loop_transform_next_step_hint import _append_transform_next_step_hint
-from .stream_loop_user_approved_json_exec import _maybe_handle_user_approved_json_exec
-from .stream_loop_restore_snapshot_approval_request import (
-    _maybe_handle_restore_snapshot_approval_request,
-)
-from .stream_loop_advice_mode import _maybe_handle_advice_mode
-from .stream_loop_history_messages_setup import _build_history_messages_for_stream
-from .stream_loop_non_tool_finalization import _stream_finalize_non_tool_response
-from .stream_loop_generate_preamble import _stream_generate_preamble
-from .stream_loop_tool_call_iteration import _stream_handle_tool_call_iteration
-from .stream_loop_conceptual_no_execute import (
-    _maybe_handle_conceptual_no_execute_hard_stop,
-)
-from .stream_loop_undo_snapshot_approval_request import (
-    _maybe_handle_undo_snapshot_approval_request,
-)
-from .stream_loop_pre_context_flows import _run_pre_context_flows
-from .stream_loop_post_conversion_entry_flow import _run_post_conversion_entry_flow
-from .stream_loop_runtime_wrappers import _build_runtime_wrappers
-from .stream_loop_early_cutoffs import _maybe_handle_early_cutoffs
-from .stream_loop_run_helpers_basic import (
-    infer_pending_retirement_fields_for_marker as _infer_pending_retirement_fields_for_marker_impl,
-    infer_retirement_age_for_plan_args as _infer_retirement_age_for_plan_args_impl,
-    is_tool_error_text as _is_tool_error_text_impl,
-    cashflow_missing_target_prompt as _cashflow_missing_target_prompt_impl,
-    cashflow_missing_age_gender_prompt as _cashflow_missing_age_gender_prompt_impl,
-    cashflow_missing_retirement_date_prompt as _cashflow_missing_retirement_date_prompt_impl,
-    has_any_digit as _has_any_digit_impl,
-    is_explain_in_words_request as _is_explain_in_words_request_impl,
-    is_general_retirement_help_request as _is_general_retirement_help_request_impl,
-    is_general_retirement_intro_request as _is_general_retirement_intro_request_impl,
-)
-from .stream_loop_general_retirement_responses import (
-    _maybe_handle_general_retirement_responses,
-)
-from .stream_loop_plan_phrase_flow import _maybe_handle_plan_phrase_flow
 from .stream_loop_pre_retirement_yes_no_flow import (
     _maybe_handle_pre_retirement_plan_resolution_yes_no,
 )
-from .stream_loop_text_approval_flow import _maybe_handle_text_approval_flow
-from .stream_loop_pending_plan_marker_flow import (
-    _maybe_handle_pending_plan_target_marker_flow,
-)
-from .stream_loop_reports_routing import _maybe_route_to_reports_page
-from .stream_loop_user_approved_exec_flow import _maybe_handle_user_approved_exec_flow
-from .stream_loop_system_results_report_flow import (
-    _maybe_handle_system_results_report_request,
+from .stream_loop_pre_tool_execution_guardrails import (
+    _maybe_apply_pre_tool_execution_guardrails,
 )
 from .stream_loop_report_intent_ui_shortcut import (
     _maybe_handle_report_intent_ui_shortcut,
 )
-from .stream_loop_plan_tokens_gate import _compute_plan_tokens_gate
-from .stream_loop_system_info_requests import _maybe_handle_system_info_requests
+from .stream_loop_reports_routing import _maybe_route_to_reports_page
 from .stream_loop_requested_cashflow_calc import _maybe_handle_requested_cashflow_calc
-from .stream_loop_full_report_no_approval import _maybe_handle_full_report_no_approval
-from .stream_loop_tools_and_state_setup import _setup_tools_and_state
-from .stream_loop_orchestration_plan_shortcuts import (
-    _maybe_handle_orchestration_plan_shortcuts,
+from .stream_loop_restore_snapshot_approval_request import (
+    _maybe_handle_restore_snapshot_approval_request,
 )
-from .stream_loop_post_conversion_lock_blocks import (
-    _maybe_handle_post_conversion_lock_early_block,
-    _maybe_handle_post_conversion_lock_late_block,
+from .stream_loop_restore_snapshot_banner import (
+    _build_recent_state_banner as _build_recent_state_banner_helper,
 )
-from .stream_loop_deterministic_routing_block import _run_deterministic_routing_block
-from .stream_loop_generate_loop import _build_streaming_response_generate_loop
+from .stream_loop_restore_snapshot_banner import (
+    _build_restore_snapshot_banner as _build_restore_snapshot_banner_helper,
+)
+from .stream_loop_restore_snapshot_banner import (
+    _latest_snapshot_operation_type as _latest_snapshot_operation_type_helper,
+)
+from .stream_loop_restore_snapshot_banner import (
+    _wrap_with_restore_banner as _wrap_with_restore_banner_helper,
+)
+from .stream_loop_retirement_scenarios_portfolio_analysis import (
+    _maybe_prepare_retirement_scenarios_args_for_portfolio_analysis,
+)
+from .stream_loop_run_helpers_basic import (
+    cashflow_missing_age_gender_prompt as _cashflow_missing_age_gender_prompt_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    cashflow_missing_retirement_date_prompt as _cashflow_missing_retirement_date_prompt_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    cashflow_missing_target_prompt as _cashflow_missing_target_prompt_impl,
+)
+from .stream_loop_run_helpers_basic import has_any_digit as _has_any_digit_impl
+from .stream_loop_run_helpers_basic import (
+    infer_pending_retirement_fields_for_marker as _infer_pending_retirement_fields_for_marker_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    infer_retirement_age_for_plan_args as _infer_retirement_age_for_plan_args_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    is_explain_in_words_request as _is_explain_in_words_request_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    is_general_retirement_help_request as _is_general_retirement_help_request_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    is_general_retirement_intro_request as _is_general_retirement_intro_request_impl,
+)
+from .stream_loop_run_helpers_basic import (
+    is_tool_error_text as _is_tool_error_text_impl,
+)
+from .stream_loop_runtime_wrappers import _build_runtime_wrappers
+from .stream_loop_system_info_requests import _maybe_handle_system_info_requests
+from .stream_loop_system_message_injection import (
+    _apply_wants_ignore_blocked_and_portfolio_analysis_messages,
+)
+from .stream_loop_system_results_report_flow import (
+    _maybe_handle_system_results_report_request,
+)
 from .stream_loop_tail_flow import _run_stream_loop_tail_flow
-from .stream_loop_intents_playbook_loader import _load_stream_intents_playbook_text
+from .stream_loop_target_plan_deterministic import (
+    _maybe_handle_target_plan_deterministic,
+)
+from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
+from .stream_loop_termination_deterministic import (
+    _maybe_handle_termination_deterministic,
+)
+from .stream_loop_text_approval_flow import _maybe_handle_text_approval_flow
+from .stream_loop_tool_call_iteration import _stream_handle_tool_call_iteration
+from .stream_loop_tool_call_preparation import (
+    _stream_prepare_tool_call_and_maybe_request_commutation_approval,
+)
+from .stream_loop_tool_execution_and_processing import (
+    _stream_execute_tool_and_process_result,
+)
+from .stream_loop_tools_and_state_setup import _setup_tools_and_state
+from .stream_loop_transform_funds_to_assets_guardrails import (
+    _maybe_guardrail_transform_funds_to_assets,
+)
+from .stream_loop_transform_next_step_hint import _append_transform_next_step_hint
+from .stream_loop_transform_tool_args_accounts_override import (
+    _maybe_override_transform_tool_args_accounts,
+)
+from .stream_loop_undo_snapshot_approval_request import (
+    _maybe_handle_undo_snapshot_approval_request,
+)
+from .stream_loop_user_approved_exec_flow import _maybe_handle_user_approved_exec_flow
+from .stream_loop_user_approved_json_exec import _maybe_handle_user_approved_json_exec
 
 logger = logging.getLogger("app.llm_chat")
 

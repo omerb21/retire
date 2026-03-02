@@ -3,11 +3,10 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
+import app.services.llm_chat.tool_execution as tool_exec
 from app.main import app
 from app.models.client import Client
 from app.models.scenario import Scenario
-
-import app.services.llm_chat.tool_execution as tool_exec
 from app.services.snapshot_service import SnapshotService
 
 

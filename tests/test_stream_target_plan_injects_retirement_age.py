@@ -3,9 +3,9 @@ from datetime import date
 
 from fastapi.testclient import TestClient
 
-import app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators as stream_gens
-import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop as stream_loop
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
+import app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop as stream_loop
+import app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators as stream_gens
 from app.main import app
 from app.models.client import Client
 

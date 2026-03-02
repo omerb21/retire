@@ -3,13 +3,15 @@ Grant API router - Sprint 3
 Endpoints for managing grants from past employers
 """
 
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+
 from app.database import get_db
 from app.models.client import Client
 from app.models.grant import Grant
-from app.schemas.grant import GrantCreate, GrantUpdate, GrantOut, GrantWithCalculation
+from app.schemas.grant import GrantCreate, GrantOut, GrantUpdate, GrantWithCalculation
 from app.services.grant_service import GrantService
 
 router = APIRouter()

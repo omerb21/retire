@@ -5,17 +5,20 @@ State management service for retirement scenarios
 
 import logging
 from typing import Dict
+
 from sqlalchemy.orm import Session
-from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
+
 from app.models.additional_income import AdditionalIncome
-from app.models.termination_event import TerminationEvent
+from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
+from app.models.pension_fund import PensionFund
+from app.models.termination_event import TerminationEvent
+
 from ..utils.pension_utils import compute_pension_start_date_from_funds
 from ..utils.serialization_utils import (
-    serialize_pension_fund,
-    serialize_capital_asset,
     serialize_additional_income,
+    serialize_capital_asset,
+    serialize_pension_fund,
     serialize_termination_event,
 )
 

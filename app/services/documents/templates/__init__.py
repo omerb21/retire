@@ -2,9 +2,9 @@
 מודול תבניות HTML למסמכים
 """
 
-from .styles import get_base_styles
-from .grants_template import GrantsHTMLTemplate
 from .commutations_template import CommutationsHTMLTemplate
+from .grants_template import GrantsHTMLTemplate
+from .styles import get_base_styles
 from .summary_template import SummaryHTMLTemplate
 
 __all__ = [

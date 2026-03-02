@@ -5,10 +5,10 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.models import Scenario
-from app.services.llm_chat.pending_approvals import compute_args_hash
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     load_current_employer_termination_plan_preview,
 )
+from app.services.llm_chat.pending_approvals import compute_args_hash
 
 _APPROVAL_EXECUTION_RECEIPT_SCENARIO = "approval_execution_receipt"
 _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS = 5 * 60
@@ -186,11 +186,11 @@ def _derive_execution_plan_accounts_from_plan_steps(
 
     snapshot_by_name: dict[str, str] = {}
     try:
-        from app.services.pension_portfolio.snapshot_loader import (
-            load_latest_pension_portfolio_snapshot,
-        )
         from app.services.llm_chat.chat_orchestration_helpers_parts.target_plan_conversion import (
             _clean_account_name_for_transform,
+        )
+        from app.services.pension_portfolio.snapshot_loader import (
+            load_latest_pension_portfolio_snapshot,
         )
 
         loaded = load_latest_pension_portfolio_snapshot(db=db, client_id=client_id)

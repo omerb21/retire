@@ -1,5 +1,6 @@
 ﻿from datetime import date
 from typing import List
+
 from app.schemas.scenario import CashflowPoint
 
 

@@ -3,12 +3,14 @@ Client entity schemas for API request/response validation
 """
 
 from datetime import date, datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from app.services.client_service import (
-    validate_id_number,
     normalize_id_number,
     validate_birth_date,
+    validate_id_number,
 )
 
 

@@ -2,8 +2,9 @@
 תבנית HTML לנספח מענקים
 """
 
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from .styles import get_grants_styles
 
 

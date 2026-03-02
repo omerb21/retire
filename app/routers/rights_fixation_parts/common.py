@@ -1,18 +1,15 @@
+import logging
 from datetime import date, datetime
 from typing import Any, Dict, Optional
-import logging
 
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
-from app.models.grant import Grant
 from app.models.fixation_result import FixationResult
-from app.services.rights_fixation import (
-    calculate_full_fixation,
-    get_monthly_cap,
-)
+from app.models.grant import Grant
 from app.services.retirement.utils.pension_utils import get_effective_pension_start_date
 from app.services.retirement_age_service import calc_eligibility_date
+from app.services.rights_fixation import calculate_full_fixation, get_monthly_cap
 
 logger = logging.getLogger(__name__)
 

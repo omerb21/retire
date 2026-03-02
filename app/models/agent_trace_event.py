@@ -6,7 +6,9 @@ tool_call, tool_result, assistant_output, error).
 
 import json
 from datetime import datetime, timezone
+
 from sqlalchemy import Boolean, Column, DateTime, Index, Integer, String, Text
+
 from app.database import Base
 
 

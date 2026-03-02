@@ -8,8 +8,8 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.providers.tax_params import InMemoryTaxParamsProvider
 from app.services.additional_income_service import AdditionalIncomeService
-from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_agent_tools_service import AgentToolsService
+from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 
 
 def _classify_system_source_label(name: str) -> str:

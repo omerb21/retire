@@ -14,7 +14,9 @@ def test_stageG_trace_payload_is_mcpdecision_only(monkeypatch) -> None:
 
     events: list[dict] = []
 
-    def spy_emit_event(*, event_type: str, payload, client_id=None, endpoint=None) -> None:
+    def spy_emit_event(
+        *, event_type: str, payload, client_id=None, endpoint=None
+    ) -> None:
         events.append({"event_type": event_type, "payload": payload})
 
     monkeypatch.setattr(event_collector, "emit_event", spy_emit_event)
@@ -42,11 +44,15 @@ def test_stageG_trace_payload_is_mcpdecision_only(monkeypatch) -> None:
 
     monkeypatch.setattr(exec_mod, "orchestrate", fake_orchestrate)
 
-    def passthrough_max_iter_guard(*, iter_idx, max_iterations, trace_id, final_text, decision, trace_specs):
+    def passthrough_max_iter_guard(
+        *, iter_idx, max_iterations, trace_id, final_text, decision, trace_specs
+    ):
         _ = (iter_idx, max_iterations, trace_id, final_text)
         return decision, trace_specs, False
 
-    monkeypatch.setattr(exec_mod, "maybe_apply_max_iterations_guard", passthrough_max_iter_guard)
+    monkeypatch.setattr(
+        exec_mod, "maybe_apply_max_iterations_guard", passthrough_max_iter_guard
+    )
     monkeypatch.setattr(exec_mod.pension_llm_service, "chat", lambda *a, **k: "ok")
 
     req = ChatRequest(messages=[ChatMessage(role="user", content="hi")], client_id=1)

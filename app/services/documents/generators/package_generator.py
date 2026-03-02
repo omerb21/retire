@@ -2,14 +2,15 @@
 מחולל חבילת מסמכים מלאה
 """
 
-from sqlalchemy.orm import Session
 import logging
 
-from ..utils import get_client_package_dir, PACKAGES_DIR
+from sqlalchemy.orm import Session
+
 from ..data_fetchers import fetch_client_data
+from ..utils import PACKAGES_DIR, get_client_package_dir
+from .commutations_generator import generate_actual_commutations_appendix
 from .form_161d_generator import fill_161d_form
 from .grants_generator import generate_grants_appendix
-from .commutations_generator import generate_actual_commutations_appendix
 from .summary_generator import generate_summary_table
 
 logger = logging.getLogger(__name__)

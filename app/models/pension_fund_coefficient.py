@@ -2,9 +2,11 @@
 Pension Fund Coefficient model for SQLAlchemy ORM
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy.orm import relationship
+
 from app.database import Base
 
 

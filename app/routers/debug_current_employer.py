@@ -273,12 +273,12 @@ def debug_latest_snapshot(
     }
 
     try:
-        from app.models.pension_fund import PensionFund
-        from app.models.capital_asset import CapitalAsset
         from app.models.additional_income import AdditionalIncome
-        from app.models.grant import Grant
-        from app.models.termination_event import TerminationEvent
+        from app.models.capital_asset import CapitalAsset
         from app.models.fixation_result import FixationResult
+        from app.models.grant import Grant
+        from app.models.pension_fund import PensionFund
+        from app.models.termination_event import TerminationEvent
 
         employer_count = int(
             db.query(CurrentEmployer)

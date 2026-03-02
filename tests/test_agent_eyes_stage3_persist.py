@@ -24,10 +24,10 @@ from app.database import Base
 from app.models.agent_trace_event import AgentTraceEvent
 from app.services.agent_eyes import event_collector
 from app.services.agent_eyes.event_collector import (
+    _MAX_DB_PAYLOAD_BYTES,
     clear_buffer,
     emit_event,
     get_events_by_trace,
-    _MAX_DB_PAYLOAD_BYTES,
 )
 from app.utils.trace_context import set_current_trace_id
 

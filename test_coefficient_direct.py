@@ -4,6 +4,7 @@ Run 15 - Verify coefficient data differs by age
 """
 
 from datetime import date
+
 from app.services.annuity_coefficient import get_annuity_coefficient
 
 print("=" * 80)

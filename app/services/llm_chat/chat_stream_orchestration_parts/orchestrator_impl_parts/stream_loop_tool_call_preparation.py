@@ -15,6 +15,7 @@ from .stream_loop_build_target_pension_plan_guardrail import (
 from .stream_loop_cashflow_retirement_date_normalization import (
     _maybe_normalize_cashflow_retirement_date,
 )
+from .stream_loop_commutation_approval import _stream_maybe_request_commutation_approval
 from .stream_loop_document_request_allowed_tools_guardrail import (
     _maybe_guardrail_document_request_allowed_tools,
 )
@@ -27,7 +28,6 @@ from .stream_loop_retirement_scenarios_portfolio_analysis import (
 from .stream_loop_transform_funds_to_assets_guardrails import (
     _maybe_guardrail_transform_funds_to_assets,
 )
-from .stream_loop_commutation_approval import _stream_maybe_request_commutation_approval
 
 
 def _stream_prepare_tool_call_and_maybe_request_commutation_approval(

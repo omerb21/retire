@@ -1,9 +1,11 @@
-﻿from pathlib import Path
-from sqlalchemy.orm import Session
-from app.models.client import Client
-import logging
-import re
+﻿import logging
 import os
+import re
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.models.client import Client
 
 # Template paths - standardized
 TEMPLATE_161D = Path("templates/fixation/161d.pdf")

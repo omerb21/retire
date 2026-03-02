@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from functools import lru_cache
 import json
 import logging
 import math
+from functools import lru_cache
 from pathlib import Path
 
 from app.services.knowledge_base.embedder import build_embedder

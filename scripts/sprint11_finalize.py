@@ -1,5 +1,12 @@
-import os, json, zipfile, hashlib, base64, random, string
+import base64
+import hashlib
+import json
+import os
+import random
+import string
+import zipfile
 from datetime import datetime
+
 import requests
 
 CLIENT_ID = 1

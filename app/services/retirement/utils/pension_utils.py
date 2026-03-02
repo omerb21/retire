@@ -3,15 +3,18 @@ Pension utilities for retirement scenarios
 פונקציות עזר לטיפול בקצבאות
 """
 
+import json
 import logging
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+
 from sqlalchemy.orm import Session
-from app.models.pension_fund import PensionFund
+
 from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
+
 from ..constants import PENSION_COEFFICIENT
-import json
 
 logger = logging.getLogger("app.scenarios.pension")
 

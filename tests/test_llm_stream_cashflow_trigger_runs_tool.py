@@ -113,9 +113,10 @@ def test_cashflow_missing_db_and_text_age_gender_blocks_with_short_prompt(
         stream_orch.pension_llm_service, "chat_stream", fake_chat_stream
     )
 
+    from datetime import date
+
     from app.database import SessionLocal
     from app.models.client import Client
-    from datetime import date
 
     db = SessionLocal()
     try:

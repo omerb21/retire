@@ -2,8 +2,8 @@
 Report data models
 """
 
-from .report_data import ReportData, SummaryData
 from .chart_data import ChartData
+from .report_data import ReportData, SummaryData
 
 __all__ = [
     "ReportData",

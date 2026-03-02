@@ -15,8 +15,9 @@
 """
 
 from pathlib import Path
-from sqlalchemy.orm import Session
 from typing import Optional
+
+from sqlalchemy.orm import Session
 
 # ייבוא מהמודול המודולרי החדש
 from app.services.pdf_generation import generate_fixation_summary_pdf

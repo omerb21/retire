@@ -12,7 +12,7 @@ def _maybe_handle_restore_snapshot_approval_request(
     db,
     original_user_msg: str,
     store_pending_approval_request,
-    is_no_tools_request
+    is_no_tools_request,
 ):
     if not (
         request.client_id is not None

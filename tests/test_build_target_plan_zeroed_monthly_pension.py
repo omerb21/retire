@@ -169,6 +169,7 @@ def test_zeroed_monthly_pension_excluded_from_plan(monkeypatch, _test_db) -> Non
 def test_api_rejects_active_monthly_pension_with_zero_amount(_test_db) -> None:
     """Test A: creating an active monthly_pension with pension_amount=0 via API returns 400."""
     from fastapi.testclient import TestClient
+
     from app.main import app
 
     Session = _test_db["Session"]

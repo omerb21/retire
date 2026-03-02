@@ -1,13 +1,14 @@
 import unittest
+import uuid
 from datetime import date, datetime, timedelta
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-import uuid
 
+from app.database import Base, get_db
 from app.main import app
-from app.database import get_db, Base
 from app.models import Client, Employer, Employment, TerminationEvent
 
 # Create in-memory SQLite database for testing
@@ -80,11 +81,10 @@ class TestClientAPI(unittest.TestCase):
 
         # Use a valid Israeli ID number that passes validation
         # Generate unique ID and email to avoid conflicts between tests
-        import random
-        from tests.utils import gen_valid_id
-
         # Generate unique valid Israeli ID for this test
         import random
+
+        from tests.utils import gen_valid_id
 
         self.unique_id = gen_valid_id()
         unique_email = f"test{random.randint(1000, 9999)}@example.com"
@@ -242,6 +242,7 @@ class TestClientAPI(unittest.TestCase):
         """Test GET /api/v1/clients endpoint with filtering, pagination, and sorting"""
         # Create multiple clients with unique IDs
         import random
+
         from tests.utils import gen_valid_id
 
         client1 = self.valid_client_data.copy()

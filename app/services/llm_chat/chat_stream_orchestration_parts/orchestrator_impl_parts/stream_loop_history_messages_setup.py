@@ -1,10 +1,10 @@
 from app.schemas.llm_chat import ChatMessage
+from app.services.llm_chat.execution_only_guard import get_execution_only_system_prompt
 from app.services.llm_chat.intent_classifier import (
     ChatIntent,
     get_stream_base_system_prompt,
     get_stream_system_prompt_for_intent,
 )
-from app.services.llm_chat.execution_only_guard import get_execution_only_system_prompt
 from app.services.llm_chat.prompts_stream_retirement_kb import (
     get_stream_professional_system_prompt,
 )

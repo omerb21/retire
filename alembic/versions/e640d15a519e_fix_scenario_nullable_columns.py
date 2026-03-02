@@ -8,8 +8,9 @@ Create Date: 2025-08-06 21:17:55.984118
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e640d15a519e"
@@ -58,7 +59,8 @@ def upgrade() -> None:
     )
 
     # Copy data from old table to new table
-    op.execute("""
+    op.execute(
+        """
         INSERT INTO scenario_new (id, client_id, scenario_name, apply_tax_planning, 
                                  apply_capitalization, apply_exemption_shield, parameters, 
                                  summary_results, cashflow_projection, created_at)
@@ -69,7 +71,8 @@ def upgrade() -> None:
                COALESCE(parameters, '{}'),
                summary_results, cashflow_projection, created_at
         FROM scenario
-    """)
+    """
+    )
 
     # Drop old table and rename new table
     op.drop_table("scenario")
@@ -110,7 +113,8 @@ def downgrade() -> None:
     )
 
     # Copy data back (only records with non-null values)
-    op.execute("""
+    op.execute(
+        """
         INSERT INTO scenario_old (id, client_id, scenario_name, apply_tax_planning,
                                  apply_capitalization, apply_exemption_shield, parameters,
                                  summary_results, cashflow_projection, created_at)
@@ -119,7 +123,8 @@ def downgrade() -> None:
                summary_results, cashflow_projection, created_at
         FROM scenario
         WHERE summary_results IS NOT NULL AND cashflow_projection IS NOT NULL
-    """)
+    """
+    )
 
     # Drop new table and rename old table back
     op.drop_table("scenario")

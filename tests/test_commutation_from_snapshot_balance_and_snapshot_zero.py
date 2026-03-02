@@ -1,5 +1,4 @@
 import json
-
 from datetime import date
 
 from app.models.pension_fund import PensionFund

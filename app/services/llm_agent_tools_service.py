@@ -11,24 +11,26 @@ LLM Agent Tools Service
 }
 """
 
-from datetime import date
 import logging
-from typing import Dict, List, Optional, Any
+from datetime import date
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
-from app.services.llm_agent_tools.tax_tools import TaxToolsMixin
+from app.services.llm_agent_tools import (
+    CommutationToolsMixin,
+    DataCompletenessToolsMixin,
+    GrossWithdrawalToolsMixin,
+    RetirementCashflowToolsMixin,
+    TaxParamsToolsMixin,
+    TaxProjectionToolsMixin,
+    tool_adapters,
+)
+from app.services.llm_agent_tools.fixation_tools import FixationToolsMixin
 from app.services.llm_agent_tools.portfolio_tools import PortfolioToolsMixin
 from app.services.llm_agent_tools.scenarios_tools import ScenariosToolsMixin
-from app.services.llm_agent_tools.fixation_tools import FixationToolsMixin
-from app.services.llm_agent_tools import RetirementCashflowToolsMixin
-from app.services.llm_agent_tools import CommutationToolsMixin
-from app.services.llm_agent_tools import DataCompletenessToolsMixin
-from app.services.llm_agent_tools import TaxProjectionToolsMixin
-from app.services.llm_agent_tools import GrossWithdrawalToolsMixin
-from app.services.llm_agent_tools import TaxParamsToolsMixin
-
-from app.services.llm_agent_tools import tool_adapters
+from app.services.llm_agent_tools.tax_tools import TaxToolsMixin
 from app.services.llm_agent_tools.utils import _to_jsonable
 
 logger = logging.getLogger("app.llm_agent_tools")

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-
 DEFAULT_GUARD_BLOCK_CODE = "GUARD_BLOCKED"
 DEFAULT_APPROVAL_REQUEST_ID = "APPROVAL_REQUIRED"
 

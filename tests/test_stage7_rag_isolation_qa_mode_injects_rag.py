@@ -1,10 +1,9 @@
 from app.schemas.llm_chat import ChatMessage, ChatRequest
-from app.services.llm_chat.message_preparation import prepare_messages_with_context
-
 from app.services.agent_execution.policy import ExecutionMode, PolicyDecision
 from app.services.agent_execution.tool_execution_context import (
     set_tool_execution_context,
 )
+from app.services.llm_chat.message_preparation import prepare_messages_with_context
 
 
 def test_stage7_qa_mode_injects_rag_and_keeps_order(

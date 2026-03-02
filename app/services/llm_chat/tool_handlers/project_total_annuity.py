@@ -28,8 +28,9 @@ def handle_project_total_annuity(
     logger.info("📊 PROJECT_TOTAL_ANNUITY called")
 
     try:
-        from app.services.annuity_coefficient import get_annuity_coefficient
         from dateutil.relativedelta import relativedelta
+
+        from app.services.annuity_coefficient import get_annuity_coefficient
 
         client_obj = db.query(Client).filter(Client.id == client_id).first()
         if not client_obj:

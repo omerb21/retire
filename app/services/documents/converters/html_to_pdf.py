@@ -2,9 +2,9 @@
 המרת HTML ל-PDF באמצעות wkhtmltopdf
 """
 
-from pathlib import Path
-import subprocess
 import logging
+import subprocess
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)

@@ -2,18 +2,20 @@
 Scenario entity model for SQLAlchemy ORM
 """
 
+from datetime import datetime, timezone
+
 from sqlalchemy import (
+    Boolean,
     Column,
+    DateTime,
+    ForeignKey,
     Integer,
     String,
-    ForeignKey,
-    DateTime,
     Text,
-    Boolean,
     func,
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
 from app.database import Base
 
 

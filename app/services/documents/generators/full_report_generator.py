@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app.models.additional_income import AdditionalIncome
 from app.models.capital_asset import CapitalAsset
 from app.models.scenario import Scenario
-from app.services.cashflow_service import generate_cashflow
 from app.services.case_service import detect_case
+from app.services.cashflow_service import generate_cashflow
 from app.services.documents.converters import html_to_pdf
 from app.services.documents.data_fetchers import (
     fetch_client_data,

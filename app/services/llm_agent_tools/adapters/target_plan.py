@@ -8,18 +8,18 @@ from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 from app.services.annuity_coefficient import get_annuity_coefficient
+from app.services.llm_agent_tools.adapters.target_plan_explanation import (
+    build_target_pension_plan_explanation,
+)
 from app.services.pension_chat_compute import compute_monthly_pension_summary
 from app.services.pension_portfolio.conversion_rules import (
     COMPONENT_RULES,
     rule_for_tagmulim_by_product_type,
 )
-from app.services.retirement.constants import PENSION_COEFFICIENT
-from app.services.llm_agent_tools.adapters.target_plan_explanation import (
-    build_target_pension_plan_explanation,
-)
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot,
 )
+from app.services.retirement.constants import PENSION_COEFFICIENT
 
 logger = logging.getLogger("app.llm_agent_tools")
 

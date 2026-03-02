@@ -9,7 +9,6 @@ from app.services.llm_chat.chat_orchestration_helpers import (
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     evaluate_blocked_balances_policy_for_build_target_plan,
 )
-
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     compute_effective_plan_target,
 )

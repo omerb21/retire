@@ -3,21 +3,15 @@ EmployerGrant entity model for SQLAlchemy ORM - Sprint 3
 Grant entity connected to CurrentEmployer for retirement calculations
 """
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    Float,
-    Date,
-    DateTime,
-    ForeignKey,
-    Enum as SQLEnum,
-    String,
-    func,
-)
+from sqlalchemy import Column, Date, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import relationship
+
 from app.database import Base
-from .enums import GrantType
+
 from .base import utcnow
+from .enums import GrantType
 
 
 class EmployerGrant(Base):

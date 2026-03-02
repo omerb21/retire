@@ -3,21 +3,21 @@
 """
 
 import logging
-from typing import List, Dict, Tuple, Optional
 from datetime import date, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Dict, List, Optional, Tuple
 
-from .tax.constants import TaxConstants, TaxBracket, TaxCredit
 from ..schemas.tax_schemas import (
+    AnnualTaxProjection,
+    ComprehensiveTaxAnalysis,
+    MonthlyTaxProjection,
+    TaxBreakdown,
     TaxCalculationInput,
     TaxCalculationResult,
-    TaxBreakdown,
     TaxCreditInput,
-    MonthlyTaxProjection,
-    AnnualTaxProjection,
     TaxOptimizationSuggestion,
-    ComprehensiveTaxAnalysis,
 )
+from .tax.constants import TaxBracket, TaxConstants, TaxCredit
 
 logger = logging.getLogger(__name__)
 

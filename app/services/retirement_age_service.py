@@ -3,12 +3,13 @@
 מחשב את גיל הפרישה המדויק לפי תאריך לידה ומגדר
 """
 
-from datetime import date
-from dateutil.relativedelta import relativedelta
-from typing import Dict, Optional
-import logging
 import json
+import logging
 import os
+from datetime import date
+from typing import Dict, Optional
+
+from dateutil.relativedelta import relativedelta
 
 logger = logging.getLogger("app.retirement_age")
 

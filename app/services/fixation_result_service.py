@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.fixation_result import FixationResult

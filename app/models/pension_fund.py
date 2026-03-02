@@ -1,22 +1,24 @@
+import logging
+import traceback
+
 from sqlalchemy import (
+    CheckConstraint,
     Column,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
     Index,
     Integer,
     String,
-    Date,
-    Float,
-    ForeignKey,
-    Enum,
-    CheckConstraint,
-    DateTime,
-    func,
-    event,
     Text,
+    event,
+    func,
 )
 from sqlalchemy.orm import relationship
+
 from app.database import Base
-import logging
-import traceback
 
 InputMode = Enum("calculated", "manual", name="pension_input_mode")
 IndexationMethod = Enum("none", "cpi", "fixed", name="pension_indexation_method")
@@ -196,6 +198,7 @@ def sync_client_pension_start_date(mapper, connection, target):
         return
 
     from sqlalchemy import select
+
     from app.models.client import Client
 
     result = connection.execute(

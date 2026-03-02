@@ -3,20 +3,22 @@ Unit tests for CurrentEmployer service layer - Sprint 3
 Tests for calculation logic and service operations
 """
 
-import pytest
 from datetime import date, timedelta
 from unittest.mock import Mock
-from app.services.current_employer_service import CurrentEmployerService
+
+import pytest
+
 from app.models import CurrentEmployer, EmployerGrant
 from app.models.current_employment import ActiveContinuityType, GrantType
+from app.services.current_employer_service import CurrentEmployerService
 
 
 def test_process_termination_is_idempotent_for_exempt_grant_and_asset(
     db_session, client
 ) -> None:
+    from app.models.capital_asset import CapitalAsset as CapitalAssetModel
     from app.models.current_employment import CurrentEmployer as CurrentEmployerModel
     from app.models.grant import Grant as GrantModel
-    from app.models.capital_asset import CapitalAsset as CapitalAssetModel
     from app.schemas.current_employer import TerminationDecisionCreate
     from app.services.current_employer import TerminationService
 

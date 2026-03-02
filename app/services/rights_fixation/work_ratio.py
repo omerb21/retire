@@ -2,9 +2,9 @@
 מודול חישוב יחס עבודה - חישוב יחס החלקיות של 32 השנים האחרונות
 """
 
-from datetime import datetime, date, timedelta
-from typing import Optional, Union
 import logging
+from datetime import date, datetime, timedelta
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 

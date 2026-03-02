@@ -1,6 +1,5 @@
 import logging
 import re
-
 from datetime import date
 
 from app.models.client import Client

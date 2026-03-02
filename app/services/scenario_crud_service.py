@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.scenario import Scenario
-from app.services.calculations import generate_cashflow
 from app.routers.scenarios.schemas import (
     ScenarioCreate,
-    ScenarioUpdate,
     ScenarioResponse,
+    ScenarioUpdate,
 )
+from app.services.calculations import generate_cashflow
 
 
 def get_client_or_404(db: Session, client_id: int) -> Client:

@@ -3,29 +3,31 @@ Termination event handling service
 שירות טיפול באירועי עזיבת עבודה
 """
 
-import logging
 import json
+import logging
 from datetime import date
-from typing import Optional, Callable
 from decimal import Decimal
+from typing import Callable, Optional
+
 from sqlalchemy.orm import Session
-from app.models.client import Client
-from app.models.pension_fund import PensionFund
+
 from app.models.capital_asset import CapitalAsset
-from app.models.termination_event import TerminationEvent
-from app.models.current_employment import CurrentEmployer
-from app.models.current_employment import EmployerGrant
+from app.models.client import Client
+from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.current_employment.enums import GrantType
-from app.services.current_employer.termination import (
-    TerminationService as CurrentEmployerTerminationService,
-)
+from app.models.pension_fund import PensionFund
+from app.models.termination_event import TerminationEvent
+from app.schemas.current_employer import TerminationDecisionCreate
+from app.services.annuity_coefficient import get_annuity_coefficient
 from app.services.current_employer.employment import (
     EmploymentService as CurrentEmployerEmploymentService,
 )
+from app.services.current_employer.termination import (
+    TerminationService as CurrentEmployerTerminationService,
+)
 from app.services.current_employer_service import CurrentEmployerService
-from app.schemas.current_employer import TerminationDecisionCreate
 from app.services.tax_data import TaxDataService
-from app.services.annuity_coefficient import get_annuity_coefficient
+
 from ..constants import PENSION_COEFFICIENT
 
 logger = logging.getLogger("app.scenarios.termination")

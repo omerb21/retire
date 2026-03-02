@@ -2,30 +2,31 @@
 Schemas package initialization
 """
 
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel
 
 # Import client schemas
-from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientList
-from app.schemas.client import (
-    ClientResponse as Client,
-)  # Alias for backward compatibility
+from app.schemas.client import ClientCreate, ClientList
+from app.schemas.client import ClientResponse  # Alias for backward compatibility
+from app.schemas.client import ClientResponse as Client
+from app.schemas.client import ClientUpdate
 
 # Import other schemas as needed
 try:
-    from app.schemas.employment import (
-        EmploymentCreate,
-        EmploymentUpdate,
-        EmploymentResponse,
-    )
-    from app.schemas.pension import PensionCreate, PensionUpdate, PensionResponse
-    from app.schemas.grant import GrantCreate, GrantUpdate, GrantResponse
-    from app.schemas.scenario import ScenarioCreate, ScenarioUpdate, ScenarioResponse
     from app.schemas.current_employer import (
         CurrentEmployerCreate,
-        CurrentEmployerUpdate,
         CurrentEmployerResponse,
+        CurrentEmployerUpdate,
     )
+    from app.schemas.employment import (
+        EmploymentCreate,
+        EmploymentResponse,
+        EmploymentUpdate,
+    )
+    from app.schemas.grant import GrantCreate, GrantResponse, GrantUpdate
+    from app.schemas.pension import PensionCreate, PensionResponse, PensionUpdate
+    from app.schemas.scenario import ScenarioCreate, ScenarioResponse, ScenarioUpdate
 except ImportError:
     # Fallback for missing schema modules
     pass

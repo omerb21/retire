@@ -3,23 +3,17 @@ CurrentEmployer entity model for SQLAlchemy ORM - Sprint 3
 Core entity for retirement grant calculations
 """
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Float,
-    Date,
-    DateTime,
-    ForeignKey,
-    JSON,
-    Enum as SQLEnum,
-    func,
-)
-from sqlalchemy.orm import relationship
 from datetime import date
+
+from sqlalchemy import JSON, Column, Date, DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, func
+from sqlalchemy.orm import relationship
+
 from app.database import Base
-from .enums import ActiveContinuityType
+
 from .base import utcnow
+from .enums import ActiveContinuityType
 
 
 class CurrentEmployer(Base):

@@ -4,8 +4,8 @@ Database configuration module for SQLAlchemy and connection management
 
 import logging
 import os
-from sqlalchemy import create_engine
-from sqlalchemy import inspect, text
+
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 

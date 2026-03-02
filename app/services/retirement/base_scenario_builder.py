@@ -4,22 +4,23 @@ Base Scenario Builder
 כלי בסיס לבניית תרחישי פרישה
 """
 
+import json
 import logging
 from datetime import date
 from decimal import Decimal
-import json
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.additional_income import AdditionalIncome
+from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
 from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
-from app.models.additional_income import AdditionalIncome
-from .services import ConversionService, TerminationService, PortfolioImportService
+
+from .constants import DEFAULT_DISCOUNT_RATE
+from .services import ConversionService, PortfolioImportService, TerminationService
 from .utils.calculation_utils import calculate_npv_dcf, calculate_years_to_age
 from .utils.projection_utils import calculate_compound_factor
-from .constants import DEFAULT_DISCOUNT_RATE
 
 logger = logging.getLogger("app.scenarios.base")
 

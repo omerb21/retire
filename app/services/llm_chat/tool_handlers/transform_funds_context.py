@@ -25,7 +25,6 @@ def prepare_transform_funds_context(
     _DEFAULT_RETIREMENT_AGE_FALLBACK: int,
 ) -> dict:
     from datetime import date
-
     from datetime import date as date_type
 
     client_obj = getattr(agent_tools, "client", None)

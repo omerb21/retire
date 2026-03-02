@@ -5,10 +5,12 @@ Main scenario builder orchestrator
 
 import logging
 from typing import Dict, List, Optional
+
 from sqlalchemy.orm import Session
-from .scenarios.max_pension_scenario import MaxPensionScenario
+
 from .scenarios.max_capital_scenario import MaxCapitalScenario
 from .scenarios.max_npv_scenario import MaxNPVScenario
+from .scenarios.max_pension_scenario import MaxPensionScenario
 from .services.state_service import StateService
 
 logger = logging.getLogger("app.scenarios")

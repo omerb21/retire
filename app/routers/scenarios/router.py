@@ -3,20 +3,22 @@ Main scenarios router - combines basic CRUD and retirement scenarios
 """
 
 from typing import List
+
 from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from .schemas import ScenarioCreate, ScenarioUpdate, ScenarioResponse
+
 from .crud import (
     create_scenario_with_cashflow,
-    get_scenarios_by_client,
-    get_scenario_by_id,
-    update_scenario_by_id,
     delete_scenario_by_id,
+    get_scenario_by_id,
     get_scenario_cashflow,
+    get_scenarios_by_client,
+    update_scenario_by_id,
 )
 from .retirement.router import router as retirement_router
+from .schemas import ScenarioCreate, ScenarioResponse, ScenarioUpdate
 
 # Create main router
 router = APIRouter(

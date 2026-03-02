@@ -4,10 +4,12 @@ Employment Service Module
 """
 
 import logging
-from typing import Optional
 from datetime import date
-from sqlalchemy.orm import Session
+from typing import Optional
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
 from app.schemas.current_employer import CurrentEmployerCreate, CurrentEmployerUpdate

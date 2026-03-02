@@ -3,8 +3,8 @@ import re
 from dataclasses import dataclass
 
 from app.schemas.llm_chat import ChatRequest
-from app.utils.llm_chat_log import get_current_request_id
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
+from app.utils.llm_chat_log import get_current_request_id
 
 logger = logging.getLogger("app.llm_chat")
 

@@ -1,5 +1,4 @@
 from app.schemas.llm_chat import ChatMessage
-
 from app.services.llm_chat.orchestration_utils import (
     validate_tool_call_protocol_for_execution,
 )

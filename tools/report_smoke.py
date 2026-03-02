@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import sys
-
 from pathlib import Path
 
 
@@ -8,6 +7,7 @@ def _make_client() -> "TestClient":
     sys.path.append(str(Path(__file__).resolve().parents[1]))
 
     from starlette.testclient import TestClient
+
     from app.main import app
 
     return TestClient(app)

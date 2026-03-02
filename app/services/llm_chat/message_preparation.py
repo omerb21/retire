@@ -8,16 +8,16 @@ from app.schemas.llm_chat import (
     ComputedPensionData,
     PensionPortfolioAccount,
 )
+from app.services.agent_execution.tool_execution_context import (
+    get_current_tool_execution_policy_decision,
+)
+from app.services.knowledge_base.rag_prompt import build_rag_system_message
 from app.services.llm_chat.client_context_builder import build_full_context_for_llm
 from app.services.llm_chat.knowledge_snippets import build_knowledge_system_message
 from app.services.llm_chat.message_utils import (
     extract_executed_tools_from_history,
     find_last_user_message,
 )
-from app.services.agent_execution.tool_execution_context import (
-    get_current_tool_execution_policy_decision,
-)
-from app.services.knowledge_base.rag_prompt import build_rag_system_message
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.llm_chat.prompts import get_global_system_prompt_base
 from app.services.llm_chat.state_tools import get_agent_state_json

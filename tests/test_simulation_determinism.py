@@ -11,10 +11,11 @@ from app.services.simulation_engine.models import (
 
 
 def _create_sim_client(db_session) -> int:
+    import uuid
+
+    from app.models.additional_income import AdditionalIncome
     from app.models.client import Client
     from app.models.pension_fund import PensionFund
-    from app.models.additional_income import AdditionalIncome
-    import uuid
 
     unique_id = f"sim_{uuid.uuid4().hex[:10]}"
     client = Client(

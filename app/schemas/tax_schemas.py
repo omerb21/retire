@@ -2,10 +2,11 @@
 מודלי נתונים לחישוב מס הכנסה
 """
 
-from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 class TaxCreditInput(BaseModel):

@@ -20,12 +20,12 @@ Public API
 
 from __future__ import annotations
 
-from contextvars import ContextVar
 import json
 import logging
 import os
 import time
 from collections import deque
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Optional

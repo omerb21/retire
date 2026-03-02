@@ -1,20 +1,21 @@
 """Tests for Additional Income Service."""
 
-import pytest
 from datetime import date
 from decimal import Decimal
+
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.additional_income import (
     AdditionalIncome,
     IncomeSourceType,
-    PaymentFrequency,
     IndexationMethod,
+    PaymentFrequency,
     TaxTreatment,
 )
 from app.models.client import Client
-from app.services.additional_income_service import AdditionalIncomeService
 from app.providers.tax_params import InMemoryTaxParamsProvider
+from app.services.additional_income_service import AdditionalIncomeService
 from tests.utils import gen_valid_id
 
 

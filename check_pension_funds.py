@@ -1,4 +1,5 @@
-﻿import sqlite3, os
+﻿import os
+import sqlite3
 
 dbs = ["retire.db", "retire-nuc.db", "test_retire.db"]
 

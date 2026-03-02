@@ -5,7 +5,7 @@ Client service module for business logic and validation
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
-from typing import Dict, Any, Optional, Union, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 
 def normalise_and_validate_id_number(raw: str) -> Tuple[str, bool]:

@@ -1,4 +1,5 @@
 import json
+
 from app.services.llm_chat.chat_orchestration_helpers_parts.formatting import (
     format_transform_result_for_user,
 )
@@ -9,14 +10,14 @@ from app.services.llm_chat.chat_orchestration_helpers_parts.portfolio_updates im
 )
 from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
     _extract_target_plan_payload_from_tool_result,
-    clear_pending_plan_target_marker,
     clear_pending_approval_request,
+    clear_pending_plan_target_marker,
     clear_undo_snapshot,
     load_latest_retirement_cashflow_analysis,
     load_latest_target_pension_plan,
     load_latest_target_pension_plan_data,
-    load_pending_plan_target_marker,
     load_pending_approval_request,
+    load_pending_plan_target_marker,
     load_undo_snapshot,
     store_approval_execution_receipt,
     store_latest_retirement_cashflow_analysis,
@@ -31,8 +32,6 @@ from app.services.llm_chat.chat_orchestration_helpers_parts.target_plan_conversi
     _clean_account_name_for_transform,
     build_transform_accounts_from_target_plan_payload,
 )
-
-
 from app.services.llm_chat.chat_orchestration_helpers_parts.tax_autochain import (
     get_gross_for_tax_chaining,
     run_tax_projection_autochain,

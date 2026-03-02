@@ -2,11 +2,12 @@
 API endpoints למקדמי קצבה
 """
 
+import logging
+from datetime import date
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-from datetime import date
-import logging
 
 from app.services.annuity_coefficient import get_annuity_coefficient
 
@@ -90,8 +91,9 @@ async def get_tables_status():
     """
     בודק סטטוס טבלאות המקדמים
     """
-    from app.database import get_db
     from sqlalchemy import text
+
+    from app.database import get_db
 
     db = next(get_db())
 

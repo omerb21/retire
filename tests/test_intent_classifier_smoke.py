@@ -1,6 +1,6 @@
 import pytest
 
-from app.schemas.llm_chat import ChatRequest, ChatMessage
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.intent_classifier import IntentType, classify_intent
 
 

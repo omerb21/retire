@@ -2,14 +2,15 @@
 יצירת PDF של קיבוע זכויות
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
-from sqlalchemy.orm import Session
-import logging
 
+from sqlalchemy.orm import Session
+
+from ..converters import html_to_pdf
 from ..data_fetchers import fetch_fixation_data
 from ..templates import FixationHTMLTemplate
-from ..converters import html_to_pdf
 
 logger = logging.getLogger(__name__)
 

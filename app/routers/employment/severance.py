@@ -3,15 +3,17 @@ Severance Calculation Router
 Endpoints for calculating severance payments
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import date
+
 from app.database import get_db
-from app.services.current_employer import TerminationService
 from app.schemas.current_employer import (
     SeveranceCalculationRequest,
     SeveranceCalculationResponse,
 )
+from app.services.current_employer import TerminationService
 
 router = APIRouter()
 

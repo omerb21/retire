@@ -14,9 +14,9 @@ import json
 import logging
 import os
 import uuid
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
-from contextvars import ContextVar
 from typing import Any, Optional
 
 from app.utils.trace_context import get_current_trace_id

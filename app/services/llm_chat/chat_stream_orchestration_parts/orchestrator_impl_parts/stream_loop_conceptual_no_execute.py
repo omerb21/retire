@@ -1,7 +1,7 @@
 ﻿from fastapi.responses import StreamingResponse
 
-from app.services.llm_chat.orchestration_utils import is_process_termination_request
 from app.guards.tool_intent_guard import sanitize_words_only_conceptual
+from app.services.llm_chat.orchestration_utils import is_process_termination_request
 
 
 def _maybe_handle_conceptual_no_execute_hard_stop(*, request, original_user_msg: str):

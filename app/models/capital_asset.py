@@ -6,13 +6,13 @@ from enum import Enum
 from typing import Optional
 
 from sqlalchemy import (
+    CheckConstraint,
     Column,
-    Integer,
-    String,
-    Numeric,
     Date,
     ForeignKey,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
     Text,
 )
 from sqlalchemy.orm import relationship

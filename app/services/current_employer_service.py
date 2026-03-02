@@ -3,10 +3,12 @@ CurrentEmployer service layer - Sprint 3
 Business logic for current employer and grant calculations
 """
 
-from typing import List, Dict, Any, Optional
 from datetime import date, timedelta
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
-from app.models import CurrentEmployer, EmployerGrant, Client
+
+from app.models import Client, CurrentEmployer, EmployerGrant
 from app.schemas.current_employer import (
     CurrentEmployerCreate,
     CurrentEmployerUpdate,

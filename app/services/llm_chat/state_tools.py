@@ -2,7 +2,7 @@ import json
 
 from sqlalchemy.orm import Session
 
-from ...models import PensionFund, CapitalAsset, Scenario
+from ...models import CapitalAsset, PensionFund, Scenario
 
 
 def _get_snapshot_portfolio_count(client_id: int, db: Session) -> int:

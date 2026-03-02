@@ -1,15 +1,12 @@
 import json
-
-from datetime import date
-
 import logging
+from datetime import date
 
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.client import Client
-from app.models.current_employment import CurrentEmployer
-from app.models.current_employment import EmployerGrant
+from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
 

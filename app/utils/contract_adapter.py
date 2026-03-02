@@ -3,7 +3,9 @@ Contract adapter layer to standardize function signatures and API responses
 """
 
 from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
 from app.schemas.report import ReportPdfRequest
 
 
@@ -168,7 +170,7 @@ class CompareServiceAdapter:
                         yearly_data[year][field] = 0.0
 
                 # Recalculate net from components using Decimal for precision
-                from decimal import Decimal, ROUND_HALF_UP
+                from decimal import ROUND_HALF_UP, Decimal
 
                 inflow = Decimal(str(yearly_data[year]["inflow"]))
                 outflow = Decimal(str(yearly_data[year]["outflow"]))

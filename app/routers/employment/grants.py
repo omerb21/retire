@@ -5,9 +5,10 @@ Endpoints for managing employer grants
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.database import get_db
-from app.services.current_employer import EmploymentService, GrantService
 from app.schemas.current_employer import EmployerGrantCreate, GrantWithCalculation
+from app.services.current_employer import EmploymentService, GrantService
 
 router = APIRouter()
 

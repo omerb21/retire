@@ -1,9 +1,10 @@
 import logging
 from datetime import date
 from typing import Any, Dict, Optional
+
 from app.schemas.tax_schemas import PersonalDetails, TaxCalculationInput
-from app.services.tax_calculator import TaxCalculator
 from app.services.llm_agent_tools.utils import _to_jsonable
+from app.services.tax_calculator import TaxCalculator
 
 logger = logging.getLogger("app.llm_agent_tools")
 
@@ -26,6 +27,7 @@ class TaxToolsMixin:
             Dict עם השוואת מס מיידי מול פריסה והטבת המס
         """
         from decimal import Decimal
+
         from app.services.capital_asset.tax_calculator import TaxCalculator
 
         client = self.client

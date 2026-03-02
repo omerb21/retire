@@ -2,9 +2,9 @@
 Tax calculation module for retirement planning system
 """
 
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Any, Optional
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Dict, Optional
 
 
 def calculate_grant_tax(

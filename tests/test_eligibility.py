@@ -2,10 +2,10 @@
 בדיקות יחידה למודול זכאות לקיבוע זכויות
 """
 
+import os
+import sys
 import unittest
 from datetime import date, timedelta
-import sys
-import os
 
 # הוספת נתיב למודול app
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))

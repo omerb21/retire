@@ -1,5 +1,8 @@
-import os, json, zipfile
+import json
+import os
+import zipfile
 from datetime import datetime
+
 import requests
 
 CLIENT_ID = 1

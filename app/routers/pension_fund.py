@@ -1,20 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from datetime import date
 import json
 import logging
+from datetime import date
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
 from app.database import get_db
 from app.models.pension_fund import PensionFund
 from app.schemas.pension_fund import (
     PensionFundCreate,
-    PensionFundUpdate,
     PensionFundOut,
+    PensionFundUpdate,
 )
 from app.services.pension_fund_service import (
+    compute_all_pension_funds,
     compute_and_persist,
     compute_and_persist_fund,
-    compute_all_pension_funds,
 )
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
 

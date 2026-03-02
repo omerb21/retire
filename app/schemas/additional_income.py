@@ -3,12 +3,13 @@
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.models.additional_income import (
     IncomeSourceType,
-    PaymentFrequency,
     IndexationMethod,
+    PaymentFrequency,
     TaxTreatment,
 )
 

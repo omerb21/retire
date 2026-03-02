@@ -6,7 +6,6 @@ from typing import Any
 from app.schemas.llm_chat import ChatMessage, ChatResponse
 from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 
-
 from ..steps.messages_prompt import _build_messages_and_prompt
 from ..steps.types import _PreparedOrchestrationInputs
 from .context_post_deterministics import _handle_post_deterministics_and_finalize
@@ -22,8 +21,26 @@ def _prepare_orchestration_inputs(
 ) -> _PreparedOrchestrationInputs | ChatResponse:
     import importlib
 
-    from app.models.client import Client
     from app.models import CurrentEmployer, EmployerGrant, GrantType
+    from app.models.client import Client
+    from app.services.llm_chat.chat_orchestration_helpers import (
+        build_approval_request_ui_action,
+        build_forced_document_reply,
+        build_pension_portfolio_update_after_transform,
+        build_transform_accounts_from_target_plan_payload,
+        clear_pending_approval_request,
+        clear_pending_plan_target_marker,
+        execute_pending_approval_request,
+        format_transform_result_for_user,
+        load_latest_target_pension_plan,
+        load_pending_approval_request,
+        load_pending_plan_target_marker,
+        load_undo_snapshot,
+        store_latest_target_pension_plan,
+        store_latest_target_pension_plan_data,
+        store_pending_approval_request,
+        store_pending_plan_target_marker,
+    )
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _digits_only,
         _extract_commutation_account_number,
@@ -39,25 +56,6 @@ def _prepare_orchestration_inputs(
     from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
         _execute_tool_call,
     )
-    from app.services.llm_chat.chat_orchestration_helpers import (
-        build_approval_request_ui_action,
-        build_forced_document_reply,
-        build_pension_portfolio_update_after_transform,
-        format_transform_result_for_user,
-        build_transform_accounts_from_target_plan_payload,
-        clear_pending_plan_target_marker,
-        clear_pending_approval_request,
-        execute_pending_approval_request,
-        load_latest_target_pension_plan,
-        load_pending_plan_target_marker,
-        load_pending_approval_request,
-        load_undo_snapshot,
-        store_latest_target_pension_plan,
-        store_latest_target_pension_plan_data,
-        store_pending_approval_request,
-        store_pending_plan_target_marker,
-    )
-    from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
     from app.services.llm_chat.message_utils import (
         extract_latest_approval_request,
         extract_latest_target_pension_plan_payload,
@@ -65,8 +63,8 @@ def _prepare_orchestration_inputs(
         extract_user_approval_for_tool_call,
         extract_user_cancel_for_tool_call,
         find_last_user_message,
-        is_user_approval_intent_text,
         is_undo_intent_text,
+        is_user_approval_intent_text,
     )
     from app.services.llm_chat.orchestration_utils import (
         build_partial_pension_transform_accounts_from_portfolio,
@@ -74,8 +72,8 @@ def _prepare_orchestration_inputs(
         build_portfolio_wide_component_transform_accounts_from_portfolio,
         build_portfolio_wide_education_fund_transform_accounts_from_portfolio,
         build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio,
-        build_transform_accounts_from_portfolio,
         build_targeted_component_transform_accounts_from_portfolio,
+        build_transform_accounts_from_portfolio,
         compute_retirement_date_from_birth_date,
         extract_desired_monthly_income_from_text,
         extract_process_termination_choice_overrides,
@@ -109,6 +107,7 @@ def _prepare_orchestration_inputs(
         parse_targeted_component_conversion_request,
         resolve_target_retirement_age,
     )
+    from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 
     (
         effective_portfolio,

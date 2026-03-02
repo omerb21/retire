@@ -3,9 +3,10 @@
 משתמש ב-pdfrw למילוי שדות AcroForm
 """
 
-from pathlib import Path
-from pdfrw import PdfReader, PdfWriter, PdfDict, PdfObject, PdfString
 import logging
+from pathlib import Path
+
+from pdfrw import PdfDict, PdfObject, PdfReader, PdfString, PdfWriter
 
 logger = logging.getLogger(__name__)
 

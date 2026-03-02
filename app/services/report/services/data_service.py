@@ -5,10 +5,11 @@ Data service for report generation - handles data retrieval and processing
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 from sqlalchemy.orm import Session
 
-from app.models import Client, Scenario, Employment, Employer
+from app.models import Client, Employer, Employment, Scenario
 from app.services.case_service import detect_case
 
 _logger = logging.getLogger(__name__)

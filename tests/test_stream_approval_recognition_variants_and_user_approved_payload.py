@@ -7,13 +7,13 @@ import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 from app.models.client import Client
 from app.models.scenario import Scenario
-from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 from app.services.llm_chat.chat_orchestration_helpers import (
     store_pending_approval_request,
 )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     store_current_employer_termination_plan_preview,
 )
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 
 def test_stream_text_approval_variant_with_pending_executes(

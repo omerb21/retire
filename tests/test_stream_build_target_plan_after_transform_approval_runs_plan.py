@@ -1,6 +1,6 @@
+import inspect
 import json
 from datetime import date, datetime, timezone
-import inspect
 
 from fastapi.testclient import TestClient
 

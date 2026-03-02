@@ -1,7 +1,9 @@
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from typing import Any, Dict
+
 from app.database import get_db
 from app.schemas.compare import ScenarioCompareRequest
 from app.services.compare_service import compare_scenarios

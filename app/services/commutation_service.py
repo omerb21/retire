@@ -7,9 +7,9 @@ Commutation Service - שירות היוון קצבה
 היוון קצבה = המרת זרם תשלומים עתידי (קצבה חודשית) לסכום חד-פעמי היום.
 """
 
-from decimal import Decimal
 from datetime import date
-from typing import Dict, Any, Optional
+from decimal import Decimal
+from typing import Any, Dict, Optional
 
 try:
     from app.services.retirement_age_service import (

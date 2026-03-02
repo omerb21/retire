@@ -51,7 +51,9 @@ def _disable_trace_logging(monkeypatch) -> None:
     try:
         import app.services.agent_trace_logger as trace_logger
 
-        monkeypatch.setattr(trace_logger, "log_trace_event", lambda *args, **kwargs: None)
+        monkeypatch.setattr(
+            trace_logger, "log_trace_event", lambda *args, **kwargs: None
+        )
     except Exception:
         pass
 
@@ -62,7 +64,9 @@ def test_no_match_returns_default_qa(monkeypatch) -> None:
 
     from app.services.llm_chat.capability_router import resolver
 
-    monkeypatch.setattr(resolver, "load_capability_map", lambda: _minimal_capability_map())
+    monkeypatch.setattr(
+        resolver, "load_capability_map", lambda: _minimal_capability_map()
+    )
 
     decision = resolver.resolve(
         user_text="טקסט שלא אמור להתאים לשום יכולת",
@@ -80,7 +84,9 @@ def test_match_returns_expected_capability(monkeypatch) -> None:
 
     from app.services.llm_chat.capability_router import resolver
 
-    monkeypatch.setattr(resolver, "load_capability_map", lambda: _minimal_capability_map())
+    monkeypatch.setattr(
+        resolver, "load_capability_map", lambda: _minimal_capability_map()
+    )
 
     decision = resolver.resolve(
         user_text="בנה תכנית פרישה בבקשה",
@@ -98,7 +104,9 @@ def test_router_has_no_side_effects(monkeypatch) -> None:
 
     from app.services.llm_chat.capability_router import resolver
 
-    monkeypatch.setattr(resolver, "load_capability_map", lambda: _minimal_capability_map())
+    monkeypatch.setattr(
+        resolver, "load_capability_map", lambda: _minimal_capability_map()
+    )
 
     d1 = resolver.resolve(
         user_text="טקסט שלא אמור להתאים לשום יכולת",

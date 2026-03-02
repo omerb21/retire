@@ -1,13 +1,13 @@
-from typing import List, Generator
-import os
 import logging
+import os
+from typing import Generator, List
 
 from langchain_community.chat_models import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from app.schemas.llm_chat import ChatMessage
-from app.services.agent_trace_logger import log_trace_event
 from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+from app.services.agent_trace_logger import log_trace_event
 
 SYSTEM_PROMPT = """אתה יועץ פנסיוני ומתכנן פרישה חכם. תפקידך לנתח את מצב הלקוח ולבנות עבורו אסטרטגיה אופטימלית להשגת יעדי הפרישה שלו (קצבה חודשית נטו והון פנוי).
 

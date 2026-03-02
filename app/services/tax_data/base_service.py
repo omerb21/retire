@@ -2,9 +2,9 @@
 Base service for tax data modules with common utilities
 """
 
+import logging
 from datetime import datetime
 from decimal import Decimal
-import logging
 
 logger = logging.getLogger(__name__)
 

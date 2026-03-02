@@ -1,9 +1,9 @@
 import sys
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 from langchain.tools import tool
 from langchain_community.chat_models import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 # --- שלב 1: פונקציית הליבה (MOCK) של מערכת תכנון הפרישה ---
 

@@ -7,8 +7,9 @@ import os
 import sys
 import zipfile
 from datetime import datetime
-import requests
 from pathlib import Path
+
+import requests
 
 # Configuration
 BASE_URL = "http://localhost:8005"

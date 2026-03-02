@@ -7,8 +7,8 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.database import SessionLocal
+from app.main import app
 from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from tests.utils import gen_valid_id

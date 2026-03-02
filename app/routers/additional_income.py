@@ -1,6 +1,7 @@
 """API router for Additional Income management."""
 
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,8 +9,8 @@ from app.database import get_db
 from app.models.additional_income import AdditionalIncome
 from app.schemas.additional_income import (
     AdditionalIncomeCreate,
-    AdditionalIncomeUpdate,
     AdditionalIncomeResponse,
+    AdditionalIncomeUpdate,
 )
 
 router = APIRouter(

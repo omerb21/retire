@@ -6,9 +6,10 @@ Create Date: 2025-11-02 00:30:00.000000
 
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "add_pension_fund_coefficient"

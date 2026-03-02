@@ -3,19 +3,19 @@
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List, Optional, Dict, Any, Tuple
-from dateutil.relativedelta import relativedelta
+from typing import Any, Dict, List, Optional, Tuple
 
+from dateutil.relativedelta import relativedelta
 from sqlalchemy.orm import Session
 
 from app.models.additional_income import (
     AdditionalIncome,
-    PaymentFrequency,
     IndexationMethod,
+    PaymentFrequency,
     TaxTreatment,
 )
 from app.models.client import Client
-from app.providers.tax_params import TaxParamsProvider, InMemoryTaxParamsProvider
+from app.providers.tax_params import InMemoryTaxParamsProvider, TaxParamsProvider
 from app.schemas.additional_income import AdditionalIncomeCashflowItem
 from app.services.tax_calculator import TaxCalculator
 

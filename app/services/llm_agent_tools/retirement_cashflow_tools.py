@@ -34,7 +34,8 @@ class RetirementCashflowToolsMixin:
         3. בדיקת גירעון מול היעד
         4. חישוב משך הזמן שההון יספיק לכיסוי הגירעון
         """
-        from datetime import datetime, date
+        from datetime import date, datetime
+
         from dateutil.relativedelta import relativedelta
 
         client = self.client

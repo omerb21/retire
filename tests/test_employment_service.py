@@ -2,13 +2,15 @@
 Tests for employment service functionality
 """
 
-import pytest
 from datetime import date, datetime, timezone
-from app.services.employment_service import EmploymentService
+
+import pytest
+
 from app.models.client import Client
 from app.models.employer import Employer
 from app.models.employment import Employment
 from app.models.termination_event import TerminationEvent, TerminationReason
+from app.services.employment_service import EmploymentService
 from tests.utils import gen_reg_no, gen_valid_id
 
 
@@ -16,9 +18,7 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
-def make_client(
-    id_number_raw=None, full_name="׳™׳©׳¨׳׳ ׳™׳©׳¨׳׳׳™", is_active=True
-):
+def make_client(id_number_raw=None, full_name="׳™׳©׳¨׳׳ ׳™׳©׳¨׳׳׳™", is_active=True):
     """Factory function to create a test client with all required fields"""
     if id_number_raw is None:
         # Generate unique valid Israeli ID for each test

@@ -1,8 +1,9 @@
+import io
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-import io
-import logging
 
 from app.database import get_db
 from app.schemas.report import ReportPdfRequest

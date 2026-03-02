@@ -6,8 +6,10 @@ Calculation utilities for retirement scenarios
 import logging
 from datetime import date
 from typing import Optional
+
 from app.models.client import Client
-from ..constants import MAX_AGE_FOR_NPV, DEFAULT_DISCOUNT_RATE
+
+from ..constants import DEFAULT_DISCOUNT_RATE, MAX_AGE_FOR_NPV
 
 logger = logging.getLogger("app.scenarios.calculation")
 

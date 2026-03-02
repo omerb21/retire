@@ -4,11 +4,11 @@ Tax Data Service - Modular tax data management
 
 # Import all services
 from .base_service import BaseTaxDataService
-from .severance_caps import SeveranceCapsService
-from .cpi_service import CPIService
-from .tax_brackets import TaxBracketsService
-from .indexation import IndexationService
 from .cache_manager import CacheManager
+from .cpi_service import CPIService
+from .indexation import IndexationService
+from .severance_caps import SeveranceCapsService
+from .tax_brackets import TaxBracketsService
 
 # Export all services
 __all__ = [

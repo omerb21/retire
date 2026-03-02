@@ -1,6 +1,7 @@
-﻿from datetime import date
-from abc import ABC, abstractmethod
-from app.schemas.tax import TaxParameters, TaxBracket
+﻿from abc import ABC, abstractmethod
+from datetime import date
+
+from app.schemas.tax import TaxBracket, TaxParameters
 
 
 class TaxParamsProvider(ABC):

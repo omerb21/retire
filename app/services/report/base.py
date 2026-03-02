@@ -5,14 +5,16 @@ Provides backward compatibility with original report_service.py
 
 import io
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from sqlalchemy.orm import Session
 
 from app.models import Client, Scenario
-from .services.data_service import DataService
-from .services.pdf_service import PDFService
+
 from .charts import render_cashflow_chart, render_scenarios_compare_chart
 from .fonts import ensure_fonts
+from .services.data_service import DataService
+from .services.pdf_service import PDFService
 
 _logger = logging.getLogger(__name__)
 
@@ -190,20 +192,22 @@ class ReportService:
         Returns:
             PDF as bytes
         """
+        from datetime import datetime
+
         from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import inch
-        from reportlab.lib.enums import TA_RIGHT, TA_CENTER
         from reportlab.platypus import (
-            SimpleDocTemplate,
+            Image,
             Paragraph,
+            SimpleDocTemplate,
             Spacer,
             Table,
             TableStyle,
-            Image,
         )
-        from datetime import datetime
+
         from .fonts import get_default_font
 
         ensure_fonts()

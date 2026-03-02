@@ -5,11 +5,10 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.utils.llm_chat_log import log_llm_event
-from app.services.agent_trace_logger import log_trace_event
-from app.utils.trace_context import get_current_trace_id, set_current_trace_id
-
 from app.services.agent_execution.tool_execution_context import mark_tool_ok_seen
+from app.services.agent_trace_logger import log_trace_event
+from app.utils.llm_chat_log import log_llm_event
+from app.utils.trace_context import get_current_trace_id, set_current_trace_id
 
 from .stream_top_level_helpers import _get_stream_orchestration_facade
 

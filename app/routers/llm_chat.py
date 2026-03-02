@@ -61,8 +61,8 @@ async def pension_chat(
 
         # emit assistant_output on success
         try:
-            from app.services.agent_trace_logger import log_trace_event
             from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+            from app.services.agent_trace_logger import log_trace_event
 
             _ao_payload = {
                 "status_code": 200,
@@ -89,8 +89,8 @@ async def pension_chat(
     except Exception as e:
         # emit assistant_output on failure
         try:
-            from app.services.agent_trace_logger import log_trace_event
             from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
+            from app.services.agent_trace_logger import log_trace_event
 
             _ao_payload = {
                 "status_code": 500,

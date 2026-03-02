@@ -5,15 +5,12 @@ from datetime import date
 
 from app.models.client import Client
 from app.schemas.llm_chat import ChatMessage, ChatRequest
-from app.services.llm_chat.guards.tool_execution_guard import (
-    GuardOutcome,
-    GuardResult,
-)
-from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts import (
     stream_loop_user_approved_json_exec as user_approved_exec,
 )
+from app.services.llm_chat.guards.tool_execution_guard import GuardOutcome, GuardResult
 from app.services.llm_chat.mcp.types import MCPOutcomeFinal
+from app.services.llm_chat.pending_approvals import store_pending_approval_ui_action
 
 
 def test_stageF_stream_executes_only_when_outcome_final_tool_allowed(
@@ -55,9 +52,11 @@ def test_stageF_stream_executes_only_when_outcome_final_tool_allowed(
 
     def fake_execute_tool_call(*args, **kwargs) -> str:
         tool_calls.append({"args": args, "kwargs": kwargs})
-        return "{\"success\": true}"
+        return '{"success": true}'
 
-    monkeypatch.setattr(user_approved_exec, "_execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(
+        user_approved_exec, "_execute_tool_call", fake_execute_tool_call
+    )
 
     def fake_guard_v2(
         *,
@@ -68,13 +67,19 @@ def test_stageF_stream_executes_only_when_outcome_final_tool_allowed(
     ) -> GuardResult:
         return GuardResult(outcome=GuardOutcome.BLOCK, error_code="TEST_BLOCK")
 
-    monkeypatch.setattr(user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2)
+    monkeypatch.setattr(
+        user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2
+    )
 
     def fake_finalize(decision):
         # Even if the guard reports BLOCK, the stream loop must gate only on outcome_final.
         return replace(decision, outcome_final=MCPOutcomeFinal.TOOL_ALLOWED)
 
-    monkeypatch.setattr(user_approved_exec.MCPEngine, "_finalize_outcome_final", staticmethod(fake_finalize))
+    monkeypatch.setattr(
+        user_approved_exec.MCPEngine,
+        "_finalize_outcome_final",
+        staticmethod(fake_finalize),
+    )
 
     payload = f"###USER_APPROVED### {json.dumps({'tool_name': 'TRANSFORM_FUNDS_TO_ASSETS', 'arguments': stored_args}, ensure_ascii=False)}"
     request = ChatRequest(
@@ -109,7 +114,9 @@ def test_stageF_stream_executes_only_when_outcome_final_tool_allowed(
     assert "BEHAVIOR_NOT_ACTIVATED" not in body
 
 
-def test_stageF_stream_blocks_when_outcome_final_tool_blocked(monkeypatch, _test_db) -> None:
+def test_stageF_stream_blocks_when_outcome_final_tool_blocked(
+    monkeypatch, _test_db
+) -> None:
     Session = _test_db["Session"]
 
     client_id = 990000012
@@ -145,7 +152,9 @@ def test_stageF_stream_blocks_when_outcome_final_tool_blocked(monkeypatch, _test
     def fake_execute_tool_call(*args, **kwargs) -> str:
         raise AssertionError("Tool must not be executed when outcome_final blocks")
 
-    monkeypatch.setattr(user_approved_exec, "_execute_tool_call", fake_execute_tool_call)
+    monkeypatch.setattr(
+        user_approved_exec, "_execute_tool_call", fake_execute_tool_call
+    )
 
     def fake_guard_v2(
         *,
@@ -156,12 +165,18 @@ def test_stageF_stream_blocks_when_outcome_final_tool_blocked(monkeypatch, _test
     ) -> GuardResult:
         return GuardResult(outcome=GuardOutcome.ALLOW, error_code=None)
 
-    monkeypatch.setattr(user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2)
+    monkeypatch.setattr(
+        user_approved_exec, "evaluate_tool_execution_guard_v2", fake_guard_v2
+    )
 
     def fake_finalize(decision):
         return replace(decision, outcome_final=MCPOutcomeFinal.TOOL_BLOCKED)
 
-    monkeypatch.setattr(user_approved_exec.MCPEngine, "_finalize_outcome_final", staticmethod(fake_finalize))
+    monkeypatch.setattr(
+        user_approved_exec.MCPEngine,
+        "_finalize_outcome_final",
+        staticmethod(fake_finalize),
+    )
 
     payload = f"###USER_APPROVED### {json.dumps({'tool_name': 'TRANSFORM_FUNDS_TO_ASSETS', 'arguments': stored_args}, ensure_ascii=False)}"
     request = ChatRequest(

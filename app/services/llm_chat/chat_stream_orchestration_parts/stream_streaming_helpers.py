@@ -5,22 +5,20 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.services.llm_chat.chat_orchestration_helpers import (
+    build_approval_request_ui_action,
     build_forced_document_reply,
     build_pension_portfolio_update_after_commutation,
     build_pension_portfolio_update_after_transform,
-    build_approval_request_ui_action,
     clear_pending_approval_request,
-)
-from app.services.llm_chat.pending_approvals import (
-    load_pending_approval_ui_action_if_match,
-    store_pending_approval_ui_action,
+    format_transform_result_for_user,
 )
 from app.services.llm_chat.orchestration_utils import (
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
-from app.services.llm_chat.chat_orchestration_helpers import (
-    format_transform_result_for_user,
+from app.services.llm_chat.pending_approvals import (
+    load_pending_approval_ui_action_if_match,
+    store_pending_approval_ui_action,
 )
 
 from .stream_tool_execution import _execute_tool_call

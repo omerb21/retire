@@ -15,7 +15,9 @@ def test_stageH_no_duplicate_mcp_decision_emit_non_stream(monkeypatch) -> None:
 
     events: list[dict] = []
 
-    def spy_emit_event(*, event_type: str, payload, client_id=None, endpoint=None) -> None:
+    def spy_emit_event(
+        *, event_type: str, payload, client_id=None, endpoint=None
+    ) -> None:
         events.append(
             {
                 "event_type": event_type,
@@ -56,7 +58,9 @@ def test_stageH_no_duplicate_mcp_decision_emit_non_stream(monkeypatch) -> None:
         _ = (iter_idx, max_iterations, trace_id, final_text)
         return decision, trace_specs, False
 
-    monkeypatch.setattr(exec_mod, "maybe_apply_max_iterations_guard", passthrough_max_iter_guard)
+    monkeypatch.setattr(
+        exec_mod, "maybe_apply_max_iterations_guard", passthrough_max_iter_guard
+    )
     monkeypatch.setattr(exec_mod.pension_llm_service, "chat", lambda *a, **k: "ok")
 
     req = ChatRequest(messages=[ChatMessage(role="user", content="hi")], client_id=1)
@@ -78,7 +82,9 @@ def test_stageH_no_duplicate_mcp_decision_emit_stream(monkeypatch) -> None:
 
     events: list[dict] = []
 
-    def spy_emit_event(*, event_type: str, payload, client_id=None, endpoint=None) -> None:
+    def spy_emit_event(
+        *, event_type: str, payload, client_id=None, endpoint=None
+    ) -> None:
         events.append(
             {
                 "event_type": event_type,
@@ -119,7 +125,9 @@ def test_stageH_no_duplicate_mcp_decision_emit_stream(monkeypatch) -> None:
         _ = (iter_idx, max_iterations, trace_id, final_text)
         return decision, trace_specs, False
 
-    monkeypatch.setattr(exec_mod, "maybe_apply_max_iterations_guard", passthrough_max_iter_guard)
+    monkeypatch.setattr(
+        exec_mod, "maybe_apply_max_iterations_guard", passthrough_max_iter_guard
+    )
     monkeypatch.setattr(exec_mod.pension_llm_service, "chat", lambda *a, **k: "ok")
 
     req = ChatRequest(messages=[ChatMessage(role="user", content="hi")], client_id=1)

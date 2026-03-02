@@ -3,14 +3,15 @@ Client case detection service for workflow determination
 """
 
 from datetime import date
-from sqlalchemy.orm import Session
-from typing import List, Optional
 from types import SimpleNamespace
+from typing import List, Optional
 
+from sqlalchemy.orm import Session
+
+from app.models.additional_income import AdditionalIncome
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer
-from app.models.additional_income import AdditionalIncome
-from app.schemas.case import ClientCase, CaseDetectionResult
+from app.schemas.case import CaseDetectionResult, ClientCase
 from app.utils.calculation_log import log_calc
 
 try:
@@ -249,7 +250,7 @@ def calculate_age(birth_date, as_of_date=None):
     Accepts date/datetime or ISO date string and returns integer years.
     Replace with domain-accurate implementation later.
     """
-    from datetime import datetime, date
+    from datetime import date, datetime
 
     # parse string input
     if isinstance(birth_date, str):

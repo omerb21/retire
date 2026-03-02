@@ -9,7 +9,8 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from app.services import scenario_crud_service
-from .schemas import ScenarioCreate, ScenarioUpdate, ScenarioResponse
+
+from .schemas import ScenarioCreate, ScenarioResponse, ScenarioUpdate
 
 
 def get_client_or_404(db: Session, client_id: int) -> Client:

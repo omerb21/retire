@@ -1,15 +1,12 @@
 from __future__ import annotations
 
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from typing import List
-
 from app.database import get_db
-from app.schemas.cashflow import (
-    CashflowGenerateRequest,
-    CashflowGenerateResponse,
-)
+from app.schemas.cashflow import CashflowGenerateRequest, CashflowGenerateResponse
 from app.services.cashflow_service import generate_cashflow
 
 router = APIRouter(

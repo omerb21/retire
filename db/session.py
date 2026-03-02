@@ -2,7 +2,8 @@
 Database session management and connection setup
 """
 
-from app.database import Base, SessionLocal, engine, get_db as app_get_db
+from app.database import Base, SessionLocal, engine
+from app.database import get_db as app_get_db
 
 
 def init_db():

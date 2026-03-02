@@ -6,26 +6,21 @@ Termination Service Module
 import json
 import logging
 import re
-from typing import Dict, List, Any, Optional
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
+from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
-from app.models.current_employment import CurrentEmployer
+from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
 from app.models.grant import Grant
 from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
-from app.models.current_employment import EmployerGrant, GrantType
 from app.schemas.current_employer import TerminationDecisionCreate
-from .calculations import ServiceYearsCalculator, SeveranceCalculator
-from app.services.current_employer.termination_parts.validation import (
-    _create_source_suffix,
-    _parse_date,
-    _parse_plan_details,
-    _parse_source_accounts,
-)
-from app.services.current_employer.termination_parts.termination_amounts_ssot import (
-    compute_termination_amounts_ssot,
+from app.services.current_employer.termination_parts.calculations import (
+    _calculate_capital_tax,
+    _calculate_employment_years,
 )
 from app.services.current_employer.termination_parts.repository import (
     TerminationRepositoryMixin,
@@ -35,10 +30,17 @@ from app.services.current_employer.termination_parts.repository import (
     _delete_grants,
     _delete_pension_funds,
 )
-from app.services.current_employer.termination_parts.calculations import (
-    _calculate_capital_tax,
-    _calculate_employment_years,
+from app.services.current_employer.termination_parts.termination_amounts_ssot import (
+    compute_termination_amounts_ssot,
 )
+from app.services.current_employer.termination_parts.validation import (
+    _create_source_suffix,
+    _parse_date,
+    _parse_plan_details,
+    _parse_source_accounts,
+)
+
+from .calculations import ServiceYearsCalculator, SeveranceCalculator
 
 logger = logging.getLogger("app.current_employer.termination")
 

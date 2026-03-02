@@ -7,12 +7,12 @@ from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app.calculation.income_integration import (
     integrate_additional_incomes_with_scenario,
-    integrate_capital_assets_with_scenario,
     integrate_all_incomes_with_scenario,
+    integrate_capital_assets_with_scenario,
 )
+from app.database import get_db
 from app.schemas.cashflow import (
     CashflowEnvelope,
     MonthlyCashflowItem,

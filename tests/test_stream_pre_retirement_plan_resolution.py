@@ -1,6 +1,6 @@
+import inspect
 import json
 from datetime import date, datetime, timezone
-import inspect
 from decimal import Decimal
 from uuid import uuid4
 
@@ -12,9 +12,9 @@ from app.models.additional_income import AdditionalIncome
 from app.models.client import Client
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
-from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.additional_income_service import AdditionalIncomeService
 from app.providers.tax_params import InMemoryTaxParamsProvider
+from app.services.additional_income_service import AdditionalIncomeService
+from app.services.llm_agent_tools_service import AgentToolsService
 from app.services.llm_chat.chat_stream_orchestration_parts import (
     stream_system_prompt_generators as stream_generators,
 )

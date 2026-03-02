@@ -2,10 +2,11 @@
 Pydantic schemas for CurrentEmployer and EmployerGrant - Sprint 3
 """
 
-from pydantic import BaseModel, Field, ConfigDict, model_validator
-from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ActiveContinuityType(str, Enum):

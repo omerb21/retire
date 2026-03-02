@@ -17,6 +17,7 @@ from app.services.pension_portfolio.conversion_rules import (
     is_investment_provident_fund,
 )
 from app.services.retirement.utils.projection_utils import calculate_compound_factor
+from app.utils.trace_context import get_current_trace_id
 
 from .transform_funds_conversion import (
     _create_updated_snapshot_scenario,
@@ -25,13 +26,12 @@ from .transform_funds_conversion import (
     _parse_date_value,
     _zero_source_portfolio_pension_funds,
 )
-from app.utils.trace_context import get_current_trace_id
 from .transform_funds_markers import build_transform_funds_response
-from .transform_funds_validation import build_conversion_tasks_from_accounts
 from .transform_funds_pipeline_parts.repository import (
-    execute_conversion_tasks,
     apply_conversion_task_to_snapshot,
+    execute_conversion_tasks,
 )
+from .transform_funds_validation import build_conversion_tasks_from_accounts
 
 logger = logging.getLogger("app.llm_chat.tools")
 

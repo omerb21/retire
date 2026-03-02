@@ -1,5 +1,5 @@
-from datetime import date
 import warnings
+from datetime import date
 
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer

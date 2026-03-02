@@ -47,7 +47,9 @@ def test_policy_violation_flag_only_no_behavior_change(monkeypatch) -> None:
     decision = MCPEngine().evaluate(
         intent_tier="NO_TOOLS",
         intent_type="QA",
-        router_decision=SimpleNamespace(capability_id="default_qa_v1", tool_chain=["X"]),
+        router_decision=SimpleNamespace(
+            capability_id="default_qa_v1", tool_chain=["X"]
+        ),
         guard_result={"tools_enabled": True},
         had_new_core_entered=False,
         legacy_requested=False,
@@ -94,7 +96,9 @@ def test_side_effect_missing_is_observability_only(monkeypatch) -> None:
     decision = MCPEngine().evaluate(
         intent_tier="NO_TOOLS",
         intent_type="QA",
-        router_decision=SimpleNamespace(capability_id="capability_missing_v1", tool_chain=[]),
+        router_decision=SimpleNamespace(
+            capability_id="capability_missing_v1", tool_chain=[]
+        ),
         guard_result={"tools_enabled": True},
         had_new_core_entered=False,
         legacy_requested=False,

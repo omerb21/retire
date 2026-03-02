@@ -103,7 +103,9 @@ def test_keeps_mode_when_allowed(monkeypatch) -> None:
     decision = MCPEngine().evaluate(
         intent_tier="NO_TOOLS",
         intent_type="QA",
-        router_decision=SimpleNamespace(capability_id="default_qa_v1", tool_chain=["X"]),
+        router_decision=SimpleNamespace(
+            capability_id="default_qa_v1", tool_chain=["X"]
+        ),
         guard_result={"tools_enabled": True},
         had_new_core_entered=False,
         legacy_requested=False,
@@ -141,7 +143,9 @@ def test_downgrades_when_not_allowed(monkeypatch) -> None:
     decision = MCPEngine().evaluate(
         intent_tier="NO_TOOLS",
         intent_type="QA",
-        router_decision=SimpleNamespace(capability_id="default_qa_v1", tool_chain=["X"]),
+        router_decision=SimpleNamespace(
+            capability_id="default_qa_v1", tool_chain=["X"]
+        ),
         guard_result={"tools_enabled": True},
         had_new_core_entered=False,
         legacy_requested=False,
@@ -176,7 +180,9 @@ def test_never_increases_permissions(monkeypatch) -> None:
     decision = MCPEngine().evaluate(
         intent_tier="NO_TOOLS",
         intent_type="QA",
-        router_decision=SimpleNamespace(capability_id="default_qa_v1", tool_chain=["X"]),
+        router_decision=SimpleNamespace(
+            capability_id="default_qa_v1", tool_chain=["X"]
+        ),
         guard_result={"tools_enabled": False},
         had_new_core_entered=False,
         legacy_requested=False,

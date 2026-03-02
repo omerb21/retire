@@ -1,18 +1,18 @@
 import json
 import logging
+import re
 from datetime import date
 from decimal import Decimal
-import re
 
 from sqlalchemy.orm import Session
 
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
-from app.utils.date_serializer import parse_date_flexible
 from app.services.pension_portfolio.snapshot_loader import (
     dedupe_pension_portfolio_snapshot,
 )
+from app.utils.date_serializer import parse_date_flexible
 
 logger = logging.getLogger("app.llm_chat.tools")
 

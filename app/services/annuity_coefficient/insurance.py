@@ -2,13 +2,15 @@
 חישובי מקדמי קצבה לביטוח מנהלים
 """
 
-from datetime import date
-from typing import Optional, Dict, Any
 import logging
+from datetime import date
+from typing import Any, Dict, Optional
+
 from app.database import get_db
+
 from .database import (
-    get_generation_code,
     get_company_specific_coefficient,
+    get_generation_code,
     get_generation_coefficient,
 )
 from .utils import get_default_coefficient

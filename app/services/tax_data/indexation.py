@@ -2,8 +2,9 @@
 Indexation calculations service
 """
 
-from decimal import Decimal
 import logging
+from decimal import Decimal
+
 from .base_service import BaseTaxDataService
 from .cpi_service import CPIService
 

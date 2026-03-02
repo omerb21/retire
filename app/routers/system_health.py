@@ -3,18 +3,20 @@ System Health Router - בדיקת תקינות המערכת
 מאפשר לבדוק בכל עת את תקינות הטבלאות והנתונים הקריטיים
 """
 
+import logging
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import make_url
-from typing import Dict, Any
-from app.database import get_db
+from sqlalchemy.orm import Session
+
 from app.core.system_validator import (
     SystemValidator,
-    get_validation_cache,
     ensure_background_validation_running,
+    get_validation_cache,
 )
-import logging
+from app.database import get_db
 
 logger = logging.getLogger(__name__)
 

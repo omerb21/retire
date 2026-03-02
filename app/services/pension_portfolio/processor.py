@@ -1,8 +1,8 @@
 import logging
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-import xml.etree.ElementTree as ET
 
 MANAGING_COMPANY_TAGS = [
     "SHEM-METAFEL",

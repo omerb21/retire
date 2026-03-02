@@ -17,7 +17,7 @@ def _setup_client_and_employer(
     start_date: date,
     end_date: date,
     last_salary: float,
-    severance_accrued: float
+    severance_accrued: float,
 ) -> tuple[int, int]:
     client = db_session.query(Client).filter(Client.id == client_id).first()
     if client is None:

@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
 from app.models.client import Client
 from app.schemas.client import ClientCreate, ClientUpdate
+from app.services.client_service import normalize_id_number
 from app.services.retirement.utils.pension_utils import (
     compute_pension_start_date_from_funds,
 )
-from app.services.client_service import normalize_id_number
 
 
 class ClientCrudService:

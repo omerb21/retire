@@ -19,8 +19,8 @@ from app.schemas.calculation_result import (
     CalculationResult,
     CalculationSummary,
 )
-from app.services.cashflow_service import generate_cashflow
 from app.services.case_service import detect_case
+from app.services.cashflow_service import generate_cashflow
 
 router = APIRouter(
     prefix="/api/v1",

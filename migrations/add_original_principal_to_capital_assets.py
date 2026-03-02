@@ -3,8 +3,8 @@ Migration script to add original_principal column to capital_assets table
 Run this script directly: python migrations/add_original_principal_to_capital_assets.py
 """
 
-import sqlite3
 import os
+import sqlite3
 
 
 def run_migration():
@@ -34,10 +34,12 @@ def run_migration():
 
         # Add the column
         print("📝 Adding 'original_principal' column to capital_assets table...")
-        cursor.execute("""
+        cursor.execute(
+            """
             ALTER TABLE capital_assets 
             ADD COLUMN original_principal REAL
-        """)
+        """
+        )
 
         conn.commit()
         print("✅ Successfully added 'original_principal' column")

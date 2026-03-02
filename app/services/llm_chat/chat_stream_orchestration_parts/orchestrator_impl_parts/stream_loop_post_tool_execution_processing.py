@@ -7,13 +7,6 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     get_gross_for_tax_chaining,
     maybe_clear_pension_portfolio_after_transform,
 )
-from app.utils.llm_chat_log import log_llm_event
-from app.services.llm_chat.orchestration_utils import (
-    build_tool_result_system_message_for_stream,
-    format_tool_output_for_user_stream,
-    get_tool_display_name_hebrew,
-    sanitize_user_visible_text,
-)
 from app.services.llm_chat.message_utils import find_last_user_message
 from app.services.llm_chat.orchestration_core.core_types import (
     DecisionCode,
@@ -25,19 +18,26 @@ from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
 from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
     enrich_state_snapshot,
 )
+from app.services.llm_chat.orchestration_utils import (
+    build_tool_result_system_message_for_stream,
+    format_tool_output_for_user_stream,
+    get_tool_display_name_hebrew,
+    sanitize_user_visible_text,
+)
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
     is_net_pension_request,
 )
+from app.utils.llm_chat_log import log_llm_event
 
-from .stream_loop_missing_required_tools_guardrail import (
-    _maybe_append_missing_required_tools_guardrail,
-)
+from ..stream_tool_execution import _execute_tool_call
 from .stream_loop_forced_document_reply import _stream_maybe_emit_forced_document_reply
-from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
 from .stream_loop_mandatory_fixation_chain import (
     _stream_maybe_run_mandatory_fixation_chain,
 )
-from ..stream_tool_execution import _execute_tool_call
+from .stream_loop_missing_required_tools_guardrail import (
+    _maybe_append_missing_required_tools_guardrail,
+)
+from .stream_loop_tax_autochain_output import _stream_maybe_emit_tax_autochain_result
 
 
 def _stream_handle_post_tool_execution_processing(

@@ -8,7 +8,9 @@ Defines the interface for all calculation engines.
 from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, Dict
+
 from sqlalchemy.orm import Session
+
 from app.providers.tax_params import TaxParamsProvider
 
 

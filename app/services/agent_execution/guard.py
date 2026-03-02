@@ -59,8 +59,8 @@ def run_pre_tool_guard(
         )
 
     try:
-        from app.services.llm_chat.tool_execution import WRITE_TOOLS
         from app.services.llm_chat.case_context import get_current_case_id
+        from app.services.llm_chat.tool_execution import WRITE_TOOLS
 
         case_id = get_current_case_id()
         if (
@@ -94,10 +94,10 @@ def build_blocked_tool_result(
     detected_capability_id = "unknown"
     mode = "ACTION"
     try:
-        from app.utils.trace_context import get_current_trace_id
         from app.services.llm_chat.capability_router.runtime_context import (
             get_router_decision,
         )
+        from app.utils.trace_context import get_current_trace_id
 
         trace_id = get_current_trace_id()
         router_decision = get_router_decision(trace_id=trace_id)

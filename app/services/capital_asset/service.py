@@ -3,17 +3,17 @@
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from app.models.capital_asset import CapitalAsset
+from app.providers.tax_params import InMemoryTaxParamsProvider, TaxParamsProvider
 from app.schemas.capital_asset import CapitalAssetCashflowItem
-from app.providers.tax_params import TaxParamsProvider, InMemoryTaxParamsProvider
-from app.services.capital_asset.indexation_calculator import IndexationCalculator
-from app.services.capital_asset.tax_calculator import TaxCalculator
-from app.services.capital_asset.payment_calculator import PaymentCalculator
 from app.services.capital_asset.cashflow_calculator import CashflowCalculator
+from app.services.capital_asset.indexation_calculator import IndexationCalculator
+from app.services.capital_asset.payment_calculator import PaymentCalculator
+from app.services.capital_asset.tax_calculator import TaxCalculator
 
 logger = logging.getLogger(__name__)
 

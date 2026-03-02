@@ -6,9 +6,10 @@ Covers:
   3. Empty monthly -> 422 with detail
 """
 
-import pytest
-from datetime import date, timedelta
 import random
+from datetime import date, timedelta
+
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.conftest import test_client

@@ -5,6 +5,7 @@ Maximum Pension Scenario
 
 import logging
 from typing import Dict
+
 from ..base_scenario_builder import BaseScenarioBuilder
 
 logger = logging.getLogger("app.scenarios.max_pension")

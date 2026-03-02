@@ -2,9 +2,10 @@
 שליפת נתוני לקוח מה-DB
 """
 
-from sqlalchemy.orm import Session
-from typing import Optional
 import logging
+from typing import Optional
+
+from sqlalchemy.orm import Session
 
 from app.models.client import Client
 

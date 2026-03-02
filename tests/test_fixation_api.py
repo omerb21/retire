@@ -1,26 +1,27 @@
-import unittest
-import pytest
-import tempfile
 import shutil
+import tempfile
+import unittest
 from datetime import date
 from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.main import app as fastapi_app
-from app.database import Base, get_db
-from app.models.client import Client
-
 # Ensure all models are imported and registered with Base
 import app.models.client
+from app.database import Base, get_db
+from app.main import app as fastapi_app
+from app.models.client import Client
 
 
 def make_client(**overrides):
     """Factory function to create test clients with all required fields"""
-    from datetime import date, datetime, timezone
-    from tests.utils import gen_valid_id
     import random
+    from datetime import date, datetime, timezone
+
+    from tests.utils import gen_valid_id
 
     # Generate unique valid Israeli ID for this client
     unique_id = gen_valid_id()

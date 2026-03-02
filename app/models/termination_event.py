@@ -2,20 +2,22 @@
 TerminationEvent entity model for SQLAlchemy ORM
 """
 
+import enum
+from datetime import datetime, timezone
+
 from sqlalchemy import (
     Column,
-    Integer,
-    ForeignKey,
     Date,
+    DateTime,
     Enum,
+    ForeignKey,
+    Integer,
     Numeric,
     Text,
-    DateTime,
     func,
 )
 from sqlalchemy.orm import relationship
-import enum
-from datetime import datetime, timezone
+
 from app.database import Base
 
 

@@ -1,10 +1,9 @@
 import logging
-
 from datetime import date
 
-from app.services.retirement import RetirementScenariosBuilder
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
+from app.services.retirement import RetirementScenariosBuilder
 
 
 def test_scenarios_termination_uses_accrued_total(db_session, caplog) -> None:

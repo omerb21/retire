@@ -2,11 +2,13 @@
 Grant service for handling grant operations and calculations
 """
 
+from typing import Any, Dict, Tuple
+
 from sqlalchemy.orm import Session
+
+from app.calculation.tax_calculation import calculate_grant_tax
 from app.models.grant import Grant
 from app.schemas.grant import GrantCreate, GrantUpdate
-from app.calculation.tax_calculation import calculate_grant_tax
-from typing import Dict, Tuple, Any
 
 
 class GrantService:

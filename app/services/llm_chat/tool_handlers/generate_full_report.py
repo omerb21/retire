@@ -18,8 +18,8 @@ from app.services.documents.generators.full_report_generator import (
     generate_full_report_pdf as generate_full_report_pdf_html,
 )
 from app.services.llm_agent_tools_service import AgentToolsService
-from app.services.retirement_age_service import calculate_retirement_age
 from app.services.report_service import generate_report_pdf
+from app.services.retirement_age_service import calculate_retirement_age
 
 logger = logging.getLogger("app.llm_chat.tools")
 

@@ -1,15 +1,15 @@
 import logging
-from typing import Any, Dict, List, Optional
 from datetime import date
 from decimal import Decimal
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer, EmployerGrant, GrantType
 from app.models.grant import Grant
 from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
 from app.schemas.current_employer import TerminationDecisionCreate
 
 logger = logging.getLogger("app.current_employer.termination")

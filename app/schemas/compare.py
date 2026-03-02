@@ -1,5 +1,6 @@
-from pydantic import BaseModel, validator, Field, model_validator
 from typing import List, Literal, Optional
+
+from pydantic import BaseModel, Field, model_validator, validator
 
 
 class ScenarioCompareRequest(BaseModel):

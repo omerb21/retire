@@ -4,17 +4,17 @@ Safe Server Start Script - Ensures clean server startup
 Kills any existing Python processes on port 8005 before starting
 """
 
-import subprocess
-import sys
-import time
+import ctypes
+import json
+import msvcrt
 import os
 import signal
 import socket
-import ctypes
-import msvcrt
-import json
-import urllib.request
+import subprocess
+import sys
+import time
 import urllib.error
+import urllib.request
 
 SAFE_SERVER_START_VERSION = "2025-12-26.2"
 

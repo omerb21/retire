@@ -3,20 +3,22 @@ Employment service for managing client employment and termination events
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date
+from datetime import date as date_type
+from datetime import datetime, timezone
 from typing import Optional
+
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
-from sqlalchemy import select, update, text
 
 from app.models import (
     Client,
+    CurrentEmployer,
     Employer,
     Employment,
     TerminationEvent,
     TerminationReason,
-    CurrentEmployer,
 )
-from datetime import date as date_type
 
 # Set up structured logging
 logger = logging.getLogger(__name__)

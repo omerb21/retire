@@ -2,17 +2,17 @@
 מודול חישוב פגיעה בהון הפטור - חישוב השפעת מענקים על ההון הפטור
 """
 
-from datetime import datetime, date
-from typing import Dict, List, Any, Optional, Union
 import logging
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional, Union
 
-from .indexation import calculate_adjusted_amount
-from .work_ratio import work_ratio_within_last_32y
 from .exemption_caps import (
     calc_exempt_capital,
-    get_monthly_cap,
     get_exemption_percentage,
+    get_monthly_cap,
 )
+from .indexation import calculate_adjusted_amount
+from .work_ratio import work_ratio_within_last_32y
 
 logger = logging.getLogger(__name__)
 

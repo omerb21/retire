@@ -46,7 +46,9 @@ def test_stageF_capability_gap_closure_forces_outcome_tool_blocked(monkeypatch) 
     assert decision.policy_violation_reason == "BEHAVIOR_NOT_ACTIVATED"
 
 
-def test_stageF_capability_gap_closure_does_not_apply_to_default_qa(monkeypatch) -> None:
+def test_stageF_capability_gap_closure_does_not_apply_to_default_qa(
+    monkeypatch,
+) -> None:
     _reset_ssot_loader(monkeypatch)
 
     from types import SimpleNamespace

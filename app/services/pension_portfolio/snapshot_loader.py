@@ -4,9 +4,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models.scenario import Scenario
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
+from app.models.scenario import Scenario
 from app.schemas.llm_chat import PensionPortfolioAccount
 
 

@@ -2,10 +2,11 @@
 שירות הצמדה מתקדם המבוסס על מערכת קיבוע הזכויות הקיימת
 """
 
-import requests
-from datetime import datetime, date, timedelta
-from typing import Optional, Dict, Any
 import logging
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 

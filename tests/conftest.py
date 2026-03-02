@@ -13,12 +13,13 @@ try:
 except Exception:
     httpx = None
 import inspect
-from app.database import get_engine, Base, SessionLocal
-from sqlalchemy.orm import sessionmaker
+
 from fastapi.testclient import TestClient
-from app.main import app as fastapi_app
+from sqlalchemy.orm import sessionmaker
 
 import app.models
+from app.database import Base, SessionLocal, get_engine
+from app.main import app as fastapi_app
 
 HTTPXClient = getattr(httpx, "Client", None) if httpx is not None else None
 if httpx is not None and HTTPXClient is not None:
@@ -62,8 +63,9 @@ def client(db_session):
     direct DB access) but also exposes .get/.post/.put/.delete methods that
     proxy to a FastAPI TestClient, so tests can use it as an HTTP client.
     """
-    from app.models.client import Client
     from datetime import date
+
+    from app.models.client import Client
 
     # Reuse existing client with this test ID if it already exists, to avoid
     # UNIQUE constraint violations between tests.
@@ -117,6 +119,7 @@ def client(db_session):
 def test_client():
     """FastAPI TestClient for API tests"""
     from fastapi.testclient import TestClient
+
     from app.main import app
 
     return TestClient(app)

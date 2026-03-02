@@ -20,10 +20,7 @@ from fastapi.testclient import TestClient
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
 from app.models.client import Client
-from app.services.agent_eyes.event_collector import (
-    clear_buffer,
-    get_events_by_trace,
-)
+from app.services.agent_eyes.event_collector import clear_buffer, get_events_by_trace
 
 
 def test_public_chat_explicit_get_client_snapshot_json_only(

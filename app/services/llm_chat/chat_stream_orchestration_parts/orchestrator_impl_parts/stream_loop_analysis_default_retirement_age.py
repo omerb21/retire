@@ -1,6 +1,5 @@
-from app.schemas.llm_chat import ChatRequest
-
 from app.models.client import Client
+from app.schemas.llm_chat import ChatRequest
 
 
 def _compute_analysis_default_retirement_age(

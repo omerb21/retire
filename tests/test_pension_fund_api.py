@@ -1,6 +1,8 @@
 import uuid
 from datetime import date
+
 from fastapi.testclient import TestClient
+
 from app.main import app as fastapi_app
 from app.models import Client
 

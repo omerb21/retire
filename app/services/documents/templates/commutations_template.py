@@ -2,10 +2,12 @@
 תבנית HTML לנספח היוונים
 """
 
-from typing import List
 import re
-from .styles import get_commutations_styles
+from typing import List
+
 from app.models.capital_asset import CapitalAsset
+
+from .styles import get_commutations_styles
 
 
 class CommutationsHTMLTemplate:

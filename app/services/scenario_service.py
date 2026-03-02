@@ -8,20 +8,20 @@ import time
 from datetime import date, datetime
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
-from app.models.scenario import Scenario
+from app.calculation.engine.calculation_engine import CalculationEngine
 from app.models.client import Client
 from app.models.employment import Employment
-from app.schemas.scenario import (
-    ScenarioCreateIn,
-    ScenarioOut,
-    CashflowPoint,
-    ScenarioListItem,
-)
-from app.calculation.engine.calculation_engine import CalculationEngine
+from app.models.scenario import Scenario
 from app.providers.tax_params import InMemoryTaxParamsProvider
+from app.schemas.scenario import (
+    CashflowPoint,
+    ScenarioCreateIn,
+    ScenarioListItem,
+    ScenarioOut,
+)
 
 logger = logging.getLogger("app.scenario")
 

@@ -4,10 +4,10 @@ from typing import Any, Dict, List
 class DataCompletenessToolsMixin:
     def check_data_completeness(self) -> Dict[str, Any]:
         """בודק אם כל הנתונים הנדרשים לחישוב תרחישים קיימים"""
+        from app.models.current_employment.employer import CurrentEmployer
         from app.models.fixation_result import FixationResult
         from app.models.pension_fund import PensionFund
         from app.models.scenario import Scenario
-        from app.models.current_employment.employer import CurrentEmployer
 
         missing_fields: List[str] = []
         warnings: List[str] = []

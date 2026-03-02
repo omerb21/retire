@@ -2,14 +2,15 @@
 מחולל נספח מענקים
 """
 
-from pathlib import Path
-from sqlalchemy.orm import Session
-from typing import Optional
 import logging
+from pathlib import Path
+from typing import Optional
 
+from sqlalchemy.orm import Session
+
+from ..converters import html_to_pdf
 from ..data_fetchers import fetch_fixation_data, fetch_grants_data
 from ..templates import GrantsHTMLTemplate
-from ..converters import html_to_pdf
 
 logger = logging.getLogger(__name__)
 

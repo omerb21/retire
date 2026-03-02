@@ -2,34 +2,36 @@
 PDF Builder - Generate comprehensive retirement planning reports using ReportLab
 """
 
+import io
+import locale
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from reportlab.lib import colors
+from reportlab.lib.colors import HexColor, black, grey, white
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
-from reportlab.lib.colors import HexColor, black, white, grey
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm, inch
+from reportlab.pdfgen import canvas
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    Image,
+    KeepTogether,
+    PageBreak,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    PageBreak,
-    Image,
-    KeepTogether,
 )
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
+
 from utils.pdf_graphs import (
-    render_cashflow_chart,
-    render_income_breakdown_chart,
-    render_cumulative_chart,
-    render_tax_analysis_chart,
     create_summary_pie_chart,
+    render_cashflow_chart,
+    render_cumulative_chart,
+    render_income_breakdown_chart,
+    render_tax_analysis_chart,
 )
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-import io
-import locale
 
 # Try to set Hebrew locale for better number formatting
 try:

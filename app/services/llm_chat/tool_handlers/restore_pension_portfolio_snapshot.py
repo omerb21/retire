@@ -1,16 +1,15 @@
 import json
-
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.models.scenario import Scenario
+from app.services.llm_chat.chat_orchestration_helpers import (
+    clear_pending_approval_request,
+)
 from app.services.pension_portfolio.snapshot_loader import (
     dedupe_pension_portfolio_snapshot,
     upsert_snapshot,
-)
-from app.services.llm_chat.chat_orchestration_helpers import (
-    clear_pending_approval_request,
 )
 from app.utils.llm_chat_log import get_current_request_id
 

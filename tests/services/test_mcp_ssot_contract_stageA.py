@@ -92,7 +92,9 @@ def test_stageA_report_is_always_no_tools_for_all_capabilities(monkeypatch) -> N
         assert allowed_modes == ["NO_TOOLS"], "REPORT tier must always be NO_TOOLS"
 
     for cid, cap_entries in report_entries_by_cap.items():
-        assert cap_entries, f"Missing REPORT policy matrix entries for capability_id={cid}"
+        assert (
+            cap_entries
+        ), f"Missing REPORT policy matrix entries for capability_id={cid}"
 
 
 def test_stageA_mcp_engine_decision_has_policy_matrix_metadata(monkeypatch) -> None:
@@ -114,4 +116,7 @@ def test_stageA_mcp_engine_decision_has_policy_matrix_metadata(monkeypatch) -> N
     )
 
     assert decision.policy_matrix_present is True
-    assert isinstance(decision.policy_matrix_version, str) and decision.policy_matrix_version.strip()
+    assert (
+        isinstance(decision.policy_matrix_version, str)
+        and decision.policy_matrix_version.strip()
+    )

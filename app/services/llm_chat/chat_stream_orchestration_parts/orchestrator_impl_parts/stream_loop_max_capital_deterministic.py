@@ -4,16 +4,16 @@ from fastapi.responses import StreamingResponse
 
 from app.models.client import Client
 from app.services.llm_chat.orchestration_utils import is_max_capital_request
+from app.services.llm_chat.pending_approvals import (
+    load_pending_approval_ui_action_if_match,
+)
 from app.services.pension_portfolio.snapshot_loader import (
     load_current_effective_state,
     load_latest_pension_portfolio_snapshot_models,
 )
-from app.services.llm_chat.pending_approvals import (
-    load_pending_approval_ui_action_if_match,
-)
 
-from ..stream_tool_execution import _execute_tool_call
 from ..stream_streaming_helpers import _stream_request_approval
+from ..stream_tool_execution import _execute_tool_call
 
 
 def _maybe_handle_max_capital_request(

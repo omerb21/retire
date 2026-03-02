@@ -1,17 +1,17 @@
 import json
-
-import pytest
 from datetime import date
 
+import pytest
+
 import app.services.llm_chat.chat_orchestration as chat_orchestration
+from app.models.capital_asset import CapitalAsset
+from app.models.client import Client
+from app.models.pension_fund import PensionFund
+from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_orchestration import run_pension_chat
 from app.services.llm_chat.tool_execution import (
     execute_tool_call as real_execute_tool_call,
 )
-from app.schemas.llm_chat import ChatMessage, ChatRequest
-from app.models.pension_fund import PensionFund
-from app.models.capital_asset import CapitalAsset
-from app.models.client import Client
 from tests.utils import gen_valid_id
 
 

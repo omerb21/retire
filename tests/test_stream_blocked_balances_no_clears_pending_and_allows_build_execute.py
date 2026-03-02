@@ -4,10 +4,10 @@ from datetime import date, datetime, timezone
 from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
-from app.services.llm_agent_tools_service import AgentToolsService
 from app.main import app
 from app.models.client import Client
 from app.models.scenario import Scenario
+from app.services.llm_agent_tools_service import AgentToolsService
 
 
 def test_stream_blocked_balances_no_clears_pending_and_allows_build_execute(

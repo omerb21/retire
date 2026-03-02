@@ -6,8 +6,9 @@
 import json
 import re
 from datetime import date, datetime
-from dateutil.relativedelta import relativedelta
 from typing import Any
+
+from dateutil.relativedelta import relativedelta
 
 from app.services.retirement_age_service import get_retirement_date
 

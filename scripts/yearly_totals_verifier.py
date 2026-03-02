@@ -13,7 +13,7 @@ import os
 import random
 import zipfile
 from decimal import Decimal, getcontext
-from typing import Dict, List, Optional, Set, Tuple, Union, Any
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 # Set decimal precision for financial calculations
 getcontext().prec = 28

@@ -3,7 +3,7 @@ Configuration module for application settings
 """
 
 import os
-from typing import Dict, Any, Optional, Callable
+from typing import Any, Callable, Dict, Optional
 
 
 # Environment-based configuration

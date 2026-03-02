@@ -38,8 +38,8 @@ def _handle_tool_call_step(
     current_step: int,
     computed_data,
 ):
-    from app.services.llm_chat.numeric_provenance import extract_numeric_matches
     from app.services.llm_chat.numeric_provenance import (
+        extract_numeric_matches,
         sanitize_transparency_and_risk_blocks,
     )
     from app.utils.trace_context import get_current_trace_id
@@ -75,33 +75,6 @@ def _handle_tool_call_step(
         store_latest_target_pension_plan_data,
         store_pending_approval_request,
     )
-    from app.services.llm_chat.orchestration_core.core_types import (
-        DecisionCode,
-        OrchestrationDeps,
-        OrchestrationInput,
-        ToolResultEnvelope,
-    )
-    from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
-    from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
-        enrich_state_snapshot,
-    )
-    from app.services.llm_chat.message_utils import (
-        extract_target_pension_from_message,
-        find_last_user_message,
-        was_tool_call_previously_approved,
-    )
-    from app.services.llm_chat.orchestration_utils import (
-        apply_max_exemption_if_requested,
-        build_tax_result_system_message_for_chat,
-        build_tool_call_message_content,
-        build_tool_result_system_message_for_chat,
-        format_tool_output_for_user_stream,
-        is_tax_documents_request,
-        normalize_retirement_date_if_jan1_placeholder,
-        parse_tool_call_from_reply,
-        sanitize_user_visible_text,
-        validate_tool_call_protocol_for_execution,
-    )
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _extract_target_monthly_pension,
         _infer_target_is_net,
@@ -114,27 +87,50 @@ def _handle_tool_call_step(
     from app.services.llm_chat.chat_orchestration_parts.tool_calling import (
         _execute_tool_call,
     )
+    from app.services.llm_chat.message_utils import (
+        extract_target_pension_from_message,
+        find_last_user_message,
+        was_tool_call_previously_approved,
+    )
+    from app.services.llm_chat.orchestration_core.core_types import (
+        DecisionCode,
+        OrchestrationDeps,
+        OrchestrationInput,
+        ToolResultEnvelope,
+    )
+    from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
+    from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
+        enrich_state_snapshot,
+    )
     from app.services.llm_chat.orchestration_utils import (
+        apply_max_exemption_if_requested,
         build_partial_pension_transform_accounts_from_portfolio,
         build_portfolio_wide_after_settlement_severance_transform_accounts_from_portfolio,
         build_portfolio_wide_component_transform_accounts_from_portfolio,
         build_portfolio_wide_education_fund_transform_accounts_from_portfolio,
         build_portfolio_wide_prev_employers_severance_transform_accounts_from_portfolio,
         build_targeted_component_transform_accounts_from_portfolio,
+        build_tax_result_system_message_for_chat,
+        build_tool_call_message_content,
+        build_tool_result_system_message_for_chat,
         build_transform_accounts_from_portfolio,
+        format_tool_output_for_user_stream,
+        is_cashflow_missing_income_followup,
+        is_net_pension_request,
+        is_pension_commutation_request,
+        is_process_termination_request,
+        is_tax_documents_request,
+        is_transform_request,
+        normalize_retirement_date_if_jan1_placeholder,
         parse_partial_pension_conversion_request,
         parse_portfolio_wide_after_settlement_severance_conversion_request,
         parse_portfolio_wide_component_conversion_request,
         parse_portfolio_wide_education_fund_conversion_request,
         parse_portfolio_wide_prev_employers_severance_conversion_request,
         parse_targeted_component_conversion_request,
-    )
-    from app.services.llm_chat.orchestration_utils import (
-        is_cashflow_missing_income_followup,
-        is_net_pension_request,
-        is_pension_commutation_request,
-        is_process_termination_request,
-        is_transform_request,
+        parse_tool_call_from_reply,
+        sanitize_user_visible_text,
+        validate_tool_call_protocol_for_execution,
     )
 
     tool_part_for_log = raw_reply.split("###TOOL_CALL###", 1)[1].strip()
@@ -1331,25 +1327,21 @@ def _handle_no_tool_call_step(
     current_step: int,
 ):
     from app.models.client import Client
-    from app.services.llm_chat.numeric_provenance import (
-        extract_inline_tool_output_blocks,
-    )
-    from app.services.llm_chat.numeric_provenance import extract_numeric_matches
-    from app.services.llm_chat.numeric_provenance import (
-        sanitize_transparency_and_risk_blocks,
-    )
-    from app.services.llm_chat.numeric_provenance import (
-        validate_reply_numeric_provenance,
-    )
-    from app.services.llm_chat.orchestration_utils import (
-        is_tax_documents_request,
-    )
-    from app.utils.trace_context import get_current_trace_id
     from app.services.llm_chat.chat_orchestration_parts.chat_helpers import (
         _user_requested_target_pension_plan,
     )
     from app.services.llm_chat.message_utils import find_last_user_message
-    from app.services.llm_chat.orchestration_utils import is_net_pension_request
+    from app.services.llm_chat.numeric_provenance import (
+        extract_inline_tool_output_blocks,
+        extract_numeric_matches,
+        sanitize_transparency_and_risk_blocks,
+        validate_reply_numeric_provenance,
+    )
+    from app.services.llm_chat.orchestration_utils import (
+        is_net_pension_request,
+        is_tax_documents_request,
+    )
+    from app.utils.trace_context import get_current_trace_id
 
     has_tool_results = any(
         (m.role == "system")

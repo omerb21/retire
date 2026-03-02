@@ -11,30 +11,22 @@
 - core: פונקציות שירות מרכזיות
 """
 
-# ייבוא כל הפונקציות הציבוריות מהמודולים השונים
-from .indexation import calculate_adjusted_amount, index_grant
-
-from .work_ratio import work_ratio_within_last_32y, ratio_last_32y
-
+from .core import calculate_full_fixation, process_grant
+from .eligibility import calculate_eligibility_age
 from .exemption_caps import (
-    get_monthly_cap,
-    get_exemption_percentage,
-    calc_exempt_capital,
     ANNUAL_CAPS,
     EXEMPTION_PERCENTAGES,
     MULTIPLIER,
+    calc_exempt_capital,
+    get_exemption_percentage,
+    get_monthly_cap,
 )
+from .grant_impact import compute_client_exemption, compute_grant_effect
+from .idf_fixation import IdfFixationResult, compute_idf_fixation_impact
 
-from .grant_impact import compute_grant_effect, compute_client_exemption
-
-from .eligibility import calculate_eligibility_age
-
-from .idf_fixation import (
-    IdfFixationResult,
-    compute_idf_fixation_impact,
-)
-
-from .core import process_grant, calculate_full_fixation
+# ייבוא כל הפונקציות הציבוריות מהמודולים השונים
+from .indexation import calculate_adjusted_amount, index_grant
+from .work_ratio import ratio_last_32y, work_ratio_within_last_32y
 
 # רשימת כל הפונקציות והמשתנים הציבוריים
 __all__ = [

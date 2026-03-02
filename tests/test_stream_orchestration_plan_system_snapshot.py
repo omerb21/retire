@@ -25,7 +25,7 @@ def test_stream_orchestration_plan_system_snapshot_uses_snapshot_tool_no_llm(
         client_id: int,
         db,
         pension_portfolio=None,
-        force_max_exemption: bool = False
+        force_max_exemption: bool = False,
     ):
         tool_calls.append((tool_name, args))
         assert tool_name == "GET_SYSTEM_STATE_SNAPSHOT"

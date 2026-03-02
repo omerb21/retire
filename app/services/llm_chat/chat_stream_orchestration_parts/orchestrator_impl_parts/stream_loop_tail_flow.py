@@ -237,13 +237,18 @@
     # through to the LLM or to unrelated deterministic handlers.
     try:
         from app.services.llm_chat.explicit_tool_shortcuts import (
-            is_explicit_client_snapshot_request as _is_snap_req,
-            wants_json_only as _wants_json,
             build_client_snapshot_tool_result as _build_snap,
+        )
+        from app.services.llm_chat.explicit_tool_shortcuts import (
+            is_explicit_client_snapshot_request as _is_snap_req,
+        )
+        from app.services.llm_chat.explicit_tool_shortcuts import (
+            wants_json_only as _wants_json,
         )
 
         if isinstance(original_user_msg, str) and _is_snap_req(original_user_msg):
             import json as _json
+
             from fastapi.responses import StreamingResponse as _SR
 
             _snap_result = _build_snap(client_id=request.client_id, db=db)
@@ -259,8 +264,8 @@
 
             # ── Agent Eyes trace events ──
             try:
-                from app.services.agent_trace_logger import log_trace_event as _lt
                 from app.services.agent_eyes.event_collector import emit_event as _ee
+                from app.services.agent_trace_logger import log_trace_event as _lt
 
                 _lt(
                     event_type="execution_path",

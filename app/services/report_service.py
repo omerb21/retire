@@ -8,28 +8,22 @@ All actual implementation is now in app/services/report/ subdirectories.
 """
 
 # Import everything from the modular report package
-from app.services.report import (
-    # Main service class
-    ReportService,
-    # High-level generation function
-    generate_report_pdf,
-    # Font management
-    FontManager,
-    ensure_fonts,
-    get_default_font,
+from app.services.report import (  # Main service class; High-level generation function; Font management; Utilities; Charts; Internal services (for advanced usage)
     DEFAULT_HEBREW_FONT,
-    # Utilities
-    PDFStyles,
-    DataFormatters,
-    # Charts
     CashflowChartRenderer,
-    ScenariosChartRenderer,
-    render_cashflow_chart,
-    create_net_cashflow_chart,
-    render_scenarios_compare_chart,
-    # Internal services (for advanced usage)
+    DataFormatters,
     DataService,
+    FontManager,
     PDFService,
+    PDFStyles,
+    ReportService,
+    ScenariosChartRenderer,
+    create_net_cashflow_chart,
+    ensure_fonts,
+    generate_report_pdf,
+    get_default_font,
+    render_cashflow_chart,
+    render_scenarios_compare_chart,
 )
 
 

@@ -3,13 +3,15 @@ Maximum NPV Scenario (Balanced 50/50)
 תרחיש מאוזן - מקסימום NPV
 """
 
+import json
 import logging
-from typing import Dict
 from datetime import date
 from decimal import Decimal
-import json
-from app.models.pension_fund import PensionFund
+from typing import Dict
+
 from app.models.capital_asset import CapitalAsset
+from app.models.pension_fund import PensionFund
+
 from ..base_scenario_builder import BaseScenarioBuilder
 from ..constants import MINIMUM_PENSION, PENSION_COEFFICIENT
 from ..utils.pension_utils import convert_balance_to_pension
@@ -392,9 +394,7 @@ class MaxNPVScenario(BaseScenarioBuilder):
     ) -> None:
         """המרת נכסי הון לקצבאות עד שאיזון 50/50 בין קצבה להון מושג ככל האפשר."""
         if capital_value <= pension_value:
-            logger.info(
-                "  ℹ️ No need to convert capital to pension (capital ≤ pension)"
-            )
+            logger.info("  ℹ️ No need to convert capital to pension (capital ≤ pension)")
             return
 
         total_value = pension_value + capital_value

@@ -3,9 +3,9 @@ Logging configuration for the application
 Provides structured logging for monitoring and alerting
 """
 
-import os
 import logging
 import logging.config
+import os
 from pathlib import Path
 
 # Create logs directory if it doesn't exist

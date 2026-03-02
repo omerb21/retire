@@ -2,10 +2,12 @@
 API endpoints for advanced indexation calculations
 """
 
+from datetime import date
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from datetime import date
+
 from app.services.indexation_service import IndexationService
 
 router = APIRouter()

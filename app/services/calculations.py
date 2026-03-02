@@ -3,11 +3,11 @@ Calculation Engine with stub functions for retirement planning calculations
 """
 
 from datetime import date, datetime
-from typing import Dict, List, Any, Optional
 from decimal import Decimal
+from typing import Any, Dict, List, Optional
 
+from ..schemas.tax_schemas import PersonalDetails, TaxCalculationInput
 from .tax_calculator import TaxCalculator
-from ..schemas.tax_schemas import TaxCalculationInput, PersonalDetails
 
 
 def calculate_service_years(
