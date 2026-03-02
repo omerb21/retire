@@ -438,7 +438,12 @@ def _log_policy_decision(
 
 
 def _emit_final_response(
-    *, reply: str | None, computed_data, streaming: bool, client_id: int | None, endpoint: str
+    *,
+    reply: str | None,
+    computed_data,
+    streaming: bool,
+    client_id: int | None,
+    endpoint: str,
 ) -> None:
     try:
         text = reply if isinstance(reply, str) else ""
@@ -921,7 +926,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
     # and later used to gate tool execution.
     try:
         _tier = str(
-            getattr(intent, "name", None) or getattr(intent, "value", None) or str(intent)
+            getattr(intent, "name", None)
+            or getattr(intent, "value", None)
+            or str(intent)
         )
         _it = None
         try:
@@ -979,7 +986,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 pass
 
         _tools_enabled = getattr(effective_request, "tools_enabled", None)
-        _tools_disabled_reason = getattr(effective_request, "tools_disabled_reason", None)
+        _tools_disabled_reason = getattr(
+            effective_request, "tools_disabled_reason", None
+        )
         try:
             if _rd is not None:
                 _cap_id = str(getattr(_rd, "capability_id", "") or "")
@@ -1378,7 +1387,10 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
         _final_text_s = _final_text_s if _final_text_s.strip() else ""
 
         reply = ""
-        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+        if (
+            isinstance(_core_final_reply_override, str)
+            and _core_final_reply_override.strip()
+        ):
             reply = _core_final_reply_override
         else:
             reply = _final_text_s
@@ -1426,8 +1438,6 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
             return res
 
         # If we got RESPOND_ONLY but no usable reply/computed_data, allow legacy fallback.
-
-
 
     try:
         _dc = getattr(_core_decision, "decision_code", None)
@@ -1889,7 +1899,9 @@ def execute_agent_request_stream(
     # and later used to gate tool execution.
     try:
         _tier = str(
-            getattr(intent, "name", None) or getattr(intent, "value", None) or str(intent)
+            getattr(intent, "name", None)
+            or getattr(intent, "value", None)
+            or str(intent)
         )
         _it = None
         try:
@@ -1947,7 +1959,9 @@ def execute_agent_request_stream(
                 pass
 
         _tools_enabled = getattr(effective_request, "tools_enabled", None)
-        _tools_disabled_reason = getattr(effective_request, "tools_disabled_reason", None)
+        _tools_disabled_reason = getattr(
+            effective_request, "tools_disabled_reason", None
+        )
         try:
             if _rd is not None:
                 _cap_id = str(getattr(_rd, "capability_id", "") or "")
@@ -2404,7 +2418,10 @@ def execute_agent_request_stream(
         _final_text_s = _final_text_s if _final_text_s.strip() else ""
 
         reply = ""
-        if isinstance(_core_final_reply_override, str) and _core_final_reply_override.strip():
+        if (
+            isinstance(_core_final_reply_override, str)
+            and _core_final_reply_override.strip()
+        ):
             reply = _core_final_reply_override
         else:
             reply = _final_text_s
@@ -2458,7 +2475,8 @@ def execute_agent_request_stream(
             except Exception:
                 pass
             return StreamingResponse(
-                _wrap_iter_with_final_response(_core_reply_gen()), media_type="text/plain"
+                _wrap_iter_with_final_response(_core_reply_gen()),
+                media_type="text/plain",
             )
 
         # If we got RESPOND_ONLY but no usable reply/computed_data, allow legacy fallback.
@@ -2521,7 +2539,10 @@ def execute_agent_request_stream(
         final_text = final_text if isinstance(final_text, str) else ""
         return StreamingResponse(iter([final_text]), media_type="text/plain")
 
-    if outcome_final in {MCPOutcomeFinal.TOOL_BLOCKED, MCPOutcomeFinal.PENDING_APPROVAL}:
+    if outcome_final in {
+        MCPOutcomeFinal.TOOL_BLOCKED,
+        MCPOutcomeFinal.PENDING_APPROVAL,
+    }:
         if outcome_final == MCPOutcomeFinal.PENDING_APPROVAL:
             reply = (
                 "נדרש אישור משתמש לפני ביצוע פעולה. "
