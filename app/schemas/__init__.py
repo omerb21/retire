@@ -7,10 +7,8 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel
 
 # Import client schemas
-from app.schemas.client import ClientCreate, ClientList
 from app.schemas.client import ClientResponse  # Alias for backward compatibility
-from app.schemas.client import ClientResponse as Client
-from app.schemas.client import ClientUpdate
+from app.schemas.client import ClientCreate, ClientList, ClientUpdate
 
 # Import other schemas as needed
 try:
