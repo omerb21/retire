@@ -10,7 +10,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.guards.advisor_behavior_guard import (
-    STANDARD_BLOCK_MESSAGE,
     _ALLOWED_FORM_SECTION_RE,
     _COMMA_NUMBER_RE,
     _DECIMAL_RE,
@@ -23,6 +22,7 @@ from app.guards.advisor_behavior_guard import (
     _LONG_NUMBER_RE,
     _MONEY_PERCENT_RE,
     _THOUSANDS_RE,
+    STANDARD_BLOCK_MESSAGE,
 )
 from app.guards.tool_intent_guard import (
     allow_tools_for_intent,
@@ -32,14 +32,26 @@ from app.guards.tool_intent_guard import (
     sanitize_words_only_output,
 )
 from app.schemas.llm_chat import ChatMessage, ChatRequest, ChatResponse
-from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
 from app.services.agent_execution.policy import PolicyDecision, decide
+from app.services.agent_execution.tool_execution_context import (
+    get_tool_ok_seen,
+    reset_tool_ok_seen,
+    set_tool_execution_context,
+)
+from app.services.agent_execution.tool_executor import execute_with_guard
+from app.services.agent_eyes.event_collector import emit_event as _eyes_emit
 from app.services.agent_trace_logger import log_trace_event
+from app.services.intent_classifier import IntentType, classify_intent
+from app.services.llm_chat.capability_router.router_facade import ensure_router_decision
+from app.services.llm_chat.capability_router.runtime_context import (
+    RouterDecision,
+    get_router_decision,
+)
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.services.llm_chat.execution_only_guard import (
+    get_execution_only_system_prompt,
     is_execution_only,
     validate_execution_only_output,
-    get_execution_only_system_prompt,
 )
 from app.services.llm_chat.execution_only_rewriter import build_exec_only_rewrite_prompt
 from app.services.llm_chat.explicit_tool_shortcuts import (
@@ -49,6 +61,12 @@ from app.services.llm_chat.explicit_tool_shortcuts import (
     wants_json_only,
 )
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
+from app.services.llm_chat.mcp.decision import MCPDecision, MCPExecutionMode
+from app.services.llm_chat.mcp.engine import MCPEngine, mcp_decision_to_payload
+from app.services.llm_chat.mcp.types import MCPOutcomeFinal
+from app.services.llm_chat.orchestration_core.constants import (
+    MAX_ITERATIONS_USER_MESSAGE_HE,
+)
 from app.services.llm_chat.orchestration_core.core_types import (
     DecisionCode,
     OrchestrationDecision,
@@ -57,13 +75,11 @@ from app.services.llm_chat.orchestration_core.core_types import (
     ToolResultEnvelope,
     TraceEventSpec,
 )
-from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
-from app.services.llm_chat.orchestration_core.constants import (
-    MAX_ITERATIONS_USER_MESSAGE_HE,
-)
+from app.services.llm_chat.orchestration_core.feature_flags import compute_feature_flags
 from app.services.llm_chat.orchestration_core.max_iterations_guard import (
     maybe_apply_max_iterations_guard,
 )
+from app.services.llm_chat.orchestration_core.orchestrate import orchestrate
 from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
     enrich_state_snapshot,
 )
@@ -74,23 +90,7 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     MONTHLY_PENSION_SUMMARY_TOOL_NAME,
     TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
-from app.services.llm_chat.orchestration_core.feature_flags import compute_feature_flags
-from app.services.llm_chat.capability_router.router_facade import ensure_router_decision
-from app.services.llm_chat.capability_router.runtime_context import (
-    RouterDecision,
-    get_router_decision,
-)
-from app.services.llm_chat.mcp.engine import MCPEngine, mcp_decision_to_payload
-from app.services.llm_chat.mcp.decision import MCPDecision, MCPExecutionMode
-from app.services.llm_chat.mcp.types import MCPOutcomeFinal
-from app.services.intent_classifier import IntentType, classify_intent
 from app.services.llm_pension_agent_service import pension_llm_service
-from app.services.agent_execution.tool_execution_context import (
-    get_tool_ok_seen,
-    reset_tool_ok_seen,
-    set_tool_execution_context,
-)
-from app.services.agent_execution.tool_executor import execute_with_guard
 
 logger = logging.getLogger("app.llm_chat")
 
@@ -639,8 +639,8 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
 
     try:
         from app.utils.trace_context import (
-            get_current_trace_id,
             generate_trace_id,
+            get_current_trace_id,
             set_current_trace_id,
         )
 
@@ -1615,8 +1615,8 @@ def execute_agent_request_stream(
     _trace_id_for_stream = None
     try:
         from app.utils.trace_context import (
-            get_current_trace_id,
             generate_trace_id,
+            get_current_trace_id,
             set_current_trace_id,
         )
 
