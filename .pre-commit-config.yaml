@@ -14,3 +14,4 @@ repos:
     hooks:
       - id: flake8
         files: ^app/
+        args: ["--config=.flake8"]
