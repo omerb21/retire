@@ -1433,7 +1433,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                         and _core_final_reply_override.strip()
                         else "Monthly pension summary computed. See computed_data for details."
                     )
-                    _res = ChatResponse(reply=_reply, computed_data=_core_final_computed_data)
+                    _res = ChatResponse(
+                        reply=_reply, computed_data=_core_final_computed_data
+                    )
                     _res.reply = _stage10_guard_reply_text(
                         reply=getattr(_res, "reply", None),
                         endpoint=endpoint,
@@ -1445,7 +1447,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                             trace_id=getattr(effective_request, "trace_id", None),
                             event_type="core_final_response",
                             payload={
-                                "reply_preview": str(getattr(_res, "reply", "") or "")[:500]
+                                "reply_preview": str(getattr(_res, "reply", "") or "")[
+                                    :500
+                                ]
                             },
                             client_id=effective_request.client_id,
                             endpoint=endpoint,
@@ -1489,7 +1493,11 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                 try:
                     _txt = str(last_user_msg or "")
                     _low = _txt.lower()
-                    if ("json" in _low) or ("בלי הסברים" in _txt) or ("רק" in _txt and "JSON" in _txt):
+                    if (
+                        ("json" in _low)
+                        or ("בלי הסברים" in _txt)
+                        or ("רק" in _txt and "JSON" in _txt)
+                    ):
                         _wants_json_only = True
                 except Exception:
                     _wants_json_only = False
@@ -1543,7 +1551,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                         and _core_final_reply_override.strip()
                         else "Snapshot loaded. See computed_data for details."
                     )
-                _res = ChatResponse(reply=_reply, computed_data=_core_final_computed_data)
+                _res = ChatResponse(
+                    reply=_reply, computed_data=_core_final_computed_data
+                )
                 _res.reply = _stage10_guard_reply_text(
                     reply=getattr(_res, "reply", None),
                     endpoint=endpoint,
@@ -1605,7 +1615,9 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                             or ("רק" in _txt and "JSON" in _txt)
                         ):
                             _reply = json.dumps(parsed_str, ensure_ascii=False)
-                            _res = ChatResponse(reply=_reply, computed_data=_core_final_computed_data)
+                            _res = ChatResponse(
+                                reply=_reply, computed_data=_core_final_computed_data
+                            )
                             _res.reply = _stage10_guard_reply_text(
                                 reply=getattr(_res, "reply", None),
                                 endpoint=endpoint,
@@ -1614,10 +1626,14 @@ def execute_agent_request(request: ChatRequest, db: Session) -> ChatResponse:
                             )
                             try:
                                 log_trace_event(
-                                    trace_id=getattr(effective_request, "trace_id", None),
+                                    trace_id=getattr(
+                                        effective_request, "trace_id", None
+                                    ),
                                     event_type="core_final_response",
                                     payload={
-                                        "reply_preview": str(getattr(_res, "reply", "") or "")[:500]
+                                        "reply_preview": str(
+                                            getattr(_res, "reply", "") or ""
+                                        )[:500]
                                     },
                                     client_id=effective_request.client_id,
                                     endpoint=endpoint,
@@ -2526,7 +2542,8 @@ def execute_agent_request_stream(
         try:
             if (
                 (not _core_final_response_emitted)
-                and getattr(_core_decision, "decision_code", None) == DecisionCode.TOOL_CALL
+                and getattr(_core_decision, "decision_code", None)
+                == DecisionCode.TOOL_CALL
                 and str(getattr(_core_decision, "tool_name", "") or "")
                 == MONTHLY_PENSION_SUMMARY_TOOL_NAME
             ):
@@ -2985,7 +3002,9 @@ def execute_agent_request_stream(
                         is_user_approval_intent_text,
                     )
 
-                    last_user = find_last_user_message(list(effective_request.messages or []))
+                    last_user = find_last_user_message(
+                        list(effective_request.messages or [])
+                    )
                     if isinstance(last_user, str) and is_user_approval_intent_text(
                         last_user
                     ):
@@ -2996,10 +3015,14 @@ def execute_agent_request_stream(
             if outcome_final != MCPOutcomeFinal.TOOL_ALLOWED:
                 try:
                     reason_code = str(getattr(mcp_decision, "reason_code", "") or "")
-                    last_user_text = _find_last_user_message_text(effective_request) or ""
+                    last_user_text = (
+                        _find_last_user_message_text(effective_request) or ""
+                    )
                     if _should_allow_target_plan_approval(reason_code, last_user_text):
                         outcome_final = MCPOutcomeFinal.TOOL_ALLOWED
-                    elif _should_allow_max_capital_approval(reason_code, last_user_text):
+                    elif _should_allow_max_capital_approval(
+                        reason_code, last_user_text
+                    ):
                         outcome_final = MCPOutcomeFinal.TOOL_ALLOWED
                 except Exception:
                     pass
@@ -3014,7 +3037,9 @@ def execute_agent_request_stream(
                     f"reason_code={mcp_decision.reason_code}"
                 )
             else:
-                reply = f"הבקשה נחסמה לפי מדיניות. reason_code={mcp_decision.reason_code}"
+                reply = (
+                    f"הבקשה נחסמה לפי מדיניות. reason_code={mcp_decision.reason_code}"
+                )
             final_text = _stage10_guard_reply_text(
                 reply=reply,
                 endpoint=endpoint,
