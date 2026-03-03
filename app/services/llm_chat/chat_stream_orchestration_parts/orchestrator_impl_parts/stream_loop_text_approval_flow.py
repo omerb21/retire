@@ -80,6 +80,11 @@ def _maybe_handle_text_approval_flow(
     if request.client_id is None:
         return None
 
+    try:
+        from app.services.llm_chat.message_utils import is_user_approval_intent_text
+    except Exception:
+        is_user_approval_intent_text = None
+
     def _has_pending_approval() -> bool:
         try:
             row = (
@@ -101,7 +106,10 @@ def _maybe_handle_text_approval_flow(
             media_type="text/plain",
         )
 
-    if lowered_user_msg not in {"מאשר", "אשר", "כן", "approve", "ok"}:
+    if callable(is_user_approval_intent_text):
+        if not is_user_approval_intent_text(lowered_user_msg):
+            return None
+    elif lowered_user_msg not in {"מאשר", "אשר", "כן", "approve", "ok"}:
         return None
 
     def _load_latest_pending_approval_payload() -> tuple[str, dict] | None:
@@ -132,7 +140,7 @@ def _maybe_handle_text_approval_flow(
     pending = _load_latest_pending_approval_payload()
     if pending is None:
         return StreamingResponse(
-            iter(["אין בקשת אישור פתוחה."]),
+            iter(["לא נמצאה בקשת אישור פעילה."]),
             media_type="text/plain",
         )
 
