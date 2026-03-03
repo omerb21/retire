@@ -34,6 +34,26 @@ Rule:
 - להריץ git diff --name-status --cached
 - הפלט חייב להכיל רק קבצים שבתוך allowlist
 
+## PR-2
+
+### סעיף 1.2 – איסורים
+
+* אסור `importlib` 
+* אסור `__import__` 
+* אסור `pkgutil` 
+* אסור `exec` או `eval` לצורך import
+* אסור חיפוש טקסטואלי כדי לגלות `module_path` 
+
+### סעיף 1.3 – self-check
+
+בדיקה על היעדר של:
+
+* "importlib" 
+* "__import__" 
+* "pkgutil" 
+* "exec(" 
+* "eval(" 
+
 ## בדיקות נדרשות
 
 - pytest -q tests/agent_training/test_user_visible_path_parity.py
