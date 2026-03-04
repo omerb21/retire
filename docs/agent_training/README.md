@@ -71,7 +71,36 @@ Rule:
 - python -c "<validator one-liner מהסעיף 5.2>"
 - pytest -q tests/agent_training/test_golden_determinism.py
 
+## PR-4
+
+### Allowlist (PR-4)
+
+- docs/agent_training/README.md
+- tests/agent_training/test_golden_determinism.py
+- agent_training/runner/readiness_spec_ref.json
+
+- Any status (M, D, R, C) outside allowlist = reject.
+
+### How to validate
+
+- git diff --name-status --cached
+- pytest -q tests/agent_training/test_golden_determinism.py
+
+When `GOLDEN_REAL_PATH_B1=1`, the PR-4 real-path golden validation must fail (never skip) if real-path is not eligible.
+
+OutcomeFinal SSOT is identified via runtime probe introspection only (no code search).
+PR-4 implemented Real Path gate; currently real_path is ineligible (enabled=false). PR-5 will make it eligible via config.
+Rule: do not declare a PR "closed" if the primary goal is not met, unless it is explicitly split and deferred to the next PR.
+
 ## בדיקות נדרשות
+
+## PR-5
+
+### DoD
+
+- With GOLDEN_REAL_PATH_B1=1, the first failure must be a case-level mismatch, not an eligibility failure.
+
+PR-5 outputs must include the chosen import_path and symbol for real_path and a short proof that import succeeds.
 
 - pytest -q tests/agent_training/test_user_visible_path_parity.py
 - pytest -q
