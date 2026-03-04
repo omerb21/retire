@@ -54,6 +54,23 @@ Rule:
 * "exec(" 
 * "eval(" 
 
+## PR-3
+
+- `golden_small.jsonl is a historical filename; it now contains the expanded golden set.`
+
+### Allowlist (PR-3)
+
+- docs/agent_training/README.md
+- agent_training/golden/golden_small.jsonl
+
+- Any status (M, D, R, C) outside allowlist = reject.
+
+### How to validate
+
+- git diff --name-status --cached
+- python -c "<validator one-liner מהסעיף 5.2>"
+- pytest -q tests/agent_training/test_golden_determinism.py
+
 ## בדיקות נדרשות
 
 - pytest -q tests/agent_training/test_user_visible_path_parity.py
