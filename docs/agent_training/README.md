@@ -94,13 +94,38 @@ Rule: do not declare a PR "closed" if the primary goal is not met, unless it is 
 
 ## בדיקות נדרשות
 
+## PR-5.1
+
+### Allowlist (PR-5.1)
+
+- docs/agent_training/README.md
+- docs/agent_training/user_visible_path.md
+
+- Any status (M, D, R, C) outside allowlist = reject.
+
+### How to validate
+
+- git diff --name-status --cached
+- python -c "from app.services.agent_execution.execute_agent_request import execute_agent_request; print('OK')"
+
 ## PR-5
+
+### Allowlist (PR-5)
+
+- docs/agent_training/README.md
+- tests/agent_training/test_golden_determinism.py
+- agent_training/runner/readiness_spec_ref.json
+
+- Any status (M, D, R, C) outside allowlist = reject.
+
+### How to validate
+
+- git diff --name-status --cached
+- pytest -q tests/agent_training/test_golden_determinism.py
 
 ### DoD
 
-- With GOLDEN_REAL_PATH_B1=1, the first failure must be a case-level mismatch, not an eligibility failure.
-
-PR-5 outputs must include the chosen import_path and symbol for real_path and a short proof that import succeeds.
+- When GOLDEN_REAL_PATH_B1=1, first failure must be case mismatch or explicit signature-fail, not enabled-fail.
 
 - pytest -q tests/agent_training/test_user_visible_path_parity.py
 - pytest -q
