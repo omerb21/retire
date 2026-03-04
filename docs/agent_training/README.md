@@ -110,6 +110,10 @@ Rule: do not declare a PR "closed" if the primary goal is not met, unless it is 
 
 ## PR-5
 
+שלב 0 (חובה): prove-callability + prove-shape לפני ריצה על 90.
+הוכחת stdout: הטסט חייב להדפיס שתי שורות בלבד עם prefix REAL_PATH, ויתכנו warnings של תלויות שאינם חלק מההוכחה.
+הגדרת tool_called: בשלב PR-5 tool_called משמעו tool plan exists (ולא tool executed).
+
 ### Allowlist (PR-5)
 
 - docs/agent_training/README.md

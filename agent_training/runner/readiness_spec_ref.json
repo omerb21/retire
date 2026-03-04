@@ -1,0 +1,13 @@
+{
+  "lab_mode_default": "gating_stub",
+  "real_path": {
+    "enabled": true,
+    "import_path": "app.agent.entrypoint:run_agent"
+  },
+  "hookpoints": {
+    "llm_client_import_path": null,
+    "tool_executor_import_path": null,
+    "clock_import_path": null,
+    "trace_id_import_path": null
+  }
+}
