@@ -2,7 +2,6 @@ import importlib
 import json
 from pathlib import Path
 
-
 _self_path = __file__
 try:
     with open(_self_path, "r", encoding="utf-8") as _f:
