@@ -139,3 +139,22 @@ Rule: do not declare a PR "closed" if the primary goal is not met, unless it is 
 ## PR-6
 
 PR-6 is environment alignment only: no heuristics, no rewriting predictions, no injecting text into responses; allowlist is exactly two files (tests/agent_training/test_golden_determinism.py + docs/agent_training/README.md).
+
+## PR-7
+
+PR-7 is enforcement-only and does not include real_path execution; real_path test returns in PR-8.
+
+### Allowlist (PR-7)
+
+- docs/agent_training/README.md
+- tests/agent_training/test_golden_determinism.py
+- agent_training/runner/readiness_spec_ref.json
+
+- Any status (M, D, R, C) outside allowlist = reject.
+
+### How to validate
+
+- git diff --name-status --cached
+- pytest -q tests/agent_training/test_golden_determinism.py
+
+If agent_training/runner/readiness_spec_ref.json is not staged, it must not be changed; gate: git diff -- agent_training/runner/readiness_spec_ref.json must be empty.
