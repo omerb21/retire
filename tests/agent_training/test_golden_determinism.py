@@ -148,7 +148,9 @@ def _first_event_payload(
     return None
 
 
-def _adapt_prediction(*, response_obj, events: list[dict], trace_id: str) -> dict:
+def _adapt_prediction(
+    *, response_obj, events: list[dict], trace_id: str, case_id: str
+) -> dict:
     response_text = None
     if hasattr(response_obj, "reply"):
         response_text = getattr(response_obj, "reply", None)
@@ -164,7 +166,9 @@ def _adapt_prediction(*, response_obj, events: list[dict], trace_id: str) -> dic
     router_selected = _first_event_payload(
         events, trace_id=trace_id, event_type="router_selected"
     )
-    mcp_decision = _first_event_payload(events, trace_id=trace_id, event_type="mcp_decision")
+    mcp_decision = _first_event_payload(
+        events, trace_id=trace_id, event_type="mcp_decision"
+    )
 
     planned_tools = None
     if isinstance(router_selected, dict):
@@ -207,10 +211,10 @@ def _adapt_prediction(*, response_obj, events: list[dict], trace_id: str) -> dic
 
     for k in ["outcome_final", "capability_id", "tool_called", "response_text"]:
         if predicted.get(k) is None:
-            raise AssertionError(f"field missing: {k}")
+            raise AssertionError(f"case id={case_id} field missing: {k}")
 
     if "reason_marker" not in predicted:
-        raise AssertionError("field missing: reason_marker")
+        raise AssertionError(f"case id={case_id} field missing: reason_marker")
 
     return predicted
 
@@ -226,6 +230,25 @@ def _assert_mismatch(*, case_id: str, field_name: str, expected, predicted) -> N
 def test_golden_real_path_matches_expected_when_enabled(monkeypatch) -> None:
     if os.getenv("GOLDEN_REAL_PATH_B1") != "1":
         pytest.skip("GOLDEN_REAL_PATH_B1 != '1'")
+
+    monkeypatch.setenv("MCP_POLICY_ENFORCEMENT_DISABLE_ALL", "1")
+    monkeypatch.setenv("MCP_POLICY_ENFORCEMENT_B1", "0")
+
+    def _env_override_snapshot_line() -> str:
+        return (
+            "ENV_OVERRIDE_SNAPSHOT "
+            + "MCP_POLICY_ENFORCEMENT_DISABLE_ALL="
+            + str(os.getenv("MCP_POLICY_ENFORCEMENT_DISABLE_ALL") or "")
+            + " MCP_POLICY_ENFORCEMENT_B1="
+            + str(os.getenv("MCP_POLICY_ENFORCEMENT_B1") or "")
+        )
+
+    def _is_blocked_outcome(outcome_final: str | None) -> bool:
+        if not isinstance(outcome_final, str):
+            return False
+        return outcome_final == "TOOL_BLOCKED" or outcome_final.startswith(
+            "TOOL_BLOCKED"
+        )
 
     readiness_spec, readiness_path = _load_readiness_spec()
     _ = readiness_path
@@ -261,7 +284,10 @@ def test_golden_real_path_matches_expected_when_enabled(monkeypatch) -> None:
         for name, p in sig.parameters.items():
             if p.default is not inspect._empty:
                 continue
-            if p.kind in {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}:
+            if p.kind in {
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            }:
                 continue
 
             if name == "request":
@@ -299,7 +325,12 @@ def test_golden_real_path_matches_expected_when_enabled(monkeypatch) -> None:
         except Exception:
             pass
 
-    _ = _adapt_prediction(response_obj=response0, events=events, trace_id=trace_id0)
+    _ = _adapt_prediction(
+        response_obj=response0,
+        events=events,
+        trace_id=trace_id0,
+        case_id="STAGE0",
+    )
 
     for c in golden_cases:
         case_id = str(c.get("id") or "")
@@ -329,7 +360,30 @@ def test_golden_real_path_matches_expected_when_enabled(monkeypatch) -> None:
             response_obj=response_obj,
             events=events,
             trace_id=trace_id,
+            case_id=case_id,
         )
+
+        expected_outcome_final = c.get("expected_outcome_final")
+        predicted_outcome_final = predicted.get("outcome_final")
+        if expected_outcome_final == "NO_TOOLS" and _is_blocked_outcome(
+            str(predicted_outcome_final)
+            if predicted_outcome_final is not None
+            else None
+        ):
+            raise AssertionError(
+                "\n".join(
+                    [
+                        " ".join(
+                            [
+                                f"case id={case_id}",
+                                f"expected_outcome_final={expected_outcome_final}",
+                                f"predicted_outcome_final={predicted_outcome_final}",
+                            ]
+                        ),
+                        _env_override_snapshot_line(),
+                    ]
+                )
+            )
 
         _assert_mismatch(
             case_id=case_id,
@@ -365,9 +419,13 @@ def test_golden_real_path_matches_expected_when_enabled(monkeypatch) -> None:
                 str(predicted.get("reason_marker") or ""),
             ]
         )
-        must_contain = c.get("must_contain") if isinstance(c.get("must_contain"), list) else []
+        must_contain = (
+            c.get("must_contain") if isinstance(c.get("must_contain"), list) else []
+        )
         must_not_contain = (
-            c.get("must_not_contain") if isinstance(c.get("must_not_contain"), list) else []
+            c.get("must_not_contain")
+            if isinstance(c.get("must_not_contain"), list)
+            else []
         )
         for s in must_contain:
             _assert_mismatch(

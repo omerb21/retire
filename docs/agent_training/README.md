@@ -135,3 +135,7 @@ Rule: do not declare a PR "closed" if the primary goal is not met, unless it is 
 - pytest -q
 - git diff --name-only
 - git diff --name-status
+
+## PR-6
+
+PR-6 is environment alignment only: no heuristics, no rewriting predictions, no injecting text into responses; allowlist is exactly two files (tests/agent_training/test_golden_determinism.py + docs/agent_training/README.md).
