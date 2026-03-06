@@ -107,7 +107,9 @@ def test_golden_determinism() -> None:
         if not isinstance(real_path_cfg, dict):
             print(f"REAL_PATH import_path={raw_import_path} symbol={symbol_name}")
             print("REAL_PATH import_ok=false")
-            raise AssertionError("REAL_PATH readiness_spec_ref mismatch (real_path missing)")
+            raise AssertionError(
+                "REAL_PATH readiness_spec_ref mismatch (real_path missing)"
+            )
 
         raw_import_path = str(real_path_cfg.get("import_path") or "")
 
@@ -178,7 +180,9 @@ def test_golden_determinism() -> None:
             else:
                 reason = "not all 4 hookpoints are non-null"
                 if not real_path_mode:
-                    print(f"Falling back to Gating Lab: {reason}. path={readiness_path}")
+                    print(
+                        f"Falling back to Gating Lab: {reason}. path={readiness_path}"
+                    )
                 lab_mode = "gating"
 
     assert lab_mode in {"entrypoint", "gating"}
@@ -229,7 +233,9 @@ def test_golden_determinism() -> None:
 
         reply = str(getattr(response, "reply", "") or "")
         predicted_outcome_final = _extract_outcome_final(reply)
-        predicted_capability_id = str(getattr(router_decision, "capability_id", "") or "")
+        predicted_capability_id = str(
+            getattr(router_decision, "capability_id", "") or ""
+        )
         predicted_tool_called = bool(getattr(router_decision, "tool_chain", []))
 
         if predicted_outcome_final != str(case.get("expected_outcome_final") or ""):
