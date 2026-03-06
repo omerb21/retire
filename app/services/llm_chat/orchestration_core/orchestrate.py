@@ -19,15 +19,19 @@ from app.services.llm_chat.explicit_tool_shortcuts import (
     is_explicit_client_snapshot_request,
 )
 from app.services.llm_chat.intent_classifier import detect_intent
-from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
-    is_process_termination_request,
-)
 from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     MONTHLY_PENSION_SUMMARY_TOOL_NAME,
     TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
 
 from .canonicalize import canonicalize_tool_args
+from .canonical_action_selector import (
+    ACTION_GREETING_AND_MENU,
+    ACTION_TERMINATION_EXECUTION,
+    ACTION_TERMINATION_PRECHECK,
+    is_canonical_action,
+    select_canonical_action,
+)
 from .core_types import (
     DecisionCode,
     FeatureFlagKey,
@@ -82,19 +86,6 @@ def orchestrate(
 
     user_text = (input.user_text or "").strip()
 
-    _router_selected_spec: TraceEventSpec | None = None
-    try:
-        _router_decision = ensure_router_decision(
-            user_text=user_text,
-            client_id=getattr(input, "client_id", None),
-            trace_id=trace_id,
-        )
-        _router_selected_spec = maybe_emit_router_selected_trace(
-            trace_id=trace_id, decision=_router_decision
-        )
-    except Exception:
-        _router_selected_spec = None
-
     last_tool_name = None
     try:
         last_tool = getattr(input, "last_tool_result", None)
@@ -102,6 +93,30 @@ def orchestrate(
             last_tool_name = getattr(last_tool, "tool_name", None)
     except Exception:
         last_tool_name = None
+
+    canonical_action_decision = select_canonical_action(
+        user_text=user_text,
+        state_snapshot=getattr(input, "state_snapshot", None),
+        last_tool_name=(str(last_tool_name) if isinstance(last_tool_name, str) else None),
+    )
+    if not is_canonical_action(canonical_action_decision.action):
+        raise ValueError("select_canonical_action returned a non-canonical action")
+
+    _router_selected_spec: TraceEventSpec | None = None
+    try:
+        _router_decision = ensure_router_decision(
+            user_text=user_text,
+            client_id=getattr(input, "client_id", None),
+            trace_id=trace_id,
+            state_snapshot=getattr(input, "state_snapshot", None),
+            last_tool_name=(str(last_tool_name) if isinstance(last_tool_name, str) else None),
+            canonical_action=canonical_action_decision.action,
+        )
+        _router_selected_spec = maybe_emit_router_selected_trace(
+            trace_id=trace_id, decision=_router_decision
+        )
+    except Exception:
+        _router_selected_spec = None
 
     if getattr(input, "last_tool_result", None) is not None:
         try:
@@ -352,7 +367,11 @@ def orchestrate(
         tool_args=None,
         final_text="",
         requires_user_approval=False,
-        debug_meta={"legacy_fallback": True},
+        debug_meta={
+            "legacy_fallback": True,
+            "canonical_action": canonical_action_decision.action,
+            "canonical_action_reason_code": canonical_action_decision.reason_code,
+        },
     )
 
     trace_specs: list[TraceEventSpec] = []
@@ -375,6 +394,17 @@ def orchestrate(
             payload={
                 "chat_intent": getattr(intent, "value", str(intent)),
                 "message_preview": user_text[:500],
+            },
+        )
+    )
+    trace_specs.append(
+        TraceEventSpec(
+            event_type="core_canonical_action_selected",
+            trace_id=trace_id,
+            payload={
+                "action": canonical_action_decision.action,
+                "reason_code": canonical_action_decision.reason_code,
+                "source_signals": list(canonical_action_decision.source_signals),
             },
         )
     )
@@ -446,31 +476,32 @@ def orchestrate(
         return decision, trace_specs
 
     if bool(feature_flags.get(FeatureFlagKey.GREETING_SHORTCUT, False)):
-        greeting = (
-            "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
-        )
-        plan_kind = PlanKind.QA_ONLY
-        decision = OrchestrationDecision(
-            decision_code=DecisionCode.RESPOND_ONLY,
-            plan_kind=plan_kind,
-            tool_name=None,
-            tool_args=None,
-            final_text=greeting,
-            requires_user_approval=False,
-            debug_meta=None,
-        )
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_next_action_decided",
-                trace_id=trace_id,
-                payload={
-                    "decision_code": decision.decision_code.value,
-                    "plan_kind": decision.plan_kind.value,
-                },
+        if canonical_action_decision.action == ACTION_GREETING_AND_MENU:
+            greeting = (
+                "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
             )
-        )
-        _maybe_emit_core_final_response(decision, trace_specs)
-        return decision, trace_specs
+            plan_kind = PlanKind.QA_ONLY
+            decision = OrchestrationDecision(
+                decision_code=DecisionCode.RESPOND_ONLY,
+                plan_kind=plan_kind,
+                tool_name=None,
+                tool_args=None,
+                final_text=greeting,
+                requires_user_approval=False,
+                debug_meta=None,
+            )
+            trace_specs.append(
+                TraceEventSpec(
+                    event_type="core_next_action_decided",
+                    trace_id=trace_id,
+                    payload={
+                        "decision_code": decision.decision_code.value,
+                        "plan_kind": decision.plan_kind.value,
+                    },
+                )
+            )
+            _maybe_emit_core_final_response(decision, trace_specs)
+            return decision, trace_specs
 
     tools_disabled_reason = None
     try:
@@ -483,7 +514,10 @@ def orchestrate(
         and bool(is_conceptual_no_execute_request(user_text))
         and tools_disabled_reason in {"conceptual", "conceptual_form"}
     ):
-        if is_process_termination_request(user_text):
+        if canonical_action_decision.action in {
+            ACTION_TERMINATION_PRECHECK,
+            ACTION_TERMINATION_EXECUTION,
+        }:
             plan_kind = PlanKind.QA_ONLY
             tool_name = TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME
             defaults = (

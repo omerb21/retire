@@ -131,6 +131,7 @@ Rule: do not declare a PR "closed" if the primary goal is not met, unless it is 
 
 - When GOLDEN_REAL_PATH_B1=1, first failure must be case mismatch or explicit signature-fail, not enabled-fail.
 - With GOLDEN_REAL_PATH_B1=1, the first failure must be case-level (not eligibility), and real_path.enabled must remain true in readiness_spec_ref.json.
+- Empty predicted fields in real_path mode must fail as missing fields, not as empty-string mismatches.
 
 - pytest -q tests/agent_training/test_user_visible_path_parity.py
 - pytest -q

@@ -82,10 +82,60 @@ def _extract_outcome_final(reply: str) -> str:
     return ""
 
 
+def _read_non_empty_text_field(obj: object, *field_names: str) -> str | None:
+    for field_name in field_names:
+        value = getattr(obj, field_name, None)
+        if value is None:
+            continue
+        text = value.strip() if isinstance(value, str) else str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _read_predicted_outcome_final(response: object) -> str | None:
+    direct_value = _read_non_empty_text_field(
+        response, "outcome_final", "predicted_outcome_final"
+    )
+    if direct_value is not None:
+        return direct_value
+
+    computed_data = getattr(response, "computed_data", None)
+    if isinstance(computed_data, dict):
+        value = computed_data.get("outcome_final")
+        if value is None:
+            value = computed_data.get("predicted_outcome_final")
+        if value is not None:
+            text = value.strip() if isinstance(value, str) else str(value).strip()
+            if text:
+                return text
+
+    reply = getattr(response, "reply", None)
+    if isinstance(reply, str) and reply.strip():
+        extracted_value = _extract_outcome_final(reply)
+        if extracted_value:
+            return extracted_value
+
+    return None
+
+
+def _read_predicted_tool_called(router_decision: object) -> bool | None:
+    if router_decision is None or not hasattr(router_decision, "tool_chain"):
+        return None
+    tool_chain = getattr(router_decision, "tool_chain", None)
+    if tool_chain is None:
+        return None
+    return bool(tool_chain)
+
+
 def _fail_case(case_id: str, field: str, expected: object, predicted: object) -> None:
     raise AssertionError(
         f"case_id={case_id} field={field} expected={expected!r} predicted={predicted!r}"
     )
+
+
+def _fail_missing_field(case_id: str, field: str) -> None:
+    raise AssertionError(f"case_id={case_id} field missing: {field}")
 
 
 def test_golden_determinism() -> None:
@@ -232,11 +282,19 @@ def test_golden_determinism() -> None:
             db.close()
 
         reply = str(getattr(response, "reply", "") or "")
-        predicted_outcome_final = _extract_outcome_final(reply)
-        predicted_capability_id = str(
-            getattr(router_decision, "capability_id", "") or ""
+        predicted_outcome_final = _read_predicted_outcome_final(response)
+        if predicted_outcome_final is None:
+            _fail_missing_field(case_id, "predicted_outcome_final")
+
+        predicted_capability_id = _read_non_empty_text_field(
+            router_decision, "capability_id"
         )
-        predicted_tool_called = bool(getattr(router_decision, "tool_chain", []))
+        if predicted_capability_id is None:
+            _fail_missing_field(case_id, "predicted_capability_id")
+
+        predicted_tool_called = _read_predicted_tool_called(router_decision)
+        if predicted_tool_called is None:
+            _fail_missing_field(case_id, "predicted_tool_called")
 
         if predicted_outcome_final != str(case.get("expected_outcome_final") or ""):
             _fail_case(

@@ -5,6 +5,15 @@ import json
 import re
 from typing import Any
 
+from app.services.llm_chat.orchestration_core.canonical_action_selector import (
+    ACTION_ANSWER_GENERAL_QUESTION,
+    ACTION_COMPARE_EXISTING_PLANS,
+    ACTION_GREETING_AND_MENU,
+    ACTION_PLAN_RETIREMENT,
+    ACTION_TERMINATION_EXECUTION,
+    ACTION_TERMINATION_PRECHECK,
+)
+
 from app.services.llm_chat.capability_router.normalization import (
     normalize_user_text_v1,
     sha256_hex,
@@ -165,8 +174,11 @@ def resolve(
     client_id: int | None,
     trace_id: str | None,
     intent_type: str | None = None,
+    state_snapshot: dict | None = None,
+    last_tool_name: str | None = None,
+    canonical_action: str | None = None,
 ) -> RouterDecision:
-    _ = client_id
+    _ = (client_id, state_snapshot, last_tool_name)
 
     cap_map = load_capability_map()
     capabilities = (
@@ -222,9 +234,21 @@ def resolve(
     selected: dict[str, Any] | None = None
     selected_prio = -(10**9)
 
+    effective_intent_type = intent_type.strip() if isinstance(intent_type, str) else ""
+    if not effective_intent_type:
+        intent_type_by_action = {
+            ACTION_PLAN_RETIREMENT: "PLAN",
+            ACTION_TERMINATION_EXECUTION: "EXECUTE",
+            ACTION_TERMINATION_PRECHECK: "EXECUTE",
+            ACTION_COMPARE_EXISTING_PLANS: "QA",
+            ACTION_ANSWER_GENERAL_QUESTION: "QA",
+            ACTION_GREETING_AND_MENU: "QA",
+        }
+        effective_intent_type = str(intent_type_by_action.get(str(canonical_action or ""), "")).strip()
+
     caps_to_scan = capabilities
-    if isinstance(intent_type, str) and intent_type.strip():
-        it = intent_type.strip()
+    if effective_intent_type:
+        it = effective_intent_type
         caps_to_scan = []
         for c in capabilities:
             if not isinstance(c, dict):
@@ -254,8 +278,7 @@ def resolve(
         if deterministic_default_cap is not None:
             selected = deterministic_default_cap
         elif (
-            isinstance(intent_type, str)
-            and intent_type.strip()
+            effective_intent_type
             and default_cap is not None
         ):
             selected = default_cap
