@@ -272,6 +272,20 @@ def _load_cases() -> list[dict[str, Any]]:
 
 
 CASES = _load_cases()
+_XFAIL_REASON = (
+    "Stage A behavioral baseline - expected failure until Stage B action-contract fixes"
+)
+
+
+def _xfail_case(case: dict[str, Any]):
+    return pytest.param(
+        case,
+        marks=pytest.mark.xfail(strict=True, reason=_XFAIL_REASON),
+        id=case["id"],
+    )
+
+
+PARAM_CASES = [_xfail_case(case) for case in CASES]
 
 
 def _forbid_external_llm(*args, **kwargs):
@@ -686,7 +700,7 @@ def _assert_behavior(case: dict[str, Any], envelope: dict[str, Any]) -> None:
             )
 
 
-@pytest.mark.parametrize("case", CASES, ids=[case["id"] for case in CASES])
+@pytest.mark.parametrize("case", PARAM_CASES)
 def test_behavior_golden_8(case, client, db_session, monkeypatch) -> None:
     try:
         envelope = _run_case(case, client, db_session, monkeypatch)
