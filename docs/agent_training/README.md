@@ -89,7 +89,7 @@ Rule:
 When `GOLDEN_REAL_PATH_B1=1`, the PR-4 real-path golden validation must fail (never skip) if real-path is not eligible.
 
 OutcomeFinal SSOT is identified via runtime probe introspection only (no code search).
-PR-4 implemented Real Path gate; currently real_path is ineligible (enabled=false). PR-5 will make it eligible via config.
+PR-4 implemented Real Path gate; real_path eligibility is controlled by readiness_spec_ref.json.
 Rule: do not declare a PR "closed" if the primary goal is not met, unless it is explicitly split and deferred to the next PR.
 
 ## בדיקות נדרשות
@@ -130,6 +130,7 @@ Rule: do not declare a PR "closed" if the primary goal is not met, unless it is 
 ### DoD
 
 - When GOLDEN_REAL_PATH_B1=1, first failure must be case mismatch or explicit signature-fail, not enabled-fail.
+- With GOLDEN_REAL_PATH_B1=1, the first failure must be case-level (not eligibility), and real_path.enabled must remain true in readiness_spec_ref.json.
 
 - pytest -q tests/agent_training/test_user_visible_path_parity.py
 - pytest -q
