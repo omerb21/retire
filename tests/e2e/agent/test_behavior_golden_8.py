@@ -12,11 +12,6 @@ from app.services.llm_chat.chat_orchestration_parts.orchestrator_impl import (
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
     is_retirement_comparison_request,
 )
-from tests.agent_training.test_golden_determinism import (
-    _extract_outcome_final,
-    _read_non_empty_text_field,
-    _read_predicted_outcome_final,
-)
 
 _JSONL_PATH = Path(__file__).with_name("golden_behavior_8.jsonl")
 
@@ -103,6 +98,50 @@ class _InfrastructureFailure(RuntimeError):
     pass
 
 
+def _extract_outcome_final(reply: str) -> str:
+    match = re.search(r"OUTCOME_FINAL\s*[:=]\s*([A-Z_]+)", str(reply or ""))
+    if match:
+        return str(match.group(1) or "").strip()
+    return ""
+
+
+def _read_non_empty_text_field(obj: object, *field_names: str) -> str | None:
+    for field_name in field_names:
+        value = getattr(obj, field_name, None)
+        if value is None:
+            continue
+        text = value.strip() if isinstance(value, str) else str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _read_predicted_outcome_final(response: object) -> str | None:
+    direct_value = _read_non_empty_text_field(
+        response, "outcome_final", "predicted_outcome_final"
+    )
+    if direct_value is not None:
+        return direct_value
+
+    computed_data = getattr(response, "computed_data", None)
+    if isinstance(computed_data, dict):
+        value = computed_data.get("outcome_final")
+        if value is None:
+            value = computed_data.get("predicted_outcome_final")
+        if value is not None:
+            text = value.strip() if isinstance(value, str) else str(value).strip()
+            if text:
+                return text
+
+    reply = getattr(response, "reply", None)
+    if isinstance(reply, str) and reply.strip():
+        extracted_value = _extract_outcome_final(reply)
+        if extracted_value:
+            return extracted_value
+
+    return None
+
+
 def _normalize_text_for_contains(text: str) -> str:
     return re.sub(r"\s+", " ", str(text)).strip()
 
@@ -150,15 +189,11 @@ def _validate_case_shape(case: dict[str, Any]) -> dict[str, Any]:
                 f"invalid role={role!r} case_id={case_id} index={idx}"
             )
         if content == "":
-            _raise_configuration_failure(
-                f"empty content case_id={case_id} index={idx}"
-            )
+            _raise_configuration_failure(f"empty content case_id={case_id} index={idx}")
 
     expected = case.get("expected")
     if not isinstance(expected, dict) or set(expected.keys()) != _EXPECTED_KEYS:
-        _raise_configuration_failure(
-            f"invalid expected keys for case_id={case_id}"
-        )
+        _raise_configuration_failure(f"invalid expected keys for case_id={case_id}")
 
     expected_label = str(expected.get("expected_label") or "").strip()
     if expected_label not in _ALLOWED_LABELS:
@@ -187,13 +222,9 @@ def _validate_case_shape(case: dict[str, Any]) -> dict[str, Any]:
             f"expected_tools_called must be list case_id={case_id}"
         )
     if not isinstance(must_contain, list):
-        _raise_configuration_failure(
-            f"must_contain must be list case_id={case_id}"
-        )
+        _raise_configuration_failure(f"must_contain must be list case_id={case_id}")
     if not isinstance(must_not_contain, list):
-        _raise_configuration_failure(
-            f"must_not_contain must be list case_id={case_id}"
-        )
+        _raise_configuration_failure(f"must_not_contain must be list case_id={case_id}")
 
     return {
         "id": case_id,
@@ -235,9 +266,7 @@ def _load_cases() -> list[dict[str, Any]]:
         _raise_configuration_failure("duplicate case ids found")
 
     if set(ids) != _CANONICAL_IDS:
-        _raise_configuration_failure(
-            f"case id set mismatch actual={sorted(ids)!r}"
-        )
+        _raise_configuration_failure(f"case id set mismatch actual={sorted(ids)!r}")
 
     return rows
 
@@ -352,7 +381,10 @@ class _FakeLLMService:
                 return "פירוט לפי תכנית: כל החשבונות והיתרות זמינים כאן."
             if case_id == "BEHAVIOR_03_TARGET_PLAN_NO_TERMINATION_FORCED":
                 return "בניתי תכנית, ואפשר גם לבצע עזיבת עבודה כבר עכשיו אם תרצה."
-            if case_id == "BEHAVIOR_04_TERMINATION_USER_CHOICE_RESPECTED_NO_EXEMPTION_WITHDRAWAL":
+            if (
+                case_id
+                == "BEHAVIOR_04_TERMINATION_USER_CHOICE_RESPECTED_NO_EXEMPTION_WITHDRAWAL"
+            ):
                 return "סטטוס: בוצע בהצלחה עם בחירה: redeem_with_exemption."
             if case_id == "BEHAVIOR_05_PLANNING_REQUEST_MUST_NOT_EXECUTE_TERMINATION":
                 return "סטטוס: בוצע בהצלחה וגם עזיבת עבודה הושלמה."
@@ -374,7 +406,10 @@ class _FakeLLMService:
                 {"target_monthly_pension": 30000, "target_is_net": True},
             )
 
-        if case_id == "BEHAVIOR_04_TERMINATION_USER_CHOICE_RESPECTED_NO_EXEMPTION_WITHDRAWAL":
+        if (
+            case_id
+            == "BEHAVIOR_04_TERMINATION_USER_CHOICE_RESPECTED_NO_EXEMPTION_WITHDRAWAL"
+        ):
             if user_count == 1:
                 return _build_tool_call_reply(
                     "PROCESS_TERMINATION",
@@ -473,7 +508,9 @@ def _strict_map_tool_name(raw_tool_name: str) -> str:
     return tool_name
 
 
-def _infer_outcome_final(response: object, tools_called: list[str], response_text: str) -> str:
+def _infer_outcome_final(
+    response: object, tools_called: list[str], response_text: str
+) -> str:
     direct = _read_predicted_outcome_final(response)
     if direct is not None:
         return direct.strip()
@@ -522,7 +559,9 @@ def _infer_predicted_action(
     if heuristic is not None:
         return heuristic
 
-    raise _InfrastructureFailure("predicted_action unavailable in deterministic harness")
+    raise _InfrastructureFailure(
+        "predicted_action unavailable in deterministic harness"
+    )
 
 
 def _run_case(case: dict[str, Any], client, db_session, monkeypatch) -> dict[str, Any]:
@@ -536,7 +575,9 @@ def _run_case(case: dict[str, Any], client, db_session, monkeypatch) -> dict[str
     fake_tool_executor = _FakeToolExecutor(case)
 
     monkeypatch.setattr(top_helpers, "_get_llm_service", lambda: fake_llm_service)
-    monkeypatch.setattr(orch_mod, "_get_llm_service", lambda: fake_llm_service, raising=False)
+    monkeypatch.setattr(
+        orch_mod, "_get_llm_service", lambda: fake_llm_service, raising=False
+    )
     monkeypatch.setattr(
         runner_mod,
         "_get_llm_service",
@@ -568,7 +609,9 @@ def _run_case(case: dict[str, Any], client, db_session, monkeypatch) -> dict[str
         history.append(ChatMessage(role="user", content=content))
         request = ChatRequest(client_id=effective_client_id, messages=list(history))
         last_response = run_pension_chat(request, db_session)
-        history.append(ChatMessage(role="assistant", content=str(last_response.reply or "")))
+        history.append(
+            ChatMessage(role="assistant", content=str(last_response.reply or ""))
+        )
 
     if last_response is None:
         raise _InfrastructureFailure("conversation produced no final response")
@@ -585,7 +628,9 @@ def _run_case(case: dict[str, Any], client, db_session, monkeypatch) -> dict[str
 
     outcome_final = _infer_outcome_final(last_response, recorded_tools, response_text)
     if not outcome_final:
-        raise _InfrastructureFailure("outcome_final unavailable in deterministic harness")
+        raise _InfrastructureFailure(
+            "outcome_final unavailable in deterministic harness"
+        )
 
     predicted_action = _infer_predicted_action(
         last_response,
