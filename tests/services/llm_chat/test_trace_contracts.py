@@ -47,9 +47,7 @@ class _TraceCapture:
             if isinstance(payload, dict):
                 return payload
         trace_label = trace_id if trace_id is not None else "<any trace>"
-        raise AssertionError(
-            f"Missing trace event `{event_type}` for {trace_label}."
-        )
+        raise AssertionError(f"Missing trace event `{event_type}` for {trace_label}.")
 
     def find_last_payload(
         self, event_type: str, trace_id: str | None = None
@@ -66,9 +64,7 @@ class _TraceCapture:
         if matches:
             return matches[-1]
         trace_label = trace_id if trace_id is not None else "<any trace>"
-        raise AssertionError(
-            f"Missing trace event `{event_type}` for {trace_label}."
-        )
+        raise AssertionError(f"Missing trace event `{event_type}` for {trace_label}.")
 
 
 def _install_trace_capture(monkeypatch) -> _TraceCapture:
@@ -190,25 +186,29 @@ def test_core_trace_contracts_for_primary_paths(
         f"Unexpected canonical action in {scenario_name}: "
         f"expected `{expected_action}`, got `{canonical_payload['action']}`."
     )
-    assert str(canonical_payload["reason_code"]).strip(), (
+    assert str(
+        canonical_payload["reason_code"]
+    ).strip(), (
         f"core_canonical_action_selected.reason_code is empty in {scenario_name}."
     )
-    assert isinstance(canonical_payload["source_signals"], list), (
-        f"core_canonical_action_selected.source_signals must be a list in {scenario_name}."
-    )
+    assert isinstance(
+        canonical_payload["source_signals"], list
+    ), f"core_canonical_action_selected.source_signals must be a list in {scenario_name}."
 
-    next_action_payload = _find_trace_spec_payload(trace_specs, "core_next_action_decided")
+    next_action_payload = _find_trace_spec_payload(
+        trace_specs, "core_next_action_decided"
+    )
     _assert_required_keys(
         next_action_payload,
         ("decision_code", "plan_kind"),
         f"core_next_action_decided in {scenario_name}",
     )
-    assert str(next_action_payload["decision_code"]).strip(), (
-        f"core_next_action_decided.decision_code is empty in {scenario_name}."
-    )
-    assert str(next_action_payload["plan_kind"]).strip(), (
-        f"core_next_action_decided.plan_kind is empty in {scenario_name}."
-    )
+    assert str(
+        next_action_payload["decision_code"]
+    ).strip(), f"core_next_action_decided.decision_code is empty in {scenario_name}."
+    assert str(
+        next_action_payload["plan_kind"]
+    ).strip(), f"core_next_action_decided.plan_kind is empty in {scenario_name}."
 
 
 def test_monthly_pension_trace_continuity_contract(
@@ -282,15 +282,15 @@ def test_monthly_pension_trace_continuity_contract(
         "router_selected in monthly pension path",
     )
 
-    assert canonical_payload["action"] == ACTION_ANSWER_GENERAL_QUESTION, (
-        "Monthly pension path lost the expected canonical action marker."
-    )
-    assert capability_payload["capability_id"] == "monthly_pension_summary_action_v1", (
-        "Monthly pension path lost the dedicated capability_resolved capability_id."
-    )
-    assert capability_payload["decision_source"] == "ssot_runtime_router", (
-        "Monthly pension path lost the expected capability_resolved decision_source."
-    )
+    assert (
+        canonical_payload["action"] == ACTION_ANSWER_GENERAL_QUESTION
+    ), "Monthly pension path lost the expected canonical action marker."
+    assert (
+        capability_payload["capability_id"] == "monthly_pension_summary_action_v1"
+    ), "Monthly pension path lost the dedicated capability_resolved capability_id."
+    assert (
+        capability_payload["decision_source"] == "ssot_runtime_router"
+    ), "Monthly pension path lost the expected capability_resolved decision_source."
     assert capability_payload["canonical_action"] == canonical_payload["action"], (
         "Monthly pension path lost canonical-action continuity between "
         "core_canonical_action_selected and capability_resolved."
@@ -299,16 +299,16 @@ def test_monthly_pension_trace_continuity_contract(
         "Monthly pension path lost capability continuity between capability_resolved "
         "and router_selected."
     )
-    assert str(router_payload["output_schema_id"]).strip(), (
-        "Monthly pension path emitted router_selected without output_schema_id."
-    )
-    assert router_payload["tool_chain"] == ["MONTHLY_PENSION_SUMMARY"], (
-        "Monthly pension path emitted an unexpected router_selected.tool_chain."
-    )
+    assert str(
+        router_payload["output_schema_id"]
+    ).strip(), "Monthly pension path emitted router_selected without output_schema_id."
+    assert router_payload["tool_chain"] == [
+        "MONTHLY_PENSION_SUMMARY"
+    ], "Monthly pension path emitted an unexpected router_selected.tool_chain."
     computed_data = getattr(res, "computed_data", None)
-    assert isinstance(computed_data, dict), (
-        "Monthly pension path stopped returning computed_data for diagnostics coverage."
-    )
+    assert isinstance(
+        computed_data, dict
+    ), "Monthly pension path stopped returning computed_data for diagnostics coverage."
 
 
 def test_system_only_stream_router_selected_trace_contract(monkeypatch) -> None:
@@ -359,12 +359,14 @@ def test_system_only_stream_router_selected_trace_contract(monkeypatch) -> None:
         ("capability_id", "output_schema_id", "tool_chain"),
         "router_selected in system-only stream path",
     )
-    assert str(router_payload["output_schema_id"]).strip(), (
+    assert str(
+        router_payload["output_schema_id"]
+    ).strip(), (
         "System-only stream path emitted router_selected without output_schema_id."
     )
-    assert isinstance(router_payload["tool_chain"], list), (
-        "System-only stream path emitted router_selected.tool_chain in a non-list shape."
-    )
+    assert isinstance(
+        router_payload["tool_chain"], list
+    ), "System-only stream path emitted router_selected.tool_chain in a non-list shape."
 
 
 def test_legacy_fallback_trace_contract_is_diagnostic(monkeypatch, db_session) -> None:
@@ -428,18 +430,18 @@ def test_legacy_fallback_trace_contract_is_diagnostic(monkeypatch, db_session) -
         ("execution_path", "reason", "legacy_reason_code"),
         "legacy_fallback_entered",
     )
-    assert legacy_payload["execution_path"] == "legacy_fallback", (
-        "legacy_fallback_entered.execution_path lost the legacy_fallback marker."
-    )
-    assert str(legacy_payload["reason"]).strip(), (
-        "legacy_fallback_entered.reason is empty."
-    )
-    assert legacy_payload["reason"] != "fallback", (
-        "legacy_fallback_entered.reason became too generic to diagnose failures."
-    )
-    assert str(legacy_payload["reason"]).startswith("core_decision_code:"), (
-        "legacy_fallback_entered.reason no longer explains which core decision triggered fallback."
-    )
-    assert str(legacy_payload["legacy_reason_code"]).strip(), (
-        "legacy_fallback_entered.legacy_reason_code is empty."
-    )
+    assert (
+        legacy_payload["execution_path"] == "legacy_fallback"
+    ), "legacy_fallback_entered.execution_path lost the legacy_fallback marker."
+    assert str(
+        legacy_payload["reason"]
+    ).strip(), "legacy_fallback_entered.reason is empty."
+    assert (
+        legacy_payload["reason"] != "fallback"
+    ), "legacy_fallback_entered.reason became too generic to diagnose failures."
+    assert str(legacy_payload["reason"]).startswith(
+        "core_decision_code:"
+    ), "legacy_fallback_entered.reason no longer explains which core decision triggered fallback."
+    assert str(
+        legacy_payload["legacy_reason_code"]
+    ).strip(), "legacy_fallback_entered.legacy_reason_code is empty."
