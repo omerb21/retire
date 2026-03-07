@@ -164,9 +164,6 @@ def _handle_tool_call_step(
     from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
         enrich_state_snapshot,
     )
-    from app.services.llm_chat.orchestration_utils_parts.text_formatters import (
-        format_get_pension_products_portfolio_analysis_short_default,
-    )
     from app.services.llm_chat.orchestration_utils import (
         apply_max_exemption_if_requested,
         build_partial_pension_transform_accounts_from_portfolio,
@@ -196,6 +193,9 @@ def _handle_tool_call_step(
         parse_tool_call_from_reply,
         sanitize_user_visible_text,
         validate_tool_call_protocol_for_execution,
+    )
+    from app.services.llm_chat.orchestration_utils_parts.text_formatters import (
+        format_get_pension_products_portfolio_analysis_short_default,
     )
 
     tool_part_for_log = raw_reply.split("###TOOL_CALL###", 1)[1].strip()
