@@ -5,6 +5,11 @@ from typing import Any
 
 import yaml
 
+from app.services.llm_chat.orchestration_core.canonical_action_selector import (
+    ACTION_ANSWER_GENERAL_QUESTION,
+    select_canonical_action,
+)
+
 
 def _load_yaml(path: str) -> dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
@@ -161,3 +166,34 @@ def test_stage16_overlap_regression_set(monkeypatch, client) -> None:
                 "Routing metadata snapshot mismatch. Changes require version bump + intentional flag + release note. "
                 f"input_id={input_id}"
             )
+
+
+def test_stage16_monthly_pension_alignment_stays_narrow(monkeypatch, client) -> None:
+    from app.services.llm_chat.capability_router.resolver import resolve
+    from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
+
+    monkeypatch.setenv(
+        "CAPABILITY_MAP_PATH", "tests/fixtures/stage16/capability_map_stage16.yaml"
+    )
+    load_capability_map.cache_clear()
+
+    monthly_decision = select_canonical_action(user_text="קצבה חודשית")
+    assert monthly_decision.action == ACTION_ANSWER_GENERAL_QUESTION
+    assert monthly_decision.source_signals == ("monthly_pension_summary.detected",)
+
+    monthly_router_decision = resolve(
+        user_text="קצבה חודשית",
+        client_id=int(client.id),
+        trace_id="trace_monthly_alignment",
+        canonical_action=monthly_decision.action,
+    )
+    assert monthly_router_decision.capability_id == "monthly_pension_summary_action_v1"
+    assert monthly_router_decision.tool_chain == ["MONTHLY_PENSION_SUMMARY"]
+
+    general_router_decision = resolve(
+        user_text="מה חשוב לדעת על פרישה",
+        client_id=int(client.id),
+        trace_id="trace_general_alignment",
+        canonical_action=ACTION_ANSWER_GENERAL_QUESTION,
+    )
+    assert general_router_decision.capability_id == "default_qa_v1"

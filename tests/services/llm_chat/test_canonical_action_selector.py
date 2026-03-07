@@ -83,6 +83,16 @@ def test_select_canonical_action_defaults_to_general_question() -> None:
     assert decision.reason_code == "general_question_default"
 
 
+def test_select_canonical_action_monthly_pension_keeps_general_action_with_signal() -> (
+    None
+):
+    decision = select_canonical_action(user_text="קצבה חודשית")
+
+    assert decision.action == ACTION_ANSWER_GENERAL_QUESTION
+    assert decision.reason_code == "monthly_pension_summary_query"
+    assert decision.source_signals == ("monthly_pension_summary.detected",)
+
+
 def test_orchestrate_calls_select_canonical_action(monkeypatch) -> None:
     import app.services.llm_chat.orchestration_core.orchestrate as orchestrate_module
 

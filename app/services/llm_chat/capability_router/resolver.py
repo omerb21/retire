@@ -18,7 +18,6 @@ from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_PLAN_RETIREMENT,
     ACTION_TERMINATION_EXECUTION,
     ACTION_TERMINATION_PRECHECK,
-    is_monthly_pension_summary_request,
 )
 
 _STAGE_C_ROUTER_HARDENING_MAP: dict[str, Any] = {
@@ -213,6 +212,34 @@ def _filter_readonly_execute_qa_caps(
     return filtered_caps
 
 
+def _select_highest_priority_match(
+    *,
+    capabilities: list[dict[str, Any]],
+    normalized_text: str,
+    trace_id: str | None,
+    client_id: int | None,
+    selected: dict[str, Any] | None,
+    selected_prio: int,
+) -> tuple[dict[str, Any] | None, int]:
+    for cap in capabilities:
+        if not isinstance(cap, dict):
+            continue
+        if not _match_capability(
+            cap=cap,
+            normalized_text=normalized_text,
+            trace_id=trace_id,
+            client_id=client_id,
+        ):
+            continue
+
+        prio = cap.get("priority")
+        prio_val = int(prio) if isinstance(prio, int) else 0
+        if selected is None or prio_val > selected_prio:
+            selected = cap
+            selected_prio = prio_val
+    return selected, selected_prio
+
+
 def resolve(
     *,
     user_text: str,
@@ -277,33 +304,18 @@ def resolve(
             intent_type_by_action.get(str(canonical_action or ""), "")
         ).strip()
 
-    if str(
-        canonical_action or ""
-    ) == ACTION_ANSWER_GENERAL_QUESTION and is_monthly_pension_summary_request(
-        user_text
-    ):
-        effective_intent_type = "EXECUTE"
-
     caps_to_scan = capabilities
     if effective_intent_type:
         caps_to_scan = _filter_caps_by_intent_type(capabilities, effective_intent_type)
 
-    for cap in caps_to_scan:
-        if not isinstance(cap, dict):
-            continue
-        if not _match_capability(
-            cap=cap,
-            normalized_text=normalized_text,
-            trace_id=trace_id,
-            client_id=client_id,
-        ):
-            continue
-
-        prio = cap.get("priority")
-        prio_val = int(prio) if isinstance(prio, int) else 0
-        if selected is None or prio_val > selected_prio:
-            selected = cap
-            selected_prio = prio_val
+    selected, selected_prio = _select_highest_priority_match(
+        capabilities=caps_to_scan,
+        normalized_text=normalized_text,
+        trace_id=trace_id,
+        client_id=client_id,
+        selected=selected,
+        selected_prio=selected_prio,
+    )
 
     selected_capability_id = ""
     if isinstance(selected, dict):
@@ -313,21 +325,14 @@ def resolve(
         selected is None or selected_capability_id == "default_qa_v1"
     ):
         readonly_execute_caps = _filter_readonly_execute_qa_caps(capabilities)
-
-        for cap in readonly_execute_caps:
-            if not _match_capability(
-                cap=cap,
-                normalized_text=normalized_text,
-                trace_id=trace_id,
-                client_id=client_id,
-            ):
-                continue
-
-            prio = cap.get("priority")
-            prio_val = int(prio) if isinstance(prio, int) else 0
-            if selected is None or prio_val > selected_prio:
-                selected = cap
-                selected_prio = prio_val
+        selected, selected_prio = _select_highest_priority_match(
+            capabilities=readonly_execute_caps,
+            normalized_text=normalized_text,
+            trace_id=trace_id,
+            client_id=client_id,
+            selected=selected,
+            selected_prio=selected_prio,
+        )
 
     if selected is None:
         if deterministic_default_cap is not None:
