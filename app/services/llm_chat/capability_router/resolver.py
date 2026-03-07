@@ -168,6 +168,51 @@ def _match_capability(
     return False
 
 
+def _has_catch_all_trigger(cap: dict[str, Any]) -> bool:
+    cap_triggers_raw = cap.get("triggers")
+    triggers: dict[str, Any] = {}
+    if isinstance(cap_triggers_raw, dict):
+        triggers = cap_triggers_raw
+    trigger_regex_raw = triggers.get("trigger_regex")
+    rx: list[Any] = []
+    if isinstance(trigger_regex_raw, list):
+        rx = trigger_regex_raw
+    return rx == [".*"]
+
+
+def _filter_caps_by_intent_type(
+    capabilities: list[Any], intent_type: str
+) -> list[dict[str, Any]]:
+    filtered_caps: list[dict[str, Any]] = []
+    for cap in capabilities:
+        if not isinstance(cap, dict):
+            continue
+        cap_intent_type = str(cap.get("intent_type") or "").strip()
+        if cap_intent_type == intent_type:
+            filtered_caps.append(cap)
+    return filtered_caps
+
+
+def _filter_readonly_execute_qa_caps(
+    capabilities: list[Any],
+) -> list[dict[str, Any]]:
+    filtered_caps: list[dict[str, Any]] = []
+    for cap in capabilities:
+        if not isinstance(cap, dict):
+            continue
+        cap_intent_type = str(cap.get("intent_type") or "").strip()
+        side_effect_class = str(cap.get("side_effect_class") or "").strip()
+        cap_mode = str(cap.get("mode") or "").strip()
+        if cap_intent_type != "EXECUTE":
+            continue
+        if side_effect_class != "READ_ONLY":
+            continue
+        if cap_mode != "QA":
+            continue
+        filtered_caps.append(cap)
+    return filtered_caps
+
+
 def resolve(
     *,
     user_text: str,
@@ -191,15 +236,7 @@ def resolve(
     try:
         last = capabilities[-1] if capabilities else None
         if isinstance(last, dict):
-            last_triggers_raw = last.get("triggers")
-            triggers: dict[str, Any] = {}
-            if isinstance(last_triggers_raw, dict):
-                triggers = last_triggers_raw
-            trigger_regex_raw = triggers.get("trigger_regex")
-            rx: list[Any] = []
-            if isinstance(trigger_regex_raw, list):
-                rx = trigger_regex_raw
-            if rx == [".*"]:
+            if _has_catch_all_trigger(last):
                 default_cap = last
     except Exception:
         default_cap = None
@@ -208,15 +245,7 @@ def resolve(
         for cap in capabilities:
             if not isinstance(cap, dict):
                 continue
-            cap_triggers_raw = cap.get("triggers")
-            triggers: dict[str, Any] = {}
-            if isinstance(cap_triggers_raw, dict):
-                triggers = cap_triggers_raw
-            trigger_regex_raw = triggers.get("trigger_regex")
-            rx: list[Any] = []
-            if isinstance(trigger_regex_raw, list):
-                rx = trigger_regex_raw
-            if rx == [".*"]:
+            if _has_catch_all_trigger(cap):
                 default_cap = cap
                 break
 
@@ -257,14 +286,7 @@ def resolve(
 
     caps_to_scan = capabilities
     if effective_intent_type:
-        it = effective_intent_type
-        caps_to_scan = []
-        for c in capabilities:
-            if not isinstance(c, dict):
-                continue
-            c_intent_type = str(c.get("intent_type") or "").strip()
-            if c_intent_type == it:
-                caps_to_scan.append(c)
+        caps_to_scan = _filter_caps_by_intent_type(capabilities, effective_intent_type)
 
     for cap in caps_to_scan:
         if not isinstance(cap, dict):
@@ -290,20 +312,7 @@ def resolve(
     if str(canonical_action or "") == ACTION_ANSWER_GENERAL_QUESTION and (
         selected is None or selected_capability_id == "default_qa_v1"
     ):
-        readonly_execute_caps: list[dict[str, Any]] = []
-        for cap in capabilities:
-            if not isinstance(cap, dict):
-                continue
-            cap_intent_type = str(cap.get("intent_type") or "").strip()
-            side_effect_class = str(cap.get("side_effect_class") or "").strip()
-            cap_mode = str(cap.get("mode") or "").strip()
-            if cap_intent_type != "EXECUTE":
-                continue
-            if side_effect_class != "READ_ONLY":
-                continue
-            if cap_mode != "QA":
-                continue
-            readonly_execute_caps.append(cap)
+        readonly_execute_caps = _filter_readonly_execute_qa_caps(capabilities)
 
         for cap in readonly_execute_caps:
             if not _match_capability(

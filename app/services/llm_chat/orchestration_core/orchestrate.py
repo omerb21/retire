@@ -52,6 +52,57 @@ _LAST_TOOL_RESULT_RESPOND_ONLY_TOOL_NAMES = frozenset(
 )
 
 
+def _append_router_selected_spec_if_missing(
+    trace_specs: list[TraceEventSpec],
+    router_selected_spec: TraceEventSpec | None,
+) -> None:
+    if router_selected_spec is not None and (
+        not trace_specs or trace_specs[0] is not router_selected_spec
+    ):
+        trace_specs.insert(0, router_selected_spec)
+
+
+def _append_core_next_action_decided_trace(
+    trace_specs: list[TraceEventSpec],
+    *,
+    trace_id: str | None,
+    decision: OrchestrationDecision,
+    tool_name: str | None = None,
+) -> None:
+    payload: dict[str, Any] = {
+        "decision_code": decision.decision_code.value,
+        "plan_kind": decision.plan_kind.value,
+    }
+    if tool_name is not None:
+        payload["tool_name"] = tool_name
+    trace_specs.append(
+        TraceEventSpec(
+            event_type="core_next_action_decided",
+            trace_id=trace_id,
+            payload=payload,
+        )
+    )
+
+
+def _append_core_tool_call_trace(
+    trace_specs: list[TraceEventSpec],
+    *,
+    trace_id: str | None,
+    tool_name: str,
+    tool_args: dict[str, Any] | None,
+) -> None:
+    trace_specs.append(
+        TraceEventSpec(
+            event_type="core_tool_call",
+            trace_id=trace_id,
+            payload={
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+            },
+        )
+    )
+
+
 def orchestrate(
     input: OrchestrationInput,
     deps: OrchestrationDeps,
@@ -163,15 +214,10 @@ def orchestrate(
             trace_specs: list[TraceEventSpec] = []
             if _router_selected_spec is not None:
                 trace_specs.append(_router_selected_spec)
-            trace_specs.append(
-                TraceEventSpec(
-                    event_type="core_next_action_decided",
-                    trace_id=trace_id,
-                    payload={
-                        "decision_code": decision.decision_code.value,
-                        "plan_kind": decision.plan_kind.value,
-                    },
-                )
+            _append_core_next_action_decided_trace(
+                trace_specs,
+                trace_id=trace_id,
+                decision=decision,
             )
             _maybe_emit_core_final_response(decision, trace_specs)
             return decision, trace_specs
@@ -220,26 +266,17 @@ def orchestrate(
                     trace_specs: list[TraceEventSpec] = []
                     if _router_selected_spec is not None:
                         trace_specs.append(_router_selected_spec)
-                    trace_specs.append(
-                        TraceEventSpec(
-                            event_type="core_next_action_decided",
-                            trace_id=trace_id,
-                            payload={
-                                "decision_code": decision.decision_code.value,
-                                "plan_kind": decision.plan_kind.value,
-                                "tool_name": tool_name,
-                            },
-                        )
+                    _append_core_next_action_decided_trace(
+                        trace_specs,
+                        trace_id=trace_id,
+                        decision=decision,
+                        tool_name=tool_name,
                     )
-                    trace_specs.append(
-                        TraceEventSpec(
-                            event_type="core_tool_call",
-                            trace_id=trace_id,
-                            payload={
-                                "tool_name": tool_name,
-                                "tool_args": tool_args,
-                            },
-                        )
+                    _append_core_tool_call_trace(
+                        trace_specs,
+                        trace_id=trace_id,
+                        tool_name=tool_name,
+                        tool_args=tool_args,
                     )
                     return decision, trace_specs
         except Exception:
@@ -265,15 +302,10 @@ def orchestrate(
                 trace_specs: list[TraceEventSpec] = []
                 if _router_selected_spec is not None:
                     trace_specs.append(_router_selected_spec)
-                trace_specs.append(
-                    TraceEventSpec(
-                        event_type="core_next_action_decided",
-                        trace_id=trace_id,
-                        payload={
-                            "decision_code": decision.decision_code.value,
-                            "plan_kind": decision.plan_kind.value,
-                        },
-                    )
+                _append_core_next_action_decided_trace(
+                    trace_specs,
+                    trace_id=trace_id,
+                    decision=decision,
                 )
                 _maybe_emit_core_final_response(decision, trace_specs)
                 return decision, trace_specs
@@ -316,15 +348,10 @@ def orchestrate(
         trace_specs: list[TraceEventSpec] = []
         if _router_selected_spec is not None:
             trace_specs.append(_router_selected_spec)
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_next_action_decided",
-                trace_id=trace_id,
-                payload={
-                    "decision_code": decision.decision_code.value,
-                    "plan_kind": decision.plan_kind.value,
-                },
-            )
+        _append_core_next_action_decided_trace(
+            trace_specs,
+            trace_id=trace_id,
+            decision=decision,
         )
         _maybe_emit_core_final_response(decision, trace_specs)
         return decision, trace_specs
@@ -452,30 +479,18 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
-        if _router_selected_spec is not None and (
-            not trace_specs or trace_specs[0] is not _router_selected_spec
-        ):
-            trace_specs.insert(0, _router_selected_spec)
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_next_action_decided",
-                trace_id=trace_id,
-                payload={
-                    "decision_code": decision.decision_code.value,
-                    "plan_kind": decision.plan_kind.value,
-                    "tool_name": tool_name,
-                },
-            )
+        _append_router_selected_spec_if_missing(trace_specs, _router_selected_spec)
+        _append_core_next_action_decided_trace(
+            trace_specs,
+            trace_id=trace_id,
+            decision=decision,
+            tool_name=tool_name,
         )
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_tool_call",
-                trace_id=trace_id,
-                payload={
-                    "tool_name": tool_name,
-                    "tool_args": tool_args,
-                },
-            )
+        _append_core_tool_call_trace(
+            trace_specs,
+            trace_id=trace_id,
+            tool_name=tool_name,
+            tool_args=tool_args,
         )
         return decision, trace_specs
 
@@ -495,15 +510,10 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
-            trace_specs.append(
-                TraceEventSpec(
-                    event_type="core_next_action_decided",
-                    trace_id=trace_id,
-                    payload={
-                        "decision_code": decision.decision_code.value,
-                        "plan_kind": decision.plan_kind.value,
-                    },
-                )
+            _append_core_next_action_decided_trace(
+                trace_specs,
+                trace_id=trace_id,
+                decision=decision,
             )
             _maybe_emit_core_final_response(decision, trace_specs)
             return decision, trace_specs
@@ -538,19 +548,12 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
-            if _router_selected_spec is not None and (
-                not trace_specs or trace_specs[0] is not _router_selected_spec
-            ):
-                trace_specs.insert(0, _router_selected_spec)
-            trace_specs.append(
-                TraceEventSpec(
-                    event_type="core_tool_call",
-                    trace_id=trace_id,
-                    payload={
-                        "tool_name": tool_name,
-                        "tool_args": tool_args,
-                    },
-                )
+            _append_router_selected_spec_if_missing(trace_specs, _router_selected_spec)
+            _append_core_tool_call_trace(
+                trace_specs,
+                trace_id=trace_id,
+                tool_name=tool_name,
+                tool_args=tool_args,
             )
         else:
             reply = sanitize_words_only_conceptual("", user_text)
@@ -564,19 +567,11 @@ def orchestrate(
                 requires_user_approval=False,
                 debug_meta=None,
             )
-        if _router_selected_spec is not None and (
-            not trace_specs or trace_specs[0] is not _router_selected_spec
-        ):
-            trace_specs.insert(0, _router_selected_spec)
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_next_action_decided",
-                trace_id=trace_id,
-                payload={
-                    "decision_code": decision.decision_code.value,
-                    "plan_kind": decision.plan_kind.value,
-                },
-            )
+        _append_router_selected_spec_if_missing(trace_specs, _router_selected_spec)
+        _append_core_next_action_decided_trace(
+            trace_specs,
+            trace_id=trace_id,
+            decision=decision,
         )
         _maybe_emit_core_final_response(decision, trace_specs)
         return decision, trace_specs
@@ -608,30 +603,18 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
-        if _router_selected_spec is not None and (
-            not trace_specs or trace_specs[0] is not _router_selected_spec
-        ):
-            trace_specs.insert(0, _router_selected_spec)
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_next_action_decided",
-                trace_id=input.trace_id,
-                payload={
-                    "decision_code": decision.decision_code.value,
-                    "plan_kind": decision.plan_kind.value,
-                    "tool_name": tool_name,
-                },
-            )
+        _append_router_selected_spec_if_missing(trace_specs, _router_selected_spec)
+        _append_core_next_action_decided_trace(
+            trace_specs,
+            trace_id=input.trace_id,
+            decision=decision,
+            tool_name=tool_name,
         )
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_tool_call",
-                trace_id=input.trace_id,
-                payload={
-                    "tool_name": tool_name,
-                    "tool_args": tool_args,
-                },
-            )
+        _append_core_tool_call_trace(
+            trace_specs,
+            trace_id=input.trace_id,
+            tool_name=tool_name,
+            tool_args=tool_args,
         )
         return decision, trace_specs
 
@@ -653,45 +636,25 @@ def orchestrate(
             requires_user_approval=False,
             debug_meta=None,
         )
-        if _router_selected_spec is not None and (
-            not trace_specs or trace_specs[0] is not _router_selected_spec
-        ):
-            trace_specs.insert(0, _router_selected_spec)
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_next_action_decided",
-                trace_id=trace_id,
-                payload={
-                    "decision_code": decision.decision_code.value,
-                    "plan_kind": decision.plan_kind.value,
-                    "tool_name": tool_name,
-                },
-            )
+        _append_router_selected_spec_if_missing(trace_specs, _router_selected_spec)
+        _append_core_next_action_decided_trace(
+            trace_specs,
+            trace_id=trace_id,
+            decision=decision,
+            tool_name=tool_name,
         )
-        trace_specs.append(
-            TraceEventSpec(
-                event_type="core_tool_call",
-                trace_id=trace_id,
-                payload={
-                    "tool_name": tool_name,
-                    "tool_args": tool_args,
-                },
-            )
+        _append_core_tool_call_trace(
+            trace_specs,
+            trace_id=trace_id,
+            tool_name=tool_name,
+            tool_args=tool_args,
         )
         return decision, trace_specs
 
-    if _router_selected_spec is not None and (
-        not trace_specs or trace_specs[0] is not _router_selected_spec
-    ):
-        trace_specs.insert(0, _router_selected_spec)
-    trace_specs.append(
-        TraceEventSpec(
-            event_type="core_next_action_decided",
-            trace_id=trace_id,
-            payload={
-                "decision_code": decision.decision_code.value,
-                "plan_kind": decision.plan_kind.value,
-            },
-        )
+    _append_router_selected_spec_if_missing(trace_specs, _router_selected_spec)
+    _append_core_next_action_decided_trace(
+        trace_specs,
+        trace_id=trace_id,
+        decision=decision,
     )
     return decision, trace_specs

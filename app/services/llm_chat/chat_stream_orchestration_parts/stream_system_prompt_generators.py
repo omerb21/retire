@@ -159,6 +159,68 @@ def _store_pending_pre_retirement_plan_resolution(
             pass
 
 
+def _build_computed_data_stream_marker(computed_data) -> str | None:
+    if computed_data is None:
+        return None
+    computed_json = json.dumps(
+        {"type": "computed_data", "data": computed_data.model_dump()},
+        ensure_ascii=False,
+    )
+    return f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+
+def _is_tool_error_result(tool_result: object) -> bool:
+    return isinstance(tool_result, str) and tool_result.strip().lower().startswith(
+        "tool error"
+    )
+
+
+def _build_target_plan_breakdown_lines(
+    *, breakdown, explicit_is_net: bool
+) -> list[str]:
+    mode_label = "נטו" if explicit_is_net else "ברוטו"
+    offset_val = (
+        breakdown.other_income_offset_net
+        if explicit_is_net
+        else breakdown.other_income_offset_gross
+    )
+    breakdown_lines: list[str] = []
+    breakdown_lines.append("✅ חישוב דטרמיניסטי:")
+    breakdown_lines.append(
+        f"- יעד חודשי מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪"
+    )
+    if offset_val > 0:
+        breakdown_lines.append(
+            f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪"
+        )
+    breakdown_lines.append(
+        f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): "
+        f"{breakdown.effective_plan_target:,.0f} ₪"
+    )
+    return breakdown_lines
+
+
+def _build_target_plan_reply_text(
+    *,
+    breakdown,
+    explicit_is_net: bool,
+    plan_result: str,
+    heading: str,
+    tool_heading: str,
+) -> str:
+    breakdown_lines = _build_target_plan_breakdown_lines(
+        breakdown=breakdown,
+        explicit_is_net=explicit_is_net,
+    )
+    if heading:
+        breakdown_lines[0] = heading
+    return sanitize_user_visible_text(
+        "\n".join(breakdown_lines)
+        + tool_heading
+        + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+    )
+
+
 def generate_adjust_reply(
     *,
     computed_data,
@@ -169,12 +231,9 @@ def generate_adjust_reply(
     effective_portfolio,
     stream_request_id,
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     if not isinstance(payload, dict):
         yield (
@@ -304,7 +363,7 @@ def generate_adjust_reply(
         plan_args,
         request.client_id,
         db,
-        pension_portfolio=effective_portfolio,
+        pension_portfolio=portfolio_for_plan,
         force_max_exemption=False,
         user_approved=True,
         request_id=stream_request_id,
@@ -323,32 +382,12 @@ def generate_adjust_reply(
     except Exception:
         pass
 
-    mode_label = "נטו" if explicit_is_net else "ברוטו"
-    offset_val = (
-        breakdown.other_income_offset_net
-        if explicit_is_net
-        else breakdown.other_income_offset_gross
-    )
-    breakdown_lines: list[str] = []
-    breakdown_lines.append("✅ חישוב דטרמיניסטי (תיקון):")
-    breakdown_lines.append(
-        f"- יעד חודשי מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪"
-    )
-    if offset_val > 0:
-        breakdown_lines.append(
-            f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪"
-        )
-    breakdown_lines.append(
-        f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): "
-        f"{breakdown.effective_plan_target:,.0f} ₪"
-    )
-
-    yield (
-        sanitize_user_visible_text("\n".join(breakdown_lines))
-        + "\n\n🔧 **פלט כלי (בניית תכנית קצבה - תיקון):**\n"
-        + sanitize_user_visible_text(
-            format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
-        )
+    yield _build_target_plan_reply_text(
+        breakdown=breakdown,
+        explicit_is_net=bool(explicit_is_net),
+        plan_result=plan_result,
+        heading="✅ חישוב דטרמיניסטי (תיקון):",
+        tool_heading="\n\n🔧 **פלט כלי (בניית תכנית קצבה - תיקון):**\n",
     )
 
 
@@ -361,12 +400,9 @@ def generate_system_results(
     effective_portfolio,
     stream_request_id,
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     tool_result = _execute_tool_call(
         "GET_PENSION_PRODUCTS",
@@ -379,9 +415,7 @@ def generate_system_results(
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
-        "tool error"
-    ):
+    if _is_tool_error_result(tool_result):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -393,12 +427,9 @@ def generate_system_results(
 def generate_system_inventory(
     *, computed_data, request, db, effective_portfolio, stream_request_id
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     tool_result = _execute_tool_call(
         "GET_SYSTEM_STATE_SNAPSHOT",
@@ -411,9 +442,7 @@ def generate_system_inventory(
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
-        "tool error"
-    ):
+    if _is_tool_error_result(tool_result):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -429,12 +458,9 @@ def generate_data_awareness(
     effective_snapshot_at,
     stream_request_id,
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     tool_result = _execute_tool_call(
         "GET_SYSTEM_STATE_SNAPSHOT",
@@ -447,9 +473,7 @@ def generate_data_awareness(
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
-        "tool error"
-    ):
+    if _is_tool_error_result(tool_result):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -471,12 +495,9 @@ def generate_list_all_entities(
     effective_snapshot_at,
     stream_request_id,
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     tool_result = _execute_tool_call(
         "GET_SYSTEM_STATE_SNAPSHOT",
@@ -489,9 +510,7 @@ def generate_list_all_entities(
         request_id=stream_request_id,
     )
 
-    if isinstance(tool_result, str) and tool_result.strip().lower().startswith(
-        "tool error"
-    ):
+    if _is_tool_error_result(tool_result):
         yield sanitize_user_visible_text(tool_result)
         return
 
@@ -513,12 +532,9 @@ def generate_target_plan(
     effective_portfolio,
     stream_request_id,
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     target_val = None
     try:
@@ -598,30 +614,12 @@ def generate_target_plan(
     except Exception:
         pass
 
-    mode_label = "נטו" if explicit_is_net else "ברוטו"
-    offset_val = (
-        breakdown.other_income_offset_net
-        if explicit_is_net
-        else breakdown.other_income_offset_gross
-    )
-    breakdown_lines: list[str] = []
-    breakdown_lines.append("✅ חישוב דטרמיניסטי:")
-    breakdown_lines.append(
-        f"- יעד חודשי מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪"
-    )
-    if offset_val > 0:
-        breakdown_lines.append(
-            f"- קיזוז הכנסות נוספות ({mode_label}): {offset_val:,.0f} ₪"
-        )
-    breakdown_lines.append(
-        f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): "
-        f"{breakdown.effective_plan_target:,.0f} ₪"
-    )
-
-    yield sanitize_user_visible_text(
-        "\n".join(breakdown_lines)
-        + "\n\n🔧 **פלט כלי (בניית תכנית קצבה):**\n"
-        + format_tool_output_for_user_stream("BUILD_TARGET_PENSION_PLAN", plan_result)
+    yield _build_target_plan_reply_text(
+        breakdown=breakdown,
+        explicit_is_net=bool(explicit_is_net),
+        plan_result=plan_result,
+        heading="✅ חישוב דטרמיניסטי:",
+        tool_heading="\n\n🔧 **פלט כלי (בניית תכנית קצבה):**\n",
     )
 
 
@@ -635,12 +633,9 @@ def generate_cashflow(
     force_max_exemption,
     stream_request_id,
 ) -> str:
-    if computed_data is not None:
-        computed_json = json.dumps(
-            {"type": "computed_data", "data": computed_data.model_dump()},
-            ensure_ascii=False,
-        )
-        yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+    computed_marker = _build_computed_data_stream_marker(computed_data)
+    if computed_marker is not None:
+        yield computed_marker
 
     plan_payload = None
     try:

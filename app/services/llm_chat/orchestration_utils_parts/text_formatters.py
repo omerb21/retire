@@ -46,27 +46,15 @@ def _get_pension_products_amount(product: dict) -> float:
         return 0.0
 
 
-def format_get_pension_products_system_results(tool_result: str) -> str:
-    raw, products, summary_text = _parse_get_pension_products_payload(tool_result)
-    if not raw:
-        return "(tool returned empty payload)"
-    if not products and raw.lstrip()[:1] not in {"{", "["}:
-        return raw
-
-    total = sum(_get_pension_products_amount(product) for product in products)
-
-    lines: list[str] = ["תוצאות בפועל במערכת", "רשימת מוצרים"]
-    if summary_text:
-        lines.append(f"מצב כללי: {summary_text}")
-    lines.append(f"מספר מוצרים: {len(products)}")
-    lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
-
-    if not products:
-        lines.append("לא נמצאו מוצרים במערכת ללקוח.")
-        return "\n".join(lines).strip()
-
+def _append_get_pension_products_account_lines(
+    lines: list[str], products: list[dict], *, include_header: bool = True
+) -> None:
     lines.append("")
+    if include_header:
+        lines.append("חשבונות לדוגמה:")
     for idx, product in enumerate(products[:10], start=1):
+        if not isinstance(product, dict):
+            continue
         category = str(product.get("category") or "").strip() or "unknown"
         name = str(
             product.get("fund_name")
@@ -74,9 +62,44 @@ def format_get_pension_products_system_results(tool_result: str) -> str:
             or product.get("account")
             or "ללא שם"
         ).strip()
-        lines.append(
-            f"{idx}. {name} ({category}) – {_get_pension_products_amount(product):,.0f} ₪"
-        )
+        amount = _get_pension_products_amount(product)
+        lines.append(f"{idx}. {name} ({category}) – {amount:,.0f} ₪")
+
+
+def _append_get_pension_products_summary_lines(
+    lines: list[str], products: list[dict], summary_text: str
+) -> None:
+    total = sum(_get_pension_products_amount(product) for product in products)
+    lines.append(f"מספר מוצרים: {len(products)}")
+    lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
+    if summary_text:
+        lines.append(f"מצב כללי: {summary_text}")
+
+
+def format_get_pension_products_system_results(tool_result: str) -> str:
+    raw, products, summary_text = _parse_get_pension_products_payload(tool_result)
+    if not raw:
+        return "(tool returned empty payload)"
+    if not products and raw.lstrip()[:1] not in {"{", "["}:
+        return raw
+
+    lines: list[str] = ["תוצאות בפועל במערכת", "רשימת מוצרים"]
+    if summary_text:
+        lines.append(f"מצב כללי: {summary_text}")
+    lines.append(f"מספר מוצרים: {len(products)}")
+    lines.append(
+        f'סה"כ יתרות: {sum(_get_pension_products_amount(product) for product in products):,.0f} ₪'
+    )
+
+    if not products:
+        lines.append("לא נמצאו מוצרים במערכת ללקוח.")
+        return "\n".join(lines).strip()
+
+    _append_get_pension_products_account_lines(
+        lines,
+        products,
+        include_header=False,
+    )
 
     return "\n".join(lines).strip()
 
@@ -99,25 +122,12 @@ def format_get_pension_products_portfolio_analysis_short_default(
         lines.append("אם תרצה פירוט מלא כתוב: הרחב")
         return "\n".join(lines)
 
-    total = sum(_get_pension_products_amount(product) for product in products)
-
-    lines.append(f"מספר מוצרים: {len(products)}")
-    lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
-    if summary_text:
-        lines.append(f"מצב כללי: {summary_text}")
-    lines.append("")
-    lines.append("חשבונות לדוגמה:")
-
-    for idx, product in enumerate(products[:10], start=1):
-        category = str(product.get("category") or "").strip() or "unknown"
-        name = str(
-            product.get("fund_name")
-            or product.get("asset_name")
-            or product.get("account")
-            or "ללא שם"
-        ).strip()
-        amount = _get_pension_products_amount(product)
-        lines.append(f"{idx}. {name} ({category}) – {amount:,.0f} ₪")
+    _append_get_pension_products_summary_lines(lines, products, summary_text)
+    _append_get_pension_products_account_lines(
+        lines,
+        products,
+        include_header=True,
+    )
 
     lines.append("")
     lines.append("מה אפשר לעשות עכשיו: לבקש ניתוח או הרחבה של התיק.")
@@ -176,27 +186,12 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             lines.append("לא נמצאו מוצרים במערכת ללקוח.")
             return "\n".join(lines)
 
-        total = sum(_get_pension_products_amount(product) for product in products)
-
-        lines.append(f"מספר מוצרים: {len(products)}")
-        lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
-        if summary_text:
-            lines.append(f"מצב כללי: {summary_text}")
-        lines.append("")
-        lines.append("חשבונות לדוגמה:")
-
-        for idx, p in enumerate(products[:10], start=1):
-            if not isinstance(p, dict):
-                continue
-            category = str(p.get("category") or "").strip() or "unknown"
-            name = str(
-                p.get("fund_name")
-                or p.get("asset_name")
-                or p.get("account")
-                or "ללא שם"
-            ).strip()
-            amt = _get_pension_products_amount(p)
-            lines.append(f"{idx}. {name} ({category}) – {amt:,.0f} ₪")
+        _append_get_pension_products_summary_lines(lines, products, summary_text)
+        _append_get_pension_products_account_lines(
+            lines,
+            products,
+            include_header=True,
+        )
 
         return "\n".join(lines).strip()
 
