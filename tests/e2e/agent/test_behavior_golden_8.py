@@ -272,20 +272,7 @@ def _load_cases() -> list[dict[str, Any]]:
 
 
 CASES = _load_cases()
-_XFAIL_REASON = (
-    "Stage A behavioral baseline - expected failure until Stage B action-contract fixes"
-)
-
-
-def _xfail_case(case: dict[str, Any]):
-    return pytest.param(
-        case,
-        marks=pytest.mark.xfail(strict=True, reason=_XFAIL_REASON),
-        id=case["id"],
-    )
-
-
-PARAM_CASES = [_xfail_case(case) for case in CASES]
+PARAM_CASES = [pytest.param(case, id=case["id"]) for case in CASES]
 
 
 def _forbid_external_llm(*args, **kwargs):

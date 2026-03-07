@@ -8,6 +8,47 @@ from app.services.llm_chat.orchestration_utils import sanitize_user_visible_text
 from ..steps.types import _PreparedOrchestrationInputs
 
 
+def _inject_process_termination_display_choices(
+    tool_result: object, tool_args: dict[str, Any] | None
+) -> object:
+    if not isinstance(tool_args, dict):
+        return tool_result
+
+    exempt_choice = tool_args.get("exempt_choice")
+    taxable_choice = tool_args.get("taxable_choice")
+    if not exempt_choice and not taxable_choice:
+        return tool_result
+
+    try:
+        parsed = json.loads(tool_result) if isinstance(tool_result, str) else tool_result
+    except Exception:
+        return tool_result
+
+    if not isinstance(parsed, dict):
+        return tool_result
+
+    details = parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
+    choices = parsed.get("choices") if isinstance(parsed.get("choices"), dict) else {}
+
+    if exempt_choice:
+        details["exempt_choice"] = exempt_choice
+        choices["exempt"] = exempt_choice
+    if taxable_choice:
+        details["taxable_choice"] = taxable_choice
+        choices["taxable"] = taxable_choice
+
+    parsed["details"] = details
+    if choices:
+        parsed["choices"] = choices
+    if parsed.get("success") is None and str(parsed.get("status") or "").strip().lower() == "done":
+        parsed["success"] = True
+
+    try:
+        return json.dumps(parsed, ensure_ascii=False)
+    except Exception:
+        return tool_result
+
+
 def _handle_post_deterministics_and_finalize(
     *,
     request,
@@ -162,12 +203,7 @@ def _handle_post_deterministics_and_finalize(
             computed_data=computed_data,
         )
 
-    if (
-        explicit_termination
-        and request.client_id is not None
-        and (not no_tools_requested)
-        and (not is_qa_mode)
-    ):
+    if explicit_termination and (not no_tools_requested) and (not is_qa_mode):
         recent_user_text = "\n".join(
             [
                 str(getattr(m, "content", ""))
@@ -186,15 +222,16 @@ def _handle_post_deterministics_and_finalize(
             tool_args["termination_date"] = termination_date_override
 
         if not termination_already_executed:
-            try:
-                store_pending_approval_request(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_name="PROCESS_TERMINATION",
-                    tool_args=tool_args,
-                )
-            except Exception:
-                pass
+            if request.client_id is not None:
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=tool_args,
+                    )
+                except Exception:
+                    pass
             return ChatResponse(
                 reply=build_approval_request_ui_action(
                     tool_name="PROCESS_TERMINATION",
@@ -467,13 +504,61 @@ def _handle_post_deterministics_and_finalize(
     approval = extract_user_approval_for_tool_call(request.messages)
     cancelled = extract_user_cancel_for_tool_call(request.messages)
 
-    if approval is None and request.client_id is not None and (not no_tools_requested):
+    if approval is None and (not no_tools_requested):
+        pending_for_update = None
+        pending_for_update = extract_latest_approval_request(request.messages)
+        if pending_for_update is None and request.client_id is not None:
+            try:
+                pending_for_update = load_pending_approval_request(
+                    db=db,
+                    client_id=request.client_id,
+                )
+            except Exception:
+                pending_for_update = None
+
+        if (
+            isinstance(pending_for_update, tuple)
+            and len(pending_for_update) == 2
+            and str(pending_for_update[0] or "") == "PROCESS_TERMINATION"
+            and (not is_user_approval_intent_text(original_user_msg))
+        ):
+            pending_tool_name, pending_tool_args = pending_for_update
+            updated_args = dict(pending_tool_args) if isinstance(pending_tool_args, dict) else {}
+            overrides = extract_process_termination_choice_overrides(original_user_msg)
+            termination_date_override = extract_process_termination_date_override(
+                original_user_msg
+            )
+            if overrides or termination_date_override:
+                updated_args.update(overrides)
+                if termination_date_override:
+                    updated_args["termination_date"] = termination_date_override
+                try:
+                    store_pending_approval_request(
+                        db=db,
+                        client_id=request.client_id,
+                        tool_name=pending_tool_name,
+                        tool_args=updated_args,
+                    )
+                except Exception:
+                    pass
+                return ChatResponse(
+                    reply=build_approval_request_ui_action(
+                        tool_name="PROCESS_TERMINATION",
+                        tool_args=updated_args,
+                        reason="הבחירה עודכנה. נדרש אישור לפני ביצוע עזיבת עבודה במערכת.",
+                        risk_level="high",
+                        rag_sources=None,
+                    ),
+                    computed_data=computed_data,
+                )
+
+    if approval is None and (not no_tools_requested):
         last_user_text = find_last_user_message(request.messages)
         if is_user_approval_intent_text(last_user_text):
             pending = extract_latest_approval_request(request.messages)
             if pending is not None:
                 approval = pending
-            else:
+            elif request.client_id is not None:
                 try:
                     pending_db = load_pending_approval_request(
                         db=db,
@@ -505,13 +590,17 @@ def _handle_post_deterministics_and_finalize(
                         ),
                         computed_data=computed_data,
                     )
-    if (
-        approval
-        and request.client_id is not None
-        and (not no_tools_requested)
-        and (not explicit_transform)
-    ):
+    if approval and (not no_tools_requested) and (not explicit_transform):
         approved_tool_name, approved_tool_args = approval
+
+        if request.client_id is None and approved_tool_name != "PROCESS_TERMINATION":
+            return ChatResponse(
+                reply=(
+                    "לא נמצאה זהות לקוח פעילה לביצוע הפעולה במערכת. "
+                    "כדי לבצע פעולה צריך קודם לבחור לקוח פעיל."
+                ),
+                computed_data=computed_data,
+            )
 
         if (
             approved_tool_name == "PROCESS_TERMINATION"
@@ -624,6 +713,12 @@ def _handle_post_deterministics_and_finalize(
             user_approved=True,
             request_id=request_id,
         )
+
+        if approved_tool_name == "PROCESS_TERMINATION":
+            tool_result = _inject_process_termination_display_choices(
+                tool_result,
+                approved_tool_args if isinstance(approved_tool_args, dict) else None,
+            )
 
         try:
             clear_pending_approval_request(db=db, client_id=request.client_id)

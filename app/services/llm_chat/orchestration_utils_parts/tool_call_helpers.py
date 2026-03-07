@@ -390,6 +390,62 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
         ("פיצויים" in lowered) or ("מענק" in lowered) or ("מענקים" in lowered)
     )
 
+    labeled_exempt_match = re.search(
+        r"פטור\s*[:\-]?\s*(.+?)(?=(?:חייב(?:\s*במס)?)\s*[:\-]|$)",
+        lowered,
+        flags=re.DOTALL,
+    )
+    labeled_taxable_match = re.search(
+        r"חייב(?:\s*במס)?\s*[:\-]?\s*(.+)$",
+        lowered,
+        flags=re.DOTALL,
+    )
+    labeled_exempt_text = (
+        str(labeled_exempt_match.group(1) or "").strip()
+        if labeled_exempt_match is not None
+        else ""
+    )
+    labeled_taxable_text = (
+        str(labeled_taxable_match.group(1) or "").strip()
+        if labeled_taxable_match is not None
+        else ""
+    )
+
+    if labeled_exempt_text:
+        if any(
+            t in labeled_exempt_text
+            for t in ("בלי שימוש בפטור", "ללא שימוש בפטור", "ללא פטור")
+        ):
+            overrides["exempt_choice"] = "redeem_no_exemption"
+        elif any(
+            t in labeled_exempt_text for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")
+        ):
+            overrides["exempt_choice"] = "redeem_with_exemption"
+        elif (
+            "רצף קצבה" in labeled_exempt_text
+            or ("לקצבה" in labeled_exempt_text)
+            or re.search(r"\bכ?קצבה\b", labeled_exempt_text)
+        ):
+            overrides["exempt_choice"] = "annuity"
+        elif any(
+            t in labeled_exempt_text
+            for t in ("משיכה", "חד פעמ", "חד-פעמ", "הוני", "הונית", "הון")
+        ):
+            overrides.setdefault("exempt_choice", "redeem_with_exemption")
+
+    if labeled_taxable_text:
+        if (
+            "רצף קצבה" in labeled_taxable_text
+            or ("לקצבה" in labeled_taxable_text)
+            or re.search(r"\bכ?קצבה\b", labeled_taxable_text)
+        ):
+            overrides["taxable_choice"] = "annuity"
+        elif any(
+            t in labeled_taxable_text
+            for t in ("משיכה", "חד פעמ", "חד-פעמ", "משיכת הון", "משיכת מענק", "הוני")
+        ):
+            overrides["taxable_choice"] = "redeem_no_exemption"
+
     if "exempt_choice" not in overrides:
         if any(
             t in lowered for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")

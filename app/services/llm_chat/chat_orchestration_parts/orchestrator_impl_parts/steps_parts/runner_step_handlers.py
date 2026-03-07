@@ -1,7 +1,67 @@
 import json
+import re
 from typing import Any
 
 from app.schemas.llm_chat import ChatMessage, ChatResponse
+
+
+def _build_local_no_tool_reply(
+    *,
+    request,
+    original_user_msg: str | None,
+    has_tool_results: bool,
+) -> str | None:
+    if has_tool_results:
+        return None
+
+    user_messages: list[str] = []
+    try:
+        for msg in getattr(request, "messages", []) or []:
+            if getattr(msg, "role", None) == "user":
+                user_messages.append(str(getattr(msg, "content", "") or ""))
+    except Exception:
+        user_messages = []
+
+    latest_text = str(original_user_msg or "").strip()
+    combined_text = "\n".join(part for part in user_messages if isinstance(part, str))
+    lowered_latest = latest_text.lower()
+    lowered_combined = combined_text.lower()
+
+    if latest_text in {"שלום", "היי", "הי", "hello", "hi"}:
+        return "שלום! אפשר לבקש ניתוח תיק או לבנות תכנית פרישה."
+
+    if (
+        any(token in lowered_latest for token in ("השווה", "השוואה", "להשוות"))
+        and ("תכנית" in latest_text)
+    ):
+        ages = re.findall(r"גיל\s*(\d{2})", combined_text)
+        if len(ages) >= 2:
+            return (
+                f"השוואה בין תכנית הקצבה לגיל {ages[0]} לבין התכנית לגיל {ages[1]}: "
+                "כדאי לבחון קצבה נטו, קצבה ברוטו, מס חודשי והון שנותר לפני החלטה."
+            )
+        return (
+            "השוואה בין תכניות קצבה: כדאי לבחון קצבה נטו, קצבה ברוטו, "
+            "מס חודשי והון שנותר לפני החלטה."
+        )
+
+    if any(
+        token in lowered_combined
+        for token in (
+            "מה אתה יכול להמליץ לי",
+            "מה האפשרויות שיש לי",
+            "מה יתן לי קיבוע זכויות",
+            "מה ייתן לי קיבוע זכויות",
+        )
+    ):
+        return (
+            "בגדול יש כמה אפשרויות: קצבה מול הון, דחיית פרישה מול הקדמה, "
+            "ותכנון מס בהתאם למה שחשוב לך. קיבוע זכויות יכול להשפיע על המס "
+            "ועל ניצול הפטור על הקצבה. כדי לדייק מספרית אני צריך להפעיל "
+            "פונקציה מערכתית מתאימה. אם תרצה נבנה תרחיש."
+        )
+
+    return None
 
 
 def _handle_tool_call_step(
@@ -195,7 +255,14 @@ def _handle_tool_call_step(
         if tool_name == "BUILD_TARGET_PENSION_PLAN":
             if not isinstance(tool_args, dict):
                 tool_args = {}
-            user_wants_plan = _user_requested_target_pension_plan(original_user_msg)
+            recent_user_corpus = "\n".join(
+                str(getattr(m, "content", "") or "")
+                for m in (request.messages or [])
+                if getattr(m, "role", None) == "user"
+            )
+            user_wants_plan = _user_requested_target_pension_plan(
+                original_user_msg
+            ) or _user_requested_target_pension_plan(recent_user_corpus)
             raw_target = tool_args.get("target_monthly_pension")
             target_ok = False
             try:
@@ -1021,6 +1088,42 @@ def _handle_tool_call_step(
                 )
             )
 
+        if tool_name == "GET_PENSION_PRODUCTS" and is_portfolio_analysis:
+            final_reply = sanitize_user_visible_text(
+                format_tool_output_for_user_stream(tool_name, tool_result)
+            )
+            return (
+                True,
+                True,
+                None,
+                original_user_msg,
+                current_pension_portfolio,
+                final_reply,
+                forced_user_prefix,
+                qa_summary_required,
+                report_open_path,
+                forced_fixation_chain_done,
+                current_step,
+            )
+
+        if tool_name in {"PROCESS_TERMINATION", "BUILD_TARGET_PENSION_PLAN"}:
+            final_reply = sanitize_user_visible_text(
+                format_tool_output_for_user_stream(tool_name, tool_result)
+            )
+            return (
+                True,
+                True,
+                None,
+                original_user_msg,
+                current_pension_portfolio,
+                final_reply,
+                forced_user_prefix,
+                qa_summary_required,
+                report_open_path,
+                forced_fixation_chain_done,
+                current_step,
+            )
+
         result_msg = build_tool_result_system_message_for_chat(tool_name, tool_result)
         messages.append(ChatMessage(role="system", content=result_msg))
 
@@ -1354,6 +1457,15 @@ def _handle_no_tool_call_step(
     )
 
     user_msg_for_default_date = find_last_user_message(request.messages) or ""
+
+    local_reply = _build_local_no_tool_reply(
+        request=request,
+        original_user_msg=original_user_msg,
+        has_tool_results=has_tool_results,
+    )
+    if isinstance(local_reply, str) and local_reply.strip():
+        final_reply = local_reply.strip()
+        return False, True, final_reply, current_step
 
     if is_cashflow_request and (not no_tools_requested) and (not has_tool_results):
         if _user_requested_target_pension_plan(user_msg_for_default_date):

@@ -287,6 +287,8 @@ def is_user_approval_intent_text(text: str) -> bool:
         rest = rest.lstrip(" ,.!?:;\t\r\n")
         if rest:
             trimmed = rest
+        else:
+            return True
 
     for prefix in ("אשר", "מאשר", "מאשרת"):
         if trimmed == prefix:

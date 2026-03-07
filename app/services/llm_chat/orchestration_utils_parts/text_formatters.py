@@ -51,10 +51,17 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             return raw
 
         products = None
+        summary_text = ""
         if isinstance(parsed_products, dict):
             products = parsed_products.get("products")
+            summary_text = str(parsed_products.get("summary") or "").strip()
         if not isinstance(products, list):
-            products = []
+            if isinstance(parsed_products, dict) and isinstance(
+                parsed_products.get("items"), list
+            ):
+                products = parsed_products.get("items")
+            else:
+                products = []
 
         def _n(v: object) -> float:
             try:
@@ -63,9 +70,13 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 return 0.0
 
         lines: list[str] = []
-        lines.append("תוצאות בפועל במערכת – רשימת מוצרים")
+        lines.append("סיכום מהיר (הערכה ראשונית)")
         if not products:
-            lines.append("לא נמצאו מוצרים (קרנות פנסיה / נכסי הון) במערכת ללקוח.")
+            if summary_text:
+                lines.append(summary_text)
+            lines.append("לא נמצאו מוצרים במערכת ללקוח.")
+            lines.append("מה אפשר לעשות עכשיו: לבקש ניתוח או הרחבה של התיק.")
+            lines.append("אם תרצה פירוט מלא כתוב: הרחב")
             return "\n".join(lines)
 
         total = 0.0
@@ -77,26 +88,85 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 amt = _n(p.get("current_value"))
             total += amt
 
-        lines.append(f"נמצאו {len(products)} מוצרים.")
-        lines.append(f'סה"כ צבירה (כפי שמופיע במערכת): {total:,.0f} ₪')
+        lines.append(f"מספר מוצרים: {len(products)}")
+        lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
+        if summary_text:
+            lines.append(f"מצב כללי: {summary_text}")
         lines.append("")
-        lines.append("פירוט (עד 10 פריטים):")
+        lines.append("חשבונות לדוגמה:")
 
         for idx, p in enumerate(products[:10], start=1):
             if not isinstance(p, dict):
                 continue
             category = str(p.get("category") or "").strip() or "unknown"
-            name = str(p.get("fund_name") or p.get("asset_name") or "ללא שם").strip()
+            name = str(
+                p.get("fund_name")
+                or p.get("asset_name")
+                or p.get("account")
+                or "ללא שם"
+            ).strip()
             amt = _n(p.get("balance"))
             if amt <= 0:
                 amt = _n(p.get("current_value"))
             lines.append(f"{idx}. {name} ({category}) – {amt:,.0f} ₪")
 
         lines.append("")
-        lines.append(
-            "הערה: התשובה מוצגת כפי שנשלפה מהמערכת (ללא חישוב פנימי של הסוכן)."
-        )
+        lines.append("מה אפשר לעשות עכשיו: לבקש ניתוח או הרחבה של התיק.")
+        lines.append("אם תרצה פירוט מלא כתוב: הרחב")
         return "\n".join(lines).strip()
+
+    if tool_name == "BUILD_TARGET_PENSION_PLAN":
+        raw = tool_result or ""
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return tool_result
+        if not isinstance(parsed, dict):
+            return tool_result
+
+        plan_data = parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+        if not isinstance(plan_data, dict):
+            return tool_result
+
+        offsets = parsed.get("offsets") if isinstance(parsed.get("offsets"), dict) else {}
+        retirement_age = plan_data.get("retirement_age")
+        if retirement_age is None:
+            retirement_age = parsed.get("retirement_age")
+        target_is_net = plan_data.get("target_is_net")
+        if target_is_net is None:
+            target_is_net = parsed.get("target_is_net")
+        target_monthly = plan_data.get("target_monthly_pension")
+        if target_monthly is None:
+            target_monthly = parsed.get("target_monthly_pension")
+
+        mode_label = "נטו" if bool(target_is_net) else "ברוטו"
+        lines: list[str] = []
+        lines.append("תכנית יעד קצבה – סיכום:")
+        if retirement_age is not None:
+            try:
+                lines.append(f"- גיל פרישה בתכנון: {int(retirement_age)}")
+            except Exception:
+                lines.append(f"- גיל פרישה בתכנון: {retirement_age}")
+        lines.append("- תכנון בלבד")
+        lines.append("- לא בוצעה עזיבת עבודה")
+        lines.append("- לא אבצע עזיבת עבודה")
+        if target_monthly is not None:
+            try:
+                lines.append(
+                    f"- יעד קצבה חודשי ({mode_label}): {float(target_monthly):,.0f} ₪"
+                )
+            except Exception:
+                lines.append(f"- יעד קצבה חודשי ({mode_label}): {target_monthly} ₪")
+        desired_net_total = offsets.get("desired_net_total")
+        if bool(target_is_net) and desired_net_total is None:
+            desired_net_total = target_monthly
+        if bool(target_is_net) and desired_net_total is not None:
+            try:
+                lines.append(f"- יעד נטו: {float(desired_net_total):,.0f} ₪")
+            except Exception:
+                lines.append(f"- יעד נטו: {desired_net_total} ₪")
+        lines.append("- אם תרצה לבצע עזיבת עבודה נבקש אישור מפורש")
+        return "\n".join(lines)
 
     if tool_name in {
         "CALCULATE_CAPITAL_WITHDRAWAL_TAX",
@@ -206,10 +276,13 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
 
         if tool_name == "PROCESS_TERMINATION" and isinstance(parsed, dict):
             success = parsed.get("success")
+            if success is None and str(parsed.get("status") or "").strip().lower() == "done":
+                success = True
             message = parsed.get("message")
             details = (
                 parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
             )
+            choices = parsed.get("choices") if isinstance(parsed.get("choices"), dict) else {}
             already_processed = bool(details.get("already_processed")) or (
                 isinstance(message, str)
                 and ("כבר בוצע" in message or "כבר בוצעה" in message)
@@ -218,8 +291,8 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             severance_amount = details.get("severance_amount")
             exempt_amount = details.get("exempt_amount")
             taxable_amount = details.get("taxable_amount")
-            exempt_choice = details.get("exempt_choice")
-            taxable_choice = details.get("taxable_choice")
+            exempt_choice = details.get("exempt_choice") or choices.get("exempt")
+            taxable_choice = details.get("taxable_choice") or choices.get("taxable")
             annuity_projection = (
                 parsed.get("annuity_projection")
                 if isinstance(parsed.get("annuity_projection"), dict)

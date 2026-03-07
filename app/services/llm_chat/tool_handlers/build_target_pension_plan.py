@@ -256,6 +256,8 @@ def handle_build_target_pension_plan(
     summary_lines.append("תכנית יעד קצבה – סיכום:")
     if retirement_age_val is not None:
         summary_lines.append(f"- גיל פרישה בתכנון: {int(retirement_age_val)}")
+    summary_lines.append("- תכנון בלבד")
+    summary_lines.append("- לא בוצעה עזיבת עבודה")
     if breakdown is not None:
         summary_lines.append(
             f"- יעד כולל מבוקש ({mode_label}): {breakdown.desired_net_total:,.0f} ₪"
