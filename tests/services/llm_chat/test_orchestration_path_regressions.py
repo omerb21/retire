@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_orchestration as chat_orch
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
+from app.main import app
 from app.models.pension_fund import PensionFund
 from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
@@ -16,7 +17,6 @@ from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_PLAN_RETIREMENT,
     select_canonical_action,
 )
-from app.main import app
 
 
 class _TraceCapture:
@@ -52,7 +52,9 @@ def _install_trace_capture(monkeypatch) -> _TraceCapture:
     capture = _TraceCapture()
     monkeypatch.setattr(entry_mod, "log_trace_event", capture.fake_log_trace_event)
     monkeypatch.setattr(tool_exec_mod, "log_trace_event", capture.fake_log_trace_event)
-    monkeypatch.setattr(trace_logger_mod, "log_trace_event", capture.fake_log_trace_event)
+    monkeypatch.setattr(
+        trace_logger_mod, "log_trace_event", capture.fake_log_trace_event
+    )
     monkeypatch.setattr(
         tool_execution_mod, "_log_agent_trace", capture.fake_log_trace_event
     )
@@ -124,7 +126,9 @@ def test_non_stream_portfolio_short_summary_uses_short_summary_path_not_system_o
     assert "תוצאות בפועל במערכת" not in body
 
 
-def test_stream_system_only_results_do_not_use_short_summary_framing(monkeypatch) -> None:
+def test_stream_system_only_results_do_not_use_short_summary_framing(
+    monkeypatch,
+) -> None:
     def fake_chat_stream(messages, client_id=None):
         raise AssertionError("LLM should not be called for system results requests")
 
@@ -360,9 +364,17 @@ def test_stage16_client_snapshot_routing_pattern_stays_stable(
     [
         ("שלום", ACTION_GREETING_AND_MENU, ACTION_ANSWER_GENERAL_QUESTION),
         ("ניתוח ותיזמון פרישה", ACTION_PLAN_RETIREMENT, ACTION_GREETING_AND_MENU),
-        ("מה גובה סה\"כ הקצבה כעת?", ACTION_ANSWER_GENERAL_QUESTION, ACTION_GREETING_AND_MENU),
+        (
+            'מה גובה סה"כ הקצבה כעת?',
+            ACTION_ANSWER_GENERAL_QUESTION,
+            ACTION_GREETING_AND_MENU,
+        ),
         ("קצבה חודשית", ACTION_ANSWER_GENERAL_QUESTION, ACTION_GREETING_AND_MENU),
-        ("השווה בין שתי תכניות", ACTION_COMPARE_EXISTING_PLANS, ACTION_GREETING_AND_MENU),
+        (
+            "השווה בין שתי תכניות",
+            ACTION_COMPARE_EXISTING_PLANS,
+            ACTION_GREETING_AND_MENU,
+        ),
     ],
 )
 def test_canonical_action_matrix_uses_expected_contracts(
