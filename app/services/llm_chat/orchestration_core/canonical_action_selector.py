@@ -73,6 +73,15 @@ _GENERAL_QUESTION_PATTERNS = (
     "מה ייתן",
 )
 
+_MONTHLY_PENSION_SUMMARY_PATTERNS = (
+    "קצבה חודשית",
+    "מה הקצבה החודשית",
+    "סיכום קצבה חודשית",
+    "קצבה נוכחית",
+    "monthly pension",
+    "monthly_pension",
+)
+
 _PLANNING_HINTS = (
     "בוא נבדוק",
     "בואי נבדוק",
@@ -199,6 +208,17 @@ def _is_compare_request(user_text: str) -> bool:
     return bool(re.search(r"בין.+לבין", lowered))
 
 
+def is_monthly_pension_summary_request(user_text: str) -> bool:
+    lowered = (user_text or "").strip().lower()
+    if not lowered:
+        return False
+    if _is_compare_request(user_text) or _is_planning_request(user_text):
+        return False
+    if is_process_termination_request(user_text):
+        return False
+    return any(pattern in lowered for pattern in _MONTHLY_PENSION_SUMMARY_PATTERNS)
+
+
 def _has_explicit_termination_execution_request(user_text: str) -> bool:
     lowered = (user_text or "").lower()
     if not is_process_termination_request(user_text):
@@ -293,9 +313,10 @@ def select_canonical_action(
 
     compare_request = _is_compare_request(user_text)
     planning_request = _is_planning_request(user_text)
+    monthly_pension_summary_request = is_monthly_pension_summary_request(user_text)
     general_question = _is_general_professional_question(user_text)
     greeting_request = _is_greeting(user_text) and not (
-        compare_request or planning_request or general_question
+        compare_request or planning_request or monthly_pension_summary_request or general_question
     )
 
     if _has_termination_approval_context(user_text, state) and is_user_approval_intent_text(
@@ -338,6 +359,13 @@ def select_canonical_action(
             action=ACTION_PLAN_RETIREMENT,
             reason_code="planning_or_simulation_request",
             source_signals=("planning.detected",),
+        )
+
+    if monthly_pension_summary_request:
+        return CanonicalActionDecision(
+            action=ACTION_ANSWER_GENERAL_QUESTION,
+            reason_code="monthly_pension_summary_query",
+            source_signals=("monthly_pension_summary.detected",),
         )
 
     if is_process_termination_request(user_text):

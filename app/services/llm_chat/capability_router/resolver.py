@@ -12,6 +12,7 @@ from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_PLAN_RETIREMENT,
     ACTION_TERMINATION_EXECUTION,
     ACTION_TERMINATION_PRECHECK,
+    is_monthly_pension_summary_request,
 )
 
 from app.services.llm_chat.capability_router.normalization import (
@@ -246,6 +247,12 @@ def resolve(
         }
         effective_intent_type = str(intent_type_by_action.get(str(canonical_action or ""), "")).strip()
 
+    if (
+        str(canonical_action or "") == ACTION_ANSWER_GENERAL_QUESTION
+        and is_monthly_pension_summary_request(user_text)
+    ):
+        effective_intent_type = "EXECUTE"
+
     caps_to_scan = capabilities
     if effective_intent_type:
         it = effective_intent_type
@@ -273,6 +280,44 @@ def resolve(
         if selected is None or prio_val > selected_prio:
             selected = cap
             selected_prio = prio_val
+
+    selected_capability_id = ""
+    if isinstance(selected, dict):
+        selected_capability_id = str(selected.get("capability_id") or "")
+
+    if (
+        str(canonical_action or "") == ACTION_ANSWER_GENERAL_QUESTION
+        and (selected is None or selected_capability_id == "default_qa_v1")
+    ):
+        readonly_execute_caps: list[dict[str, Any]] = []
+        for cap in capabilities:
+            if not isinstance(cap, dict):
+                continue
+            cap_intent_type = str(cap.get("intent_type") or "").strip()
+            side_effect_class = str(cap.get("side_effect_class") or "").strip()
+            cap_mode = str(cap.get("mode") or "").strip()
+            if cap_intent_type != "EXECUTE":
+                continue
+            if side_effect_class != "READ_ONLY":
+                continue
+            if cap_mode != "QA":
+                continue
+            readonly_execute_caps.append(cap)
+
+        for cap in readonly_execute_caps:
+            if not _match_capability(
+                cap=cap,
+                normalized_text=normalized_text,
+                trace_id=trace_id,
+                client_id=client_id,
+            ):
+                continue
+
+            prio = cap.get("priority")
+            prio_val = int(prio) if isinstance(prio, int) else 0
+            if selected is None or prio_val > selected_prio:
+                selected = cap
+                selected_prio = prio_val
 
     if selected is None:
         if deterministic_default_cap is not None:
