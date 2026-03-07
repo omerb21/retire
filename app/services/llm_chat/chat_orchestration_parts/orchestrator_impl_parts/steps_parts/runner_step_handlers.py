@@ -10,6 +10,7 @@ def _build_local_no_tool_reply(
     request,
     original_user_msg: str | None,
     has_tool_results: bool,
+    raw_reply: str | None,
 ) -> str | None:
     if has_tool_results:
         return None
@@ -26,13 +27,14 @@ def _build_local_no_tool_reply(
     combined_text = "\n".join(part for part in user_messages if isinstance(part, str))
     lowered_latest = latest_text.lower()
     lowered_combined = combined_text.lower()
+    raw_reply_text = str(raw_reply or "")
+    raw_reply_has_digits = any(ch.isdigit() for ch in raw_reply_text)
 
-    if latest_text in {"שלום", "היי", "הי", "hello", "hi"}:
+    if latest_text in {"שלום", "היי", "הי", "hello", "hi"} and not raw_reply_has_digits:
         return "שלום! אפשר לבקש ניתוח תיק או לבנות תכנית פרישה."
 
-    if (
-        any(token in lowered_latest for token in ("השווה", "השוואה", "להשוות"))
-        and ("תכנית" in latest_text)
+    if any(token in lowered_latest for token in ("השווה", "השוואה", "להשוות")) and (
+        "תכנית" in latest_text
     ):
         ages = re.findall(r"גיל\s*(\d{2})", combined_text)
         if len(ages) >= 2:
@@ -1462,6 +1464,7 @@ def _handle_no_tool_call_step(
         request=request,
         original_user_msg=original_user_msg,
         has_tool_results=has_tool_results,
+        raw_reply=raw_reply,
     )
     if isinstance(local_reply, str) and local_reply.strip():
         final_reply = local_reply.strip()

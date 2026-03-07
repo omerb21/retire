@@ -51,6 +51,7 @@ from app.services.llm_chat.orchestration_utils_parts.snapshot_helpers import (
     resolve_target_retirement_age,
 )
 from app.services.llm_chat.orchestration_utils_parts.text_formatters import (
+    format_get_pension_products_system_results,
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )

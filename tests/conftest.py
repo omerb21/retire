@@ -12,8 +12,8 @@ try:
     import httpx
 except Exception:
     httpx = None
-import inspect
 import importlib
+import inspect
 import json
 import sys
 from datetime import date
@@ -113,7 +113,9 @@ def _build_behavior_06_tool_output(*, args: dict, client_id: int, db_session) ->
         raise RuntimeError("BEHAVIOR_06 hook could not resolve client_id")
 
     requested_target = float(args.get("target_monthly_pension") or 0)
-    target_is_net = True if args.get("target_is_net") is None else bool(args.get("target_is_net"))
+    target_is_net = (
+        True if args.get("target_is_net") is None else bool(args.get("target_is_net"))
+    )
     retirement_age = args.get("retirement_age")
     ignore_blocked_balances = (
         True
@@ -162,7 +164,9 @@ def _build_behavior_06_tool_output(*, args: dict, client_id: int, db_session) ->
         pass
     summary_lines.append(f"- יעד כולל מבוקש ({mode_label}): {requested_target:,.0f} ₪")
     if offset_value > 0:
-        summary_lines.append(f"- קיזוז הכנסות נוספות ({mode_label}): {offset_value:,.0f} ₪")
+        summary_lines.append(
+            f"- קיזוז הכנסות נוספות ({mode_label}): {offset_value:,.0f} ₪"
+        )
     summary_lines.append(
         f"- יעד קצבה לתכנית ({mode_label}, אחרי קיזוז הכנסות נוספות): {effective_target:,.0f} ₪"
     )
@@ -276,7 +280,9 @@ def _patch_behavior_06_external_hook(monkeypatch, request):
                         return summary
             return original_chat(self, messages, client_id=client_id)
 
-        monkeypatch.setattr(golden_mod._FakeToolExecutor, "__call__", _patched_tool_call)
+        monkeypatch.setattr(
+            golden_mod._FakeToolExecutor, "__call__", _patched_tool_call
+        )
         monkeypatch.setattr(golden_mod._FakeLLMService, "chat", _patched_chat)
 
     yield

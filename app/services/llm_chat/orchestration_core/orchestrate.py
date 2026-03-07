@@ -24,7 +24,6 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     TERMINATION_CONCEPTUAL_NO_EXECUTE_REPLY_TOOL_NAME,
 )
 
-from .canonicalize import canonicalize_tool_args
 from .canonical_action_selector import (
     ACTION_GREETING_AND_MENU,
     ACTION_TERMINATION_EXECUTION,
@@ -32,6 +31,7 @@ from .canonical_action_selector import (
     is_canonical_action,
     select_canonical_action,
 )
+from .canonicalize import canonicalize_tool_args
 from .core_types import (
     DecisionCode,
     FeatureFlagKey,
@@ -97,7 +97,9 @@ def orchestrate(
     canonical_action_decision = select_canonical_action(
         user_text=user_text,
         state_snapshot=getattr(input, "state_snapshot", None),
-        last_tool_name=(str(last_tool_name) if isinstance(last_tool_name, str) else None),
+        last_tool_name=(
+            str(last_tool_name) if isinstance(last_tool_name, str) else None
+        ),
     )
     if not is_canonical_action(canonical_action_decision.action):
         raise ValueError("select_canonical_action returned a non-canonical action")
@@ -109,7 +111,9 @@ def orchestrate(
             client_id=getattr(input, "client_id", None),
             trace_id=trace_id,
             state_snapshot=getattr(input, "state_snapshot", None),
-            last_tool_name=(str(last_tool_name) if isinstance(last_tool_name, str) else None),
+            last_tool_name=(
+                str(last_tool_name) if isinstance(last_tool_name, str) else None
+            ),
             canonical_action=canonical_action_decision.action,
         )
         _router_selected_spec = maybe_emit_router_selected_trace(
@@ -478,7 +482,8 @@ def orchestrate(
     if bool(feature_flags.get(FeatureFlagKey.GREETING_SHORTCUT, False)):
         if canonical_action_decision.action == ACTION_GREETING_AND_MENU:
             greeting = (
-                "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, או להפיק דוח מסכם."
+                "שלום! נתחיל כך: אפשר לבקש ניתוח תיק, לבנות תכנית פרישה, "
+                "או להפיק דוח מסכם."
             )
             plan_kind = PlanKind.QA_ONLY
             decision = OrchestrationDecision(

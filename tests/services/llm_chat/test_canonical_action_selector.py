@@ -44,17 +44,19 @@ def test_select_canonical_action_detects_planning() -> None:
     decision = select_canonical_action(user_text="בנה לי תכנית פרישה ל-30000 נטו")
 
     assert decision.action == ACTION_PLAN_RETIREMENT
-    assert decision.reason_code == "planning_detected"
+    assert decision.reason_code == "planning_or_simulation_request"
 
 
 def test_select_canonical_action_detects_compare() -> None:
     decision = select_canonical_action(user_text="תשווה בין פרישה בגיל 67 ל-70")
 
     assert decision.action == ACTION_COMPARE_EXISTING_PLANS
-    assert decision.reason_code == "comparison_detected"
+    assert decision.reason_code == "compare_existing_plans"
 
 
-def test_select_canonical_action_termination_without_approval_returns_precheck() -> None:
+def test_select_canonical_action_termination_without_approval_returns_precheck() -> (
+    None
+):
     decision = select_canonical_action(user_text="בצע עזיבת עבודה עכשיו")
 
     assert decision.action == ACTION_TERMINATION_PRECHECK
@@ -86,7 +88,9 @@ def test_orchestrate_calls_select_canonical_action(monkeypatch) -> None:
 
     calls: list[dict] = []
 
-    def fake_select_canonical_action(*, user_text: str, state_snapshot=None, last_tool_name=None):
+    def fake_select_canonical_action(
+        *, user_text: str, state_snapshot=None, last_tool_name=None
+    ):
         calls.append(
             {
                 "user_text": user_text,
@@ -130,7 +134,9 @@ def test_orchestrate_calls_select_canonical_action(monkeypatch) -> None:
     assert isinstance(decision.debug_meta, dict)
     assert decision.debug_meta.get("canonical_action") == ACTION_GREETING_AND_MENU
     canonical_events = [
-        spec for spec in trace_specs if spec.event_type == "core_canonical_action_selected"
+        spec
+        for spec in trace_specs
+        if spec.event_type == "core_canonical_action_selected"
     ]
     assert len(canonical_events) == 1
     assert canonical_events[0].payload["action"] == ACTION_GREETING_AND_MENU

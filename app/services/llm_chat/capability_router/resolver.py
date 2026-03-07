@@ -5,6 +5,12 @@ import json
 import re
 from typing import Any
 
+from app.services.llm_chat.capability_router.normalization import (
+    normalize_user_text_v1,
+    sha256_hex,
+)
+from app.services.llm_chat.capability_router.runtime_context import RouterDecision
+from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,
     ACTION_COMPARE_EXISTING_PLANS,
@@ -14,13 +20,6 @@ from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_TERMINATION_PRECHECK,
     is_monthly_pension_summary_request,
 )
-
-from app.services.llm_chat.capability_router.normalization import (
-    normalize_user_text_v1,
-    sha256_hex,
-)
-from app.services.llm_chat.capability_router.runtime_context import RouterDecision
-from app.services.llm_chat.capability_router.ssot_loader import load_capability_map
 
 _STAGE_C_ROUTER_HARDENING_MAP: dict[str, Any] = {
     "MATCH_PATH": (
@@ -245,11 +244,14 @@ def resolve(
             ACTION_ANSWER_GENERAL_QUESTION: "QA",
             ACTION_GREETING_AND_MENU: "QA",
         }
-        effective_intent_type = str(intent_type_by_action.get(str(canonical_action or ""), "")).strip()
+        effective_intent_type = str(
+            intent_type_by_action.get(str(canonical_action or ""), "")
+        ).strip()
 
-    if (
-        str(canonical_action or "") == ACTION_ANSWER_GENERAL_QUESTION
-        and is_monthly_pension_summary_request(user_text)
+    if str(
+        canonical_action or ""
+    ) == ACTION_ANSWER_GENERAL_QUESTION and is_monthly_pension_summary_request(
+        user_text
     ):
         effective_intent_type = "EXECUTE"
 
@@ -285,9 +287,8 @@ def resolve(
     if isinstance(selected, dict):
         selected_capability_id = str(selected.get("capability_id") or "")
 
-    if (
-        str(canonical_action or "") == ACTION_ANSWER_GENERAL_QUESTION
-        and (selected is None or selected_capability_id == "default_qa_v1")
+    if str(canonical_action or "") == ACTION_ANSWER_GENERAL_QUESTION and (
+        selected is None or selected_capability_id == "default_qa_v1"
     ):
         readonly_execute_caps: list[dict[str, Any]] = []
         for cap in capabilities:
@@ -322,10 +323,7 @@ def resolve(
     if selected is None:
         if deterministic_default_cap is not None:
             selected = deterministic_default_cap
-        elif (
-            effective_intent_type
-            and default_cap is not None
-        ):
+        elif effective_intent_type and default_cap is not None:
             selected = default_cap
         else:
             selected = None

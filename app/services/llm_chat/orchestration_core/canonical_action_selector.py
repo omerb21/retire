@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from app.services.llm_chat.message_utils import is_user_approval_intent_text
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
@@ -194,7 +194,9 @@ def _is_general_professional_question(user_text: str) -> bool:
         return False
     if _is_compare_request(user_text) or _is_planning_request(user_text):
         return False
-    return ("?" in lowered) or any(pattern in lowered for pattern in _GENERAL_QUESTION_PATTERNS)
+    return ("?" in lowered) or any(
+        pattern in lowered for pattern in _GENERAL_QUESTION_PATTERNS
+    )
 
 
 def _is_compare_request(user_text: str) -> bool:
@@ -248,7 +250,9 @@ def _has_explicit_termination_execution_request(user_text: str) -> bool:
     return any(token in lowered for token in execute_tokens)
 
 
-def _has_termination_approval_context(user_text: str, state_snapshot: dict | None) -> bool:
+def _has_termination_approval_context(
+    user_text: str, state_snapshot: dict | None
+) -> bool:
     lowered = (user_text or "").lower()
     state = _normalized_state_snapshot(state_snapshot)
 
@@ -269,9 +273,9 @@ def _has_termination_approval_context(user_text: str, state_snapshot: dict | Non
         if is_user_approval_intent_text(user_text):
             return True
 
-    if bool(state.get("approval_request_already_sent")) and is_user_approval_intent_text(
-        user_text
-    ):
+    if bool(
+        state.get("approval_request_already_sent")
+    ) and is_user_approval_intent_text(user_text):
         return True
 
     if bool(state.get("termination_approved")):
@@ -316,12 +320,15 @@ def select_canonical_action(
     monthly_pension_summary_request = is_monthly_pension_summary_request(user_text)
     general_question = _is_general_professional_question(user_text)
     greeting_request = _is_greeting(user_text) and not (
-        compare_request or planning_request or monthly_pension_summary_request or general_question
+        compare_request
+        or planning_request
+        or monthly_pension_summary_request
+        or general_question
     )
 
-    if _has_termination_approval_context(user_text, state) and is_user_approval_intent_text(
-        user_text
-    ):
+    if _has_termination_approval_context(
+        user_text, state
+    ) and is_user_approval_intent_text(user_text):
         return CanonicalActionDecision(
             action=ACTION_TERMINATION_EXECUTION,
             reason_code="explicit_termination_execution_approved",

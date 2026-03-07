@@ -20,7 +20,9 @@ def _inject_process_termination_display_choices(
         return tool_result
 
     try:
-        parsed = json.loads(tool_result) if isinstance(tool_result, str) else tool_result
+        parsed = (
+            json.loads(tool_result) if isinstance(tool_result, str) else tool_result
+        )
     except Exception:
         return tool_result
 
@@ -40,7 +42,10 @@ def _inject_process_termination_display_choices(
     parsed["details"] = details
     if choices:
         parsed["choices"] = choices
-    if parsed.get("success") is None and str(parsed.get("status") or "").strip().lower() == "done":
+    if (
+        parsed.get("success") is None
+        and str(parsed.get("status") or "").strip().lower() == "done"
+    ):
         parsed["success"] = True
 
     try:
@@ -523,7 +528,9 @@ def _handle_post_deterministics_and_finalize(
             and (not is_user_approval_intent_text(original_user_msg))
         ):
             pending_tool_name, pending_tool_args = pending_for_update
-            updated_args = dict(pending_tool_args) if isinstance(pending_tool_args, dict) else {}
+            updated_args = (
+                dict(pending_tool_args) if isinstance(pending_tool_args, dict) else {}
+            )
             overrides = extract_process_termination_choice_overrides(original_user_msg)
             termination_date_override = extract_process_termination_date_override(
                 original_user_msg

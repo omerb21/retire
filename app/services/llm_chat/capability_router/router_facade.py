@@ -32,7 +32,10 @@ def ensure_router_decision(
         return existing
 
     effective_canonical_action = canonical_action
-    if not (isinstance(effective_canonical_action, str) and effective_canonical_action.strip()):
+    if not (
+        isinstance(effective_canonical_action, str)
+        and effective_canonical_action.strip()
+    ):
         effective_canonical_action = select_canonical_action(
             user_text=user_text,
             state_snapshot=state_snapshot,

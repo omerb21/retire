@@ -418,7 +418,8 @@ def extract_process_termination_choice_overrides(user_message: str) -> dict[str,
         ):
             overrides["exempt_choice"] = "redeem_no_exemption"
         elif any(
-            t in labeled_exempt_text for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")
+            t in labeled_exempt_text
+            for t in ("עם שימוש בפטור", "שימוש בפטור", "עם פטור")
         ):
             overrides["exempt_choice"] = "redeem_with_exemption"
         elif (

@@ -16,6 +16,7 @@ from app.services.llm_chat.message_utils import (
     extract_target_pension_from_message,
 )
 from app.services.llm_chat.orchestration_utils import (
+    format_get_pension_products_system_results,
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
 )
@@ -385,7 +386,7 @@ def generate_system_results(
         return
 
     yield sanitize_user_visible_text(
-        format_tool_output_for_user_stream("GET_PENSION_PRODUCTS", tool_result)
+        format_get_pension_products_system_results(tool_result)
     )
 
 

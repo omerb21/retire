@@ -5,6 +5,82 @@ import re
 logger = logging.getLogger("app.llm_chat.text_formatters")
 
 
+def _parse_get_pension_products_payload(
+    tool_result: str,
+) -> tuple[str, list[dict], str]:
+    raw = tool_result or ""
+    if not isinstance(raw, str) or not raw.strip():
+        return "", [], ""
+    try:
+        parsed_products = json.loads(raw)
+    except Exception:
+        return raw, [], ""
+
+    products = None
+    summary_text = ""
+    if isinstance(parsed_products, dict):
+        products = parsed_products.get("products")
+        summary_text = str(parsed_products.get("summary") or "").strip()
+    if not isinstance(products, list):
+        if isinstance(parsed_products, dict) and isinstance(
+            parsed_products.get("items"), list
+        ):
+            products = parsed_products.get("items")
+        else:
+            products = []
+
+    normalized_products = [p for p in products if isinstance(p, dict)]
+    return raw, normalized_products, summary_text
+
+
+def _get_pension_products_amount(product: dict) -> float:
+    try:
+        amount = float(product.get("balance") or 0)
+    except Exception:
+        amount = 0.0
+    if amount > 0:
+        return amount
+    try:
+        return float(product.get("current_value") or 0)
+    except Exception:
+        return 0.0
+
+
+def format_get_pension_products_system_results(tool_result: str) -> str:
+    raw, products, summary_text = _parse_get_pension_products_payload(tool_result)
+    if not raw:
+        return "(tool returned empty payload)"
+    if not products and raw.lstrip()[:1] not in {"{", "["}:
+        return raw
+
+    total = sum(_get_pension_products_amount(product) for product in products)
+
+    lines: list[str] = ["תוצאות בפועל במערכת", "רשימת מוצרים"]
+    if summary_text:
+        lines.append(f"מצב כללי: {summary_text}")
+    lines.append(f"מספר מוצרים: {len(products)}")
+    lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
+
+    if not products:
+        lines.append("לא נמצאו מוצרים במערכת ללקוח.")
+        return "\n".join(lines).strip()
+
+    lines.append("")
+    for idx, product in enumerate(products[:10], start=1):
+        category = str(product.get("category") or "").strip() or "unknown"
+        name = str(
+            product.get("fund_name")
+            or product.get("asset_name")
+            or product.get("account")
+            or "ללא שם"
+        ).strip()
+        lines.append(
+            f"{idx}. {name} ({category}) – {_get_pension_products_amount(product):,.0f} ₪"
+        )
+
+    return "\n".join(lines).strip()
+
+
 def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
     if not isinstance(tool_name, str) or not tool_name:
         return tool_result
@@ -42,32 +118,11 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             return raw
 
     if tool_name == "GET_PENSION_PRODUCTS":
-        raw = tool_result or ""
-        if not isinstance(raw, str) or not raw.strip():
+        raw, products, summary_text = _parse_get_pension_products_payload(tool_result)
+        if not raw:
             return "(tool returned empty payload)"
-        try:
-            parsed_products = json.loads(raw)
-        except Exception:
+        if not products and raw.lstrip()[:1] not in {"{", "["}:
             return raw
-
-        products = None
-        summary_text = ""
-        if isinstance(parsed_products, dict):
-            products = parsed_products.get("products")
-            summary_text = str(parsed_products.get("summary") or "").strip()
-        if not isinstance(products, list):
-            if isinstance(parsed_products, dict) and isinstance(
-                parsed_products.get("items"), list
-            ):
-                products = parsed_products.get("items")
-            else:
-                products = []
-
-        def _n(v: object) -> float:
-            try:
-                return float(v or 0)
-            except Exception:
-                return 0.0
 
         lines: list[str] = []
         lines.append("סיכום מהיר (הערכה ראשונית)")
@@ -75,18 +130,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
             if summary_text:
                 lines.append(summary_text)
             lines.append("לא נמצאו מוצרים במערכת ללקוח.")
-            lines.append("מה אפשר לעשות עכשיו: לבקש ניתוח או הרחבה של התיק.")
-            lines.append("אם תרצה פירוט מלא כתוב: הרחב")
             return "\n".join(lines)
 
-        total = 0.0
-        for p in products:
-            if not isinstance(p, dict):
-                continue
-            amt = _n(p.get("balance"))
-            if amt <= 0:
-                amt = _n(p.get("current_value"))
-            total += amt
+        total = sum(_get_pension_products_amount(product) for product in products)
 
         lines.append(f"מספר מוצרים: {len(products)}")
         lines.append(f'סה"כ יתרות: {total:,.0f} ₪')
@@ -105,14 +151,9 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
                 or p.get("account")
                 or "ללא שם"
             ).strip()
-            amt = _n(p.get("balance"))
-            if amt <= 0:
-                amt = _n(p.get("current_value"))
+            amt = _get_pension_products_amount(p)
             lines.append(f"{idx}. {name} ({category}) – {amt:,.0f} ₪")
 
-        lines.append("")
-        lines.append("מה אפשר לעשות עכשיו: לבקש ניתוח או הרחבה של התיק.")
-        lines.append("אם תרצה פירוט מלא כתוב: הרחב")
         return "\n".join(lines).strip()
 
     if tool_name == "BUILD_TARGET_PENSION_PLAN":
@@ -124,11 +165,15 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
         if not isinstance(parsed, dict):
             return tool_result
 
-        plan_data = parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+        plan_data = (
+            parsed.get("result") if isinstance(parsed.get("result"), dict) else parsed
+        )
         if not isinstance(plan_data, dict):
             return tool_result
 
-        offsets = parsed.get("offsets") if isinstance(parsed.get("offsets"), dict) else {}
+        offsets = (
+            parsed.get("offsets") if isinstance(parsed.get("offsets"), dict) else {}
+        )
         retirement_age = plan_data.get("retirement_age")
         if retirement_age is None:
             retirement_age = parsed.get("retirement_age")
@@ -276,13 +321,18 @@ def format_tool_output_for_user_stream(tool_name: str, tool_result: str) -> str:
 
         if tool_name == "PROCESS_TERMINATION" and isinstance(parsed, dict):
             success = parsed.get("success")
-            if success is None and str(parsed.get("status") or "").strip().lower() == "done":
+            if (
+                success is None
+                and str(parsed.get("status") or "").strip().lower() == "done"
+            ):
                 success = True
             message = parsed.get("message")
             details = (
                 parsed.get("details") if isinstance(parsed.get("details"), dict) else {}
             )
-            choices = parsed.get("choices") if isinstance(parsed.get("choices"), dict) else {}
+            choices = (
+                parsed.get("choices") if isinstance(parsed.get("choices"), dict) else {}
+            )
             already_processed = bool(details.get("already_processed")) or (
                 isinstance(message, str)
                 and ("כבר בוצע" in message or "כבר בוצעה" in message)
