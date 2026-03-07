@@ -164,6 +164,9 @@ def _handle_tool_call_step(
     from app.services.llm_chat.orchestration_core.snapshot_enrichment import (
         enrich_state_snapshot,
     )
+    from app.services.llm_chat.orchestration_utils_parts.text_formatters import (
+        format_get_pension_products_portfolio_analysis_short_default,
+    )
     from app.services.llm_chat.orchestration_utils import (
         apply_max_exemption_if_requested,
         build_partial_pension_transform_accounts_from_portfolio,
@@ -1092,7 +1095,9 @@ def _handle_tool_call_step(
 
         if tool_name == "GET_PENSION_PRODUCTS" and is_portfolio_analysis:
             final_reply = sanitize_user_visible_text(
-                format_tool_output_for_user_stream(tool_name, tool_result)
+                format_get_pension_products_portfolio_analysis_short_default(
+                    tool_result
+                )
             )
             return (
                 True,
