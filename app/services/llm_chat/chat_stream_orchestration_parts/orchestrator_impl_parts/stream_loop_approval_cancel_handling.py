@@ -6,6 +6,11 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     clear_pending_approval_request,
     load_pending_approval_request,
 )
+from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+    clear_execution_veto,
+    load_execution_veto,
+    store_execution_veto,
+)
 from app.services.llm_chat.message_utils import (
     extract_latest_approval_request,
     extract_user_approval_for_tool_call,
@@ -22,6 +27,8 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
 )
 from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
     decide_stream_planning_execution_policy,
+    is_explicit_execution_veto_turn,
+    should_clear_execution_veto_for_current_turn,
 )
 
 from ..stream_approval_generators import (
@@ -90,7 +97,44 @@ def _maybe_handle_approval_or_cancel_flow(
     cancelled = extract_user_cancel_for_tool_call(request.messages)
     last_user_text = find_last_user_message(request.messages)
     execution_gate = decide_stream_planning_execution_policy(last_user_text)
+    pending_db = None
+    veto_active = False
     if request.client_id is not None:
+        try:
+            if should_clear_execution_veto_for_current_turn(last_user_text):
+                clear_execution_veto(
+                    db=db,
+                    client_id=int(request.client_id),
+                    scope="termination_execution",
+                    trace_id=stream_request_id,
+                )
+            elif is_explicit_execution_veto_turn(last_user_text):
+                store_execution_veto(
+                    db=db,
+                    client_id=int(request.client_id),
+                    veto_active=True,
+                    scope="termination_execution",
+                    reason_code="explicit_execution_veto_turn",
+                    source_text=last_user_text,
+                    trace_id=stream_request_id,
+                )
+        except Exception:
+            pass
+
+        try:
+            loaded_veto = load_execution_veto(
+                db=db,
+                client_id=int(request.client_id),
+                trace_id=stream_request_id,
+            )
+        except Exception:
+            loaded_veto = None
+        veto_active = (
+            isinstance(loaded_veto, dict)
+            and loaded_veto.get("veto_active") is True
+            and str(loaded_veto.get("scope") or "") == "termination_execution"
+        )
+
         try:
             pending_db = load_pending_approval_request(
                 db=db,
@@ -148,7 +192,15 @@ def _maybe_handle_approval_or_cancel_flow(
 
         if (
             pending_db is not None
-            and (execution_gate.planning_only or execution_gate.explicit_execution_veto)
+            and (
+                execution_gate.planning_only
+                or execution_gate.explicit_execution_veto
+                or (
+                    veto_active
+                    and str(pending_db[0] if isinstance(pending_db, tuple) else "")
+                    == "PROCESS_TERMINATION"
+                )
+            )
             and cancelled is None
         ):
             pending_tool_name = pending_db[0] if isinstance(pending_db, tuple) else None
@@ -216,6 +268,7 @@ def _maybe_handle_approval_or_cancel_flow(
         if (
             execution_gate.planning_only
             or execution_gate.explicit_execution_veto
+            or (veto_active and approved_tool_name == "PROCESS_TERMINATION")
             or (not execution_gate.explicit_execution_intent)
         ):
             _emit_planning_execution_gate_trace(

@@ -68,6 +68,8 @@ _TURN_REQUIRED_KEYS = {
     "legacy_fallback_detected",
     "pending_approval_snapshot",
     "target_plan_snapshot",
+    "execution_veto_snapshot",
+    "normalized_target_plan_context_snapshot",
     "execution_detected",
     "raw_http_status",
 }
@@ -437,34 +439,39 @@ def _load_pending_approval_snapshot(Session, *, client_id: int) -> dict[str, Any
     }
 
 
-def _collect_raw_payload_keys(payload: Any, prefix: str = "") -> list[str]:
-    keys: set[str] = set()
-    if isinstance(payload, dict):
-        for key, value in payload.items():
-            current = f"{prefix}.{key}" if prefix else str(key)
-            keys.add(current)
-            keys.update(_collect_raw_payload_keys(value, current))
-    elif isinstance(payload, list):
-        for item in payload:
-            current = f"{prefix}[]" if prefix else "[]"
-            keys.update(_collect_raw_payload_keys(item, current))
-    return sorted(keys)
+def _load_execution_veto_snapshot(Session, *, client_id: int) -> dict[str, Any]:
+    with Session() as db:
+        payload = scenario_storage_mod.load_execution_veto(db=db, client_id=client_id)
+    if not isinstance(payload, dict):
+        return {"veto_active": None, "scope": None}
+    return {
+        "veto_active": payload.get("veto_active"),
+        "scope": payload.get("scope"),
+    }
 
 
-def _extract_exact_storage_field(payload: Any, field_name: str) -> Any:
-    if isinstance(payload, dict):
-        if field_name in payload:
-            return payload.get(field_name)
-        for value in payload.values():
-            found = _extract_exact_storage_field(value, field_name)
-            if found is not None:
-                return found
-    elif isinstance(payload, list):
-        for item in payload:
-            found = _extract_exact_storage_field(item, field_name)
-            if found is not None:
-                return found
-    return None
+def _load_normalized_target_plan_context_snapshot(
+    Session, *, client_id: int
+) -> dict[str, Any]:
+    with Session() as db:
+        payload = scenario_storage_mod.load_normalized_target_plan_context(
+            db=db, client_id=client_id
+        )
+    if not isinstance(payload, dict):
+        return {
+            "requested_target": None,
+            "target_mode": None,
+            "offset_used": None,
+            "effective_target": None,
+            "retirement_age": None,
+        }
+    return {
+        "requested_target": payload.get("requested_target"),
+        "target_mode": payload.get("target_mode"),
+        "offset_used": payload.get("offset_used"),
+        "effective_target": payload.get("effective_target"),
+        "retirement_age": payload.get("retirement_age"),
+    }
 
 
 def _load_target_plan_snapshot(Session, *, client_id: int) -> dict[str, Any]:
@@ -520,6 +527,36 @@ def _load_target_plan_snapshot(Session, *, client_id: int) -> dict[str, Any]:
         ),
         "raw_payload_keys": _collect_raw_payload_keys(payload),
     }
+
+
+def _collect_raw_payload_keys(payload: Any, prefix: str = "") -> list[str]:
+    keys: set[str] = set()
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            current = f"{prefix}.{key}" if prefix else str(key)
+            keys.add(current)
+            keys.update(_collect_raw_payload_keys(value, current))
+    elif isinstance(payload, list):
+        for item in payload:
+            current = f"{prefix}[]" if prefix else "[]"
+            keys.update(_collect_raw_payload_keys(item, current))
+    return sorted(keys)
+
+
+def _extract_exact_storage_field(payload: Any, field_name: str) -> Any:
+    if isinstance(payload, dict):
+        if field_name in payload:
+            return payload.get(field_name)
+        for value in payload.values():
+            found = _extract_exact_storage_field(value, field_name)
+            if found is not None:
+                return found
+    elif isinstance(payload, list):
+        for item in payload:
+            found = _extract_exact_storage_field(item, field_name)
+            if found is not None:
+                return found
+    return None
 
 
 def _producer_for_turn(events: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -841,6 +878,12 @@ def _replay_case(
             "target_plan_snapshot": _load_target_plan_snapshot(
                 Session, client_id=client_id
             ),
+            "execution_veto_snapshot": _load_execution_veto_snapshot(
+                Session, client_id=client_id
+            ),
+            "normalized_target_plan_context_snapshot": _load_normalized_target_plan_context_snapshot(
+                Session, client_id=client_id
+            ),
             "execution_detected": _detect_execution(
                 turn_trace_events=turn_trace_events, turn_events=turn_events
             ),
@@ -1043,6 +1086,8 @@ def test_live_stream_replay_veto_blocks_proven_pending_approval_replay(
         second_turn["pending_approval_snapshot"]["tool_name"]
         == "TRANSFORM_FUNDS_TO_ASSETS"
     )
+    assert second_turn["execution_veto_snapshot"]["veto_active"] is True
+    assert second_turn["execution_veto_snapshot"]["scope"] == "termination_execution"
     assert (
         "planning_execution_gate_blocked_approval_replay"
         in second_turn["trace_event_types"]

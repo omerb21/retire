@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -6,6 +6,11 @@ from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
+from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+    load_execution_veto,
+    load_normalized_target_plan_context,
+    store_normalized_target_plan_context,
+)
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     build_forced_document_reply,
@@ -288,6 +293,160 @@ def _should_apply_restore_transform_cooldown(*, db, client_id: int) -> bool:
     return 0 <= age_sec <= 30
 
 
+def _emit_normalized_target_plan_fallback_loaded(
+    *, stream_request_id: str, source: str
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=stream_request_id,
+            event_type="normalized_target_plan_context_fallback_loaded",
+            payload={"source": source},
+        )
+    except Exception:
+        pass
+
+
+def _collect_raw_payload_keys(payload: object, prefix: str = "") -> list[str]:
+    keys: set[str] = set()
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            current = f"{prefix}.{key}" if prefix else str(key)
+            keys.add(current)
+            keys.update(_collect_raw_payload_keys(value, current))
+    elif isinstance(payload, list):
+        for item in payload:
+            current = f"{prefix}[]" if prefix else "[]"
+            keys.update(_collect_raw_payload_keys(item, current))
+    return sorted(keys)
+
+
+def _build_normalized_context_from_payload(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    offsets = payload.get("offsets") if isinstance(payload.get("offsets"), dict) else {}
+    args = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    target_is_net = offsets.get("target_is_net")
+    if target_is_net is None:
+        target_is_net = args.get("target_is_net")
+    if target_is_net is None:
+        target_is_net = result.get("target_is_net")
+    target_mode = "net" if bool(target_is_net) else "gross"
+    requested_target = offsets.get("desired_net_total")
+    if requested_target is None:
+        requested_target = result.get("target_monthly_pension")
+    if requested_target is None:
+        requested_target = args.get("target_monthly_pension")
+    effective_target = offsets.get("effective_plan_target")
+    if effective_target is None:
+        effective_target = result.get("target_monthly_pension")
+    if effective_target is None:
+        effective_target = args.get("target_monthly_pension")
+    offset_used = offsets.get(
+        "other_income_offset_net" if target_mode == "net" else "other_income_offset_gross"
+    )
+    if offset_used is None:
+        offset_used = 0
+    retirement_age = result.get("retirement_age")
+    if retirement_age is None:
+        retirement_age = args.get("retirement_age")
+    if requested_target is None or effective_target is None:
+        return None
+    raw_payload_keys = _collect_raw_payload_keys(payload)
+    if retirement_age is None and not raw_payload_keys:
+        return None
+    normalized = {
+        "requested_target": float(requested_target or 0),
+        "target_mode": target_mode,
+        "offset_used": float(offset_used or 0),
+        "effective_target": float(effective_target or 0),
+        "retirement_age": int(retirement_age) if retirement_age is not None else None,
+        "raw_payload_keys": raw_payload_keys,
+    }
+    if result.get("accumulated_pension") is not None:
+        try:
+            normalized["accumulated_pension"] = float(result.get("accumulated_pension") or 0)
+        except Exception:
+            pass
+    return normalized
+
+
+def _load_payload_without_message_fallback(*, db, client_id: int | None) -> tuple[dict | None, str | None]:
+    if client_id is None:
+        return None, None
+    try:
+        payload = load_latest_target_pension_plan_data(db=db, client_id=client_id)
+        if isinstance(payload, dict):
+            return payload, "latest_target_pension_plan_data"
+    except Exception:
+        pass
+    try:
+        payload = load_latest_target_pension_plan(db=db, client_id=client_id)
+        if isinstance(payload, dict):
+            return payload, "latest_target_pension_plan"
+    except Exception:
+        pass
+    return None, None
+
+
+def _load_target_plan_payload_for_execution(
+    *, db, client_id: int | None, stream_request_id: str
+) -> tuple[dict | None, dict | None]:
+    normalized_context = None
+    if client_id is not None:
+        try:
+            normalized_context = load_normalized_target_plan_context(
+                db=db,
+                client_id=int(client_id),
+                trace_id=stream_request_id,
+            )
+        except Exception:
+            normalized_context = None
+    payload, source = _load_payload_without_message_fallback(db=db, client_id=client_id)
+    if normalized_context is not None:
+        return normalized_context, payload
+    if not isinstance(payload, dict) or source is None:
+        return None, None
+    _emit_normalized_target_plan_fallback_loaded(
+        stream_request_id=stream_request_id,
+        source=source,
+    )
+    fallback_context = _build_normalized_context_from_payload(payload)
+    if fallback_context is not None and client_id is not None:
+        try:
+            store_normalized_target_plan_context(
+                db=db,
+                client_id=int(client_id),
+                requested_target=float(fallback_context.get("requested_target") or 0),
+                target_mode=str(fallback_context.get("target_mode") or ""),
+                offset_used=float(fallback_context.get("offset_used") or 0),
+                effective_target=float(fallback_context.get("effective_target") or 0),
+                retirement_age=fallback_context.get("retirement_age"),
+                accumulated_pension=fallback_context.get("accumulated_pension"),
+                raw_payload_keys=fallback_context.get("raw_payload_keys"),
+                trace_id=stream_request_id,
+            )
+        except Exception:
+            pass
+    return fallback_context, payload
+
+
+def _termination_execution_veto_is_active(*, db, client_id: int | None, trace_id: str) -> bool:
+    if client_id is None:
+        return False
+    try:
+        veto = load_execution_veto(db=db, client_id=int(client_id), trace_id=trace_id)
+    except Exception:
+        veto = None
+    return (
+        isinstance(veto, dict)
+        and veto.get("veto_active") is True
+        and str(veto.get("scope") or "") == "termination_execution"
+    )
+
+
 def generate_forced_approval(
     *,
     computed_data,
@@ -310,9 +469,18 @@ def generate_forced_approval(
 
     current_turn_text = _current_turn_text_from_request(request)
     execution_gate = decide_stream_planning_execution_policy(current_turn_text)
+    termination_veto_active = _termination_execution_veto_is_active(
+        db=db,
+        client_id=request.client_id,
+        trace_id=stream_request_id,
+    )
 
     if explicit_termination and (not termination_already_executed):
-        if execution_gate.planning_only or execution_gate.explicit_execution_veto:
+        if (
+            execution_gate.planning_only
+            or execution_gate.explicit_execution_veto
+            or termination_veto_active
+        ):
             _emit_termination_parser_trace(
                 stream_request_id=stream_request_id,
                 event_type="termination_parser_planning_blocked",
@@ -468,11 +636,10 @@ def generate_forced_approval(
             yield pending_ui
             return
 
-        payload_plan = load_latest_target_pension_plan(
-            db=db, client_id=request.client_id
-        )
-        payload_data = load_latest_target_pension_plan_data(
-            db=db, client_id=request.client_id
+        _normalized_target_context, payload = _load_target_plan_payload_for_execution(
+            db=db,
+            client_id=request.client_id,
+            stream_request_id=stream_request_id,
         )
 
         def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
@@ -490,76 +657,7 @@ def generate_forced_approval(
             accounts = raw if isinstance(raw, list) else []
             return exec_plan, accounts
 
-        plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
-        data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
-
-        payload: dict | None = None
-        execution_plan: dict | None = None
-        accounts_for_execution: list = []
-
-        if plan_accounts:
-            payload = payload_plan if isinstance(payload_plan, dict) else None
-            execution_plan = plan_exec
-            accounts_for_execution = plan_accounts
-        elif data_accounts:
-            payload = payload_data if isinstance(payload_data, dict) else None
-            execution_plan = data_exec
-            accounts_for_execution = data_accounts
-        else:
-            # Plan exists but doesn't include execution_plan.accounts. Keep payload so we can derive accounts.
-            if isinstance(payload_plan, dict):
-                payload = payload_plan
-            elif isinstance(payload_data, dict):
-                payload = payload_data
-
-        if not isinstance(payload, dict):
-            msg_payload = extract_latest_target_pension_plan_payload(request.messages)
-            if isinstance(msg_payload, dict):
-                try:
-                    store_latest_target_pension_plan(
-                        db=db,
-                        client_id=request.client_id,
-                        tool_result=msg_payload,
-                    )
-                except Exception:
-                    pass
-                try:
-                    store_latest_target_pension_plan_data(
-                        db=db,
-                        client_id=request.client_id,
-                        tool_result=msg_payload,
-                    )
-                except Exception:
-                    pass
-                payload_plan = load_latest_target_pension_plan(
-                    db=db, client_id=request.client_id
-                )
-                payload_data = load_latest_target_pension_plan_data(
-                    db=db, client_id=request.client_id
-                )
-                plan_exec, plan_accounts = _extract_execution_plan_accounts(
-                    payload_plan
-                )
-                data_exec, data_accounts = _extract_execution_plan_accounts(
-                    payload_data
-                )
-                if plan_accounts:
-                    payload = payload_plan if isinstance(payload_plan, dict) else None
-                    execution_plan = plan_exec
-                    accounts_for_execution = plan_accounts
-                elif data_accounts:
-                    payload = payload_data if isinstance(payload_data, dict) else None
-                    execution_plan = data_exec
-                    accounts_for_execution = data_accounts
-                else:
-                    derived = _build_transform_accounts_from_target_plan_payload(
-                        msg_payload
-                    )
-                    if derived:
-                        payload = msg_payload
-                        execution_plan = None
-                        accounts_for_execution = derived
-
+        execution_plan, accounts_for_execution = _extract_execution_plan_accounts(payload)
         if not isinstance(payload, dict):
             try:
                 store_pending_plan_target_marker(
@@ -709,9 +807,10 @@ def generate_execute_target_after_termination(
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-    payload_plan = load_latest_target_pension_plan(db=db, client_id=request.client_id)
-    payload_data = load_latest_target_pension_plan_data(
-        db=db, client_id=request.client_id
+    _normalized_target_context, payload = _load_target_plan_payload_for_execution(
+        db=db,
+        client_id=request.client_id,
+        stream_request_id=stream_request_id,
     )
 
     def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
@@ -729,72 +828,7 @@ def generate_execute_target_after_termination(
         accounts = raw if isinstance(raw, list) else []
         return exec_plan, accounts
 
-    plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
-    data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
-
-    payload: dict | None = None
-    execution_plan: dict | None = None
-    accounts_for_execution: list = []
-
-    if plan_accounts:
-        payload = payload_plan if isinstance(payload_plan, dict) else None
-        execution_plan = plan_exec
-        accounts_for_execution = plan_accounts
-    elif data_accounts:
-        payload = payload_data if isinstance(payload_data, dict) else None
-        execution_plan = data_exec
-        accounts_for_execution = data_accounts
-    else:
-        # Plan exists but doesn't include execution_plan.accounts. Keep payload so we can derive accounts.
-        if isinstance(payload_plan, dict):
-            payload = payload_plan
-        elif isinstance(payload_data, dict):
-            payload = payload_data
-
-    if not isinstance(payload, dict):
-        msg_payload = extract_latest_target_pension_plan_payload(request.messages)
-        if isinstance(msg_payload, dict):
-            try:
-                store_latest_target_pension_plan(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_result=msg_payload,
-                )
-            except Exception:
-                pass
-            try:
-                store_latest_target_pension_plan_data(
-                    db=db,
-                    client_id=request.client_id,
-                    tool_result=msg_payload,
-                )
-            except Exception:
-                pass
-            payload_plan = load_latest_target_pension_plan(
-                db=db, client_id=request.client_id
-            )
-            payload_data = load_latest_target_pension_plan_data(
-                db=db, client_id=request.client_id
-            )
-            plan_exec, plan_accounts = _extract_execution_plan_accounts(payload_plan)
-            data_exec, data_accounts = _extract_execution_plan_accounts(payload_data)
-            if plan_accounts:
-                payload = payload_plan if isinstance(payload_plan, dict) else None
-                execution_plan = plan_exec
-                accounts_for_execution = plan_accounts
-            elif data_accounts:
-                payload = payload_data if isinstance(payload_data, dict) else None
-                execution_plan = data_exec
-                accounts_for_execution = data_accounts
-            else:
-                derived = _build_transform_accounts_from_target_plan_payload(
-                    msg_payload
-                )
-                if derived:
-                    payload = msg_payload
-                    execution_plan = None
-                    accounts_for_execution = derived
-
+    execution_plan, accounts_for_execution = _extract_execution_plan_accounts(payload)
     if not isinstance(payload, dict):
         try:
             store_pending_plan_target_marker(
@@ -908,8 +942,15 @@ def generate_approval_exec(
 
     current_turn_text = _current_turn_text_from_request(request)
     execution_gate = decide_stream_planning_execution_policy(current_turn_text)
+    termination_veto_active = _termination_execution_veto_is_active(
+        db=db,
+        client_id=request.client_id,
+        trace_id=stream_request_id,
+    )
     if approved_tool_name == "PROCESS_TERMINATION" and (
-        execution_gate.planning_only or execution_gate.explicit_execution_veto
+        execution_gate.planning_only
+        or execution_gate.explicit_execution_veto
+        or termination_veto_active
     ):
         _emit_termination_parser_trace(
             stream_request_id=stream_request_id,
@@ -1060,7 +1101,11 @@ def generate_approval_exec(
             isinstance(parsed_term, dict) and parsed_term.get("success") is True
         )
 
-        if term_success and isinstance(pending_build, dict):
+        if (
+            term_success
+            and isinstance(pending_build, dict)
+            and (not termination_veto_active)
+        ):
             plan_args = pending_build.get("plan_args")
             if (
                 isinstance(plan_args, dict)
@@ -1136,3 +1181,4 @@ def generate_approval_exec(
                 + out
             )
     yield out
+

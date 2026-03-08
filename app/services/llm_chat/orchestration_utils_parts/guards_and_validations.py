@@ -1,4 +1,4 @@
-"""Guards and validations (is_*/infer_*/_is_* helpers) for chat orchestration."""
+﻿"""Guards and validations (is_*/infer_*/_is_* helpers) for chat orchestration."""
 
 # NOTE: This module will be filled by move-only extraction from orchestration_utils.py.
 # Keep bodies 1:1 when moving functions.
@@ -429,6 +429,45 @@ def _has_explicit_termination_execution_intent(user_message: str) -> bool:
     return has_all_scope and has_choice_directive and has_termination_choice_context
 
 
+def is_explicit_execution_veto_turn(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+    lowered = str(user_message or "").lower()
+    return any(
+        token in lowered
+        for token in (
+            "לא לבצע עזיבת עבודה",
+            "לא לבצע",
+            "בטל את הביצוע",
+            "התחרטתי, לא לבצע",
+            "אל תבצע עזיבת עבודה",
+        )
+    )
+
+
+def has_explicit_execution_intent_for_termination(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+    raw_text = str(user_message or "")
+    lowered = raw_text.lower()
+    if is_explicit_execution_veto_turn(raw_text):
+        return False
+    if _has_explicit_termination_execution_intent(raw_text):
+        return True
+    return any(
+        token in lowered
+        for token in (
+            "בצע את עזיבת העבודה עכשיו",
+            "בצע את עזיבת העבודה",
+            "בצע עזיבת עבודה עכשיו",
+            "בצע עזיבת עבודה",
+        )
+    )
+
+
+def should_clear_execution_veto_for_current_turn(user_message: str | None) -> bool:
+    return has_explicit_execution_intent_for_termination(user_message)
+
 def decide_stream_planning_execution_policy(
     user_message: str | None,
 ) -> PlanningExecutionGateDecision:
@@ -438,7 +477,8 @@ def decide_stream_planning_execution_policy(
     explicit_execution_veto = False
     if lowered:
         explicit_execution_veto = bool(
-            is_no_termination_request(raw_text)
+            is_explicit_execution_veto_turn(raw_text)
+            or is_no_termination_request(raw_text)
             or is_conceptual_no_execute_request(raw_text)
             or any(
                 token in lowered
@@ -458,7 +498,7 @@ def decide_stream_planning_execution_policy(
     explicit_execution_intent = False
     if lowered:
         explicit_execution_intent = bool(
-            _has_explicit_termination_execution_intent(raw_text)
+            has_explicit_execution_intent_for_termination(raw_text)
             or raw_text.strip().startswith("###USER_APPROVED###")
             or lowered in {"כן", "כן.", "מאשר", "מאשר.", "מאשרת", "מאשרת."}
             or any(
@@ -1050,3 +1090,4 @@ def is_qa_request(user_message: str) -> bool:
     ]
 
     return any(t.lower() in lowered for t in triggers)
+

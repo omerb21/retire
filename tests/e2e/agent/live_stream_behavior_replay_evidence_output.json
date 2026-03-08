@@ -1,0 +1,775 @@
+{
+  "metadata": {
+    "endpoint": "/api/v1/llm/pension-chat-stream",
+    "generated_at_utc": "2026-03-08T23:25:41.586820+00:00",
+    "scenario_count": 7,
+    "turn_count": 9
+  },
+  "scenarios": [
+    {
+      "scenario_id": "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": {
+            "kind": "runtime_llm",
+            "method": "chat_stream"
+          },
+          "target_plan_snapshot": {
+            "accumulated_pension": null,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": null,
+            "target_monthly_pension": null
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "predicate_eval",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "execution_path",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "שלום",
+          "visible_reply_text": "תשובה מקומית לאחר הרצת כלי."
+        }
+      ]
+    },
+    {
+      "scenario_id": "BEHAVIOR_02_PORTFOLIO_ANALYSIS_SHORT_DEFAULT",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": {
+            "kind": "runtime_llm",
+            "method": "chat_stream"
+          },
+          "target_plan_snapshot": {
+            "accumulated_pension": null,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": null,
+            "target_monthly_pension": null
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "execution_path",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "ניתוח תיק",
+          "visible_reply_text": "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\nפירוט לפי תכנית: כל החשבונות והיתרות זמינים כאן."
+        }
+      ]
+    },
+    {
+      "scenario_id": "BEHAVIOR_03_TARGET_PLAN_NO_TERMINATION_FORCED",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": null,
+          "target_plan_snapshot": {
+            "accumulated_pension": null,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": null,
+            "target_monthly_pension": null
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "תכנית פרישה",
+          "visible_reply_text": "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\nכתוב: יעד נטו: <מספר>."
+        },
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": null,
+          "target_plan_snapshot": {
+            "accumulated_pension": 30000.0,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [
+              "_meta",
+              "_meta.operation_type",
+              "_meta.stored_at_utc",
+              "args",
+              "args.ignore_blocked_balances",
+              "args.target_is_net",
+              "args.target_monthly_pension",
+              "result",
+              "result.accumulated_pension",
+              "result.estimated_monthly_net",
+              "result.estimated_monthly_tax",
+              "result.execution_plan",
+              "result.execution_plan.accounts",
+              "result.execution_plan.accounts[].account_id",
+              "result.execution_plan.accounts[].amount_to_convert",
+              "result.execution_plan.accounts[].component",
+              "result.execution_plan.accounts[].expected_monthly_pension",
+              "result.execution_plan.expected_total_gross",
+              "result.execution_plan.expected_total_net",
+              "result.execution_plan.target_gross",
+              "result.execution_plan.target_net",
+              "result.plan_steps",
+              "result.plan_steps[].step_number",
+              "result.remaining_capital",
+              "result.retirement_age",
+              "result.sources_used",
+              "result.sources_used[].account_number",
+              "result.sources_used[].balance_used",
+              "result.sources_used[].component_field",
+              "result.sources_used[].pension_used",
+              "result.sources_used[].source_type",
+              "result.target_achieved",
+              "result.target_is_net",
+              "result.target_monthly_pension",
+              "tool_name"
+            ],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": true,
+            "target_monthly_pension": 30000.0
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 2,
+          "user_text": "יעד 30000 נטו",
+          "visible_reply_text": "✅ חישוב דטרמיניסטי:\n- יעד חודשי מבוקש (נטו): 30,000 ₪\n- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): 30,000 ₪\n\n🔧 **פלט כלי (בניית תכנית קצבה):**\nOK"
+        }
+      ]
+    },
+    {
+      "scenario_id": "BEHAVIOR_05_PLANNING_REQUEST_MUST_NOT_EXECUTE_TERMINATION",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": null,
+          "target_plan_snapshot": {
+            "accumulated_pension": 30000.0,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [
+              "_meta",
+              "_meta.operation_type",
+              "_meta.stored_at_utc",
+              "args",
+              "args.ignore_blocked_balances",
+              "args.retirement_age",
+              "args.target_is_net",
+              "args.target_monthly_pension",
+              "result",
+              "result.accumulated_pension",
+              "result.estimated_monthly_net",
+              "result.estimated_monthly_tax",
+              "result.execution_plan",
+              "result.execution_plan.accounts",
+              "result.execution_plan.accounts[].account_id",
+              "result.execution_plan.accounts[].amount_to_convert",
+              "result.execution_plan.accounts[].component",
+              "result.execution_plan.accounts[].expected_monthly_pension",
+              "result.execution_plan.expected_total_gross",
+              "result.execution_plan.expected_total_net",
+              "result.execution_plan.target_gross",
+              "result.execution_plan.target_net",
+              "result.plan_steps",
+              "result.plan_steps[].step_number",
+              "result.remaining_capital",
+              "result.retirement_age",
+              "result.sources_used",
+              "result.sources_used[].account_number",
+              "result.sources_used[].balance_used",
+              "result.sources_used[].component_field",
+              "result.sources_used[].pension_used",
+              "result.sources_used[].source_type",
+              "result.target_achieved",
+              "result.target_is_net",
+              "result.target_monthly_pension",
+              "tool_name"
+            ],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": 76,
+            "target_is_net": true,
+            "target_monthly_pension": 30000.0
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "בנה תכנית קצבת יעד 30000 נטו לגיל 76",
+          "visible_reply_text": "✅ חישוב דטרמיניסטי:\n- יעד חודשי מבוקש (נטו): 30,000 ₪\n- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): 30,000 ₪\n\n🔧 **פלט כלי (בניית תכנית קצבה):**\nOK"
+        }
+      ]
+    },
+    {
+      "scenario_id": "BEHAVIOR_06_TARGET_NET_PERSIST_AND_NO_DOUBLE_OFFSET",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": {
+            "kind": "deterministic_match",
+            "source": "stream_system_prompt_generators.generate_cashflow"
+          },
+          "target_plan_snapshot": {
+            "accumulated_pension": null,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": null,
+            "target_monthly_pension": null
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "יעד 30000 נטו",
+          "visible_reply_text": "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
+        },
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": null,
+          "target_plan_snapshot": {
+            "accumulated_pension": 21120.0,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [
+              "_meta",
+              "_meta.operation_type",
+              "_meta.stored_at_utc",
+              "args",
+              "args.ignore_blocked_balances",
+              "args.retirement_age",
+              "args.target_is_net",
+              "args.target_monthly_pension",
+              "result",
+              "result.accumulated_pension",
+              "result.estimated_monthly_net",
+              "result.estimated_monthly_tax",
+              "result.execution_plan",
+              "result.execution_plan.accounts",
+              "result.execution_plan.accounts[].account_id",
+              "result.execution_plan.accounts[].amount_to_convert",
+              "result.execution_plan.accounts[].component",
+              "result.execution_plan.accounts[].expected_monthly_pension",
+              "result.execution_plan.expected_total_gross",
+              "result.execution_plan.expected_total_net",
+              "result.execution_plan.target_gross",
+              "result.execution_plan.target_net",
+              "result.plan_steps",
+              "result.plan_steps[].step_number",
+              "result.remaining_capital",
+              "result.retirement_age",
+              "result.sources_used",
+              "result.sources_used[].account_number",
+              "result.sources_used[].balance_used",
+              "result.sources_used[].component_field",
+              "result.sources_used[].pension_used",
+              "result.sources_used[].source_type",
+              "result.target_achieved",
+              "result.target_is_net",
+              "result.target_monthly_pension",
+              "tool_name"
+            ],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": 76,
+            "target_is_net": true,
+            "target_monthly_pension": 30000.0
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 2,
+          "user_text": "בנה תכנית קצבת יעד 30000 נטו לגיל 76",
+          "visible_reply_text": "✅ חישוב דטרמיניסטי:\n- יעד חודשי מבוקש (נטו): 30,000 ₪\n- יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): 30,000 ₪\n\n🔧 **פלט כלי (בניית תכנית קצבה):**\nOK"
+        }
+      ]
+    },
+    {
+      "scenario_id": "BEHAVIOR_07_COMPARE_PLANS_INSTEAD_OF_NEW_PLAN",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": null,
+          "target_plan_snapshot": {
+            "accumulated_pension": null,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": null,
+            "target_monthly_pension": null
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "predicate_eval",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "השווה תכנית פרישה גיל 72 לעומת גיל 76",
+          "visible_reply_text": "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\nכתוב: יעד נטו: <מספר>."
+        }
+      ]
+    },
+    {
+      "scenario_id": "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER",
+      "turns": [
+        {
+          "execution_detected": false,
+          "execution_veto_snapshot": {
+            "scope": null,
+            "veto_active": null
+          },
+          "legacy_fallback_detected": true,
+          "normalized_target_plan_context_snapshot": {
+            "effective_target": null,
+            "offset_used": null,
+            "requested_target": null,
+            "retirement_age": null,
+            "target_mode": null
+          },
+          "pending_approval_snapshot": {
+            "approval_request_id": null,
+            "approval_type": null,
+            "has_pending_approval": false,
+            "tool_name": null
+          },
+          "raw_http_status": 200,
+          "reply_source_hint": {
+            "kind": "runtime_llm",
+            "method": "chat_stream"
+          },
+          "target_plan_snapshot": {
+            "accumulated_pension": null,
+            "additional_income_offset": null,
+            "effective_target_after_offset": null,
+            "raw_payload_keys": [],
+            "requested_target_gross": null,
+            "requested_target_net": null,
+            "retirement_age": null,
+            "target_is_net": null,
+            "target_monthly_pension": null
+          },
+          "trace_event_types": [
+            "intent_tier_detected",
+            "user_input",
+            "intent_detected",
+            "policy_decision",
+            "execution_mode",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "predicate_eval",
+            "router_selected",
+            "capability_resolved",
+            "capability_resolved",
+            "mcp_decision",
+            "router_selected",
+            "core_user_input",
+            "core_intent_detected",
+            "core_canonical_action_selected",
+            "core_execution_mode_selected",
+            "core_policy_gate_result",
+            "core_next_action_decided",
+            "capability_resolved",
+            "legacy_fallback_entered",
+            "state_source",
+            "execution_path",
+            "assistant_output",
+            "final_response"
+          ],
+          "turn_index": 1,
+          "user_text": "מה תמליץ לי?",
+          "visible_reply_text": "תשובה מקומית לאחר הרצת כלי."
+        }
+      ]
+    }
+  ]
+}

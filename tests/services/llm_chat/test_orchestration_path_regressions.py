@@ -1,5 +1,6 @@
 import json
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -7,12 +8,25 @@ from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_orchestration as chat_orch
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
+import app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators as stream_prompt_mod
 from app.main import app
 from app.models import Scenario
 from app.models.pension_fund import PensionFund
 from app.schemas.llm_chat import ChatMessage, ChatRequest
+from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+    load_execution_veto,
+    load_normalized_target_plan_context,
+    store_execution_veto,
+    store_pending_approval_request,
+)
+from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_approval_cancel_handling import (
+    _maybe_handle_approval_or_cancel_flow,
+)
 from app.services.llm_chat.chat_stream_orchestration_parts.stream_approval_generators import (
     generate_forced_approval,
+)
+from app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators import (
+    generate_target_plan,
 )
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,

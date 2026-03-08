@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -12,7 +12,331 @@ from app.services.llm_chat.pending_approvals import compute_args_hash
 
 _APPROVAL_EXECUTION_RECEIPT_SCENARIO = "approval_execution_receipt"
 _DEFAULT_APPROVAL_EXECUTION_RECEIPT_TTL_SECONDS = 5 * 60
+_EXECUTION_VETO_SCENARIO = "execution_veto"
+_NORMALIZED_TARGET_PLAN_CONTEXT_SCENARIO = "normalized_target_plan_context"
+_EXECUTION_VETO_SCOPE_TERMINATION = "termination_execution"
 
+
+def _log_trace_event_if_possible(
+    *, trace_id: str | None, event_type: str, payload: dict
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=trace_id,
+            event_type=event_type,
+            payload=payload,
+        )
+    except Exception:
+        pass
+
+
+def _load_latest_scenario_payload(
+    *, db: Session, client_id: int, scenario_name: str
+) -> dict | None:
+    if client_id is None:
+        return None
+    try:
+        row = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == scenario_name)
+            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
+            .first()
+        )
+    except Exception:
+        row = None
+    if row is None or not getattr(row, "parameters", None):
+        return None
+    try:
+        parsed = json.loads(row.parameters)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _validate_execution_veto_payload(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    scope = str(payload.get("scope") or "").strip()
+    if scope != _EXECUTION_VETO_SCOPE_TERMINATION:
+        return None
+    return {
+        "veto_active": bool(payload.get("veto_active")),
+        "scope": scope,
+        "reason_code": (
+            str(payload.get("reason_code")).strip()
+            if payload.get("reason_code") is not None
+            else None
+        ),
+        "source_text": (
+            str(payload.get("source_text")).strip()
+            if payload.get("source_text") is not None
+            else None
+        ),
+    }
+
+
+def store_execution_veto(
+    *,
+    db: Session,
+    client_id: int,
+    veto_active: bool,
+    scope: str,
+    reason_code: str | None = None,
+    source_text: str | None = None,
+    trace_id: str | None = None,
+) -> bool:
+    if client_id is None:
+        return False
+    if str(scope or "").strip() != _EXECUTION_VETO_SCOPE_TERMINATION:
+        return False
+    payload = {
+        "veto_active": bool(veto_active),
+        "scope": _EXECUTION_VETO_SCOPE_TERMINATION,
+        "reason_code": str(reason_code).strip() if reason_code is not None else None,
+        "source_text": str(source_text).strip() if source_text is not None else None,
+    }
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _EXECUTION_VETO_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_EXECUTION_VETO_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+    _log_trace_event_if_possible(
+        trace_id=trace_id,
+        event_type="execution_veto_stored",
+        payload={
+            "veto_active": bool(veto_active),
+            "scope": _EXECUTION_VETO_SCOPE_TERMINATION,
+        },
+    )
+    return True
+
+
+def load_execution_veto(
+    *, db: Session, client_id: int, trace_id: str | None = None
+) -> dict | None:
+    payload = _validate_execution_veto_payload(
+        _load_latest_scenario_payload(
+            db=db,
+            client_id=client_id,
+            scenario_name=_EXECUTION_VETO_SCENARIO,
+        )
+    )
+    if payload is None:
+        return None
+    _log_trace_event_if_possible(
+        trace_id=trace_id,
+        event_type="execution_veto_loaded",
+        payload={
+            "veto_active": bool(payload.get("veto_active")),
+            "scope": str(payload.get("scope") or ""),
+        },
+    )
+    return payload
+
+
+def clear_execution_veto(
+    *,
+    db: Session,
+    client_id: int,
+    scope: str,
+    trace_id: str | None = None,
+) -> bool:
+    if client_id is None:
+        return False
+    if str(scope or "").strip() != _EXECUTION_VETO_SCOPE_TERMINATION:
+        return False
+    existing = _validate_execution_veto_payload(
+        _load_latest_scenario_payload(
+            db=db,
+            client_id=client_id,
+            scenario_name=_EXECUTION_VETO_SCENARIO,
+        )
+    )
+    if existing is None:
+        return False
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _EXECUTION_VETO_SCENARIO
+        ).delete(synchronize_session=False)
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+    _log_trace_event_if_possible(
+        trace_id=trace_id,
+        event_type="execution_veto_cleared",
+        payload={"scope": _EXECUTION_VETO_SCOPE_TERMINATION},
+    )
+    return True
+
+def _validate_normalized_target_plan_context(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    required_keys = (
+        "requested_target",
+        "target_mode",
+        "offset_used",
+        "effective_target",
+        "retirement_age",
+    )
+    if any(key not in payload for key in required_keys):
+        return None
+    target_mode = str(payload.get("target_mode") or "").strip()
+    if target_mode not in {"net", "gross"}:
+        return None
+    try:
+        requested_target = float(payload.get("requested_target") or 0)
+        offset_used = float(payload.get("offset_used") or 0)
+        effective_target = float(payload.get("effective_target") or 0)
+    except Exception:
+        return None
+    retirement_age_raw = payload.get("retirement_age")
+    retirement_age = None
+    if retirement_age_raw is not None:
+        try:
+            retirement_age = int(retirement_age_raw)
+        except Exception:
+            return None
+    normalized = {
+        "requested_target": requested_target,
+        "target_mode": target_mode,
+        "offset_used": offset_used,
+        "effective_target": effective_target,
+        "retirement_age": retirement_age,
+    }
+    if payload.get("accumulated_pension") is not None:
+        try:
+            normalized["accumulated_pension"] = float(
+                payload.get("accumulated_pension") or 0
+            )
+        except Exception:
+            pass
+    raw_payload_keys = payload.get("raw_payload_keys")
+    if isinstance(raw_payload_keys, list):
+        normalized["raw_payload_keys"] = [str(item) for item in raw_payload_keys]
+    return normalized
+
+
+def store_normalized_target_plan_context(
+    *,
+    db: Session,
+    client_id: int,
+    requested_target: float,
+    target_mode: str,
+    offset_used: float,
+    effective_target: float,
+    retirement_age: int | None,
+    accumulated_pension: float | None = None,
+    raw_payload_keys: list[str] | None = None,
+    trace_id: str | None = None,
+) -> bool:
+    if client_id is None:
+        return False
+    target_mode_value = str(target_mode or "").strip().lower()
+    if target_mode_value not in {"net", "gross"}:
+        return False
+    payload = {
+        "requested_target": float(requested_target or 0),
+        "target_mode": target_mode_value,
+        "offset_used": float(offset_used or 0),
+        "effective_target": float(effective_target or 0),
+        "retirement_age": int(retirement_age) if retirement_age is not None else None,
+    }
+    if accumulated_pension is not None:
+        payload["accumulated_pension"] = float(accumulated_pension or 0)
+    if isinstance(raw_payload_keys, list):
+        payload["raw_payload_keys"] = [str(item) for item in raw_payload_keys]
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _NORMALIZED_TARGET_PLAN_CONTEXT_SCENARIO
+        ).delete(synchronize_session=False)
+        db.flush()
+        scenario = Scenario(
+            client_id=client_id,
+            scenario_name=_NORMALIZED_TARGET_PLAN_CONTEXT_SCENARIO,
+            apply_tax_planning=False,
+            apply_capitalization=False,
+            apply_exemption_shield=False,
+            parameters=json.dumps(payload, ensure_ascii=False),
+        )
+        db.add(scenario)
+        db.flush()
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+    _log_trace_event_if_possible(
+        trace_id=trace_id,
+        event_type="normalized_target_plan_context_stored",
+        payload={
+            "target_mode": target_mode_value,
+            "effective_target": float(effective_target or 0),
+        },
+    )
+    return True
+
+
+def load_normalized_target_plan_context(
+    *, db: Session, client_id: int, trace_id: str | None = None
+) -> dict | None:
+    payload = _validate_normalized_target_plan_context(
+        _load_latest_scenario_payload(
+            db=db,
+            client_id=client_id,
+            scenario_name=_NORMALIZED_TARGET_PLAN_CONTEXT_SCENARIO,
+        )
+    )
+    if payload is None:
+        return None
+    _log_trace_event_if_possible(
+        trace_id=trace_id,
+        event_type="normalized_target_plan_context_loaded",
+        payload={"source": "normalized"},
+    )
+    return payload
+
+
+def clear_normalized_target_plan_context(*, db: Session, client_id: int) -> bool:
+    if client_id is None:
+        return False
+    try:
+        db.query(Scenario).filter(Scenario.client_id == client_id).filter(
+            Scenario.scenario_name == _NORMALIZED_TARGET_PLAN_CONTEXT_SCENARIO
+        ).delete(synchronize_session=False)
+        db.commit()
+        return True
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
 
 def was_approval_execution_recently_recorded(
     *, db: Session, client_id: int, tool_name: str, tool_args: dict
@@ -1041,3 +1365,5 @@ def _extract_target_plan_payload_from_tool_result(tool_result: object) -> dict |
         return payload
 
     return None
+
+
