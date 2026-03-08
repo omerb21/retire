@@ -319,6 +319,7 @@ def execute_tool_call(
 
         if preview_approved and isinstance(args_template, dict) and args_template:
             args = dict(args_template)
+            args.setdefault("requested_execution", True)
         else:
             if preview_declined and (not preview_approved):
                 return (
@@ -591,6 +592,7 @@ def execute_tool_call(
                     )
                 if approved and isinstance(template, dict) and template:
                     termination_args = dict(template)
+                    termination_args.setdefault("requested_execution", True)
 
             try:
                 store_pending_approval_request(

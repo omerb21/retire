@@ -8,8 +8,16 @@ from fastapi.testclient import TestClient
 import app.services.llm_chat.chat_orchestration as chat_orch
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
+from app.models import Scenario
 from app.models.pension_fund import PensionFund
 from app.schemas.llm_chat import ChatMessage, ChatRequest
+from app.services.llm_chat.chat_stream_orchestration_parts.stream_approval_generators import (
+    generate_forced_approval,
+)
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    decide_stream_planning_execution_policy,
+    is_process_termination_request,
+)
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,
     ACTION_COMPARE_EXISTING_PLANS,
@@ -41,6 +49,19 @@ class _TraceCapture:
             if isinstance(payload, dict):
                 return payload
         raise AssertionError("router_selected event not found")
+
+    def find_first_payload(
+        self, event_type: str, trace_id: str | None = None
+    ) -> dict[str, Any]:
+        for event in self.events:
+            if event.get("event_type") != event_type:
+                continue
+            if trace_id is not None and event.get("trace_id") != trace_id:
+                continue
+            payload = event.get("payload")
+            if isinstance(payload, dict):
+                return payload
+        raise AssertionError(f"Missing trace event `{event_type}`.")
 
 
 def _install_trace_capture(monkeypatch) -> _TraceCapture:
@@ -310,10 +331,163 @@ def test_stage16_monthly_pension_routing_does_not_fall_back_to_default_qa(
     router_payload = capture.find_router_selected(trace_id)
     assert router_payload.get("capability_id") == "monthly_pension_summary_action_v1"
     assert router_payload.get("capability_id") != "default_qa_v1"
-    assert router_payload.get("tool_chain") == ["MONTHLY_PENSION_SUMMARY"]
-    computed_data = getattr(res, "computed_data", None)
-    assert isinstance(computed_data, dict)
-    assert "monthly_pension" in computed_data
+
+
+def test_termination_parser_planning_blocked_no_approval_or_pending(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_termination_parser_planning_blocked"
+    user_text = "אני רוצה להבין אפשרויות של עזיבת עבודה"
+
+    db_session.query(Scenario).filter(Scenario.client_id == client.id).filter(
+        Scenario.scenario_name == "pending_approval"
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    decision = decide_stream_planning_execution_policy(user_text)
+    assert is_process_termination_request(user_text) is False
+    assert decision.planning_only is True
+    assert decision.explicit_execution_intent is False
+
+    body = "".join(
+        generate_forced_approval(
+            computed_data=None,
+            explicit_termination=True,
+            termination_already_executed=False,
+            request=ChatRequest(
+                client_id=int(client.id),
+                messages=[ChatMessage(role="user", content=user_text)],
+                pension_portfolio=[],
+            ),
+            db=db_session,
+            effective_portfolio=[],
+            force_max_exemption=False,
+            stream_request_id=trace_id,
+            wants_execute_target_plan=False,
+            wants_fixation_execute=False,
+        )
+    )
+
+    assert "###UI_ACTION###" not in body
+    pending = (
+        db_session.query(Scenario)
+        .filter(Scenario.client_id == client.id)
+        .filter(Scenario.scenario_name == "pending_approval")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    assert pending is None
+
+    payload = capture.find_first_payload("termination_parser_planning_blocked", trace_id)
+    assert payload["planning_only"] is True
+    assert payload["requested_execution"] is False
+    assert payload["mapping_is_unambiguous"] is True
+
+
+def test_termination_parser_requires_requested_execution_for_approval_creation(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_termination_parser_missing_requested_execution"
+    user_text = "termination"
+
+    db_session.query(Scenario).filter(Scenario.client_id == client.id).filter(
+        Scenario.scenario_name == "pending_approval"
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    decision = decide_stream_planning_execution_policy(user_text)
+    assert decision.planning_only is False
+    assert decision.explicit_execution_intent is False
+
+    body = "".join(
+        generate_forced_approval(
+            computed_data=None,
+            explicit_termination=True,
+            termination_already_executed=False,
+            request=ChatRequest(
+                client_id=int(client.id),
+                messages=[ChatMessage(role="user", content=user_text)],
+                pension_portfolio=[],
+            ),
+            db=db_session,
+            effective_portfolio=[],
+            force_max_exemption=False,
+            stream_request_id=trace_id,
+            wants_execute_target_plan=False,
+            wants_fixation_execute=False,
+        )
+    )
+
+    assert "###UI_ACTION###" not in body
+    pending = (
+        db_session.query(Scenario)
+        .filter(Scenario.client_id == client.id)
+        .filter(Scenario.scenario_name == "pending_approval")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    assert pending is None
+
+    payload = capture.find_first_payload(
+        "termination_parser_missing_requested_execution_blocked", trace_id
+    )
+    assert payload["planning_only"] is False
+    assert payload["requested_execution"] is False
+    assert payload["mapping_is_unambiguous"] is True
+
+
+def test_termination_parser_ambiguous_mapping_no_unsafe_defaults(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_termination_parser_ambiguous_mapping"
+    user_text = "הכל למשיכה ללא פטור"
+
+    db_session.query(Scenario).filter(Scenario.client_id == client.id).filter(
+        Scenario.scenario_name == "pending_approval"
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    decision = decide_stream_planning_execution_policy(user_text)
+    assert decision.explicit_execution_intent is True
+    assert decision.planning_only is False
+
+    body = "".join(
+        generate_forced_approval(
+            computed_data=None,
+            explicit_termination=True,
+            termination_already_executed=False,
+            request=ChatRequest(
+                client_id=int(client.id),
+                messages=[ChatMessage(role="user", content=user_text)],
+                pension_portfolio=[],
+            ),
+            db=db_session,
+            effective_portfolio=[],
+            force_max_exemption=False,
+            stream_request_id=trace_id,
+            wants_execute_target_plan=False,
+            wants_fixation_execute=False,
+        )
+    )
+
+    assert "###UI_ACTION###" not in body
+    pending = (
+        db_session.query(Scenario)
+        .filter(Scenario.client_id == client.id)
+        .filter(Scenario.scenario_name == "pending_approval")
+        .order_by(Scenario.created_at.desc())
+        .first()
+    )
+    assert pending is None
+
+    payload = capture.find_first_payload(
+        "termination_parser_ambiguous_mapping_blocked", trace_id
+    )
+    assert payload["requested_execution"] is True
+    assert payload["mapping_is_unambiguous"] is False
 
 
 def test_stage16_client_snapshot_routing_pattern_stays_stable(

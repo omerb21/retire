@@ -8,8 +8,12 @@ from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 from app.main import app
+from app.models import Scenario
 from app.models.pension_fund import PensionFund
 from app.schemas.llm_chat import ChatMessage, ChatRequest
+from app.services.llm_chat.chat_stream_orchestration_parts.stream_approval_generators import (
+    generate_forced_approval,
+)
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,
     ACTION_COMPARE_EXISTING_PLANS,
@@ -445,3 +449,92 @@ def test_legacy_fallback_trace_contract_is_diagnostic(monkeypatch, db_session) -
     assert str(
         legacy_payload["legacy_reason_code"]
     ).strip(), "legacy_fallback_entered.legacy_reason_code is empty."
+
+
+@pytest.mark.parametrize(
+    (
+        "trace_id",
+        "user_text",
+        "expected_event_type",
+        "expected_requested_execution",
+        "expected_mapping_is_unambiguous",
+    ),
+    [
+        (
+            "trace_termination_parser_planning_contract",
+            "אני רוצה להבין אפשרויות של עזיבת עבודה",
+            "termination_parser_planning_blocked",
+            False,
+            True,
+        ),
+        (
+            "trace_termination_parser_missing_requested_execution_contract",
+            "termination",
+            "termination_parser_missing_requested_execution_blocked",
+            False,
+            True,
+        ),
+        (
+            "trace_termination_parser_ambiguous_mapping_contract",
+            "הכל למשיכה ללא פטור",
+            "termination_parser_ambiguous_mapping_blocked",
+            True,
+            False,
+        ),
+    ],
+)
+def test_termination_parser_trace_contracts(
+    db_session,
+    client,
+    monkeypatch,
+    trace_id: str,
+    user_text: str,
+    expected_event_type: str,
+    expected_requested_execution: bool,
+    expected_mapping_is_unambiguous: bool,
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+
+    db_session.query(Scenario).filter(Scenario.client_id == client.id).filter(
+        Scenario.scenario_name == "pending_approval"
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    _ = "".join(
+        generate_forced_approval(
+            computed_data=None,
+            explicit_termination=True,
+            termination_already_executed=False,
+            request=ChatRequest(
+                client_id=int(client.id),
+                messages=[ChatMessage(role="user", content=user_text)],
+                pension_portfolio=[],
+            ),
+            db=db_session,
+            effective_portfolio=[],
+            force_max_exemption=False,
+            stream_request_id=trace_id,
+            wants_execute_target_plan=False,
+            wants_fixation_execute=False,
+        )
+    )
+
+    payload = capture.find_first_payload(expected_event_type, trace_id)
+    _assert_required_keys(
+        payload,
+        (
+            "planning_only",
+            "explicit_execution_intent",
+            "explicit_execution_veto",
+            "reason_code",
+            "requested_execution",
+            "mapping_is_unambiguous",
+            "tool_name",
+            "has_exempt_choice",
+            "has_taxable_choice",
+        ),
+        expected_event_type,
+    )
+    assert payload["tool_name"] == "PROCESS_TERMINATION"
+    assert payload["requested_execution"] is expected_requested_execution
+    assert payload["mapping_is_unambiguous"] is expected_mapping_is_unambiguous

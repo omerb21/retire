@@ -121,6 +121,7 @@ def test_execute_process_termination_requires_approved_preview_and_overrides_arg
 
     approved_template = {
         "confirmed": True,
+        "requested_execution": True,
         "exempt_choice": "redeem_with_exemption",
         "taxable_choice": "annuity",
     }

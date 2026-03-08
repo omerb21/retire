@@ -75,6 +75,25 @@ def handle_process_termination(
     except Exception:
         pass
 
+    requested_execution = args.get("requested_execution")
+    exempt_choice_before_defaults = args.get("exempt_choice")
+    taxable_choice_before_defaults = args.get("taxable_choice")
+    if requested_execution is not True:
+        if requested_execution is False:
+            return (
+                "Error: requested_execution=true נדרש לפני ביצוע עזיבת עבודה במערכת."
+            )
+        if (
+            exempt_choice_before_defaults is None
+            and taxable_choice_before_defaults is None
+        ) or (
+            exempt_choice_before_defaults == "redeem_with_exemption"
+            and taxable_choice_before_defaults == "annuity"
+        ):
+            return (
+                "Error: requested_execution=true נדרש לפני ביצוע עזיבת עבודה במערכת."
+            )
+
     if args.get("exempt_choice") is None:
         args["exempt_choice"] = "redeem_with_exemption"
     if args.get("taxable_choice") is None:
@@ -252,13 +271,26 @@ def handle_process_termination(
             "max_spread_years": result.get("max_spread_years"),
             "details": {
                 "termination_date": termination_date_str,
-                "severance_amount": result.get("severance_amount"),
-                "exempt_amount": result.get("exempt_amount"),
-                "taxable_amount": result.get("taxable_amount"),
+                "severance_amount": (
+                    float(args.get("severance_amount"))
+                    if sent_severance
+                    else result.get("severance_amount")
+                ),
+                "exempt_amount": (
+                    float(args.get("exempt_amount"))
+                    if sent_exempt
+                    else result.get("exempt_amount")
+                ),
+                "taxable_amount": (
+                    float(args.get("taxable_amount"))
+                    if sent_taxable
+                    else result.get("taxable_amount")
+                ),
                 "exempt_choice": args.get("exempt_choice"),
                 "taxable_choice": args.get("taxable_choice"),
                 "taxable_annuity_amount": args.get("taxable_annuity_amount"),
                 "taxable_capital_amount": args.get("taxable_capital_amount"),
+                "tax_spread_years": args.get("tax_spread_years"),
             },
         }
 

@@ -105,6 +105,89 @@ def _planning_only_gate_reply(decision) -> str:
     )
 
 
+def _emit_termination_parser_trace(
+    *,
+    stream_request_id: str,
+    event_type: str,
+    decision,
+    requested_execution: bool,
+    mapping_is_unambiguous: bool,
+    tool_name: str | None,
+    tool_args: dict[str, Any] | None,
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        payload_args = tool_args if isinstance(tool_args, dict) else {}
+        log_trace_event(
+            trace_id=stream_request_id,
+            event_type=event_type,
+            payload={
+                "planning_only": bool(decision.planning_only),
+                "explicit_execution_intent": bool(decision.explicit_execution_intent),
+                "explicit_execution_veto": bool(decision.explicit_execution_veto),
+                "reason_code": str(decision.reason_code or ""),
+                "requested_execution": bool(requested_execution),
+                "mapping_is_unambiguous": bool(mapping_is_unambiguous),
+                "tool_name": tool_name,
+                "has_exempt_choice": isinstance(
+                    payload_args.get("exempt_choice"), str
+                ),
+                "has_taxable_choice": isinstance(
+                    payload_args.get("taxable_choice"), str
+                ),
+            },
+        )
+    except Exception:
+        pass
+
+
+def _termination_missing_requested_execution_reply() -> str:
+    return sanitize_user_visible_text(
+        "לא אבצע עזיבת עבודה ולא אבקש אישור לביצוע בלי בקשת ביצוע מפורשת. "
+        "כדי לעבור לביצוע בפועל כתוב במפורש 'בצע עזיבת עבודה'."
+    )
+
+
+def _termination_ambiguous_mapping_reply() -> str:
+    return sanitize_user_visible_text(
+        "לא אבצע עזיבת עבודה ולא אבקש אישור לביצוע כי ההנחיה אינה ממפה באופן חד-משמעי את בחירת הפטור והחייב. "
+        "לא הוחלו ברירות מחדל לביצוע."
+    )
+
+
+def _termination_mapping_is_unambiguous(
+    *, user_text: str | None, tool_args: dict[str, Any] | None
+) -> bool:
+    lowered = str(user_text or "").lower()
+    args = dict(tool_args or {}) if isinstance(tool_args, dict) else {}
+    exempt_choice = str(args.get("exempt_choice") or "").strip()
+    taxable_choice = str(args.get("taxable_choice") or "").strip()
+    has_all_scope = any(token in lowered for token in ("הכל", "כולם", "שניהם"))
+    has_withdrawal = any(
+        token in lowered
+        for token in (
+            "משיכה",
+            "למשיכה",
+            "חד פעמ",
+            "חד-פעמ",
+            "הוני",
+            "הונית",
+            "הון",
+        )
+    )
+    has_no_exemption = any(
+        token in lowered
+        for token in ("ללא פטור", "בלי שימוש בפטור", "ללא שימוש בפטור")
+    )
+    if has_all_scope and has_withdrawal:
+        if not exempt_choice or not taxable_choice:
+            return False
+        if has_no_exemption:
+            return False
+    return True
+
+
 def _has_positive_component_amounts(raw: object) -> bool:
     if not isinstance(raw, dict) or not raw:
         return False
@@ -233,13 +316,28 @@ def generate_forced_approval(
 
     if explicit_termination and (not termination_already_executed):
         if execution_gate.planning_only or execution_gate.explicit_execution_veto:
-            _emit_planning_execution_gate_trace(
+            _emit_termination_parser_trace(
                 stream_request_id=stream_request_id,
-                event_type="planning_execution_gate_blocked_approval_creation",
+                event_type="termination_parser_planning_blocked",
                 decision=execution_gate,
+                requested_execution=bool(execution_gate.explicit_execution_intent),
+                mapping_is_unambiguous=True,
                 tool_name="PROCESS_TERMINATION",
+                tool_args=None,
             )
             yield _planning_only_gate_reply(execution_gate)
+            return
+        if not execution_gate.explicit_execution_intent:
+            _emit_termination_parser_trace(
+                stream_request_id=stream_request_id,
+                event_type="termination_parser_missing_requested_execution_blocked",
+                decision=execution_gate,
+                requested_execution=False,
+                mapping_is_unambiguous=True,
+                tool_name="PROCESS_TERMINATION",
+                tool_args=None,
+            )
+            yield _termination_missing_requested_execution_reply()
             return
         if is_conceptual_no_execute_request(
             getattr(request, "user_message", None) or ""
@@ -260,13 +358,31 @@ def generate_forced_approval(
                 if getattr(m, "role", None) == "user"
             ][-8:]
         )
-        tool_args: dict[str, Any] = {"confirmed": True}
+        tool_args: dict[str, Any] = {
+            "confirmed": True,
+            "requested_execution": True,
+        }
         tool_args.update(extract_process_termination_choice_overrides(recent_user_text))
         termination_date_override = extract_process_termination_date_override(
             recent_user_text
         )
         if termination_date_override:
             tool_args["termination_date"] = termination_date_override
+        if not _termination_mapping_is_unambiguous(
+            user_text=recent_user_text,
+            tool_args=tool_args,
+        ):
+            _emit_termination_parser_trace(
+                stream_request_id=stream_request_id,
+                event_type="termination_parser_ambiguous_mapping_blocked",
+                decision=execution_gate,
+                requested_execution=True,
+                mapping_is_unambiguous=False,
+                tool_name="PROCESS_TERMINATION",
+                tool_args=tool_args,
+            )
+            yield _termination_ambiguous_mapping_reply()
+            return
 
         try:
             _store_pending_approval_request(
@@ -798,13 +914,19 @@ def generate_approval_exec(
     if approved_tool_name == "PROCESS_TERMINATION" and (
         execution_gate.planning_only
         or execution_gate.explicit_execution_veto
-        or (not execution_gate.explicit_execution_intent)
     ):
-        _emit_planning_execution_gate_trace(
+        _emit_termination_parser_trace(
             stream_request_id=stream_request_id,
-            event_type="planning_execution_gate_blocked_execution_consume",
+            event_type="termination_parser_planning_blocked",
             decision=execution_gate,
+            requested_execution=bool(execution_gate.explicit_execution_intent),
+            mapping_is_unambiguous=True,
             tool_name=str(approved_tool_name or ""),
+            tool_args=(
+                dict(approved_tool_args or {})
+                if isinstance(approved_tool_args, dict)
+                else None
+            ),
         )
         yield _planning_only_gate_reply(execution_gate)
         return
@@ -812,6 +934,37 @@ def generate_approval_exec(
     tool_args = (
         dict(approved_tool_args or {}) if isinstance(approved_tool_args, dict) else {}
     )
+    if approved_tool_name == "PROCESS_TERMINATION":
+        if tool_args.get("requested_execution") is not True:
+            _emit_termination_parser_trace(
+                stream_request_id=stream_request_id,
+                event_type="termination_parser_missing_requested_execution_blocked",
+                decision=execution_gate,
+                requested_execution=False,
+                mapping_is_unambiguous=_termination_mapping_is_unambiguous(
+                    user_text=current_turn_text,
+                    tool_args=tool_args,
+                ),
+                tool_name=str(approved_tool_name or ""),
+                tool_args=tool_args,
+            )
+            yield _termination_missing_requested_execution_reply()
+            return
+        if not _termination_mapping_is_unambiguous(
+            user_text=current_turn_text,
+            tool_args=tool_args,
+        ):
+            _emit_termination_parser_trace(
+                stream_request_id=stream_request_id,
+                event_type="termination_parser_ambiguous_mapping_blocked",
+                decision=execution_gate,
+                requested_execution=True,
+                mapping_is_unambiguous=False,
+                tool_name=str(approved_tool_name or ""),
+                tool_args=tool_args,
+            )
+            yield _termination_ambiguous_mapping_reply()
+            return
     tool_result = _execute_tool_call(
         approved_tool_name,
         tool_args,

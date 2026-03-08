@@ -300,12 +300,6 @@ def is_process_termination_request(user_message: str) -> bool:
         "אישור",
         "מסכים",
         "מסכימה",
-        "רוצה",
-        "רוצה ש",
-        "מעוניין",
-        "מעוניינת",
-        "מבקש",
-        "מבקשת",
         "please",
         "execute",
         "apply",
@@ -356,6 +350,85 @@ def is_no_termination_request(user_message: str) -> bool:
     )
 
 
+def _has_explicit_termination_execution_intent(user_message: str) -> bool:
+    if not user_message:
+        return False
+    lowered = (user_message or "").lower()
+    if is_no_termination_request(user_message):
+        return False
+    if is_conceptual_no_execute_request(user_message):
+        return False
+
+    execute_tokens = (
+        "בצע",
+        "תבצע",
+        "הפעל",
+        "להפעיל",
+        "אני רוצה לבצע",
+        "לבצע עכשיו",
+        "בצע עכשיו",
+        "עדכן במערכת",
+        "עדכן",
+        "לעדכן",
+        "אני מאשר",
+        "אני מאשרת",
+        "מאשר",
+        "מאשרת",
+        "execute",
+        "apply",
+        "run",
+        "process_termination",
+    )
+    termination_domain_tokens = (
+        "עזיבת עבודה",
+        "עזיבת העבודה",
+        "סיום עבודה",
+        "סיום העבודה",
+        "termination",
+        "פיצויים",
+        "פיצוי",
+        "מענק",
+        "מענק פטור",
+        "severance",
+        "מעסיק נוכחי",
+    )
+    if any(token in lowered for token in execute_tokens) and any(
+        token in lowered for token in termination_domain_tokens
+    ):
+        return True
+
+    has_all_scope = any(token in lowered for token in ("הכל", "כולם", "שניהם"))
+    has_choice_directive = any(
+        token in lowered
+        for token in (
+            "משיכה",
+            "למשיכה",
+            "חד פעמ",
+            "חד-פעמ",
+            "הוני",
+            "הונית",
+            "הון",
+            "לקצבה",
+            "כקצבה",
+            "רצף קצבה",
+            "annuity",
+        )
+    )
+    has_termination_choice_context = any(
+        token in lowered
+        for token in (
+            "פיצויים",
+            "פטור",
+            "חייב",
+            "חייב במס",
+            "ללא פטור",
+            "בלי שימוש בפטור",
+            "ללא שימוש בפטור",
+        )
+    )
+    return has_all_scope and has_choice_directive and has_termination_choice_context
+
+
 def decide_stream_planning_execution_policy(
     user_message: str | None,
 ) -> PlanningExecutionGateDecision:
@@ -385,7 +458,7 @@ def decide_stream_planning_execution_policy(
     explicit_execution_intent = False
     if lowered:
         explicit_execution_intent = bool(
-            is_process_termination_request(raw_text)
+            _has_explicit_termination_execution_intent(raw_text)
             or raw_text.strip().startswith("###USER_APPROVED###")
             or lowered in {"כן", "כן.", "מאשר", "מאשר.", "מאשרת", "מאשרת."}
             or any(
