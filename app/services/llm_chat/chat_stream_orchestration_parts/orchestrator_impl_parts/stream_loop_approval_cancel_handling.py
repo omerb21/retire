@@ -15,15 +15,58 @@ from app.services.llm_chat.message_utils import (
 )
 from app.services.llm_chat.orchestration_utils import (
     extract_process_termination_choice_overrides,
+    sanitize_user_visible_text,
 )
 from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy import (
     clear_pending_build_target_plan_after_termination,
+)
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    decide_stream_planning_execution_policy,
 )
 
 from ..stream_approval_generators import (
     generate_approval_exec,
     generate_execute_target_after_termination,
 )
+
+
+def _emit_planning_execution_gate_trace(
+    *,
+    stream_request_id: str,
+    event_type: str,
+    decision,
+    tool_name: str | None,
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=stream_request_id,
+            event_type=event_type,
+            payload={
+                "planning_only": bool(decision.planning_only),
+                "explicit_execution_intent": bool(decision.explicit_execution_intent),
+                "explicit_execution_veto": bool(decision.explicit_execution_veto),
+                "reason_code": str(decision.reason_code or ""),
+                "tool_name": tool_name,
+            },
+        )
+    except Exception:
+        pass
+
+
+def _planning_only_gate_response() -> StreamingResponse:
+    return StreamingResponse(
+        iter(
+            [
+                sanitize_user_visible_text(
+                    "הפנייה הנוכחית נשארת במצב תכנון בלבד. לא אבצע פעולה ביצועית ולא אמשיך אישור קיים. "
+                    "כדי לעבור לביצוע בפועל כתוב במפורש מה לבצע."
+                )
+            ]
+        ),
+        media_type="text/plain",
+    )
 
 
 def _maybe_handle_approval_or_cancel_flow(
@@ -45,6 +88,8 @@ def _maybe_handle_approval_or_cancel_flow(
 ):
     approval = extract_user_approval_for_tool_call(request.messages)
     cancelled = extract_user_cancel_for_tool_call(request.messages)
+    last_user_text = find_last_user_message(request.messages)
+    execution_gate = decide_stream_planning_execution_policy(last_user_text)
     if request.client_id is not None:
         try:
             pending_db = load_pending_approval_request(
@@ -54,7 +99,6 @@ def _maybe_handle_approval_or_cancel_flow(
         except Exception:
             pending_db = None
 
-        last_user_text = find_last_user_message(request.messages)
         if (
             pending_db is not None
             and isinstance(last_user_text, str)
@@ -101,6 +145,20 @@ def _maybe_handle_approval_or_cancel_flow(
                             cancelled = (pending_tool_name, merged_args)
             except Exception:
                 pass
+
+        if pending_db is not None and (
+            execution_gate.planning_only
+            or execution_gate.explicit_execution_veto
+            or (not execution_gate.explicit_execution_intent)
+        ):
+            pending_tool_name = pending_db[0] if isinstance(pending_db, tuple) else None
+            _emit_planning_execution_gate_trace(
+                stream_request_id=stream_request_id,
+                event_type="planning_execution_gate_blocked_approval_replay",
+                decision=execution_gate,
+                tool_name=str(pending_tool_name or ""),
+            )
+            return _planning_only_gate_response()
 
         if approval is not None and pending_db is not None:
             approved_tool_name, approved_tool_args = approval
@@ -154,6 +212,19 @@ def _maybe_handle_approval_or_cancel_flow(
 
     if approval and request.client_id is not None:
         approved_tool_name, approved_tool_args = approval
+
+        if (
+            execution_gate.planning_only
+            or execution_gate.explicit_execution_veto
+            or (not execution_gate.explicit_execution_intent)
+        ):
+            _emit_planning_execution_gate_trace(
+                stream_request_id=stream_request_id,
+                event_type="planning_execution_gate_blocked_execution_consume",
+                decision=execution_gate,
+                tool_name=str(approved_tool_name or ""),
+            )
+            return _planning_only_gate_response()
 
         if (
             approved_tool_name == "PROCESS_TERMINATION"

@@ -18,7 +18,9 @@ from app.models.client import Client
 from app.models.scenario import Scenario
 
 _JSONL_PATH = Path(__file__).with_name("golden_behavior_8.jsonl")
-_OUTPUT_PATH = Path(__file__).with_name("live_stream_behavior_replay_evidence_output.json")
+_OUTPUT_PATH = Path(__file__).with_name(
+    "live_stream_behavior_replay_evidence_output.json"
+)
 _SUBSET_IDS = (
     "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT",
     "BEHAVIOR_02_PORTFOLIO_ANALYSIS_SHORT_DEFAULT",
@@ -224,7 +226,12 @@ def _build_tool_call_reply(tool_name: str, arguments: dict[str, Any]) -> str:
 
 
 class _FakeLLMService:
-    def __init__(self, case: dict[str, Any], recorder: list[dict[str, Any]], context: dict[str, Any]):
+    def __init__(
+        self,
+        case: dict[str, Any],
+        recorder: list[dict[str, Any]],
+        context: dict[str, Any],
+    ):
         self.case = case
         self.recorder = recorder
         self.context = context
@@ -356,7 +363,9 @@ def _fake_compute_effective_plan_target(context: dict[str, Any], desired_total: 
     )
 
 
-def _build_target_plan_tool_result(args: dict[str, Any], context: dict[str, Any]) -> str:
+def _build_target_plan_tool_result(
+    args: dict[str, Any], context: dict[str, Any]
+) -> str:
     desired_total = _extract_target_value(args)
     breakdown = _fake_compute_effective_plan_target(context, desired_total)
     payload = {
@@ -411,10 +420,14 @@ def _load_pending_approval_snapshot(Session, *, client_id: int) -> dict[str, Any
         }
     tool_name, tool_args = loaded
     approval_request_id = (
-        tool_args.get("approval_id") if isinstance(tool_args.get("approval_id"), str) else None
+        tool_args.get("approval_id")
+        if isinstance(tool_args.get("approval_id"), str)
+        else None
     )
     approval_type = (
-        tool_args.get("approval_type") if isinstance(tool_args.get("approval_type"), str) else None
+        tool_args.get("approval_type")
+        if isinstance(tool_args.get("approval_type"), str)
+        else None
     )
     return {
         "has_pending_approval": True,
@@ -456,8 +469,10 @@ def _extract_exact_storage_field(payload: Any, field_name: str) -> Any:
 
 def _load_target_plan_snapshot(Session, *, client_id: int) -> dict[str, Any]:
     with Session() as db:
-        target_plan_data_payload = scenario_storage_mod.load_latest_target_pension_plan_data(
-            db=db, client_id=client_id
+        target_plan_data_payload = (
+            scenario_storage_mod.load_latest_target_pension_plan_data(
+                db=db, client_id=client_id
+            )
         )
         target_plan_payload = scenario_storage_mod.load_latest_target_pension_plan(
             db=db, client_id=client_id
@@ -466,9 +481,7 @@ def _load_target_plan_snapshot(Session, *, client_id: int) -> dict[str, Any]:
     payload = (
         target_plan_data_payload
         if isinstance(target_plan_data_payload, dict)
-        else target_plan_payload
-        if isinstance(target_plan_payload, dict)
-        else None
+        else target_plan_payload if isinstance(target_plan_payload, dict) else None
     )
 
     if not isinstance(payload, dict):
@@ -583,20 +596,30 @@ def _build_artifact(*, scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _instrument_runtime(monkeypatch, recorder: list[dict[str, Any]], context: dict[str, Any]) -> None:
+def _instrument_runtime(
+    monkeypatch, recorder: list[dict[str, Any]], context: dict[str, Any]
+) -> None:
     original_local_no_tool = runner_step_handlers._build_local_no_tool_reply
     original_target_reply = stream_prompt_mod._build_target_plan_reply_text
     original_prompt_ui_action = stream_prompt_mod.build_approval_request_ui_action
     original_approval_ui_action = stream_approval_mod.build_approval_request_ui_action
     original_prompt_store_pending = stream_prompt_mod.store_pending_approval_request
-    original_stream_store_pending = getattr(stream_orch, "store_pending_approval_request")
+    original_stream_store_pending = getattr(
+        stream_orch, "store_pending_approval_request"
+    )
     original_cancel_load_pending = approval_cancel_mod.load_pending_approval_request
     original_prompt_store_plan = stream_prompt_mod.store_latest_target_pension_plan
-    original_prompt_store_plan_data = stream_prompt_mod.store_latest_target_pension_plan_data
+    original_prompt_store_plan_data = (
+        stream_prompt_mod.store_latest_target_pension_plan_data
+    )
     original_prompt_load_plan = stream_prompt_mod.load_latest_target_pension_plan
-    original_prompt_load_plan_data = stream_prompt_mod.load_latest_target_pension_plan_data
+    original_prompt_load_plan_data = (
+        stream_prompt_mod.load_latest_target_pension_plan_data
+    )
     original_approval_load_plan = stream_approval_mod.load_latest_target_pension_plan
-    original_approval_load_plan_data = stream_approval_mod.load_latest_target_pension_plan_data
+    original_approval_load_plan_data = (
+        stream_approval_mod.load_latest_target_pension_plan_data
+    )
 
     def _record(kind: str, **payload: Any) -> None:
         recorder.append(
@@ -793,8 +816,7 @@ def _replay_case(
         turn_events = [
             event
             for event in recorder
-            if event.get("case_id") == case["id"]
-            and event.get("turn_idx") == turn_idx
+            if event.get("case_id") == case["id"] and event.get("turn_idx") == turn_idx
         ]
         turn_trace_events = list(capture.events[trace_event_start:])
         legacy_fallback_detected = any(
@@ -856,10 +878,14 @@ def _run_proven_replay_scenario(
 
     def _execute_must_not_run(**kwargs):
         tool_name = str(kwargs.get("tool_name") or "")
-        raise AssertionError(f"Execution tool must not run in guarded replay scenario: {tool_name}")
+        raise AssertionError(
+            f"Execution tool must not run in guarded replay scenario: {tool_name}"
+        )
 
     monkeypatch.setattr(stream_orch.pension_llm_service, "chat", _llm_must_not_run)
-    monkeypatch.setattr(stream_orch.pension_llm_service, "chat_stream", _llm_must_not_run)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service, "chat_stream", _llm_must_not_run
+    )
     monkeypatch.setattr(exec_mod.pension_llm_service, "chat", _llm_must_not_run)
     monkeypatch.setattr(stream_orch, "execute_tool_call", _execute_must_not_run)
 
@@ -912,7 +938,11 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
                 {
                     "summary": "קיים מוצר פנסיוני אחד",
                     "products": [
-                        {"category": "pension", "fund_name": "פנסיה א", "balance": 123456}
+                        {
+                            "category": "pension",
+                            "fund_name": "פנסיה א",
+                            "balance": 123456,
+                        }
                     ],
                 },
                 ensure_ascii=False,
@@ -943,7 +973,9 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
         context["case_id"] = case["id"]
         context["turn_idx"] = None
         fake_llm_service = _FakeLLMService(case, recorder, context)
-        monkeypatch.setattr(stream_orch.pension_llm_service, "chat", fake_llm_service.chat)
+        monkeypatch.setattr(
+            stream_orch.pension_llm_service, "chat", fake_llm_service.chat
+        )
         monkeypatch.setattr(
             stream_orch.pension_llm_service,
             "chat_stream",
@@ -970,7 +1002,8 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
     planning_baseline = next(
         scenario
         for scenario in scenarios
-        if scenario.get("scenario_id") == "BEHAVIOR_03_TARGET_PLAN_NO_TERMINATION_FORCED"
+        if scenario.get("scenario_id")
+        == "BEHAVIOR_03_TARGET_PLAN_NO_TERMINATION_FORCED"
     )
     planning_turn = planning_baseline["turns"][1]
     assert planning_turn["pending_approval_snapshot"]["has_pending_approval"] is False
@@ -1006,13 +1039,18 @@ def test_live_stream_replay_veto_blocks_proven_pending_approval_replay(
     second_turn = scenario["turns"][1]
     assert second_turn["execution_detected"] is False
     assert second_turn["pending_approval_snapshot"]["has_pending_approval"] is True
-    assert second_turn["pending_approval_snapshot"]["tool_name"] == "TRANSFORM_FUNDS_TO_ASSETS"
-    assert "planning_execution_gate_blocked_approval_replay" in second_turn[
-        "trace_event_types"
-    ], second_turn
-    assert "planning_execution_gate_blocked_execution_consume" not in second_turn[
-        "trace_event_types"
-    ], second_turn
+    assert (
+        second_turn["pending_approval_snapshot"]["tool_name"]
+        == "TRANSFORM_FUNDS_TO_ASSETS"
+    )
+    assert (
+        "planning_execution_gate_blocked_approval_replay"
+        in second_turn["trace_event_types"]
+    ), second_turn
+    assert (
+        "planning_execution_gate_blocked_execution_consume"
+        not in second_turn["trace_event_types"]
+    ), second_turn
 
 
 def test_live_stream_replay_planning_followup_blocks_proven_pending_approval_replay(
@@ -1040,10 +1078,15 @@ def test_live_stream_replay_planning_followup_blocks_proven_pending_approval_rep
     second_turn = scenario["turns"][1]
     assert second_turn["execution_detected"] is False
     assert second_turn["pending_approval_snapshot"]["has_pending_approval"] is True
-    assert second_turn["pending_approval_snapshot"]["tool_name"] == "TRANSFORM_FUNDS_TO_ASSETS"
-    assert "planning_execution_gate_blocked_approval_replay" in second_turn[
-        "trace_event_types"
-    ], second_turn
-    assert "planning_execution_gate_blocked_execution_consume" not in second_turn[
-        "trace_event_types"
-    ], second_turn
+    assert (
+        second_turn["pending_approval_snapshot"]["tool_name"]
+        == "TRANSFORM_FUNDS_TO_ASSETS"
+    )
+    assert (
+        "planning_execution_gate_blocked_approval_replay"
+        in second_turn["trace_event_types"]
+    ), second_turn
+    assert (
+        "planning_execution_gate_blocked_execution_consume"
+        not in second_turn["trace_event_types"]
+    ), second_turn
