@@ -14,16 +14,16 @@ from app.schemas.llm_chat import ChatMessage, ChatRequest
 from app.services.llm_chat.chat_stream_orchestration_parts.stream_approval_generators import (
     generate_forced_approval,
 )
-from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
-    decide_stream_planning_execution_policy,
-    is_process_termination_request,
-)
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,
     ACTION_COMPARE_EXISTING_PLANS,
     ACTION_GREETING_AND_MENU,
     ACTION_PLAN_RETIREMENT,
     select_canonical_action,
+)
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    decide_stream_planning_execution_policy,
+    is_process_termination_request,
 )
 
 
@@ -379,7 +379,9 @@ def test_termination_parser_planning_blocked_no_approval_or_pending(
     )
     assert pending is None
 
-    payload = capture.find_first_payload("termination_parser_planning_blocked", trace_id)
+    payload = capture.find_first_payload(
+        "termination_parser_planning_blocked", trace_id
+    )
     assert payload["planning_only"] is True
     assert payload["requested_execution"] is False
     assert payload["mapping_is_unambiguous"] is True

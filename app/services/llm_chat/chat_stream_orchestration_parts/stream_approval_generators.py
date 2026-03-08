@@ -130,9 +130,7 @@ def _emit_termination_parser_trace(
                 "requested_execution": bool(requested_execution),
                 "mapping_is_unambiguous": bool(mapping_is_unambiguous),
                 "tool_name": tool_name,
-                "has_exempt_choice": isinstance(
-                    payload_args.get("exempt_choice"), str
-                ),
+                "has_exempt_choice": isinstance(payload_args.get("exempt_choice"), str),
                 "has_taxable_choice": isinstance(
                     payload_args.get("taxable_choice"), str
                 ),
@@ -177,8 +175,7 @@ def _termination_mapping_is_unambiguous(
         )
     )
     has_no_exemption = any(
-        token in lowered
-        for token in ("ללא פטור", "בלי שימוש בפטור", "ללא שימוש בפטור")
+        token in lowered for token in ("ללא פטור", "בלי שימוש בפטור", "ללא שימוש בפטור")
     )
     if has_all_scope and has_withdrawal:
         if not exempt_choice or not taxable_choice:
@@ -912,8 +909,7 @@ def generate_approval_exec(
     current_turn_text = _current_turn_text_from_request(request)
     execution_gate = decide_stream_planning_execution_policy(current_turn_text)
     if approved_tool_name == "PROCESS_TERMINATION" and (
-        execution_gate.planning_only
-        or execution_gate.explicit_execution_veto
+        execution_gate.planning_only or execution_gate.explicit_execution_veto
     ):
         _emit_termination_parser_trace(
             stream_request_id=stream_request_id,

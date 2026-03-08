@@ -80,9 +80,7 @@ def handle_process_termination(
     taxable_choice_before_defaults = args.get("taxable_choice")
     if requested_execution is not True:
         if requested_execution is False:
-            return (
-                "Error: requested_execution=true נדרש לפני ביצוע עזיבת עבודה במערכת."
-            )
+            return "Error: requested_execution=true נדרש לפני ביצוע עזיבת עבודה במערכת."
         if (
             exempt_choice_before_defaults is None
             and taxable_choice_before_defaults is None
@@ -90,9 +88,7 @@ def handle_process_termination(
             exempt_choice_before_defaults == "redeem_with_exemption"
             and taxable_choice_before_defaults == "annuity"
         ):
-            return (
-                "Error: requested_execution=true נדרש לפני ביצוע עזיבת עבודה במערכת."
-            )
+            return "Error: requested_execution=true נדרש לפני ביצוע עזיבת עבודה במערכת."
 
     if args.get("exempt_choice") is None:
         args["exempt_choice"] = "redeem_with_exemption"
