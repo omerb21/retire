@@ -146,10 +146,10 @@ def _maybe_handle_approval_or_cancel_flow(
             except Exception:
                 pass
 
-        if pending_db is not None and (
-            execution_gate.planning_only
-            or execution_gate.explicit_execution_veto
-            or (not execution_gate.explicit_execution_intent)
+        if (
+            pending_db is not None
+            and (execution_gate.planning_only or execution_gate.explicit_execution_veto)
+            and cancelled is None
         ):
             pending_tool_name = pending_db[0] if isinstance(pending_db, tuple) else None
             _emit_planning_execution_gate_trace(

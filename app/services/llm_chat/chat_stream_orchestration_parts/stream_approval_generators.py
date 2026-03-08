@@ -29,6 +29,9 @@ from app.services.llm_chat.orchestration_utils_parts.blocked_balances_policy imp
     clear_pending_build_target_plan_after_termination,
     load_pending_build_target_plan_after_termination,
 )
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    decide_stream_planning_execution_policy,
+)
 from app.services.llm_chat.pending_approvals import (
     load_pending_approval_ui_action_if_match,
     store_pending_approval_ui_action,
@@ -46,6 +49,60 @@ from .stream_top_level_helpers import (
 _PENDING_PRE_RETIREMENT_PLAN_RESOLUTION_SCENARIO = (
     "pending_pre_retirement_plan_resolution"
 )
+
+
+def _current_turn_text_from_request(request) -> str:
+    try:
+        for message in reversed(request.messages or []):
+            role = getattr(message, "role", None)
+            if role is None and isinstance(message, dict):
+                role = message.get("role")
+            if role != "user":
+                continue
+            content = getattr(message, "content", None)
+            if content is None and isinstance(message, dict):
+                content = message.get("content")
+            return str(content or "")
+    except Exception:
+        pass
+    return str(getattr(request, "user_message", None) or "")
+
+
+def _emit_planning_execution_gate_trace(
+    *,
+    stream_request_id: str,
+    event_type: str,
+    decision,
+    tool_name: str | None,
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=stream_request_id,
+            event_type=event_type,
+            payload={
+                "planning_only": bool(decision.planning_only),
+                "explicit_execution_intent": bool(decision.explicit_execution_intent),
+                "explicit_execution_veto": bool(decision.explicit_execution_veto),
+                "reason_code": str(decision.reason_code or ""),
+                "tool_name": tool_name,
+            },
+        )
+    except Exception:
+        pass
+
+
+def _planning_only_gate_reply(decision) -> str:
+    if bool(decision.explicit_execution_veto):
+        return sanitize_user_visible_text(
+            "לא אבצע עזיבת עבודה ולא אבקש אישור לביצוע. נשארים במצב תכנון בלבד. "
+            "כדי לעבור לביצוע בפועל כתוב במפורש 'בצע עזיבת עבודה'."
+        )
+    return sanitize_user_visible_text(
+        "הפנייה הנוכחית נשארת במצב תכנון בלבד. לא אבצע עזיבת עבודה ולא אבקש אישור לביצוע. "
+        "כדי לעבור לביצוע בפועל כתוב במפורש 'בצע עזיבת עבודה'."
+    )
 
 
 def _has_positive_component_amounts(raw: object) -> bool:
@@ -171,9 +228,19 @@ def generate_forced_approval(
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
 
-    # If the user explicitly asked to execute termination and it wasn't done yet,
-    # we must request approval BEFORE running.
+    current_turn_text = _current_turn_text_from_request(request)
+    execution_gate = decide_stream_planning_execution_policy(current_turn_text)
+
     if explicit_termination and (not termination_already_executed):
+        if execution_gate.planning_only or execution_gate.explicit_execution_veto:
+            _emit_planning_execution_gate_trace(
+                stream_request_id=stream_request_id,
+                event_type="planning_execution_gate_blocked_approval_creation",
+                decision=execution_gate,
+                tool_name="PROCESS_TERMINATION",
+            )
+            yield _planning_only_gate_reply(execution_gate)
+            return
         if is_conceptual_no_execute_request(
             getattr(request, "user_message", None) or ""
         ):
@@ -725,6 +792,22 @@ def generate_approval_exec(
             ensure_ascii=False,
         )
         yield f"###COMPUTED_DATA###{computed_json}###END_COMPUTED_DATA###\n"
+
+    current_turn_text = _current_turn_text_from_request(request)
+    execution_gate = decide_stream_planning_execution_policy(current_turn_text)
+    if approved_tool_name == "PROCESS_TERMINATION" and (
+        execution_gate.planning_only
+        or execution_gate.explicit_execution_veto
+        or (not execution_gate.explicit_execution_intent)
+    ):
+        _emit_planning_execution_gate_trace(
+            stream_request_id=stream_request_id,
+            event_type="planning_execution_gate_blocked_execution_consume",
+            decision=execution_gate,
+            tool_name=str(approved_tool_name or ""),
+        )
+        yield _planning_only_gate_reply(execution_gate)
+        return
 
     tool_args = (
         dict(approved_tool_args or {}) if isinstance(approved_tool_args, dict) else {}

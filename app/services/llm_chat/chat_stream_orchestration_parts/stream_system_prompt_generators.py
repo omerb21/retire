@@ -27,6 +27,9 @@ from app.services.llm_chat.orchestration_utils_parts.existing_income_offset impo
     compute_effective_plan_target,
     compute_existing_income_offset_monthly,
 )
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    decide_stream_planning_execution_policy,
+)
 from app.services.llm_chat.portfolio_context import build_pension_portfolio_context
 from app.services.pension_portfolio.snapshot_loader import (
     load_latest_pension_portfolio_snapshot_models,
@@ -221,6 +224,43 @@ def _build_target_plan_reply_text(
     )
 
 
+def _emit_planning_execution_gate_trace(
+    *,
+    stream_request_id: str,
+    event_type: str,
+    decision,
+    tool_name: str | None,
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=stream_request_id,
+            event_type=event_type,
+            payload={
+                "planning_only": bool(decision.planning_only),
+                "explicit_execution_intent": bool(decision.explicit_execution_intent),
+                "explicit_execution_veto": bool(decision.explicit_execution_veto),
+                "reason_code": str(decision.reason_code or ""),
+                "tool_name": tool_name,
+            },
+        )
+    except Exception:
+        pass
+
+
+def _planning_only_gate_reply(decision) -> str:
+    if bool(decision.explicit_execution_veto):
+        return sanitize_user_visible_text(
+            "לא אבצע עזיבת עבודה ולא אבקש אישור לביצוע. נשארים במצב תכנון בלבד. "
+            "כדי לעבור לביצוע בפועל כתוב במפורש 'בצע עזיבת עבודה'."
+        )
+    return sanitize_user_visible_text(
+        "הפנייה הנוכחית נשארת במצב תכנון בלבד. לא אבצע עזיבת עבודה ולא אבקש אישור לביצוע. "
+        "כדי לעבור לביצוע בפועל כתוב במפורש 'בצע עזיבת עבודה'."
+    )
+
+
 def generate_adjust_reply(
     *,
     computed_data,
@@ -339,6 +379,16 @@ def generate_adjust_reply(
     if policy_status == "ask_current_employer_termination":
         return
     if policy_status == "needs_termination_approval":
+        execution_gate = decide_stream_planning_execution_policy(original_user_msg)
+        if execution_gate.planning_only or execution_gate.explicit_execution_veto:
+            _emit_planning_execution_gate_trace(
+                stream_request_id=stream_request_id,
+                event_type="planning_execution_gate_blocked_approval_creation",
+                decision=execution_gate,
+                tool_name="PROCESS_TERMINATION",
+            )
+            yield _planning_only_gate_reply(execution_gate)
+            return
         termination_args = {"confirmed": True}
         try:
             store_pending_approval_request(

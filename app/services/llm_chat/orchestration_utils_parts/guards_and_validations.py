@@ -5,11 +5,13 @@
 
 import json
 import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
 from dateutil.relativedelta import relativedelta
 
+from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 from app.services.retirement_age_service import get_retirement_date
 
 try:
@@ -29,6 +31,14 @@ from app.services.llm_chat.orchestration_utils_parts.tool_names import (
     get_tool_display_name_hebrew,
     normalize_tool_name,
 )
+
+
+@dataclass(frozen=True)
+class PlanningExecutionGateDecision:
+    planning_only: bool
+    explicit_execution_intent: bool
+    explicit_execution_veto: bool
+    reason_code: str
 
 
 def is_net_pension_request(user_message: str) -> bool:
@@ -271,6 +281,9 @@ def is_process_termination_request(user_message: str) -> bool:
     except Exception:
         pass
 
+    if is_no_termination_request(user_message):
+        return False
+
     action_tokens = [
         "בצע",
         "תבצע",
@@ -340,6 +353,114 @@ def is_no_termination_request(user_message: str) -> bool:
     )
     return any(t in lowered for t in negative_tokens) and any(
         t in lowered for t in domain_tokens
+    )
+
+
+def decide_stream_planning_execution_policy(
+    user_message: str | None,
+) -> PlanningExecutionGateDecision:
+    raw_text = str(user_message or "")
+    lowered = raw_text.strip().lower()
+
+    explicit_execution_veto = False
+    if lowered:
+        explicit_execution_veto = bool(
+            is_no_termination_request(raw_text)
+            or is_conceptual_no_execute_request(raw_text)
+            or any(
+                token in lowered
+                for token in (
+                    "לא לבצע עזיבת עבודה",
+                    "לא לגעת בפיצויים",
+                    "תכנון בלבד",
+                    "בלי לבצע",
+                    "רק סימולציה",
+                    "רק תכנון",
+                    "אל תבצע",
+                    "לא לאשר ביצוע",
+                )
+            )
+        )
+
+    explicit_execution_intent = False
+    if lowered:
+        explicit_execution_intent = bool(
+            is_process_termination_request(raw_text)
+            or raw_text.strip().startswith("###USER_APPROVED###")
+            or lowered in {"כן", "כן.", "מאשר", "מאשר.", "מאשרת", "מאשרת."}
+            or any(
+                token in lowered
+                for token in (
+                    "בצע את התכנית",
+                    "בצע את התוכנית",
+                    "בצע תכנית",
+                    "בצע תוכנית",
+                    "בצע עזיבת עבודה",
+                    "אשר ביצוע",
+                    "execute the plan",
+                )
+            )
+        )
+
+    if explicit_execution_veto:
+        explicit_execution_intent = False
+
+    planning_only = False
+    if lowered:
+        planning_only = bool(
+            is_no_termination_request(raw_text)
+            or is_retirement_comparison_request(raw_text)
+            or is_portfolio_analysis_request(raw_text)
+            or _is_target_pension_plan_request_text(raw_text)
+            or any(
+                token in lowered
+                for token in (
+                    "תכנית פרישה",
+                    "תוכנית פרישה",
+                    "השווה",
+                    "לעומת",
+                    "מה תמליץ",
+                    "מה אתה יכול להמליץ",
+                    "מה האפשרויות",
+                    "אפשרויות",
+                    "בדיקה",
+                    "לבדוק",
+                    "בדוק",
+                    "להבין מה יקרה",
+                    "מה יקרה",
+                    "advisory",
+                    "compare",
+                    "follow-up",
+                )
+            )
+        )
+
+    if explicit_execution_veto:
+        return PlanningExecutionGateDecision(
+            planning_only=planning_only,
+            explicit_execution_intent=explicit_execution_intent,
+            explicit_execution_veto=True,
+            reason_code="explicit_execution_veto",
+        )
+    if planning_only:
+        return PlanningExecutionGateDecision(
+            planning_only=True,
+            explicit_execution_intent=explicit_execution_intent,
+            explicit_execution_veto=False,
+            reason_code="planning_only_turn",
+        )
+    if explicit_execution_intent:
+        return PlanningExecutionGateDecision(
+            planning_only=False,
+            explicit_execution_intent=True,
+            explicit_execution_veto=False,
+            reason_code="explicit_execution_intent_turn",
+        )
+    return PlanningExecutionGateDecision(
+        planning_only=False,
+        explicit_execution_intent=False,
+        explicit_execution_veto=False,
+        reason_code="neutral_turn",
     )
 
 
