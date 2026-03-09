@@ -618,38 +618,80 @@ def is_termination_change_request(user_message: str) -> bool:
     )
 
 
+def extract_retirement_comparison_candidate_ages(user_message: str) -> list[int]:
+    if not user_message:
+        return []
+
+    lowered = (user_message or "").lower()
+    if not lowered.strip():
+        return []
+
+    patterns = (
+        r"גיל\s*(\d{2})",
+        r"age\s*(\d{2})",
+        r"לגיל\s*(\d{2})",
+        r"\b(\d{2})\b",
+    )
+    found: list[int] = []
+    for pattern in patterns:
+        try:
+            matches = re.findall(pattern, lowered)
+        except Exception:
+            matches = []
+        for raw in matches:
+            try:
+                age = int(raw)
+            except Exception:
+                continue
+            if 50 <= age <= 90 and age not in found:
+                found.append(age)
+    return found
+
+
 def is_retirement_comparison_request(user_message: str) -> bool:
     if not user_message:
         return False
 
     lowered = user_message.lower()
 
-    comparison_triggers = [
-        "השווא",
-        "לעומת",
-        "מול",
-        "בין",
-        "vs",
-        "versus",
-    ]
+    candidate_ages = extract_retirement_comparison_candidate_ages(user_message)
+    has_two_age_candidates = len(candidate_ages) >= 2
 
-    has_comparison = any(t in lowered for t in comparison_triggers)
-    if not has_comparison:
-        return False
-
-    lowered = user_message.lower()
-    retirement_tokens = (
-        "פרישה",
-        "גיל פרישה",
-        "תאריך פרישה",
-        "קצבה",
-        "פנסיה",
-        "תזרים",
-        "cashflow",
-        "נטו",
-        "ברוטו",
+    plan_anchor_count = lowered.count("תכנית") + lowered.count("תוכנית")
+    has_two_plan_anchors = plan_anchor_count >= 2 or any(
+        phrase in lowered
+        for phrase in (
+            "שתי תכניות",
+            "שתי תוכניות",
+            "שני תכניות",
+            "שני תוכניות",
+        )
     )
-    return any(t in lowered for t in retirement_tokens)
+
+    target_anchor_count = lowered.count("יעד")
+    has_two_target_anchors = target_anchor_count >= 2 or any(
+        phrase in lowered
+        for phrase in (
+            "שני יעדים",
+            "שתי יעדים",
+            "two targets",
+        )
+    )
+
+    has_structural_compare_anchor = (
+        has_two_age_candidates or has_two_plan_anchors or has_two_target_anchors
+    )
+
+    has_explicit_compare = any(
+        t in lowered for t in ("השווה", "השווא", "compare", "vs", "versus")
+    )
+    has_relational_compare = any(t in lowered for t in ("לעומת", "מול")) and (
+        has_structural_compare_anchor
+    )
+    has_between_compare = "בין" in lowered and has_structural_compare_anchor
+    if not (has_explicit_compare or has_relational_compare or has_between_compare):
+        return False
+    return True
 
 
 def is_max_exemption_request(user_message: str) -> bool:
