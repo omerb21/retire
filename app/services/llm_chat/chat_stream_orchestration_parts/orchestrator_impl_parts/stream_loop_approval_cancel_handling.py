@@ -108,7 +108,10 @@ def _maybe_handle_approval_or_cancel_flow(
                     scope="termination_execution",
                     trace_id=stream_request_id,
                 )
-            elif is_explicit_execution_veto_turn(last_user_text):
+            elif (
+                execution_gate.explicit_execution_veto
+                or is_explicit_execution_veto_turn(last_user_text)
+            ):
                 store_execution_veto(
                     db=db,
                     client_id=int(request.client_id),

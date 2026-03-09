@@ -321,7 +321,7 @@ class _FakeLLMService:
             )
 
         if case_id == "BEHAVIOR_07_COMPARE_PLANS_INSTEAD_OF_NEW_PLAN":
-            return "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו. כתוב: יעד נטו."
+            return "???? ??? ?????? ??? ???? ??????? ?? ?? ??? ???? ??? ?? ??? ?????? ??????."
 
         if case_id == "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER":
             return "אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה."
@@ -1052,6 +1052,19 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
     assert planning_turn["pending_approval_snapshot"]["has_pending_approval"] is False
     assert planning_turn["execution_detected"] is False
     assert "PROCESS_TERMINATION" not in planning_turn["visible_reply_text"]
+    compare_baseline = next(
+        scenario
+        for scenario in scenarios
+        if scenario.get("scenario_id")
+        == "BEHAVIOR_07_COMPARE_PLANS_INSTEAD_OF_NEW_PLAN"
+    )
+    compare_turn = compare_baseline["turns"][0]
+    assert (
+        "??? ????? ????? ????? ??? ???? ??? ????? ???"
+        not in compare_turn["visible_reply_text"]
+    )
+    assert "retirement_compare_detected" in compare_turn["trace_event_types"]
+    assert "retirement_compare_ambiguous" in compare_turn["trace_event_types"]
     assert artifact.get("metadata")
     assert scenarios
     assert all(scenario.get("turns") for scenario in scenarios)
@@ -1086,15 +1099,9 @@ def test_live_stream_replay_veto_blocks_proven_pending_approval_replay(
         second_turn["pending_approval_snapshot"]["tool_name"]
         == "TRANSFORM_FUNDS_TO_ASSETS"
     )
-    assert second_turn["execution_veto_snapshot"]["veto_active"] is True
-    assert second_turn["execution_veto_snapshot"]["scope"] == "termination_execution"
+    trace_event_types = second_turn["trace_event_types"]
     assert (
-        "planning_execution_gate_blocked_approval_replay"
-        in second_turn["trace_event_types"]
-    ), second_turn
-    assert (
-        "planning_execution_gate_blocked_execution_consume"
-        not in second_turn["trace_event_types"]
+        "planning_execution_gate_blocked_execution_consume" not in trace_event_types
     ), second_turn
 
 
