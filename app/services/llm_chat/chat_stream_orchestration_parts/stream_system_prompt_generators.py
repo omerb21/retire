@@ -3,11 +3,6 @@ from datetime import date
 
 from app.models.client import Client
 from app.models.scenario import Scenario
-from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
-    load_execution_veto,
-    load_normalized_target_plan_context,
-    store_normalized_target_plan_context,
-)
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     load_latest_target_pension_plan,
@@ -15,6 +10,11 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     store_latest_target_pension_plan,
     store_latest_target_pension_plan_data,
     store_pending_approval_request,
+)
+from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+    load_execution_veto,
+    load_normalized_target_plan_context,
+    store_normalized_target_plan_context,
 )
 from app.services.llm_chat.message_utils import (
     extract_latest_target_pension_plan_payload,
@@ -281,7 +281,9 @@ def _build_normalized_context_from_payload(payload: object) -> dict | None:
     if effective_target is None:
         effective_target = args.get("target_monthly_pension")
     offset_used = offsets.get(
-        "other_income_offset_net" if target_mode == "net" else "other_income_offset_gross"
+        "other_income_offset_net"
+        if target_mode == "net"
+        else "other_income_offset_gross"
     )
     if offset_used is None:
         offset_used = 0
@@ -303,7 +305,9 @@ def _build_normalized_context_from_payload(payload: object) -> dict | None:
     }
     if result.get("accumulated_pension") is not None:
         try:
-            normalized["accumulated_pension"] = float(result.get("accumulated_pension") or 0)
+            normalized["accumulated_pension"] = float(
+                result.get("accumulated_pension") or 0
+            )
         except Exception:
             pass
     return normalized
@@ -341,7 +345,9 @@ def _store_normalized_target_plan_from_breakdown(
         pass
 
 
-def _load_payload_without_message_fallback(*, db, client_id: int | None) -> tuple[dict | None, str | None]:
+def _load_payload_without_message_fallback(
+    *, db, client_id: int | None
+) -> tuple[dict | None, str | None]:
     if client_id is None:
         return None, None
     try:
@@ -359,8 +365,20 @@ def _load_payload_without_message_fallback(*, db, client_id: int | None) -> tupl
     return None, None
 
 
+def _load_transient_target_plan_payload_from_messages(
+    *, messages: object
+) -> tuple[dict | None, str | None]:
+    try:
+        payload = extract_latest_target_pension_plan_payload(messages or [])
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        return payload, "transient_message_payload"
+    return None, None
+
+
 def _load_target_plan_payload_from_state(
-    *, db, client_id: int | None, stream_request_id: str
+    *, db, client_id: int | None, stream_request_id: str, messages: object = None
 ) -> tuple[dict | None, dict | None]:
     normalized_context = None
     if client_id is not None:
@@ -373,6 +391,12 @@ def _load_target_plan_payload_from_state(
         except Exception:
             normalized_context = None
     payload, source = _load_payload_without_message_fallback(db=db, client_id=client_id)
+    transient_payload, transient_source = (
+        _load_transient_target_plan_payload_from_messages(messages=messages)
+    )
+    if not isinstance(payload, dict):
+        payload = transient_payload
+        source = transient_source
     if normalized_context is not None:
         return normalized_context, payload
     if not isinstance(payload, dict) or source is None:
@@ -401,7 +425,9 @@ def _load_target_plan_payload_from_state(
     return fallback_context, payload
 
 
-def _termination_execution_veto_is_active(*, db, client_id: int | None, trace_id: str) -> bool:
+def _termination_execution_veto_is_active(
+    *, db, client_id: int | None, trace_id: str
+) -> bool:
     if client_id is None:
         return False
     try:
@@ -413,6 +439,7 @@ def _termination_execution_veto_is_active(*, db, client_id: int | None, trace_id
         and veto.get("veto_active") is True
         and str(veto.get("scope") or "") == "termination_execution"
     )
+
 
 def _emit_planning_execution_gate_trace(
     *,
@@ -574,7 +601,8 @@ def generate_adjust_reply(
         requested_target=float(target_val),
         retirement_age=(
             int(plan_args.get("retirement_age"))
-            if isinstance(plan_args, dict) and plan_args.get("retirement_age") is not None
+            if isinstance(plan_args, dict)
+            and plan_args.get("retirement_age") is not None
             else None
         ),
         stream_request_id=stream_request_id,
@@ -912,14 +940,12 @@ def generate_cashflow(
         db=db,
         client_id=request.client_id,
         stream_request_id=stream_request_id,
+        messages=request.messages,
     )
 
-    if normalized_context is None and not isinstance(plan_payload, dict):
+    if not isinstance(plan_payload, dict):
         yield "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
         return
-
-    if not isinstance(plan_payload, dict):
-        plan_payload = {}
 
     try:
         from app.services.agent_execution.tool_executor import execute_tool_call
@@ -952,7 +978,11 @@ def generate_cashflow(
     gap_to_target = plan_res.get("gap_to_target")
 
     if isinstance(normalized_context, dict):
-        mode_label = "נטו" if str(normalized_context.get("target_mode") or "") == "net" else "ברוטו"
+        mode_label = (
+            "נטו"
+            if str(normalized_context.get("target_mode") or "") == "net"
+            else "ברוטו"
+        )
         try:
             yield f"- יעד מבוקש ({mode_label}): {float(normalized_context.get('requested_target') or 0):,.0f} ₪/חודש\n"
         except Exception:
@@ -1006,4 +1036,3 @@ def generate_cashflow(
             return
 
     yield "\nסטטוס: לא נמצאה אינדיקציה ברורה בתוצאת התכנית האם היעד הושג או מהו הפער.\n"
-

@@ -6,11 +6,6 @@ from app.guards.tool_intent_guard import is_conceptual_no_execute_request
 from app.models.capital_asset import CapitalAsset
 from app.models.pension_fund import PensionFund
 from app.models.scenario import Scenario
-from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
-    load_execution_veto,
-    load_normalized_target_plan_context,
-    store_normalized_target_plan_context,
-)
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
     build_forced_document_reply,
@@ -20,6 +15,11 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     load_latest_target_pension_plan,
     load_latest_target_pension_plan_data,
     store_pending_plan_target_marker,
+)
+from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+    load_execution_veto,
+    load_normalized_target_plan_context,
+    store_normalized_target_plan_context,
 )
 from app.services.llm_chat.message_utils import (
     extract_latest_target_pension_plan_payload,
@@ -345,7 +345,9 @@ def _build_normalized_context_from_payload(payload: object) -> dict | None:
     if effective_target is None:
         effective_target = args.get("target_monthly_pension")
     offset_used = offsets.get(
-        "other_income_offset_net" if target_mode == "net" else "other_income_offset_gross"
+        "other_income_offset_net"
+        if target_mode == "net"
+        else "other_income_offset_gross"
     )
     if offset_used is None:
         offset_used = 0
@@ -367,13 +369,17 @@ def _build_normalized_context_from_payload(payload: object) -> dict | None:
     }
     if result.get("accumulated_pension") is not None:
         try:
-            normalized["accumulated_pension"] = float(result.get("accumulated_pension") or 0)
+            normalized["accumulated_pension"] = float(
+                result.get("accumulated_pension") or 0
+            )
         except Exception:
             pass
     return normalized
 
 
-def _load_payload_without_message_fallback(*, db, client_id: int | None) -> tuple[dict | None, str | None]:
+def _load_payload_without_message_fallback(
+    *, db, client_id: int | None
+) -> tuple[dict | None, str | None]:
     if client_id is None:
         return None, None
     try:
@@ -391,8 +397,24 @@ def _load_payload_without_message_fallback(*, db, client_id: int | None) -> tupl
     return None, None
 
 
+def _load_transient_target_plan_payload_from_messages(
+    *, messages: object
+) -> tuple[dict | None, str | None]:
+    try:
+        payload = extract_latest_target_pension_plan_payload(messages or [])
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        return payload, "transient_message_payload"
+    return None, None
+
+
 def _load_target_plan_payload_for_execution(
-    *, db, client_id: int | None, stream_request_id: str
+    *,
+    db,
+    client_id: int | None,
+    stream_request_id: str,
+    messages: object = None,
 ) -> tuple[dict | None, dict | None]:
     normalized_context = None
     if client_id is not None:
@@ -405,6 +427,12 @@ def _load_target_plan_payload_for_execution(
         except Exception:
             normalized_context = None
     payload, source = _load_payload_without_message_fallback(db=db, client_id=client_id)
+    transient_payload, transient_source = (
+        _load_transient_target_plan_payload_from_messages(messages=messages)
+    )
+    if not isinstance(payload, dict):
+        payload = transient_payload
+        source = transient_source
     if normalized_context is not None:
         return normalized_context, payload
     if not isinstance(payload, dict) or source is None:
@@ -433,7 +461,9 @@ def _load_target_plan_payload_for_execution(
     return fallback_context, payload
 
 
-def _termination_execution_veto_is_active(*, db, client_id: int | None, trace_id: str) -> bool:
+def _termination_execution_veto_is_active(
+    *, db, client_id: int | None, trace_id: str
+) -> bool:
     if client_id is None:
         return False
     try:
@@ -443,7 +473,7 @@ def _termination_execution_veto_is_active(*, db, client_id: int | None, trace_id
     return (
         isinstance(veto, dict)
         and veto.get("veto_active") is True
-        and str(veto.get("scope") or "") == "termination_execution"
+        and str(veto.get("scope") or "").strip() == "termination_execution"
     )
 
 
@@ -640,6 +670,7 @@ def generate_forced_approval(
             db=db,
             client_id=request.client_id,
             stream_request_id=stream_request_id,
+            messages=request.messages,
         )
 
         def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
@@ -657,7 +688,9 @@ def generate_forced_approval(
             accounts = raw if isinstance(raw, list) else []
             return exec_plan, accounts
 
-        execution_plan, accounts_for_execution = _extract_execution_plan_accounts(payload)
+        execution_plan, accounts_for_execution = _extract_execution_plan_accounts(
+            payload
+        )
         if not isinstance(payload, dict):
             try:
                 store_pending_plan_target_marker(
@@ -811,6 +844,7 @@ def generate_execute_target_after_termination(
         db=db,
         client_id=request.client_id,
         stream_request_id=stream_request_id,
+        messages=request.messages,
     )
 
     def _extract_execution_plan_accounts(p: object) -> tuple[dict | None, list]:
@@ -1181,4 +1215,3 @@ def generate_approval_exec(
                 + out
             )
     yield out
-
