@@ -5,6 +5,9 @@ from fastapi.responses import StreamingResponse
 from app.guards.advice_domain import AdviceDomain
 from app.guards.advice_domain_resolver import resolve_advice_domain
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    is_general_advisory_request,
+)
 from app.services.llm_chat.orchestration_utils import (
     is_cashflow_missing_income_followup,
     is_net_pension_request,
@@ -256,6 +259,8 @@ def _maybe_handle_advice_mode(
     advice_compensation_mode = advice_mode and (
         advice_domain == AdviceDomain.COMPENSATION
     )
+    if advice_compensation_mode and is_general_advisory_request(original_user_msg):
+        return None, ChatIntent.NO_TOOLS, False, AdviceDomain.UNKNOWN, False
     if advice_compensation_mode:
         resolved_intent = ChatIntent.ANALYSIS
 

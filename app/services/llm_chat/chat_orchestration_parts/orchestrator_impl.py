@@ -209,6 +209,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
         max_steps = orch_res.max_steps
         computed_data = prepared.computed_data
         is_portfolio_analysis = prepared.is_portfolio_analysis
+        is_comparison_request = prepared.is_comparison_request
 
         log_llm_event(
             request_id=request_id,
@@ -222,6 +223,7 @@ def run_pension_chat(request: ChatRequest, db: Session) -> ChatResponse:
                 final_reply=final_reply,
                 forced_user_prefix=forced_user_prefix,
                 is_portfolio_analysis=is_portfolio_analysis,
+                is_comparison_request=is_comparison_request,
                 qa_summary_required=qa_summary_required,
                 report_open_path=report_open_path,
                 current_step=current_step,

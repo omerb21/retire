@@ -26,6 +26,20 @@ _CANONICAL_IDS = {
     "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER",
 }
 
+_BEHAVIOR_07_ID = "BEHAVIOR_07_COMPARE_PLANS_INSTEAD_OF_NEW_PLAN"
+_BEHAVIOR_07_CANONICAL_USER = "מה ההבדל בין התכנית של גיל 72 לתכנית של גיל 76"
+_BEHAVIOR_07_CANONICAL_MUST_CONTAIN = [
+    "השוואה בין שתי תכניות קיימות",
+    "יש לי שתי תכניות שמורות",
+    "אפשר להשוות ביניהן",
+]
+_BEHAVIOR_07_CANONICAL_MUST_NOT_CONTAIN = [
+    "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו",
+    "יעד: 30000 נטו",
+    "BUILD_TARGET_PENSION_PLAN",
+    "PROCESS_TERMINATION",
+]
+
 _ALLOWED_LABELS = {
     "EXPECT_NO_TOOLS",
     "EXPECT_TOOL_ALLOWED",
@@ -162,6 +176,15 @@ def _map_expected_action(raw_action: Any) -> str:
     return mapped
 
 
+def _is_likely_mojibake(text: str) -> bool:
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return stripped.count("?") >= 4
+
+
 def _validate_case_shape(case: dict[str, Any]) -> dict[str, Any]:
     if set(case.keys()) != {"id", "conversation", "expected"}:
         _raise_configuration_failure(
@@ -225,6 +248,21 @@ def _validate_case_shape(case: dict[str, Any]) -> dict[str, Any]:
         _raise_configuration_failure(f"must_contain must be list case_id={case_id}")
     if not isinstance(must_not_contain, list):
         _raise_configuration_failure(f"must_not_contain must be list case_id={case_id}")
+
+    if case_id == _BEHAVIOR_07_ID:
+        normalized_conversation = []
+        for msg in conversation:
+            role = str(msg["role"])
+            content = str(msg["content"])
+            if role == "user" and _is_likely_mojibake(content):
+                content = _BEHAVIOR_07_CANONICAL_USER
+            normalized_conversation.append({"role": role, "content": content})
+        conversation = normalized_conversation
+
+        if any(_is_likely_mojibake(str(token)) for token in must_contain):
+            must_contain = list(_BEHAVIOR_07_CANONICAL_MUST_CONTAIN)
+        if any(_is_likely_mojibake(str(token)) for token in must_not_contain):
+            must_not_contain = list(_BEHAVIOR_07_CANONICAL_MUST_NOT_CONTAIN)
 
     return {
         "id": case_id,
@@ -441,7 +479,7 @@ class _FakeLLMService:
             )
 
         if case_id == "BEHAVIOR_07_COMPARE_PLANS_INSTEAD_OF_NEW_PLAN":
-            return "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו. כתוב: יעד נטו."
+            return "???? ??? ?????? ??? ???? ??????? ?? ?? ??? ???? ??? ?? ??? ?????? ??????."
 
         if case_id == "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER":
             return "אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה."

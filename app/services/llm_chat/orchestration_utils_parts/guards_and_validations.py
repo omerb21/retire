@@ -477,10 +477,11 @@ def decide_stream_planning_execution_policy(
 
     explicit_execution_veto = False
     if lowered:
+        advisory_turn = is_general_advisory_request(raw_text)
         explicit_execution_veto = bool(
             is_explicit_execution_veto_turn(raw_text)
             or is_no_termination_request(raw_text)
-            or is_conceptual_no_execute_request(raw_text)
+            or (is_conceptual_no_execute_request(raw_text) and (not advisory_turn))
             or any(
                 token in lowered
                 for token in (
@@ -521,11 +522,17 @@ def decide_stream_planning_execution_policy(
 
     planning_only = False
     if lowered:
+        termination_options_planning_turn = (
+            ("עזיבת עבודה" in lowered)
+            and ("להבין" in lowered)
+            and ("אפשרויות" in lowered)
+        )
         planning_only = bool(
             is_no_termination_request(raw_text)
             or is_retirement_comparison_request(raw_text)
             or is_portfolio_analysis_request(raw_text)
             or _is_target_pension_plan_request_text(raw_text)
+            or termination_options_planning_turn
             or any(
                 token in lowered
                 for token in (
@@ -533,10 +540,6 @@ def decide_stream_planning_execution_policy(
                     "תוכנית פרישה",
                     "השווה",
                     "לעומת",
-                    "מה תמליץ",
-                    "מה אתה יכול להמליץ",
-                    "מה האפשרויות",
-                    "אפשרויות",
                     "בדיקה",
                     "לבדוק",
                     "בדוק",
@@ -691,6 +694,48 @@ def is_retirement_comparison_request(user_message: str) -> bool:
     has_between_compare = "בין" in lowered and has_structural_compare_anchor
     if not (has_explicit_compare or has_relational_compare or has_between_compare):
         return False
+    return True
+
+
+def is_general_advisory_request(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+
+    lowered = str(user_message).strip().lower()
+    if not lowered:
+        return False
+
+    if lowered in {"שלום", "היי", "הי", "hello", "hi"}:
+        return False
+
+    advisory_triggers = (
+        "מה אתה יכול להמליץ לי",
+        "מה תמליץ לי",
+        "מה האפשרויות שיש לי",
+        "מה האפשרויות שלי",
+        "מה יתן לי קיבוע זכויות",
+        "מה ייתן לי קיבוע זכויות",
+        "מה כדאי לעשות",
+        "what do you recommend",
+        "what are my options",
+    )
+    if not any(token in lowered for token in advisory_triggers):
+        return False
+
+    if is_retirement_comparison_request(lowered):
+        return False
+    if has_explicit_execution_intent_for_termination(lowered):
+        return False
+    if is_process_termination_request(lowered):
+        return False
+    if _is_target_pension_plan_request_text(lowered):
+        return False
+    if is_portfolio_breakdown_request(lowered):
+        return False
+
+    if any(token in lowered for token in ("בצע", "תבצע", "execute", "run")):
+        return False
+
     return True
 
 

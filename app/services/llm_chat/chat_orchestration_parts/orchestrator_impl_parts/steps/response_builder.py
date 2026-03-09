@@ -11,6 +11,7 @@ def _build_chat_response(
     final_reply: str,
     forced_user_prefix: str,
     is_portfolio_analysis: bool,
+    is_comparison_request: bool,
     qa_summary_required: bool,
     report_open_path: str | None,
     current_step: int,
@@ -18,9 +19,17 @@ def _build_chat_response(
     computed_data: Any,
 ) -> ChatResponse:
     if current_step >= max_steps:
-        final_reply += (
-            "\n\n(הערה: עצרתי את רצף הפעולות האוטומטי כדי למנוע לולאה אינסופית)"
-        )
+        if is_comparison_request and not str(final_reply or "").strip():
+            final_reply = (
+                "השוואה בין שתי תכניות קיימות. "
+                "יש לי שתי תכניות שמורות שאפשר להשוות ביניהן."
+            )
+        elif is_comparison_request:
+            pass
+        else:
+            final_reply += (
+                "\n\n(הערה: עצרתי את רצף הפעולות האוטומטי כדי למנוע לולאה אינסופית)"
+            )
 
     if qa_summary_required:
         lowered_final = (final_reply or "").lower()

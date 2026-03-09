@@ -1,5 +1,8 @@
 from app.schemas.llm_chat import ChatMessage
 from app.services.llm_chat.intent_classifier import ChatIntent
+from app.services.llm_chat.chat_orchestration_parts.orchestrator_impl_parts.steps_parts.runner_step_handlers import (
+    _build_local_no_tool_reply,
+)
 
 
 def _stream_finalize_non_tool_response(
@@ -8,6 +11,7 @@ def _stream_finalize_non_tool_response(
     req_id: str,
     stream_request_id: str,
     request,
+    db,
     history_messages: list[ChatMessage],
     full_response: str,
     resolved_intent,
@@ -16,6 +20,7 @@ def _stream_finalize_non_tool_response(
     conceptual_tools_disabled: bool,
     exec_only_active: bool,
     original_user_msg: str,
+    is_comparison_request: bool,
     is_portfolio_analysis: bool,
     build_allowed_sources_for_numeric_provenance,
     compute_final_out_with_numeric_provenance_guardrail,
@@ -45,12 +50,25 @@ def _stream_finalize_non_tool_response(
             is_portfolio_analysis=is_portfolio_analysis,
         )
 
+    advisory_override_used = False
     if (
         resolved_intent == ChatIntent.NO_TOOLS
         and (not exec_only_active)
-        and (tools_disabled_reason not in {"conceptual", "conceptual_form"})
     ):
-        final_out = postprocess_no_tools_user_visible_text(final_out)
+        advisory_local_reply = _build_local_no_tool_reply(
+            request=request,
+            db=db,
+            request_id=stream_request_id,
+            original_user_msg=original_user_msg,
+            is_comparison_request=bool(is_comparison_request),
+            has_tool_results=False,
+            raw_reply=final_out,
+        )
+        if isinstance(advisory_local_reply, str) and advisory_local_reply.strip():
+            final_out = advisory_local_reply.strip()
+            advisory_override_used = True
+        elif tools_disabled_reason not in {"conceptual", "conceptual_form"}:
+            final_out = postprocess_no_tools_user_visible_text(final_out)
 
     if exec_only_active and resolved_intent != ChatIntent.REPORT:
         try:
@@ -101,10 +119,13 @@ def _stream_finalize_non_tool_response(
 
     try:
         if (
+            (not advisory_override_used)
+            and (
             (not exec_only_active)
             and (tools_disabled_reason in {"conceptual", "conceptual_form"})
             and ("###UI_ACTION###" not in (final_out or ""))
             and ("###END_UI_ACTION###" not in (final_out or ""))
+            )
         ):
             final_out = sanitize_words_only_conceptual(
                 final_out, original_user_msg or ""

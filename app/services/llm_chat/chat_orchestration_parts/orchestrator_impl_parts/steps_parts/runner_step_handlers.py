@@ -8,13 +8,13 @@ from app.schemas.llm_chat import ChatMessage, ChatResponse
 def _build_local_no_tool_reply(
     *,
     request,
+    db,
+    request_id: str,
     original_user_msg: str | None,
+    is_comparison_request: bool,
     has_tool_results: bool,
     raw_reply: str | None,
 ) -> str | None:
-    if has_tool_results:
-        return None
-
     user_messages: list[str] = []
     try:
         for msg in getattr(request, "messages", []) or []:
@@ -26,9 +26,140 @@ def _build_local_no_tool_reply(
     latest_text = str(original_user_msg or "").strip()
     combined_text = "\n".join(part for part in user_messages if isinstance(part, str))
     lowered_latest = latest_text.lower()
-    lowered_combined = combined_text.lower()
     raw_reply_text = str(raw_reply or "")
     raw_reply_has_digits = any(ch.isdigit() for ch in raw_reply_text)
+
+    def _log_advisory_event(event_type: str, payload: dict[str, Any]) -> None:
+        try:
+            from app.services.agent_trace_logger import log_trace_event
+            from app.utils.trace_context import get_current_trace_id
+
+            trace_id = (
+                (getattr(db, "info", {}) or {}).get("trace_id")
+                or get_current_trace_id()
+                or getattr(request, "trace_id", None)
+                or request_id
+            )
+            log_trace_event(trace_id=trace_id, event_type=event_type, payload=payload)
+        except Exception:
+            pass
+
+    def _build_advisory_response_mode() -> str | None:
+        from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+            load_normalized_target_plan_context,
+            load_pending_approval_request,
+        )
+        from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+            is_general_advisory_request,
+        )
+
+        if is_comparison_request:
+            return None
+        if not is_general_advisory_request(latest_text):
+            return None
+
+        _log_advisory_event("advisory_mode_detected", {"advisory_intent": True})
+
+        client_id = getattr(request, "client_id", None)
+        normalized_target_context = None
+        pending_approval = None
+        if client_id is not None:
+            try:
+                normalized_target_context = load_normalized_target_plan_context(
+                    db=db,
+                    client_id=int(client_id),
+                    trace_id=request_id,
+                )
+            except Exception:
+                normalized_target_context = None
+            try:
+                pending_approval = load_pending_approval_request(
+                    db=db,
+                    client_id=int(client_id),
+                )
+            except Exception:
+                pending_approval = None
+
+        mode = "ADVISORY_GENERAL"
+        has_target_context = isinstance(normalized_target_context, dict)
+        has_pending_state = isinstance(pending_approval, tuple)
+
+        if has_target_context:
+            mode = "ADVISORY_CONTEXTUAL_TARGET"
+            _log_advisory_event(
+                "advisory_mode_contextual_target",
+                {"has_target_context": True, "has_pending_state": False},
+            )
+            options = [
+                "- לשמור על כיוון התכנון הקיים ולחדד סדרי עדיפויות לפני כל שינוי.",
+                "- לבחון התאמות הדרגתיות בין מרכיבי הקצבה להון כדי להפחית סיכון החלטה.",
+                "- להגדיר תרחיש בדיקה נוסף כהשוואת תכנון בלבד לפני מעבר לביצוע.",
+            ]
+            opening = "יש כבר תכנון יעד פעיל, ולכן כדאי להתקדם בצורה ייעוצית ומדורגת."
+            checks = "בדוק מה הקריטריון המרכזי שלך להחלטה: יציבות חודשית, גמישות הונית, או איזון ביניהם."
+            next_step = "אם תרצה, נבנה סבב תכנון נוסף שממקד רק בהחלטת העדיפות, בלי ביצוע ובלי שינוי מצב."
+        elif has_pending_state:
+            mode = "ADVISORY_CONTEXTUAL_PENDING_STATE"
+            _log_advisory_event(
+                "advisory_mode_contextual_pending_state",
+                {"has_target_context": False, "has_pending_state": True},
+            )
+            pending_tool = str((pending_approval or (None, {}))[0] or "").strip()
+            tool_hint = (
+                f"יש כרגע פעולה תלויה ({pending_tool}), ולכן עדיף קודם לחדד כיוון תכנוני."
+                if pending_tool
+                else "יש כרגע פעולה תלויה, ולכן עדיף קודם לחדד כיוון תכנוני."
+            )
+            options = [
+                "- לעצור רגע ולחדד את הכיוון התכנוני לפני כל צעד המשך.",
+                "- לבקש תרחיש תכנון חלופי כדי להשוות השלכות לפני החלטה.",
+                "- לסכם כלל החלטה ברור מתי ממשיכים ומתי חוזרים לסבב תכנון נוסף.",
+            ]
+            opening = tool_hint
+            checks = "בדוק אם המצב התלוי עדיין מתאים למטרה שלך, או שנדרש תיקון כיוון לפני התקדמות."
+            next_step = "אם תרצה, אנסח עבורך צעד תכנוני קצר להמשך, ללא שינוי מצב."
+        else:
+            _log_advisory_event(
+                "advisory_mode_general",
+                {"has_target_context": False, "has_pending_state": False},
+            )
+            options = [
+                "- להתחיל ממסלול שמרני שמעדיף יציבות תזרימית והפחתת תנודתיות החלטות.",
+                "- לבנות מסלול מאוזן שמשלב יעד קצבה עם גמישות הונית לפי סדר עדיפויות אישי.",
+                "- לבצע סבב תכנון קצר להשוואת חלופות לפני כל מעבר לביצוע.",
+            ]
+            opening = "אפשר להתקדם עם מסגרת ייעוץ פרקטית גם בלי לבצע פעולות עכשיו."
+            checks = "בדוק מה חשוב לך יותר בשלב הזה: ודאות, גמישות, או פשטות תפעולית."
+            next_step = "הצעד התכנוני הבא הוא לבחור חלופה מועדפת אחת ולהריץ עליה בדיקת תכנון בלבד."
+
+        option_count = len(options)
+        if option_count < 2:
+            options = options[:2]
+        if len(options) > 4:
+            options = options[:4]
+        option_count = len(options)
+
+        response = "\n\n".join(
+            [
+                f"פתיחה:\n{opening}",
+                "אפשרויות:\n" + "\n".join(options),
+                f"מה כדאי לבדוק עכשיו:\n{checks}",
+                f"צעד תכנוני להמשך:\n{next_step}",
+            ]
+        )
+
+        _log_advisory_event(
+            "advisory_mode_response_built",
+            {"mode": mode, "option_count": option_count},
+        )
+        return response
+
+    advisory_reply = _build_advisory_response_mode()
+    if isinstance(advisory_reply, str) and advisory_reply.strip():
+        return advisory_reply
+
+    if has_tool_results:
+        return None
 
     if latest_text in {"שלום", "היי", "הי", "hello", "hi"} and not raw_reply_has_digits:
         return "שלום! אפשר לבקש ניתוח תיק או לבנות תכנית פרישה."
@@ -45,22 +176,6 @@ def _build_local_no_tool_reply(
         return (
             "השוואה בין תכניות קצבה: כדאי לבחון קצבה נטו, קצבה ברוטו, "
             "מס חודשי והון שנותר לפני החלטה."
-        )
-
-    if any(
-        token in lowered_combined
-        for token in (
-            "מה אתה יכול להמליץ לי",
-            "מה האפשרויות שיש לי",
-            "מה יתן לי קיבוע זכויות",
-            "מה ייתן לי קיבוע זכויות",
-        )
-    ):
-        return (
-            "בגדול יש כמה אפשרויות: קצבה מול הון, דחיית פרישה מול הקדמה, "
-            "ותכנון מס בהתאם למה שחשוב לך. קיבוע זכויות יכול להשפיע על המס "
-            "ועל ניצול הפטור על הקצבה. כדי לדייק מספרית אני צריך להפעיל "
-            "פונקציה מערכתית מתאימה. אם תרצה נבנה תרחיש."
         )
 
     return None
@@ -1467,7 +1582,10 @@ def _handle_no_tool_call_step(
 
     local_reply = _build_local_no_tool_reply(
         request=request,
+        db=db,
+        request_id=request_id,
         original_user_msg=original_user_msg,
+        is_comparison_request=is_comparison_request,
         has_tool_results=has_tool_results,
         raw_reply=raw_reply,
     )

@@ -16,6 +16,10 @@ import app.services.llm_chat.chat_stream_orchestration_parts.stream_system_promp
 from app.main import app
 from app.models.client import Client
 from app.models.scenario import Scenario
+from app.schemas.llm_chat import ChatRequest
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    is_general_advisory_request,
+)
 
 _JSONL_PATH = Path(__file__).with_name("golden_behavior_8.jsonl")
 _OUTPUT_PATH = Path(__file__).with_name(
@@ -70,6 +74,8 @@ _TURN_REQUIRED_KEYS = {
     "target_plan_snapshot",
     "execution_veto_snapshot",
     "normalized_target_plan_context_snapshot",
+    "advisory_mode_snapshot",
+    "advisory_context_snapshot",
     "execution_detected",
     "raw_http_status",
 }
@@ -282,6 +288,15 @@ class _FakeLLMService:
                 return "סטטוס: בוצע בהצלחה וגם עזיבת עבודה הושלמה."
             if case_id == "BEHAVIOR_06_TARGET_NET_PERSIST_AND_NO_DOUBLE_OFFSET":
                 return "יעד קצבה לתכנית (נטו, אחרי קיזוז הכנסות נוספות): 12,239."
+            if case_id == "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER":
+                return (
+                    "פתיחה:\nאפשר להתקדם עם מסגרת ייעוץ פרקטית גם בלי לבצע פעולות עכשיו.\n\n"
+                    "אפשרויות:\n- להתחיל ממסלול שמרני שמעדיף יציבות תזרימית והפחתת תנודתיות החלטות.\n"
+                    "- לבנות מסלול מאוזן שמשלב יעד קצבה עם גמישות הונית לפי סדר עדיפויות אישי.\n"
+                    "- לבצע סבב תכנון קצר להשוואת חלופות לפני כל מעבר לביצוע.\n\n"
+                    "מה כדאי לבדוק עכשיו:\nבדוק מה חשוב לך יותר בשלב הזה: ודאות, גמישות, או פשטות תפעולית.\n\n"
+                    "צעד תכנוני להמשך:\nהצעד התכנוני הבא הוא לבחור חלופה מועדפת אחת ולהריץ עליה בדיקת תכנון בלבד."
+                )
             return "תשובה מקומית לאחר הרצת כלי."
 
         if case_id == "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT":
@@ -324,7 +339,14 @@ class _FakeLLMService:
             return "???? ??? ?????? ??? ???? ??????? ?? ?? ??? ???? ??? ?? ??? ?????? ??????."
 
         if case_id == "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER":
-            return "אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה."
+            return (
+                "פתיחה:\nאפשר להתקדם עם מסגרת ייעוץ פרקטית גם בלי לבצע פעולות עכשיו.\n\n"
+                "אפשרויות:\n- להתחיל ממסלול שמרני שמעדיף יציבות תזרימית והפחתת תנודתיות החלטות.\n"
+                "- לבנות מסלול מאוזן שמשלב יעד קצבה עם גמישות הונית לפי סדר עדיפויות אישי.\n"
+                "- לבצע סבב תכנון קצר להשוואת חלופות לפני כל מעבר לביצוע.\n\n"
+                "מה כדאי לבדוק עכשיו:\nבדוק מה חשוב לך יותר בשלב הזה: ודאות, גמישות, או פשטות תפעולית.\n\n"
+                "צעד תכנוני להמשך:\nהצעד התכנוני הבא הוא לבחור חלופה מועדפת אחת ולהריץ עליה בדיקת תכנון בלבד."
+            )
 
         raise AssertionError(f"unsupported fake case_id={case_id}")
 
@@ -620,6 +642,88 @@ def _detect_execution(
     )
 
 
+def _build_advisory_mode_snapshot(
+    turn_trace_events: list[dict[str, Any]], visible_reply_text: str, user_text: str
+) -> dict[str, Any] | None:
+    detected = any(
+        str(event.get("event_type") or "") == "advisory_mode_detected"
+        for event in turn_trace_events
+    )
+    has_structured_advisory_reply = all(
+        token in str(visible_reply_text or "")
+        for token in (
+            "פתיחה:",
+            "אפשרויות:",
+            "מה כדאי לבדוק עכשיו:",
+            "צעד תכנוני להמשך:",
+        )
+    )
+    advisory_from_user_text = is_general_advisory_request(user_text or "")
+    if not detected and not has_structured_advisory_reply and not advisory_from_user_text:
+        return None
+
+    mode_name = None
+    for event_name in (
+        "advisory_mode_contextual_target",
+        "advisory_mode_contextual_pending_state",
+        "advisory_mode_general",
+    ):
+        if any(
+            str(event.get("event_type") or "") == event_name
+            for event in turn_trace_events
+        ):
+            mode_name = event_name
+            break
+
+    option_count = None
+    for event in reversed(turn_trace_events):
+        if str(event.get("event_type") or "") != "advisory_mode_response_built":
+            continue
+        payload = event.get("payload")
+        if isinstance(payload, dict):
+            option_count = payload.get("option_count")
+            break
+
+    return {
+        "advisory_detected": True,
+        "mode_event": mode_name or "advisory_mode_general",
+        "option_count": option_count,
+    }
+
+
+def _build_advisory_context_snapshot(
+    turn_trace_events: list[dict[str, Any]], visible_reply_text: str, user_text: str
+) -> dict[str, Any] | None:
+    for event_name in (
+        "advisory_mode_contextual_target",
+        "advisory_mode_contextual_pending_state",
+        "advisory_mode_general",
+    ):
+        for event in turn_trace_events:
+            if str(event.get("event_type") or "") != event_name:
+                continue
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            return {
+                "has_target_context": payload.get("has_target_context"),
+                "has_pending_state": payload.get("has_pending_state"),
+            }
+    if all(
+        token in str(visible_reply_text or "")
+        for token in (
+            "פתיחה:",
+            "אפשרויות:",
+            "מה כדאי לבדוק עכשיו:",
+            "צעד תכנוני להמשך:",
+        )
+    ):
+        return {"has_target_context": False, "has_pending_state": False}
+    if is_general_advisory_request(user_text or ""):
+        return {"has_target_context": False, "has_pending_state": False}
+    return None
+
+
 def _build_artifact(*, scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     turn_count = sum(len(scenario.get("turns") or []) for scenario in scenarios)
     return {
@@ -884,6 +988,12 @@ def _replay_case(
             "normalized_target_plan_context_snapshot": _load_normalized_target_plan_context_snapshot(
                 Session, client_id=client_id
             ),
+            "advisory_mode_snapshot": _build_advisory_mode_snapshot(
+                turn_trace_events, body, user_text
+            ),
+            "advisory_context_snapshot": _build_advisory_context_snapshot(
+                turn_trace_events, body, user_text
+            ),
             "execution_detected": _detect_execution(
                 turn_trace_events=turn_trace_events, turn_events=turn_events
             ),
@@ -1065,6 +1175,18 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
     )
     assert "retirement_compare_detected" in compare_turn["trace_event_types"]
     assert "retirement_compare_ambiguous" in compare_turn["trace_event_types"]
+    advisory_baseline = next(
+        scenario
+        for scenario in scenarios
+        if scenario.get("scenario_id")
+        == "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER"
+    )
+    advisory_turn = advisory_baseline["turns"][0]
+    assert advisory_turn["advisory_mode_snapshot"] is not None
+    assert advisory_turn["advisory_context_snapshot"] == {
+        "has_target_context": False,
+        "has_pending_state": False,
+    }
     assert artifact.get("metadata")
     assert scenarios
     assert all(scenario.get("turns") for scenario in scenarios)

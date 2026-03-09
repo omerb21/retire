@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.services.llm_chat.chat_orchestration as chat_orch
+import app.services.llm_chat.chat_orchestration_parts.orchestrator_impl_parts.steps_parts.runner_step_handlers as runner_step_handlers
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 import app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators as stream_prompt_mod
 from app.main import app
@@ -17,6 +18,7 @@ from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage imp
     load_execution_veto,
     load_normalized_target_plan_context,
     store_execution_veto,
+    store_normalized_target_plan_context,
     store_pending_approval_request,
 )
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_approval_cancel_handling import (
@@ -609,3 +611,412 @@ def test_monthly_pension_routing_marker_is_not_general_qa_default(
     router_payload = capture.find_router_selected(trace_id)
     assert router_payload.get("capability_id") == "monthly_pension_summary_action_v1"
     assert router_payload.get("capability_id") != "default_qa_v1"
+
+
+def _seed_compare_target_plan(
+    db_session, *, client_id: int, retirement_age: int, target_amount: float = 30000.0
+) -> None:
+    payload = {
+        "tool_name": "BUILD_TARGET_PENSION_PLAN",
+        "args": {
+            "target_monthly_pension": target_amount,
+            "target_is_net": True,
+            "retirement_age": retirement_age,
+        },
+        "result": {
+            "target_monthly_pension": target_amount,
+            "target_is_net": True,
+            "retirement_age": retirement_age,
+            "estimated_monthly_net": target_amount - 1000,
+            "estimated_monthly_tax": 1000,
+            "remaining_capital": 100000,
+            "execution_plan": {"expected_total_gross": target_amount + 1000},
+        },
+    }
+    from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+        store_latest_target_pension_plan,
+        store_latest_target_pension_plan_data,
+    )
+
+    assert (
+        store_latest_target_pension_plan(
+            db=db_session, client_id=client_id, tool_result=payload
+        )
+        is True
+    )
+    assert (
+        store_latest_target_pension_plan_data(
+            db=db_session, client_id=client_id, tool_result=payload
+        )
+        is True
+    )
+
+
+def _clear_compare_target_plan(db_session, *, client_id: int) -> None:
+    db_session.query(Scenario).filter(Scenario.client_id == client_id).filter(
+        Scenario.scenario_name.in_(("target_pension_plan", "target_pension_plan_data"))
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+
+def test_stream_compare_two_explicit_age_references_returns_ambiguous_without_session_anchors(
+    db_session, client, monkeypatch
+) -> None:
+    from app.utils.trace_context import set_current_trace_id
+
+    _clear_compare_target_plan(db_session, client_id=int(client.id))
+    capture = _install_trace_capture(monkeypatch)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service,
+        "chat_stream",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("LLM must not run")
+        ),
+    )
+    trace_id = "trace_stage_e_compare_ambiguous_without_anchor"
+    set_current_trace_id(trace_id)
+    try:
+        db_session.info["trace_id"] = trace_id
+    except Exception:
+        pass
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": int(client.id),
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "השווה בין תכנית הקצבה לגיל 72 לבין התכנית לגיל 76",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "איזה שתי תכניות אתה רוצה שאשווה" in response.text
+    assert "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו" not in response.text
+    assert capture.find_first_payload("retirement_compare_detected")["detected"] is True
+    assert str(
+        capture.find_first_payload("retirement_compare_ambiguous").get(
+            "ambiguity_reason"
+        )
+    ).strip()
+
+
+def test_stream_compare_single_existing_plan_returns_needs_reference_clarification(
+    db_session, client, monkeypatch
+) -> None:
+    from app.utils.trace_context import set_current_trace_id
+
+    _clear_compare_target_plan(db_session, client_id=int(client.id))
+    _seed_compare_target_plan(db_session, client_id=int(client.id), retirement_age=72)
+    capture = _install_trace_capture(monkeypatch)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service,
+        "chat_stream",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("LLM must not run")
+        ),
+    )
+    trace_id = "trace_stage_e_compare_needs_reference"
+    set_current_trace_id(trace_id)
+    try:
+        db_session.info["trace_id"] = trace_id
+    except Exception:
+        pass
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": int(client.id),
+            "messages": [
+                {"role": "user", "content": "יש לי כרגע תכנית אחת בלבד, תעשה השוואה"}
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "יש לי כרגע רק תכנית אחת" in response.text
+    assert "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו" not in response.text
+    assert (
+        capture.find_first_payload("retirement_compare_needs_reference")[
+            "reference_count"
+        ]
+        == 1
+    )
+
+
+def test_stream_compare_two_stored_plans_enters_compare_ready(
+    db_session, client, monkeypatch
+) -> None:
+    from app.utils.trace_context import set_current_trace_id
+
+    _clear_compare_target_plan(db_session, client_id=int(client.id))
+    _seed_compare_target_plan(db_session, client_id=int(client.id), retirement_age=72)
+    _seed_compare_target_plan(db_session, client_id=int(client.id), retirement_age=76)
+    capture = _install_trace_capture(monkeypatch)
+    monkeypatch.setattr(
+        stream_orch.pension_llm_service,
+        "chat_stream",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("LLM must not run")
+        ),
+    )
+    trace_id = "trace_stage_e_compare_ready"
+    set_current_trace_id(trace_id)
+    try:
+        db_session.info["trace_id"] = trace_id
+    except Exception:
+        pass
+
+    api = TestClient(app)
+    response = api.post(
+        "/api/v1/llm/pension-chat-stream",
+        json={
+            "client_id": int(client.id),
+            "messages": [{"role": "user", "content": "תעשה השוואה בין שתי התכניות"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert "השוואה בין שתי תכניות קיימות" in response.text
+    assert "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו" not in response.text
+    assert (
+        capture.find_first_payload("retirement_compare_ready")["reference_count"] == 2
+    )
+
+
+def _count_advisory_options(reply_text: str) -> int:
+    lines = [line.strip() for line in str(reply_text or "").splitlines()]
+    return sum(1 for line in lines if line.startswith("- "))
+
+
+def test_stream_advisory_general_returns_structured_useful_reply(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
+        Scenario.scenario_name.in_(("pending_approval", "normalized_target_plan_context"))
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    trace_id = "trace_stage_f_advisory_general"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="מה אתה יכול להמליץ לי?")],
+    )
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="מה אתה יכול להמליץ לי?",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="תשובה חופשית לא מובנית",
+        )
+        or ""
+    )
+    assert "###UI_ACTION###" not in body
+    assert "###TOOL_CALL###" not in body
+    assert "תשובה מקומית לאחר הרצת כלי." not in body
+    assert "אפשרויות:" in body
+    assert "מה כדאי לבדוק עכשיו:" in body
+    assert "צעד תכנוני להמשך:" in body
+    option_count = _count_advisory_options(body)
+    assert 2 <= option_count <= 4
+
+    assert capture.find_first_payload("advisory_mode_detected")["advisory_intent"] is True
+    assert capture.find_first_payload("advisory_mode_general") == {
+        "has_target_context": False,
+        "has_pending_state": False,
+    }
+    built_payload = capture.find_first_payload("advisory_mode_response_built")
+    assert built_payload["mode"] == "ADVISORY_GENERAL"
+    assert 2 <= int(built_payload["option_count"] or 0) <= 4
+
+
+def test_stream_advisory_options_returns_fixed_structure(
+    db_session, client, monkeypatch
+) -> None:
+    db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
+        Scenario.scenario_name.in_(("pending_approval", "normalized_target_plan_context"))
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id="trace_stage_f_advisory_options",
+        messages=[SimpleNamespace(role="user", content="מה האפשרויות שיש לי?")],
+    )
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id="trace_stage_f_advisory_options",
+            original_user_msg="מה האפשרויות שיש לי?",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="מענה חופשי",
+        )
+        or ""
+    )
+    assert "פתיחה:" in body
+    assert "אפשרויות:" in body
+    assert "מה כדאי לבדוק עכשיו:" in body
+    assert "צעד תכנוני להמשך:" in body
+    assert 2 <= _count_advisory_options(body) <= 4
+    assert "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו" not in body
+    assert "###TOOL_CALL###" not in body
+
+
+def test_stream_advisory_fixation_question_returns_practical_non_generic_answer(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
+        Scenario.scenario_name.in_(("pending_approval", "normalized_target_plan_context"))
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    trace_id = "trace_stage_f_advisory_fixation"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="מה יתן לי קיבוע זכויות?")],
+    )
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="מה יתן לי קיבוע זכויות?",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="fallback",
+        )
+        or ""
+    )
+    assert "תשובה מקומית לאחר הרצת כלי." not in body
+    assert "אפשרויות:" in body
+    assert "מה כדאי לבדוק עכשיו:" in body
+    assert "צעד תכנוני להמשך:" in body
+    assert "###UI_ACTION###" not in body
+    assert "###TOOL_CALL###" not in body
+    assert capture.find_first_payload("advisory_mode_detected")["advisory_intent"] is True
+
+
+def test_stream_advisory_contextual_target_uses_normalized_target_context_only(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+
+    db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
+        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    assert (
+        store_normalized_target_plan_context(
+            db=db_session,
+            client_id=int(client.id),
+            requested_target=30000,
+            target_mode="net",
+            offset_used=2000,
+            effective_target=28000,
+            retirement_age=76,
+            trace_id="trace_stage_f_context_seed",
+        )
+        is True
+    )
+
+    trace_id = "trace_stage_f_advisory_contextual_target"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="מה תמליץ לי?")],
+    )
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="מה תמליץ לי?",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="fallback",
+        )
+        or ""
+    )
+    assert "אפשרויות:" in body
+    assert "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו" not in body
+    assert "###TOOL_CALL###" not in body
+    assert not any(ch.isdigit() for ch in body)
+
+    payload = capture.find_first_payload("advisory_mode_contextual_target")
+    assert payload == {"has_target_context": True, "has_pending_state": False}
+    built = capture.find_first_payload("advisory_mode_response_built")
+    assert built.get("mode") == "ADVISORY_CONTEXTUAL_TARGET"
+
+
+def test_stream_advisory_pending_state_stays_non_executive(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+
+    db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
+        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+    assert (
+        store_pending_approval_request(
+            db=db_session,
+            client_id=int(client.id),
+            tool_name="TRANSFORM_FUNDS_TO_ASSETS",
+            tool_args={
+                "approval_id": "stage_f_pending",
+                "approval_type": "execution",
+            },
+        )
+        is True
+    )
+
+    trace_id = "trace_stage_f_advisory_pending"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="מה כדאי לעשות?")],
+    )
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="מה כדאי לעשות?",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="fallback",
+        )
+        or ""
+    )
+    assert "אפשרויות:" in body
+    assert "יש כרגע פעולה תלויה" in body
+    assert "###TOOL_CALL###" not in body
+    assert "###UI_ACTION###" not in body
+    assert "אישור" not in body
+    assert "confirm" not in body.lower()
+    assert "execute" not in body.lower()
+
+    payload = capture.find_first_payload("advisory_mode_contextual_pending_state")
+    assert payload == {"has_target_context": False, "has_pending_state": True}
+    built = capture.find_first_payload("advisory_mode_response_built")
+    assert built.get("mode") == "ADVISORY_CONTEXTUAL_PENDING_STATE"
