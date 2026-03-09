@@ -31,6 +31,7 @@ from app.models import CurrentEmployer, EmployerGrant, GrantType
 from app.models.client import Client
 from app.models.scenario import Scenario
 from app.schemas.llm_chat import ChatMessage, ChatRequest
+from app.services.agent_trace_logger import log_trace_event
 from app.services.llm_agent_tools_service import AgentToolsService
 from app.services.llm_chat.chat_orchestration_helpers import (
     build_approval_request_ui_action,
@@ -51,6 +52,9 @@ from app.services.llm_chat.chat_orchestration_helpers import (
     store_latest_target_pension_plan_data,
     store_pending_approval_request,
     store_pending_plan_target_marker,
+)
+from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
+    load_recent_target_pension_plans,
 )
 from app.services.llm_chat.execution_only_fallback import build_execution_only_fallback
 from app.services.llm_chat.execution_only_guard import (
@@ -136,6 +140,9 @@ from app.services.llm_chat.orchestration_utils import (
 from app.services.llm_chat.orchestration_utils_parts.existing_income_offset import (
     compute_existing_income_offset_monthly,
 )
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    extract_retirement_comparison_candidate_ages,
+)
 from app.services.llm_chat.pending_approvals import (
     compute_args_hash,
     load_pending_approval_payload_if_match_and_args_hash,
@@ -157,6 +164,7 @@ from app.utils.llm_chat_log import (
     set_current_case_id,
     set_current_request_id,
 )
+from app.utils.trace_context import get_current_trace_id
 
 from ..chat_helpers import (
     _digits_only,
@@ -458,13 +466,193 @@ def _postprocess_no_tools_user_visible_text(text: str) -> str:
     return out
 
 
+def _build_retirement_compare_plan_view(plan: dict) -> dict:
+    payload = plan.get("payload") if isinstance(plan.get("payload"), dict) else {}
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    execution_plan = (
+        result.get("execution_plan")
+        if isinstance(result.get("execution_plan"), dict)
+        else {}
+    )
+    target_is_net = plan.get("target_is_net")
+    return {
+        "retirement_age": plan.get("retirement_age"),
+        "target_monthly_pension": plan.get("target_monthly_pension"),
+        "target_mode": "net" if target_is_net is True else "gross",
+        "estimated_monthly_net": result.get("estimated_monthly_net"),
+        "estimated_monthly_tax": result.get("estimated_monthly_tax"),
+        "expected_total_gross": execution_plan.get("expected_total_gross")
+        or result.get("accumulated_pension"),
+        "remaining_capital": result.get("remaining_capital"),
+    }
+
+
+def _format_retirement_compare_money(value: object) -> str | None:
+    try:
+        if value is None:
+            return None
+        return f"{float(value):,.0f} ₪"
+    except Exception:
+        return None
+
+
+def _build_retirement_compare_reply_text(*, resolution_payload: dict) -> str:
+    resolution = str(resolution_payload.get("resolution") or "").strip()
+    if resolution == "COMPARE_READY":
+        return sanitize_user_visible_text(
+            "השוואה בין שתי תכניות קיימות. יש לי שתי תכניות שמורות שאפשר להשוות ביניהן."
+        )
+    if resolution == "COMPARE_NEEDS_ONE_REFERENCE":
+        return sanitize_user_visible_text(
+            "יש לי כרגע רק תכנית אחת. תן לי גיל פרישה נוסף או תכנית נוספת להשוואה."
+        )
+    return sanitize_user_visible_text(
+        "איזה שתי תכניות אתה רוצה שאשווה? תן לי שני גילי יעד או שתי תכניות קיימות."
+    )
+
+
+def _resolve_retirement_compare_request(
+    *, user_message: str, db: Session, client_id: int | None
+) -> dict:
+    lowered = (user_message or "").lower()
+    current_turn_ages = extract_retirement_comparison_candidate_ages(user_message)
+    recent_stored = []
+    if client_id is not None:
+        try:
+            recent_stored = load_recent_target_pension_plans(
+                db=db, client_id=int(client_id), limit=5
+            )
+        except Exception:
+            recent_stored = []
+    stored_plans = [
+        _build_retirement_compare_plan_view(plan)
+        for plan in recent_stored
+        if isinstance(plan, dict)
+    ]
+
+    matched_plans = []
+    for age in current_turn_ages:
+        for plan in stored_plans:
+            if plan.get("retirement_age") == age and plan not in matched_plans:
+                matched_plans.append(plan)
+
+    if len(stored_plans) >= 2:
+        if len(matched_plans) >= 2:
+            return {
+                "resolution": "COMPARE_READY",
+                "plans": matched_plans[:2],
+                "reference_count": 2,
+            }
+        if len(current_turn_ages) == 1 and len(matched_plans) == 1:
+            other_plan = next(
+                (plan for plan in stored_plans if plan not in matched_plans), None
+            )
+            if isinstance(other_plan, dict):
+                return {
+                    "resolution": "COMPARE_READY",
+                    "plans": [matched_plans[0], other_plan],
+                    "reference_count": 2,
+                }
+        if (not current_turn_ages) and (
+            "שתי התכניות" in lowered or "שתי התוכניות" in lowered or "השוואה" in lowered
+        ):
+            return {
+                "resolution": "COMPARE_READY",
+                "plans": stored_plans[:2],
+                "reference_count": 2,
+            }
+
+    if len(stored_plans) == 1:
+        return {"resolution": "COMPARE_NEEDS_ONE_REFERENCE", "reference_count": 1}
+    if len(current_turn_ages) >= 2:
+        return {
+            "resolution": "COMPARE_AMBIGUOUS",
+            "ambiguity_reason": "current_turn_references_without_session_anchor",
+        }
+    return {
+        "resolution": "COMPARE_AMBIGUOUS",
+        "ambiguity_reason": "missing_compare_session_references",
+    }
+
+
+def _maybe_handle_retirement_compare_request(
+    *,
+    request: ChatRequest,
+    db: Session,
+    stream_request_id: str,
+    original_user_msg: str,
+) -> StreamingResponse | None:
+    import app.services.agent_trace_logger as _trace_logger_mod
+
+    if not is_retirement_comparison_request(original_user_msg):
+        return None
+    trace_id_for_compare = (
+        (getattr(db, "info", {}) or {}).get("trace_id")
+        or get_current_trace_id()
+        or getattr(request, "trace_id", None)
+        or stream_request_id
+    )
+    _trace_logger_mod.log_trace_event(
+        trace_id=trace_id_for_compare,
+        event_type="retirement_compare_detected",
+        payload={"detected": True},
+    )
+    _trace_logger_mod.log_trace_event(
+        trace_id=trace_id_for_compare,
+        event_type="retirement_compare_blocked_target_prompt",
+        payload={"blocked_branch": "target_prompt"},
+    )
+    compare_resolution = _resolve_retirement_compare_request(
+        user_message=original_user_msg,
+        db=db,
+        client_id=request.client_id,
+    )
+    resolution_kind = str(compare_resolution.get("resolution") or "").strip()
+    if resolution_kind == "COMPARE_READY":
+        _trace_logger_mod.log_trace_event(
+            trace_id=trace_id_for_compare,
+            event_type="retirement_compare_ready",
+            payload={"reference_count": 2},
+        )
+    elif resolution_kind == "COMPARE_NEEDS_ONE_REFERENCE":
+        _trace_logger_mod.log_trace_event(
+            trace_id=trace_id_for_compare,
+            event_type="retirement_compare_needs_reference",
+            payload={"reference_count": 1},
+        )
+    else:
+        _trace_logger_mod.log_trace_event(
+            trace_id=trace_id_for_compare,
+            event_type="retirement_compare_ambiguous",
+            payload={
+                "ambiguity_reason": str(
+                    compare_resolution.get("ambiguity_reason") or "unknown"
+                ),
+            },
+        )
+    return StreamingResponse(
+        iter(
+            [
+                _build_retirement_compare_reply_text(
+                    resolution_payload=compare_resolution
+                )
+            ]
+        ),
+        media_type="text/plain",
+    )
+
+
 PC_LLM_MAX_RETRIES = 3
 PC_LLM_TIMEOUT_SECONDS = 120.0
 PC_LLM_BACKOFF_SECONDS = (0.75, 1.5, 3.0)
 
 
 def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingResponse:
-    stream_request_id = generate_request_id()
+    stream_request_id = (
+        get_current_trace_id()
+        or getattr(request, "trace_id", None)
+        or generate_request_id()
+    )
     set_current_request_id(stream_request_id)
 
     try:
@@ -497,6 +685,15 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
     )
     if early_cutoff_response is not None:
         return early_cutoff_response
+
+    compare_response = _maybe_handle_retirement_compare_request(
+        request=request,
+        db=db,
+        stream_request_id=stream_request_id,
+        original_user_msg=original_user_msg,
+    )
+    if compare_response is not None:
+        return compare_response
 
     (
         _infer_pending_retirement_fields_for_marker,
@@ -665,6 +862,8 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         ChatIntentClass=ChatIntent,
     )
 
+    is_comparison_request = bool(is_retirement_comparison_request(original_user_msg))
+
     (
         target_net_for_plan,
         lowered_user_msg,
@@ -689,11 +888,11 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         ChatIntentClass=ChatIntent,
         is_no_tools_request=is_no_tools_request,
         is_pension_commutation_request=is_pension_commutation_request,
+        is_retirement_comparison_request=is_retirement_comparison_request,
         is_transform_request=is_transform_request,
         is_qa_request=is_qa_request,
         is_max_capital_request=is_max_capital_request,
     )
-
     pending_plan_target_response = _maybe_handle_pending_plan_target_flow(
         request=request,
         db=db,
@@ -726,6 +925,7 @@ def run_pension_chat_stream(request: ChatRequest, db: Session) -> StreamingRespo
         format_tool_output_for_user_stream=format_tool_output_for_user_stream,
         sanitize_user_visible_text=sanitize_user_visible_text,
         extract_target_net_ils=extract_target_net_ils,
+        is_comparison_request=bool(is_comparison_request),
     )
     if pending_plan_target_response is not None:
         return pending_plan_target_response

@@ -15,12 +15,38 @@ def _compute_plan_tokens_gate(
     ChatIntentClass,
     is_no_tools_request,
     is_pension_commutation_request,
+    is_retirement_comparison_request,
     is_transform_request,
     is_qa_request,
     is_max_capital_request,
 ):
     target_net_for_plan = extract_target_net_ils(original_user_msg or "")
     lowered_user_msg = (original_user_msg or "").lower()
+    compare_shape_tokens = (
+        "השווא",
+        "השווה",
+        "להשוות",
+        "לעומת",
+        "מול",
+        "vs",
+        "versus",
+    )
+    retirement_context_tokens = (
+        "פרישה",
+        "גיל",
+        "תכנית",
+        "תוכנית",
+        "תכניות",
+        "תוכניות",
+    )
+    has_compare_shape = any(
+        t in lowered_user_msg for t in compare_shape_tokens
+    ) and any(t in lowered_user_msg for t in retirement_context_tokens)
+    has_two_age_references = len(re.findall(r"\b\d{2}\b", lowered_user_msg)) >= 2
+    is_comparison_request_local = bool(
+        is_retirement_comparison_request(original_user_msg or "")
+        or (has_compare_shape and has_two_age_references)
+    )
     plan_tokens = re.findall(r"[א-תA-Za-z]+", lowered_user_msg)
     plan_token_pairs = set(zip(plan_tokens, plan_tokens[1:]))
     has_plan_build_token = (
@@ -60,6 +86,8 @@ def _compute_plan_tokens_gate(
         or ((has_plan_build_token or has_plan_noun_token) and has_plan_domain_token)
         or (has_plan_noun_token and has_plan_pension_token)
     )
+    if is_comparison_request_local:
+        is_plan_request_tokens = False
 
     birth_date_for_plan_gate = None
     try:
@@ -91,6 +119,8 @@ def _compute_plan_tokens_gate(
         today(),
         None,
     )
+    if is_comparison_request_local:
+        inferred_ret_age_for_plan_gate = None
     has_target_plan_keywords = any(
         token in lowered_user_msg
         for token in (
@@ -114,6 +144,8 @@ def _compute_plan_tokens_gate(
             "תוכנית פרישה",
         )
     )
+    if is_comparison_request_local:
+        has_target_plan_keywords = False
 
     wants_execute_target_plan_text = ("בצע" in lowered_user_msg) and (
         "תכנית" in lowered_user_msg

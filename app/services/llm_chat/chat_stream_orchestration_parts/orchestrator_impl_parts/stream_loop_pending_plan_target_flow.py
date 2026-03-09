@@ -25,6 +25,24 @@ from .stream_loop_pending_plan_target_store import (
 )
 
 
+def _is_compare_guard_active(*, is_comparison_request: bool) -> bool:
+    return bool(is_comparison_request)
+
+
+def _looks_like_retirement_compare_message(user_message: str) -> bool:
+    lowered = (user_message or "").lower()
+    if not lowered.strip():
+        return False
+    compare_shape_tokens = ("השווא", "השווה", "להשוות", "לעומת", "מול", "vs", "versus")
+    retirement_context_tokens = ("פרישה", "גיל", "תכנית", "תוכנית", "תכניות", "תוכניות")
+    has_compare_shape = any(token in lowered for token in compare_shape_tokens)
+    has_retirement_context = any(
+        token in lowered for token in retirement_context_tokens
+    )
+    has_two_age_references = len(re.findall(r"\b\d{2}\b", lowered)) >= 2
+    return has_compare_shape and has_retirement_context and has_two_age_references
+
+
 def _maybe_handle_pending_plan_target_flow(
     *,
     request,
@@ -58,8 +76,15 @@ def _maybe_handle_pending_plan_target_flow(
     format_tool_output_for_user_stream,
     sanitize_user_visible_text,
     extract_target_net_ils,
+    is_comparison_request: bool = False,
 ) -> StreamingResponse | None:
     _PENDING_PLAN_TARGET_TTL_SECONDS = 5 * 60
+
+    if _is_compare_guard_active(is_comparison_request=bool(is_comparison_request)):
+        return None
+
+    if _looks_like_retirement_compare_message(original_user_msg or ""):
+        return None
 
     if (
         (resolved_intent != ChatIntent.REPORT)
