@@ -978,6 +978,101 @@ def load_latest_target_pension_plan(*, db: Session, client_id: int) -> dict | No
     return parsed if isinstance(parsed, dict) else None
 
 
+def _normalize_recent_target_plan_payload(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    args = payload.get("args") if isinstance(payload.get("args"), dict) else {}
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
+
+    retirement_age_raw = args.get("retirement_age")
+    if retirement_age_raw is None:
+        retirement_age_raw = result.get("retirement_age")
+    if retirement_age_raw is None:
+        retirement_age_raw = result.get("target_retirement_age")
+
+    retirement_age = None
+    if retirement_age_raw is not None:
+        try:
+            retirement_age = int(retirement_age_raw)
+        except Exception:
+            retirement_age = None
+
+    target_monthly_pension = None
+    target_raw = args.get("target_monthly_pension")
+    if target_raw is None:
+        target_raw = result.get("target_monthly_pension")
+    if target_raw is not None:
+        try:
+            target_monthly_pension = float(target_raw)
+        except Exception:
+            target_monthly_pension = None
+
+    target_is_net_raw = args.get("target_is_net")
+    if target_is_net_raw is None:
+        target_is_net_raw = result.get("target_is_net")
+    target_is_net = None
+    if target_is_net_raw is not None:
+        target_is_net = bool(target_is_net_raw)
+
+    return {
+        "payload": payload,
+        "retirement_age": retirement_age,
+        "target_monthly_pension": target_monthly_pension,
+        "target_is_net": target_is_net,
+        "stored_at_utc": str(meta.get("stored_at_utc") or "").strip() or None,
+    }
+
+
+def load_recent_target_pension_plans(
+    *, db: Session, client_id: int, limit: int = 10
+) -> list[dict]:
+    if client_id is None:
+        return []
+    try:
+        limit_int = max(1, int(limit or 10))
+    except Exception:
+        limit_int = 10
+
+    try:
+        rows = (
+            db.query(Scenario)
+            .filter(Scenario.client_id == client_id)
+            .filter(Scenario.scenario_name == "target_pension_plan")
+            .order_by(Scenario.created_at.desc(), Scenario.id.desc())
+            .limit(limit_int * 3)
+            .all()
+        )
+    except Exception:
+        rows = []
+
+    normalized_rows: list[dict] = []
+    seen_keys: set[tuple[object, object, object]] = set()
+    for row in rows:
+        params = getattr(row, "parameters", None)
+        if not params:
+            continue
+        try:
+            parsed = json.loads(params)
+        except Exception:
+            continue
+        normalized = _normalize_recent_target_plan_payload(parsed)
+        if normalized is None:
+            continue
+        dedupe_key = (
+            normalized.get("retirement_age"),
+            normalized.get("target_monthly_pension"),
+            normalized.get("target_is_net"),
+        )
+        if dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
+        normalized_rows.append(normalized)
+        if len(normalized_rows) >= limit_int:
+            break
+    return normalized_rows
+
+
 def store_latest_retirement_cashflow_analysis(
     *, db: Session, client_id: int, tool_result: str
 ) -> bool:
