@@ -192,6 +192,7 @@ def clear_execution_veto(
     )
     return True
 
+
 def _validate_normalized_target_plan_context(payload: object) -> dict | None:
     if not isinstance(payload, dict):
         return None
@@ -337,6 +338,7 @@ def clear_normalized_target_plan_context(*, db: Session, client_id: int) -> bool
         except Exception:
             pass
         return False
+
 
 def was_approval_execution_recently_recorded(
     *, db: Session, client_id: int, tool_name: str, tool_args: dict
@@ -1365,5 +1367,3 @@ def _extract_target_plan_payload_from_tool_result(tool_result: object) -> dict |
         return payload
 
     return None
-
-

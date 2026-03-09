@@ -468,6 +468,7 @@ def has_explicit_execution_intent_for_termination(user_message: str | None) -> b
 def should_clear_execution_veto_for_current_turn(user_message: str | None) -> bool:
     return has_explicit_execution_intent_for_termination(user_message)
 
+
 def decide_stream_planning_execution_policy(
     user_message: str | None,
 ) -> PlanningExecutionGateDecision:
@@ -1090,4 +1091,3 @@ def is_qa_request(user_message: str) -> bool:
     ]
 
     return any(t.lower() in lowered for t in triggers)
-
