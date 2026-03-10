@@ -659,7 +659,11 @@ def _build_advisory_mode_snapshot(
         )
     )
     advisory_from_user_text = is_general_advisory_request(user_text or "")
-    if not detected and not has_structured_advisory_reply and not advisory_from_user_text:
+    if (
+        not detected
+        and not has_structured_advisory_reply
+        and not advisory_from_user_text
+    ):
         return None
 
     mode_name = None
