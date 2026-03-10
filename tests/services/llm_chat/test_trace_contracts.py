@@ -151,7 +151,19 @@ def _find_capability_resolved_with_canonical_action(
 
 
 def _run_stream_non_tool_finalization_for_test(
-    *, request, db, trace_id: str, full_response: str, original_user_msg: str
+    *,
+    request,
+    db,
+    trace_id: str,
+    full_response: str,
+    original_user_msg: str,
+    resolved_intent: ChatIntent = ChatIntent.NO_TOOLS,
+    tools_disabled_reason: str | None = None,
+    no_tools_requested: bool = False,
+    conceptual_tools_disabled: bool = False,
+    exec_only_active: bool = False,
+    is_comparison_request: bool = False,
+    is_portfolio_analysis: bool = True,
 ) -> str:
     try:
         db.info["trace_id"] = trace_id
@@ -166,14 +178,14 @@ def _run_stream_non_tool_finalization_for_test(
             db=db,
             history_messages=[],
             full_response=full_response,
-            resolved_intent=ChatIntent.NO_TOOLS,
-            tools_disabled_reason=None,
-            no_tools_requested=False,
-            conceptual_tools_disabled=False,
-            exec_only_active=False,
+            resolved_intent=resolved_intent,
+            tools_disabled_reason=tools_disabled_reason,
+            no_tools_requested=no_tools_requested,
+            conceptual_tools_disabled=conceptual_tools_disabled,
+            exec_only_active=exec_only_active,
             original_user_msg=original_user_msg,
-            is_comparison_request=False,
-            is_portfolio_analysis=True,
+            is_comparison_request=is_comparison_request,
+            is_portfolio_analysis=is_portfolio_analysis,
             build_allowed_sources_for_numeric_provenance=lambda request, history_messages: [],
             compute_final_out_with_numeric_provenance_guardrail=lambda **kwargs: kwargs[
                 "full_response"
@@ -492,6 +504,99 @@ def test_portfolio_formatting_trace_contract(db_session, client, monkeypatch) ->
     )
     assert detected_payload["formatting_candidate"] is True
     assert formatted_payload["formatted"] is True
+
+
+def test_final_visible_reply_shaping_trace_contract_applied(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_h_final_visible_reply_applied_contract"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="תן תשובה קצרה")],
+    )
+
+    reply = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response="assistant: ניתן לבדוק שתי אפשרויות",
+        original_user_msg="תן תשובה קצרה",
+        resolved_intent=ChatIntent.REPORT,
+        is_portfolio_analysis=False,
+    )
+
+    assert reply == "ניתן לבדוק שתי אפשרויות"
+    started_payload = capture.find_first_payload(
+        "final_visible_reply_shaping_started", trace_id
+    )
+    applied_payload = capture.find_first_payload(
+        "final_visible_reply_shaping_applied", trace_id
+    )
+    assert started_payload == {"candidate": True}
+    _assert_required_keys(
+        applied_payload,
+        ("applied", "had_boilerplate", "line_dedup_applied"),
+        "final_visible_reply_shaping_applied",
+    )
+    assert applied_payload == {
+        "applied": True,
+        "had_boilerplate": True,
+        "line_dedup_applied": False,
+    }
+    assert not any(
+        event.get("event_type") == "final_visible_reply_shaping_skipped"
+        and event.get("trace_id") == trace_id
+        for event in capture.events
+    )
+
+
+def test_final_visible_reply_shaping_trace_contract_skipped(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_h_final_visible_reply_skipped_contract"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="שלום")],
+    )
+
+    reply = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response="שלום! אני כאן לעזור בנושאי פרישה.",
+        original_user_msg="שלום",
+        resolved_intent=ChatIntent.ANALYSIS,
+        is_portfolio_analysis=False,
+    )
+
+    assert reply == "שלום! אני כאן לעזור בנושאי פרישה."
+    started_payload = capture.find_first_payload(
+        "final_visible_reply_shaping_started", trace_id
+    )
+    skipped_payload = capture.find_first_payload(
+        "final_visible_reply_shaping_skipped", trace_id
+    )
+    assert started_payload == {"candidate": True}
+    _assert_required_keys(
+        skipped_payload,
+        ("applied", "had_boilerplate"),
+        "final_visible_reply_shaping_skipped",
+    )
+    assert skipped_payload == {
+        "applied": False,
+        "had_boilerplate": False,
+    }
+    assert not any(
+        event.get("event_type") == "final_visible_reply_shaping_applied"
+        and event.get("trace_id") == trace_id
+        for event in capture.events
+    )
 
 
 def test_legacy_fallback_trace_contract_is_diagnostic(monkeypatch, db_session) -> None:

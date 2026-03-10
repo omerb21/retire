@@ -803,7 +803,19 @@ def _count_non_empty_lines(reply_text: str) -> list[str]:
 
 
 def _run_stream_non_tool_finalization_for_test(
-    *, request, db, trace_id: str, full_response: str, original_user_msg: str
+    *,
+    request,
+    db,
+    trace_id: str,
+    full_response: str,
+    original_user_msg: str,
+    resolved_intent: ChatIntent = ChatIntent.NO_TOOLS,
+    tools_disabled_reason: str | None = None,
+    no_tools_requested: bool = False,
+    conceptual_tools_disabled: bool = False,
+    exec_only_active: bool = False,
+    is_comparison_request: bool = False,
+    is_portfolio_analysis: bool = True,
 ) -> str:
     try:
         db.info["trace_id"] = trace_id
@@ -818,14 +830,14 @@ def _run_stream_non_tool_finalization_for_test(
             db=db,
             history_messages=[],
             full_response=full_response,
-            resolved_intent=ChatIntent.NO_TOOLS,
-            tools_disabled_reason=None,
-            no_tools_requested=False,
-            conceptual_tools_disabled=False,
-            exec_only_active=False,
+            resolved_intent=resolved_intent,
+            tools_disabled_reason=tools_disabled_reason,
+            no_tools_requested=no_tools_requested,
+            conceptual_tools_disabled=conceptual_tools_disabled,
+            exec_only_active=exec_only_active,
             original_user_msg=original_user_msg,
-            is_comparison_request=False,
-            is_portfolio_analysis=True,
+            is_comparison_request=is_comparison_request,
+            is_portfolio_analysis=is_portfolio_analysis,
             build_allowed_sources_for_numeric_provenance=lambda request, history_messages: [],
             compute_final_out_with_numeric_provenance_guardrail=lambda **kwargs: kwargs[
                 "full_response"
@@ -1018,6 +1030,129 @@ def test_stream_portfolio_formatting_does_not_change_business_meaning(
     assert "כל החשבונות והיתרות זמינים כאן" in body
     assert "סטטוס: בוצע" not in body
     assert "השוואה בין" not in body
+
+
+def test_stream_final_reply_shaping_skips_clean_greeting(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_h_final_reply_skip_greeting"
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="שלום")],
+    )
+
+    body = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response="שלום! אני כאן לעזור בנושאי פרישה.",
+        original_user_msg="שלום",
+        resolved_intent=ChatIntent.ANALYSIS,
+        is_portfolio_analysis=False,
+    )
+
+    assert body == "שלום! אני כאן לעזור בנושאי פרישה."
+    assert capture.find_first_payload(
+        "final_visible_reply_shaping_started", trace_id
+    ) == {"candidate": True}
+    assert capture.find_first_payload(
+        "final_visible_reply_shaping_skipped", trace_id
+    ) == {
+        "applied": False,
+        "had_boilerplate": False,
+    }
+    assert not any(
+        event.get("event_type") == "final_visible_reply_shaping_applied"
+        and event.get("trace_id") == trace_id
+        for event in capture.events
+    )
+
+
+def test_stream_final_reply_shaping_preserves_clean_advisory_mode(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_h_final_reply_skip_advisory"
+    db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
+        Scenario.scenario_name.in_(
+            ("pending_approval", "normalized_target_plan_context")
+        )
+    ).delete(synchronize_session=False)
+    db_session.commit()
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="מה אתה יכול להמליץ לי?")],
+    )
+
+    body = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response="תשובה חופשית לא מובנית",
+        original_user_msg="מה אתה יכול להמליץ לי?",
+        resolved_intent=ChatIntent.NO_TOOLS,
+        is_portfolio_analysis=False,
+    )
+
+    assert "פתיחה:" in body
+    assert "אפשרויות:" in body
+    assert "צעד תכנוני להמשך:" in body
+    assert capture.find_first_payload(
+        "final_visible_reply_shaping_started", trace_id
+    ) == {"candidate": True}
+    assert capture.find_first_payload(
+        "final_visible_reply_shaping_skipped", trace_id
+    ) == {
+        "applied": False,
+        "had_boilerplate": False,
+    }
+    assert not any(
+        event.get("event_type") == "final_visible_reply_shaping_applied"
+        and event.get("trace_id") == trace_id
+        for event in capture.events
+    )
+
+
+def test_stream_final_reply_shaping_applies_on_live_wrapped_reply(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_h_final_reply_applied_live"
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="תן תשובה קצרה")],
+    )
+
+    body = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response="assistant: ניתן לבדוק שתי אפשרויות",
+        original_user_msg="תן תשובה קצרה",
+        resolved_intent=ChatIntent.REPORT,
+        is_portfolio_analysis=False,
+    )
+
+    assert body == "ניתן לבדוק שתי אפשרויות"
+    assert capture.find_first_payload(
+        "final_visible_reply_shaping_started", trace_id
+    ) == {"candidate": True}
+    assert capture.find_first_payload(
+        "final_visible_reply_shaping_applied", trace_id
+    ) == {
+        "applied": True,
+        "had_boilerplate": True,
+        "line_dedup_applied": False,
+    }
+    assert not any(
+        event.get("event_type") == "final_visible_reply_shaping_skipped"
+        and event.get("trace_id") == trace_id
+        for event in capture.events
+    )
 
 
 def test_stream_advisory_general_returns_structured_useful_reply(

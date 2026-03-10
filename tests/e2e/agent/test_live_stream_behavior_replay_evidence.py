@@ -69,6 +69,7 @@ _TURN_REQUIRED_KEYS = {
     "visible_reply_text",
     "reply_source_hint",
     "trace_event_types",
+    "final_reply_shaping_snapshot",
     "legacy_fallback_detected",
     "pending_approval_snapshot",
     "target_plan_snapshot",
@@ -728,6 +729,44 @@ def _build_advisory_context_snapshot(
     return None
 
 
+def _build_final_reply_shaping_snapshot(
+    turn_trace_events: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    event_types = [str(event.get("event_type") or "") for event in turn_trace_events]
+    if "final_visible_reply_shaping_started" not in event_types:
+        return None
+
+    for event in turn_trace_events:
+        if str(event.get("event_type") or "") != "final_visible_reply_shaping_applied":
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        return {
+            "status": "applied",
+            "had_boilerplate": payload.get("had_boilerplate"),
+            "line_dedup_applied": payload.get("line_dedup_applied"),
+        }
+
+    for event in turn_trace_events:
+        if str(event.get("event_type") or "") != "final_visible_reply_shaping_skipped":
+            continue
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        return {
+            "status": "skipped",
+            "had_boilerplate": payload.get("had_boilerplate"),
+            "line_dedup_applied": False,
+        }
+
+    return {
+        "status": "started_only",
+        "had_boilerplate": None,
+        "line_dedup_applied": None,
+    }
+
+
 def _build_artifact(*, scenarios: list[dict[str, Any]]) -> dict[str, Any]:
     turn_count = sum(len(scenario.get("turns") or []) for scenario in scenarios)
     return {
@@ -979,6 +1018,9 @@ def _replay_case(
             "trace_event_types": [
                 str(event.get("event_type") or "") for event in turn_trace_events
             ],
+            "final_reply_shaping_snapshot": _build_final_reply_shaping_snapshot(
+                turn_trace_events
+            ),
             "legacy_fallback_detected": legacy_fallback_detected,
             "pending_approval_snapshot": _load_pending_approval_snapshot(
                 Session, client_id=client_id
@@ -1171,6 +1213,11 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
     assert greeting_turn["visible_reply_text"] == "שלום! אני כאן לעזור בנושאי פרישה."
     assert "simple_greeting_detected" in greeting_turn["trace_event_types"]
     assert "simple_greeting_response_built" in greeting_turn["trace_event_types"]
+    assert greeting_turn["final_reply_shaping_snapshot"] == {
+        "status": "skipped",
+        "had_boilerplate": False,
+        "line_dedup_applied": False,
+    }
     planning_turn = planning_baseline["turns"][1]
     assert planning_turn["pending_approval_snapshot"]["has_pending_approval"] is False
     assert planning_turn["execution_detected"] is False
@@ -1199,6 +1246,11 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
     assert advisory_turn["advisory_context_snapshot"] == {
         "has_target_context": False,
         "has_pending_state": False,
+    }
+    assert advisory_turn["final_reply_shaping_snapshot"] == {
+        "status": "skipped",
+        "had_boilerplate": False,
+        "line_dedup_applied": False,
     }
     assert artifact.get("metadata")
     assert scenarios

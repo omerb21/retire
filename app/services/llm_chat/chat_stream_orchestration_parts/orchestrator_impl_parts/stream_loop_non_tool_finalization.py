@@ -10,6 +10,76 @@ from app.services.llm_chat.orchestration_utils_parts.guards_and_validations impo
     is_simple_greeting_request,
 )
 
+_FINAL_VISIBLE_REPLY_STRIPPABLE_PREFIXES = tuple(
+    sorted(
+        (
+            "תשובה מקומית לאחר הרצת כלי",
+            "תשובה מקומית",
+            "לאחר הרצת כלי",
+            "system reply",
+            "assistant response",
+            "local response",
+            "tool response",
+            "response:",
+            "assistant:",
+        ),
+        key=len,
+        reverse=True,
+    )
+)
+
+
+def _shape_final_visible_reply(reply_text: str | None) -> tuple[str, dict[str, bool]]:
+    raw_text = "" if reply_text is None else str(reply_text)
+    normalized_lines: list[str] = []
+    had_boilerplate = False
+    line_dedup_applied = False
+
+    for raw_line in raw_text.splitlines():
+        stripped_line = raw_line.strip()
+        if not stripped_line:
+            if normalized_lines and normalized_lines[-1] != "":
+                normalized_lines.append("")
+            continue
+
+        if stripped_line in _FINAL_VISIBLE_REPLY_STRIPPABLE_PREFIXES:
+            had_boilerplate = True
+            continue
+
+        candidate_line = stripped_line
+        for prefix in _FINAL_VISIBLE_REPLY_STRIPPABLE_PREFIXES:
+            if not stripped_line.startswith(prefix):
+                continue
+            remainder = stripped_line[len(prefix) :].strip()
+            if not remainder:
+                had_boilerplate = True
+                candidate_line = ""
+                break
+            had_boilerplate = True
+            candidate_line = remainder
+            break
+
+        if not candidate_line:
+            continue
+
+        if (
+            normalized_lines
+            and normalized_lines[-1] != ""
+            and normalized_lines[-1].strip() == candidate_line.strip()
+        ):
+            line_dedup_applied = True
+            continue
+
+        normalized_lines.append(candidate_line)
+
+    while normalized_lines and normalized_lines[-1] == "":
+        normalized_lines.pop()
+
+    return "\n".join(normalized_lines), {
+        "had_boilerplate": had_boilerplate,
+        "line_dedup_applied": line_dedup_applied,
+    }
+
 
 def _stream_finalize_non_tool_response(
     *,
@@ -181,6 +251,32 @@ def _stream_finalize_non_tool_response(
                     "line_count_after": _count_visible_lines(final_out),
                 },
             )
+
+    _log_stream_trace_event(
+        "final_visible_reply_shaping_started",
+        {
+            "candidate": True,
+        },
+    )
+    shaped_final_out, shaping_meta = _shape_final_visible_reply(final_out)
+    if shaped_final_out != final_out:
+        final_out = shaped_final_out
+        _log_stream_trace_event(
+            "final_visible_reply_shaping_applied",
+            {
+                "applied": True,
+                "had_boilerplate": bool(shaping_meta.get("had_boilerplate")),
+                "line_dedup_applied": bool(shaping_meta.get("line_dedup_applied")),
+            },
+        )
+    else:
+        _log_stream_trace_event(
+            "final_visible_reply_shaping_skipped",
+            {
+                "applied": False,
+                "had_boilerplate": False,
+            },
+        )
 
     yield final_out
     return False
