@@ -47,6 +47,36 @@ def is_net_pension_request(user_message: str) -> bool:
     return any(keyword in message_lower for keyword in net_keywords)
 
 
+def extract_retirement_comparison_candidate_ages(user_message: str) -> list[int]:
+    if not user_message:
+        return []
+
+    lowered = (user_message or "").lower()
+    if not lowered.strip():
+        return []
+
+    patterns = (
+        r"גיל\s*(\d{2})",
+        r"age\s*(\d{2})",
+        r"לגיל\s*(\d{2})",
+        r"\b(\d{2})\b",
+    )
+    found: list[int] = []
+    for pattern in patterns:
+        try:
+            matches = re.findall(pattern, lowered)
+        except Exception:
+            matches = []
+        for raw in matches:
+            try:
+                age = int(raw)
+            except Exception:
+                continue
+            if 50 <= age <= 90 and age not in found:
+                found.append(age)
+    return found
+
+
 def _is_target_pension_plan_request_text(user_message: str) -> bool:
     lowered = (user_message or "").lower().replace(",", "")
     if not lowered.strip():
@@ -619,36 +649,6 @@ def is_termination_change_request(user_message: str) -> bool:
     return any(t in lowered for t in change_tokens) and any(
         d in lowered for d in domain_tokens
     )
-
-
-def extract_retirement_comparison_candidate_ages(user_message: str) -> list[int]:
-    if not user_message:
-        return []
-
-    lowered = (user_message or "").lower()
-    if not lowered.strip():
-        return []
-
-    patterns = (
-        r"גיל\s*(\d{2})",
-        r"age\s*(\d{2})",
-        r"לגיל\s*(\d{2})",
-        r"\b(\d{2})\b",
-    )
-    found: list[int] = []
-    for pattern in patterns:
-        try:
-            matches = re.findall(pattern, lowered)
-        except Exception:
-            matches = []
-        for raw in matches:
-            try:
-                age = int(raw)
-            except Exception:
-                continue
-            if 50 <= age <= 90 and age not in found:
-                found.append(age)
-    return found
 
 
 def is_retirement_comparison_request(user_message: str) -> bool:
