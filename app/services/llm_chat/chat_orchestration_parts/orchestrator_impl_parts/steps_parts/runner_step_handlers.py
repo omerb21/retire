@@ -5,6 +5,133 @@ from typing import Any
 from app.schemas.llm_chat import ChatMessage, ChatResponse
 
 
+def _resolve_local_trace_id(*, request, db, request_id: str) -> str | None:
+    try:
+        from app.utils.trace_context import get_current_trace_id
+
+        return (
+            (getattr(db, "info", {}) or {}).get("trace_id")
+            or get_current_trace_id()
+            or getattr(request, "trace_id", None)
+            or request_id
+        )
+    except Exception:
+        return getattr(request, "trace_id", None) or request_id
+
+
+def _log_local_trace_event(
+    *, request, db, request_id: str, event_type: str, payload: dict[str, Any]
+) -> None:
+    try:
+        from app.services.agent_trace_logger import log_trace_event
+
+        log_trace_event(
+            trace_id=_resolve_local_trace_id(
+                request=request,
+                db=db,
+                request_id=request_id,
+            ),
+            event_type=event_type,
+            payload=payload,
+        )
+    except Exception:
+        pass
+
+
+def _build_simple_greeting_response() -> str:
+    return "שלום! אני כאן לעזור בנושאי פרישה."
+
+
+def is_portfolio_like_reply_candidate(reply_text: str | None) -> bool:
+    text = str(reply_text or "").strip()
+    if not text:
+        return False
+
+    if any(
+        marker in text
+        for marker in (
+            "###TOOL_CALL###",
+            "###UI_ACTION###",
+            "###END_UI_ACTION###",
+            "פתיחה:\n",
+            "אפשרויות:\n",
+            "מה כדאי לבדוק עכשיו:",
+            "צעד תכנוני להמשך:",
+            "השוואה בין",
+            "סטטוס: בוצע",
+            "שלום!",
+            "שלום,",
+        )
+    ):
+        return False
+
+    return any(
+        marker in text
+        for marker in (
+            "פירוט לפי תכנית:",
+            "פירוט לפי תוכנית:",
+            "כל החשבונות והיתרות",
+            "תמונת התיק",
+        )
+    )
+
+
+def _format_portfolio_style_reply(reply_text: str | None) -> str:
+    text = str(reply_text or "").strip()
+    if not text:
+        return ""
+
+    lines: list[str] = []
+    if "פירוט לפי תכנית:" in text:
+        before, after = text.split("פירוט לפי תכנית:", 1)
+        if before.strip():
+            lines.extend(
+                segment.strip()
+                for segment in re.split(r"[\n\.]+", before)
+                if segment.strip()
+            )
+        lines.append("פירוט לפי תכנית:")
+        if after.strip():
+            lines.extend(
+                segment.strip()
+                for segment in re.split(r"[\n\.]+", after)
+                if segment.strip()
+            )
+    elif "פירוט לפי תוכנית:" in text:
+        before, after = text.split("פירוט לפי תוכנית:", 1)
+        if before.strip():
+            lines.extend(
+                segment.strip()
+                for segment in re.split(r"[\n\.]+", before)
+                if segment.strip()
+            )
+        lines.append("פירוט לפי תוכנית:")
+        if after.strip():
+            lines.extend(
+                segment.strip()
+                for segment in re.split(r"[\n\.]+", after)
+                if segment.strip()
+            )
+    else:
+        lines.extend(
+            segment.strip() for segment in re.split(r"[\n\.]+", text) if segment.strip()
+        )
+
+    content_lines: list[str] = []
+    for line in lines:
+        cleaned = line.strip()
+        if cleaned and cleaned not in content_lines:
+            content_lines.append(cleaned)
+
+    if not content_lines:
+        content_lines = [text]
+
+    content_lines = content_lines[:5]
+    opening_line = "להלן תמונת התיק בקצרה."
+    summary_line = "זה הסיכום המרוכז של התיק כרגע."
+    return "\n".join([opening_line, *content_lines, summary_line]).strip()
+
+
 def _build_local_no_tool_reply(
     *,
     request,
@@ -15,6 +142,11 @@ def _build_local_no_tool_reply(
     has_tool_results: bool,
     raw_reply: str | None,
 ) -> str | None:
+    from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+        is_general_advisory_request,
+        is_simple_greeting_request,
+    )
+
     user_messages: list[str] = []
     try:
         for msg in getattr(request, "messages", []) or []:
@@ -29,36 +161,22 @@ def _build_local_no_tool_reply(
     raw_reply_text = str(raw_reply or "")
     raw_reply_has_digits = any(ch.isdigit() for ch in raw_reply_text)
 
-    def _log_advisory_event(event_type: str, payload: dict[str, Any]) -> None:
-        try:
-            from app.services.agent_trace_logger import log_trace_event
-            from app.utils.trace_context import get_current_trace_id
-
-            trace_id = (
-                (getattr(db, "info", {}) or {}).get("trace_id")
-                or get_current_trace_id()
-                or getattr(request, "trace_id", None)
-                or request_id
-            )
-            log_trace_event(trace_id=trace_id, event_type=event_type, payload=payload)
-        except Exception:
-            pass
-
     def _build_advisory_response_mode() -> str | None:
         from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage import (
             load_normalized_target_plan_context,
             load_pending_approval_request,
         )
-        from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
-            is_general_advisory_request,
-        )
 
-        if is_comparison_request:
-            return None
         if not is_general_advisory_request(latest_text):
             return None
 
-        _log_advisory_event("advisory_mode_detected", {"advisory_intent": True})
+        _log_local_trace_event(
+            request=request,
+            db=db,
+            request_id=request_id,
+            event_type="advisory_mode_detected",
+            payload={"advisory_intent": True},
+        )
 
         client_id = getattr(request, "client_id", None)
         normalized_target_context = None
@@ -86,9 +204,12 @@ def _build_local_no_tool_reply(
 
         if has_target_context:
             mode = "ADVISORY_CONTEXTUAL_TARGET"
-            _log_advisory_event(
-                "advisory_mode_contextual_target",
-                {"has_target_context": True, "has_pending_state": False},
+            _log_local_trace_event(
+                request=request,
+                db=db,
+                request_id=request_id,
+                event_type="advisory_mode_contextual_target",
+                payload={"has_target_context": True, "has_pending_state": False},
             )
             options = [
                 "- לשמור על כיוון התכנון הקיים ולחדד סדרי עדיפויות לפני כל שינוי.",
@@ -100,9 +221,12 @@ def _build_local_no_tool_reply(
             next_step = "אם תרצה, נבנה סבב תכנון נוסף שממקד רק בהחלטת העדיפות, בלי ביצוע ובלי שינוי מצב."
         elif has_pending_state:
             mode = "ADVISORY_CONTEXTUAL_PENDING_STATE"
-            _log_advisory_event(
-                "advisory_mode_contextual_pending_state",
-                {"has_target_context": False, "has_pending_state": True},
+            _log_local_trace_event(
+                request=request,
+                db=db,
+                request_id=request_id,
+                event_type="advisory_mode_contextual_pending_state",
+                payload={"has_target_context": False, "has_pending_state": True},
             )
             pending_tool = str((pending_approval or (None, {}))[0] or "").strip()
             tool_hint = (
@@ -119,9 +243,12 @@ def _build_local_no_tool_reply(
             checks = "בדוק אם המצב התלוי עדיין מתאים למטרה שלך, או שנדרש תיקון כיוון לפני התקדמות."
             next_step = "אם תרצה, אנסח עבורך צעד תכנוני קצר להמשך, ללא שינוי מצב."
         else:
-            _log_advisory_event(
-                "advisory_mode_general",
-                {"has_target_context": False, "has_pending_state": False},
+            _log_local_trace_event(
+                request=request,
+                db=db,
+                request_id=request_id,
+                event_type="advisory_mode_general",
+                payload={"has_target_context": False, "has_pending_state": False},
             )
             options = [
                 "- להתחיל ממסלול שמרני שמעדיף יציבות תזרימית והפחתת תנודתיות החלטות.",
@@ -148,21 +275,35 @@ def _build_local_no_tool_reply(
             ]
         )
 
-        _log_advisory_event(
-            "advisory_mode_response_built",
-            {"mode": mode, "option_count": option_count},
+        _log_local_trace_event(
+            request=request,
+            db=db,
+            request_id=request_id,
+            event_type="advisory_mode_response_built",
+            payload={"mode": mode, "option_count": option_count},
         )
         return response
-
-    advisory_reply = _build_advisory_response_mode()
-    if isinstance(advisory_reply, str) and advisory_reply.strip():
-        return advisory_reply
 
     if has_tool_results:
         return None
 
-    if latest_text in {"שלום", "היי", "הי", "hello", "hi"} and not raw_reply_has_digits:
-        return "שלום! אפשר לבקש ניתוח תיק או לבנות תכנית פרישה."
+    if is_simple_greeting_request(latest_text) and not raw_reply_has_digits:
+        _log_local_trace_event(
+            request=request,
+            db=db,
+            request_id=request_id,
+            event_type="simple_greeting_detected",
+            payload={"simple_greeting": True},
+        )
+        greeting_reply = _build_simple_greeting_response()
+        _log_local_trace_event(
+            request=request,
+            db=db,
+            request_id=request_id,
+            event_type="simple_greeting_response_built",
+            payload={"simple_greeting": True},
+        )
+        return greeting_reply
 
     if any(token in lowered_latest for token in ("השווה", "השוואה", "להשוות")) and (
         "תכנית" in latest_text
@@ -177,6 +318,10 @@ def _build_local_no_tool_reply(
             "השוואה בין תכניות קצבה: כדאי לבחון קצבה נטו, קצבה ברוטו, "
             "מס חודשי והון שנותר לפני החלטה."
         )
+
+    advisory_reply = _build_advisory_response_mode()
+    if isinstance(advisory_reply, str) and advisory_reply.strip():
+        return advisory_reply
 
     return None
 

@@ -24,6 +24,9 @@ from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage imp
     store_normalized_target_plan_context,
     store_pending_approval_request,
 )
+from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_non_tool_finalization import (
+    _stream_finalize_non_tool_response,
+)
 from app.services.llm_chat.chat_stream_orchestration_parts.stream_approval_generators import (
     generate_forced_approval,
 )
@@ -31,6 +34,7 @@ from app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_
     generate_cashflow,
     generate_target_plan,
 )
+from app.services.llm_chat.intent_classifier import ChatIntent
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,
     ACTION_COMPARE_EXISTING_PLANS,
@@ -144,6 +148,48 @@ def _find_capability_resolved_with_canonical_action(
         "Missing router-backed `capability_resolved` event with canonical_action "
         f"for {trace_id}."
     )
+
+
+def _run_stream_non_tool_finalization_for_test(
+    *, request, db, trace_id: str, full_response: str, original_user_msg: str
+) -> str:
+    try:
+        db.info["trace_id"] = trace_id
+    except Exception:
+        pass
+    output = list(
+        _stream_finalize_non_tool_response(
+            logger=SimpleNamespace(warning=lambda *args, **kwargs: None),
+            req_id=trace_id,
+            stream_request_id=trace_id,
+            request=request,
+            db=db,
+            history_messages=[],
+            full_response=full_response,
+            resolved_intent=ChatIntent.NO_TOOLS,
+            tools_disabled_reason=None,
+            no_tools_requested=False,
+            conceptual_tools_disabled=False,
+            exec_only_active=False,
+            original_user_msg=original_user_msg,
+            is_comparison_request=False,
+            is_portfolio_analysis=True,
+            build_allowed_sources_for_numeric_provenance=lambda request, history_messages: [],
+            compute_final_out_with_numeric_provenance_guardrail=lambda **kwargs: kwargs[
+                "full_response"
+            ],
+            postprocess_no_tools_user_visible_text=lambda text: text,
+            validate_execution_only_output=lambda text: None,
+            build_exec_only_rewrite_prompt=lambda bad_text, user_request_text: [],
+            get_llm_service=lambda: None,
+            build_execution_only_fallback=lambda text: text,
+            enforce_behavioral_limits=lambda text: (True, text),
+            sanitize_words_only_output=lambda text: text,
+            sanitize_words_only_conceptual=lambda text, user_text: text,
+        )
+    )
+    assert output
+    return str(output[-1])
 
 
 def _assert_required_keys(
@@ -388,6 +434,64 @@ def test_system_only_stream_router_selected_trace_contract(monkeypatch) -> None:
     assert isinstance(
         router_payload["tool_chain"], list
     ), "System-only stream path emitted router_selected.tool_chain in a non-list shape."
+
+
+def test_simple_greeting_trace_contract(db_session, client, monkeypatch) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_g_simple_greeting_contract"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="שלום")],
+    )
+
+    reply = runner_step_handlers._build_local_no_tool_reply(
+        request=request,
+        db=db_session,
+        request_id=trace_id,
+        original_user_msg="שלום",
+        is_comparison_request=False,
+        has_tool_results=False,
+        raw_reply="מענה חופשי",
+    )
+
+    assert reply == "שלום! אני כאן לעזור בנושאי פרישה."
+    assert capture.find_first_payload("simple_greeting_detected", trace_id) == {
+        "simple_greeting": True
+    }
+    assert capture.find_first_payload("simple_greeting_response_built", trace_id) == {
+        "simple_greeting": True
+    }
+
+
+def test_portfolio_formatting_trace_contract(db_session, client, monkeypatch) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_g_portfolio_formatting_contract"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="ניתוח תיק")],
+    )
+
+    reply = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response="פירוט לפי תכנית: כל החשבונות והיתרות זמינים כאן.",
+        original_user_msg="ניתוח תיק",
+    )
+
+    assert "כל החשבונות והיתרות זמינים כאן" in reply
+    detected_payload = capture.find_first_payload(
+        "portfolio_reply_detected_for_formatting", trace_id
+    )
+    formatted_payload = capture.find_first_payload(
+        "portfolio_reply_formatted", trace_id
+    )
+    assert detected_payload["formatting_candidate"] is True
+    assert formatted_payload["formatted"] is True
 
 
 def test_legacy_fallback_trace_contract_is_diagnostic(monkeypatch, db_session) -> None:

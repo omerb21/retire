@@ -300,7 +300,7 @@ class _FakeLLMService:
             return "תשובה מקומית לאחר הרצת כלי."
 
         if case_id == "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT":
-            return "שלום, אני יכול לעזור בנושאי פרישה."
+            return "שלום! אני כאן לעזור בנושאי פרישה."
 
         if case_id == "BEHAVIOR_02_PORTFOLIO_ANALYSIS_SHORT_DEFAULT":
             return _build_tool_call_reply("GET_PENSION_PRODUCTS", {})
@@ -1162,6 +1162,15 @@ def test_live_stream_behavior_subset_turn_by_turn_replay_evidence(
         if scenario.get("scenario_id")
         == "BEHAVIOR_03_TARGET_PLAN_NO_TERMINATION_FORCED"
     )
+    greeting_baseline = next(
+        scenario
+        for scenario in scenarios
+        if scenario.get("scenario_id") == "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT"
+    )
+    greeting_turn = greeting_baseline["turns"][0]
+    assert greeting_turn["visible_reply_text"] == "שלום! אני כאן לעזור בנושאי פרישה."
+    assert "simple_greeting_detected" in greeting_turn["trace_event_types"]
+    assert "simple_greeting_response_built" in greeting_turn["trace_event_types"]
     planning_turn = planning_baseline["turns"][1]
     assert planning_turn["pending_approval_snapshot"]["has_pending_approval"] is False
     assert planning_turn["execution_detected"] is False

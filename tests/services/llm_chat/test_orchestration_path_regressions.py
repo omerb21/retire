@@ -24,12 +24,16 @@ from app.services.llm_chat.chat_orchestration_helpers_parts.scenario_storage imp
 from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_approval_cancel_handling import (
     _maybe_handle_approval_or_cancel_flow,
 )
+from app.services.llm_chat.chat_stream_orchestration_parts.orchestrator_impl_parts.stream_loop_non_tool_finalization import (
+    _stream_finalize_non_tool_response,
+)
 from app.services.llm_chat.chat_stream_orchestration_parts.stream_approval_generators import (
     generate_forced_approval,
 )
 from app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators import (
     generate_target_plan,
 )
+from app.services.llm_chat.intent_classifier import ChatIntent
 from app.services.llm_chat.orchestration_core.canonical_action_selector import (
     ACTION_ANSWER_GENERAL_QUESTION,
     ACTION_COMPARE_EXISTING_PLANS,
@@ -792,6 +796,228 @@ def test_stream_compare_two_stored_plans_enters_compare_ready(
 def _count_advisory_options(reply_text: str) -> int:
     lines = [line.strip() for line in str(reply_text or "").splitlines()]
     return sum(1 for line in lines if line.startswith("- "))
+
+
+def _count_non_empty_lines(reply_text: str) -> list[str]:
+    return [line.strip() for line in str(reply_text or "").splitlines() if line.strip()]
+
+
+def _run_stream_non_tool_finalization_for_test(
+    *, request, db, trace_id: str, full_response: str, original_user_msg: str
+) -> str:
+    try:
+        db.info["trace_id"] = trace_id
+    except Exception:
+        pass
+    output = list(
+        _stream_finalize_non_tool_response(
+            logger=SimpleNamespace(warning=lambda *args, **kwargs: None),
+            req_id=trace_id,
+            stream_request_id=trace_id,
+            request=request,
+            db=db,
+            history_messages=[],
+            full_response=full_response,
+            resolved_intent=ChatIntent.NO_TOOLS,
+            tools_disabled_reason=None,
+            no_tools_requested=False,
+            conceptual_tools_disabled=False,
+            exec_only_active=False,
+            original_user_msg=original_user_msg,
+            is_comparison_request=False,
+            is_portfolio_analysis=True,
+            build_allowed_sources_for_numeric_provenance=lambda request, history_messages: [],
+            compute_final_out_with_numeric_provenance_guardrail=lambda **kwargs: kwargs[
+                "full_response"
+            ],
+            postprocess_no_tools_user_visible_text=lambda text: text,
+            validate_execution_only_output=lambda text: None,
+            build_exec_only_rewrite_prompt=lambda bad_text, user_request_text: [],
+            get_llm_service=lambda: None,
+            build_execution_only_fallback=lambda text: text,
+            enforce_behavioral_limits=lambda text: (True, text),
+            sanitize_words_only_output=lambda text: text,
+            sanitize_words_only_conceptual=lambda text, user_text: text,
+        )
+    )
+    assert output
+    return str(output[-1])
+
+
+def test_stream_simple_greeting_returns_short_natural_reply(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_g_simple_greeting"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="שלום")],
+    )
+
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="שלום",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="מענה חופשי",
+        )
+        or ""
+    )
+
+    assert body == "שלום! אני כאן לעזור בנושאי פרישה."
+    assert "\n- " not in body
+    assert "אפשרויות:" not in body
+    assert "###UI_ACTION###" not in body
+    assert "###TOOL_CALL###" not in body
+    assert capture.find_first_payload("simple_greeting_detected", trace_id) == {
+        "simple_greeting": True
+    }
+    assert capture.find_first_payload("simple_greeting_response_built", trace_id) == {
+        "simple_greeting": True
+    }
+
+
+def test_stream_greeting_with_substantive_question_is_not_simple_greeting(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_g_greeting_with_question"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="שלום, מה האפשרויות שלי?")],
+    )
+
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="שלום, מה האפשרויות שלי?",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="מענה חופשי",
+        )
+        or ""
+    )
+
+    assert body != "שלום! אני כאן לעזור בנושאי פרישה."
+    assert "פתיחה:" in body
+    assert not any(
+        event.get("event_type") == "simple_greeting_detected"
+        for event in capture.events
+    )
+
+
+def test_stream_greeting_does_not_trigger_advisory_or_target_prompt(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_g_greeting_no_advisory"
+    db_session.info["trace_id"] = trace_id
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content="היי")],
+    )
+
+    body = str(
+        runner_step_handlers._build_local_no_tool_reply(
+            request=request,
+            db=db_session,
+            request_id=trace_id,
+            original_user_msg="היי",
+            is_comparison_request=False,
+            has_tool_results=False,
+            raw_reply="מענה חופשי",
+        )
+        or ""
+    )
+
+    assert body == "שלום! אני כאן לעזור בנושאי פרישה."
+    assert "אפשרויות:" not in body
+    assert "יעד חודשי" not in body
+    assert "אישור" not in body
+    assert "execute" not in body.lower()
+    assert not any(
+        event.get("event_type", "").startswith("advisory_mode_")
+        for event in capture.events
+    )
+
+
+def test_stream_portfolio_reply_is_formatted_and_not_wall_of_text(
+    db_session, client, monkeypatch
+) -> None:
+    capture = _install_trace_capture(monkeypatch)
+    trace_id = "trace_stage_g_portfolio_formatting"
+    transcript = "ניתוח תיק"
+    raw_reply = "פירוט לפי תכנית: כל החשבונות והיתרות זמינים כאן."
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content=transcript)],
+    )
+
+    body = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response=raw_reply,
+        original_user_msg=transcript,
+    )
+
+    lines = _count_non_empty_lines(body)
+    assert lines[0] == "להלן תמונת התיק בקצרה."
+    assert 4 <= len(lines) <= 7
+    assert lines[-1] == "זה הסיכום המרוכז של התיק כרגע."
+    content_lines = lines[1:-1]
+    assert 2 <= len(content_lines) <= 5
+    assert content_lines[0] == "פירוט לפי תכנית:"
+    assert "כל החשבונות והיתרות זמינים כאן" in body
+    assert (
+        capture.find_first_payload(
+            "portfolio_reply_detected_for_formatting", trace_id
+        ).get("formatting_candidate")
+        is True
+    )
+    assert (
+        capture.find_first_payload("portfolio_reply_formatted", trace_id).get(
+            "formatted"
+        )
+        is True
+    )
+
+
+def test_stream_portfolio_formatting_does_not_change_business_meaning(
+    db_session, client, monkeypatch
+) -> None:
+    trace_id = "trace_stage_g_portfolio_meaning"
+    transcript = "ניתוח תיק"
+    raw_reply = "פירוט לפי תכנית: כל החשבונות והיתרות זמינים כאן."
+    request = SimpleNamespace(
+        client_id=int(client.id),
+        trace_id=trace_id,
+        messages=[SimpleNamespace(role="user", content=transcript)],
+    )
+
+    body = _run_stream_non_tool_finalization_for_test(
+        request=request,
+        db=db_session,
+        trace_id=trace_id,
+        full_response=raw_reply,
+        original_user_msg=transcript,
+    )
+
+    assert "פירוט לפי תכנית:" in body
+    assert "כל החשבונות והיתרות זמינים כאן" in body
+    assert "סטטוס: בוצע" not in body
+    assert "השוואה בין" not in body
 
 
 def test_stream_advisory_general_returns_structured_useful_reply(

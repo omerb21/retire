@@ -697,6 +697,33 @@ def is_retirement_comparison_request(user_message: str) -> bool:
     return True
 
 
+def is_simple_greeting_request(user_message: str | None) -> bool:
+    if not user_message:
+        return False
+
+    lowered = str(user_message).strip().lower()
+    if not lowered:
+        return False
+
+    normalized = re.sub(r"[!?.,:;\-\u05f3\u05f4\"'()\[\]{}]+", " ", lowered)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if not normalized:
+        return False
+
+    return normalized in {
+        "שלום",
+        "היי",
+        "הי",
+        "בוקר טוב",
+        "ערב טוב",
+        "מה נשמע",
+        "hello",
+        "hi",
+        "good morning",
+        "good evening",
+    }
+
+
 def is_general_advisory_request(user_message: str | None) -> bool:
     if not user_message:
         return False

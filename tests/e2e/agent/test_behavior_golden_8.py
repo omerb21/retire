@@ -432,7 +432,7 @@ class _FakeLLMService:
             return "תשובה מקומית לאחר הרצת כלי."
 
         if case_id == "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT":
-            return "שלום, אני יכול לעזור בנושאי פרישה."
+            return "שלום! אני כאן לעזור בנושאי פרישה."
 
         if case_id == "BEHAVIOR_02_PORTFOLIO_ANALYSIS_SHORT_DEFAULT":
             return _build_tool_call_reply("GET_PENSION_PRODUCTS", {})

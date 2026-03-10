@@ -1,7 +1,7 @@
 {
   "metadata": {
     "endpoint": "/api/v1/llm/pension-chat-stream",
-    "generated_at_utc": "2026-03-08T23:25:41.586820+00:00",
+    "generated_at_utc": "2026-03-10T12:43:34.418108+00:00",
     "scenario_count": 7,
     "turn_count": 9
   },
@@ -10,6 +10,8 @@
       "scenario_id": "BEHAVIOR_01_GREETING_NO_SUMMARY_REPORT",
       "turns": [
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -67,12 +69,14 @@
             "legacy_fallback_entered",
             "state_source",
             "execution_path",
+            "simple_greeting_detected",
+            "simple_greeting_response_built",
             "assistant_output",
             "final_response"
           ],
           "turn_index": 1,
           "user_text": "שלום",
-          "visible_reply_text": "תשובה מקומית לאחר הרצת כלי."
+          "visible_reply_text": "שלום! אני כאן לעזור בנושאי פרישה."
         }
       ]
     },
@@ -80,6 +84,8 @@
       "scenario_id": "BEHAVIOR_02_PORTFOLIO_ANALYSIS_SHORT_DEFAULT",
       "turns": [
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -124,19 +130,6 @@
             "predicate_eval",
             "predicate_eval",
             "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -152,12 +145,14 @@
             "legacy_fallback_entered",
             "state_source",
             "execution_path",
+            "portfolio_reply_detected_for_formatting",
+            "portfolio_reply_formatted",
             "assistant_output",
             "final_response"
           ],
           "turn_index": 1,
           "user_text": "ניתוח תיק",
-          "visible_reply_text": "הערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק.\n\nפירוט לפי תכנית: כל החשבונות והיתרות זמינים כאן."
+          "visible_reply_text": "להלן תמונת התיק בקצרה.\nהערה: התרחישים האוטומטיים הם הערכה ראשונית/גסה בלבד ואינם חישוב ביצוע מדויק\nפירוט לפי תכנית:\nכל החשבונות והיתרות זמינים כאן\nזה הסיכום המרוכז של התיק כרגע."
         }
       ]
     },
@@ -165,6 +160,8 @@
       "scenario_id": "BEHAVIOR_03_TARGET_PLAN_NO_TERMINATION_FORCED",
       "turns": [
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -203,6 +200,7 @@
             "intent_detected",
             "policy_decision",
             "execution_mode",
+            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -225,6 +223,8 @@
           "visible_reply_text": "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\nכתוב: יעד נטו: <מספר>."
         },
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -302,19 +302,6 @@
             "predicate_eval",
             "predicate_eval",
             "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -341,6 +328,8 @@
       "scenario_id": "BEHAVIOR_05_PLANNING_REQUEST_MUST_NOT_EXECUTE_TERMINATION",
       "turns": [
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -416,6 +405,7 @@
             "intent_detected",
             "policy_decision",
             "execution_mode",
+            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -443,6 +433,8 @@
       "scenario_id": "BEHAVIOR_06_TARGET_NET_PERSIST_AND_NO_DOUBLE_OFFSET",
       "turns": [
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -487,19 +479,6 @@
             "predicate_eval",
             "predicate_eval",
             "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -522,6 +501,8 @@
           "visible_reply_text": "אין תכנית קיימת להצגת תזרים. יש לבנות תכנית תחילה."
         },
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -597,6 +578,7 @@
             "intent_detected",
             "policy_decision",
             "execution_mode",
+            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -624,6 +606,8 @@
       "scenario_id": "BEHAVIOR_07_COMPARE_PLANS_INSTEAD_OF_NEW_PLAN",
       "turns": [
         {
+          "advisory_context_snapshot": null,
+          "advisory_mode_snapshot": null,
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -676,13 +660,15 @@
             "core_next_action_decided",
             "capability_resolved",
             "legacy_fallback_entered",
-            "state_source",
+            "retirement_compare_detected",
+            "retirement_compare_blocked_target_prompt",
+            "retirement_compare_ambiguous",
             "assistant_output",
             "final_response"
           ],
           "turn_index": 1,
           "user_text": "השווה תכנית פרישה גיל 72 לעומת גיל 76",
-          "visible_reply_text": "כדי לבנות תכנית פרישה אני צריך יעד חודשי נטו.\nכתוב: יעד נטו: <מספר>."
+          "visible_reply_text": "איזה שתי תכניות אתה רוצה שאשווה? תן לי שני גילי יעד או שתי תכניות קיימות."
         }
       ]
     },
@@ -690,6 +676,15 @@
       "scenario_id": "BEHAVIOR_08_GENERAL_QUESTIONS_MUST_GIVE_USEFUL_ANSWER",
       "turns": [
         {
+          "advisory_context_snapshot": {
+            "has_pending_state": false,
+            "has_target_context": false
+          },
+          "advisory_mode_snapshot": {
+            "advisory_detected": true,
+            "mode_event": "advisory_mode_general",
+            "option_count": null
+          },
           "execution_detected": false,
           "execution_veto_snapshot": {
             "scope": null,
@@ -734,19 +729,6 @@
             "predicate_eval",
             "predicate_eval",
             "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
-            "predicate_eval",
             "router_selected",
             "capability_resolved",
             "capability_resolved",
@@ -767,7 +749,7 @@
           ],
           "turn_index": 1,
           "user_text": "מה תמליץ לי?",
-          "visible_reply_text": "תשובה מקומית לאחר הרצת כלי."
+          "visible_reply_text": "כדי לענות על זה בצורה נכונה נדרש חישוב מדויק במערכת הפרישה. אני יכול להסביר את העיקרון בלבד, בלי מספרים ובלי המלצה."
         }
       ]
     }
