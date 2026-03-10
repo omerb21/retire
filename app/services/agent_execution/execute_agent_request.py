@@ -350,18 +350,15 @@ def _stage10_guard_reply_text(
         # UI actions / markers are allowed to pass through as they are not user-visible numeric output.
         return reply
 
-    if (
-        all(
-            token in visible_text
-            for token in (
-                "פתיחה:",
-                "אפשרויות:",
-                "מה כדאי לבדוק עכשיו:",
-                "צעד תכנוני להמשך:",
-            )
+    if all(
+        token in visible_text
+        for token in (
+            "פתיחה:",
+            "אפשרויות:",
+            "מה כדאי לבדוק עכשיו:",
+            "צעד תכנוני להמשך:",
         )
-        and not any(ch.isdigit() for ch in visible_text)
-    ):
+    ) and not any(ch.isdigit() for ch in visible_text):
         return reply
 
     allowed, _final_text = _stage10_enforce_behavioral_limits(

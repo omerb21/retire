@@ -8,9 +8,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+import app.services.llm_chat.chat_orchestration_parts.orchestrator_impl_parts.steps_parts.runner_step_handlers as runner_step_handlers
 import app.services.llm_chat.chat_stream_orchestration as stream_orch
 import app.services.llm_chat.chat_stream_orchestration_parts.stream_system_prompt_generators as stream_prompt_mod
-import app.services.llm_chat.chat_orchestration_parts.orchestrator_impl_parts.steps_parts.runner_step_handlers as runner_step_handlers
 from app.main import app
 from app.models import Scenario
 from app.models.pension_fund import PensionFund
@@ -728,7 +728,9 @@ def _count_trace_events(capture: _TraceCapture, event_type: str, trace_id: str) 
 def test_advisory_trace_contract_general(db_session, client, monkeypatch) -> None:
     capture = _install_trace_capture(monkeypatch)
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+        Scenario.scenario_name.in_(
+            ("normalized_target_plan_context", "pending_approval")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
 
@@ -770,11 +772,15 @@ def test_advisory_trace_contract_general(db_session, client, monkeypatch) -> Non
     )
 
 
-def test_advisory_trace_contract_contextual_target(db_session, client, monkeypatch) -> None:
+def test_advisory_trace_contract_contextual_target(
+    db_session, client, monkeypatch
+) -> None:
     capture = _install_trace_capture(monkeypatch)
 
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+        Scenario.scenario_name.in_(
+            ("normalized_target_plan_context", "pending_approval")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
     assert (
@@ -826,7 +832,9 @@ def test_advisory_trace_contract_contextual_pending_state(
     capture = _install_trace_capture(monkeypatch)
 
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+        Scenario.scenario_name.in_(
+            ("normalized_target_plan_context", "pending_approval")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
     assert (
@@ -834,7 +842,10 @@ def test_advisory_trace_contract_contextual_pending_state(
             db=db_session,
             client_id=int(client.id),
             tool_name="TRANSFORM_FUNDS_TO_ASSETS",
-            tool_args={"approval_id": "trace_stage_f_pending", "approval_type": "execution"},
+            tool_args={
+                "approval_id": "trace_stage_f_pending",
+                "approval_type": "execution",
+            },
         )
         is True
     )
@@ -866,8 +877,6 @@ def test_advisory_trace_contract_contextual_pending_state(
     assert built_payload.get("mode") == "ADVISORY_CONTEXTUAL_PENDING_STATE"
     assert int(built_payload.get("option_count") or 0) in (2, 3, 4)
     assert (
-        _count_trace_events(
-            capture, "advisory_mode_contextual_pending_state", trace_id
-        )
+        _count_trace_events(capture, "advisory_mode_contextual_pending_state", trace_id)
         == 1
     )

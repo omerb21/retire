@@ -5,13 +5,13 @@ from fastapi.responses import StreamingResponse
 from app.guards.advice_domain import AdviceDomain
 from app.guards.advice_domain_resolver import resolve_advice_domain
 from app.services.llm_chat.intent_classifier import ChatIntent, detect_intent
-from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
-    is_general_advisory_request,
-)
 from app.services.llm_chat.orchestration_utils import (
     is_cashflow_missing_income_followup,
     is_net_pension_request,
     is_retirement_comparison_request,
+)
+from app.services.llm_chat.orchestration_utils_parts.guards_and_validations import (
+    is_general_advisory_request,
 )
 
 

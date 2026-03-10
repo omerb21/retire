@@ -799,7 +799,9 @@ def test_stream_advisory_general_returns_structured_useful_reply(
 ) -> None:
     capture = _install_trace_capture(monkeypatch)
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("pending_approval", "normalized_target_plan_context"))
+        Scenario.scenario_name.in_(
+            ("pending_approval", "normalized_target_plan_context")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
 
@@ -831,7 +833,9 @@ def test_stream_advisory_general_returns_structured_useful_reply(
     option_count = _count_advisory_options(body)
     assert 2 <= option_count <= 4
 
-    assert capture.find_first_payload("advisory_mode_detected")["advisory_intent"] is True
+    assert (
+        capture.find_first_payload("advisory_mode_detected")["advisory_intent"] is True
+    )
     assert capture.find_first_payload("advisory_mode_general") == {
         "has_target_context": False,
         "has_pending_state": False,
@@ -845,7 +849,9 @@ def test_stream_advisory_options_returns_fixed_structure(
     db_session, client, monkeypatch
 ) -> None:
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("pending_approval", "normalized_target_plan_context"))
+        Scenario.scenario_name.in_(
+            ("pending_approval", "normalized_target_plan_context")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
 
@@ -880,7 +886,9 @@ def test_stream_advisory_fixation_question_returns_practical_non_generic_answer(
 ) -> None:
     capture = _install_trace_capture(monkeypatch)
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("pending_approval", "normalized_target_plan_context"))
+        Scenario.scenario_name.in_(
+            ("pending_approval", "normalized_target_plan_context")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
 
@@ -909,7 +917,9 @@ def test_stream_advisory_fixation_question_returns_practical_non_generic_answer(
     assert "צעד תכנוני להמשך:" in body
     assert "###UI_ACTION###" not in body
     assert "###TOOL_CALL###" not in body
-    assert capture.find_first_payload("advisory_mode_detected")["advisory_intent"] is True
+    assert (
+        capture.find_first_payload("advisory_mode_detected")["advisory_intent"] is True
+    )
 
 
 def test_stream_advisory_contextual_target_uses_normalized_target_context_only(
@@ -918,7 +928,9 @@ def test_stream_advisory_contextual_target_uses_normalized_target_context_only(
     capture = _install_trace_capture(monkeypatch)
 
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+        Scenario.scenario_name.in_(
+            ("normalized_target_plan_context", "pending_approval")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
 
@@ -972,7 +984,9 @@ def test_stream_advisory_pending_state_stays_non_executive(
     capture = _install_trace_capture(monkeypatch)
 
     db_session.query(Scenario).filter(Scenario.client_id == int(client.id)).filter(
-        Scenario.scenario_name.in_(("normalized_target_plan_context", "pending_approval"))
+        Scenario.scenario_name.in_(
+            ("normalized_target_plan_context", "pending_approval")
+        )
     ).delete(synchronize_session=False)
     db_session.commit()
 

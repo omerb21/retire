@@ -1,8 +1,8 @@
 from app.schemas.llm_chat import ChatMessage
-from app.services.llm_chat.intent_classifier import ChatIntent
-from app.services.llm_chat.chat_orchestration_parts.orchestrator_impl_parts.steps_parts.runner_step_handlers import (
+from app.services.llm_chat.chat_orchestration_parts.orchestrator_impl_parts.steps_parts.runner_step_handlers import (  # noqa: E501
     _build_local_no_tool_reply,
 )
+from app.services.llm_chat.intent_classifier import ChatIntent
 
 
 def _stream_finalize_non_tool_response(
@@ -51,10 +51,7 @@ def _stream_finalize_non_tool_response(
         )
 
     advisory_override_used = False
-    if (
-        resolved_intent == ChatIntent.NO_TOOLS
-        and (not exec_only_active)
-    ):
+    if resolved_intent == ChatIntent.NO_TOOLS and (not exec_only_active):
         advisory_local_reply = _build_local_no_tool_reply(
             request=request,
             db=db,
@@ -118,14 +115,11 @@ def _stream_finalize_non_tool_response(
         final_out = sanitize_words_only_output(final_out)
 
     try:
-        if (
-            (not advisory_override_used)
-            and (
+        if (not advisory_override_used) and (
             (not exec_only_active)
             and (tools_disabled_reason in {"conceptual", "conceptual_form"})
             and ("###UI_ACTION###" not in (final_out or ""))
             and ("###END_UI_ACTION###" not in (final_out or ""))
-            )
         ):
             final_out = sanitize_words_only_conceptual(
                 final_out, original_user_msg or ""
