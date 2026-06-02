@@ -35,9 +35,11 @@ export class GrantService {
    * Create a new grant
    */
   static async createGrant(clientId: string, grantData: GrantFormData): Promise<void> {
+    const grantAmount = Number(grantData.grant_amount);
+
     // Validate required fields
     if (!grantData.employer_name || !grantData.work_start_date || !grantData.work_end_date || 
-        !grantData.grant_date || (grantData.grant_amount || 0) <= 0) {
+        !grantData.grant_date || !Number.isFinite(grantAmount) || grantAmount < 0) {
       throw new Error('יש למלא את כל השדות הנדרשים');
     }
 
@@ -55,6 +57,8 @@ export class GrantService {
         method: 'POST',
         body: JSON.stringify({
           ...grantData,
+          grant_amount: grantAmount,
+          amount: grantAmount,
           work_start_date: workStartDateISO,
           work_end_date: workEndDateISO,
           grant_date: grantDateISO

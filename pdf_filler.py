@@ -6,7 +6,7 @@
 import logging
 from pathlib import Path
 
-from pdfrw import PdfDict, PdfObject, PdfReader, PdfString, PdfWriter
+from pdfrw import PdfDict, PdfName, PdfObject, PdfReader, PdfString, PdfWriter
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +71,20 @@ def fill_acroform(template_path: Path, output_path: Path, field_data: dict) -> P
 
                     # אם יש ערך בנתונים, ממלאים את השדה
                     if clean_name in field_data:
-                        value = str(field_data[clean_name])
-                        field.V = PdfString.from_unicode(value)
+                        raw_value = field_data[clean_name]
+                        field_type = str(getattr(field, "FT", "") or "")
+
+                        if field_type == "/Btn":
+                            checked = bool(raw_value)
+                            field.V = PdfName.Yes if checked else PdfName.Off
+                            field.AS = PdfName.Yes if checked else PdfName.Off
+                            value = "Yes" if checked else "Off"
+                        else:
+                            value = str(raw_value)
+                            field.V = PdfString.from_unicode(value)
 
                         # ניקוי appearance stream כדי לאלץ יצירה מחדש
-                        if hasattr(field, "AP"):
+                        if field_type != "/Btn" and hasattr(field, "AP"):
                             field.AP = PdfDict()
 
                         filled_count += 1

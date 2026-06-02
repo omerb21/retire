@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # נתיבים לתבניות
 TEMPLATE_DIR = Path(__file__).parent.parent.parent.parent.parent / "templates"
-TEMPLATE_161D = TEMPLATE_DIR / "161d.pdf"
+TEMPLATE_161D = TEMPLATE_DIR / "161d_2026.pdf"
 PACKAGES_DIR = Path(__file__).parent.parent.parent.parent.parent / "packages"
 
 

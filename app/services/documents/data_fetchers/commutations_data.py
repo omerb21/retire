@@ -1,6 +1,4 @@
-"""
-שליפת נתוני היוונים מה-DB
-"""
+"""Fetch commutation rows for document generation."""
 
 import logging
 from typing import List
@@ -13,33 +11,28 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_commutations_data(db: Session, client_id: int) -> List[CapitalAsset]:
-    """
-    שולף נתוני היוונים פטורים ממס מה-DB
+    """Return capital assets that represent pension commutations.
 
-    Args:
-        db: סשן DB
-        client_id: מזהה לקוח
-
-    Returns:
-        List[CapitalAsset]: רשימת היוונים
+    Commutations are marked by ``COMMUTATION:`` in ``CapitalAsset.remarks``.
+    Their ``tax_treatment`` can still be ``taxable`` before fixation applies
+    the exemption, so document generation must not filter them out by tax flag.
     """
     try:
-        # שליפת היוונים מנכסי הון (asset_type = 'commutation') - רק פטורים ממס
         commutations = (
             db.query(CapitalAsset)
             .filter(
                 CapitalAsset.client_id == client_id,
-                CapitalAsset.remarks.like("%pension_fund_id=%"),
-                CapitalAsset.tax_treatment == "exempt",  # רק היוונים פטורים ממס
+                CapitalAsset.remarks.like("%COMMUTATION:%"),
             )
+            .order_by(CapitalAsset.start_date.asc(), CapitalAsset.id.asc())
             .all()
         )
 
         logger.info(
-            f"✅ Fetched {len(commutations)} exempt commutations for client {client_id}"
+            "Fetched %s commutations for client %s", len(commutations), client_id
         )
         return commutations
 
-    except Exception as e:
-        logger.error(f"❌ Error fetching commutations data: {e}", exc_info=True)
+    except Exception as exc:
+        logger.error("Error fetching commutations data: %s", exc, exc_info=True)
         return []

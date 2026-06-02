@@ -15,7 +15,7 @@ class GrantBase(BaseModel):
     work_end_date: Optional[date] = Field(None, description="תאריך סיום עבודה")
     grant_type: Optional[str] = Field(default="severance", description="סוג המענק")
     grant_date: Optional[date] = Field(None, description="תאריך המענק")
-    grant_amount: float = Field(..., description="סכום המענק", gt=0)
+    grant_amount: float = Field(..., description="סכום המענק", ge=0)
     service_years: Optional[float] = Field(None, description="שנות שירות")
     reason: Optional[str] = Field(None, description="סיבת המענק")
 
@@ -30,7 +30,7 @@ class GrantUpdate(BaseModel):
     work_end_date: Optional[date] = None
     grant_type: Optional[str] = None
     grant_date: Optional[date] = None
-    grant_amount: Optional[float] = Field(None, gt=0)
+    grant_amount: Optional[float] = Field(None, ge=0)
     service_years: Optional[float] = Field(None, ge=0)
     reason: Optional[str] = None
 
