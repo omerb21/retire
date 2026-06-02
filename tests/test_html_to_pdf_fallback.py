@@ -32,3 +32,11 @@ def test_html_to_pdf_creates_pdf_when_wkhtmltopdf_is_missing(
     assert result == pdf_path
     assert pdf_path.exists()
     assert pdf_path.read_bytes().startswith(b"%PDF")
+
+
+def test_reportlab_fallback_shapes_hebrew_for_visual_rtl_display() -> None:
+    converter_module = importlib.import_module(
+        "app.services.documents.converters.html_to_pdf"
+    )
+
+    assert converter_module._shape_text("שלום") == "םולש"

@@ -3,13 +3,40 @@
 """
 
 import logging
+import re
 import subprocess
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _attrs_to_dict(attrs: list[tuple[str, Optional[str]]]) -> dict[str, str]:
+    return {name.lower(): value or "" for name, value in attrs}
+
+
+def _extract_style_value(style: str, property_name: str) -> str | None:
+    match = re.search(
+        rf"(?:^|;)\s*{re.escape(property_name)}\s*:\s*([^;]+)",
+        style or "",
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _extract_first_css_color(css: str, selector: str, property_name: str) -> str | None:
+    match = re.search(
+        rf"{re.escape(selector)}\s*\{{(?P<body>.*?)\}}",
+        css or "",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+    return _extract_style_value(match.group("body"), property_name)
 
 
 class _DocumentHTMLParser(HTMLParser):
@@ -17,42 +44,73 @@ class _DocumentHTMLParser(HTMLParser):
         super().__init__()
         self.blocks: list[tuple[str, object]] = []
         self._text_parts: list[str] = []
-        self._table: list[list[str]] | None = None
-        self._row: list[str] | None = None
-        self._cell_parts: list[str] | None = None
-        self._in_ignored_tag = False
+        self._style_parts: list[str] = []
+        self._table: list[dict[str, Any]] | None = None
+        self._row: dict[str, Any] | None = None
+        self._cell: dict[str, Any] | None = None
+        self._in_style_tag = False
+        self._in_script_tag = False
+        self.is_rtl = False
+        self.stylesheet = ""
 
     def handle_starttag(self, tag: str, attrs) -> None:
         tag = tag.lower()
-        if tag in {"style", "script"}:
-            self._in_ignored_tag = True
+        attr_map = _attrs_to_dict(attrs)
+        if tag == "html" and attr_map.get("dir", "").lower() == "rtl":
+            self.is_rtl = True
+            return
+        if tag == "style":
+            self._in_style_tag = True
+            return
+        if tag == "script":
+            self._in_script_tag = True
             return
         if tag == "table":
             self._flush_text()
             self._table = []
             return
         if tag == "tr" and self._table is not None:
-            self._row = []
+            self._row = {
+                "cells": [],
+                "class": attr_map.get("class", ""),
+                "style": attr_map.get("style", ""),
+            }
             return
         if tag in {"td", "th"} and self._row is not None:
-            self._cell_parts = []
+            self._cell = {
+                "text_parts": [],
+                "style": attr_map.get("style", ""),
+                "is_header": tag == "th",
+            }
             return
         if tag in {"br", "hr"}:
             self._append_text("\n")
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
-        if tag in {"style", "script"}:
-            self._in_ignored_tag = False
+        if tag == "style":
+            self._in_style_tag = False
+            self.stylesheet += "\n".join(self._style_parts)
+            self._style_parts = []
             return
-        if tag in {"td", "th"} and self._cell_parts is not None:
-            cell = " ".join("".join(self._cell_parts).split())
+        if tag == "script":
+            self._in_script_tag = False
+            return
+        if tag in {"td", "th"} and self._cell is not None:
+            cell = {
+                "text": " ".join("".join(self._cell["text_parts"]).split()),
+                "style": self._cell["style"],
+                "is_header": self._cell["is_header"],
+            }
             if self._row is not None:
-                self._row.append(cell)
-            self._cell_parts = None
+                self._row["cells"].append(cell)
+            self._cell = None
             return
         if tag == "tr" and self._row is not None:
-            if any(cell for cell in self._row) and self._table is not None:
+            if (
+                any(cell.get("text") for cell in self._row["cells"])
+                and self._table is not None
+            ):
                 self._table.append(self._row)
             self._row = None
             return
@@ -65,10 +123,13 @@ class _DocumentHTMLParser(HTMLParser):
             self._flush_text()
 
     def handle_data(self, data: str) -> None:
-        if self._in_ignored_tag:
+        if self._in_style_tag:
+            self._style_parts.append(data)
             return
-        if self._cell_parts is not None:
-            self._cell_parts.append(data)
+        if self._in_script_tag:
+            return
+        if self._cell is not None:
+            self._cell["text_parts"].append(data)
             return
         if self._table is None:
             self._append_text(data)
@@ -100,6 +161,54 @@ def _parse_margin(value: str) -> float:
         return float(raw)
     except (TypeError, ValueError):
         return 28.35
+
+
+def _shape_text(value: object) -> str:
+    text = str(value or "")
+    try:
+        from bidi.algorithm import get_display
+
+        return get_display(text)
+    except Exception:
+        return text
+
+
+def _to_reportlab_color(value: str | None, default):
+    from reportlab.lib import colors
+
+    if not value:
+        return default
+    raw = value.strip().lower()
+    if raw == "white":
+        return colors.white
+    if raw == "black":
+        return colors.black
+    try:
+        return colors.HexColor(raw)
+    except Exception:
+        return default
+
+
+def _paragraph_for_cell(
+    value: object,
+    base_style,
+    *,
+    is_header: bool = False,
+    text_color=None,
+    bold: bool = False,
+):
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+
+    style = base_style
+    if is_header or text_color or bold:
+        style = ParagraphStyle(
+            f"{base_style.name}_{hash((str(value), is_header, str(text_color), bold))}",
+            parent=base_style,
+            textColor=text_color or (colors.white if is_header else colors.black),
+        )
+    return Paragraph(escape(_shape_text(value)), style)
 
 
 def _register_pdf_font() -> str:
@@ -150,6 +259,10 @@ def _html_to_pdf_reportlab(
 
     page = letter if str(page_size).lower() == "letter" else A4
     font_name = _register_pdf_font()
+    header_background = _to_reportlab_color(
+        _extract_first_css_color(parser.stylesheet, "th", "background-color"),
+        colors.HexColor("#3498db"),
+    )
 
     doc = SimpleDocTemplate(
         str(pdf_path),
@@ -173,21 +286,101 @@ def _html_to_pdf_reportlab(
 
     for block_type, value in parser.blocks:
         if block_type == "text":
-            story.append(Paragraph(escape(str(value)), base_style))
+            story.append(Paragraph(escape(_shape_text(value)), base_style))
             story.append(Spacer(1, 6))
             continue
 
         table_rows = value if isinstance(value, list) else []
         if not table_rows:
             continue
-        column_count = max(len(row) for row in table_rows)
-        normalized_rows = [
-            [
-                Paragraph(escape(str(cell)), base_style)
-                for cell in (row + [""] * (column_count - len(row)))
+        column_count = max(len(row.get("cells", [])) for row in table_rows)
+        normalized_rows = []
+        row_styles = []
+        for row_index, row in enumerate(table_rows):
+            cells = list(row.get("cells", []))
+            cells = cells + [
+                {"text": "", "style": "", "is_header": False}
+                for _ in range(column_count - len(cells))
             ]
-            for row in table_rows
-        ]
+            if parser.is_rtl:
+                cells.reverse()
+
+            row_style = row.get("style", "")
+            row_class = row.get("class", "")
+            row_color = _extract_style_value(row_style, "color")
+            is_header_row = any(cell.get("is_header") for cell in cells)
+            is_total_row = "total-row" in row_class
+
+            normalized_rows.append(
+                [
+                    _paragraph_for_cell(
+                        cell.get("text", ""),
+                        base_style,
+                        is_header=bool(cell.get("is_header")),
+                        text_color=_to_reportlab_color(
+                            _extract_style_value(cell.get("style", ""), "color")
+                            or row_color,
+                            None,
+                        ),
+                        bold=(
+                            is_total_row
+                            or "bold"
+                            in str(
+                                _extract_style_value(
+                                    cell.get("style", ""), "font-weight"
+                                )
+                                or ""
+                            ).lower()
+                        ),
+                    )
+                    for cell in cells
+                ]
+            )
+
+            row_background = _extract_style_value(row_style, "background-color")
+            if is_header_row:
+                row_styles.extend(
+                    [
+                        (
+                            "BACKGROUND",
+                            (0, row_index),
+                            (-1, row_index),
+                            header_background,
+                        ),
+                        ("TEXTCOLOR", (0, row_index), (-1, row_index), colors.white),
+                    ]
+                )
+            if is_total_row:
+                row_styles.extend(
+                    [
+                        (
+                            "BACKGROUND",
+                            (0, row_index),
+                            (-1, row_index),
+                            colors.HexColor("#ecf0f1"),
+                        ),
+                        ("FONTNAME", (0, row_index), (-1, row_index), font_name),
+                    ]
+                )
+            if row_background:
+                row_styles.append(
+                    (
+                        "BACKGROUND",
+                        (0, row_index),
+                        (-1, row_index),
+                        _to_reportlab_color(row_background, colors.white),
+                    )
+                )
+            if row_color:
+                row_styles.append(
+                    (
+                        "TEXTCOLOR",
+                        (0, row_index),
+                        (-1, row_index),
+                        _to_reportlab_color(row_color, colors.black),
+                    )
+                )
+
         table = Table(normalized_rows, repeatRows=1)
         table.setStyle(
             TableStyle(
@@ -200,6 +393,7 @@ def _html_to_pdf_reportlab(
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                     ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ]
+                + row_styles
             )
         )
         story.append(table)
