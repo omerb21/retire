@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     libpq-dev \
     fonts-dejavu-core \
+    fonts-noto-core \
+    wkhtmltopdf \
     && rm -rf /var/lib/apt/lists/*
 
 # Create and set working directory
@@ -41,6 +43,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y \
     libpq5 \
     fonts-dejavu-core \
+    fonts-noto-core \
+    wkhtmltopdf \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
