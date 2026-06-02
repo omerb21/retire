@@ -70,7 +70,9 @@ def _db_grant_to_summary(grant: Grant) -> Dict[str, Any]:
         "work_start_date": (
             grant.work_start_date.isoformat() if grant.work_start_date else None
         ),
-        "work_end_date": grant.work_end_date.isoformat() if grant.work_end_date else None,
+        "work_end_date": (
+            grant.work_end_date.isoformat() if grant.work_end_date else None
+        ),
         "grant_date": grant.grant_date.isoformat() if grant.grant_date else None,
         "grant_amount": grant_amount,
         "indexed_full": float(getattr(grant, "grant_indexed_amount", 0.0) or 0.0),
@@ -78,9 +80,7 @@ def _db_grant_to_summary(grant: Grant) -> Dict[str, Any]:
         "limited_indexed_amount": float(
             getattr(grant, "limited_indexed_amount", 0.0) or 0.0
         ),
-        "impact_on_exemption": float(
-            getattr(grant, "impact_on_exemption", 0.0) or 0.0
-        ),
+        "impact_on_exemption": float(getattr(grant, "impact_on_exemption", 0.0) or 0.0),
     }
 
 

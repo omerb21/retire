@@ -4,8 +4,8 @@
 
 import logging
 from datetime import date, datetime
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Optional
 
 from sqlalchemy.orm import Session
@@ -108,13 +108,10 @@ def _build_grant_rows(
         employer_name = grant.get("employer_name") or ""
         employer_name_normalized = str(employer_name).strip().lower()
         current_name_normalized = str(current_employer_name or "").strip().lower()
-        if (
-            employer_name_normalized
-            and (
-                employer_name_normalized == current_name_normalized
-                or "מעסיק נוכחי" in employer_name_normalized
-                or "current employer" in employer_name_normalized
-            )
+        if employer_name_normalized and (
+            employer_name_normalized == current_name_normalized
+            or "מעסיק נוכחי" in employer_name_normalized
+            or "current employer" in employer_name_normalized
         ):
             continue
         amount = _first_non_empty(

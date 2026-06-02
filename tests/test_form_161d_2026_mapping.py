@@ -2,15 +2,16 @@ from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
+from PyPDF2 import PdfReader
+
 import pdf_filler
-from app.services.documents.generators.form_161d_generator import (
-    _build_form_161d_field_data,
-)
 from app.services.documents.data_fetchers.fixation_data import (
     _merge_grants_with_db_rows,
 )
+from app.services.documents.generators.form_161d_generator import (
+    _build_form_161d_field_data,
+)
 from app.services.documents.utils.paths import TEMPLATE_161D
-from pypdf import PdfReader
 
 
 def test_form_161d_2026_field_mapping_uses_existing_fixation_sources() -> None:
