@@ -1,3 +1,11 @@
+/**
+ * @param {{
+ *   mode?: string,
+ *   htmlContent?: string,
+ *   openWindow?: (...args: any[]) => any,
+ *   alertFn?: (message: string) => void
+ * }} options
+ */
 export function renderHtmlReport({ mode = "manual", htmlContent, openWindow, alertFn } = {}) {
   if (mode === "auto") {
     return { opened: false, htmlContent: htmlContent || "" };
