@@ -3,6 +3,7 @@ import { API_BASE } from '../../../lib/api';
 import { useReportData } from '../../../components/reports/hooks/useReportData';
 import { generateYearlyProjection } from '../../../components/reports/calculations/cashflowCalculations';
 import { calculateNPVComparison } from '../../../components/reports/calculations/npvCalculations';
+import { calculateNPVBreakdown } from '../../../components/reports/calculations/npvBreakdown';
 import { generateHTMLReport } from '../utils/htmlReportGenerator';
 import { renderHtmlReport } from '../utils/htmlReportRenderer';
 
@@ -107,6 +108,10 @@ export function useReportsPage(clientId: string | undefined) {
     );
   }, [yearlyProjectionWithExemption, yearlyProjectionWithoutExemption, fixationData]);
 
+  const npvBreakdown = useMemo(() => calculateNPVBreakdown(
+    yearlyProjectionWithExemption, capitalAssets, pensionFunds.length, additionalIncomes.length, 0.03
+  ), [yearlyProjectionWithExemption, capitalAssets, pensionFunds.length, additionalIncomes.length]);
+
   const totalPensionBalance = useMemo(
     () =>
       pensionFunds.reduce(
@@ -165,7 +170,8 @@ export function useReportsPage(clientId: string | undefined) {
       npvComparison,
       totalPensionBalance,
       totalCapitalValue,
-      totalMonthlyIncome
+      totalMonthlyIncome,
+      npvBreakdown
     );
 
     return renderHtmlReport({ mode, htmlContent }).htmlContent;
@@ -180,6 +186,7 @@ export function useReportsPage(clientId: string | undefined) {
     totalPensionBalance,
     totalCapitalValue,
     totalMonthlyIncome,
+    npvBreakdown,
   ]);
 
   const handleGenerateFixationDocuments = useCallback(async () => {
@@ -225,6 +232,7 @@ export function useReportsPage(clientId: string | undefined) {
     fixationData,
     yearlyProjectionWithExemption,
     npvComparison,
+    npvBreakdown,
     totalCapitalValue,
     handleGenerateHTML,
     handleGenerateFixationDocuments,

@@ -41,7 +41,16 @@ export const generateHTMLReport = (
   npvComparison: NPVComparison | null,
   totalPensionBalance: number,
   totalCapitalValue: number,
-  totalMonthlyIncome: number
+  totalMonthlyIncome: number,
+  npvBreakdown?: {
+    recurringNpv: number;
+    projectedOneTimeNpv: number;
+    reconciliationNpv: number;
+    futureCapitalNpv: number;
+    remainingCapitalValue: number;
+    totalEconomicValue: number;
+    warnings: string[];
+  }
 ): string => {
   return `
 <!DOCTYPE html>
@@ -238,15 +247,20 @@ export const generateHTMLReport = (
   ${npvComparison ? `
   <div class="summary">
     <h2>ניתוח ערך נוכחי נקי (NPV)</h2>
-    <h3>NPV תזרים (קצבאות והכנסות)</h3>
+    <h3>NPV תזרים כולל (קצבאות, הכנסות ותקבולים חד פעמיים)</h3>
     <p><strong>עם פטור:</strong> ${formatCurrency(npvComparison.withExemption)}</p>
     <p><strong>ללא פטור:</strong> ${formatCurrency(npvComparison.withoutExemption)}</p>
     <p><strong>חיסכון מקיבוע:</strong> ${formatCurrency(npvComparison.savings)}</p>
-    ${totalCapitalValue > 0 ? `
-    <h3>ערך נוכחי נכסי הון</h3>
-    <p><strong>סך נכסי הון:</strong> ${formatCurrency(totalCapitalValue)}</p>
-    <p><strong>סה"כ ערך כולל (תזרים + נכסים):</strong> ${formatCurrency(npvComparison.withExemption + totalCapitalValue)}</p>
-    <p class="npv-note">נכסים אלו לא מופיעים בתזרים החודשי</p>
+    ${npvBreakdown ? `
+    <h3>הפרדת רכיבי הערך הנוכחי</h3>
+    <p><strong>NPV הכנסות חוזרות:</strong> ${formatCurrency(npvBreakdown.recurringNpv)}</p>
+    <p><strong>NPV תקבולים חד-פעמיים בתזרים:</strong> ${formatCurrency(npvBreakdown.projectedOneTimeNpv)}</p>
+    ${Math.abs(npvBreakdown.reconciliationNpv) > 0.01 ? `<p><strong>הפרש התאמה בין פירוט המקורות לנטו הכולל (דורש בדיקה):</strong> ${formatCurrency(npvBreakdown.reconciliationNpv)}</p>` : ''}
+    <p><strong>PV תקבולים הוניים עתידיים מחוץ לתזרים (לפני מס שלא חושב):</strong> ${formatCurrency(npvBreakdown.futureCapitalNpv)}</p>
+    <p><strong>יתרות נכסים ללא תקבול מתוזמן (ערך רשום לא מהוון):</strong> ${formatCurrency(npvBreakdown.remainingCapitalValue)}</p>
+    <p><strong>שווי משולב (בסיסי מס ושווי כמפורט):</strong> ${formatCurrency(npvBreakdown.totalEconomicValue)}</p>
+    <p class="npv-note">הנתונים כוללים בסיסי שווי ומס שונים; סיווג פטור בתרחיש אינו אישור מרשות המסים. אין לראות בשווי המשולב סכום נטו ממס.</p>
+    ${npvBreakdown.warnings.map(warning => `<p class="npv-note">${warning}</p>`).join('')}
     ` : ''}
   </div>
   ` : ''}

@@ -30,6 +30,7 @@ const ReportsPage: React.FC = () => {
     fixationData,
     yearlyProjectionWithExemption,
     npvComparison,
+    npvBreakdown,
     totalCapitalValue,
     handleGenerateHTML,
     handleGenerateFixationDocuments,
@@ -196,7 +197,7 @@ const ReportsPage: React.FC = () => {
 
       <NPVAnalysis
         npvComparison={npvComparison}
-        totalCapitalValue={totalCapitalValue}
+        npvBreakdown={npvBreakdown}
       />
 
       <IncomeDetails
