@@ -50,7 +50,7 @@ def _check_enabled_and_auth(
     if enabled != "1":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    expected_token = (os.getenv("ADMIN_DEBUG_TOKEN") or "").strip()
+    expected_token = (os.getenv("AGENT_TRACE_ADMIN_TOKEN") or "").strip()
     if expected_token:
         if not x_admin_token or x_admin_token.strip() != expected_token:
             raise HTTPException(
