@@ -32,6 +32,7 @@ def test_synthetic_current_employer_termination_does_not_create_invalid_employme
     assert restored["success"] is True
 
     from app.models.termination_event import TerminationEvent
+
     assert (
         db_session.query(TerminationEvent)
         .filter(TerminationEvent.client_id == client_id)
@@ -48,8 +49,10 @@ def test_synthetic_current_employer_termination_does_not_create_invalid_employme
 
 
 def test_real_termination_snapshot_preserves_employment_id(db_session):
-    from app.models.termination_event import TerminationEvent
     from datetime import date
+
+    from app.models.termination_event import TerminationEvent
+
     event = TerminationEvent(
         client_id=1,
         employment_id=123,
