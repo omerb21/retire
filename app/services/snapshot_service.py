@@ -922,6 +922,7 @@ class SnapshotService:
         """ממיר TerminationEvent לדיקשנרי"""
         return {
             "client_id": te.client_id,
+            "employment_id": te.employment_id,
             "planned_termination_date": (
                 te.planned_termination_date.isoformat()
                 if te.planned_termination_date
