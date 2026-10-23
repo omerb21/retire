@@ -69,16 +69,27 @@ export async function restoreSnapshotBeforeScenario(
 
     let response = await doRestore(snapshotData);
 
-    if (!response.ok) {
-      let errorMessage = `שגיאה בשחזור מצב לפני ביצוע התרחיש: ${response.status}`;
+    const readRestoreError = async (failedResponse: Response): Promise<string> => {
+      const fallback = `שגיאה בשחזור מצב לפני ביצוע התרחיש: ${failedResponse.status}`;
+      // A response body can only be consumed once. Parse JSON from the same text.
+      let body: string;
       try {
-        const errorData = await response.json();
-        errorMessage = (errorData as any).detail || errorMessage;
+        body = await failedResponse.text();
       } catch {
-        const textError = await response.text();
-        errorMessage = textError || errorMessage;
+        return fallback;
       }
+      if (!body) return fallback;
+      try {
+        const parsed = JSON.parse(body);
+        const detail = parsed?.detail;
+        return typeof detail === "string" ? detail : detail ? JSON.stringify(detail) : fallback;
+      } catch {
+        return body;
+      }
+    };
 
+    if (!response.ok) {
+      let errorMessage = await readRestoreError(response);
       const looksIncomplete =
         errorMessage.includes('snapshot נראה לא שלם') ||
         errorMessage.includes('ישוחזרו') ||
@@ -94,20 +105,15 @@ export async function restoreSnapshotBeforeScenario(
         }
 
         response = await doRestore({ ...(snapshotData as any), force_restore: true });
+        if (!response.ok) {
+          errorMessage = await readRestoreError(response);
+        }
       }
-    }
 
-    if (!response.ok) {
-      let errorMessage = `שגיאה בשחזור מצב לפני ביצוע התרחיש: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = (errorData as any).detail || errorMessage;
-      } catch {
-        const textError = await response.text();
-        errorMessage = textError || errorMessage;
+      if (!response.ok) {
+        setError(errorMessage);
+        return false;
       }
-      setError(errorMessage);
-      return false;
     }
 
     try {
