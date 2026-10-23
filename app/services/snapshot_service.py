@@ -15,6 +15,7 @@ from app.models.capital_asset import CapitalAsset
 from app.models.client import Client
 from app.models.current_employment import CurrentEmployer, EmployerGrant
 from app.models.fixation_result import FixationResult
+from app.models.employment import Employment
 from app.models.grant import Grant
 from app.models.pension_fund import PensionFund
 from app.models.termination_event import TerminationEvent
@@ -345,6 +346,30 @@ class SnapshotService:
                 "כדי למנוע מחיקה של נתונים, יש לשמור snapshot מחדש לפני שחזור."
             )
 
+        # TerminationEvent references employment.id, NOT current_employer.id.
+        # The current-employer flow may supply only a synthetic marker without
+        # employment_id; that marker is already stored in current_employer.other_grants.
+        termination_payload = data.get("termination_event")
+        linked_employment_id = (
+            termination_payload.get("employment_id")
+            if isinstance(termination_payload, dict)
+            else None
+        )
+        if linked_employment_id is not None:
+            linked_employment = (
+                self.db.query(Employment)
+                .filter(
+                    Employment.id == linked_employment_id,
+                    Employment.client_id == client_id,
+                )
+                .first()
+            )
+            if linked_employment is None:
+                raise ValueError(
+                    "לא ניתן לשחזר אירוע עזיבה: רשומת העסקה מקושרת לא נמצאה. "
+                    "השחזור בוטל ללא שינוי הנתונים."
+                )
+
         deleted_count = 0
         restored_count = 0
 
@@ -524,10 +549,10 @@ class SnapshotService:
 
             # שחזור עזיבת עבודה
             termination_data = data.get("termination_event")
-            if termination_data and employer is not None:
+            if termination_data and linked_employment_id is not None:
                 termination_data = dict(termination_data)
                 termination_data["client_id"] = client_id
-                termination_data["employment_id"] = employer.id
+                termination_data["employment_id"] = linked_employment_id
                 termination_data["planned_termination_date"] = _parse_date(
                     termination_data.get("planned_termination_date")
                 )
