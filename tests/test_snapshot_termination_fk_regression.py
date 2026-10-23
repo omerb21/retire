@@ -1,7 +1,8 @@
 """Regression coverage for snapshot restore termination foreign keys."""
 
+from datetime import date
+
 from app.models.current_employment import CurrentEmployer
-from app.models.pension_fund import PensionFund
 from app.services.snapshot_service import SnapshotService
 
 
@@ -12,7 +13,7 @@ def test_synthetic_current_employer_termination_does_not_create_invalid_employme
     employer = CurrentEmployer(
         client_id=client_id,
         employer_name="Test Employer",
-        start_date=__import__("datetime").date(2022, 1, 1),
+        start_date=date(2022, 1, 1),
         other_grants={
             "termination_confirmed": True,
             "termination_date": "2030-11-02",
