@@ -1,4 +1,4 @@
-﻿# Python caches
+# Python caches
 __pycache__/
 *.py[cod]
 
@@ -91,3 +91,11 @@ _debug_pytest_hang.py
 .pytest-tmp/
 .pytest_cache/
 
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+agent_trace_admin_token.txt
